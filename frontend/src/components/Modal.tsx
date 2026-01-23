@@ -1,0 +1,93 @@
+import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+
+interface ModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    title?: string;
+    children: React.ReactNode;
+}
+
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+    const modalRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+            document.addEventListener('keydown', handleEscape);
+        }
+
+        return () => {
+            document.body.style.overflow = 'unset';
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [isOpen, onClose]);
+
+    if (!isOpen) return null;
+
+    return createPortal(
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)'
+        }} onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+        }}>
+            <div
+                ref={modalRef}
+                style={{
+                    backgroundColor: 'var(--color-bg-primary)',
+                    borderRadius: 'var(--radius-lg)',
+                    boxShadow: 'var(--shadow-lg)',
+                    width: '90%',
+                    maxWidth: '500px',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    animation: 'fadeIn 0.2s ease-out'
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {title && (
+                    <div style={{
+                        padding: '1.25rem 1.5rem',
+                        borderBottom: '1px solid var(--color-border)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{title}</h2>
+                        <button
+                            onClick={onClose}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                fontSize: '1.5rem',
+                                color: 'var(--color-text-secondary)',
+                                cursor: 'pointer',
+                                lineHeight: 1
+                            }}
+                        >
+                            &times;
+                        </button>
+                    </div>
+                )}
+                <div style={{ padding: '1.5rem' }}>
+                    {children}
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};

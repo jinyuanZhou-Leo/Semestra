@@ -1,0 +1,5 @@
+- [ ] 1. 调整登陆页面设计，更加前卫，现代
+- [x] 2. 在Home Page, Program Page, Semester Page, Course Page, Setting Page等页面，增加一个返回按钮，点击后返回上一页
+- [x] 3. 在Home Page, Program Page, Semester Page，无法增删改查对应的对象，目前只能增加
+- [ ] 4. 调整Home Page, Program Page, Semester Page的UI，使UI对齐
+- [ ] 5. 修复问题，无法进入Semester Dashboard
