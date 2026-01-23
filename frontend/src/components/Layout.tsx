@@ -1,6 +1,7 @@
-import { Link, useNavigate } from 'react-router-dom';
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Container } from './Container';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -20,15 +21,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <header style={{
                 height: '60px',
                 borderBottom: '1px solid var(--color-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0 2rem',
                 backgroundColor: 'var(--color-bg-primary)',
             }}>
-                <Link to="/" style={{ fontWeight: 'bold', fontSize: '1.25rem', color: 'var(--color-text-primary)', textDecoration: 'none' }}>
-                    Semestra
-                </Link>
+                <Container style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Link to="/" style={{ fontWeight: 'bold', fontSize: '1.25rem', color: 'var(--color-text-primary)', textDecoration: 'none' }}>
+                        Semestra
+                    </Link>
 
                 {user && (
                     <div style={{ position: 'relative' }}>
@@ -94,6 +92,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                         {/* Click outside listener would be nice but skipping for mvp */}
                     </div>
                 )}
+                </Container>
             </header>
             <main style={{ flex: 1 }}>
                 {children}

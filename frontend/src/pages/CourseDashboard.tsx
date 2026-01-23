@@ -9,6 +9,7 @@ import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import api from '../services/api';
 import type { Course } from '../services/api';
 import { BackButton } from '../components/BackButton';
+import { Container } from '../components/Container';
 
 export const CourseDashboard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -97,44 +98,49 @@ export const CourseDashboard: React.FC = () => {
 
     return (
         <Layout>
-            <div style={{ padding: '2rem' }}>
-                <BackButton label="Back to Semester" />
-
-                <div style={{
-                    background: 'var(--color-bg-primary)',
-                    padding: '2rem',
-                    borderRadius: 'var(--radius-lg)',
-                    boxShadow: 'var(--shadow-sm)',
-                    marginBottom: '2rem',
-                    border: '1px solid var(--color-border)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                        <h1 style={{ margin: 0, fontSize: '2rem' }}>{course.name}</h1>
+            <div style={{
+                background: 'var(--gradient-hero)',
+                padding: '4rem 0',
+                color: 'var(--color-text-primary)'
+            }}>
+                <Container>
+                    <BackButton label="Back to Semester" />
+                    <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Course Dashboard</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                {course.name}
+                            </h1>
+                            <div style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.credits}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Grade</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.grade_percentage}%</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA (Scaled)</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.grade_scaled.toFixed(2)}</div>
+                                </div>
+                            </div>
+                        </div>
                         <Button
                             variant="secondary"
                             onClick={() => setIsSettingsOpen(true)}
+                            size="lg"
+                            style={{ backdropFilter: 'blur(10px)', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(0,0,0,0.05)' }}
                         >
                             Settings
                         </Button>
                     </div>
-                    <div style={{ display: 'flex', gap: '2rem' }}>
-                        <div>
-                            <div style={{ fontSize: '0.875rem', opacity: 0.8, color: 'var(--color-text-secondary)' }}>Credits</div>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.credits}</div>
-                        </div>
-                        <div>
-                            <div style={{ fontSize: '0.875rem', opacity: 0.8, color: 'var(--color-text-secondary)' }}>Grade</div>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.grade_percentage}%</div>
-                        </div>
-                        <div>
-                            <div style={{ fontSize: '0.875rem', opacity: 0.8, color: 'var(--color-text-secondary)' }}>GPA (Scaled)</div>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.grade_scaled.toFixed(2)}</div>
-                        </div>
-                    </div>
-                </div>
+                </Container>
+            </div>
 
+            <Container style={{ padding: '3rem 2rem' }}>
                 <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button onClick={() => setIsAddWidgetOpen(true)}>+ Add Widget</Button>
+                    <Button onClick={() => setIsAddWidgetOpen(true)} size="lg">+ Add Widget</Button>
                 </div>
 
                 <DashboardGrid
@@ -143,7 +149,7 @@ export const CourseDashboard: React.FC = () => {
                     onEditWidget={(w) => setEditingWidget(w)}
                     courseId={course.id}
                 />
-            </div>
+            </Container>
             {
                 course && (
                     <>

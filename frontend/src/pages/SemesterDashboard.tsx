@@ -10,6 +10,7 @@ import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import api from '../services/api';
 import type { Semester, Course, Widget } from '../services/api';
 import { BackButton } from '../components/BackButton';
+import { Container } from '../components/Container';
 
 export const SemesterDashboard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -134,28 +135,39 @@ export const SemesterDashboard: React.FC = () => {
 
     return (
         <Layout>
-            <div style={{ padding: '2rem' }}>
-                <BackButton label="Back to Program" />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                    <div>
-                        <h1 style={{ marginBottom: '0.5rem' }}>{semester.name}</h1>
-                        <p style={{ color: 'var(--color-text-secondary)' }}>
-                            GPA: {semester.average_scaled.toFixed(2)} | Avg: {semester.average_percentage.toFixed(1)}%
-                        </p>
+            <div style={{
+                background: 'var(--gradient-hero)',
+                padding: '4rem 0',
+                color: 'var(--color-text-primary)'
+            }}>
+                <Container>
+                    <BackButton label="Back to Program" />
+                    <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Semester Dashboard</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                {semester.name}
+                            </h1>
+                            <p style={{ color: 'var(--color-text-secondary)', marginTop: '0.5rem', fontSize: '1rem', opacity: 0.8 }}>
+                                GPA: {semester.average_scaled.toFixed(2)} | Avg: {semester.average_percentage.toFixed(1)}%
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <Button onClick={() => setIsSettingsOpen(true)} variant="secondary" size="lg" style={{ backdropFilter: 'blur(10px)', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(0,0,0,0.05)' }}>Settings</Button>
+                            <Button onClick={() => setIsAddWidgetOpen(true)} size="lg">+ Add Widget</Button>
+                        </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <Button onClick={() => setIsSettingsOpen(true)} variant="secondary">Settings</Button>
-                        <Button onClick={() => setIsAddWidgetOpen(true)}>+ Add Widget</Button>
-                    </div>
-                </div>
+                </Container>
+            </div>
 
+            <Container style={{ padding: '2rem' }}>
                 <DashboardGrid
                     widgets={widgets}
                     onWidgetsChange={handleWidgetUpdate}
                     onEditWidget={(w) => setEditingWidget(w)}
                     semesterId={semester.id}
                 />
-            </div>
+            </Container>
 
             {semester && (
                 <>

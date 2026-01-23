@@ -73,6 +73,13 @@ def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: i
     db.add(db_semester)
     db.commit()
     db.refresh(db_semester)
+    
+    # Create default widgets
+    create_widget(db, schemas.WidgetCreate(
+        widget_type="course-list",
+        title="Courses"
+    ), semester_id=db_semester.id)
+    
     return db_semester
 
 def update_semester(db: Session, semester_id: int, semester_update: schemas.SemesterCreate):

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Input } from '../components/Input';
+import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program } from '../services/api';
 
@@ -56,19 +57,30 @@ export const HomePage: React.FC = () => {
 
     return (
         <Layout>
-            <div style={{ padding: '2rem 3rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                    <div>
-                        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Academics</h1>
-                        <p style={{ color: 'var(--color-text-secondary)' }}>
-                            Logged in as {user?.email}
-                        </p>
+            <div style={{
+                background: 'var(--gradient-hero)',
+                padding: '4rem 0',
+                color: 'var(--color-text-primary)'
+            }}>
+                <Container>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Academic Overview</div>
+                            <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                Academics
+                            </h1>
+                            <p style={{ color: 'var(--color-text-secondary)', marginTop: '0.5rem', fontSize: '1rem', opacity: 0.8 }}>
+                                {user?.email}
+                            </p>
+                        </div>
+                        <Button onClick={() => setIsModalOpen(true)} size="lg">
+                            + New Program
+                        </Button>
                     </div>
-                    <Button onClick={() => setIsModalOpen(true)}>
-                        + New Program
-                    </Button>
-                </div>
+                </Container>
+            </div>
 
+            <Container style={{ padding: '3rem 2rem' }}>
                 {isLoading ? (
                     <div>Loading...</div>
                 ) : (
@@ -156,7 +168,7 @@ export const HomePage: React.FC = () => {
                         )}
                     </div>
                 )}
-            </div>
+            </Container>
 
             <Modal
                 isOpen={isModalOpen}

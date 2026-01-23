@@ -2,25 +2,41 @@ import React, { type ButtonHTMLAttributes } from 'react';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'primary' | 'secondary';
+    size?: 'sm' | 'md' | 'lg';
     fullWidth?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
     children,
     variant = 'primary',
+    size = 'md',
     fullWidth = false,
     style,
     ...props
 }) => {
+    const sizeStyles = {
+        sm: {
+            padding: '0.5rem 1rem',
+            fontSize: '0.875rem',
+        },
+        md: {
+            padding: '0.75rem 1.5rem',
+            fontSize: '1rem',
+        },
+        lg: {
+            padding: '1rem 2rem',
+            fontSize: '1.125rem',
+        }
+    };
+
     const baseStyle: React.CSSProperties = {
-        padding: '0.75rem 1.5rem',
         borderRadius: 'var(--radius-md)',
-        fontSize: '1rem',
         fontWeight: 600,
         border: 'none',
         cursor: 'pointer',
         transition: 'background-color 0.2s, transform 0.1s',
         width: fullWidth ? '100%' : 'auto',
+        ...sizeStyles[size],
         ...style
     };
 

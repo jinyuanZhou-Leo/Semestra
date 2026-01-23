@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { SettingsModal } from '../components/SettingsModal';
 import { Input } from '../components/Input';
+import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program, Semester } from '../services/api';
 import { BackButton } from '../components/BackButton';
@@ -94,19 +95,20 @@ export const ProgramDashboard: React.FC = () => {
         <Layout>
             <div style={{
                 background: 'var(--gradient-hero)',
-                padding: '4rem 2rem',
+                padding: '4rem 0',
                 color: 'var(--color-text-primary)'
             }}>
-                <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                <Container>
                     <BackButton to="/" label="Back to Programs" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Program Overview</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
                         <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                             {program.name}
                         </h1>
                         <Button
                             variant="secondary"
                             onClick={() => setIsSettingsOpen(true)}
+                            size="lg"
                             style={{ backdropFilter: 'blur(10px)', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(0,0,0,0.05)' }}
                         >
                             Settings
@@ -130,10 +132,10 @@ export const ProgramDashboard: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </Container>
             </div>
 
-            <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem' }}>
+            <Container style={{ padding: '3rem 2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <h2 style={{ fontSize: '1.75rem' }}>Semesters</h2>
                     <Button onClick={() => setIsModalOpen(true)}>+ New Semester</Button>
@@ -253,7 +255,7 @@ export const ProgramDashboard: React.FC = () => {
                         ))}
                     </div>
                 </div>
-            </div>
+            </Container>
 
             <Modal
                 isOpen={isModalOpen}

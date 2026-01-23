@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable';
 import { WidgetContainer } from './WidgetContainer';
 import { CourseListWidget } from './CourseListWidget';
+import { CounterWidget } from './CounterWidget';
 // Import other widgets here
 
 // Widget Schema
@@ -70,16 +71,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             case 'course-list':
                 return semesterId ? <CourseListWidget semesterId={semesterId} /> : <div>N/A for Course</div>;
             case 'counter':
-                return (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '2rem' }}>
-                        <div>{widget.settings?.value ?? 0}</div>
-                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                            <button onClick={() => {/* Handle increment logic? need widget state or generic handler? */ }}>-</button>
-                            <button>+</button>
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'gray' }}>Max: {widget.settings?.max ?? 10}</div>
-                    </div>
-                );
+                return <CounterWidget widgetId={widget.id} settings={widget.settings || {}} />;
             default:
                 return <div>Unknown Widget Type</div>;
         }
