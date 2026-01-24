@@ -40,6 +40,14 @@ def get_scaling_table(course: models.Course = None, semester: models.Semester = 
             return json.loads(program.gpa_scaling_table)
         except:
             pass
+
+    # Check User Global Default 
+    # We need to access the user. Program has owner.
+    if program and program.owner and program.owner.gpa_scaling_table:
+        try:
+            return json.loads(program.owner.gpa_scaling_table)
+        except:
+            pass
             
     return DEFAULT_SCALING_TABLE
 

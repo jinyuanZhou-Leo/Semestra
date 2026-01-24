@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { WidgetRegistry } from '../services/widgetRegistry';
 
 interface AddWidgetModalProps {
     isOpen: boolean;
@@ -8,14 +9,10 @@ interface AddWidgetModalProps {
     onAdd: (type: string, title?: string) => void;
 }
 
-const WIDGET_TYPES = [
-    { type: 'course-list', label: 'Course List', description: 'Display a list of courses in this semester.', icon: '📚' },
-    { type: 'counter', label: 'Counter', description: 'A simple tally counter for tracking attendance or tasks.', icon: '🔢' },
-    // Future widgets can be added here
-];
-
 export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose, onAdd }) => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
+
+    const widgets = WidgetRegistry.getAll();
 
     const handleAdd = () => {
         if (selectedType) {
@@ -28,7 +25,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Add Widget">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                {WIDGET_TYPES.map((widget) => (
+                {widgets.map((widget) => (
                     <div
                         key={widget.type}
                         onClick={() => setSelectedType(widget.type)}
@@ -42,7 +39,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
                         }}
                     >
                         <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{widget.icon}</div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{widget.label}</div>
+                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{widget.name}</div>
                         <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{widget.description}</div>
                     </div>
                 ))}

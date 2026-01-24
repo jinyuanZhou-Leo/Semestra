@@ -2,16 +2,17 @@ import axios from 'axios';
 
 // Interfaces matches Pydantic schemas
 export interface Program {
-    id: number;
+    id: string;
     name: string;
     cgpa_scaled: number;
     cgpa_percentage: number;
     grad_requirement_credits: number;
     gpa_scaling_table?: string;
+    hide_gpa?: boolean;
 }
 
 export interface Semester {
-    id: number;
+    id: string;
     name: string;
     average_scaled: number;
     average_percentage: number;
@@ -19,7 +20,7 @@ export interface Semester {
 }
 
 export interface Course {
-    id: number;
+    id: string;
     name: string;
     credits: number;
     grade_scaled: number;
@@ -31,7 +32,7 @@ export interface Course {
 }
 
 export interface Widget {
-    id: number;
+    id: string;
     widget_type: string;
     title: string;
     layout_config: string;
@@ -48,24 +49,24 @@ const api = {
         const response = await axios.post<Program>('/api/programs/', data);
         return response.data;
     },
-    getProgram: async (id: number) => {
+    getProgram: async (id: string) => {
         const response = await axios.get<Program & { semesters: Semester[] }>(`/api/programs/${id}`);
         return response.data;
     },
-    updateProgram: async (id: number, data: any) => {
+    updateProgram: async (id: string, data: any) => {
         const response = await axios.put<Program>(`/api/programs/${id}`, data);
         return response.data;
     },
-    deleteProgram: async (id: number) => {
+    deleteProgram: async (id: string) => {
         await axios.delete(`/api/programs/${id}`);
     },
 
     // Semesters
-    createSemester: async (programId: number, data: { name: string }) => {
+    createSemester: async (programId: string, data: { name: string }) => {
         const response = await axios.post<Semester>(`/api/programs/${programId}/semesters/`, data);
         return response.data;
     },
-    uploadSemesterICS: async (programId: number, file: File, name?: string) => {
+    uploadSemesterICS: async (programId: string, file: File, name?: string) => {
         const formData = new FormData();
         formData.append('file', file);
         if (name) {
@@ -78,52 +79,58 @@ const api = {
         });
         return response.data;
     },
-    getSemester: async (id: number) => {
+    getSemester: async (id: string) => {
         // Requires backend to return widgets in response
         const response = await axios.get<Semester & { courses: Course[], widgets: Widget[] }>(`/api/semesters/${id}`);
         return response.data;
     },
-    updateSemester: async (id: number, data: any) => {
+    updateSemester: async (id: string, data: any) => {
         const response = await axios.put<Semester>(`/api/semesters/${id}`, data);
         return response.data;
     },
-    deleteSemester: async (id: number) => {
+    deleteSemester: async (id: string) => {
         await axios.delete(`/api/semesters/${id}`);
     },
 
     // Courses
-    createCourse: async (semesterId: number, data: any) => {
+    createCourse: async (semesterId: string, data: any) => {
         const response = await axios.post<Course>(`/api/semesters/${semesterId}/courses/`, data);
         return response.data;
     },
-    getCourse: async (id: number) => {
+    getCourse: async (id: string) => {
         const response = await axios.get<Course>(`/api/courses/${id}`);
         // Note: modify backend if widgets are needed for courses later
         return response.data;
     },
-    updateCourse: async (id: number, data: any) => {
+    updateCourse: async (id: string, data: any) => {
         const response = await axios.put<Course>(`/api/courses/${id}`, data);
         return response.data;
     },
-    deleteCourse: async (id: number) => {
+    deleteCourse: async (id: string) => {
         await axios.delete(`/api/courses/${id}`);
     },
 
     // Widgets
-    createWidget: async (semesterId: number, data: { widget_type: string; title: string }) => {
+    createWidget: async (semesterId: string, data: { widget_type: string; title: string }) => {
         const response = await axios.post<Widget>(`/api/semesters/${semesterId}/widgets/`, data);
         return response.data;
     },
-    createWidgetForCourse: async (courseId: number, data: { widget_type: string; title: string }) => {
+    createWidgetForCourse: async (courseId: string, data: { widget_type: string; title: string }) => {
         const response = await axios.post<Widget>(`/api/courses/${courseId}/widgets/`, data);
         return response.data;
     },
-    updateWidget: async (widgetId: number, data: any) => {
+    updateWidget: async (widgetId: string, data: any) => {
         const response = await axios.put<Widget>(`/api/widgets/${widgetId}`, data);
         return response.data;
     },
-    deleteWidget: async (widgetId: number) => {
+    deleteWidget: async (widgetId: string) => {
         await axios.delete(`/api/widgets/${widgetId}`);
+    },
+
+    // Auth
+    updateUser: async (data: any) => {
+        const response = await axios.put<{ id: string, email: string, gpa_scaling_table?: string }>('/api/users/me', data);
+        return response.data;
     }
 };
 

@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 export const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { login } = useAuth();
@@ -23,6 +24,9 @@ export const LoginPage: React.FC = () => {
             const formData = new URLSearchParams();
             formData.append('username', email); // backend expects username for email
             formData.append('password', password);
+            if (rememberMe) {
+                formData.append('remember_me', 'true');
+            }
 
             const response = await axios.post('/api/auth/token', formData, {
                 headers: {
@@ -88,6 +92,19 @@ export const LoginPage: React.FC = () => {
                         placeholder="••••••••"
                         required
                     />
+
+                    <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+                        <input
+                            type="checkbox"
+                            id="remember_me"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            style={{ marginRight: '0.5rem' }}
+                        />
+                        <label htmlFor="remember_me" style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
+                            Remember me for 15 days
+                        </label>
+                    </div>
 
                     {error && (
                         <div style={{

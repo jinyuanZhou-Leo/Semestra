@@ -13,7 +13,7 @@ import { Container } from '../components/Container';
 
 export const CourseDashboard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const [course, setCourse] = useState<(Course & { widgets?: any[] }) | null>(null);
+    const [course, setCourse] = useState<(Course & { widgets?: any[], hide_gpa?: boolean }) | null>(null);
     const [widgets, setWidgets] = useState<WidgetItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -21,10 +21,10 @@ export const CourseDashboard: React.FC = () => {
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
 
     useEffect(() => {
-        if (id) fetchCourse(parseInt(id));
+        if (id) fetchCourse(id);
     }, [id]);
 
-    const fetchCourse = async (courseId: number) => {
+    const fetchCourse = async (courseId: string) => {
         try {
             const data = await api.getCourse(courseId);
             setCourse(data);
@@ -33,7 +33,8 @@ export const CourseDashboard: React.FC = () => {
                     id: w.id.toString(),
                     type: w.widget_type,
                     title: w.title,
-                    settings: JSON.parse(w.settings || '{}')
+                    settings: JSON.parse(w.settings || '{}'),
+                    layout: JSON.parse(w.layout_config || '{}')
                 }));
                 setWidgets(mappedWidgets);
             }
@@ -68,25 +69,46 @@ export const CourseDashboard: React.FC = () => {
         }
     };
 
-    const handleWidgetUpdate = async (newWidgets: WidgetItem[]) => {
-        // Check for deletions
-        const currentIds = new Set(newWidgets.map(w => w.id));
-        const removedWidgets = widgets.filter(w => !currentIds.has(w.id));
+    const handleLayoutChange = async (layouts: any[]) => {
+        const newWidgets = widgets.map(w => {
+            const layout = layouts.find(l => l.i === w.id);
+            if (layout) {
+                return { ...w, layout: { x: layout.x, y: layout.y, w: layout.w, h: layout.h } };
+            }
+            return w;
+        });
+        setWidgets(newWidgets);
 
-        for (const w of removedWidgets) {
+        for (const layout of layouts) {
+            const widget = widgets.find(w => w.id === layout.i);
+            if (widget) {
+                const newLayout = { x: layout.x, y: layout.y, w: layout.w, h: layout.h };
+                if (JSON.stringify(widget.layout) !== JSON.stringify(newLayout)) {
+                    try {
+                        await api.updateWidget(widget.id, { layout_config: JSON.stringify(newLayout) });
+                    } catch (error) {
+                        console.error("Failed to update widget layout", error);
+                    }
+                }
+            }
+        }
+    };
+
+    const handleRemoveWidget = async (id: string) => {
+        if (window.confirm("Are you sure you want to remove this widget?")) {
             try {
-                await api.deleteWidget(parseInt(w.id));
+                await api.deleteWidget(id);
+                fetchCourse(course!.id);
             } catch (e) {
                 console.error("Failed to delete widget", e);
             }
         }
-        setWidgets(newWidgets);
     };
 
     if (isLoading) return <Layout><div style={{ padding: '2rem' }}>Loading...</div></Layout>;
     if (!course) return <Layout><div style={{ padding: '2rem' }}>Course not found</div></Layout>;
 
-    const handleUpdateWidgetSettings = async (id: number, data: any) => {
+    const handleUpdateWidgetSettings = async (id: string, data: any) => {
         try {
             await api.updateWidget(id, data);
             if (course) fetchCourse(course.id);
@@ -118,11 +140,11 @@ export const CourseDashboard: React.FC = () => {
                                 </div>
                                 <div>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Grade</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.grade_percentage}%</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.hide_gpa ? '****' : `${course.grade_percentage}%`}</div>
                                 </div>
                                 <div>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA (Scaled)</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.grade_scaled.toFixed(2)}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.hide_gpa ? '****' : course.grade_scaled.toFixed(2)}</div>
                                 </div>
                             </div>
                         </div>
@@ -145,7 +167,8 @@ export const CourseDashboard: React.FC = () => {
 
                 <DashboardGrid
                     widgets={widgets}
-                    onWidgetsChange={handleWidgetUpdate}
+                    onLayoutChange={handleLayoutChange}
+                    onRemoveWidget={handleRemoveWidget}
                     onEditWidget={(w) => setEditingWidget(w)}
                     courseId={course.id}
                 />

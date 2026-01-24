@@ -1,128 +1,122 @@
-import React from 'react';
-import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    type DragEndEvent
-} from '@dnd-kit/core';
-import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    rectSortingStrategy
-} from '@dnd-kit/sortable';
-import { WidgetContainer } from './WidgetContainer';
-import { CourseListWidget } from './CourseListWidget';
-import { CounterWidget } from './CounterWidget';
-// Import other widgets here
+import React, { useMemo } from 'react';
+import type { Layout } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 
-// Widget Schema
+import { WidgetContainer } from './WidgetContainer';
+import { WidgetRegistry } from '../../services/widgetRegistry';
+
+import { Responsive } from 'react-grid-layout';
+import { WidthProvider } from './WidthProvider';
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
+
 export interface WidgetItem {
     id: string;
-    type: 'course-list' | 'counter';
+    type: string;
     title: string;
-    // Layout props could be here if using grid-layout
     settings?: any;
+    layout?: { x: number, y: number, w: number, h: number };
 }
 
 interface DashboardGridProps {
     widgets: WidgetItem[];
-    onWidgetsChange: (newWidgets: WidgetItem[]) => void;
+    onWidgetsChange?: (newWidgets: WidgetItem[]) => void;
+    onLayoutChange: (layouts: any) => void;
     onEditWidget?: (widget: WidgetItem) => void;
-    // Context data
-    semesterId?: number;
-    courseId?: number;
+    onRemoveWidget?: (id: string) => void;
+    semesterId?: string;
+    courseId?: string;
 }
 
 export const DashboardGrid: React.FC<DashboardGridProps> = ({
     widgets,
-    onWidgetsChange,
+    onLayoutChange,
     onEditWidget,
-    semesterId
+    onRemoveWidget,
+    semesterId,
+    courseId
 }) => {
-    // ... sensors ...
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
 
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
+    // Convert widgets to RGL layout format
+    const layouts = useMemo(() => {
+        return {
+            lg: widgets.map((w, i) => {
+                const def = WidgetRegistry.get(w.type);
+                const defaultLayout = def?.defaultLayout || { w: 4, h: 4, minW: 2, minH: 2 };
+                return {
+                    i: w.id,
+                    x: w.layout?.x ?? (i * defaultLayout.w) % 12,
+                    y: w.layout?.y ?? Math.floor(i / 3) * defaultLayout.h,
+                    w: w.layout?.w ?? defaultLayout.w,
+                    h: w.layout?.h ?? defaultLayout.h,
+                    minW: defaultLayout.minW || 2,
+                    minH: defaultLayout.minH || 2
+                };
+            })
+        };
+    }, [widgets]);
 
-        if (over && active.id !== over.id) {
-            const oldIndex = widgets.findIndex((w) => w.id === active.id);
-            const newIndex = widgets.findIndex((w) => w.id === over.id);
-
-            onWidgetsChange(arrayMove(widgets, oldIndex, newIndex));
-        }
-    };
-
-    const removeWidget = (id: string) => {
-        onWidgetsChange(widgets.filter(w => w.id !== id));
-    };
+    if (widgets.length === 0) {
+        return (
+            <div style={{
+                textAlign: 'center',
+                padding: '3rem',
+                border: '2px dashed var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+                color: 'var(--color-text-secondary)',
+                backgroundColor: 'var(--color-bg-secondary)'
+            }}>
+                <h3>No Widgets</h3>
+                <p>Click "Add Widget" to customize your dashboard.</p>
+            </div>
+        );
+    }
 
     const renderWidgetContent = (widget: WidgetItem) => {
-        switch (widget.type) {
-            case 'course-list':
-                return semesterId ? <CourseListWidget semesterId={semesterId} /> : <div>N/A for Course</div>;
-            case 'counter':
-                return <CounterWidget widgetId={widget.id} settings={widget.settings || {}} />;
-            default:
-                return <div>Unknown Widget Type</div>;
+        const WidgetComponent = WidgetRegistry.getComponent(widget.type);
+        if (!WidgetComponent) {
+            return <div>Unknown Widget Type: {widget.type}</div>;
         }
+        return (
+            <WidgetComponent
+                widgetId={widget.id}
+                settings={widget.settings || {}}
+                semesterId={semesterId}
+                courseId={courseId}
+            />
+        );
     };
 
     return (
-        <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+        <ResponsiveGridLayout
+            className="layout"
+            layouts={layouts}
+            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+            rowHeight={60}
+            onLayoutChange={(layout: Layout[]) => onLayoutChange(layout)}
+            isDraggable
+            isResizable
+            draggableHandle=".drag-handle"
         >
-            <SortableContext
-                items={widgets.map(w => w.id)}
-                strategy={rectSortingStrategy}
-            >
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-                    gap: '1.5rem',
-                    paddingBottom: '2rem',
-                    gridAutoFlow: 'dense' // Important for variable sizes
-                }}>
-                    {widgets.map((widget) => {
-                        const size = widget.settings?.size || 'medium';
-                        let gridColumn = 'span 1';
-                        let height = '400px';
+            {widgets.map((widget) => {
+                // Special case: Course List cannot be removed
+                const isRemovable = widget.type !== 'course-list';
 
-                        if (size === 'large') {
-                            gridColumn = 'span 2';
-                            height = '600px';
-                        } else if (size === 'wide') {
-                            gridColumn = 'span 2';
-                        } else if (size === 'small') {
-                            height = '200px';
-                        }
-
-                        return (
-                            <div key={widget.id} style={{ height, gridColumn }}>
-                                <WidgetContainer
-                                    id={widget.id}
-                                    title={widget.title}
-                                    onRemove={() => removeWidget(widget.id)}
-                                    onEdit={onEditWidget ? () => onEditWidget(widget) : undefined}
-                                >
-                                    {renderWidgetContent(widget)}
-                                </WidgetContainer>
-                            </div>
-                        );
-                    })}
-                </div>
-            </SortableContext>
-        </DndContext>
+                return (
+                    <div key={widget.id} style={{ border: '1px solid transparent' }}>
+                        <WidgetContainer
+                            id={widget.id}
+                            title={widget.title}
+                            onRemove={onRemoveWidget && isRemovable ? () => onRemoveWidget(widget.id) : undefined}
+                            onEdit={onEditWidget ? () => onEditWidget(widget) : undefined}
+                        >
+                            {renderWidgetContent(widget)}
+                        </WidgetContainer>
+                    </div>
+                );
+            })}
+        </ResponsiveGridLayout>
     );
 };

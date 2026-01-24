@@ -80,7 +80,7 @@ export const HomePage: React.FC = () => {
                 </Container>
             </div>
 
-            <Container style={{ padding: '3rem 2rem' }}>
+            <Container padding="3rem 2rem">
                 {isLoading ? (
                     <div>Loading...</div>
                 ) : (

@@ -16,9 +16,12 @@
   /* Primary action is often black in minimalist design */
   --color-accent-hover: #333333;
   --color-accent-text: #ffffff;
-
+  
+  --color-primary: var(--color-accent-primary);
+    /* Alias for primary color */
   /* Destructive */
   --color-danger: #ef4444;
+  --color-error: var(--color-danger);
 
   --color-border: #e6e6e6;
 
@@ -30,9 +33,11 @@
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
+  --radius-sm: 0.25rem;
 
   --gradient-hero: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
   /* Subtle light gradient */
+  --color-bg-glass: rgba(255, 255, 255, 0.6);
 }
 
 /* Dark Mode - Auto (Media Query) or Manual (data-theme) */
@@ -53,6 +58,7 @@
     --color-border: #2e2e2e;
 
     --gradient-hero: linear-gradient(135deg, #2b2b2b 0%, #1a1a1a 100%);
+    --color-bg-glass: rgba(30, 30, 30, 0.6);
   }
 }
 
@@ -72,6 +78,7 @@
   --color-border: #2e2e2e;
 
   --gradient-hero: linear-gradient(135deg, #2b2b2b 0%, #1a1a1a 100%);
+  --color-bg-glass: rgba(30, 30, 30, 0.6);
 }
 
 body {
@@ -109,4 +116,56 @@ a {
 button {
   cursor: pointer;
   font-family: inherit;
+}
+/* Key Value Table Responsive Styles */
+/* Key Value Table Responsive Styles */
+.kv-input-row {
+  display: flex;
+  align-items: flex-end;
+  /* Align to bottom so button lines up with inputs */
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  gap: 0.5rem;
+}
+
+.kv-input-key {
+  flex: 1;
+  min-width: 120px;
+}
+
+.kv-input-value {
+  flex: 1;
+  min-width: 80px;
+}
+
+.kv-input-action {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+  .kv-input-row {
+    flex-wrap: wrap;
+  }
+
+  .kv-input-key,
+  .kv-input-value {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .kv-input-action {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .kv-input-action button {
+    width: 100%;
+  }
+}
+/* Widget Grid Placeholder Override */
+.react-grid-item.react-grid-placeholder {
+  background: var(--color-bg-tertiary) !important;
+  border-radius: 0.75rem !important;
+  opacity: 0.5 !important;
 }

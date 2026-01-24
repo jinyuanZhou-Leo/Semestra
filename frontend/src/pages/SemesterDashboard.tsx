@@ -22,7 +22,7 @@ export const SemesterDashboard: React.FC = () => {
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
 
     useEffect(() => {
-        if (id) fetchSemester(parseInt(id));
+        if (id) fetchSemester(id);
     }, [id]);
 
     useEffect(() => {
@@ -31,16 +31,19 @@ export const SemesterDashboard: React.FC = () => {
             try {
                 const mappedWidgets: WidgetItem[] = (semester.widgets || []).map(w => {
                     let parsedSettings = {};
+                    let parsedLayout = undefined;
                     try {
                         parsedSettings = JSON.parse(w.settings || '{}');
+                        parsedLayout = JSON.parse(w.layout_config || '{}');
                     } catch (e) {
-                        console.warn("Failed to parse widget settings", w.id, e);
+                        console.warn("Failed to parse widget settings/layout", w.id, e);
                     }
                     return {
                         id: w.id.toString(),
                         type: w.widget_type as any,
                         title: w.title,
-                        settings: parsedSettings
+                        settings: parsedSettings,
+                        layout: parsedLayout
                     };
                 });
                 setWidgets(mappedWidgets);
@@ -50,7 +53,7 @@ export const SemesterDashboard: React.FC = () => {
         }
     }, [semester]);
 
-    const fetchSemester = async (semesterId: number) => {
+    const fetchSemester = async (semesterId: string) => {
         try {
             const data = await api.getSemester(semesterId);
             setSemester(data);
@@ -81,32 +84,16 @@ export const SemesterDashboard: React.FC = () => {
 
     // Custom remove handler passed to Grid (we need to update Grid props to accept this if not already)
     // DashboardGrid expects onWidgetsChange to handle removals too currently.
-    // Let's modify DashboardGrid to accept onRemoveWidget prop OR handle API calls here 
+    // Let's modify DashboardGrid to accept onRemoveWidget prop OR handle API calls here
     // and pass a wrapped onWidgetsChange that handles both reorder and removal?
     // Ideally: onReorder and onRemove separating concerns.
     // For now, let's just make sure DashboardGrid handles removal cleanly.
 
-    /* 
+    /*
        Update Plan:
        The DashboardGrid calls onWidgetsChange when items are removed.
        We need to intercept that to call API delete if an item is missing.
     */
-
-    const handleWidgetUpdate = async (newWidgets: WidgetItem[]) => {
-        // Check for deletions
-        const currentIds = new Set(newWidgets.map(w => w.id));
-        const removedWidgets = widgets.filter(w => !currentIds.has(w.id));
-
-        for (const w of removedWidgets) {
-            try {
-                await api.deleteWidget(parseInt(w.id));
-            } catch (e) {
-                console.error("Failed to delete widget", e);
-            }
-        }
-
-        setWidgets(newWidgets);
-    };
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
@@ -122,7 +109,7 @@ export const SemesterDashboard: React.FC = () => {
     if (isLoading) return <Layout><div style={{ padding: '2rem' }}>Loading...</div></Layout>;
     if (!semester) return <Layout><div style={{ padding: '2rem' }}>Semester not found</div></Layout>;
 
-    const handleUpdateWidgetSettings = async (id: number, data: any) => {
+    const handleUpdateWidgetSettings = async (id: string, data: any) => {
         try {
             await api.updateWidget(id, data);
             if (semester) fetchSemester(semester.id);
@@ -132,6 +119,50 @@ export const SemesterDashboard: React.FC = () => {
         }
     };
 
+
+    const handleLayoutChange = async (layouts: any[]) => {
+        // layouts is array of {i, x, y, w, h}
+        // We need to update local state and backend.
+        // For performance, maybe we should debounce this if RGL fires it often during resize?
+        // RGL fires onDragStop/onResizeStop mainly if we hook there, but onLayoutChange fires on every change committed.
+
+        // Update local widgets logic was here but unused.
+        // setWidgets(newWidgets); // RGL uses its own layout prop if controlled, or internal if not. 
+        // We passed generated layouts to RGL. modifying widgets changes the prop, which updates RGL.
+
+        // Save to backend
+        // This could be heavy if done for every pixel. 
+        // But RGL onLayoutChange usually happens on drop value.
+
+        // Batch update? API should support batch update or we loop.
+        // Looping for now.
+        for (const layout of layouts) {
+            // Only update if changed?
+            const widget = widgets.find(w => w.id === layout.i);
+            if (widget) {
+                const newLayout = { x: layout.x, y: layout.y, w: layout.w, h: layout.h };
+                if (JSON.stringify(widget.layout) !== JSON.stringify(newLayout)) {
+                    // Update backend
+                    try {
+                        await api.updateWidget(widget.id, { layout_config: JSON.stringify(newLayout) });
+                    } catch (error) {
+                        console.error("Failed to update widget layout", error);
+                    }
+                }
+            }
+        }
+    };
+
+    const handleRemoveWidget = async (id: string) => {
+        if (window.confirm("Are you sure you want to remove this widget?")) {
+            try {
+                await api.deleteWidget(id);
+                fetchSemester(semester!.id);
+            } catch (e) {
+                console.error("Failed to delete widget", e);
+            }
+        }
+    };
 
     return (
         <Layout>
@@ -160,10 +191,11 @@ export const SemesterDashboard: React.FC = () => {
                 </Container>
             </div>
 
-            <Container style={{ padding: '2rem' }}>
+            <Container padding="3rem 2rem">
                 <DashboardGrid
                     widgets={widgets}
-                    onWidgetsChange={handleWidgetUpdate}
+                    onLayoutChange={handleLayoutChange}
+                    onRemoveWidget={handleRemoveWidget}
                     onEditWidget={(w) => setEditingWidget(w)}
                     semesterId={semester.id}
                 />

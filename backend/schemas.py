@@ -17,9 +17,14 @@ class UserCreate(UserBase):
     password: str
 
 class User(UserBase):
-    id: int
+    id: str
+    is_active: bool = True
+    gpa_scaling_table: Optional[str] = None
     class Config:
         from_attributes = True
+
+class UserUpdate(BaseModel):
+    gpa_scaling_table: Optional[str] = None
 
 # --- Widget Schemas ---
 class WidgetBase(BaseModel):
@@ -32,11 +37,17 @@ class WidgetCreate(WidgetBase):
     pass
 
 class Widget(WidgetBase):
-    id: int
-    semester_id: Optional[int] = None
-    course_id: Optional[int] = None
+    id: str
+    semester_id: Optional[str] = None
+    course_id: Optional[str] = None
     class Config:
         from_attributes = True
+
+class WidgetUpdate(BaseModel):
+    widget_type: Optional[str] = None
+    title: Optional[str] = None
+    layout_config: Optional[str] = None
+    settings: Optional[str] = None
 
 # --- Course Schemas ---
 class CourseBase(BaseModel):
@@ -52,8 +63,8 @@ class CourseCreate(CourseBase):
     pass
 
 class Course(CourseBase):
-    id: int
-    semester_id: int
+    id: str
+    semester_id: str
     class Config:
         from_attributes = True
 
@@ -72,8 +83,8 @@ class SemesterCreate(SemesterBase):
     pass
 
 class Semester(SemesterBase):
-    id: int
-    program_id: int
+    id: str
+    program_id: str
     class Config:
         from_attributes = True
 
@@ -89,13 +100,14 @@ class ProgramBase(BaseModel):
     cgpa_percentage: float = 0.0
     gpa_scaling_table: Optional[str] = None
     grad_requirement_credits: float = 0.0
+    hide_gpa: bool = False
 
 class ProgramCreate(ProgramBase):
     pass
 
 class Program(ProgramBase):
-    id: int
-    owner_id: int
+    id: str
+    owner_id: str
     class Config:
         from_attributes = True
 

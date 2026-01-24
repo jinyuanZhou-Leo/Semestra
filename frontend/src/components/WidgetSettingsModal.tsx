@@ -7,7 +7,7 @@ interface WidgetSettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
     widget: any;
-    onSave: (id: number, data: any) => Promise<void>;
+    onSave: (id: string, data: any) => Promise<void>;
 }
 
 export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({

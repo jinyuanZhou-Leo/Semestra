@@ -1,21 +1,17 @@
 import React, { useState } from 'react';
-import { Button } from '../Button';
-import api from '../../services/api';
+import { Button } from '../components/Button';
+import api from '../services/api';
+import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 
-interface CounterWidgetProps {
-    widgetId: string;
-    settings: { value?: number };
-}
-
-export const CounterWidget: React.FC<CounterWidgetProps> = ({ widgetId, settings }) => {
-    const [count, setCount] = useState(settings.value || 0);
+export const CounterWidget: React.FC<WidgetProps> = ({ widgetId, settings }) => {
+    const [count, setCount] = useState(settings?.value || 0);
     const [isSaving, setIsSaving] = useState(false);
 
     const updateCount = async (newCount: number) => {
         setCount(newCount);
         setIsSaving(true);
         try {
-            await api.updateWidget(parseInt(widgetId), {
+            await api.updateWidget(widgetId, {
                 settings: JSON.stringify({ ...settings, value: newCount })
             });
         } catch (error) {
@@ -42,4 +38,14 @@ export const CounterWidget: React.FC<CounterWidgetProps> = ({ widgetId, settings
             {isSaving && <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>Saving...</div>}
         </div>
     );
+};
+
+export const CounterWidgetDefinition: WidgetDefinition = {
+    type: 'counter',
+    name: 'Counter',
+    description: 'A simple tally counter for tracking attendance or tasks.',
+    icon: '🔢',
+    component: CounterWidget,
+    defaultSettings: { value: 0 },
+    defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 }
 };

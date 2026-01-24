@@ -12,7 +12,7 @@ import { BackButton } from '../components/BackButton';
 
 export const ProgramDashboard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const [program, setProgram] = useState<Program & { semesters: Semester[] } | null>(null);
+    const [program, setProgram] = useState<(Program & { semesters: Semester[] }) | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     // Modal State
@@ -26,10 +26,10 @@ export const ProgramDashboard: React.FC = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     useEffect(() => {
-        if (id) fetchProgram(parseInt(id));
+        if (id) fetchProgram(id);
     }, [id]);
 
-    const fetchProgram = async (programId: number) => {
+    const fetchProgram = async (programId: string) => {
         try {
             const data = await api.getProgram(programId);
             setProgram(data);
@@ -116,15 +116,50 @@ export const ProgramDashboard: React.FC = () => {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.6)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
-                            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>CGPA (Scaled)</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--color-primary)' }}>{program.cgpa_scaled.toFixed(2)}</div>
+                        <div style={{ background: 'var(--color-bg-glass)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                CGPA (Scaled)
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleUpdateProgram({ hide_gpa: !program.hide_gpa });
+                                    }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: 'var(--color-text-secondary)',
+                                        padding: 0,
+                                        display: 'flex',
+                                        alignItems: 'center'
+                                    }}
+                                    title={program.hide_gpa ? "Show GPA" : "Hide GPA"}
+                                >
+                                    {program.hide_gpa ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--color-primary)' }}>
+                                {program.hide_gpa ? '****' : program.cgpa_scaled.toFixed(2)}
+                            </div>
                         </div>
-                        <div style={{ background: 'rgba(255,255,255,0.6)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                        <div style={{ background: 'var(--color-bg-glass)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
                             <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Average (%)</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>{program.cgpa_percentage.toFixed(1)}<span style={{ fontSize: '1.5rem', color: 'var(--color-text-secondary)' }}>%</span></div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>
+                                {program.hide_gpa ? '****' : program.cgpa_percentage.toFixed(1)}
+                                {!program.hide_gpa && <span style={{ fontSize: '1.5rem', color: 'var(--color-text-secondary)' }}>%</span>}
+                            </div>
                         </div>
-                        <div style={{ background: 'rgba(255,255,255,0.6)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                        <div style={{ background: 'var(--color-bg-glass)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
                             <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Credits Progress</div>
                             <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>
                                 {program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
@@ -135,7 +170,7 @@ export const ProgramDashboard: React.FC = () => {
                 </Container>
             </div>
 
-            <Container style={{ padding: '3rem 2rem' }}>
+            <Container padding="3rem 2rem">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <h2 style={{ fontSize: '1.75rem' }}>Semesters</h2>
                     <Button onClick={() => setIsModalOpen(true)}>+ New Semester</Button>
@@ -345,7 +380,8 @@ export const ProgramDashboard: React.FC = () => {
                     initialName={program.name}
                     initialSettings={{
                         grad_requirement_credits: program.grad_requirement_credits,
-                        gpa_scaling_table: program.gpa_scaling_table
+                        gpa_scaling_table: program.gpa_scaling_table,
+                        hide_gpa: program.hide_gpa
                     }}
                     onSave={handleUpdateProgram}
                     type="program"

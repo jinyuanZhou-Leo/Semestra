@@ -1,57 +1,40 @@
 import React from 'react';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 interface WidgetContainerProps {
-    id: string; // Unique ID for DnD
+    id: string; // Unique ID
     children: React.ReactNode;
     onRemove?: () => void;
     onEdit?: () => void;
     title?: string;
 }
 
-export const WidgetContainer: React.FC<WidgetContainerProps> = ({ id, children, onRemove, onEdit, title }) => {
-    // ... useSortable ...
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({ id });
-
+export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, title }) => {
     const style: React.CSSProperties = {
-        transform: CSS.Transform.toString(transform),
-        transition,
         backgroundColor: 'var(--color-bg-primary)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm)',
+        borderRadius: '0.75rem', // Increased radius
+        boxShadow: 'var(--shadow-sm)',
         border: '1px solid var(--color-border)',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
-        opacity: isDragging ? 0.8 : 1,
-        zIndex: isDragging ? 100 : 'auto',
     };
 
     return (
-        <div ref={setNodeRef} style={style}>
+        <div style={style}>
             {/* Header / Drag Handle */}
             <div
-                {...attributes}
-                {...listeners}
+                className="drag-handle"
                 style={{
-                    padding: '0.75rem 1rem',
+                    padding: '0.4rem 1rem', // Reduced padding for smaller height
                     borderBottom: '1px solid var(--color-border)',
                     cursor: 'grab',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     backgroundColor: 'var(--color-bg-tertiary)',
-                    borderTopLeftRadius: 'var(--radius-lg)',
-                    borderTopRightRadius: 'var(--radius-lg)',
+                    borderTopLeftRadius: '0.75rem', // Matched increased radius
+                    borderTopRightRadius: '0.75rem', // Matched increased radius
                     userSelect: 'none'
                 }}
             >

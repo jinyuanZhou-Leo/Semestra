@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { Input } from './Input';
 import { Button } from './Button';
+import { GPAScalingTable } from './GPAScalingTable';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -65,6 +66,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         // Backend expects 'grad_requirement_credits' for Program, 'credits' for Course
         if (type === 'program') {
             data.grad_requirement_credits = parseFloat(extraSettings.grad_requirement_credits || 0);
+            data.hide_gpa = extraSettings.hide_gpa;
         } else if (type === 'course') {
             data.credits = parseFloat(extraSettings.credits || 0);
             data.include_in_gpa = extraSettings.include_in_gpa;
@@ -88,14 +90,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 />
 
                 {type === 'program' && (
-                    <Input
-                        label="Graduation Requirement (Credits)"
-                        type="number"
-                        step="0.5"
-                        value={extraSettings.grad_requirement_credits || ''}
-                        onChange={e => setExtraSettings({ ...extraSettings, grad_requirement_credits: e.target.value })}
-                        required
-                    />
+                    <>
+                        <Input
+                            label="Graduation Requirement (Credits)"
+                            type="number"
+                            step="0.5"
+                            value={extraSettings.grad_requirement_credits || ''}
+                            onChange={e => setExtraSettings({ ...extraSettings, grad_requirement_credits: e.target.value })}
+                            required
+                        />
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={extraSettings.hide_gpa ?? false}
+                                    onChange={e => setExtraSettings({ ...extraSettings, hide_gpa: e.target.checked })}
+                                />
+                                Hide GPA Info
+                            </label>
+                        </div>
+                    </>
                 )}
 
                 {type === 'course' && (
@@ -132,27 +146,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div style={{ marginBottom: '1rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-                        GPA Scaling Table (JSON)
+                        GPA Scaling Table
                     </label>
-                    <textarea
+                    <GPAScalingTable
                         value={gpaTableJson}
-                        onChange={e => {
-                            setGpaTableJson(e.target.value);
+                        onChange={(newValue) => {
+                            setGpaTableJson(newValue);
                             setJsonError('');
-                        }}
-                        style={{
-                            width: '100%',
-                            height: '100px',
-                            padding: '0.75rem',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--color-border)',
-                            fontFamily: 'monospace'
                         }}
                     />
                     {jsonError && <div style={{ color: 'red', fontSize: '0.8rem', marginTop: '0.25rem' }}>{jsonError}</div>}
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-                        Example: {`{"85-100": 4.0, "80-84": 3.7}`}
-                    </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>

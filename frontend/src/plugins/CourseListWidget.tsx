@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button } from '../Button';
-import { Modal } from '../Modal';
-import { Input } from '../Input';
-import api from '../../services/api';
-import type { Course } from '../../services/api';
+import { Button } from '../components/Button';
+import { Modal } from '../components/Modal';
+import { Input } from '../components/Input';
+import api from '../services/api';
+import type { Course } from '../services/api';
+import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 
-interface CourseListWidgetProps {
-    semesterId: number;
-}
-
-export const CourseListWidget: React.FC<CourseListWidgetProps> = ({ semesterId }) => {
+export const CourseListWidget: React.FC<WidgetProps> = ({ semesterId }) => {
     const [courses, setCourses] = useState<Course[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newCourseName, setNewCourseName] = useState('');
@@ -18,17 +15,20 @@ export const CourseListWidget: React.FC<CourseListWidgetProps> = ({ semesterId }
     const [newCourseGrade, setNewCourseGrade] = useState('0');
 
     useEffect(() => {
-        fetchCourses();
+        if (semesterId) {
+            fetchCourses();
+        }
     }, [semesterId]);
 
     const fetchCourses = async () => {
-        // Current API for getSemester includes courses
+        if (!semesterId) return;
         const data = await api.getSemester(semesterId);
         if (data.courses) setCourses(data.courses);
     };
 
     const handleCreateCourse = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!semesterId) return;
         try {
             await api.createCourse(semesterId, {
                 name: newCourseName,
@@ -45,6 +45,10 @@ export const CourseListWidget: React.FC<CourseListWidgetProps> = ({ semesterId }
             console.error("Failed to create course", error);
         }
     };
+
+    if (!semesterId) {
+        return <div>Course List requires a semester context.</div>;
+    }
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -128,4 +132,13 @@ export const CourseListWidget: React.FC<CourseListWidgetProps> = ({ semesterId }
             </Modal>
         </div>
     );
+};
+
+export const CourseListWidgetDefinition: WidgetDefinition = {
+    type: 'course-list',
+    name: 'Course List',
+    description: 'Display a list of courses in this semester.',
+    icon: '📚',
+    component: CourseListWidget,
+    defaultLayout: { w: 6, h: 8, minW: 4, minH: 4 }
 };

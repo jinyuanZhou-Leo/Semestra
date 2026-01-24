@@ -1,3 +1,0 @@
-- [ ] 4. 调整Home Page, Program Page, Semester Page的UI，使UI对齐
-- [ ] 5. 修复Widget的问题，Widget无法呈现
-- [ ] 6. 编写测试，测试前端

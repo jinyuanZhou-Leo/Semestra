@@ -74,9 +74,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                     Settings
                                 </div>
                                 <div
-                                    onClick={() => {
-                                        // Handle Logout here or just link to settings where logout is? 
-                                        // The settings page has logout.
+                                        onClick={() => {
                                         navigate('/settings');
                                     }}
                                     style={{
@@ -87,6 +85,20 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                 >
                                     Profile
                                 </div>
+                                    <div
+                                        onClick={() => {
+                                            localStorage.removeItem('token');
+                                            window.location.href = '/login';
+                                        }}
+                                        style={{
+                                            padding: '0.75rem 1rem',
+                                            cursor: 'pointer',
+                                            color: 'var(--color-error)',
+                                            borderTop: '1px solid var(--color-border)'
+                                        }}
+                                    >
+                                        Sign out
+                                    </div>
                             </div>
                         )}
                         {/* Click outside listener would be nice but skipping for mvp */}

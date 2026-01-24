@@ -35,6 +35,7 @@ export const Button: React.FC<ButtonProps> = ({
         border: 'none',
         cursor: 'pointer',
         transition: 'background-color 0.2s, transform 0.1s',
+        userSelect: 'none',
         width: fullWidth ? '100%' : 'auto',
         ...sizeStyles[size],
         ...style
