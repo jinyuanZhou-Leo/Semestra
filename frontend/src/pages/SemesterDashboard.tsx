@@ -179,9 +179,20 @@ export const SemesterDashboard: React.FC = () => {
                             <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                                 {semester.name}
                             </h1>
-                            <p className="noselect" style={{ color: 'var(--color-text-secondary)', marginTop: '0.5rem', fontSize: '1rem', opacity: 0.8 }}>
-                                GPA: {semester.average_scaled.toFixed(2)} | Avg: {semester.average_percentage.toFixed(1)}%
-                            </p>
+                            <div className="noselect" style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Avg</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.average_percentage.toFixed(1)}%</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.average_scaled.toFixed(2)}</div>
+                                </div>
+                            </div>
                         </div>
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             <Button
