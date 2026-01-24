@@ -9,6 +9,8 @@ import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program } from '../services/api';
 
+import { useHeroGradient } from '../hooks/useHeroGradient';
+
 export const HomePage: React.FC = () => {
     const { user } = useAuth();
     const [programs, setPrograms] = useState<Program[]>([]);
@@ -19,6 +21,9 @@ export const HomePage: React.FC = () => {
     const [newProgramName, setNewProgramName] = useState('');
     const [newProgramCredits, setNewProgramCredits] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Physics-based lighting
+    const heroStyle = useHeroGradient();
 
     useEffect(() => {
         fetchPrograms();
@@ -58,7 +63,7 @@ export const HomePage: React.FC = () => {
     return (
         <Layout>
             <div style={{
-                background: 'var(--gradient-hero)',
+                ...heroStyle,
                 padding: '4rem 0',
                 color: 'var(--color-text-primary)'
             }}>
@@ -73,7 +78,12 @@ export const HomePage: React.FC = () => {
                                 {user?.email}
                             </p>
                         </div>
-                        <Button onClick={() => setIsModalOpen(true)} size="lg">
+                        <Button
+                            onClick={() => setIsModalOpen(true)}
+                            size="lg"
+                            variant="glass"
+                            shape="rounded"
+                        >
                             + New Program
                         </Button>
                     </div>
@@ -115,6 +125,7 @@ export const HomePage: React.FC = () => {
                                         <button
                                             onClick={(e) => {
                                                 e.preventDefault();
+                                                e.stopPropagation();
                                                 if (window.confirm('Are you sure you want to delete this program?')) {
                                                     api.deleteProgram(program.id).then(fetchPrograms).catch(err => console.error("Failed to delete", err));
                                                 }

@@ -6,6 +6,8 @@ import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { motion } from 'framer-motion';
 
+import { useHeroGradient } from '../hooks/useHeroGradient';
+
 export const RegisterPage: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -14,6 +16,9 @@ export const RegisterPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+
+    // Physics-based lighting
+    const heroStyle = useHeroGradient();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -59,7 +64,7 @@ export const RegisterPage: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'var(--gradient-hero)',
+            ...heroStyle,
             padding: '1rem'
         }}>
             <motion.div

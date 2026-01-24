@@ -122,7 +122,7 @@ export const CourseDashboard: React.FC = () => {
         <Layout>
             <div style={{
                 background: 'var(--gradient-hero)',
-                padding: '4rem 0',
+                padding: '2rem 0',
                 color: 'var(--color-text-primary)'
             }}>
                 <Container>
@@ -130,10 +130,10 @@ export const CourseDashboard: React.FC = () => {
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Course Dashboard</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            <h1 className="noselect" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                                 {course.name}
                             </h1>
-                            <div style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
+                            <div className="noselect" style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
                                 <div>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.credits}</div>
@@ -148,22 +148,27 @@ export const CourseDashboard: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <Button
-                            variant="secondary"
-                            onClick={() => setIsSettingsOpen(true)}
-                            size="lg"
-                            style={{ backdropFilter: 'blur(10px)', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(0,0,0,0.05)' }}
-                        >
-                            Settings
-                        </Button>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <Button
+                                variant="glass"
+                                onClick={() => setIsSettingsOpen(true)}
+                                size="md"
+                                shape="circle"
+                                title="Course Settings"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                </svg>
+                            </Button>
+                            <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
+                        </div>
                     </div>
                 </Container>
             </div>
 
             <Container style={{ padding: '3rem 2rem' }}>
-                <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button onClick={() => setIsAddWidgetOpen(true)} size="lg">+ Add Widget</Button>
-                </div>
+
 
                 <DashboardGrid
                     widgets={widgets}

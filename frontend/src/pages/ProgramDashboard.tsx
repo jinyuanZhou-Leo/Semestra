@@ -9,6 +9,7 @@ import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program, Semester } from '../services/api';
 import { BackButton } from '../components/BackButton';
+import { useHeroGradient } from '../hooks/useHeroGradient';
 
 export const ProgramDashboard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -24,6 +25,8 @@ export const ProgramDashboard: React.FC = () => {
 
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    const heroStyle = useHeroGradient();
 
     useEffect(() => {
         if (id) fetchProgram(id);
@@ -94,7 +97,7 @@ export const ProgramDashboard: React.FC = () => {
     return (
         <Layout>
             <div style={{
-                background: 'var(--gradient-hero)',
+                ...heroStyle,
                 padding: '4rem 0',
                 color: 'var(--color-text-primary)'
             }}>
@@ -102,21 +105,25 @@ export const ProgramDashboard: React.FC = () => {
                     <BackButton to="/" label="Back to Programs" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Program Overview</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
-                        <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        <h1 className="noselect" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                             {program.name}
                         </h1>
                         <Button
-                            variant="secondary"
+                            variant="glass"
+                            shape="circle"
                             onClick={() => setIsSettingsOpen(true)}
-                            size="lg"
-                            style={{ backdropFilter: 'blur(10px)', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(0,0,0,0.05)' }}
+                            size="md"
+                            title="Program Settings"
                         >
-                            Settings
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
                         </Button>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
-                        <div style={{ background: 'var(--color-bg-glass)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                        <div className="noselect" style={{ background: 'var(--color-bg-glass)', backdropFilter: 'blur(12px)', padding: '1.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid rgba(0,0,0,0.05)' }}>
                             <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 CGPA (Scaled)
                                 <button
@@ -152,14 +159,14 @@ export const ProgramDashboard: React.FC = () => {
                                 {program.hide_gpa ? '****' : program.cgpa_scaled.toFixed(2)}
                             </div>
                         </div>
-                        <div style={{ background: 'var(--color-bg-glass)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                        <div className="noselect" style={{ background: 'var(--color-bg-glass)', backdropFilter: 'blur(12px)', padding: '1.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid rgba(0,0,0,0.05)' }}>
                             <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Average (%)</div>
                             <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>
                                 {program.hide_gpa ? '****' : program.cgpa_percentage.toFixed(1)}
                                 {!program.hide_gpa && <span style={{ fontSize: '1.5rem', color: 'var(--color-text-secondary)' }}>%</span>}
                             </div>
                         </div>
-                        <div style={{ background: 'var(--color-bg-glass)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                        <div className="noselect" style={{ background: 'var(--color-bg-glass)', backdropFilter: 'blur(12px)', padding: '1.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid rgba(0,0,0,0.05)' }}>
                             <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Credits Progress</div>
                             <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>
                                 {program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
@@ -184,7 +191,7 @@ export const ProgramDashboard: React.FC = () => {
                 }}>
                     {program.semesters.map(semester => (
                         <Link key={semester.id} to={`/semesters/${semester.id}`}>
-                            <div style={{
+                            <div className="noselect" style={{
                                 padding: '2rem',
                                 borderRadius: 'var(--radius-lg)',
                                 backgroundColor: 'var(--color-bg-primary)',

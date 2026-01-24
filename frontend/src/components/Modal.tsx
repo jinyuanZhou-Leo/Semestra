@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ModalProps {
     isOpen: boolean;
@@ -13,7 +14,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
 
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
+            if (isOpen && e.key === 'Escape') onClose();
         };
 
         if (isOpen) {
@@ -27,67 +28,79 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         };
     }, [isOpen, onClose]);
 
-    if (!isOpen) return null;
-
     return createPortal(
-        <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-            backdropFilter: 'blur(4px)'
-        }} onClick={(e) => {
-            if (e.target === e.currentTarget) onClose();
-        }}>
-            <div
-                ref={modalRef}
-                style={{
-                    backgroundColor: 'var(--color-bg-primary)',
-                    borderRadius: 'var(--radius-lg)',
-                    boxShadow: 'var(--shadow-lg)',
-                    width: '90%',
-                    maxWidth: '500px',
-                    maxHeight: '90vh',
-                    overflowY: 'auto',
-                    animation: 'fadeIn 0.2s ease-out'
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                {title && (
-                    <div style={{
-                        padding: '1.25rem 1.5rem',
-                        borderBottom: '1px solid var(--color-border)',
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
                         display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{title}</h2>
-                        <button
-                            onClick={onClose}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                fontSize: '1.5rem',
-                                color: 'var(--color-text-secondary)',
-                                cursor: 'pointer',
-                                lineHeight: 1
-                            }}
-                        >
-                            &times;
-                        </button>
-                    </div>
-                )}
-                <div style={{ padding: '1.5rem' }}>
-                    {children}
-                </div>
-            </div>
-        </div>,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 1000,
+                        backdropFilter: 'blur(4px)'
+                    }}
+                    onClick={(e: React.MouseEvent) => {
+                        if (e.target === e.currentTarget) onClose();
+                    }}
+                >
+                    <motion.div
+                        ref={modalRef}
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        style={{
+                            backgroundColor: 'var(--color-bg-primary)',
+                            borderRadius: 'var(--radius-lg)',
+                            boxShadow: 'var(--shadow-lg)',
+                            width: '90%',
+                            maxWidth: '500px',
+                            maxHeight: '90vh',
+                            overflowY: 'auto'
+                        }}
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                    >
+                        {title && (
+                            <div style={{
+                                padding: '1.25rem 1.5rem',
+                                borderBottom: '1px solid var(--color-border)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                            }}>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{title}</h2>
+                                <button
+                                    onClick={onClose}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        fontSize: '1.5rem',
+                                        color: 'var(--color-text-secondary)',
+                                        cursor: 'pointer',
+                                        lineHeight: 1
+                                    }}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        )}
+                        <div style={{ padding: '1.5rem' }}>
+                            {children}
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>,
         document.body
     );
 };

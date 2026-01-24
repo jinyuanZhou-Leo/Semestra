@@ -105,6 +105,14 @@ class ProgramBase(BaseModel):
 class ProgramCreate(ProgramBase):
     pass
 
+class ProgramUpdate(BaseModel):
+    name: Optional[str] = None
+    cgpa_scaled: Optional[float] = None
+    cgpa_percentage: Optional[float] = None
+    gpa_scaling_table: Optional[str] = None
+    grad_requirement_credits: Optional[float] = None
+    hide_gpa: Optional[bool] = None
+
 class Program(ProgramBase):
     id: str
     owner_id: str

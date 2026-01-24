@@ -82,7 +82,7 @@ def read_program(program_id: str, db: Session = Depends(get_db), current_user: m
     return program
 
 @app.put("/programs/{program_id}", response_model=schemas.Program)
-def update_program(program_id: str, program: schemas.ProgramCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def update_program(program_id: str, program: schemas.ProgramUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     db_program = crud.update_program(db, program_id=program_id, program_update=program, user_id=current_user.id)
     if not db_program:
         raise HTTPException(status_code=404, detail="Program not found")

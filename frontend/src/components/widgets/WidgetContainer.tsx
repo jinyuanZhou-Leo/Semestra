@@ -24,7 +24,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRe
         <div style={style}>
             {/* Header / Drag Handle */}
             <div
-                className="drag-handle"
+                className="drag-handle noselect"
                 style={{
                     padding: '0.4rem 1rem', // Reduced padding for smaller height
                     borderBottom: '1px solid var(--color-border)',
@@ -35,7 +35,6 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRe
                     backgroundColor: 'var(--color-bg-tertiary)',
                     borderTopLeftRadius: '0.75rem', // Matched increased radius
                     borderTopRightRadius: '0.75rem', // Matched increased radius
-                    userSelect: 'none'
                 }}
             >
                 <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{title || 'Widget'}</span>
@@ -44,13 +43,10 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRe
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-
-                                // Call onEdit but we need to ensure we don't trigger drag?
-                                // onMouseDown/up propagation might be an issue for dnd-kit handles.
-                                // But onClick happens after.
                                 onEdit();
                             }}
-                            onPointerDown={e => e.stopPropagation()} // Important for dnd-kit to not grab
+                            onPointerDown={e => e.stopPropagation()}
+                            onMouseDown={e => e.stopPropagation()}
                             style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', fontSize: '1rem' }}
                         >
                             ⚙️
@@ -63,6 +59,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRe
                                 onRemove();
                             }}
                             onPointerDown={e => e.stopPropagation()}
+                            onMouseDown={e => e.stopPropagation()}
                             style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', fontSize: '1.2rem', lineHeight: 1 }}
                         >
                             &times;

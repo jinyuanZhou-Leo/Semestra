@@ -17,7 +17,6 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
     onSave
 }) => {
     const [title, setTitle] = useState(widget?.title || '');
-    const [size, setSize] = useState(widget?.settings?.size || 'medium');
     const [min, setMin] = useState(widget?.settings?.min || 0);
     const [max, setMax] = useState(widget?.settings?.max || 10);
 
@@ -25,7 +24,6 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
     React.useEffect(() => {
         if (widget) {
             setTitle(widget.title);
-            setSize(widget.settings?.size || 'medium');
             if (widget.type === 'counter') {
                 setMin(widget.settings?.min ?? 0);
                 setMax(widget.settings?.max ?? 10);
@@ -38,7 +36,6 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
 
         const newSettings = {
             ...widget.settings,
-            size: size,
             ...(widget.type === 'counter' ? { min, max } : {})
         };
 
@@ -58,27 +55,6 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
                     onChange={e => setTitle(e.target.value)}
                     required
                 />
-
-                <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Size</label>
-                    <select
-                        value={size}
-                        onChange={e => setSize(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--color-border)',
-                            backgroundColor: 'var(--color-bg-primary)',
-                            color: 'var(--color-text-primary)'
-                        }}
-                    >
-                        <option value="small">Small (1x1)</option>
-                        <option value="medium">Medium (Fit Content)</option>
-                        <option value="large">Large (2x2)</option>
-                        <option value="wide">Wide (2x1)</option>
-                    </select>
-                </div>
 
                 {widget?.type === 'counter' && (
                     <div style={{ display: 'flex', gap: '1rem' }}>

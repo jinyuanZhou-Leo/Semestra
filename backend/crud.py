@@ -53,11 +53,11 @@ def create_program(db: Session, program: schemas.ProgramCreate, user_id: str):
 def get_program(db: Session, program_id: str, user_id: str):
     return db.query(models.Program).filter(models.Program.id == program_id, models.Program.owner_id == user_id).first()
 
-def update_program(db: Session, program_id: str, program_update: schemas.ProgramCreate, user_id: str):
+def update_program(db: Session, program_id: str, program_update: schemas.ProgramUpdate, user_id: str):
     db_program = db.query(models.Program).filter(models.Program.id == program_id, models.Program.owner_id == user_id).first()
     if not db_program:
         return None
-    for key, value in program_update.dict().items():
+    for key, value in program_update.dict(exclude_unset=True).items():
         setattr(db_program, key, value)
     db.add(db_program)
     db.commit()

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { Input } from './Input';
 import { Button } from './Button';
+import { Checkbox } from './Checkbox';
 import { GPAScalingTable } from './GPAScalingTable';
 
 interface SettingsModalProps {
@@ -100,14 +101,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             required
                         />
                         <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={extraSettings.hide_gpa ?? false}
-                                    onChange={e => setExtraSettings({ ...extraSettings, hide_gpa: e.target.checked })}
-                                />
-                                Hide GPA Info
-                            </label>
+                            <Checkbox
+                                checked={extraSettings.hide_gpa ?? false}
+                                onChange={checked => setExtraSettings({ ...extraSettings, hide_gpa: checked })}
+                                label="Hide GPA Info"
+                            />
                         </div>
                     </>
                 )}
@@ -123,23 +121,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             required
                         />
                         <div style={{ marginBottom: '1rem', display: 'flex', gap: '1.5rem' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={extraSettings.include_in_gpa ?? true}
-                                    onChange={e => setExtraSettings({ ...extraSettings, include_in_gpa: e.target.checked })}
-                                />
-                                Include in GPA
-                            </label>
+                            <Checkbox
+                                checked={extraSettings.include_in_gpa ?? true}
+                                onChange={checked => setExtraSettings({ ...extraSettings, include_in_gpa: checked })}
+                                label="Include in GPA"
+                            />
 
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={extraSettings.hide_gpa ?? false}
-                                    onChange={e => setExtraSettings({ ...extraSettings, hide_gpa: e.target.checked })}
-                                />
-                                Hide GPA Info
-                            </label>
+                            <Checkbox
+                                checked={extraSettings.hide_gpa ?? false}
+                                onChange={checked => setExtraSettings({ ...extraSettings, hide_gpa: checked })}
+                                label="Hide GPA Info"
+                            />
                         </div>
                     </>
                 )}
