@@ -23,8 +23,8 @@ export const Checkbox: React.FC<CheckboxProps> = ({ checked, onChange, label, di
                 <motion.div
                     initial={false}
                     animate={{
-                        backgroundColor: checked ? 'var(--color-accent-primary)' : 'transparent',
-                        borderColor: checked ? 'var(--color-accent-primary)' : 'var(--color-border)',
+                        backgroundColor: checked ? 'var(--color-accent-primary)' : 'rgba(128, 128, 128, 0.1)', // Light translucent bg when unchecked
+                        borderColor: checked ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)', // Stronger border contrast
                         scale: checked ? 1 : 1
                     }}
                     transition={{ duration: 0.2 }}
@@ -41,12 +41,12 @@ export const Checkbox: React.FC<CheckboxProps> = ({ checked, onChange, label, di
                         justifyContent: 'center'
                     }}
                 >
-                     {/* Checkmark */}
+                    {/* Checkmark */}
                     <motion.svg
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="var(--color-accent-text)"
-                        strokeWidth="3"
+                        stroke={checked ? "var(--color-accent-text)" : "transparent"} // Explicit conditional stroke color for clarity
+                        strokeWidth="3.5" // Slightly thicker
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         initial={false}
