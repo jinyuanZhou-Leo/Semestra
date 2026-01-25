@@ -75,7 +75,7 @@ export const HomePage: React.FC = () => {
                                 Academics
                             </h1>
                             <p style={{ color: 'var(--color-text-secondary)', marginTop: '0.5rem', fontSize: '1rem', opacity: 0.8 }}>
-                                {user?.email}
+                                Welcome back, {user?.nickname || user?.email}
                             </p>
                         </div>
                         <Button

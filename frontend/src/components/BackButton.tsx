@@ -4,12 +4,18 @@ import { useNavigate } from 'react-router-dom';
 interface BackButtonProps {
     to?: string; // Optional custom path, otherwise go back
     label?: string;
+    onClick?: (e: React.MouseEvent) => void;
 }
 
-export const BackButton: React.FC<BackButtonProps> = ({ to, label = 'Back' }) => {
+export const BackButton: React.FC<BackButtonProps> = ({ to, label = 'Back', onClick }) => {
     const navigate = useNavigate();
 
-    const handleClick = () => {
+    const handleClick = (e: React.MouseEvent) => {
+        if (onClick) {
+            onClick(e);
+            return;
+        }
+
         if (to) {
             navigate(to);
         } else {

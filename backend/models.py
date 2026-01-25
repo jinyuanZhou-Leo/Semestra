@@ -11,6 +11,7 @@ class User(Base):
     
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     email = Column(String, unique=True, index=True)
+    nickname = Column(String, nullable=True)
     hashed_password = Column(String)
     gpa_scaling_table = Column(Text, nullable=True)
     

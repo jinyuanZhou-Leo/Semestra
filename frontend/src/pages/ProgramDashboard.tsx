@@ -22,6 +22,35 @@ export const ProgramDashboard: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [creationMethod, setCreationMethod] = useState<'manual' | 'upload'>('manual');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (file.name.endsWith('.ics') || file.type === 'text/calendar') {
+                setSelectedFile(file);
+                // Auto-fill name from filename
+                const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
+                setNewSemesterName(name);
+            } else {
+                alert('Please upload a valid .ics file');
+            }
+        }
+    };
 
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -350,24 +379,57 @@ export const ProgramDashboard: React.FC = () => {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{
-                                border: '2px dashed var(--color-border)',
+                                    border: `2px dashed ${isDragging ? 'var(--color-primary)' : 'var(--color-border)'}`,
                                 borderRadius: 'var(--radius-md)',
                                 padding: '2rem',
                                 textAlign: 'center',
                                 cursor: 'pointer',
-                                background: 'var(--color-bg-primary)'
+                                    background: isDragging ? 'rgba(var(--color-primary-rgb), 0.05)' : 'var(--color-bg-primary)',
+                                    transition: 'all 0.2s ease',
+                                    transform: isDragging ? 'scale(1.02)' : 'scale(1)'
                             }}
                                 onClick={() => document.getElementById('ics-upload')?.click()}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
                             >
                                 <input
                                     type="file"
                                     id="ics-upload"
                                     accept=".ics"
                                     style={{ display: 'none' }}
-                                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                setSelectedFile(file);
+                                                const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
+                                                setNewSemesterName(name);
+                                            }
+                                        }}
                                 />
                                 <div style={{ marginBottom: '0.5rem' }}>
-                                    {selectedFile ? selectedFile.name : 'Click to select .ics file'}
+                                        {selectedFile ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--color-primary)' }}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                                                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                                                </svg>
+                                                {selectedFile.name}
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div style={{ marginBottom: '0.5rem' }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)' }}>
+                                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                                                    </svg>
+                                                </div>
+                                                <div>Click or drag .ics file here</div>
+                                            </>
+                                        )}
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                                     Supports standard calendar export files

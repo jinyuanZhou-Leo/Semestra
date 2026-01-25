@@ -5,6 +5,7 @@ import { SessionExpiredModal } from '../components/SessionExpiredModal';
 interface User {
     id: number;
     email: string;
+    nickname?: string;
 }
 
 interface AuthContextType {

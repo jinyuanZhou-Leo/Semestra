@@ -16,7 +16,7 @@ export const useHeroGradient = () => {
             var(--gradient-hero)
         `,
         backgroundSize: '200% 200%, 200% 200%, 200% 200%, 100% 100%',
-        animation: 'aurora-flow 20s ease infinite',
+        animation: 'aurora-flow 10s ease infinite',
         borderBottom: '1px solid var(--color-border)',
     };
 };

@@ -128,7 +128,7 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
                         placeholder={keyPlaceholder}
                         value={newKey}
                         onChange={e => setNewKey(e.target.value)}
-                        style={{ marginBottom: 0 }}
+                        wrapperStyle={{ marginBottom: 0 }}
                         label={keyLabel}
                         type={keyType}
                     />
@@ -140,7 +140,7 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
                         onChange={e => setNewValue(e.target.value)}
                         type={valueType}
                         step={valueStep}
-                        style={{ marginBottom: 0 }}
+                        wrapperStyle={{ marginBottom: 0 }}
                     />
                 </div>
                 <div className="kv-input-action">

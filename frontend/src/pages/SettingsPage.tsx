@@ -9,6 +9,7 @@ import { BackButton } from '../components/BackButton';
 import api from '../services/api';
 import { useEffect } from 'react';
 
+
 export const SettingsPage: React.FC = () => {
     const { user, logout, refreshUser } = useAuth();
     const navigate = useNavigate();
@@ -20,19 +21,45 @@ export const SettingsPage: React.FC = () => {
 
     // Global Defaults State
     const [gpaTableJson, setGpaTableJson] = useState('{}');
+    const [nickname, setNickname] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+
+    // Dirty checking
+    const [initialState, setInitialState] = useState<{ nickname: string, gpaTableJson: string } | null>(null);
+    const [isDirty, setIsDirty] = useState(false);
 
     useEffect(() => {
-        if (user && (user as any).gpa_scaling_table) {
-            setGpaTableJson((user as any).gpa_scaling_table);
-        } else {
-            setGpaTableJson('{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}');
+        if (user) {
+            const initialGpa = (user as any).gpa_scaling_table || '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}';
+            const initialNick = user.nickname || '';
+
+            setGpaTableJson(initialGpa);
+            setNickname(initialNick);
+            setInitialState({ nickname: initialNick, gpaTableJson: initialGpa });
         }
     }, [user]);
 
-    const handleSaveDefaults = async () => {
-        // Validation is now handled by the component logic for input, 
-        // but we can parse here to be safe before sending.
+    useEffect(() => {
+        if (initialState) {
+            const hasChanged = nickname !== initialState.nickname || gpaTableJson !== initialState.gpaTableJson;
+            setIsDirty(hasChanged);
+        }
+    }, [nickname, gpaTableJson, initialState]);
+
+    // Warn on browser refresh/close
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isDirty]);
+
+    const handleSaveDefaults = async (e: React.MouseEvent<HTMLButtonElement>) => {
         try {
             JSON.parse(gpaTableJson);
         } catch (e) {
@@ -42,14 +69,38 @@ export const SettingsPage: React.FC = () => {
 
         setIsSaving(true);
         try {
-            await api.updateUser({ gpa_scaling_table: gpaTableJson });
+            await api.updateUser({
+                gpa_scaling_table: gpaTableJson,
+                nickname: nickname
+            });
             await refreshUser();
-            alert('Settings saved successfully');
+
+            // Update initial state to new saved state
+            setInitialState({ nickname, gpaTableJson });
+            setIsDirty(false); // Clear dirty flag immediately
+
+            // Show static success message
+            setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 3000);
         } catch (error) {
             console.error("Failed to save settings", error);
             alert('Failed to save settings');
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    // Manual Back Handler
+    const handleBack = (e: React.MouseEvent) => {
+        if (isDirty) {
+            e.preventDefault();
+            if (window.confirm("You have unsaved changes. Are you sure you want to leave?")) {
+                navigate(-1);
+            }
+        } else {
+            // Default behavior handles standard navigation if I used a link, but for BackButton component
+            // If I just pass a custom onClick, I can manually navigate.
+            navigate(-1);
         }
     };
 
@@ -71,7 +122,7 @@ export const SettingsPage: React.FC = () => {
     return (
         <Layout>
             <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-                <BackButton to="/" label="Back to Home" />
+                <BackButton label="Back to Home" onClick={handleBack} />
                 <h1 style={{ marginBottom: '2rem' }}>Settings</h1>
 
                 <section style={{ marginBottom: '3rem' }}>
@@ -107,7 +158,7 @@ export const SettingsPage: React.FC = () => {
                                 height: '64px',
                                 borderRadius: '50%',
                                 background: 'var(--color-primary)',
-                                color: 'white',
+                                color: 'var(--color-accent-text)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -116,15 +167,32 @@ export const SettingsPage: React.FC = () => {
                             }}>
                                 {user?.email?.charAt(0).toUpperCase() || 'U'}
                             </div>
+
                             <div>
-                                <h3 style={{ fontSize: '1.2rem' }}>{user?.email}</h3>
-                                <span style={{
-                                    padding: '0.25rem 0.5rem',
-                                    background: 'var(--color-bg-secondary)',
-                                    borderRadius: '4px',
-                                    fontSize: '0.8rem',
-                                    color: 'var(--color-text-secondary)'
-                                }}>Basic Plan</span>
+                                <h3 style={{ fontSize: '1.2rem' }}>{user?.nickname || user?.email}</h3>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', margin: 0 }}>{user?.email}</p>
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                                Nickname
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                    type="text"
+                                    value={nickname}
+                                    onChange={(e) => setNickname(e.target.value)}
+                                    placeholder="Enter a nickname"
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.5rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: '1px solid var(--color-border)',
+                                        background: 'var(--color-bg-secondary)',
+                                        color: 'var(--color-text-primary)'
+                                    }}
+                                />
                             </div>
                         </div>
                     </div>
@@ -155,9 +223,31 @@ export const SettingsPage: React.FC = () => {
                         />
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <Button onClick={handleSaveDefaults} disabled={isSaving}>
-                            {isSaving ? 'Saving...' : 'Save Defaults'}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem' }}>
+                        {showSuccess && (
+                            <span style={{
+                                color: 'var(--color-success, #22c55e)',
+                                fontSize: '0.9rem',
+                                fontWeight: 500,
+                                animation: 'fadeIn 0.3s ease-in-out'
+                            }}>
+                                <style>
+                                    {`
+                                        @keyframes fadeIn {
+                                            from { opacity: 0; transform: translateX(10px); }
+                                            to { opacity: 1; transform: translateX(0); }
+                                        }
+                                    `}
+                                </style>
+                                Saved successfully
+                            </span>
+                        )}
+                        <Button
+                            onClick={handleSaveDefaults}
+                            disabled={isSaving}
+                            style={{ minWidth: '140px' }} // Fix width to prevent jump
+                        >
+                            {isSaving ? 'Saving...' : 'Save Settings'}
                         </Button>
                     </div>
                 </section>

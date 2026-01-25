@@ -13,11 +13,14 @@ export const calculateGPA = (percentage: number, scalingTableJson: string | unde
             const cleanRange = range.trim();
 
             // Handle "90-100"
+            // Handle "90-100" or "100-90"
             if (cleanRange.includes('-')) {
                 const parts = cleanRange.split('-').map(s => parseFloat(s.trim()));
                 if (parts.length === 2) {
-                    const [min, max] = parts;
-                    if (!isNaN(min) && !isNaN(max)) {
+                    const [v1, v2] = parts;
+                    if (!isNaN(v1) && !isNaN(v2)) {
+                        const min = Math.min(v1, v2);
+                        const max = Math.max(v1, v2);
                         if (percentage >= min && percentage <= max) {
                             return gpa;
                         }
