@@ -5,6 +5,11 @@ export interface WidgetProps {
     settings: any;
     semesterId?: string;
     courseId?: string;
+    updateSettings: (newSettings: any) => Promise<void>;
+    setIsSaving: (isSaving: boolean) => void;
+    title?: string;
+    pluginName?: string;
+    updateCourseField?: (field: string, value: any) => void;
 }
 
 export interface WidgetDefinition {

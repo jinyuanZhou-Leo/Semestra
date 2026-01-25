@@ -1,41 +1,38 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { CounterWidget } from '../../../plugins/CounterWidget';
-import api from '../../../services/api';
 import { vi, describe, it, expect } from 'vitest';
 
-vi.mock('../../../services/api', () => ({
-    default: {
-        updateWidget: vi.fn().mockResolvedValue({}),
-    }
-}));
-
 describe('CounterWidget', () => {
+    const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
+    const mockSetIsSaving = vi.fn();
+
     it('renders initial value', () => {
-        render(<CounterWidget widgetId="1" settings={{ value: 5 }} />);
+        render(<CounterWidget widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} setIsSaving={mockSetIsSaving} />);
         expect(screen.getByText('5')).toBeInTheDocument();
     });
 
-    it('increments value and calls api', async () => {
-        render(<CounterWidget widgetId="1" settings={{ value: 5 }} />);
+    it('increments value and calls updateSettings', async () => {
+        render(<CounterWidget widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} setIsSaving={mockSetIsSaving} />);
         const incrementBtn = screen.getByText('+');
         fireEvent.click(incrementBtn);
 
-        await waitFor(() => {
-            expect(screen.getByText('6')).toBeInTheDocument();
-        });
+        // Optimistic update might not happen in the component anymore as it relies on props change?
+        // Wait, in my implementation of CounterWidget:
+        // const updateCount = async (newCount: number) => { await updateSettings({ ...settings, value: newCount }); };
+        // It DOES NOT update local state 'count' anymore. 'count' comes from props 'settings'.
+        // So the test 'expect(screen.getByText('6')).toBeInTheDocument()' WILL FAIL unless I re-render with new props,
+        // or if the test setup handles it.
+        // But here I'm testing the component in isolation.
+        // So I should only check if updateSettings is called.
 
-        expect(api.updateWidget).toHaveBeenCalledWith("1", expect.objectContaining({
-            settings: JSON.stringify({ value: 6 })
-        }));
+        expect(mockUpdateSettings).toHaveBeenCalledWith(expect.objectContaining({ value: 6 }));
     });
 
     it('decrements value', async () => {
-        render(<CounterWidget widgetId="1" settings={{ value: 5 }} />);
+        render(<CounterWidget widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} setIsSaving={mockSetIsSaving} />);
         const decrementBtn = screen.getByText('-');
         fireEvent.click(decrementBtn);
 
-        await waitFor(() => {
-            expect(screen.getByText('4')).toBeInTheDocument();
-        });
+        expect(mockUpdateSettings).toHaveBeenCalledWith(expect.objectContaining({ value: 4 }));
     });
 });

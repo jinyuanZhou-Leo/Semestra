@@ -90,7 +90,21 @@ export const ProgramDashboard: React.FC = () => {
     }
 
     if (!program) {
-        return <Layout><div style={{ padding: '2rem' }}>Program not found</div></Layout>;
+        return (
+            <Layout>
+                <Container>
+                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>Program not found</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
+                            The program you are looking for does not exist or has been deleted.
+                        </p>
+                        <Link to="/">
+                            <Button>Back to Home</Button>
+                        </Link>
+                    </div>
+                </Container>
+            </Layout>
+        );
     }
 
 

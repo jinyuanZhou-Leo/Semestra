@@ -2,11 +2,12 @@ import React, { type InputHTMLAttributes } from 'react';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
     label?: string;
+    wrapperStyle?: React.CSSProperties;
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, style, ...props }, ref) => {
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, style, wrapperStyle, ...props }, ref) => {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem', ...wrapperStyle }}>
             {label && (
                 <label style={{
                     fontSize: '0.875rem',

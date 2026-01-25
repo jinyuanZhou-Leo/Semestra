@@ -90,7 +90,8 @@ def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: s
     # Create default widgets
     create_widget(db, schemas.WidgetCreate(
         widget_type="course-list",
-        title="Courses"
+        title="Courses",
+        is_removable=False
     ), semester_id=db_semester.id)
     
     return db_semester
@@ -138,12 +139,12 @@ def create_course(db: Session, course: schemas.CourseCreate, semester_id: str):
     
     return db_course
 
-def update_course(db: Session, course_id: str, course_update: schemas.CourseCreate):
+def update_course(db: Session, course_id: str, course_update: schemas.CourseUpdate):
     db_course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if not db_course:
         return None
     
-    for key, value in course_update.dict().items():
+    for key, value in course_update.dict(exclude_unset=True).items():
         setattr(db_course, key, value)
     
     db.add(db_course)

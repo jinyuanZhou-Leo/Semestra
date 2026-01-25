@@ -37,6 +37,7 @@ export interface Widget {
     title: string;
     layout_config: string;
     settings: string;
+    is_removable?: boolean;
 }
 
 const api = {

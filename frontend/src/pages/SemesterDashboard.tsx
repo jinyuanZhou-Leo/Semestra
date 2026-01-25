@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
 import { SettingsModal } from '../components/SettingsModal';
@@ -107,7 +107,23 @@ export const SemesterDashboard: React.FC = () => {
     };
 
     if (isLoading) return <Layout><div style={{ padding: '2rem' }}>Loading...</div></Layout>;
-    if (!semester) return <Layout><div style={{ padding: '2rem' }}>Semester not found</div></Layout>;
+    if (!semester) {
+        return (
+            <Layout>
+                <Container>
+                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>Semester not found</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
+                            The semester you are looking for does not exist or has been deleted.
+                        </p>
+                        <Link to="/">
+                            <Button>Back to Home</Button>
+                        </Link>
+                    </div>
+                </Container>
+            </Layout>
+        );
+    }
 
     const handleUpdateWidgetSettings = async (id: string, data: any) => {
         try {
@@ -116,6 +132,29 @@ export const SemesterDashboard: React.FC = () => {
         } catch (error) {
             console.error("Failed to update widget", error);
             alert("Failed to update widget");
+        }
+    };
+
+    const handleOptimisticUpdateWidget = async (id: string, data: any) => {
+        // 1. Optimistic update
+        setWidgets(prevWidgets => prevWidgets.map(w => {
+            if (w.id === id) {
+                if (data.settings) {
+                    const newSettings = JSON.parse(data.settings);
+                    return { ...w, settings: newSettings };
+                }
+                return { ...w, ...data };
+            }
+            return w;
+        }));
+
+        // 2. API call
+        try {
+            await api.updateWidget(id, data);
+        } catch (error) {
+            console.error("Failed to update widget optimistically", error);
+            alert("Failed to save changes. Please refresh.");
+            if (semester) fetchSemester(semester.id);
         }
     };
 
@@ -219,6 +258,7 @@ export const SemesterDashboard: React.FC = () => {
                     onLayoutChange={handleLayoutChange}
                     onRemoveWidget={handleRemoveWidget}
                     onEditWidget={(w) => setEditingWidget(w)}
+                    onUpdateWidget={handleOptimisticUpdateWidget}
                     semesterId={semester.id}
                 />
             </Container>

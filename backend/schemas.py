@@ -32,6 +32,7 @@ class WidgetBase(BaseModel):
     title: str
     layout_config: str = "{}"
     settings: str = "{}"
+    is_removable: bool = True
 
 class WidgetCreate(WidgetBase):
     pass
@@ -61,6 +62,15 @@ class CourseBase(BaseModel):
 
 class CourseCreate(CourseBase):
     pass
+
+class CourseUpdate(BaseModel):
+    name: Optional[str] = None
+    credits: Optional[float] = None
+    grade_percentage: Optional[float] = None
+    grade_scaled: Optional[float] = None
+    gpa_scaling_table: Optional[str] = None
+    include_in_gpa: Optional[bool] = None
+    hide_gpa: Optional[bool] = None
 
 class Course(CourseBase):
     id: str

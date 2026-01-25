@@ -1,24 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '../components/Button';
-import api from '../services/api';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 
-export const CounterWidget: React.FC<WidgetProps> = ({ widgetId, settings }) => {
-    const [count, setCount] = useState(settings?.value || 0);
-    const [isSaving, setIsSaving] = useState(false);
+export const CounterWidget: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
+    // We can still keep local state for immediate feedback if we want super-fast response before parent updates,
+    // but the parent's optimistic update should be fast enough.
+    // However, keeping it controlled by props is cleaner.
+    const count = settings?.value || 0;
 
     const updateCount = async (newCount: number) => {
-        setCount(newCount);
-        setIsSaving(true);
-        try {
-            await api.updateWidget(widgetId, {
-                settings: JSON.stringify({ ...settings, value: newCount })
-            });
-        } catch (error) {
-            console.error("Failed to save counter", error);
-        } finally {
-            setIsSaving(false);
-        }
+        // Optimistic UI handled by parent, we just call updateSettings
+        await updateSettings({ ...settings, value: newCount });
     };
 
     return (
@@ -35,7 +27,6 @@ export const CounterWidget: React.FC<WidgetProps> = ({ widgetId, settings }) => 
                 <Button onClick={() => updateCount(count - 1)} variant="secondary">-</Button>
                 <Button onClick={() => updateCount(count + 1)}>+</Button>
             </div>
-            {isSaving && <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>Saving...</div>}
         </div>
     );
 };

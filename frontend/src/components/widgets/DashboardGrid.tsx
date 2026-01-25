@@ -3,7 +3,7 @@ import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-import { WidgetContainer } from './WidgetContainer';
+import { DashboardWidgetWrapper } from './DashboardWidgetWrapper';
 import { WidgetRegistry } from '../../services/widgetRegistry';
 
 import { Responsive } from 'react-grid-layout';
@@ -17,6 +17,7 @@ export interface WidgetItem {
     title: string;
     settings?: any;
     layout?: { x: number, y: number, w: number, h: number };
+    is_removable?: boolean;
 }
 
 interface DashboardGridProps {
@@ -25,8 +26,10 @@ interface DashboardGridProps {
     onLayoutChange: (layouts: any) => void;
     onEditWidget?: (widget: WidgetItem) => void;
     onRemoveWidget?: (id: string) => void;
+    onUpdateWidget?: (id: string, newSettings: any) => Promise<void>;
     semesterId?: string;
     courseId?: string;
+    updateCourseField?: (field: string, value: any) => void;
 }
 
 export const DashboardGrid: React.FC<DashboardGridProps> = ({
@@ -34,8 +37,10 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     onLayoutChange,
     onEditWidget,
     onRemoveWidget,
+    onUpdateWidget,
     semesterId,
-    courseId
+    courseId,
+    updateCourseField
 }) => {
 
     // Convert widgets to RGL layout format
@@ -73,21 +78,6 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
         );
     }
 
-    const renderWidgetContent = (widget: WidgetItem) => {
-        const WidgetComponent = WidgetRegistry.getComponent(widget.type);
-        if (!WidgetComponent) {
-            return <div>Unknown Widget Type: {widget.type}</div>;
-        }
-        return (
-            <WidgetComponent
-                widgetId={widget.id}
-                settings={widget.settings || {}}
-                semesterId={semesterId}
-                courseId={courseId}
-            />
-        );
-    };
-
     return (
         <ResponsiveGridLayout
             className="layout"
@@ -99,21 +89,24 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             isDraggable
             isResizable
             draggableHandle=".drag-handle"
+            draggableCancel=".nodrag"
         >
-            {widgets.map((widget) => {
-                // Special case: Course List cannot be removed
-                const isRemovable = widget.type !== 'course-list';
+            {widgets.map((widget, index) => {
+                // Default to true if undefined
+                const isRemovable = widget.is_removable !== false;
 
                 return (
                     <div key={widget.id} style={{ border: '1px solid transparent' }}>
-                        <WidgetContainer
-                            id={widget.id}
-                            title={widget.title}
-                            onRemove={onRemoveWidget && isRemovable ? () => onRemoveWidget(widget.id) : undefined}
-                            onEdit={onEditWidget ? () => onEditWidget(widget) : undefined}
-                        >
-                            {renderWidgetContent(widget)}
-                        </WidgetContainer>
+                        <DashboardWidgetWrapper
+                            widget={widget}
+                            index={index}
+                            onRemove={onRemoveWidget && isRemovable ? onRemoveWidget : undefined}
+                            onEdit={onEditWidget}
+                            onUpdateWidget={onUpdateWidget || (async () => { })}
+                            semesterId={semesterId}
+                            courseId={courseId}
+                            updateCourseField={updateCourseField}
+                        />
                     </div>
                 );
             })}

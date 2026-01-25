@@ -82,6 +82,7 @@ class Widget(Base):
     
     # Data/Settings
     settings = Column(Text, default="{}") # JSON: {min, max, value...}
+    is_removable = Column(Boolean, default=True)
     
     # Parent Context (Polymorphic-ish, or just optional FKs)
     semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)

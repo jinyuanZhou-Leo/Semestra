@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
 import { SettingsModal } from '../components/SettingsModal';
@@ -7,49 +7,36 @@ import { AddWidgetModal } from '../components/AddWidgetModal';
 import { DashboardGrid, type WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import api from '../services/api';
-import type { Course } from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
+import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext';
 
-export const CourseDashboard: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
-    const [course, setCourse] = useState<(Course & { widgets?: any[], hide_gpa?: boolean }) | null>(null);
+// Inner component that uses the context
+const CourseDashboardContent: React.FC = () => {
+    const { course, updateCourseField, refreshCourse, isLoading } = useCourseData();
     const [widgets, setWidgets] = useState<WidgetItem[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
 
     useEffect(() => {
-        if (id) fetchCourse(id);
-    }, [id]);
-
-    const fetchCourse = async (courseId: string) => {
-        try {
-            const data = await api.getCourse(courseId);
-            setCourse(data);
-            if (data.widgets) {
-                const mappedWidgets: WidgetItem[] = data.widgets.map((w: any) => ({
-                    id: w.id.toString(),
-                    type: w.widget_type,
-                    title: w.title,
-                    settings: JSON.parse(w.settings || '{}'),
-                    layout: JSON.parse(w.layout_config || '{}')
-                }));
-                setWidgets(mappedWidgets);
-            }
-        } catch (error) {
-            console.error("Failed to fetch course", error);
-        } finally {
-            setIsLoading(false);
+        if (course?.widgets) {
+            const mappedWidgets: WidgetItem[] = course.widgets.map((w: any) => ({
+                id: w.id.toString(),
+                type: w.widget_type,
+                title: w.title,
+                settings: JSON.parse(w.settings || '{}'),
+                layout: JSON.parse(w.layout_config || '{}')
+            }));
+            setWidgets(mappedWidgets);
         }
-    };
+    }, [course?.widgets]);
 
     const handleUpdateCourse = async (data: any) => {
         if (!course) return;
         try {
             await api.updateCourse(course.id, data);
-            fetchCourse(course.id);
+            refreshCourse();
         } catch (error) {
             console.error("Failed to update course", error);
             alert("Failed to update course");
@@ -61,9 +48,9 @@ export const CourseDashboard: React.FC = () => {
         try {
             await api.createWidgetForCourse(course.id, {
                 widget_type: type,
-                title: type === 'counter' ? 'Counter' : 'Widget' // Default title logic
+                title: type === 'counter' ? 'Counter' : 'Widget'
             });
-            fetchCourse(course.id);
+            refreshCourse();
         } catch (error) {
             console.error("Failed to create widget", error);
         }
@@ -98,7 +85,7 @@ export const CourseDashboard: React.FC = () => {
         if (window.confirm("Are you sure you want to remove this widget?")) {
             try {
                 await api.deleteWidget(id);
-                fetchCourse(course!.id);
+                refreshCourse();
             } catch (e) {
                 console.error("Failed to delete widget", e);
             }
@@ -106,15 +93,54 @@ export const CourseDashboard: React.FC = () => {
     };
 
     if (isLoading) return <Layout><div style={{ padding: '2rem' }}>Loading...</div></Layout>;
-    if (!course) return <Layout><div style={{ padding: '2rem' }}>Course not found</div></Layout>;
+    if (!course) {
+        return (
+            <Layout>
+                <Container>
+                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>Course not found</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
+                            The course you are looking for does not exist or has been deleted.
+                        </p>
+                        <Link to="/">
+                            <Button>Back to Home</Button>
+                        </Link>
+                    </div>
+                </Container>
+            </Layout>
+        );
+    }
 
     const handleUpdateWidgetSettings = async (id: string, data: any) => {
         try {
             await api.updateWidget(id, data);
-            if (course) fetchCourse(course.id);
+            refreshCourse();
         } catch (error) {
             console.error("Failed to update widget", error);
             alert("Failed to update widget");
+        }
+    };
+
+    const handleOptimisticUpdateWidget = async (id: string, data: any) => {
+        // 1. Optimistically update local state
+        setWidgets(prevWidgets => prevWidgets.map(w => {
+            if (w.id === id) {
+                if (data.settings) {
+                    const newSettings = JSON.parse(data.settings);
+                    return { ...w, settings: newSettings };
+                }
+                return { ...w, ...data };
+            }
+            return w;
+        }));
+
+        // 2. Call API
+        try {
+            await api.updateWidget(id, data);
+        } catch (error) {
+            console.error("Failed to update widget optimistically", error);
+            alert("Failed to save changes. Please refresh.");
+            refreshCourse();
         }
     };
 
@@ -175,7 +201,9 @@ export const CourseDashboard: React.FC = () => {
                     onLayoutChange={handleLayoutChange}
                     onRemoveWidget={handleRemoveWidget}
                     onEditWidget={(w) => setEditingWidget(w)}
+                    onUpdateWidget={handleOptimisticUpdateWidget}
                     courseId={course.id}
+                    updateCourseField={updateCourseField}
                 />
             </Container>
             {
@@ -212,5 +240,34 @@ export const CourseDashboard: React.FC = () => {
                 )
             }
         </Layout >
+    );
+};
+
+// Outer component with Provider
+export const CourseDashboard: React.FC = () => {
+    const { id } = useParams<{ id: string }>();
+
+    if (!id) {
+        return (
+            <Layout>
+                <Container>
+                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>Course not found</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
+                            No course ID provided.
+                        </p>
+                        <Link to="/">
+                            <Button>Back to Home</Button>
+                        </Link>
+                    </div>
+                </Container>
+            </Layout>
+        );
+    }
+
+    return (
+        <CourseDataProvider courseId={id}>
+            <CourseDashboardContent />
+        </CourseDataProvider>
     );
 };

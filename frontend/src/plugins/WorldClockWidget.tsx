@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
-import api from '../services/api';
 
 const AVAILABLE_TIMEZONES = [
     { value: 'UTC', label: 'UTC' },
@@ -11,7 +10,7 @@ const AVAILABLE_TIMEZONES = [
     { value: 'Asia/Shanghai', label: 'Shanghai' },
 ];
 
-export const WorldClockWidget: React.FC<WidgetProps> = ({ widgetId, settings }) => {
+export const WorldClockWidget: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     const [time, setTime] = useState(new Date());
     const [isEditing, setIsEditing] = useState(false);
 
@@ -27,9 +26,7 @@ export const WorldClockWidget: React.FC<WidgetProps> = ({ widgetId, settings }) 
 
     const saveSettings = async (newTimezone: string) => {
         try {
-            await api.updateWidget(widgetId, {
-                settings: JSON.stringify({ ...settings, timezone: newTimezone })
-            });
+            await updateSettings({ ...settings, timezone: newTimezone });
             setIsEditing(false);
         } catch (error) {
             console.error("Failed to update widget settings", error);

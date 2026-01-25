@@ -6,9 +6,10 @@ interface WidgetContainerProps {
     onRemove?: () => void;
     onEdit?: () => void;
     title?: string;
+    isSaving?: boolean;
 }
 
-export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, title }) => {
+export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, title, isSaving }) => {
     const style: React.CSSProperties = {
         backgroundColor: 'var(--color-bg-primary)',
         borderRadius: '0.75rem', // Increased radius
@@ -37,7 +38,10 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRe
                     borderTopRightRadius: '0.75rem', // Matched increased radius
                 }}
             >
-                <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{title || 'Widget'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{title || 'Widget'}</span>
+                    {isSaving && <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>Saving...</span>}
+                </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                     {onEdit && (
                         <button
@@ -69,7 +73,12 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRe
             </div>
 
             {/* Content */}
-            <div style={{ flex: 1, padding: '1rem', overflow: 'hidden' }}>
+            <div
+                className="nodrag"
+                style={{ flex: 1, padding: '1rem', overflow: 'hidden' }}
+                onMouseDown={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
+            >
                 {children}
             </div>
         </div>

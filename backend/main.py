@@ -194,7 +194,7 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
 
 @app.put("/courses/{course_id}", response_model=schemas.Course)
 def update_course(
-    course_id: str, course: schemas.CourseCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+    course_id: str, course: schemas.CourseUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
     # Verify ownership (via semester -> program -> user)
     db_course = db.query(models.Course).join(models.Semester).join(models.Program).filter(
