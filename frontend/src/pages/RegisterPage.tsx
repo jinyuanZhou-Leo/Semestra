@@ -11,6 +11,8 @@ import { useHeroGradient } from '../hooks/useHeroGradient';
 export const RegisterPage: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -68,63 +70,175 @@ export const RegisterPage: React.FC = () => {
             padding: '1rem'
         }}>
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 style={{
                     width: '100%',
-                    maxWidth: '400px',
-                    padding: '2.5rem',
-                    backgroundColor: 'var(--color-bg-primary)',
-                    borderRadius: 'var(--radius-lg)',
-                    boxShadow: 'var(--shadow-lg)',
-                    border: '1px solid var(--color-border)'
+                    maxWidth: '380px',
+                    padding: '3rem 2.5rem',
+                    backgroundColor: 'var(--color-bg-glass)', // Fallback
+                    background: 'color-mix(in srgb, var(--color-bg-primary), transparent 15%)', // High opacity glass
+                    backdropFilter: 'blur(40px)',
+                    WebkitBackdropFilter: 'blur(40px)',
+                    borderRadius: 'var(--radius-xl)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.1)',
                 }}
             >
-                <h1 style={{ marginBottom: '0.5rem', textAlign: 'center' }}>Create Account</h1>
-                <p style={{
-                    color: 'var(--color-text-secondary)',
-                    textAlign: 'center',
+                <div style={{ 
                     marginBottom: '2rem',
-                    fontSize: '0.875rem'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start'
                 }}>
-                    Start managing your academic life with Semestra
-                </p>
+                    {/* Logo Area */}
+                    <div style={{
+                        marginBottom: '1.5rem',
+                        fontWeight: 700,
+                        fontSize: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        color: 'var(--color-text-primary)',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none'
+                    }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-accent-primary)' }}></div>
+                        Semestra
+                    </div>
+
+                    <h1 style={{
+                        fontSize: '3rem',
+                        lineHeight: 1,
+                        letterSpacing: '-0.04em',
+                        background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        marginBottom: '0.5rem',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none'
+                    }}>
+                        Sign Up
+                    </h1>
+                    <h2 style={{
+                        fontSize: '1.25rem',
+                        color: 'var(--color-text-tertiary)',
+                        marginBottom: '0.5rem',
+                        fontWeight: 500,
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none'
+                    }}>
+                        Get Started
+                    </h2>
+                </div>
 
                 <form onSubmit={handleSubmit}>
-                    <Input
-                        label="Email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        required
-                    />
-                    <Input
-                        label="Password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        required
-                    />
-                    <Input
-                        label="Confirm Password"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        required
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <Input
+                            label="Email"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="hello@example.com"
+                            required
+                            style={{
+                                backgroundColor: 'var(--color-bg-secondary)',
+                                borderColor: 'var(--color-border)',
+                                borderRadius: '0.75rem',
+                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                            }}
+                            wrapperStyle={{ marginBottom: 0 }}
+                        />
+                        <Input
+                            label="Password"
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            required
+                            style={{
+                                backgroundColor: 'var(--color-bg-secondary)',
+                                borderColor: 'var(--color-border)',
+                                borderRadius: '0.75rem',
+                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                            }}
+                            wrapperStyle={{ marginBottom: 0 }}
+                            rightElement={
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'inherit',
+                                        opacity: 0.7
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                                    onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
+                                >
+                                    {showPassword ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                    )}
+                                </button>
+                            }
+                        />
+                        <Input
+                            label="Confirm Password"
+                            type={showConfirmPassword ? "text" : "password"}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="••••••••"
+                            required
+                            style={{
+                                backgroundColor: 'var(--color-bg-secondary)',
+                                borderColor: 'var(--color-border)',
+                                borderRadius: '0.75rem',
+                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                            }}
+                            rightElement={
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'inherit',
+                                        opacity: 0.7
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                                    onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
+                                >
+                                    {showConfirmPassword ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                    )}
+                                </button>
+                            }
+                        />
+                    </div>
 
                     {error && (
                         <div style={{
                             color: 'var(--color-danger)',
                             fontSize: '0.875rem',
-                            marginBottom: '1rem',
+                            marginTop: '1rem',
                             padding: '0.75rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid rgba(239, 68, 68, 0.2)'
+                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                            borderRadius: '0.75rem',
+                            border: '1px solid rgba(239, 68, 68, 0.1)'
                         }}>
                             {error}
                         </div>
@@ -134,22 +248,47 @@ export const RegisterPage: React.FC = () => {
                         type="submit"
                         fullWidth
                         disabled={isLoading}
+                        style={{
+                            marginTop: '1.5rem',
+                            borderRadius: '0.75rem',
+                            height: '3rem',
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                            letterSpacing: '-0.01em',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                        }}
                     >
                         {isLoading ? 'Creating account...' : 'Register'}
                     </Button>
                 </form>
 
-                <p style={{
-                    marginTop: '1.5rem',
-                    textAlign: 'center',
+                <div style={{
+                    marginTop: '2rem',
                     fontSize: '0.875rem',
-                    color: 'var(--color-text-secondary)'
+                    color: 'var(--color-text-secondary)',
+                    borderTop: '1px solid var(--color-border)',
+                    paddingTop: '1.5rem',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none'
                 }}>
-                    Already have an account?{' '}
-                    <Link to="/login" style={{ color: 'var(--color-accent-primary)', fontWeight: 600 }}>
+                    <span style={{ opacity: 0.8 }}>Already have an account?</span>{' '}
+                    <Link
+                        to="/login"
+                        style={{
+                            color: 'var(--color-text-primary)',
+                            fontWeight: 600,
+                            textDecoration: 'none',
+                            borderBottom: '1px solid var(--color-text-primary)',
+                            paddingBottom: '1px'
+                        }}
+                    >
                         Sign In
                     </Link>
-                </p>
+                </div>
             </motion.div>
         </div>
     );
