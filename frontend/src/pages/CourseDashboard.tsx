@@ -19,6 +19,7 @@ const CourseDashboardContent: React.FC = () => {
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [isShrunk, setIsShrunk] = useState(false);
+    const [isNavbarVisible, setIsNavbarVisible] = useState(true);
     const lastScrollY = React.useRef(0);
     const isShrunkRef = React.useRef(false);
     const isTransitioningRef = React.useRef(false);
@@ -32,8 +33,18 @@ const CourseDashboardContent: React.FC = () => {
                 window.requestAnimationFrame(() => {
                     const currentScrollY = window.scrollY;
 
+                    // Navbar Visibility Logic
+                    if (currentScrollY < 10) {
+                        setIsNavbarVisible(true);
+                    } else if (currentScrollY > lastScrollY.current && currentScrollY > 60) {
+                        setIsNavbarVisible(false);
+                    } else if (currentScrollY < lastScrollY.current) {
+                        setIsNavbarVisible(true);
+                    }
+
                     // 1. If transitioning, ignore scroll events to prevent flickering
                     if (isTransitioningRef.current) {
+                        lastScrollY.current = currentScrollY;
                         ticking = false;
                         return;
                     }
@@ -77,17 +88,13 @@ const CourseDashboardContent: React.FC = () => {
     }, []);
 
     // Derived styles
-    // Fix: We fix top at 0 to cover behind navbar, but add padding to content
-    const heroTop = '0px';
-    const contentPaddingTop = '60px';
-    const contentPaddingBottom = isShrunk ? '0px' : '60px';
-
+    const heroTop = isNavbarVisible ? '60px' : '0px';
     const topContentOpacity = isShrunk ? 0 : 1;
-    const topContentHeight = isShrunk ? 0 : 30; // Reduced from 50
-    const titleSize = isShrunk ? '1.5rem' : '2.5rem'; // Reduced from 3.5rem
+    const topContentHeight = isShrunk ? 0 : 30;
+    const titleSize = isShrunk ? '1.5rem' : '2rem'; 
     const statsOpacity = isShrunk ? 0 : 1;
-    const statsHeight = isShrunk ? 0 : 40; // Reduced from 50
-    const containerPadding = isShrunk ? '0.75rem 0' : '1.0rem 0'; // Reduced from 1.5rem
+    const statsMaxHeight = isShrunk ? '0px' : '150px';
+    const containerPadding = isShrunk ? '0.5rem 0' : '1.0rem 0';
     const shadowOpacity = isShrunk ? 0.1 : 0;
 
 
@@ -229,18 +236,22 @@ const CourseDashboardContent: React.FC = () => {
                     color: 'var(--color-text-primary)',
                     boxShadow: `0 4px 20px rgba(0,0,0,${shadowOpacity})`,
                     backdropFilter: 'blur(10px)',
-                    transition: 'padding 0.1s',
+                    transition: 'padding 0.1s, top 0.3s ease-in-out, min-height 0.3s ease-in-out',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    minHeight: isShrunk ? '60px' : '140px',
                 }}>
                 <Container style={{
-                    paddingTop: contentPaddingTop,
-                    paddingBottom: contentPaddingBottom,
-                    transition: 'padding-top 0.3s ease-in-out, padding-bottom 0.3s ease-in-out'
+                    transition: 'padding-top 0.3s ease-in-out, padding-bottom 0.3s ease-in-out',
+                    display: 'flex',
+                    flexDirection: 'column', 
                 }}>
                     <div style={{
                         height: `${topContentHeight}px`,
                         opacity: topContentOpacity,
                         overflow: 'hidden',
-                        marginBottom: isShrunk ? '0' : '0.5rem',
+                        marginBottom: isShrunk ? '0' : '0.25rem',
                         transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-bottom 0.3s'
                     }}>
                         <BackButton label="Back to Semester" />
@@ -273,21 +284,23 @@ const CourseDashboardContent: React.FC = () => {
                                 {course.name}
                             </h1>
                             <div className="noselect stats-row" style={{
-                                height: `${statsHeight}px`,
+                                maxHeight: statsMaxHeight, 
                                 opacity: statsOpacity,
                                 overflow: 'hidden',
-                                marginTop: isShrunk ? '0' : '1.0rem',
-                                transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-top 0.3s'
+                                marginTop: isShrunk ? '0' : '0.75rem',
+                                transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-top 0.3s',
+                                flexWrap: 'wrap',
+                                height: 'auto'
                             }}>
-                                <div>
+                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.credits}</div>
                                 </div>
-                                <div>
+                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Grade</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.hide_gpa ? '****' : `${course.grade_percentage}%`}</div>
                                 </div>
-                                <div>
+                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA (Scaled)</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.hide_gpa ? '****' : course.grade_scaled.toFixed(2)}</div>
                                 </div>

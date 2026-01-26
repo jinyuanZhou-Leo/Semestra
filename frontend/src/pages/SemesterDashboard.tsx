@@ -21,6 +21,7 @@ export const SemesterDashboard: React.FC = () => {
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [isShrunk, setIsShrunk] = useState(false);
+    const [isNavbarVisible, setIsNavbarVisible] = useState(true);
     const lastScrollY = React.useRef(0);
     const isShrunkRef = React.useRef(false);
     const isTransitioningRef = React.useRef(false);
@@ -34,8 +35,19 @@ export const SemesterDashboard: React.FC = () => {
                 window.requestAnimationFrame(() => {
                     const currentScrollY = window.scrollY;
 
+                    // Navbar Visibility Logic (Mirrors Layout.tsx)
+                    if (currentScrollY < 10) {
+                        setIsNavbarVisible(true);
+                    } else if (currentScrollY > lastScrollY.current && currentScrollY > 60) {
+                        setIsNavbarVisible(false);
+                    } else if (currentScrollY < lastScrollY.current) {
+                        setIsNavbarVisible(true);
+                    }
+
+
                     // 1. If transitioning, ignore scroll events to prevent flickering during animation
                     if (isTransitioningRef.current) {
+                        lastScrollY.current = currentScrollY;
                         ticking = false;
                         return;
                     }
@@ -79,17 +91,16 @@ export const SemesterDashboard: React.FC = () => {
     }, []);
 
     // Derived styles
-    const heroTop = '0px';
-    const contentPaddingTop = '60px';
-    const contentPaddingBottom = isShrunk ? '0px' : '60px';
+    const heroTop = isNavbarVisible ? '60px' : '0px';
 
-    // Binary states instead of interpolation
+    // Binary states
     const topContentOpacity = isShrunk ? 0 : 1;
-    const topContentHeight = isShrunk ? 0 : 30; // Reduced from 50
-    const titleSize = isShrunk ? '1.5rem' : '2.5rem'; // Reduced from 3.5rem
+    const topContentHeight = isShrunk ? 0 : 30;
+    const titleSize = isShrunk ? '1.5rem' : '2rem'; // Reduced from 2.5rem
     const statsOpacity = isShrunk ? 0 : 1;
-    const statsHeight = isShrunk ? 0 : 40; // Reduced from 50
-    const containerPadding = isShrunk ? '0.75rem 0' : '1.0rem 0'; // Reduced from 1.5rem
+    // Use maxHeight for stats transition to allow wrapping on mobile
+    const statsMaxHeight = isShrunk ? '0px' : '150px';
+    const containerPadding = isShrunk ? '0.5rem 0' : '1.0rem 0'; // Kept reduced padding
     const shadowOpacity = isShrunk ? 0.1 : 0;
 
 
@@ -288,14 +299,23 @@ export const SemesterDashboard: React.FC = () => {
                     color: 'var(--color-text-primary)',
                     boxShadow: `0 4px 20px rgba(0,0,0,${shadowOpacity})`,
                     backdropFilter: 'blur(10px)', // Ensure glass effect if gradient has transparency
-                    transition: 'padding 0.1s', // Smooth out slight jitters and sync with navbar
+                    transition: 'padding 0.1s, top 0.3s ease-in-out, min-height 0.3s ease-in-out', // Smooth out slight jitters and sync with navbar
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    minHeight: isShrunk ? '60px' : '140px', // Ensure a minimum height for centering to work effectively
                 }}>
-                <Container style={{ paddingTop: contentPaddingTop, transition: 'padding-top 0.3s ease-in-out' }}>
+                <Container style={{
+                    transition: 'padding-top 0.3s ease-in-out',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    // Remove internal vertical padding to let parent handle spacing/centering
+                }}>
                     <div style={{
                         height: `${topContentHeight}px`,
                         opacity: topContentOpacity,
                         overflow: 'hidden',
-                        marginBottom: isShrunk ? '0' : '0.5rem',
+                        marginBottom: isShrunk ? '0' : '0.25rem',
                         transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-bottom 0.3s'
                     }}>
                         <BackButton label="Back to Program" />
@@ -328,21 +348,23 @@ export const SemesterDashboard: React.FC = () => {
                                 {semester.name}
                             </h1>
                             <div className="noselect stats-row" style={{
-                                height: `${statsHeight}px`,
+                                maxHeight: statsMaxHeight, 
                                 opacity: statsOpacity,
                                 overflow: 'hidden',
-                                marginTop: isShrunk ? '0' : '1.0rem',
-                                transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-top 0.3s'
+                                marginTop: isShrunk ? '0' : '0.75rem',
+                                transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-top 0.3s',
+                                flexWrap: 'wrap', // Allow wrap on mobile
+                                height: 'auto'
                             }}>
-                                <div>
+                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}</div>
                                 </div>
-                                <div>
+                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Avg</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.average_percentage.toFixed(1)}%</div>
                                 </div>
-                                <div>
+                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.average_scaled.toFixed(2)}</div>
                                 </div>

@@ -166,10 +166,10 @@ export const ProgramDashboard: React.FC = () => {
                         </Button>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
-                        <div className="noselect" style={{ background: 'var(--color-bg-glass)', backdropFilter: 'blur(12px)', padding: '1.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid rgba(0,0,0,0.05)' }}>
-                            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                CGPA (Scaled)
+                    <div className="program-stats-grid">
+                        <div className="noselect program-stat-card">
+                            <div className="program-stat-label">
+                                <span className="program-stat-label-text">CGPA (Scaled)</span>
                                 <button
                                     onClick={(e) => {
                                         e.preventDefault();
@@ -182,7 +182,8 @@ export const ProgramDashboard: React.FC = () => {
                                         color: 'var(--color-text-secondary)',
                                         padding: 0,
                                         display: 'flex',
-                                        alignItems: 'center'
+                                        alignItems: 'center',
+                                        flexShrink: 0
                                     }}
                                     title={program.hide_gpa ? "Show GPA" : "Hide GPA"}
                                 >
@@ -199,22 +200,22 @@ export const ProgramDashboard: React.FC = () => {
                                     )}
                                 </button>
                             </div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--color-primary)' }}>
+                            <div className="program-stat-value primary">
                                 {program.hide_gpa ? '****' : program.cgpa_scaled.toFixed(2)}
                             </div>
                         </div>
-                        <div className="noselect" style={{ background: 'var(--color-bg-glass)', backdropFilter: 'blur(12px)', padding: '1.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid rgba(0,0,0,0.05)' }}>
-                            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Average (%)</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>
+                        <div className="noselect program-stat-card">
+                            <div className="program-stat-label">Average (%)</div>
+                            <div className="program-stat-value">
                                 {program.hide_gpa ? '****' : program.cgpa_percentage.toFixed(1)}
-                                {!program.hide_gpa && <span style={{ fontSize: '1.5rem', color: 'var(--color-text-secondary)' }}>%</span>}
+                                {!program.hide_gpa && <span className="program-stat-unit">%</span>}
                             </div>
                         </div>
-                        <div className="noselect" style={{ background: 'var(--color-bg-glass)', backdropFilter: 'blur(12px)', padding: '1.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid rgba(0,0,0,0.05)' }}>
-                            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Credits Progress</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>
+                        <div className="noselect program-stat-card">
+                            <div className="program-stat-label">Credits Progress</div>
+                            <div className="program-stat-value">
                                 {program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
-                                <span style={{ fontSize: '1.25rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}> / {program.grad_requirement_credits}</span>
+                                <span className="program-stat-unit small"> / {program.grad_requirement_credits}</span>
                             </div>
                         </div>
                     </div>
