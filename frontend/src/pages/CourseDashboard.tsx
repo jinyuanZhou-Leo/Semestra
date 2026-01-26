@@ -45,7 +45,11 @@ const CourseDashboardContent: React.FC = () => {
     }, []);
 
     // Derived styles
-    const topPosition = isNavbarVisible ? '60px' : '0px';
+    // Fix: We fix top at 0 to cover behind navbar, but add padding to content
+    const heroTop = '0px';
+    const isShrunk = scrollProgress > 0.8;
+    const contentPaddingTop = isNavbarVisible ? '60px' : '0px';
+
     const topContentOpacity = 1 - Math.min(scrollProgress * 1.5, 1);
     const topContentHeight = (1 - Math.min(scrollProgress * 1.5, 1)) * 50;
     const titleSize = `${3.5 - (2.0 * scrollProgress)}rem`;
@@ -186,16 +190,16 @@ const CourseDashboardContent: React.FC = () => {
                 className="hero-section"
                 style={{
                     position: 'sticky',
-                    top: topPosition,
+                    top: heroTop,
                     zIndex: 900,
                     background: 'var(--gradient-hero)',
                     padding: containerPadding,
                     color: 'var(--color-text-primary)',
                     boxShadow: `0 4px 20px rgba(0,0,0,${shadowOpacity})`,
                     backdropFilter: 'blur(10px)',
-                    transition: 'padding 0.1s, top 0.3s ease-in-out',
+                    transition: 'padding 0.1s',
                 }}>
-                <Container>
+                <Container style={{ paddingTop: contentPaddingTop, transition: 'padding-top 0.3s ease-in-out' }}>
                     <div style={{
                         height: `${topContentHeight}px`,
                         opacity: topContentOpacity,
@@ -207,8 +211,19 @@ const CourseDashboardContent: React.FC = () => {
                         <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Course Dashboard</div>
                     </div>
 
-                    <div className="page-header" style={{ marginBottom: 0 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <div className="page-header" style={{
+                        marginBottom: 0,
+                        flexDirection: isShrunk ? 'row' : undefined,
+                        alignItems: isShrunk ? 'center' : undefined,
+                        gap: isShrunk ? '1rem' : undefined
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            flex: isShrunk ? '1' : undefined,
+                            minWidth: 0 // Allow text truncation in flex child
+                        }}>
                             <h1 className="noselect text-truncate" style={{
                                 fontSize: titleSize,
                                 margin: 0,
@@ -242,7 +257,14 @@ const CourseDashboardContent: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '1rem', alignSelf: scrollProgress > 0.8 ? 'center' : 'flex-start', paddingTop: scrollProgress > 0.8 ? 0 : '10px', transition: 'all 0.2s' }}>
+                        <div style={{
+                            display: 'flex',
+                            gap: '0.5rem', // Reduce gap slightly for mobile space
+                            alignSelf: isShrunk ? 'center' : (scrollProgress > 0.8 ? 'center' : 'flex-start'),
+                            paddingTop: isShrunk ? 0 : (scrollProgress > 0.8 ? 0 : '10px'),
+                            transition: 'all 0.2s',
+                            flexShrink: 0 // Prevent buttons from shrinking
+                        }}>
                             <Button
                                 variant="glass"
                                 onClick={() => setIsSettingsOpen(true)}
