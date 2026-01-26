@@ -5,9 +5,10 @@ import { Container } from './Container';
 
 interface LayoutProps {
     children: React.ReactNode;
+    disableAutoHide?: boolean;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = false }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -17,6 +18,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const lastScrollY = React.useRef(0);
 
     React.useEffect(() => {
+        if (disableAutoHide) {
+            setIsVisible(true);
+            return;
+        }
+
         const handleScroll = () => {
             const currentScrollY = window.scrollY;
 
@@ -38,7 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
+    }, [disableAutoHide]);
 
     return (
         <div style={{

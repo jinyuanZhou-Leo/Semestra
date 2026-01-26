@@ -20,44 +20,77 @@ export const SemesterDashboard: React.FC = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
-    const [scrollProgress, setScrollProgress] = useState(0);
-    const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    const [isShrunk, setIsShrunk] = useState(false);
     const lastScrollY = React.useRef(0);
+    const isShrunkRef = React.useRef(false);
+    const isTransitioningRef = React.useRef(false);
+    const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        const handleScroll = () => {
-            const currentScrollY = window.scrollY;
-            const maxScroll = 120;
-            const progress = Math.min(currentScrollY / maxScroll, 1);
-            setScrollProgress(progress);
+        let ticking = false;
 
-            // Navbar logic replication
-            if (currentScrollY < 10) {
-                setIsNavbarVisible(true);
-            } else if (currentScrollY > lastScrollY.current && currentScrollY > 60) {
-                setIsNavbarVisible(false);
-            } else if (currentScrollY < lastScrollY.current) {
-                setIsNavbarVisible(true);
+        const handleScroll = () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    const currentScrollY = window.scrollY;
+
+                    // 1. If transitioning, ignore scroll events to prevent flickering during animation
+                    if (isTransitioningRef.current) {
+                        ticking = false;
+                        return;
+                    }
+
+                    // 2. Logic: Expand ONLY at scrollY === 0
+                    const newIsShrunk = currentScrollY > 0;
+
+                    // 3. Only update state if changed
+                    if (newIsShrunk !== isShrunkRef.current) {
+                        isShrunkRef.current = newIsShrunk;
+                        setIsShrunk(newIsShrunk);
+
+                        // Lock updates during transition (300ms matches CSS transition)
+                        isTransitioningRef.current = true;
+                        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                        timeoutRef.current = setTimeout(() => {
+                            isTransitioningRef.current = false;
+
+                            // Double check state after transition ends
+                            const finalScrollY = window.scrollY;
+                            const finalIsShrunk = finalScrollY > 0;
+                            if (finalIsShrunk !== isShrunkRef.current) {
+                                isShrunkRef.current = finalIsShrunk;
+                                setIsShrunk(finalIsShrunk);
+                            }
+                        }, 300);
+                    }
+
+                    lastScrollY.current = currentScrollY;
+                    ticking = false;
+                });
+                ticking = true;
             }
-            lastScrollY.current = currentScrollY;
         };
 
         window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
     }, []);
 
     // Derived styles
     const heroTop = '0px';
-    const isShrunk = scrollProgress > 0.8;
-    const contentPaddingTop = isNavbarVisible ? '60px' : '0px';
+    const contentPaddingTop = '60px';
+    const contentPaddingBottom = isShrunk ? '0px' : '60px';
 
-    const topContentOpacity = 1 - Math.min(scrollProgress * 1.5, 1); // Fade out faster
-    const topContentHeight = (1 - Math.min(scrollProgress * 1.5, 1)) * 50; // Approx height of back button + label
-    const titleSize = `${3.5 - (2.0 * scrollProgress)}rem`;
-    const statsOpacity = 1 - scrollProgress;
-    const statsHeight = (1 - scrollProgress) * 50; // Approx height of stats
-    const containerPadding = `${1.5 - (0.75 * scrollProgress)}rem 0`;
-    const shadowOpacity = scrollProgress * 0.1;
+    // Binary states instead of interpolation
+    const topContentOpacity = isShrunk ? 0 : 1;
+    const topContentHeight = isShrunk ? 0 : 30; // Reduced from 50
+    const titleSize = isShrunk ? '1.5rem' : '2.5rem'; // Reduced from 3.5rem
+    const statsOpacity = isShrunk ? 0 : 1;
+    const statsHeight = isShrunk ? 0 : 40; // Reduced from 50
+    const containerPadding = isShrunk ? '0.75rem 0' : '1.0rem 0'; // Reduced from 1.5rem
+    const shadowOpacity = isShrunk ? 0.1 : 0;
 
 
     useEffect(() => {
@@ -262,11 +295,11 @@ export const SemesterDashboard: React.FC = () => {
                         height: `${topContentHeight}px`,
                         opacity: topContentOpacity,
                         overflow: 'hidden',
-                        marginBottom: `${0.5 * (1 - scrollProgress)}rem`,
-                        transition: 'height 0.1s, opacity 0.1s'
+                        marginBottom: isShrunk ? '0' : '0.5rem',
+                        transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-bottom 0.3s'
                     }}>
                         <BackButton label="Back to Program" />
-                        <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', textTransform: 'uppercase', marginTop: '0.5rem' }}>Semester Dashboard</div>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Semester Dashboard</div>
                     </div>
 
                     <div className="page-header" style={{
@@ -282,7 +315,7 @@ export const SemesterDashboard: React.FC = () => {
                             flex: isShrunk ? '1' : undefined,
                             minWidth: 0
                         }}>
-                            <h1 className="text-truncate" style={{
+                            <h1 className="noselect text-truncate" style={{
                                 fontSize: titleSize,
                                 margin: 0,
                                 fontWeight: 800,
@@ -290,7 +323,7 @@ export const SemesterDashboard: React.FC = () => {
                                 background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
                                 WebkitBackgroundClip: 'text',
                                 WebkitTextFillColor: 'transparent',
-                                transition: 'font-size 0.1s'
+                                transition: 'font-size 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}>
                                 {semester.name}
                             </h1>
@@ -298,8 +331,8 @@ export const SemesterDashboard: React.FC = () => {
                                 height: `${statsHeight}px`,
                                 opacity: statsOpacity,
                                 overflow: 'hidden',
-                                marginTop: `${1.0 * (1 - scrollProgress)}rem`,
-                                transition: 'height 0.1s, opacity 0.1s, margin-top 0.1s'
+                                marginTop: isShrunk ? '0' : '1.0rem',
+                                transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-top 0.3s'
                             }}>
                                 <div>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
@@ -317,10 +350,12 @@ export const SemesterDashboard: React.FC = () => {
                         </div>
                         <div style={{
                             display: 'flex',
-                            gap: '0.5rem', // Reduced gap
-                            alignSelf: isShrunk ? 'center' : (scrollProgress > 0.8 ? 'center' : 'flex-start'),
-                            paddingTop: isShrunk ? 0 : (scrollProgress > 0.8 ? 0 : '10px'),
-                            transition: 'all 0.2s',
+                            gap: '0.5rem', // Reduced gap to match CourseDashboard
+                            alignSelf: isShrunk ? 'center' : 'flex-start',
+                            paddingTop: isShrunk ? 0 : '10px',
+                            // transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // This was present in CourseDashboard too?
+                            // Checking lines 350-357: Transition was there. I will keep it.
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                             flexShrink: 0
                         }}>
                             <Button
@@ -341,7 +376,7 @@ export const SemesterDashboard: React.FC = () => {
                 </Container>
             </div>
 
-            <Container padding="1rem 1rem">
+            <Container style={{ padding: '1rem 1rem' }}>
                 <DashboardGrid
                     widgets={widgets}
                     onLayoutChange={handleLayoutChange}
