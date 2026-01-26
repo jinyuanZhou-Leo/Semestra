@@ -228,13 +228,13 @@ button {
 
 @media (max-width: 600px) {
   .responsive-container {
-    padding: 0 1rem !important;
+    padding: 0 1rem;
     /* Override inline styles if necessary, or better yet, avoid inline styles in Container */
   }
 
   /* Helper to force full width on mobile if needed */
   .w-full-mobile {
-    width: 100% !important;
+    width: 100%;
   }
 }
 
@@ -266,7 +266,7 @@ button {
   }
 
   .page-header h1 {
-    font-size: 2.5rem !important;
+    font-size: 2.5rem;
     /* Reduce huge titles on mobile */
   }
 }
@@ -323,8 +323,8 @@ button {
 /* Modal Responsive */
 @media (max-width: 600px) {
   .modal-content {
-    width: 95% !important;
-    padding: 1.5rem !important;
+    width: 95%;
+      padding: 1.5rem;
     margin: 1rem;
   }
 }
@@ -448,10 +448,15 @@ button {
   }
 
   .program-stat-unit {
-    font-size: 0.875rem !important;
+    font-size: 0.875rem;
   }
 
   .program-stat-unit.small {
-    font-size: 0.75rem !important;
+    font-size: 0.75rem;
   }
+}
+
+/* Progress Bar Animations */
+.progress-bar-fill {
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }

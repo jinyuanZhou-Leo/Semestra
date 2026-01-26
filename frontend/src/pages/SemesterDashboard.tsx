@@ -96,7 +96,7 @@ export const SemesterDashboard: React.FC = () => {
     // Binary states
     const topContentOpacity = isShrunk ? 0 : 1;
     const topContentHeight = isShrunk ? 0 : 30;
-    const titleSize = isShrunk ? '1.5rem' : '2rem'; // Reduced from 2.5rem
+    const titleSize = isShrunk ? 'clamp(1.1rem, 4vw, 1.5rem)' : 'clamp(1.5rem, 6vw, 2rem)'; 
     const statsOpacity = isShrunk ? 0 : 1;
     // Use maxHeight for stats transition to allow wrapping on mobile
     const statsMaxHeight = isShrunk ? '0px' : '150px';

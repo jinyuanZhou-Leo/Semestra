@@ -10,6 +10,7 @@ import api from '../services/api';
 import type { Program, Semester } from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { useHeroGradient } from '../hooks/useHeroGradient';
+import { ProgressBar } from '../components/ProgressBar';
 
 export const ProgramDashboard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -43,9 +44,14 @@ export const ProgramDashboard: React.FC = () => {
             const file = files[0];
             if (file.name.endsWith('.ics') || file.type === 'text/calendar') {
                 setSelectedFile(file);
-                // Auto-fill name from filename
-                const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
-                setNewSemesterName(name);
+                // Auto-fill name from filename only if name is empty
+                if (!newSemesterName) {
+                    const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
+                    setNewSemesterName(name);
+                }
+                else {
+                    setNewSemesterName(newSemesterName);
+                }
             } else {
                 alert('Please upload a valid .ics file');
             }
@@ -213,10 +219,15 @@ export const ProgramDashboard: React.FC = () => {
                         </div>
                         <div className="noselect program-stat-card">
                             <div className="program-stat-label">Credits Progress</div>
-                            <div className="program-stat-value">
+                            <div className="program-stat-value" style={{ marginBottom: '0.5rem' }}>
                                 {program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
                                 <span className="program-stat-unit small"> / {program.grad_requirement_credits}</span>
                             </div>
+                            <ProgressBar
+                                value={program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
+                                max={program.grad_requirement_credits}
+                                height="8px"
+                            />
                         </div>
                     </div>
                 </Container>
@@ -404,8 +415,10 @@ export const ProgramDashboard: React.FC = () => {
                                             const file = e.target.files?.[0];
                                             if (file) {
                                                 setSelectedFile(file);
-                                                const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
-                                                setNewSemesterName(name);
+                                                if (!newSemesterName) {
+                                                    const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
+                                                    setNewSemesterName(name);
+                                                }
                                             }
                                         }}
                                 />
