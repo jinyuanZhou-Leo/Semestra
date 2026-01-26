@@ -150,14 +150,15 @@ const CourseDashboardContent: React.FC = () => {
                 className="hero-section"
                 style={{
                     background: 'var(--gradient-hero)',
-                color: 'var(--color-text-primary)'
-            }}>
+                    padding: '1.5rem 0',
+                    color: 'var(--color-text-primary)'
+                }}>
                 <Container>
                     <BackButton label="Back to Semester" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Course Dashboard</div>
                     <div className="page-header">
                         <div>
-                            <h1 className="noselect" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            <h1 className="noselect text-truncate" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                                 {course.name}
                             </h1>
                             <div className="noselect stats-row">
@@ -194,7 +195,7 @@ const CourseDashboardContent: React.FC = () => {
                 </Container>
             </div>
 
-            <Container style={{ padding: '3rem 2rem' }}>
+            <Container style={{ padding: '1rem 1rem' }}>
 
 
                 <DashboardGrid

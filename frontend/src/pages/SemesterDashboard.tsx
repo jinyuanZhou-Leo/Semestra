@@ -209,14 +209,15 @@ export const SemesterDashboard: React.FC = () => {
                 className="hero-section"
                 style={{
                     background: 'var(--gradient-hero)',
-                color: 'var(--color-text-primary)'
-            }}>
+                    padding: '1.5rem 0',
+                    color: 'var(--color-text-primary)'
+                }}>
                 <Container>
                     <BackButton label="Back to Program" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Semester Dashboard</div>
                     <div className="page-header">
                         <div>
-                            <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            <h1 className="text-truncate" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                                 {semester.name}
                             </h1>
                             <div className="noselect stats-row">
@@ -253,7 +254,7 @@ export const SemesterDashboard: React.FC = () => {
                 </Container>
             </div>
 
-            <Container padding="3rem 2rem">
+            <Container padding="1rem 1rem">
                 <DashboardGrid
                     widgets={widgets}
                     onLayoutChange={handleLayoutChange}

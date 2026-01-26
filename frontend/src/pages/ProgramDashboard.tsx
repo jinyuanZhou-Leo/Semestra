@@ -149,7 +149,7 @@ export const ProgramDashboard: React.FC = () => {
                     <BackButton to="/" label="Back to Programs" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Program Overview</div>
                     <div className="page-header" style={{ marginBottom: '2.5rem' }}>
-                        <h1 className="noselect" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        <h1 className="noselect text-truncate" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                             {program.name}
                         </h1>
                         <Button
@@ -259,7 +259,7 @@ export const ProgramDashboard: React.FC = () => {
                                 }}
                             >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{semester.name}</h3>
+                                    <h3 className='text-truncate' style={{ fontSize: '1.5rem', margin: 0 }}>{semester.name}</h3>
                                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: semester.average_scaled >= 3.0 ? '#10b981' : '#f59e0b' }}></div>
                                         <button
@@ -334,7 +334,7 @@ export const ProgramDashboard: React.FC = () => {
                                     onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
                                     onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
                                 >
-                                    <div style={{ fontWeight: 600 }}>{course.name}</div>
+                                    <div className='text-truncate' style={{ fontWeight: 600 }}>{course.name}</div>
                                     <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>{course.grade_scaled.toFixed(2)}</div>
                                 </div>
                             </Link>

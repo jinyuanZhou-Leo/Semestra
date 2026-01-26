@@ -21,11 +21,14 @@ def parse_ics(file_content: bytes) -> list[str]:
                 # 2. Look for patterns that look like course codes (e.g. 3-4 letters + 3 numbers)
                 # 3. Or just take the first part of the summary if it looks like a code and remove section info.
                 
-                # Regex for "LEC", "TUT", "PRA" followed by optional spaces and digits
-                # Also handles cases like "LEC 0101" or "LEC0101"
-                # And typically these are at the end, but we replace them wherever to be safe.
+                # REGEX UPDATE: Remove section codes AND common suffixes like H1, Y1
+                # 1. Remove Section Codes: (LEC|TUT|PRA) followed by digits/letters
                 clean_summary = re.sub(r'\s+(LEC|TUT|PRA)\s*\d+[A-Z]*\s*', '', summary, flags=re.IGNORECASE)
                 
+                # 2. Remove Course Suffixes (e.g., "H1", "Y1") at the end of the string
+                # Matches H or Y followed by a digit at the end of the string (ignoring whitespace)
+                clean_summary = re.sub(r'[HY]\d\s*$', '', clean_summary, flags=re.IGNORECASE)
+
                 # Remove any trailing junk or common suffixes if needed, 
                 # but for now just strip whitespace.
                 clean_name = clean_summary.strip()

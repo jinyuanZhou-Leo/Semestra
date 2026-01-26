@@ -210,6 +210,11 @@ button {
   -moz-user-select: none;
   -ms-user-select: none;
 }
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* =========================================
    Responsive Layout Utilities
    ========================================= */
