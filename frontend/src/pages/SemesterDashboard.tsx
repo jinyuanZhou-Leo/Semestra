@@ -205,20 +205,21 @@ export const SemesterDashboard: React.FC = () => {
 
     return (
         <Layout>
-            <div style={{
-                background: 'var(--gradient-hero)',
-                padding: '2rem 0',
+            <div
+                className="hero-section"
+                style={{
+                    background: 'var(--gradient-hero)',
                 color: 'var(--color-text-primary)'
             }}>
                 <Container>
                     <BackButton label="Back to Program" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Semester Dashboard</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="page-header">
                         <div>
                             <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                                 {semester.name}
                             </h1>
-                            <div className="noselect" style={{ display: 'flex', gap: '2rem', marginTop: '1rem' }}>
+                            <div className="noselect stats-row">
                                 <div>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}</div>

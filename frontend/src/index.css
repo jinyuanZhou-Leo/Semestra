@@ -210,3 +210,156 @@ button {
   -moz-user-select: none;
   -ms-user-select: none;
 }
+/* =========================================
+   Responsive Layout Utilities
+   ========================================= */
+
+/* Responsive Container Padding */
+.responsive-container {
+  padding: 0 2rem;
+  /* Fallback or desktop default if not overridden by Container component props, 
+     but we will use this class to enforce mobile padding */
+}
+
+@media (max-width: 600px) {
+  .responsive-container {
+    padding: 0 1rem !important;
+    /* Override inline styles if necessary, or better yet, avoid inline styles in Container */
+  }
+
+  /* Helper to force full width on mobile if needed */
+  .w-full-mobile {
+    width: 100% !important;
+  }
+}
+
+/* Page Header: Title on left, Actions on right -> Stack on mobile */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  /* Common margin */
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    /* Stretch children to fill width */
+    text-align: left;
+    gap: 1.5rem;
+  }
+
+  .page-header .header-actions {
+    align-self: flex-start;
+    /* Or stretch */
+    width: 100%;
+    display: flex;
+    gap: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 2.5rem !important;
+    /* Reduce huge titles on mobile */
+  }
+}
+
+/* Stats Row: Horizontal stats -> Grid or Stack on mobile */
+.stats-row {
+  display: flex;
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+  .stats-row {
+    flex-wrap: wrap;
+    gap: 1.5rem;
+  }
+
+  .stats-row>div {
+    flex: 1 1 calc(50% - 1.5rem);
+    /* 2 columns on tablet/large phone */
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-row>div {
+    flex: 1 1 100%;
+    /* 1 column on small phone */
+  }
+}
+
+/* Layout Header Content */
+.layout-header-content {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Grid Layout Adjustments */
+.responsive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .responsive-grid {
+    grid-template-columns: 1fr;
+    /* Single column */
+  }
+}
+
+/* Modal Responsive */
+@media (max-width: 600px) {
+  .modal-content {
+    width: 95% !important;
+    padding: 1.5rem !important;
+    margin: 1rem;
+  }
+}
+
+/* Hero Section */
+.hero-section {
+  padding: 4rem 0;
+}
+
+@media (max-width: 600px) {
+  .hero-section {
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+  }
+}
+
+/* Enhanced Widget Resize Handle */
+.react-grid-item>.react-resizable-handle {
+  width: 24px !important;
+  height: 24px !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  background-image: none !important;
+  z-index: 10;
+}
+
+.react-grid-item>.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-text-tertiary);
+  border-bottom: 2px solid var(--color-text-tertiary);
+  opacity: 0.5;
+  transition: opacity 0.2s, border-color 0.2s;
+}
+
+.react-grid-item>.react-resizable-handle:hover::after {
+  opacity: 1;
+  border-color: var(--color-primary);
+}

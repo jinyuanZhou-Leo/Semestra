@@ -60,7 +60,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 transition: 'transform 0.3s ease-in-out',
                 transform: isVisible ? 'translateY(0)' : 'translateY(-100%)',
             }}>
-                <Container style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+
+                <Container className="layout-header-content" style={{ height: '100%' }}>
                     <Link to="/" style={{ fontWeight: 'bold', fontSize: '1.25rem', color: 'var(--color-text-primary)', textDecoration: 'none' }}>
                         Semestra
                     </Link>

@@ -62,13 +62,14 @@ export const HomePage: React.FC = () => {
 
     return (
         <Layout>
-            <div style={{
-                ...heroStyle,
-                padding: '4rem 0',
+            <div
+                className="hero-section"
+                style={{
+                    ...heroStyle,
                 color: 'var(--color-text-primary)'
             }}>
                 <Container>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="page-header" style={{ marginBottom: 0 }}>
                         <div>
                             <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Academic Overview</div>
                             <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>

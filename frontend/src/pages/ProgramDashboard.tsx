@@ -139,15 +139,16 @@ export const ProgramDashboard: React.FC = () => {
 
     return (
         <Layout>
-            <div style={{
-                ...heroStyle,
-                padding: '4rem 0',
+            <div
+                className="hero-section"
+                style={{
+                    ...heroStyle,
                 color: 'var(--color-text-primary)'
             }}>
                 <Container>
                     <BackButton to="/" label="Back to Programs" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Program Overview</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
+                    <div className="page-header" style={{ marginBottom: '2.5rem' }}>
                         <h1 className="noselect" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                             {program.name}
                         </h1>
@@ -221,7 +222,7 @@ export const ProgramDashboard: React.FC = () => {
             </div>
 
             <Container padding="3rem 2rem">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                <div className="page-header" style={{ marginBottom: '2rem' }}>
                     <h2 style={{ fontSize: '1.75rem' }}>Semesters</h2>
                     <Button onClick={() => setIsModalOpen(true)}>+ New Semester</Button>
                 </div>
