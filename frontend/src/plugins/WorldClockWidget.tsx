@@ -63,7 +63,8 @@ export const WorldClockWidget: React.FC<WidgetProps> = ({ settings, updateSettin
                 top: '0.5rem',
                 right: '0.5rem',
                 opacity: 0.5,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                zIndex: 10
             }} onClick={() => setIsEditing(!isEditing)}>
                 ⚙️
             </div>

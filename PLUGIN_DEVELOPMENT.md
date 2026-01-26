@@ -124,3 +124,9 @@ Widgets should persist their state to the backend using `api.updateWidget`.
 ### Example: World Clock
 
 See `frontend/src/plugins/WorldClockWidget.tsx` for a distinct example of a functional widget.
+
+## UI 设计规范
+- 插件UI中避免在上方添加标题，因为容器已经提供了标题
+- 插件应当适配声明的所有尺寸
+- 插件应当适配深色模式
+- 插件应当高效利用空间，避免过多留白

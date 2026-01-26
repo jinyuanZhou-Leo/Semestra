@@ -52,15 +52,8 @@ export const CourseListWidget: React.FC<WidgetProps> = ({ semesterId }) => {
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '1rem'
-            }}>
-                <h3 style={{ margin: 0 }}>Courses</h3>
-                <Button onClick={() => setIsModalOpen(true)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>+ Add</Button>
-            </div>
+            {/* Header removed to use container title and respect safe area */}
+
 
             <div style={{ flex: 1, overflowY: 'auto' }}>
                 {courses.length === 0 ? (
@@ -120,6 +113,9 @@ export const CourseListWidget: React.FC<WidgetProps> = ({ semesterId }) => {
                         ))}
                     </ul>
                 )}
+            </div>
+            <div style={{ padding: '0.5rem', borderTop: '1px solid var(--color-border)' }}>
+                <Button onClick={() => setIsModalOpen(true)} fullWidth style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>+ Add Course</Button>
             </div>
 
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Course">
