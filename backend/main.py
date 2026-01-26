@@ -110,7 +110,7 @@ def create_semester_for_program(
 async def create_semester_from_ics(
     program_id: str, 
     file: UploadFile = File(...), 
-    name: str = None, 
+    name: str = Form(None), 
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(auth.get_current_user)
 ):

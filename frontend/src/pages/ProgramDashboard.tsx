@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
@@ -25,6 +25,12 @@ export const ProgramDashboard: React.FC = () => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
 
+    // Ref to track the latest newSemesterName, avoiding stale closure
+    const newSemesterNameRef = useRef(newSemesterName);
+    useEffect(() => {
+        newSemesterNameRef.current = newSemesterName;
+    }, [newSemesterName]);
+
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -45,12 +51,9 @@ export const ProgramDashboard: React.FC = () => {
             if (file.name.endsWith('.ics') || file.type === 'text/calendar') {
                 setSelectedFile(file);
                 // Auto-fill name from filename only if name is empty
-                if (!newSemesterName) {
+                if (!newSemesterNameRef.current) {
                     const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
                     setNewSemesterName(name);
-                }
-                else {
-                    setNewSemesterName(newSemesterName);
                 }
             } else {
                 alert('Please upload a valid .ics file');
@@ -415,7 +418,7 @@ export const ProgramDashboard: React.FC = () => {
                                             const file = e.target.files?.[0];
                                             if (file) {
                                                 setSelectedFile(file);
-                                                if (!newSemesterName) {
+                                                if (!newSemesterNameRef.current) {
                                                     const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
                                                     setNewSemesterName(name);
                                                 }
