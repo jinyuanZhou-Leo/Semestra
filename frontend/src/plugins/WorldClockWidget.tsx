@@ -56,7 +56,8 @@ export const WorldClockWidget: React.FC<WidgetProps> = ({ settings, updateSettin
             justifyContent: 'center',
             alignItems: 'center',
             padding: '1rem',
-            position: 'relative'
+            position: 'relative',
+            userSelect: 'none'
         }}>
             <div style={{
                 position: 'absolute',

@@ -106,7 +106,7 @@ const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings
     };
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '0.5rem' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '0.5rem', userSelect: 'none' }}>
             <div style={{ flex: 1, overflowY: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                     <thead>

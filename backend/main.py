@@ -282,8 +282,8 @@ def delete_widget(
     if not db_widget:
         raise HTTPException(status_code=404, detail="Widget not found")
         
-    if db_widget.widget_type == "course-list":
-        raise HTTPException(status_code=400, detail="Cannot delete default Course List widget")
+    if db_widget.is_removable is False:
+        raise HTTPException(status_code=400, detail="Cannot delete this widget")
         
     return crud.delete_widget(db=db, widget_id=widget_id)
 

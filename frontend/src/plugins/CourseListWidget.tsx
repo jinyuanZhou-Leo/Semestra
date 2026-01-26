@@ -51,7 +51,7 @@ export const CourseListWidget: React.FC<WidgetProps> = ({ semesterId }) => {
     }
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', userSelect: 'none' }}>
             {/* Header removed to use container title and respect safe area */}
 
 

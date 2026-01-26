@@ -130,3 +130,4 @@ See `frontend/src/plugins/WorldClockWidget.tsx` for a distinct example of a func
 - 插件应当适配声明的所有尺寸
 - 插件应当适配深色模式
 - 插件应当高效利用空间，避免过多留白
+- 插件中应对必要元素添加user-select: none

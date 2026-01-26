@@ -20,7 +20,8 @@ export const CounterWidget: React.FC<WidgetProps> = ({ settings, updateSettings 
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            gap: '1rem'
+            gap: '1rem',
+            userSelect: 'none'
         }}>
             <div style={{ fontSize: '3rem', fontWeight: 700 }}>{count}</div>
             <div style={{ display: 'flex', gap: '1rem' }}>
