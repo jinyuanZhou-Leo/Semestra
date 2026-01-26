@@ -20,6 +20,42 @@ export const SemesterDashboard: React.FC = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
+    const [scrollProgress, setScrollProgress] = useState(0);
+    const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    const lastScrollY = React.useRef(0);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            const currentScrollY = window.scrollY;
+            const maxScroll = 120;
+            const progress = Math.min(currentScrollY / maxScroll, 1);
+            setScrollProgress(progress);
+
+            // Navbar logic replication
+            if (currentScrollY < 10) {
+                setIsNavbarVisible(true);
+            } else if (currentScrollY > lastScrollY.current && currentScrollY > 60) {
+                setIsNavbarVisible(false);
+            } else if (currentScrollY < lastScrollY.current) {
+                setIsNavbarVisible(true);
+            }
+            lastScrollY.current = currentScrollY;
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    // Derived styles
+    const topPosition = isNavbarVisible ? '60px' : '0px';
+    const topContentOpacity = 1 - Math.min(scrollProgress * 1.5, 1); // Fade out faster
+    const topContentHeight = (1 - Math.min(scrollProgress * 1.5, 1)) * 50; // Approx height of back button + label
+    const titleSize = `${3.5 - (2.0 * scrollProgress)}rem`;
+    const statsOpacity = 1 - scrollProgress;
+    const statsHeight = (1 - scrollProgress) * 50; // Approx height of stats
+    const containerPadding = `${1.5 - (0.75 * scrollProgress)}rem 0`;
+    const shadowOpacity = scrollProgress * 0.1;
+
 
     useEffect(() => {
         if (id) fetchSemester(id);
@@ -208,19 +244,49 @@ export const SemesterDashboard: React.FC = () => {
             <div
                 className="hero-section"
                 style={{
-                    background: 'var(--gradient-hero)',
-                    padding: '1.5rem 0',
-                    color: 'var(--color-text-primary)'
+                    position: 'sticky',
+                    top: topPosition,
+                    zIndex: 900,
+                    background: 'var(--gradient-hero)', // Keep original gradient
+                    padding: containerPadding,
+                    color: 'var(--color-text-primary)',
+                    boxShadow: `0 4px 20px rgba(0,0,0,${shadowOpacity})`,
+                    backdropFilter: 'blur(10px)', // Ensure glass effect if gradient has transparency
+                    transition: 'padding 0.1s, top 0.3s ease-in-out', // Smooth out slight jitters and sync with navbar
                 }}>
                 <Container>
-                    <BackButton label="Back to Program" />
-                    <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Semester Dashboard</div>
-                    <div className="page-header">
-                        <div>
-                            <h1 className="text-truncate" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    <div style={{
+                        height: `${topContentHeight}px`,
+                        opacity: topContentOpacity,
+                        overflow: 'hidden',
+                        marginBottom: `${0.5 * (1 - scrollProgress)}rem`,
+                        transition: 'height 0.1s, opacity 0.1s'
+                    }}>
+                        <BackButton label="Back to Program" />
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', textTransform: 'uppercase', marginTop: '0.5rem' }}>Semester Dashboard</div>
+                    </div>
+
+                    <div className="page-header" style={{ marginBottom: 0 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <h1 className="text-truncate" style={{
+                                fontSize: titleSize,
+                                margin: 0,
+                                fontWeight: 800,
+                                letterSpacing: '-0.02em',
+                                background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                transition: 'font-size 0.1s'
+                            }}>
                                 {semester.name}
                             </h1>
-                            <div className="noselect stats-row">
+                            <div className="noselect stats-row" style={{
+                                height: `${statsHeight}px`,
+                                opacity: statsOpacity,
+                                overflow: 'hidden',
+                                marginTop: `${1.0 * (1 - scrollProgress)}rem`,
+                                transition: 'height 0.1s, opacity 0.1s, margin-top 0.1s'
+                            }}>
                                 <div>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}</div>
@@ -235,7 +301,7 @@ export const SemesterDashboard: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
+                        <div style={{ display: 'flex', gap: '1rem', alignSelf: scrollProgress > 0.8 ? 'center' : 'flex-start', paddingTop: scrollProgress > 0.8 ? 0 : '10px', transition: 'all 0.2s' }}>
                             <Button
                                 onClick={() => setIsSettingsOpen(true)}
                                 variant="glass"

@@ -50,6 +50,12 @@ def run():
     semester_id = semester["id"]
     print(f"Created semester {semester_id}")
 
+    # 3.5 Create Course
+    resp = requests.post(f"{BASE_URL}/semesters/{semester_id}/courses/", json={"name": "Test Course", "credits": 0.5}, headers=headers)
+    if resp.status_code != 200:
+        print(f"Create course failed: {resp.status_code} {resp.text}")
+    print("Created course")
+
     # 4. Fetch Semester (The issue point)
     resp = requests.get(f"{BASE_URL}/semesters/{semester_id}", headers=headers)
     if resp.status_code == 200:
