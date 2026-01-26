@@ -229,12 +229,10 @@ const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings
                         backgroundColor: 'var(--color-accent-primary)',
                         padding: '0.5rem',
                         borderRadius: 'var(--radius-md)',
-                        color: 'white' // Assuming accent implies white text usually, but safe to check. 
-                        // Let's stick to bg-secondary with accent COLOR text if we want consistency, or solid accent bg.
-                        // Solid accent bg pops more for the final result.
+                        color: 'var(--color-accent-text)'
                     }}>
-                        <div style={{ fontSize: '0.7rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.9)' }}>GPA</div>
-                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'white' }}>
+                        <div style={{ fontSize: '0.7rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-accent-text)' }}>GPA</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-accent-text)' }}>
                             {totalGradeScaled}
                         </div>
                     </div>
