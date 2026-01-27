@@ -105,6 +105,7 @@ const CourseDashboardContent: React.FC = () => {
         addWidget: handleAddWidget,
         removeWidget: handleRemoveWidget,
         updateWidget: handleUpdateWidget,
+        updateWidgetDebounced: handleUpdateWidgetDebounced,
         updateLayout: handleLayoutChange
     } = useDashboardWidgets({
         courseId: course?.id,
@@ -213,17 +214,17 @@ const CourseDashboardContent: React.FC = () => {
                                 flexWrap: 'wrap',
                                 height: 'auto'
                             }}>
-                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.credits}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>{course.credits}</div>
                                 </div>
-                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Grade</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.hide_gpa ? '****' : `${course.grade_percentage}%`}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>{course.hide_gpa ? '****' : `${course.grade_percentage.toFixed(1)}%`}</div>
                                 </div>
-                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA (Scaled)</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{course.hide_gpa ? '****' : course.grade_scaled.toFixed(2)}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>{course.hide_gpa ? '****' : course.grade_scaled.toFixed(2)}</div>
                                 </div>
                             </div>
                         </div>
@@ -267,6 +268,7 @@ const CourseDashboardContent: React.FC = () => {
                     onRemoveWidget={handleRemoveWidget}
                     onEditWidget={(w) => setEditingWidget(w)}
                     onUpdateWidget={handleUpdateWidget}
+                    onUpdateWidgetDebounced={handleUpdateWidgetDebounced}
                     courseId={course.id}
                     updateCourseField={updateCourseField}
                 />

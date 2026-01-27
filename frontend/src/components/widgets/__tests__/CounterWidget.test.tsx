@@ -4,15 +4,14 @@ import { vi, describe, it, expect } from 'vitest';
 
 describe('CounterWidget', () => {
     const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
-    const mockSetIsSaving = vi.fn();
 
     it('renders initial value', () => {
-        render(<Counter widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} setIsSaving={mockSetIsSaving} />);
+        render(<Counter widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} />);
         expect(screen.getByText('5')).toBeInTheDocument();
     });
 
     it('increments value and calls updateSettings', async () => {
-        render(<Counter widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} setIsSaving={mockSetIsSaving} />);
+        render(<Counter widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} />);
         const incrementBtn = screen.getByText('+');
         fireEvent.click(incrementBtn);
 
@@ -29,7 +28,7 @@ describe('CounterWidget', () => {
     });
 
     it('decrements value', async () => {
-        render(<Counter widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} setIsSaving={mockSetIsSaving} />);
+        render(<Counter widgetId="1" settings={{ value: 5 }} updateSettings={mockUpdateSettings} />);
         const decrementBtn = screen.getByText('-');
         fireEvent.click(decrementBtn);
 

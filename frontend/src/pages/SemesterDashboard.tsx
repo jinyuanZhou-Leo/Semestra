@@ -120,6 +120,7 @@ export const SemesterDashboard: React.FC = () => {
         addWidget: handleAddWidget,
         removeWidget: handleRemoveWidget,
         updateWidget: handleUpdateWidget,
+        updateWidgetDebounced: handleUpdateWidgetDebounced,
         updateLayout: handleLayoutChange
     } = useDashboardWidgets({
         semesterId: semester?.id,
@@ -229,17 +230,17 @@ export const SemesterDashboard: React.FC = () => {
                                 flexWrap: 'wrap', // Allow wrap on mobile
                                 height: 'auto'
                             }}>
-                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>{semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}</div>
                                 </div>
-                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Avg</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.average_percentage.toFixed(1)}%</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>{semester.average_percentage.toFixed(1)}%</div>
                                 </div>
-                                <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{semester.average_scaled.toFixed(2)}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>{semester.average_scaled.toFixed(2)}</div>
                                 </div>
                             </div>
                         </div>
@@ -283,6 +284,7 @@ export const SemesterDashboard: React.FC = () => {
                     onRemoveWidget={handleRemoveWidget}
                     onEditWidget={(w) => setEditingWidget(w)}
                     onUpdateWidget={handleUpdateWidget}
+                    onUpdateWidgetDebounced={handleUpdateWidgetDebounced}
                     semesterId={semester.id}
                 />
             </Container>

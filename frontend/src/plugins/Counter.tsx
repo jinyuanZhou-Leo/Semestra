@@ -1,17 +1,20 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Button } from '../components/Button';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 
-export const Counter: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
-    // We can still keep local state for immediate feedback if we want super-fast response before parent updates,
-    // but the parent's optimistic update should be fast enough.
-    // However, keeping it controlled by props is cleaner.
+/**
+ * Counter Plugin - Memoized for performance
+ * Optimistic UI: Local state update happens immediately via parent's optimistic update pattern
+ */
+const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     const count = settings?.value || 0;
 
-    const updateCount = async (newCount: number) => {
-        // Optimistic UI handled by parent, we just call updateSettings
+    // Memoize updateCount to prevent recreating on each render
+    const updateCount = useCallback(async (newCount: number) => {
+    // Optimistic UI is handled by parent (useDashboardWidgets hook)
+    // Parent updates local state immediately, then syncs to API
         await updateSettings({ ...settings, value: newCount });
-    };
+    }, [settings, updateSettings]);
 
     return (
         <div style={{
@@ -31,6 +34,9 @@ export const Counter: React.FC<WidgetProps> = ({ settings, updateSettings }) => 
         </div>
     );
 };
+
+// Memoize to prevent re-renders when parent updates unrelated state
+export const Counter = React.memo(CounterComponent);
 
 export const CounterDefinition: WidgetDefinition = {
     type: 'counter',

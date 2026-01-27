@@ -6,7 +6,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
     rightElement?: React.ReactNode;
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, style, wrapperStyle, rightElement, ...props }, ref) => {
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, style, wrapperStyle, rightElement, onFocus, onBlur, ...props }, ref) => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem', ...wrapperStyle }}>
             {label && (
@@ -34,8 +34,14 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, st
                         width: '100%',
                         ...style
                     }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = 'var(--color-border)'}
+                    onFocus={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--color-accent-primary)';
+                        onFocus?.(e);
+                    }}
+                    onBlur={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--color-border)';
+                        onBlur?.(e);
+                    }}
                     {...props}
                 />
                 {rightElement && (
@@ -56,3 +62,4 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, st
 });
 
 Input.displayName = "Input";
+

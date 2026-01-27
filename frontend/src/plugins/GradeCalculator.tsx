@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import api from '../services/api';
@@ -12,20 +12,22 @@ interface Assessment {
     grade: number | string;
 }
 
-const GradeCalculator: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourseField }) => {
-    const [assessments, setAssessments] = useState<Assessment[]>(settings.assessments || []);
-    const [totalPercentage, setTotalPercentage] = useState(0);
-    const [totalGrade, setTotalGrade] = useState(0);
-    const [totalGradeScaled, setTotalGradeScaled] = useState<number | string>(0);
+/**
+ * GradeCalculator Plugin
+ * 
+ * SIMPLIFIED IMPLEMENTATION:
+ * - Framework handles debouncing automatically via updateSettings
+ * - Plugin just calls updateSettings, framework does Optimistic UI + debounced API sync
+ * - No need for internal debouncing logic
+ */
+const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourseField }) => {
+    // Use settings directly - framework handles Optimistic UI
+    const assessments: Assessment[] = settings.assessments || [];
+
     const [scalingTable, setScalingTable] = useState<string>('{}');
 
-    useEffect(() => {
-        if (courseId) {
-            fetchCourseData();
-        }
-    }, [courseId]);
-
-    const fetchCourseData = async () => {
+    // Memoize fetchCourseData
+    const fetchCourseData = useCallback(async () => {
         if (!courseId) return;
         try {
             const course = await api.getCourse(courseId);
@@ -33,13 +35,16 @@ const GradeCalculator: React.FC<WidgetProps> = ({ settings, updateSettings, cour
         } catch (e) {
             console.error("Failed to fetch course data", e);
         }
-    };
+    }, [courseId]);
 
     useEffect(() => {
-        calculateTotals();
-    }, [assessments, scalingTable]);
+        if (courseId) {
+            fetchCourseData();
+        }
+    }, [courseId, fetchCourseData]);
 
-    const calculateTotals = () => {
+    // Calculate totals from assessments
+    const { totalPercentage, totalGrade, totalGradeScaled } = useMemo(() => {
         let tp = 0;
         let weightedGradeSum = 0;
 
@@ -51,59 +56,45 @@ const GradeCalculator: React.FC<WidgetProps> = ({ settings, updateSettings, cour
             weightedGradeSum += (g * p / 100);
         });
 
-        // Round to 2 decimals for display
         const tpRounded = Math.round(tp * 100) / 100;
         const tgRounded = Math.round(weightedGradeSum * 100) / 100;
-
-        setTotalPercentage(tpRounded);
-        setTotalGrade(tgRounded);
-
         const scaled = calculateGPA(tgRounded, scalingTable);
-        setTotalGradeScaled(scaled);
 
-        if (tpRounded === 100 && courseId) {
-            // Optimistic UI: Local state is already updated.
-            // API update is handled by the useEffect below with debounce.
-        }
-    };
+        return { totalPercentage: tpRounded, totalGrade: tgRounded, totalGradeScaled: scaled };
+    }, [assessments, scalingTable]);
 
-    // Update course via context for reactive UI (debounced sync to backend handled by context)
+    // Update course via context for reactive UI
     useEffect(() => {
         if (totalPercentage === 100 && courseId && updateCourseField) {
-            // Update immediately via context for reactive UI
             updateCourseField('grade_percentage', totalGrade);
             updateCourseField('grade_scaled', typeof totalGradeScaled === 'number' ? totalGradeScaled : 0);
         }
     }, [totalPercentage, totalGrade, totalGradeScaled, courseId, updateCourseField]);
 
-    const handleAddRow = () => {
+    // Simple handlers - just call updateSettings, framework handles debouncing
+    const handleAddRow = useCallback(() => {
         const newAssessment: Assessment = {
             id: Date.now().toString(),
             name: 'New Assessment',
             percentage: '',
             grade: ''
         };
-        const newAssessments = [...assessments, newAssessment];
-        setAssessments(newAssessments);
-        updateSettings({ ...settings, assessments: newAssessments });
-    };
+        updateSettings({ ...settings, assessments: [...assessments, newAssessment] });
+    }, [settings, assessments, updateSettings]);
 
-    const handleRemoveRow = (id: string) => {
-        const newAssessments = assessments.filter(a => a.id !== id);
-        setAssessments(newAssessments);
-        updateSettings({ ...settings, assessments: newAssessments });
-    };
+    const handleRemoveRow = useCallback((id: string) => {
+        updateSettings({ ...settings, assessments: assessments.filter(a => a.id !== id) });
+    }, [settings, assessments, updateSettings]);
 
-    const handleUpdateRow = (id: string, field: keyof Assessment, value: any) => {
+    const handleUpdateRow = useCallback((id: string, field: keyof Assessment, value: any) => {
         const newAssessments = assessments.map(a => {
             if (a.id === id) {
                 return { ...a, [field]: value };
             }
             return a;
         });
-        setAssessments(newAssessments);
         updateSettings({ ...settings, assessments: newAssessments });
-    };
+    }, [settings, assessments, updateSettings]);
 
     // Format weight sum to always show 3 digits
     const formatWeightSum = (weight: number): string => {
@@ -194,6 +185,9 @@ const GradeCalculator: React.FC<WidgetProps> = ({ settings, updateSettings, cour
         </div>
     );
 };
+
+// Memoize to prevent re-renders when parent updates unrelated state
+export const GradeCalculator = React.memo(GradeCalculatorComponent);
 
 export const GradeCalculatorDefinition: WidgetDefinition = {
     type: 'grade-calculator',

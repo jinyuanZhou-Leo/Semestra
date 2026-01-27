@@ -5,8 +5,12 @@ export interface WidgetProps {
     settings: any;
     semesterId?: string;
     courseId?: string;
-    updateSettings: (newSettings: any) => Promise<void>;
-    setIsSaving: (isSaving: boolean) => void;
+    /**
+     * Update widget settings - framework handles debouncing automatically
+     * Plugin developers just call this function, no need to implement debouncing
+     * Returns void since framework debounces API calls (Optimistic UI pattern)
+     */
+    updateSettings: (newSettings: any) => void | Promise<void>;
     title?: string;
     pluginName?: string;
     updateCourseField?: (field: string, value: any) => void;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -7,26 +7,32 @@ import api from '../services/api';
 import type { Course } from '../services/api';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 
-export const CourseList: React.FC<WidgetProps> = ({ semesterId }) => {
+/**
+ * CourseList Plugin - Memoized for performance
+ * Optimistic UI: Fetches fresh data after mutations
+ */
+const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
     const [courses, setCourses] = useState<Course[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newCourseName, setNewCourseName] = useState('');
     const [newCourseCredits, setNewCourseCredits] = useState('0.5');
     const [newCourseGrade, setNewCourseGrade] = useState('0');
 
+    // Memoize fetchCourses to prevent recreation on each render
+    const fetchCourses = useCallback(async () => {
+        if (!semesterId) return;
+        const data = await api.getSemester(semesterId);
+        if (data.courses) setCourses(data.courses);
+    }, [semesterId]);
+
     useEffect(() => {
         if (semesterId) {
             fetchCourses();
         }
-    }, [semesterId]);
+    }, [semesterId, fetchCourses]);
 
-    const fetchCourses = async () => {
-        if (!semesterId) return;
-        const data = await api.getSemester(semesterId);
-        if (data.courses) setCourses(data.courses);
-    };
-
-    const handleCreateCourse = async (e: React.FormEvent) => {
+    // Memoize handleCreateCourse
+    const handleCreateCourse = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         if (!semesterId) return;
         try {
@@ -44,7 +50,7 @@ export const CourseList: React.FC<WidgetProps> = ({ semesterId }) => {
         } catch (error) {
             console.error("Failed to create course", error);
         }
-    };
+    }, [semesterId, newCourseName, newCourseCredits, newCourseGrade, fetchCourses]);
 
     if (!semesterId) {
         return <div>Course List requires a semester context.</div>;
@@ -129,6 +135,9 @@ export const CourseList: React.FC<WidgetProps> = ({ semesterId }) => {
         </div>
     );
 };
+
+// Memoize to prevent re-renders when parent updates unrelated state
+export const CourseList = React.memo(CourseListComponent);
 
 export const CourseListDefinition: WidgetDefinition = {
     type: 'course-list',

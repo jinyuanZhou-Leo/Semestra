@@ -26,7 +26,10 @@ interface DashboardGridProps {
     onLayoutChange: (layouts: any) => void;
     onEditWidget?: (widget: WidgetItem) => void;
     onRemoveWidget?: (id: string) => void;
+    /** For immediate updates (modals, delete, etc.) */
     onUpdateWidget?: (id: string, newSettings: any) => Promise<void>;
+    /** For frequent updates (typing) - debounced by framework */
+    onUpdateWidgetDebounced?: (id: string, newSettings: any) => void;
     semesterId?: string;
     courseId?: string;
     updateCourseField?: (field: string, value: any) => void;
@@ -38,6 +41,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     onEditWidget,
     onRemoveWidget,
     onUpdateWidget,
+    onUpdateWidgetDebounced,
     semesterId,
     courseId,
     updateCourseField
@@ -105,6 +109,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                             onRemove={onRemoveWidget && isRemovable ? onRemoveWidget : undefined}
                             onEdit={onEditWidget}
                             onUpdateWidget={onUpdateWidget || (async () => { })}
+                            onUpdateWidgetDebounced={onUpdateWidgetDebounced}
                             semesterId={semesterId}
                             courseId={courseId}
                             updateCourseField={updateCourseField}

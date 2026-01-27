@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import api from '../services/api';
 import type { Widget } from '../services/api';
@@ -14,9 +14,14 @@ interface UseDashboardWidgetsProps {
 export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRefresh }: UseDashboardWidgetsProps) => {
     const [widgets, setWidgets] = useState<WidgetItem[]>([]);
 
-    // Initialize widgets from props
+    // Track if initial sync has happened to prevent overwriting optimistic UI
+    const initialSyncDoneRef = useRef(false);
+
+    // Initialize widgets from props - ONLY on initial load
+    // After initial sync, local state is the source of truth (Optimistic UI)
     useEffect(() => {
-        if (initialWidgets) {
+        // Only sync on initial load, not on subsequent refreshes
+        if (initialWidgets && !initialSyncDoneRef.current) {
             const mappedWidgets: WidgetItem[] = initialWidgets.map(w => {
                 let parsedSettings = {};
                 let parsedLayout = undefined;
@@ -36,6 +41,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                 };
             });
             setWidgets(mappedWidgets);
+            initialSyncDoneRef.current = true;
         }
     }, [initialWidgets]);
 
@@ -186,8 +192,151 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         }
     }, [onRefresh]);
 
-    const updateLayout = useCallback(async (layouts: any[]) => {
-        // Batch local update
+    // ============================================================
+    // DEBOUNCED WIDGET SETTINGS UPDATE (Framework-level optimization)
+    // Plugin developers just call updateSettings, framework handles debouncing
+    // ============================================================
+
+    // Refs for debounced settings sync (per-widget)
+    const settingsSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const pendingSettingsRef = useRef<Map<string, any>>(new Map());
+
+    /**
+     * Flush pending settings for a specific widget
+     * Called on blur events and unmount
+     * 
+     * NOTE: We do NOT call onRefresh here because:
+     * 1. Optimistic UI is already correct (local state was updated immediately)
+     * 2. Calling refresh would fetch data from server which might be stale
+     * 3. This would cause UI to flash back to old state
+     */
+    const flushWidgetSettings = useCallback(async (widgetId: string) => {
+        const timer = settingsSyncTimersRef.current.get(widgetId);
+        if (timer) {
+            clearTimeout(timer);
+            settingsSyncTimersRef.current.delete(widgetId);
+        }
+
+        const pending = pendingSettingsRef.current.get(widgetId);
+        if (pending) {
+            pendingSettingsRef.current.delete(widgetId);
+            try {
+                await api.updateWidget(widgetId, pending);
+                // Do NOT call onRefresh - optimistic UI is already correct
+                // Calling refresh would overwrite local state with potentially stale server data
+            } catch (error) {
+                console.error("Failed to sync widget settings", widgetId, error);
+                // On error, we could optionally call onRefresh to restore server state
+                // if (onRefresh) onRefresh();
+            }
+        }
+    }, []);
+
+    /**
+     * Debounced widget update - for frequent updates like typing
+     * OPTIMISTIC UI: Local state updates immediately, API sync is debounced
+     * Plugin developers don't need to implement debouncing themselves
+     */
+    const updateWidgetDebounced = useCallback((id: string, data: any) => {
+    // OPTIMISTIC UI: Update local state immediately
+        setWidgets(prev => prev.map(w => {
+            if (w.id === id) {
+                if (data.settings) {
+                    let newSettings = w.settings;
+                    if (typeof data.settings === 'string') {
+                        try {
+                            newSettings = JSON.parse(data.settings);
+                        } catch (e) { console.error("Error parsing settings for optimistic update", e) }
+                    } else {
+                        newSettings = data.settings;
+                    }
+                    return { ...w, settings: newSettings };
+                }
+                return { ...w, ...data };
+            }
+            return w;
+        }));
+
+        // Queue for debounced API sync
+        pendingSettingsRef.current.set(id, data);
+
+        // Clear existing timer for this widget
+        const existingTimer = settingsSyncTimersRef.current.get(id);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+        }
+
+        // Set new debounced sync (300ms)
+        const timer = setTimeout(() => {
+            flushWidgetSettings(id);
+        }, 300);
+        settingsSyncTimersRef.current.set(id, timer);
+    }, [flushWidgetSettings]);
+
+    // Cleanup all pending settings on unmount
+    useEffect(() => {
+        return () => {
+            // Flush all pending settings
+            settingsSyncTimersRef.current.forEach((timer, _widgetId) => {
+                clearTimeout(timer);
+            });
+            pendingSettingsRef.current.forEach(async (data, widgetId) => {
+                try {
+                    await api.updateWidget(widgetId, data);
+                } catch (error) {
+                    console.error("Failed to flush widget settings on unmount", widgetId, error);
+                }
+            });
+            pendingSettingsRef.current.clear();
+            settingsSyncTimersRef.current.clear();
+        };
+    }, []);
+
+    // Refs for debounced layout sync
+    const layoutSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingLayoutsRef = useRef<Map<string, { x: number; y: number; w: number; h: number }>>(new Map());
+
+    /**
+     * Sync pending layouts to API immediately
+     * Called when flushing pending updates
+     */
+    const syncLayoutsToApi = useCallback(async () => {
+        if (pendingLayoutsRef.current.size === 0) return;
+
+        const layouts = Array.from(pendingLayoutsRef.current.entries());
+        pendingLayoutsRef.current.clear();
+
+        for (const [widgetId, layout] of layouts) {
+            try {
+                await api.updateWidget(widgetId, { layout_config: JSON.stringify(layout) });
+            } catch (error) {
+                console.error("Failed to update widget layout", widgetId, error);
+            }
+        }
+    }, []);
+
+    /**
+     * Flush pending layout updates immediately
+     * Called on unmount to ensure data is saved
+     */
+    const flushPendingLayouts = useCallback(() => {
+        if (layoutSyncTimerRef.current) {
+            clearTimeout(layoutSyncTimerRef.current);
+            layoutSyncTimerRef.current = null;
+        }
+        // Sync immediately (fire and forget for unmount scenario)
+        syncLayoutsToApi();
+    }, [syncLayoutsToApi]);
+
+    // Cleanup on unmount - flush immediately
+    useEffect(() => {
+        return () => {
+            flushPendingLayouts();
+        };
+    }, [flushPendingLayouts]);
+
+    const updateLayout = useCallback((layouts: any[]) => {
+        // OPTIMISTIC UI: Update local state immediately for smooth UX
         setWidgets(prev => prev.map(w => {
             const layout = layouts.find(l => l.i === w.id);
             if (layout) {
@@ -196,30 +345,28 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             return w;
         }));
 
-        // Batch API update
-        for (const layout of layouts) {
-            const widget = widgets.find(w => w.id === layout.i);
-            if (widget) {
-                const newLayout = { x: layout.x, y: layout.y, w: layout.w, h: layout.h };
-                // Check against CURRENT state widget, not the captured `widget` (which might be stale if we relied on closure, but `widgets` dep helps).
-                // Actually `widgets` in dependency array effectively rebuilds this function, so `widget` found in `widgets` is current.
-                // Optimization: Check if actually changed.
-                if (JSON.stringify(widget.layout) !== JSON.stringify(newLayout)) {
-                    try {
-                        await api.updateWidget(widget.id, { layout_config: JSON.stringify(newLayout) });
-                    } catch (error) {
-                        console.error("Failed to update widget layout", error);
-                    }
-                }
-            }
+        // Queue layout changes for debounced API sync
+        layouts.forEach(layout => {
+            const newLayout = { x: layout.x, y: layout.y, w: layout.w, h: layout.h };
+            pendingLayoutsRef.current.set(layout.i, newLayout);
+        });
+
+        // Debounce API sync (500ms to allow rapid drag/resize without API spam)
+        if (layoutSyncTimerRef.current) {
+            clearTimeout(layoutSyncTimerRef.current);
         }
-    }, [widgets]);
+        layoutSyncTimerRef.current = setTimeout(() => {
+            syncLayoutsToApi();
+        }, 500);
+    }, [syncLayoutsToApi]);
 
     return {
         widgets,
         addWidget,
         removeWidget,
         updateWidget,
+        updateWidgetDebounced,  // For frequent updates (typing)
+        flushWidgetSettings,     // For plugins to flush on blur
         updateLayout
     };
 };

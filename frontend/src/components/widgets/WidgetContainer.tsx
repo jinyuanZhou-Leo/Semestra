@@ -5,10 +5,13 @@ interface WidgetContainerProps {
     children: React.ReactNode;
     onRemove?: () => void;
     onEdit?: () => void;
-    isSaving?: boolean;
 }
 
-export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, isSaving }) => {
+/**
+ * WidgetContainer - Memoized for performance
+ * Contains the visual wrapper and control buttons for widgets
+ */
+const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit }) => {
     const [isHovered, setIsHovered] = React.useState(false);
 
     const style: React.CSSProperties = {
@@ -87,11 +90,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRe
                             <circle cx="16" cy="18" r="2" />
                         </svg>
                     </div>
-                    {isSaving && (
-                        <span className="noselect" style={{ fontSize: '0.75rem', fontStyle: 'italic', color: 'var(--color-text-tertiary)' }}>
-                            Saving...
-                        </span>
-                    )}
+
                 </div>
 
                 {/* Right side: Action Buttons */}
@@ -209,3 +208,5 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({ children, onRe
     );
 };
 
+// Memoize to prevent re-renders when parent updates unrelated state
+export const WidgetContainer = React.memo(WidgetContainerComponent);

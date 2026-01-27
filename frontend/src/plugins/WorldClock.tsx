@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 
 const AVAILABLE_TIMEZONES = [
@@ -10,7 +10,11 @@ const AVAILABLE_TIMEZONES = [
     { value: 'Asia/Shanghai', label: 'Shanghai' },
 ];
 
-export const WorldClock: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
+/**
+ * WorldClock Plugin - Memoized for performance
+ * Internal timer state doesn't trigger parent re-renders
+ */
+const WorldClockComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     const [time, setTime] = useState(new Date());
     const [isEditing, setIsEditing] = useState(false);
 
@@ -24,14 +28,15 @@ export const WorldClock: React.FC<WidgetProps> = ({ settings, updateSettings }) 
         return () => clearInterval(timer);
     }, []);
 
-    const saveSettings = async (newTimezone: string) => {
+    // Memoize saveSettings to prevent recreating on each render
+    const saveSettings = useCallback(async (newTimezone: string) => {
         try {
             await updateSettings({ ...settings, timezone: newTimezone });
             setIsEditing(false);
         } catch (error) {
             console.error("Failed to update widget settings", error);
         }
-    };
+    }, [settings, updateSettings]);
 
     const formattedTime = new Intl.DateTimeFormat('en-US', {
         hour: '2-digit',
@@ -104,6 +109,9 @@ export const WorldClock: React.FC<WidgetProps> = ({ settings, updateSettings }) 
         </div>
     );
 };
+
+// Memoize to prevent re-renders when parent updates unrelated state
+export const WorldClock = React.memo(WorldClockComponent);
 
 export const WorldClockDefinition: WidgetDefinition = {
     type: 'world-clock',
