@@ -24,6 +24,7 @@ export const ProgramDashboard: React.FC = () => {
     const [creationMethod, setCreationMethod] = useState<'manual' | 'upload'>('manual');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Ref to track the latest newSemesterName, avoiding stale closure
     const newSemesterNameRef = useRef(newSemesterName);
@@ -237,6 +238,21 @@ export const ProgramDashboard: React.FC = () => {
             </div>
 
             <Container padding="3rem 2rem">
+                <div style={{ marginBottom: '2rem' }}>
+                    <Input
+                        placeholder="Search semesters and courses..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{ fontSize: '1.1rem', padding: '1rem' }}
+                        rightElement={
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        }
+                    />
+                </div>
+
                 <div className="page-header" style={{ marginBottom: '2rem' }}>
                     <h2 style={{ fontSize: '1.75rem' }}>Semesters</h2>
                     <Button onClick={() => setIsModalOpen(true)}>+ New Semester</Button>
@@ -248,7 +264,9 @@ export const ProgramDashboard: React.FC = () => {
                     gap: '2rem',
                     marginBottom: '4rem'
                 }}>
-                    {program.semesters.map(semester => (
+                    {program.semesters
+                        .filter(semester => semester.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .map(semester => (
                         <Link key={semester.id} to={`/semesters/${semester.id}`}>
                             <div className="noselect" style={{
                                 padding: '2rem',
@@ -321,7 +339,7 @@ export const ProgramDashboard: React.FC = () => {
                         </Link>
                     ))}
 
-                    {program.semesters.length === 0 && ( /* ... Empty state ... */
+                    {program.semesters.filter(semester => semester.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && ( /* ... Empty state ... */
                         <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem', color: 'var(--color-text-secondary)' }}>No semesters found.</div>
                     )}
                 </div>
@@ -334,7 +352,9 @@ export const ProgramDashboard: React.FC = () => {
                         gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
                         gap: '1.5rem'
                     }}>
-                        {program.semesters.flatMap((s: any) => s.courses || []).map((course: any) => (
+                        {program.semesters.flatMap((s: any) => s.courses || [])
+                            .filter((course: any) => course.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                            .map((course: any) => (
                             <Link key={course.id} to={`/courses/${course.id}`}>
                                 <div style={{
                                     padding: '1.5rem',

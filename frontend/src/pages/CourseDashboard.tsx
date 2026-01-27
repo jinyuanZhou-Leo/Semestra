@@ -228,8 +228,10 @@ const CourseDashboardContent: React.FC = () => {
             <div
                 className="hero-section"
                 style={{
-                    position: 'sticky',
+                    position: 'fixed',
                     top: heroTop,
+                    left: 0,
+                    right: 0,
                     zIndex: 900,
                     background: 'var(--gradient-hero)',
                     padding: containerPadding,
@@ -332,7 +334,12 @@ const CourseDashboardContent: React.FC = () => {
                 </Container>
             </div>
 
-            <Container style={{ padding: '1rem 1rem' }}>
+            <Container style={{
+                padding: '1rem 1rem',
+                minHeight: '100vh',
+                marginTop: isShrunk ? '60px' : '140px',
+                transition: 'margin-top 0.3s ease-in-out'
+            }}>
 
 
                 <DashboardGrid
