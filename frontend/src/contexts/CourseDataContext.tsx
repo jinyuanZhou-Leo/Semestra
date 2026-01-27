@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
 import api from '../services/api';
 import type { Course } from '../services/api';
+import { useDataFetch } from '../hooks/useDataFetch';
 
 interface CourseWithWidgets extends Course {
     widgets?: any[];
@@ -31,27 +32,20 @@ interface CourseDataProviderProps {
 }
 
 export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId, children }) => {
-    const [course, setCourse] = useState<CourseWithWidgets | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const pendingUpdates = useRef<Record<string, any>>({});
     const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const fetchCourse = useCallback(async () => {
-        if (!courseId) return;
-        try {
-            setIsLoading(true);
-            const data = await api.getCourse(courseId);
-            setCourse(data);
-        } catch (error) {
-            console.error("Failed to fetch course", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [courseId]);
+    const fetchFn = useCallback(() => api.getCourse(courseId), [courseId]);
 
-    useEffect(() => {
-        fetchCourse();
-    }, [fetchCourse]);
+    const {
+        data: course,
+        setData: setCourse,
+        isLoading,
+        silentRefresh
+    } = useDataFetch<CourseWithWidgets>({
+        fetchFn,
+        enabled: !!courseId
+    });
 
     // Debounced sync to backend
     const syncToBackend = useCallback(async () => {
@@ -86,7 +80,7 @@ export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId
         syncTimerRef.current = setTimeout(() => {
             syncToBackend();
         }, 1000);
-    }, [syncToBackend]);
+    }, [syncToBackend, setCourse]);
 
     // Cleanup on unmount - ensure pending updates are synced
     useEffect(() => {
@@ -105,7 +99,7 @@ export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId
         course,
         setCourse,
         updateCourseField,
-        refreshCourse: fetchCourse,
+        refreshCourse: silentRefresh,
         isLoading
     };
 

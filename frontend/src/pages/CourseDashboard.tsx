@@ -10,11 +10,11 @@ import api from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
 import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext';
+import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 
 // Inner component that uses the context
 const CourseDashboardContent: React.FC = () => {
     const { course, updateCourseField, refreshCourse, isLoading } = useCourseData();
-    const [widgets, setWidgets] = useState<WidgetItem[]>([]);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
@@ -98,18 +98,18 @@ const CourseDashboardContent: React.FC = () => {
     const shadowOpacity = isShrunk ? 0.1 : 0;
 
 
-    useEffect(() => {
-        if (course?.widgets) {
-            const mappedWidgets: WidgetItem[] = course.widgets.map((w: any) => ({
-                id: w.id.toString(),
-                type: w.widget_type,
-                title: w.title,
-                settings: JSON.parse(w.settings || '{}'),
-                layout: JSON.parse(w.layout_config || '{}')
-            }));
-            setWidgets(mappedWidgets);
-        }
-    }, [course?.widgets]);
+
+    const {
+        widgets,
+        addWidget: handleAddWidget,
+        removeWidget: handleRemoveWidget,
+        updateWidget: handleUpdateWidget,
+        updateLayout: handleLayoutChange
+    } = useDashboardWidgets({
+        courseId: course?.id,
+        initialWidgets: course?.widgets,
+        onRefresh: refreshCourse
+    });
 
     const handleUpdateCourse = async (data: any) => {
         if (!course) return;
@@ -119,55 +119,6 @@ const CourseDashboardContent: React.FC = () => {
         } catch (error) {
             console.error("Failed to update course", error);
             alert("Failed to update course");
-        }
-    };
-
-    const handleAddWidget = async (type: string) => {
-        if (!course) return;
-        try {
-            await api.createWidgetForCourse(course.id, {
-                widget_type: type,
-                title: type === 'counter' ? 'Counter' : 'Widget'
-            });
-            refreshCourse();
-        } catch (error) {
-            console.error("Failed to create widget", error);
-        }
-    };
-
-    const handleLayoutChange = async (layouts: any[]) => {
-        const newWidgets = widgets.map(w => {
-            const layout = layouts.find(l => l.i === w.id);
-            if (layout) {
-                return { ...w, layout: { x: layout.x, y: layout.y, w: layout.w, h: layout.h } };
-            }
-            return w;
-        });
-        setWidgets(newWidgets);
-
-        for (const layout of layouts) {
-            const widget = widgets.find(w => w.id === layout.i);
-            if (widget) {
-                const newLayout = { x: layout.x, y: layout.y, w: layout.w, h: layout.h };
-                if (JSON.stringify(widget.layout) !== JSON.stringify(newLayout)) {
-                    try {
-                        await api.updateWidget(widget.id, { layout_config: JSON.stringify(newLayout) });
-                    } catch (error) {
-                        console.error("Failed to update widget layout", error);
-                    }
-                }
-            }
-        }
-    };
-
-    const handleRemoveWidget = async (id: string) => {
-        if (window.confirm("Are you sure you want to remove this widget?")) {
-            try {
-                await api.deleteWidget(id);
-                refreshCourse();
-            } catch (e) {
-                console.error("Failed to delete widget", e);
-            }
         }
     };
 
@@ -189,39 +140,6 @@ const CourseDashboardContent: React.FC = () => {
             </Layout>
         );
     }
-
-    const handleUpdateWidgetSettings = async (id: string, data: any) => {
-        try {
-            await api.updateWidget(id, data);
-            refreshCourse();
-        } catch (error) {
-            console.error("Failed to update widget", error);
-            alert("Failed to update widget");
-        }
-    };
-
-    const handleOptimisticUpdateWidget = async (id: string, data: any) => {
-        // 1. Optimistically update local state
-        setWidgets(prevWidgets => prevWidgets.map(w => {
-            if (w.id === id) {
-                if (data.settings) {
-                    const newSettings = JSON.parse(data.settings);
-                    return { ...w, settings: newSettings };
-                }
-                return { ...w, ...data };
-            }
-            return w;
-        }));
-
-        // 2. Call API
-        try {
-            await api.updateWidget(id, data);
-        } catch (error) {
-            console.error("Failed to update widget optimistically", error);
-            alert("Failed to save changes. Please refresh.");
-            refreshCourse();
-        }
-    };
 
     return (
         <Layout>
@@ -347,7 +265,7 @@ const CourseDashboardContent: React.FC = () => {
                     onLayoutChange={handleLayoutChange}
                     onRemoveWidget={handleRemoveWidget}
                     onEditWidget={(w) => setEditingWidget(w)}
-                    onUpdateWidget={handleOptimisticUpdateWidget}
+                    onUpdateWidget={handleUpdateWidget}
                     courseId={course.id}
                     updateCourseField={updateCourseField}
                 />
@@ -379,7 +297,7 @@ const CourseDashboardContent: React.FC = () => {
                                 isOpen={!!editingWidget}
                                 onClose={() => setEditingWidget(null)}
                                 widget={editingWidget}
-                                onSave={handleUpdateWidgetSettings}
+                                onSave={handleUpdateWidget}
                             />
                         )}
                     </>

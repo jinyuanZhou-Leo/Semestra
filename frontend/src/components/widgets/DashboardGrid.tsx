@@ -67,6 +67,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             <div style={{
                 textAlign: 'center',
                 padding: '3rem',
+                marginTop: '2rem',
                 border: '2px dashed var(--color-border)',
                 borderRadius: 'var(--radius-lg)',
                 color: 'var(--color-text-secondary)',
