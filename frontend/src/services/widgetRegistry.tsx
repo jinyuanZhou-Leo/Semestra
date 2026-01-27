@@ -12,6 +12,13 @@ export interface WidgetProps {
     updateCourseField?: (field: string, value: any) => void;
 }
 
+export interface WidgetLifecycleContext {
+    widgetId: string;
+    semesterId?: string;
+    courseId?: string;
+    settings: any;
+}
+
 export interface WidgetDefinition {
     type: string;
     name: string;
@@ -20,6 +27,10 @@ export interface WidgetDefinition {
     component: React.FC<WidgetProps>;
     defaultSettings?: any;
     defaultLayout?: { w: number, h: number, minW?: number, minH?: number };
+    /** Called after widget is created. If throws, the widget will be rolled back (deleted). */
+    onCreate?: (context: WidgetLifecycleContext) => Promise<void> | void;
+    /** Called after widget is deleted. Errors are logged but don't affect deletion. */
+    onDelete?: (context: WidgetLifecycleContext) => Promise<void> | void;
 }
 
 class WidgetRegistryClass {

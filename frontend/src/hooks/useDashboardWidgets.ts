@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import api from '../services/api';
 import type { Widget } from '../services/api';
+import { WidgetRegistry } from '../services/widgetRegistry';
 
 interface UseDashboardWidgetsProps {
     courseId?: string;
@@ -68,6 +69,23 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                 is_removable: newWidget.is_removable
             };
 
+            // Call onCreate lifecycle hook
+            const definition = WidgetRegistry.get(type);
+            if (definition?.onCreate) {
+                try {
+                    await definition.onCreate({
+                        widgetId: newWidget.id.toString(),
+                        semesterId,
+                        courseId,
+                        settings: JSON.parse(newWidget.settings || '{}')
+                    });
+                } catch (error) {
+                    console.error('onCreate hook failed, rolling back widget creation', error);
+                    await api.deleteWidget(newWidget.id.toString());
+                    throw error;
+                }
+            }
+
             setWidgets(prev => [...prev, mappedWidget]);
 
             if (onRefresh) onRefresh();
@@ -80,13 +98,34 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     const removeWidget = useCallback(async (id: string) => {
         if (!window.confirm("Are you sure you want to remove this widget?")) return;
 
+        // Find widget before removing for lifecycle hook
+        const widgetToRemove = widgets.find(w => w.id === id);
+
         // Optimistic update
         const previousWidgets = [...widgets];
         setWidgets(prev => prev.filter(w => w.id !== id));
 
         try {
             await api.deleteWidget(id);
-            // Verify with refresh if needed, but optimistic remove is usually safe
+
+            // Call onDelete lifecycle hook
+            if (widgetToRemove) {
+                const definition = WidgetRegistry.get(widgetToRemove.type);
+                if (definition?.onDelete) {
+                    try {
+                        await definition.onDelete({
+                            widgetId: id,
+                            semesterId,
+                            courseId,
+                            settings: widgetToRemove.settings
+                        });
+                    } catch (error) {
+                        console.error('onDelete hook failed', error);
+                        // Don't affect deletion result, just log
+                    }
+                }
+            }
+
             if (onRefresh) onRefresh();
         } catch (e) {
             console.error("Failed to delete widget", e);

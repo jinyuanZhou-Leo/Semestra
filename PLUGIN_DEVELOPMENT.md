@@ -30,6 +30,16 @@ export interface WidgetDefinition {
         minW?: number,     // Minimum width
         minH?: number      // Minimum height
     };
+    // Lifecycle hooks
+    onCreate?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
+    onDelete?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
+}
+
+export interface WidgetLifecycleContext {
+    widgetId: string;      // The ID of the widget instance
+    semesterId?: string;   // Semester context (if applicable)
+    courseId?: string;     // Course context (if applicable)
+    settings: any;         // Widget settings at the time of the event
 }
 ```
 
@@ -106,6 +116,55 @@ import { MyNewWidgetDefinition } from './plugins/MyNewWidget';
 
 // ... existing registrations
 WidgetRegistry.register(MyNewWidgetDefinition);
+```
+
+## Lifecycle Hooks
+
+Plugins can define lifecycle hooks to run custom logic when a widget is created or deleted.
+
+### onCreate
+
+Called **after** the widget is successfully created in the database. If this function throws an error, the widget will be automatically rolled back (deleted).
+
+```typescript
+onCreate: async (ctx) => {
+    console.log(`Widget ${ctx.widgetId} created`);
+    // Initialize external resources, setup subscriptions, etc.
+    // Throw an error to cancel widget creation
+}
+```
+
+### onDelete
+
+Called **after** the widget is successfully deleted from the database. Errors in this function are logged but do not affect the deletion.
+
+```typescript
+onDelete: async (ctx) => {
+    console.log(`Widget ${ctx.widgetId} deleted`);
+    // Clean up external resources, cancel subscriptions, etc.
+}
+```
+
+### Example with Lifecycle Hooks
+
+```typescript
+export const MyWidgetDefinition: WidgetDefinition = {
+    type: 'my-widget',
+    name: 'My Widget',
+    component: MyWidget,
+    defaultSettings: {},
+    defaultLayout: { w: 3, h: 2 },
+    
+    onCreate: async (ctx) => {
+        // Example: register with an external service
+        await externalService.register(ctx.widgetId);
+    },
+    
+    onDelete: async (ctx) => {
+        // Example: unregister from external service
+        await externalService.unregister(ctx.widgetId);
+    }
+};
 ```
 
 ## Best Practices
