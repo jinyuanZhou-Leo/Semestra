@@ -7,7 +7,7 @@ import api from '../services/api';
 import type { Course } from '../services/api';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 
-export const CourseListWidget: React.FC<WidgetProps> = ({ semesterId }) => {
+export const CourseList: React.FC<WidgetProps> = ({ semesterId }) => {
     const [courses, setCourses] = useState<Course[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newCourseName, setNewCourseName] = useState('');
@@ -130,11 +130,11 @@ export const CourseListWidget: React.FC<WidgetProps> = ({ semesterId }) => {
     );
 };
 
-export const CourseListWidgetDefinition: WidgetDefinition = {
+export const CourseListDefinition: WidgetDefinition = {
     type: 'course-list',
     name: 'Course List',
     description: 'Display a list of courses in this semester.',
     icon: '📚',
-    component: CourseListWidget,
+    component: CourseList,
     defaultLayout: { w: 6, h: 8, minW: 4, minH: 4 }
 };

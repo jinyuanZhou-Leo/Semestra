@@ -161,7 +161,7 @@ const CourseDashboardContent: React.FC = () => {
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
-                    minHeight: isShrunk ? '60px' : '140px',
+                    minHeight: isShrunk ? '60px' : 'var(--header-expanded-height)',
                 }}>
                 <Container style={{
                     transition: 'padding-top 0.3s ease-in-out, padding-bottom 0.3s ease-in-out',
@@ -256,7 +256,7 @@ const CourseDashboardContent: React.FC = () => {
             <Container style={{
                 padding: '1rem 1rem',
                 minHeight: '100vh',
-                marginTop: isShrunk ? '60px' : '140px',
+                marginTop: isShrunk ? '60px' : 'var(--header-expanded-height)',
                 transition: 'margin-top 0.3s ease-in-out'
             }}>
 

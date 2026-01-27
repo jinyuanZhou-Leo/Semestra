@@ -176,7 +176,7 @@ export const SemesterDashboard: React.FC = () => {
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
-                    minHeight: isShrunk ? '60px' : '140px', // Ensure a minimum height for centering to work effectively
+                    minHeight: isShrunk ? '60px' : 'var(--header-expanded-height)', // Ensure a minimum height for centering to work effectively
                 }}>
                 <Container style={{
                     transition: 'padding-top 0.3s ease-in-out',
@@ -274,7 +274,7 @@ export const SemesterDashboard: React.FC = () => {
             <Container style={{
                 padding: '1rem 1rem',
                 minHeight: '100vh',
-                marginTop: isShrunk ? '60px' : '140px',
+                marginTop: isShrunk ? '60px' : 'var(--header-expanded-height)',
                 transition: 'margin-top 0.3s ease-in-out'
             }}>
                 <DashboardGrid

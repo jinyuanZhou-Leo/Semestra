@@ -12,7 +12,7 @@ interface Assessment {
     grade: number | string;
 }
 
-const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourseField }) => {
+const GradeCalculator: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourseField }) => {
     const [assessments, setAssessments] = useState<Assessment[]>(settings.assessments || []);
     const [totalPercentage, setTotalPercentage] = useState(0);
     const [totalGrade, setTotalGrade] = useState(0);
@@ -105,6 +105,14 @@ const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings
         updateSettings({ ...settings, assessments: newAssessments });
     };
 
+    // Format weight sum to always show 3 digits
+    const formatWeightSum = (weight: number): string => {
+        if (weight > 100) return 'INV';
+        if (weight >= 100) return '100';
+        if (weight >= 10) return weight.toFixed(1);
+        return weight.toFixed(2);
+    };
+
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '0.5rem', userSelect: 'none' }}>
             <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -112,7 +120,20 @@ const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings
                     <thead>
                         <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
                             <th style={{ textAlign: 'left', padding: '0.5rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>Name</th>
-                            <th style={{ textAlign: 'right', padding: '0.5rem', color: totalPercentage !== 100 ? '#ef4444' : 'var(--color-text-secondary)', fontWeight: 500 }}>Weight (%)</th>
+                            <th style={{ textAlign: 'right', padding: '0.5rem', color: totalPercentage !== 100 ? '#ef4444' : 'var(--color-text-secondary)', fontWeight: 500 }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                    Weight(
+                                    <span style={{
+                                        display: 'inline-block',
+                                        width: '3.4ch',
+                                        textAlign: 'center',
+                                        fontVariantNumeric: 'tabular-nums'
+                                    }}>
+                                        {formatWeightSum(totalPercentage)}
+                                    </span>
+                                    %)
+                                </div>
+                            </th>
                             <th style={{ textAlign: 'right', padding: '0.5rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>Grade</th>
                             <th style={{ width: '30px' }}></th>
                         </tr>
@@ -122,7 +143,6 @@ const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings
                             <tr key={a.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                 <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
                                     <Input
-                                        className="nodrag"
                                         value={a.name}
                                         onChange={e => handleUpdateRow(a.id, 'name', e.target.value)}
                                         style={{ width: '100%', marginBottom: 0 }}
@@ -131,16 +151,14 @@ const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings
                                 </td>
                                 <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
                                     <Input
-                                        className="nodrag"
                                         value={a.percentage}
                                         onChange={e => handleUpdateRow(a.id, 'percentage', e.target.value)}
-                                        style={{ width: '100%', textAlign: 'right', marginBottom: 0, color: totalPercentage !== 100 ? '#ef4444' : undefined }}
+                                        style={{ width: '100%', textAlign: 'right', marginBottom: 0 }}
                                         wrapperStyle={{ marginBottom: 0 }}
                                     />
                                 </td>
                                 <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
                                     <Input
-                                        className="nodrag"
                                         value={a.grade}
                                         onChange={e => {
                                             let val = e.target.value;
@@ -159,7 +177,6 @@ const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings
                                         variant="secondary"
                                         onClick={() => handleRemoveRow(a.id)}
                                         style={{ padding: '0.25rem 0.5rem', color: '#ef4444', minWidth: 'unset' }}
-                                        className="nodrag"
                                     >
                                         &times;
                                     </Button>
@@ -169,37 +186,21 @@ const GradeCalculatorPlugin: React.FC<WidgetProps> = ({ settings, updateSettings
                     </tbody>
                 </table>
                 <div style={{ marginTop: '0.5rem', overflow: 'hidden' }}>
-                    <Button onClick={handleAddRow} size="sm" variant="secondary" className="nodrag" style={{ width: '100%' }}>+ Add Assessment</Button>
+                    <Button onClick={handleAddRow} size="sm" variant="secondary" style={{ width: '100%' }}>+ Add Assessment</Button>
                 </div>
             </div>
 
-            {totalPercentage !== 100 && (
-                <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
-                    <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        padding: '0.5rem',
-                        borderRadius: 'var(--radius-md)',
-                        color: '#ef4444'
-                    }}>
-                        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Total Weight Invalid</div>
-                        <div style={{ fontSize: '0.9rem' }}>Current: {totalPercentage}%</div>
-                    </div>
-                </div>
-            )}
+            {/* Footer removed as per request */}
         </div>
     );
 };
 
-export const GradeCalculatorPluginDefinition: WidgetDefinition = {
+export const GradeCalculatorDefinition: WidgetDefinition = {
     type: 'grade-calculator',
     name: 'Grade Calculator',
     description: 'Calculate course grade based on assessment weights.',
     icon: '🧮',
-    component: GradeCalculatorPlugin,
+    component: GradeCalculator,
     defaultSettings: { assessments: [] },
     defaultLayout: { w: 4, h: 6, minW: 3, minH: 4 }
 };

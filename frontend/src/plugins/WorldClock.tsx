@@ -10,7 +10,7 @@ const AVAILABLE_TIMEZONES = [
     { value: 'Asia/Shanghai', label: 'Shanghai' },
 ];
 
-export const WorldClockWidget: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
+export const WorldClock: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     const [time, setTime] = useState(new Date());
     const [isEditing, setIsEditing] = useState(false);
 
@@ -105,12 +105,12 @@ export const WorldClockWidget: React.FC<WidgetProps> = ({ settings, updateSettin
     );
 };
 
-export const WorldClockWidgetDefinition: WidgetDefinition = {
+export const WorldClockDefinition: WidgetDefinition = {
     type: 'world-clock',
     name: 'World Clock',
     description: 'Displays current time in a specific timezone.',
     icon: '🌍',
-    component: WorldClockWidget,
+    component: WorldClock,
     defaultSettings: { timezone: 'UTC' },
     defaultLayout: { w: 2, h: 3, minW: 2, minH: 2 }
 };

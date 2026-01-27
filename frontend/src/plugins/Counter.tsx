@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '../components/Button';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 
-export const CounterWidget: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
+export const Counter: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     // We can still keep local state for immediate feedback if we want super-fast response before parent updates,
     // but the parent's optimistic update should be fast enough.
     // However, keeping it controlled by props is cleaner.
@@ -32,12 +32,12 @@ export const CounterWidget: React.FC<WidgetProps> = ({ settings, updateSettings 
     );
 };
 
-export const CounterWidgetDefinition: WidgetDefinition = {
+export const CounterDefinition: WidgetDefinition = {
     type: 'counter',
     name: 'Counter',
     description: 'A simple tally counter for tracking attendance or tasks.',
     icon: '🔢',
-    component: CounterWidget,
+    component: Counter,
     defaultSettings: { value: 0 },
     defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 }
 };

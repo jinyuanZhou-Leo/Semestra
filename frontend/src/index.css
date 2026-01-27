@@ -47,6 +47,14 @@
   --gradient-hero: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
   /* Subtle light gradient */
   --color-bg-glass: rgba(255, 255, 255, 0.6);
+  
+  --header-expanded-height: 140px;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --header-expanded-height: 240px;
+  }
 }
 
 /* Dark Mode - Auto (Media Query) or Manual (data-theme) */

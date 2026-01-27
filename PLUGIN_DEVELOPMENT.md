@@ -62,14 +62,14 @@ Follow these steps to create a new widget.
 
 ### 1. Create the Plugin File
 
-Create a new file in `frontend/src/plugins/`, for example `MyNewWidget.tsx`.
+Create a new file in `frontend/src/plugins/`, for example `MyNew.tsx`.
 
 ```typescript
 import React from 'react';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
 import api from '../services/api';
 
-export const MyNewWidget: React.FC<WidgetProps> = ({ widgetId, settings }) => {
+export const MyNew: React.FC<WidgetProps> = ({ widgetId, settings }) => {
     // 1. Access settings
     const title = settings?.title || 'Default Title';
 
@@ -94,12 +94,12 @@ export const MyNewWidget: React.FC<WidgetProps> = ({ widgetId, settings }) => {
 };
 
 // 3. Define the widget metadata
-export const MyNewWidgetDefinition: WidgetDefinition = {
+export const MyNewDefinition: WidgetDefinition = {
     type: 'my-new-widget',
     name: 'My New Widget',
     description: 'A description of what this widget does.',
     icon: '✨',
-    component: MyNewWidget,
+    component: MyNew,
     defaultSettings: { title: 'Default Title' },
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 }
 };
@@ -112,10 +112,10 @@ Open `frontend/src/widget-setup.ts` and register your new widget.
 ```typescript
 import { WidgetRegistry } from './services/widgetRegistry';
 // ... other imports
-import { MyNewWidgetDefinition } from './plugins/MyNewWidget';
+import { MyNewDefinition } from './plugins/MyNew';
 
 // ... existing registrations
-WidgetRegistry.register(MyNewWidgetDefinition);
+WidgetRegistry.register(MyNewDefinition);
 ```
 
 ## Lifecycle Hooks
@@ -148,10 +148,10 @@ onDelete: async (ctx) => {
 ### Example with Lifecycle Hooks
 
 ```typescript
-export const MyWidgetDefinition: WidgetDefinition = {
+export const MyDefinition: WidgetDefinition = {
     type: 'my-widget',
     name: 'My Widget',
-    component: MyWidget,
+    component: My,
     defaultSettings: {},
     defaultLayout: { w: 3, h: 2 },
     
@@ -182,7 +182,7 @@ Widgets should persist their state to the backend using `api.updateWidget`.
 
 ### Example: World Clock
 
-See `frontend/src/plugins/WorldClockWidget.tsx` for a distinct example of a functional widget.
+See `frontend/src/plugins/WorldClock.tsx` for a distinct example of a functional widget.
 
 ## UI 设计规范
 - 插件UI中避免在上方添加标题，因为容器已经提供了标题

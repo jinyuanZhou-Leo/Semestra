@@ -3,8 +3,8 @@ import { DashboardGrid } from '../DashboardGrid';
 import { vi, describe, it, expect, beforeAll } from 'vitest';
 
 import { WidgetRegistry } from '../../../services/widgetRegistry';
-import { CounterWidget } from '../../../plugins/CounterWidget';
-import { CourseListWidget } from '../../../plugins/CourseListWidget';
+import { Counter } from '../../../plugins/Counter';
+import { CourseList } from '../../../plugins/CourseList';
 
 // Mock ResizeObserver
 beforeAll(() => {
@@ -17,13 +17,13 @@ beforeAll(() => {
     WidgetRegistry.register({
         type: 'counter',
         name: 'Counter',
-        component: CounterWidget,
+        component: Counter,
         defaultLayout: { w: 3, h: 4 }
     });
     WidgetRegistry.register({
         type: 'course-list',
         name: 'Course List',
-        component: CourseListWidget,
+        component: CourseList,
         defaultLayout: { w: 6, h: 8 }
     });
 });
@@ -37,11 +37,11 @@ vi.mock('react-grid-layout', () => {
 });
 
 // Mock child widgets to avoid complexity
-vi.mock('../../../plugins/CounterWidget', () => ({
-    CounterWidget: () => <div data-testid="counter-widget">Counter</div>
+vi.mock('../../../plugins/Counter', () => ({
+    Counter: () => <div data-testid="counter-widget">Counter</div>
 }));
-vi.mock('../../../plugins/CourseListWidget', () => ({
-    CourseListWidget: () => <div data-testid="course-list-widget">Course List</div>
+vi.mock('../../../plugins/CourseList', () => ({
+    CourseList: () => <div data-testid="course-list-widget">Course List</div>
 }));
 
 describe('DashboardGrid', () => {
