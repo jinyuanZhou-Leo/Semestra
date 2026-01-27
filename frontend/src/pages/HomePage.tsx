@@ -10,6 +10,7 @@ import api from '../services/api';
 import type { Program } from '../services/api';
 
 import { useHeroGradient } from '../hooks/useHeroGradient';
+import { HomeSkeleton } from '../components/Skeleton/HomeSkeleton';
 
 export const HomePage: React.FC = () => {
     const { user } = useAuth();
@@ -93,7 +94,7 @@ export const HomePage: React.FC = () => {
 
             <Container padding="3rem 2rem">
                 {isLoading ? (
-                    <div>Loading...</div>
+                    <HomeSkeleton />
                 ) : (
                     <div style={{
                         display: 'grid',

@@ -7,7 +7,8 @@ export const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children 
     const location = useLocation();
 
     if (isLoading) {
-        return <div>Loading...</div>; // Or a nicer loading spinner
+        // Return null to keep the index.html spinner visible during auth check
+        return null;
     }
 
     if (!user) {

@@ -11,6 +11,7 @@ import type { Program, Semester } from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { useHeroGradient } from '../hooks/useHeroGradient';
 import { ProgressBar } from '../components/ProgressBar';
+import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
 
 export const ProgramDashboard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -125,7 +126,7 @@ export const ProgramDashboard: React.FC = () => {
     };
 
     if (isLoading) {
-        return <Layout><div style={{ padding: '2rem' }}>Loading...</div></Layout>;
+        return <Layout><ProgramSkeleton /></Layout>;
     }
 
     if (!program) {

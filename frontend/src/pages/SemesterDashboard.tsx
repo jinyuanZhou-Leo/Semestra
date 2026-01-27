@@ -7,6 +7,7 @@ import { AddWidgetModal } from '../components/AddWidgetModal';
 import { DashboardGrid } from '../components/widgets/DashboardGrid';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
+import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
 import api from '../services/api';
 import type { Semester, Course, Widget } from '../services/api';
 import { BackButton } from '../components/BackButton';
@@ -137,7 +138,7 @@ export const SemesterDashboard: React.FC = () => {
         }
     };
 
-    if (isLoading) return <Layout><div style={{ padding: '2rem' }}>Loading...</div></Layout>;
+    if (isLoading) return <Layout><DashboardSkeleton /></Layout>;
     if (!semester) {
         return (
             <Layout>

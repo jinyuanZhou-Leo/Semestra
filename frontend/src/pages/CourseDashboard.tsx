@@ -6,6 +6,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import { AddWidgetModal } from '../components/AddWidgetModal';
 import { DashboardGrid, type WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
+import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
 import api from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
@@ -122,7 +123,7 @@ const CourseDashboardContent: React.FC = () => {
         }
     };
 
-    if (isLoading) return <Layout><div style={{ padding: '2rem' }}>Loading...</div></Layout>;
+    if (isLoading) return <Layout><DashboardSkeleton /></Layout>;
     if (!course) {
         return (
             <Layout>

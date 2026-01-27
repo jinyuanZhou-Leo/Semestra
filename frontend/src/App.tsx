@@ -2,7 +2,6 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { RequireAuth } from './components/RequireAuth';
-import Loading from './components/Loading';
 
 // Lazy load page components
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
@@ -17,7 +16,8 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <Suspense fallback={<Loading />}>
+        {/* Use null fallback to keep index.html spinner visible during lazy load */}
+        <Suspense fallback={null}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
