@@ -14,6 +14,7 @@ export const RegisterPage: React.FC = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isPasswordFocused, setIsPasswordFocused] = useState(false);
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [googleError, setGoogleError] = useState('');
@@ -69,12 +70,13 @@ export const RegisterPage: React.FC = () => {
                 }
             });
 
+            const buttonWidth = googleButtonRef.current.offsetWidth;
             google.accounts.id.renderButton(googleButtonRef.current, {
                 theme: 'outline',
                 size: 'large',
                 text: 'continue_with',
                 shape: 'pill',
-                width: '100%'
+                ...(buttonWidth ? { width: buttonWidth } : {})
             });
 
             initialized = true;
@@ -269,52 +271,67 @@ export const RegisterPage: React.FC = () => {
                             }}
                             wrapperStyle={{ marginBottom: 0 }}
                         />
-                        <Input
-                            label="Password"
-                            type={showPassword ? "text" : "password"}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
-                            required
-                            style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                borderColor: 'var(--color-border)',
-                                borderRadius: '0.75rem',
-                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
-                            }}
-                            wrapperStyle={{ marginBottom: 0 }}
-                            rightElement={
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        padding: 0,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: 'inherit',
-                                        opacity: 0.7
-                                    }}
-                                    onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
-                                    onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
-                                >
-                                    {showPassword ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                    )}
-                                </button>
-                            }
-                        />
-                        <div style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--color-text-tertiary)',
-                            marginTop: '-0.25rem'
-                        }}>
-                            {passwordRuleHint}
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            {isPasswordFocused && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-2.25rem',
+                                    left: 0,
+                                    right: 0,
+                                    background: 'var(--color-bg-primary)',
+                                    color: 'var(--color-text-secondary)',
+                                    border: '1px solid var(--color-border)',
+                                    borderRadius: '0.5rem',
+                                    padding: '0.4rem 0.6rem',
+                                    fontSize: '0.75rem',
+                                    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.08)',
+                                    zIndex: 2
+                                }}>
+                                    {passwordRuleHint}
+                                </div>
+                            )}
+                            <Input
+                                label="Password"
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                onFocus={() => setIsPasswordFocused(true)}
+                                onBlur={() => setIsPasswordFocused(false)}
+                                placeholder="••••••••"
+                                required
+                                style={{
+                                    backgroundColor: 'var(--color-bg-secondary)',
+                                    borderColor: 'var(--color-border)',
+                                    borderRadius: '0.75rem',
+                                    boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                                }}
+                                wrapperStyle={{ marginBottom: 0 }}
+                                rightElement={
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            padding: 0,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'inherit',
+                                            opacity: 0.7
+                                        }}
+                                        onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                                        onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
+                                    >
+                                        {showPassword ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                        )}
+                                    </button>
+                                }
+                            />
                         </div>
                         <Input
                             label="Confirm Password"

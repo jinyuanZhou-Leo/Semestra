@@ -8,7 +8,7 @@ import { Checkbox } from '../components/Checkbox';
 import { motion } from 'framer-motion';
 
 import { useHeroGradient } from '../hooks/useHeroGradient';
-import { getPasswordRuleError, passwordRuleHint } from '../utils/passwordRules';
+import { getPasswordRuleError } from '../utils/passwordRules';
 
 export const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -69,11 +69,13 @@ export const LoginPage: React.FC = () => {
                 }
             });
 
+            const buttonWidth = googleButtonRef.current.offsetWidth;
             google.accounts.id.renderButton(googleButtonRef.current, {
                 theme: 'outline',
                 size: 'large',
                 text: 'continue_with',
-                shape: 'pill'
+                shape: 'pill',
+                ...(buttonWidth ? { width: buttonWidth } : {})
             });
 
             initialized = true;
@@ -298,13 +300,6 @@ export const LoginPage: React.FC = () => {
                                 </button>
                             }
                         />
-                        <div style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--color-text-tertiary)',
-                            marginTop: '-0.25rem'
-                        }}>
-                            {passwordRuleHint}
-                        </div>
                     </div>
 
                     <div style={{ marginBottom: '1.5rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
