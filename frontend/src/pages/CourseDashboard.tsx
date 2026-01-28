@@ -222,7 +222,7 @@ const CourseDashboardContent: React.FC = () => {
                             }}>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem', color: course?.credits === 0 ? 'var(--color-danger)' : 'inherit' }}>
                                         {isLoading || !course ? (
                                             <Skeleton width="2rem" height="1.5rem" />
                                         ) : (

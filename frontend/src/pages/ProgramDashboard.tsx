@@ -328,7 +328,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                         onClick={(e) => {
                                                             e.preventDefault();
                                                             if (window.confirm('Are you sure you want to delete this semester?')) {
-                                                                api.deleteSemester(semester.id).then(() => fetchProgram(program.id)).catch(err => console.error("Failed to delete", err));
+                                                                api.deleteSemester(semester.id).then(() => refreshProgram()).catch(err => console.error("Failed to delete", err));
                                                             }
                                                         }}
                                                         style={{
