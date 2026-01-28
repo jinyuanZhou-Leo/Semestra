@@ -7,4 +7,5 @@ python-multipart
 python-jose[cryptography]
 passlib[bcrypt]
 requests
-google-authpython-dotenv
+google-auth
+python-dotenv

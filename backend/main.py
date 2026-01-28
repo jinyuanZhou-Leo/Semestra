@@ -16,22 +16,14 @@ import crud
 import auth
 from database import engine, get_db
 
-# Load environment variables with proper priority:
-# 1. .env.{environment} (environment-specific config)
-# 2. .env (local overrides - highest priority)
-# 3. System environment variables (lowest priority)
+BASE_DIR = Path(__file__).parent
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
-environment = os.getenv("ENVIRONMENT", "development")
-env_specific_path = Path(__file__).parent / f".env.{environment}"
-
-# Load environment-specific file first
-if env_specific_path.exists():
-    load_dotenv(env_specific_path, override=False)
-
-# Load local .env file with override=True so it takes precedence
-env_local_path = Path(__file__).parent / ".env"
-if env_local_path.exists():
-    load_dotenv(env_local_path, override=True)
+# Load .env only for local development. Production should use platform env vars.
+if ENVIRONMENT == "development":
+    env_local_path = BASE_DIR / ".env"
+    if env_local_path.exists():
+        load_dotenv(env_local_path)
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -43,17 +35,15 @@ app = FastAPI()
 # Environment variables
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 # CORS configuration
 origins = [
+    FRONTEND_URL,
+    "https://semestrauni.vercel.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
-
-# Add frontend URL to allowed origins for production
-if FRONTEND_URL and FRONTEND_URL not in origins:
-    origins.append(FRONTEND_URL)
+origins = list({o for o in origins if o})
 
 app.add_middleware(
     CORSMiddleware,

@@ -23,6 +23,10 @@ def add_google_sub_column():
             cursor.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
             conn.commit()
             print("Column 'google_sub' added successfully.")
+
+        # Ensure a unique index for google_sub (SQLite won't add it automatically for existing tables)
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
+        conn.commit()
     except sqlite3.Error as e:
         print(f"An error occurred: {e}")
     finally:
