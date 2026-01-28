@@ -28,9 +28,16 @@ if ENVIRONMENT == "development":
     if env_local_path.exists():
         load_dotenv(env_local_path)
 
-database_url = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'semestra.db'}")
-if database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+database_url = os.getenv("DATABASE_URL")
+db_path = os.getenv("DB_PATH")
+if not database_url:
+    if db_path:
+        db_path = Path(db_path)
+        if not db_path.is_absolute():
+            db_path = BASE_DIR / db_path
+    else:
+        db_path = BASE_DIR / "semestra.db"
+    database_url = f"sqlite:///{db_path}"
 
 config.set_main_option("sqlalchemy.url", database_url)
 
