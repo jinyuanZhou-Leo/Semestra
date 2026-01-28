@@ -3,7 +3,7 @@ import json
 
 BASE_URL = "http://localhost:8000"
 EMAIL = "test_widget@example.com"
-PASSWORD = "password123"
+PASSWORD = "Password123"
 
 def test_widget_update():
     # 1. Register/Login (reuse or create new)

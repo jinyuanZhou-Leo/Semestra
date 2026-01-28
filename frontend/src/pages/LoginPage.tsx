@@ -8,6 +8,7 @@ import { Checkbox } from '../components/Checkbox';
 import { motion } from 'framer-motion';
 
 import { useHeroGradient } from '../hooks/useHeroGradient';
+import { getPasswordRuleError, passwordRuleHint } from '../utils/passwordRules';
 
 export const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -25,6 +26,13 @@ export const LoginPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        const passwordError = getPasswordRuleError(password);
+        if (passwordError) {
+            setError(passwordError);
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -178,6 +186,13 @@ export const LoginPage: React.FC = () => {
                                 </button>
                             }
                         />
+                        <div style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--color-text-tertiary)',
+                            marginTop: '-0.25rem'
+                        }}>
+                            {passwordRuleHint}
+                        </div>
                     </div>
 
                     <div style={{ marginBottom: '1.5rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

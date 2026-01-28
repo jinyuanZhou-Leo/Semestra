@@ -4,7 +4,7 @@ import time
 
 BASE_URL = "http://localhost:8000"
 EMAIL = "test_logic@example.com"
-PASSWORD = "password123"
+PASSWORD = "Password123"
 
 def test_logic():
     # 1. Register & Login

@@ -2,7 +2,7 @@ import requests
 
 BASE_URL = "http://localhost:8000"
 EMAIL = "test_crud@example.com"
-PASSWORD = "password123"
+PASSWORD = "Password123"
 
 def test_crud():
     # 1. Register

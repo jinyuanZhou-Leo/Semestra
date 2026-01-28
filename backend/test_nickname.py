@@ -3,7 +3,7 @@ import uuid
 
 BASE_URL = "http://localhost:8000"
 EMAIL = f"test_nick_{uuid.uuid4()}@example.com"
-PASSWORD = "password123"
+PASSWORD = "Password123"
 NICKNAME = "Test Nickname"
 
 def test_nickname_flow():

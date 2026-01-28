@@ -7,6 +7,7 @@ import { Button } from '../components/Button';
 import { motion } from 'framer-motion';
 
 import { useHeroGradient } from '../hooks/useHeroGradient';
+import { getPasswordRuleError, passwordRuleHint } from '../utils/passwordRules';
 
 export const RegisterPage: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -25,6 +26,12 @@ export const RegisterPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        const passwordError = getPasswordRuleError(password);
+        if (passwordError) {
+            setError(passwordError);
+            return;
+        }
 
         if (password !== confirmPassword) {
             setError('Passwords do not match');
@@ -189,6 +196,13 @@ export const RegisterPage: React.FC = () => {
                                 </button>
                             }
                         />
+                        <div style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--color-text-tertiary)',
+                            marginTop: '-0.25rem'
+                        }}>
+                            {passwordRuleHint}
+                        </div>
                         <Input
                             label="Confirm Password"
                             type={showConfirmPassword ? "text" : "password"}

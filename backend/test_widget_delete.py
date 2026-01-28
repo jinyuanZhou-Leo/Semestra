@@ -4,7 +4,7 @@ import uuid
 
 BASE_URL = "http://localhost:8000"
 EMAIL = f"test_delete_{uuid.uuid4()}@example.com"
-PASSWORD = "password123"
+PASSWORD = "Password123"
 
 def test_widget_delete():
     print(f"Testing with user: {EMAIL}")

@@ -6,7 +6,7 @@ BASE_URL = "http://127.0.0.1:8000"
 def run():
     # 1. Register/Login
     email = "test_repro@example.com"
-    password = "password123"
+    password = "Password123"
     
     # Try register
     try:

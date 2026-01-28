@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import List, Optional, Any
 from enum import Enum
 
@@ -15,6 +15,16 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+
+    @validator('password')
+    def validate_password(cls, value: str) -> str:
+        if len(value) <= 8:
+            raise ValueError('Password must be longer than 8 characters.')
+        has_lowercase = any(char.islower() for char in value)
+        has_uppercase = any(char.isupper() for char in value)
+        if not has_lowercase or not has_uppercase:
+            raise ValueError('Password must include both uppercase and lowercase letters.')
+        return value
 
 class User(UserBase):
     id: str
