@@ -8,4 +8,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 requests
 google-auth
+psycopg2-binary
+alembic
 python-dotenv

@@ -73,8 +73,7 @@ export const LoginPage: React.FC = () => {
                 theme: 'outline',
                 size: 'large',
                 text: 'continue_with',
-                shape: 'pill',
-                width: '100%'
+                shape: 'pill'
             });
 
             initialized = true;
