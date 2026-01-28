@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -46,6 +46,20 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     courseId,
     updateCourseField
 }) => {
+    const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const media = window.matchMedia('(hover: none), (pointer: coarse)');
+        const update = () => setIsTouchDevice(media.matches || navigator.maxTouchPoints > 0);
+        update();
+        if (media.addEventListener) {
+            media.addEventListener('change', update);
+            return () => media.removeEventListener('change', update);
+        }
+        media.addListener(update);
+        return () => media.removeListener(update);
+    }, []);
 
     // Convert widgets to RGL layout format
     const layouts = useMemo(() => {
@@ -92,13 +106,11 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             rowHeight={60}
             margin={[16, 16]}
             onLayoutChange={(layout: Layout[]) => onLayoutChange(layout)}
-            isDraggable
-            isResizable
-            draggableHandle=".drag-handle"
-            draggableCancel=".nodrag"
+            draggableHandle={isTouchDevice ? '.drag-surface' : '.drag-handle'}
+            draggableCancel=".nodrag, input, textarea, button, select, option, a, [contenteditable='true'], [data-widget-control]"
+            isResizable={!isTouchDevice}
         >
             {widgets.map((widget, index) => {
-                // Default to true if undefined
                 const isRemovable = widget.is_removable !== false;
 
                 return (

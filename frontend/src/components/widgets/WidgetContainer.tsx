@@ -13,6 +13,42 @@ interface WidgetContainerProps {
  */
 const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit }) => {
     const [isHovered, setIsHovered] = React.useState(false);
+    const [isTouchDevice, setIsTouchDevice] = React.useState(false);
+    const [isTouchControlsVisible, setIsTouchControlsVisible] = React.useState(false);
+    const containerRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const media = window.matchMedia('(hover: none), (pointer: coarse)');
+        const update = () => {
+            const touchCapable = media.matches || navigator.maxTouchPoints > 0;
+            setIsTouchDevice(touchCapable);
+            if (!touchCapable) setIsTouchControlsVisible(false);
+        };
+        update();
+        if (media.addEventListener) {
+            media.addEventListener('change', update);
+            return () => media.removeEventListener('change', update);
+        }
+        media.addListener(update);
+        return () => media.removeListener(update);
+    }, []);
+
+    React.useEffect(() => {
+        if (!isTouchDevice) return;
+        const handlePointerDown = (event: PointerEvent) => {
+            if (!containerRef.current) return;
+            if (containerRef.current.contains(event.target as Node)) return;
+            setIsTouchControlsVisible(false);
+        };
+        document.addEventListener('pointerdown', handlePointerDown);
+        return () => document.removeEventListener('pointerdown', handlePointerDown);
+    }, [isTouchDevice]);
+
+    const isInteractiveTarget = (target: EventTarget | null) => {
+        if (!(target instanceof HTMLElement)) return false;
+        return !!target.closest('button, input, textarea, select, a, [role="button"], [role="link"], [data-widget-control], .drag-surface');
+    };
 
     const style: React.CSSProperties = {
         backgroundColor: 'var(--color-bg-primary)',
@@ -26,13 +62,39 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
         transition: 'box-shadow 0.2s, border-color 0.2s',
         overflow: 'hidden',
     };
+    const controlsVisible = isTouchDevice ? isTouchControlsVisible : isHovered;
+    const controlSize = isTouchDevice ? 36 : 28;
+    const controlsPadding = isTouchDevice ? '0.75rem' : '0.5rem';
+    const controlsHeight = isTouchDevice ? '48px' : '40px';
 
     return (
         <div
+            ref={containerRef}
             style={style}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
+            onPointerDown={(event) => {
+                if (event.pointerType !== 'touch') return;
+                if (isInteractiveTarget(event.target)) return;
+                setIsTouchControlsVisible(true);
+            }}
         >
+            {isTouchDevice && (
+                <div
+                    className="drag-surface"
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '32px',
+                        zIndex: 5,
+                        cursor: 'grab',
+                        touchAction: 'none',
+                    }}
+                    aria-hidden="true"
+                />
+            )}
             {/* Controls Overlay - Appears on hover */}
             <div
                 style={{
@@ -40,58 +102,58 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                     top: 0,
                     left: 0,
                     right: 0,
-                    height: '40px',
-                    pointerEvents: 'none',
+                    height: controlsHeight,
+                    pointerEvents: controlsVisible ? 'auto' : 'none',
                     zIndex: 10,
-                    opacity: isHovered ? 1 : 0,
+                    opacity: controlsVisible ? 1 : 0,
                     transition: 'opacity 0.2s ease-in-out',
                     display: 'flex',
                     alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    padding: '0.5rem',
+                    justifyContent: isTouchDevice ? 'flex-end' : 'space-between',
+                    padding: controlsPadding,
                 }}
             >
-                {/* Left side: Drag Handle Icon */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', pointerEvents: 'auto' }}>
-                    {/* Drag Handle Icon */}
-                    <div
-                        className="drag-handle"
-                        style={{
-                            width: '28px',
-                            height: '28px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'grab',
-                            color: 'var(--color-text-tertiary)',
-                            borderRadius: '50%',
-                            border: '1px solid var(--color-border)',
-                            background: 'var(--color-bg-primary)',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            transition: 'all 0.1s',
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
-                            e.currentTarget.style.color = 'var(--color-text-primary)';
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
-                            e.currentTarget.style.color = 'var(--color-text-tertiary)';
-                        }}
-                        title="Drag to move"
-                    >
-                        {/* Grip Icon (6 dots) */}
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <circle cx="8" cy="6" r="2" />
-                            <circle cx="16" cy="6" r="2" />
-                            <circle cx="8" cy="12" r="2" />
-                            <circle cx="16" cy="12" r="2" />
-                            <circle cx="8" cy="18" r="2" />
-                            <circle cx="16" cy="18" r="2" />
-                        </svg>
+                {!isTouchDevice && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', pointerEvents: 'auto' }}>
+                        <div
+                            className="drag-handle"
+                            style={{
+                                width: `${controlSize}px`,
+                                height: `${controlSize}px`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'grab',
+                                color: 'var(--color-text-tertiary)',
+                                borderRadius: '50%',
+                                border: '1px solid var(--color-border)',
+                                background: 'var(--color-bg-primary)',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                transition: 'all 0.1s',
+                                touchAction: 'none',
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
+                                e.currentTarget.style.color = 'var(--color-text-primary)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
+                                e.currentTarget.style.color = 'var(--color-text-tertiary)';
+                            }}
+                            title="Drag to move"
+                            data-widget-control
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="8" cy="6" r="2" />
+                                <circle cx="16" cy="6" r="2" />
+                                <circle cx="8" cy="12" r="2" />
+                                <circle cx="16" cy="12" r="2" />
+                                <circle cx="8" cy="18" r="2" />
+                                <circle cx="16" cy="18" r="2" />
+                            </svg>
+                        </div>
                     </div>
-
-                </div>
+                )}
 
                 {/* Right side: Action Buttons */}
                 <div
@@ -112,12 +174,13 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 onEdit();
                             }}
                             title="Settings"
+                            data-widget-control
                             style={{
                                 border: '1px solid var(--color-border)',
                                 background: 'var(--color-bg-primary)',
                                 borderRadius: '50%',
-                                width: '28px',
-                                height: '28px',
+                                width: `${controlSize}px`,
+                                height: `${controlSize}px`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -137,7 +200,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 e.currentTarget.style.transform = 'scale(1)';
                             }}
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width={isTouchDevice ? "16" : "14"} height={isTouchDevice ? "16" : "14"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <circle cx="12" cy="12" r="3"></circle>
                                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                             </svg>
@@ -151,12 +214,13 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 onRemove();
                             }}
                             title="Remove Widget"
+                            data-widget-control
                             style={{
                                 border: '1px solid var(--color-border)',
                                 background: 'var(--color-bg-primary)',
                                 borderRadius: '50%',
-                                width: '28px',
-                                height: '28px',
+                                width: `${controlSize}px`,
+                                height: `${controlSize}px`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -178,7 +242,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 e.currentTarget.style.transform = 'scale(1)';
                             }}
                         >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width={isTouchDevice ? "18" : "16"} height={isTouchDevice ? "18" : "16"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18"></line>
                                 <line x1="6" y1="6" x2="18" y2="18"></line>
                             </svg>
@@ -197,10 +261,9 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                     height: '100%',
                     position: 'relative',
                     zIndex: 1,
+                    touchAction: 'manipulation',
                 }}
                 onMouseDown={e => e.stopPropagation()}
-                onPointerDown={e => e.stopPropagation()}
-                onTouchStart={e => e.stopPropagation()}
             >
                 {children}
             </div>

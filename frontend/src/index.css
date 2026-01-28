@@ -414,6 +414,18 @@ button {
   z-index: 10;
 }
 
+.react-grid-item {
+  touch-action: manipulation;
+}
+
+.react-grid-item .drag-handle {
+  touch-action: none;
+}
+
+.react-grid-item .nodrag {
+  touch-action: manipulation;
+}
+
 .react-grid-item>.react-resizable-handle::after {
   content: '';
   position: absolute;
