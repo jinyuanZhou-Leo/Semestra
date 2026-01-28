@@ -25,3 +25,12 @@ dist-ssr
 
 # dummy data
 backend/semestra.db
+backend/.env
+.gitignore
+backend/dockerfile
+backend/.env.production
+backend/.env.development
+backend/prod.sh
+backend/dev.sh
+backend/app.yaml
+.vscode/settings.json

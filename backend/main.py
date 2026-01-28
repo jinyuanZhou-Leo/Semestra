@@ -4,6 +4,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
@@ -14,18 +16,44 @@ import crud
 import auth
 from database import engine, get_db
 
+# Load environment variables with proper priority:
+# 1. .env.{environment} (environment-specific config)
+# 2. .env (local overrides - highest priority)
+# 3. System environment variables (lowest priority)
+
+environment = os.getenv("ENVIRONMENT", "development")
+env_specific_path = Path(__file__).parent / f".env.{environment}"
+
+# Load environment-specific file first
+if env_specific_path.exists():
+    load_dotenv(env_specific_path, override=False)
+
+# Load local .env file with override=True so it takes precedence
+env_local_path = Path(__file__).parent / ".env"
+if env_local_path.exists():
+    load_dotenv(env_local_path, override=True)
+
 models.Base.metadata.create_all(bind=engine)
 
 from fastapi import UploadFile, File
 import utils
 
 app = FastAPI()
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
+# Environment variables
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+# CORS configuration
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# Add frontend URL to allowed origins for production
+if FRONTEND_URL and FRONTEND_URL not in origins:
+    origins.append(FRONTEND_URL)
 
 app.add_middleware(
     CORSMiddleware,
