@@ -73,8 +73,8 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
             style={style}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            onPointerDown={(event) => {
-                if (event.pointerType !== 'touch') return;
+            onClick={(event) => {
+                if (!isTouchDevice) return;
                 if (isInteractiveTarget(event.target)) return;
                 setIsTouchControlsVisible(true);
             }}

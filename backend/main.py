@@ -3,6 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+import os
+
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 import models
 import schemas
@@ -16,6 +20,7 @@ from fastapi import UploadFile, File
 import utils
 
 app = FastAPI()
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 origins = [
     "http://localhost:5173",
@@ -29,6 +34,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def verify_google_id_token(id_token: str) -> dict:
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google client ID is not configured")
+    try:
+        payload = google_id_token.verify_oauth2_token(
+            id_token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID
+        )
+        return payload
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
 
 @app.post("/auth/register", response_model=schemas.User)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -56,6 +74,71 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/auth/google", response_model=schemas.Token)
+def login_with_google(payload: schemas.GoogleAuthRequest, db: Session = Depends(get_db)):
+    google_payload = verify_google_id_token(payload.id_token)
+    email = google_payload.get("email")
+    email_verified = google_payload.get("email_verified")
+    sub = google_payload.get("sub")
+
+    if isinstance(email_verified, str):
+        email_verified = email_verified.lower() == "true"
+    if not email_verified:
+        raise HTTPException(status_code=400, detail="Google email is not verified")
+    if not email or not sub:
+        raise HTTPException(status_code=400, detail="Google token missing email or subject")
+
+    user = crud.get_user_by_google_sub(db, google_sub=sub)
+    if user:
+        access_token = auth.create_access_token(
+            data={"sub": user.email}, expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    user = crud.get_user_by_email(db, email=email)
+    if user:
+        if user.google_sub and user.google_sub != sub:
+            raise HTTPException(status_code=409, detail="Google account already linked to another user")
+        user.google_sub = sub
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        user = crud.create_user_from_google(db, email=email, google_sub=sub)
+
+    access_token = auth.create_access_token(
+        data={"sub": user.email}, expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/auth/google/link")
+def link_google_account(payload: schemas.GoogleAuthRequest, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    google_payload = verify_google_id_token(payload.id_token)
+    email = google_payload.get("email")
+    email_verified = google_payload.get("email_verified")
+    sub = google_payload.get("sub")
+
+    if isinstance(email_verified, str):
+        email_verified = email_verified.lower() == "true"
+    if not email_verified:
+        raise HTTPException(status_code=400, detail="Google email is not verified")
+    if not email or not sub:
+        raise HTTPException(status_code=400, detail="Google token missing email or subject")
+    if current_user.email.lower() != email.lower():
+        raise HTTPException(status_code=400, detail="Google email does not match current user")
+
+    existing = crud.get_user_by_google_sub(db, google_sub=sub)
+    if existing and existing.id != current_user.id:
+        raise HTTPException(status_code=409, detail="Google account already linked to another user")
+    if current_user.google_sub and current_user.google_sub != sub:
+        raise HTTPException(status_code=409, detail="Current user already linked to a different Google account")
+
+    current_user.google_sub = sub
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return {"ok": True}
 
 @app.get("/users/me", response_model=schemas.User)
 async def read_users_me(current_user: models.User = Depends(auth.get_current_user)):

@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
 import { GPAScalingTable } from '../components/GPAScalingTable';
+import axios from 'axios';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../components/BackButton';
 import api from '../services/api';
-import { useEffect } from 'react';
 
 
 export const SettingsPage: React.FC = () => {
@@ -29,6 +29,13 @@ export const SettingsPage: React.FC = () => {
     const [initialState, setInitialState] = useState<{ nickname: string, gpaTableJson: string } | null>(null);
     const [isDirty, setIsDirty] = useState(false);
 
+    const [googleLinkError, setGoogleLinkError] = useState('');
+    const [googleLinkSuccess, setGoogleLinkSuccess] = useState(false);
+    const [isGoogleLinking, setIsGoogleLinking] = useState(false);
+    const [isGoogleLinkReady, setIsGoogleLinkReady] = useState(false);
+    const googleLinkRef = useRef<HTMLDivElement>(null);
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
     useEffect(() => {
         if (user) {
             const initialGpa = (user as any).gpa_scaling_table || '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}';
@@ -46,6 +53,82 @@ export const SettingsPage: React.FC = () => {
             setIsDirty(hasChanged);
         }
     }, [nickname, gpaTableJson, initialState]);
+
+    useEffect(() => {
+        setGoogleLinkError('');
+        setGoogleLinkSuccess(false);
+    }, [user?.google_sub]);
+
+    useEffect(() => {
+        if (!googleClientId || !user || user.google_sub) {
+            return;
+        }
+
+        let cancelled = false;
+        let initialized = false;
+
+        const tryInitGoogle = () => {
+            if (initialized || cancelled || !googleLinkRef.current) {
+                return initialized;
+            }
+
+            const google = (window as any).google;
+            if (!google?.accounts?.id) {
+                return false;
+            }
+
+            google.accounts.id.initialize({
+                client_id: googleClientId,
+                callback: async (response: { credential: string }) => {
+                    if (!response?.credential) {
+                        setGoogleLinkError('Google link failed. Please try again.');
+                        return;
+                    }
+                    setGoogleLinkError('');
+                    setIsGoogleLinking(true);
+                    try {
+                        await axios.post('/api/auth/google/link', {
+                            id_token: response.credential
+                        });
+                        await refreshUser();
+                        setGoogleLinkSuccess(true);
+                    } catch (err: any) {
+                        setGoogleLinkError(err.response?.data?.detail || 'Google link failed.');
+                    } finally {
+                        setIsGoogleLinking(false);
+                    }
+                }
+            });
+
+            google.accounts.id.renderButton(googleLinkRef.current, {
+                theme: 'outline',
+                size: 'large',
+                text: 'continue_with',
+                shape: 'pill',
+                width: '220'
+            });
+
+            initialized = true;
+            setIsGoogleLinkReady(true);
+            return true;
+        };
+
+        if (!tryInitGoogle()) {
+            const intervalId = window.setInterval(() => {
+                if (tryInitGoogle()) {
+                    window.clearInterval(intervalId);
+                }
+            }, 200);
+            return () => {
+                cancelled = true;
+                window.clearInterval(intervalId);
+            };
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [googleClientId, refreshUser, user]);
 
     // Warn on browser refresh/close
     useEffect(() => {
@@ -195,6 +278,77 @@ export const SettingsPage: React.FC = () => {
                                 />
                             </div>
                         </div>
+
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '1rem',
+                            flexWrap: 'wrap',
+                            marginBottom: '1rem'
+                        }}>
+                            <div>
+                                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.25rem' }}>Google</h3>
+                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                                    {user?.google_sub ? 'Connected to your account' : 'Connect Google for one-click sign in'}
+                                </p>
+                            </div>
+                            {googleClientId ? (
+                                user?.google_sub ? (
+                                    <span style={{
+                                        padding: '0.4rem 0.8rem',
+                                        borderRadius: '999px',
+                                        background: 'rgba(16, 185, 129, 0.15)',
+                                        color: 'rgb(16, 185, 129)',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 600
+                                    }}>
+                                        Connected
+                                    </span>
+                                ) : (
+                                    <div style={{ minWidth: '220px', opacity: isGoogleLinking ? 0.6 : 1 }}>
+                                        <div ref={googleLinkRef} />
+                                        {!isGoogleLinkReady && (
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: '0.5rem' }}>
+                                                Loading Google sign-in...
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            ) : (
+                                <span style={{ color: 'var(--color-text-tertiary)', fontSize: '0.85rem' }}>
+                                    Not configured
+                                </span>
+                            )}
+                        </div>
+
+                        {googleLinkError && (
+                            <div style={{
+                                color: 'var(--color-danger)',
+                                fontSize: '0.875rem',
+                                marginBottom: '1rem',
+                                padding: '0.75rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                                borderRadius: '0.75rem',
+                                border: '1px solid rgba(239, 68, 68, 0.1)'
+                            }}>
+                                {googleLinkError}
+                            </div>
+                        )}
+
+                        {googleLinkSuccess && (
+                            <div style={{
+                                color: 'rgb(16, 185, 129)',
+                                fontSize: '0.875rem',
+                                marginBottom: '1rem',
+                                padding: '0.75rem',
+                                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                                borderRadius: '0.75rem',
+                                border: '1px solid rgba(16, 185, 129, 0.2)'
+                            }}>
+                                Google account connected.
+                            </div>
+                        )}
                     </div>
 
                     <Button variant="secondary" onClick={handleLogout} style={{ color: 'var(--color-error, #ef4444)', borderColor: 'var(--color-error, #ef4444)' }}>

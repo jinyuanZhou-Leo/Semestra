@@ -7,6 +7,7 @@ interface User {
     email: string;
     nickname?: string;
     gpa_scaling_table?: string;
+    google_sub?: string | null;
 }
 
 interface AuthContextType {

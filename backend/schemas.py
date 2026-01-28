@@ -31,12 +31,16 @@ class User(UserBase):
     nickname: Optional[str] = None
     is_active: bool = True
     gpa_scaling_table: Optional[str] = None
+    google_sub: Optional[str] = None
     class Config:
         from_attributes = True
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = None
     gpa_scaling_table: Optional[str] = None
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
 
 # --- Widget Schemas ---
 class WidgetBase(BaseModel):

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,12 +16,88 @@ export const LoginPage: React.FC = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
+    const [googleError, setGoogleError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [isGoogleReady, setIsGoogleReady] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+    const googleButtonRef = useRef<HTMLDivElement>(null);
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
     // Physics-based lighting
     const heroStyle = useHeroGradient();
+
+    useEffect(() => {
+        if (!googleClientId) {
+            return;
+        }
+
+        let cancelled = false;
+        let initialized = false;
+
+        const tryInitGoogle = () => {
+            if (initialized || cancelled || !googleButtonRef.current) {
+                return initialized;
+            }
+
+            const google = (window as any).google;
+            if (!google?.accounts?.id) {
+                return false;
+            }
+
+            google.accounts.id.initialize({
+                client_id: googleClientId,
+                callback: async (response: { credential: string }) => {
+                    if (!response?.credential) {
+                        setGoogleError('Google sign-in failed. Please try again.');
+                        return;
+                    }
+                    setGoogleError('');
+                    setIsGoogleLoading(true);
+                    try {
+                        const loginResponse = await axios.post('/api/auth/google', {
+                            id_token: response.credential
+                        });
+                        login(loginResponse.data.access_token);
+                        navigate('/');
+                    } catch (err: any) {
+                        setGoogleError(err.response?.data?.detail || 'Google sign-in failed.');
+                    } finally {
+                        setIsGoogleLoading(false);
+                    }
+                }
+            });
+
+            google.accounts.id.renderButton(googleButtonRef.current, {
+                theme: 'outline',
+                size: 'large',
+                text: 'continue_with',
+                shape: 'pill',
+                width: '100%'
+            });
+
+            initialized = true;
+            setIsGoogleReady(true);
+            return true;
+        };
+
+        if (!tryInitGoogle()) {
+            const intervalId = window.setInterval(() => {
+                if (tryInitGoogle()) {
+                    window.clearInterval(intervalId);
+                }
+            }, 200);
+            return () => {
+                cancelled = true;
+                window.clearInterval(intervalId);
+            };
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [googleClientId, login, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -130,6 +206,43 @@ export const LoginPage: React.FC = () => {
                     </h2>
                 </div>
 
+                <div style={{ marginBottom: '1.5rem' }}>
+                    {googleClientId ? (
+                        <>
+                            <div ref={googleButtonRef} style={{ width: '100%' }} />
+                            {!isGoogleReady && (
+                                <div style={{
+                                    marginTop: '0.5rem',
+                                    fontSize: '0.8rem',
+                                    color: 'var(--color-text-tertiary)'
+                                }}>
+                                    Loading Google sign-in...
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--color-text-tertiary)'
+                        }}>
+                            Google sign-in is not configured.
+                        </div>
+                    )}
+                </div>
+
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    marginBottom: '1.5rem',
+                    color: 'var(--color-text-tertiary)',
+                    fontSize: '0.8rem'
+                }}>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
+                    <span>or</span>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
+                </div>
+
                 <form onSubmit={handleSubmit}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <Input
@@ -218,10 +331,24 @@ export const LoginPage: React.FC = () => {
                         </div>
                     )}
 
+                    {googleError && (
+                        <div style={{
+                            color: 'var(--color-danger)',
+                            fontSize: '0.875rem',
+                            marginBottom: '1rem',
+                            padding: '0.75rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                            borderRadius: '0.75rem',
+                            border: '1px solid rgba(239, 68, 68, 0.1)'
+                        }}>
+                            {googleError}
+                        </div>
+                    )}
+
                     <Button
                         type="submit"
                         fullWidth
-                        disabled={isLoading}
+                        disabled={isLoading || isGoogleLoading}
                         style={{
                             borderRadius: '0.75rem', // Matching input radius for consistency, or use pill
                             height: '3rem',

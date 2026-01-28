@@ -3,7 +3,11 @@ import models
 import schemas
 import bcrypt
 
+DEFAULT_GPA_SCALING = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}'
+
 def verify_password(plain_password, hashed_password):
+    if not hashed_password:
+        return False
     # hashed_password from DB is string, bcrypt needs bytes
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
@@ -18,10 +22,25 @@ def get_user(db: Session, user_id: str):
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
+def get_user_by_google_sub(db: Session, google_sub: str):
+    return db.query(models.User).filter(models.User.google_sub == google_sub).first()
+
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = get_password_hash(user.password)
-    default_gpa_scaling = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}'
-    db_user = models.User(email=user.email, hashed_password=hashed_password, gpa_scaling_table=default_gpa_scaling)
+    db_user = models.User(email=user.email, hashed_password=hashed_password, gpa_scaling_table=DEFAULT_GPA_SCALING)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    db.refresh(db_user)
+    return db_user
+
+def create_user_from_google(db: Session, email: str, google_sub: str):
+    db_user = models.User(
+        email=email,
+        hashed_password=None,
+        google_sub=google_sub,
+        gpa_scaling_table=DEFAULT_GPA_SCALING
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
