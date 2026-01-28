@@ -9,6 +9,7 @@ import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
 import { Skeleton } from '../components/Skeleton/Skeleton';
+import { AnimatedNumber } from '../components/AnimatedNumber';
 import api from '../services/api';
 import type { Semester, Course, Widget } from '../services/api';
 import { BackButton } from '../components/BackButton';
@@ -238,19 +239,40 @@ export const SemesterDashboard: React.FC = () => {
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>
-                                        {isLoading || !semester ? <Skeleton width="2rem" height="1.5rem" /> : (semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0)}
+                                        {isLoading || !semester ? (
+                                            <Skeleton width="2rem" height="1.5rem" />
+                                        ) : (
+                                            <AnimatedNumber
+                                                value={semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}
+                                                format={(val) => (Number.isInteger(val) ? val.toString() : val.toFixed(1))}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Avg</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>
-                                        {isLoading || !semester ? <Skeleton width="3rem" height="1.5rem" /> : `${semester.average_percentage.toFixed(1)}%`}
+                                        {isLoading || !semester ? (
+                                            <Skeleton width="3rem" height="1.5rem" />
+                                        ) : (
+                                            <AnimatedNumber
+                                                value={semester.average_percentage}
+                                                format={(val) => `${val.toFixed(1)}%`}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>
-                                        {isLoading || !semester ? <Skeleton width="2.5rem" height="1.5rem" /> : semester.average_scaled.toFixed(2)}
+                                        {isLoading || !semester ? (
+                                            <Skeleton width="2.5rem" height="1.5rem" />
+                                        ) : (
+                                            <AnimatedNumber
+                                                value={semester.average_scaled}
+                                                format={(val) => val.toFixed(2)}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             </div>

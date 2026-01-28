@@ -339,13 +339,13 @@ button {
 
 /* Hero Section */
 .hero-section {
-  padding: 4rem 0;
+  padding: var(--hero-padding-y, 4rem) 0;
 }
 
 @media (max-width: 600px) {
   .hero-section {
-    padding: 2rem 0;
-    margin-bottom: 2rem;
+    padding: var(--hero-padding-y-mobile, 2rem) 0;
+    margin-bottom: var(--hero-margin-bottom, 2rem);
   }
 }
 
@@ -528,4 +528,30 @@ button {
 
 [data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.animated-number {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s ease;
+  will-change: transform, opacity;
+}
+
+.animated-number--pulse {
+  animation: animated-number-pulse 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes animated-number-pulse {
+  0% {
+    opacity: 0.65;
+    transform: translateY(4px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

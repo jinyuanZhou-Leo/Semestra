@@ -8,6 +8,7 @@ import { DashboardGrid, type WidgetItem } from '../components/widgets/DashboardG
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
 import { Skeleton } from '../components/Skeleton/Skeleton';
+import { AnimatedNumber } from '../components/AnimatedNumber';
 import api from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
@@ -222,19 +223,44 @@ const CourseDashboardContent: React.FC = () => {
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>
-                                        {isLoading || !course ? <Skeleton width="2rem" height="1.5rem" /> : course.credits}
+                                        {isLoading || !course ? (
+                                            <Skeleton width="2rem" height="1.5rem" />
+                                        ) : (
+                                            <AnimatedNumber
+                                                value={course.credits}
+                                                format={(val) => (Number.isInteger(val) ? val.toString() : val.toFixed(1))}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Grade</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>
-                                        {isLoading || !course ? <Skeleton width="3rem" height="1.5rem" /> : (course.hide_gpa ? '****' : `${course.grade_percentage.toFixed(1)}%`)}
+                                        {isLoading || !course ? (
+                                            <Skeleton width="3rem" height="1.5rem" />
+                                        ) : course.hide_gpa ? (
+                                            '****'
+                                        ) : (
+                                            <AnimatedNumber
+                                                value={course.grade_percentage}
+                                                format={(val) => `${val.toFixed(1)}%`}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA (Scaled)</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>
-                                        {isLoading || !course ? <Skeleton width="2.5rem" height="1.5rem" /> : (course.hide_gpa ? '****' : course.grade_scaled.toFixed(2))}
+                                        {isLoading || !course ? (
+                                            <Skeleton width="2.5rem" height="1.5rem" />
+                                        ) : course.hide_gpa ? (
+                                            '****'
+                                        ) : (
+                                            <AnimatedNumber
+                                                value={course.grade_scaled}
+                                                format={(val) => val.toFixed(2)}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             </div>

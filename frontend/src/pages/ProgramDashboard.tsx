@@ -151,8 +151,11 @@ export const ProgramDashboard: React.FC = () => {
                 className="hero-section"
                 style={{
                     ...heroStyle,
-                color: 'var(--color-text-primary)'
-            }}>
+                    color: 'var(--color-text-primary)',
+                    '--hero-padding-y': '2.5rem',
+                    '--hero-padding-y-mobile': '1.5rem',
+                    '--hero-margin-bottom': '1.25rem',
+                } as React.CSSProperties}>
                 <Container>
                     <BackButton to="/" label="Back to Programs" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Program Overview</div>
