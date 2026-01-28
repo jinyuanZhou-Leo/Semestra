@@ -45,7 +45,6 @@ class Semester(Base):
     
     average_percentage = Column(Float, default=0.0)
     average_scaled = Column(Float, default=0.0)
-    gpa_scaling_table = Column(Text, nullable=True) # JSON override
     
     # Relationships
     program = relationship("Program", back_populates="semesters")
@@ -63,7 +62,6 @@ class Course(Base):
     credits = Column(Float, default=0.0)
     grade_percentage = Column(Float, default=0.0)
     grade_scaled = Column(Float, default=0.0)
-    gpa_scaling_table = Column(Text, nullable=True) # JSON override
     include_in_gpa = Column(Boolean, default=True)
     hide_gpa = Column(Boolean, default=False)
     

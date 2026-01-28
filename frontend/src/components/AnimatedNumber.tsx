@@ -17,11 +17,13 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     duration = 650,
     className = '',
     style,
-    animateOnMount = false
+    animateOnMount = true
 }) => {
-    const [displayValue, setDisplayValue] = useState(value);
+    const [displayValue, setDisplayValue] = useState(() => (animateOnMount ? 0 : value));
     const [isAnimating, setIsAnimating] = useState(false);
     const previousValueRef = useRef<number | null>(null);
+    const displayValueRef = useRef<number>(animateOnMount ? 0 : value);
+    const hasAnimatedOnMountRef = useRef(false);
     const rafRef = useRef<number | null>(null);
     const timeoutRef = useRef<number | null>(null);
 
@@ -33,30 +35,37 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     useEffect(() => {
         const previousValue = previousValueRef.current;
         previousValueRef.current = value;
+        const isFirstAnimation = animateOnMount && !hasAnimatedOnMountRef.current;
 
         if (!Number.isFinite(value)) {
             setIsAnimating(false);
+            displayValueRef.current = value;
             setDisplayValue(value);
             return () => {};
         }
 
-        const shouldAnimate = !prefersReducedMotion && duration > 0 && (animateOnMount || previousValue !== null);
-        if (!shouldAnimate || previousValue === value || previousValue === null) {
+        const shouldAnimate = !prefersReducedMotion && duration > 0 && (isFirstAnimation || previousValue !== null);
+        if (!shouldAnimate || (previousValue === value && !isFirstAnimation)) {
             setIsAnimating(false);
+            displayValueRef.current = value;
             setDisplayValue(value);
             return () => {};
         }
 
-        const startValue = previousValue;
+        const startValue = isFirstAnimation ? (animateOnMount ? 0 : value) : displayValueRef.current;
         const startTime = performance.now();
 
         setIsAnimating(true);
 
         const tick = (now: number) => {
+            if (isFirstAnimation && !hasAnimatedOnMountRef.current) {
+                hasAnimatedOnMountRef.current = true;
+            }
             const elapsed = now - startTime;
             const progress = Math.min(elapsed / duration, 1);
             const eased = easeOutCubic(progress);
             const nextValue = startValue + (value - startValue) * eased;
+            displayValueRef.current = nextValue;
             setDisplayValue(nextValue);
 
             if (progress < 1) {

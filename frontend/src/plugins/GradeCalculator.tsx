@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import api from '../services/api';
 import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
-import { calculateGPA } from '../utils/gpaUtils';
+import { DEFAULT_GPA_SCALING_TABLE_JSON, calculateGPA } from '../utils/gpaUtils';
+import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Assessment {
     id: string;
@@ -21,27 +22,44 @@ interface Assessment {
  * - No need for internal debouncing logic
  */
 const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourseField }) => {
+    const { user } = useAuth();
     // Use settings directly - framework handles Optimistic UI
     const assessments: Assessment[] = settings.assessments || [];
-
-    const [scalingTable, setScalingTable] = useState<string>('{}');
-
-    // Memoize fetchCourseData
-    const fetchCourseData = useCallback(async () => {
-        if (!courseId) return;
-        try {
-            const course = await api.getCourse(courseId);
-            setScalingTable(course.gpa_scaling_table || '{}');
-        } catch (e) {
-            console.error("Failed to fetch course data", e);
-        }
-    }, [courseId]);
+    const fallbackScalingTable = useMemo(
+        () => user?.gpa_scaling_table || DEFAULT_GPA_SCALING_TABLE_JSON,
+        [user?.gpa_scaling_table]
+    );
+    const [scalingTableJson, setScalingTableJson] = useState<string>(fallbackScalingTable);
 
     useEffect(() => {
-        if (courseId) {
-            fetchCourseData();
-        }
-    }, [courseId, fetchCourseData]);
+        let isActive = true;
+        const resolveScalingTable = async () => {
+            let resolved = fallbackScalingTable;
+            if (courseId) {
+                try {
+                    const course = await api.getCourse(courseId);
+                    if (course.semester_id) {
+                        const semester = await api.getSemester(course.semester_id);
+                        if (semester.program_id) {
+                            const program = await api.getProgram(semester.program_id);
+                            if (program.gpa_scaling_table && program.gpa_scaling_table !== '{}') {
+                                resolved = program.gpa_scaling_table;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to resolve scaling table", e);
+                }
+            }
+            if (isActive) {
+                setScalingTableJson(resolved);
+            }
+        };
+        resolveScalingTable();
+        return () => {
+            isActive = false;
+        };
+    }, [courseId, fallbackScalingTable]);
 
     // Calculate totals from assessments
     const { totalPercentage, totalGrade, totalGradeScaled } = useMemo(() => {
@@ -58,10 +76,9 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
 
         const tpRounded = Math.round(tp * 100) / 100;
         const tgRounded = Math.round(weightedGradeSum * 100) / 100;
-        const scaled = calculateGPA(tgRounded, scalingTable);
-
+        const scaled = calculateGPA(tgRounded, scalingTableJson);
         return { totalPercentage: tpRounded, totalGrade: tgRounded, totalGradeScaled: scaled };
-    }, [assessments, scalingTable]);
+    }, [assessments, scalingTableJson]);
 
     // Update course via context for reactive UI
     useEffect(() => {

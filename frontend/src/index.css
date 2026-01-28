@@ -533,25 +533,22 @@ button {
 .animated-number {
   display: inline-block;
   font-variant-numeric: tabular-nums;
-  transition: color 0.3s ease;
-  will-change: transform, opacity;
+  transition: color 1.2s ease;
+  will-change: opacity;
 }
 
 .animated-number--pulse {
-  animation: animated-number-pulse 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: animated-number-pulse 0.85s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes animated-number-pulse {
   0% {
     opacity: 0.65;
-    transform: translateY(4px);
   }
   60% {
     opacity: 1;
-    transform: translateY(0);
   }
   100% {
     opacity: 1;
-    transform: translateY(0);
   }
 }

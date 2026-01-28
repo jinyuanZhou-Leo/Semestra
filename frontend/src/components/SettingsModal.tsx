@@ -38,24 +38,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 include_in_gpa: initialSettings.include_in_gpa !== undefined ? initialSettings.include_in_gpa : true,
                 hide_gpa: initialSettings.hide_gpa !== undefined ? initialSettings.hide_gpa : false
             });
-            if (initialSettings.gpa_scaling_table) {
+            if (type === 'program' && initialSettings.gpa_scaling_table) {
                 setGpaTableJson(initialSettings.gpa_scaling_table);
             } else {
                 setGpaTableJson('{}');
             }
         }
-    }, [isOpen, initialName, initialSettings]);
+    }, [isOpen, initialName, initialSettings, type]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validate JSON
-        try {
-            JSON.parse(gpaTableJson);
-            setJsonError('');
-        } catch (e) {
-            setJsonError('Invalid JSON for GPA Table');
-            return;
+        if (type === 'program') {
+            // Validate JSON
+            try {
+                JSON.parse(gpaTableJson);
+                setJsonError('');
+            } catch (e) {
+                setJsonError('Invalid JSON for GPA Table');
+                return;
+            }
         }
 
         const data: any = { name };
@@ -74,7 +76,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             data.hide_gpa = extraSettings.hide_gpa;
         }
 
-        data.gpa_scaling_table = gpaTableJson;
+        if (type === 'program') {
+            data.gpa_scaling_table = gpaTableJson;
+        }
 
         await onSave(data);
         onClose();
@@ -136,19 +140,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </>
                 )}
 
-                <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-                        GPA Scaling Table
-                    </label>
-                    <GPAScalingTable
-                        value={gpaTableJson}
-                        onChange={(newValue) => {
-                            setGpaTableJson(newValue);
-                            setJsonError('');
-                        }}
-                    />
-                    {jsonError && <div style={{ color: 'red', fontSize: '0.8rem', marginTop: '0.25rem' }}>{jsonError}</div>}
-                </div>
+                {type === 'program' && (
+                    <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                            GPA Scaling Table
+                        </label>
+                        <GPAScalingTable
+                            value={gpaTableJson}
+                            onChange={(newValue) => {
+                                setGpaTableJson(newValue);
+                                setJsonError('');
+                            }}
+                        />
+                        {jsonError && <div style={{ color: 'red', fontSize: '0.8rem', marginTop: '0.25rem' }}>{jsonError}</div>}
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
                     <Button type="button" variant="secondary" onClick={onClose}>

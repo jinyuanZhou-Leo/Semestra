@@ -7,17 +7,16 @@ import { SettingsModal } from '../components/SettingsModal';
 import { Input } from '../components/Input';
 import { Container } from '../components/Container';
 import api from '../services/api';
-import type { Program, Semester } from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { useHeroGradient } from '../hooks/useHeroGradient';
 import { ProgressBar } from '../components/ProgressBar';
+import { AnimatedNumber } from '../components/AnimatedNumber';
 import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
 import { Skeleton } from '../components/Skeleton/Skeleton';
+import { ProgramDataProvider, useProgramData } from '../contexts/ProgramDataContext';
 
-export const ProgramDashboard: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
-    const [program, setProgram] = useState<(Program & { semesters: Semester[] }) | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+const ProgramDashboardContent: React.FC = () => {
+    const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -69,21 +68,6 @@ export const ProgramDashboard: React.FC = () => {
 
     const heroStyle = useHeroGradient();
 
-    useEffect(() => {
-        if (id) fetchProgram(id);
-    }, [id]);
-
-    const fetchProgram = async (programId: string) => {
-        try {
-            const data = await api.getProgram(programId);
-            setProgram(data);
-        } catch (error) {
-            console.error("Failed to fetch program", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const handleCreateSemester = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!program) return;
@@ -106,7 +90,7 @@ export const ProgramDashboard: React.FC = () => {
             setNewSemesterName('');
             setSelectedFile(null);
             setCreationMethod('manual');
-            fetchProgram(program.id);
+            refreshProgram();
         } catch (error) {
             console.error("Failed to create semester", error);
             alert('Failed to create semester');
@@ -117,13 +101,7 @@ export const ProgramDashboard: React.FC = () => {
 
     const handleUpdateProgram = async (data: any) => {
         if (!program) return;
-        try {
-            await api.updateProgram(program.id, data);
-            fetchProgram(program.id);
-        } catch (error) {
-            console.error("Failed to update program", error);
-            alert("Failed to update program");
-        }
+        updateProgram(data);
     };
 
     if (!isLoading && !program) {
@@ -171,12 +149,12 @@ export const ProgramDashboard: React.FC = () => {
                         {isLoading || !program ? (
                             <Skeleton variant="circle" width={40} height={40} />
                         ) : (
-                                <Button
-                                    variant="glass"
-                                    shape="circle"
-                                    onClick={() => setIsSettingsOpen(true)}
-                                    size="md"
-                                    title="Program Settings"
+                        <Button
+                            variant="glass"
+                            shape="circle"
+                            onClick={() => setIsSettingsOpen(true)}
+                            size="md"
+                            title="Program Settings"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <circle cx="12" cy="12" r="3"></circle>
@@ -223,16 +201,34 @@ export const ProgramDashboard: React.FC = () => {
                                 )}
                             </div>
                             <div className="program-stat-value primary">
-                                {isLoading || !program ? <Skeleton width="4rem" height="2rem" /> : (program.hide_gpa ? '****' : program.cgpa_scaled.toFixed(2))}
+                                {isLoading || !program ? (
+                                    <Skeleton width="4rem" height="2rem" />
+                                ) : program.hide_gpa ? (
+                                    '****'
+                                ) : (
+                                    <AnimatedNumber
+                                        value={program.cgpa_scaled}
+                                        format={(val) => val.toFixed(2)}
+                                        animateOnMount
+                                    />
+                                )}
                             </div>
                         </div>
                         <div className="noselect program-stat-card">
                             <div className="program-stat-label">Average (%)</div>
                             <div className="program-stat-value">
-                                {isLoading || !program ? <Skeleton width="5rem" height="2rem" /> : (
+                                {isLoading || !program ? (
+                                    <Skeleton width="5rem" height="2rem" />
+                                ) : program.hide_gpa ? (
+                                    '****'
+                                ) : (
                                     <>
-                                        {program.hide_gpa ? '****' : program.cgpa_percentage.toFixed(1)}
-                                        {!program.hide_gpa && <span className="program-stat-unit">%</span>}
+                                        <AnimatedNumber
+                                            value={program.cgpa_percentage}
+                                            format={(val) => val.toFixed(1)}
+                                            animateOnMount
+                                        />
+                                        <span className="program-stat-unit">%</span>
                                     </>
                                 )}
                             </div>
@@ -240,9 +236,15 @@ export const ProgramDashboard: React.FC = () => {
                         <div className="noselect program-stat-card">
                             <div className="program-stat-label">Credits Progress</div>
                             <div className="program-stat-value" style={{ marginBottom: '0.5rem' }}>
-                                {isLoading || !program ? <Skeleton width="70%" height="2rem" /> : (
+                                {isLoading || !program ? (
+                                    <Skeleton width="70%" height="2rem" />
+                                ) : (
                                     <>
-                                        {program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
+                                        <AnimatedNumber
+                                            value={program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
+                                            format={(val) => (Number.isInteger(val) ? val.toString() : val.toFixed(1))}
+                                            animateOnMount
+                                        />
                                         <span className="program-stat-unit small"> / {program.grad_requirement_credits}</span>
                                     </>
                                 )}
@@ -537,5 +539,33 @@ export const ProgramDashboard: React.FC = () => {
                 />
             )}
         </Layout>
+    );
+};
+
+export const ProgramDashboard: React.FC = () => {
+    const { id } = useParams<{ id: string }>();
+
+    if (!id) {
+        return (
+            <Layout>
+                <Container>
+                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>Program not found</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
+                            No program ID provided.
+                        </p>
+                        <Link to="/">
+                            <Button>Back to Home</Button>
+                        </Link>
+                    </div>
+                </Container>
+            </Layout>
+        );
+    }
+
+    return (
+        <ProgramDataProvider programId={id}>
+            <ProgramDashboardContent />
+        </ProgramDataProvider>
     );
 };

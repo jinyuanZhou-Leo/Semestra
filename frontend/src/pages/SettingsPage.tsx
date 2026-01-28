@@ -207,7 +207,7 @@ export const SettingsPage: React.FC = () => {
                         Global Defaults
                     </h2>
                     <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                        Set default GPA scaling tables for new Programs. These settings will be applied when no specific table is defined for a program, semester, or course.
+                        Set default GPA scaling tables for new Programs. These settings will be applied when no program-specific table is defined.
                     </p>
 
                     <div style={{ marginBottom: '1rem' }}>

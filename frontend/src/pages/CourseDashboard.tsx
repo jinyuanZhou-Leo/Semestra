@@ -333,7 +333,6 @@ const CourseDashboardContent: React.FC = () => {
                             initialName={course.name}
                             initialSettings={{
                                 credits: course.credits,
-                                gpa_scaling_table: course.gpa_scaling_table,
                                 include_in_gpa: course.include_in_gpa,
                                 hide_gpa: course.hide_gpa
                             }}

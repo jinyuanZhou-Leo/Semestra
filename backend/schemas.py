@@ -58,7 +58,6 @@ class CourseBase(BaseModel):
     credits: float = 0.0
     grade_percentage: float = 0.0
     grade_scaled: float = 0.0
-    gpa_scaling_table: Optional[str] = None
     include_in_gpa: bool = True
     hide_gpa: bool = False
 
@@ -70,7 +69,6 @@ class CourseUpdate(BaseModel):
     credits: Optional[float] = None
     grade_percentage: Optional[float] = None
     grade_scaled: Optional[float] = None
-    gpa_scaling_table: Optional[str] = None
     include_in_gpa: Optional[bool] = None
     hide_gpa: Optional[bool] = None
 
@@ -89,7 +87,6 @@ class SemesterBase(BaseModel):
     name: str
     average_percentage: float = 0.0
     average_scaled: float = 0.0
-    gpa_scaling_table: Optional[str] = None
 
 class SemesterCreate(SemesterBase):
     pass

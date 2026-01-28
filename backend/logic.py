@@ -18,59 +18,85 @@ DEFAULT_SCALING_TABLE = {
     "0-49": 0.0
 }
 
-def get_scaling_table(course: models.Course = None, semester: models.Semester = None, program: models.Program = None) -> dict:
+def _parse_scaling_table(raw_table: str | None) -> dict | None:
+    if not raw_table:
+        return None
+    try:
+        parsed = json.loads(raw_table)
+    except Exception:
+        return None
+    if isinstance(parsed, dict) and parsed:
+        return parsed
+    return None
+
+def get_scaling_table(program: models.Program | None = None) -> dict:
     """
     Resolves the scaling table to use based on inheritance:
-    Course > Semester > Program > Default
+    Program > User Global Default > App Default
     """
-    if course and course.gpa_scaling_table:
-        try:
-            return json.loads(course.gpa_scaling_table)
-        except:
-            pass
-            
-    if semester and semester.gpa_scaling_table:
-        try:
-            return json.loads(semester.gpa_scaling_table)
-        except:
-            pass
-            
-    if program and program.gpa_scaling_table:
-        try:
-            return json.loads(program.gpa_scaling_table)
-        except:
-            pass
+    if program:
+        program_table = _parse_scaling_table(program.gpa_scaling_table)
+        if program_table:
+            return program_table
 
-    # Check User Global Default 
-    # We need to access the user. Program has owner.
-    if program and program.owner and program.owner.gpa_scaling_table:
-        try:
-            return json.loads(program.owner.gpa_scaling_table)
-        except:
-            pass
-            
+    # Check User Global Default
+    if program and program.owner:
+        user_table = _parse_scaling_table(program.owner.gpa_scaling_table)
+        if user_table:
+            return user_table
+
     return DEFAULT_SCALING_TABLE
 
 def calculate_gpa(percentage: float, scaling_table: dict) -> float:
     """
     Calculates GPA based on percentage and scaling table.
-    The table keys are expected to be ranges like "85-89" or single numbers.
+    Supports ranges ("85-89"), lower bounds (">=90", ">90"), and numeric keys.
     """
+    if not scaling_table:
+        return 0.0
+
+    # First pass: exact range / operator matching
     for range_str, gpa in scaling_table.items():
         try:
-            if '-' in range_str:
-                start, end = map(float, range_str.split('-'))
-                if start <= percentage <= end:
+            key = str(range_str).strip()
+            if '-' in key:
+                start, end = map(float, key.split('-'))
+                if min(start, end) <= percentage <= max(start, end):
+                    return float(gpa)
+            elif key.startswith('>') or key.startswith('>='):
+                val = float(''.join(ch for ch in key if (ch.isdigit() or ch == '.')))
+                if percentage >= val:
                     return float(gpa)
             else:
-                # Handle single value keys if necessary, or open ended?
-                # For now assume ranges cover everything
-                pass
-        except:
+                # Exact numeric match
+                val = float(key)
+                if abs(percentage - val) < 0.01:
+                    return float(gpa)
+        except Exception:
             continue
-            
+
+    # Second pass: treat numeric keys as lower bounds (descending)
+    numeric_entries = []
+    for key, gpa in scaling_table.items():
+        key_str = str(key)
+        if '-' in key_str:
+            continue
+        try:
+            val = float(key_str)
+        except Exception:
+            continue
+        numeric_entries.append((val, gpa))
+
+    if numeric_entries:
+        numeric_entries.sort(key=lambda item: item[0], reverse=True)
+        for val, gpa in numeric_entries:
+            if percentage >= val:
+                try:
+                    return float(gpa)
+                except Exception:
+                    return 0.0
+
     # Fallback if no range matches (e.g. > 100 or < 0, or gaps)
-    # Default to 0 or maybe look for a default key?
     return 0.0
 
 def update_course_stats(course: models.Course, db: Session):
@@ -83,7 +109,7 @@ def update_course_stats(course: models.Course, db: Session):
     semester = course.semester
     program = semester.program if semester else None
     
-    table = get_scaling_table(course, semester, program)
+    table = get_scaling_table(program)
     course.grade_scaled = calculate_gpa(course.grade_percentage, table)
     
     db.add(course)
@@ -187,7 +213,7 @@ def recalculate_all_stats(program: models.Program, db: Session):
             # but that might be inefficient for bulk updates.
             # More efficient: Calculate all courses, commit, then calculate semesters, then program.
             
-            table = get_scaling_table(course, semester, program)
+            table = get_scaling_table(program)
             course.grade_scaled = calculate_gpa(course.grade_percentage, table)
             db.add(course)
         
@@ -204,7 +230,7 @@ def recalculate_semester_full(semester: models.Semester, db: Session):
     """
     program = semester.program
     for course in semester.courses:
-        table = get_scaling_table(course, semester, program)
+        table = get_scaling_table(program)
         course.grade_scaled = calculate_gpa(course.grade_percentage, table)
         db.add(course)
     db.commit()

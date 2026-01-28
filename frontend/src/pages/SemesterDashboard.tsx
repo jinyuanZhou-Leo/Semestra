@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
@@ -10,27 +10,13 @@ import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
 import { Skeleton } from '../components/Skeleton/Skeleton';
 import { AnimatedNumber } from '../components/AnimatedNumber';
-import api from '../services/api';
-import type { Semester, Course, Widget } from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
-import { useDataFetch } from '../hooks/useDataFetch';
+import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 
-export const SemesterDashboard: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
-
-    const fetchFn = useCallback(() => api.getSemester(id!), [id]);
-
-    const {
-        data: semester,
-        isLoading,
-        silentRefresh
-    } = useDataFetch<Semester & { courses: Course[], widgets: Widget[] }>({
-        fetchFn,
-        enabled: !!id
-    });
-
+const SemesterDashboardContent: React.FC = () => {
+    const { semester, updateSemester, refreshSemester, isLoading } = useSemesterData();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
@@ -127,18 +113,12 @@ export const SemesterDashboard: React.FC = () => {
     } = useDashboardWidgets({
         semesterId: semester?.id,
         initialWidgets: semester?.widgets,
-        onRefresh: silentRefresh
+        onRefresh: refreshSemester
     });
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
-        try {
-            await api.updateSemester(semester.id, data);
-            silentRefresh();
-        } catch (error) {
-            console.error("Failed to update semester", error);
-            alert("Failed to update semester");
-        }
+        updateSemester(data);
     };
 
     if (!isLoading && !semester) {
@@ -342,9 +322,7 @@ export const SemesterDashboard: React.FC = () => {
                         onClose={() => setIsSettingsOpen(false)}
                         title="Semester Settings"
                         initialName={semester.name}
-                        initialSettings={{
-                            gpa_scaling_table: semester.gpa_scaling_table
-                        }}
+                        initialSettings={{}}
                         onSave={handleUpdateSemester}
                         type="semester"
                     />
@@ -364,5 +342,33 @@ export const SemesterDashboard: React.FC = () => {
                 </>
             )}
         </Layout>
+    );
+};
+
+export const SemesterDashboard: React.FC = () => {
+    const { id } = useParams<{ id: string }>();
+
+    if (!id) {
+        return (
+            <Layout>
+                <Container>
+                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>Semester not found</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
+                            No semester ID provided.
+                        </p>
+                        <Link to="/">
+                            <Button>Back to Home</Button>
+                        </Link>
+                    </div>
+                </Container>
+            </Layout>
+        );
+    }
+
+    return (
+        <SemesterDataProvider semesterId={id}>
+            <SemesterDashboardContent />
+        </SemesterDataProvider>
     );
 };

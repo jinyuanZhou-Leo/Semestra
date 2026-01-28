@@ -16,7 +16,7 @@ export interface Semester {
     name: string;
     average_scaled: number;
     average_percentage: number;
-    gpa_scaling_table?: string;
+    program_id?: string;
 }
 
 export interface Course {
@@ -25,7 +25,7 @@ export interface Course {
     credits: number;
     grade_scaled: number;
     grade_percentage: number;
-    gpa_scaling_table?: string;
+    semester_id?: string;
     include_in_gpa?: boolean;
     hide_gpa?: boolean;
     widgets?: Widget[];
