@@ -23,6 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 *.pyc
+*.db
 
 
 # dummy data
