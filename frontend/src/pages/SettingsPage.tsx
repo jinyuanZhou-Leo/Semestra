@@ -59,7 +59,7 @@ export const SettingsPage: React.FC = () => {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isDirty]);
 
-    const handleSaveDefaults = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    const handleSaveDefaults = async () => {
         try {
             JSON.parse(gpaTableJson);
         } catch (e) {

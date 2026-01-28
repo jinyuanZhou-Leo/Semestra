@@ -1,64 +1,73 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Responsive } from 'react-grid-layout';
+import { WidthProvider } from '../widgets/WidthProvider';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import { Skeleton } from './Skeleton';
-import { Container } from '../Container';
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
+
+const calculateSkeletonCount = (): number => {
+    const viewportHeight = window.innerHeight;
+
+    // Simple tiered approach based on viewport height
+    if (viewportHeight < 600) return 2;   // Mobile - small screen
+    if (viewportHeight < 900) return 4;   // Tablet - medium screen
+    return 6;                              // Desktop - large screen
+};
+
+const generateLayoutForCols = (count: number, totalCols: number, defaultWidth: number) => {
+    const layouts = [];
+    const defaultH = 4; // Standard widget height
+
+    for (let i = 0; i < count; i++) {
+        layouts.push({
+            i: `skeleton-${i}`,
+            x: (i * defaultWidth) % totalCols,
+            y: Math.floor((i * defaultWidth) / totalCols) * defaultH,
+            w: Math.min(defaultWidth, totalCols), // Don't exceed total columns
+            h: defaultH,
+            minW: 2,
+            minH: 2,
+            static: true // Prevent dragging skeleton items
+        });
+    }
+
+    return layouts;
+};
+
+const generateSkeletonLayouts = (count: number) => {
+    return {
+        lg: generateLayoutForCols(count, 12, 4),  // 12 cols, width 4
+        md: generateLayoutForCols(count, 10, 4),  // 10 cols, width 4
+        sm: generateLayoutForCols(count, 6, 3),   // 6 cols, width 3
+        xs: generateLayoutForCols(count, 4, 2),   // 4 cols, width 2
+        xxs: generateLayoutForCols(count, 2, 2),  // 2 cols, width 2
+    };
+};
 
 export const DashboardSkeleton: React.FC = () => {
-    return (
-        <>
-            {/* Hero Section Skeleton */}
-            <div style={{
-                paddingTop: '60px', // Match heroTop
-                minHeight: '140px',
-                background: 'var(--gradient-hero)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                marginBottom: 'var(--spacing-lg)'
-            }}>
-                <Container>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                         <Skeleton width="120px" height="1.5rem" style={{ marginBottom: '0.5rem' }} />
-                        <Skeleton width="80px" height="1rem" />
-                    </div>
-                    
-                    <div className="page-header" style={{ marginBottom: 0 }}>
-                        <div style={{ flex: 1 }}>
-                            <Skeleton width="60%" height="2.5rem" style={{ marginBottom: '1rem' }} />
-                            <div className="stats-row" style={{ display: 'flex', gap: '2rem' }}>
-                                <div>
-                                    <Skeleton width="60px" height="0.8rem" style={{ marginBottom: '0.25rem' }} />
-                                    <Skeleton width="40px" height="1.5rem" />
-                                </div>
-                                <div>
-                                    <Skeleton width="60px" height="0.8rem" style={{ marginBottom: '0.25rem' }} />
-                                    <Skeleton width="40px" height="1.5rem" />
-                                </div>
-                                <div>
-                                    <Skeleton width="60px" height="0.8rem" style={{ marginBottom: '0.25rem' }} />
-                                    <Skeleton width="40px" height="1.5rem" />
-                                </div>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <Skeleton variant="circle" width={40} height={40} />
-                            <Skeleton width={120} height={40} style={{ borderRadius: '20px' }} />
-                        </div>
-                    </div>
-                </Container>
-            </div>
+    // Calculate once on mount - no resize listener needed
+    const skeletonCount = useMemo(() => calculateSkeletonCount(), []);
 
-            <Container style={{ padding: '1rem 1rem' }}>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                    gap: '1rem',
-                    gridAutoRows: 'minmax(200px, auto)'
-                }}>
-                    {[1, 2, 3, 4].map(i => (
-                        <Skeleton key={i} height="200px" style={{ borderRadius: 'var(--radius-lg)' }} />
-                    ))}
+    const layouts = useMemo(() => generateSkeletonLayouts(skeletonCount), [skeletonCount]);
+
+    return (
+        <ResponsiveGridLayout
+            className="layout"
+            layouts={layouts}
+            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+            rowHeight={60}
+            margin={[16, 16]}
+            isDraggable={false}
+            isResizable={false}
+        >
+            {Array.from({ length: skeletonCount }, (_, i) => (
+                <div key={`skeleton-${i}`} style={{ border: '1px solid transparent' }}>
+                    <Skeleton height="100%" style={{ borderRadius: 'var(--radius-lg)' }} />
                 </div>
-            </Container>
-        </>
+            ))}
+        </ResponsiveGridLayout>
     );
 };

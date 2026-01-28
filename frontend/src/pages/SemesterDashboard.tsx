@@ -8,6 +8,7 @@ import { DashboardGrid } from '../components/widgets/DashboardGrid';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
+import { Skeleton } from '../components/Skeleton/Skeleton';
 import api from '../services/api';
 import type { Semester, Course, Widget } from '../services/api';
 import { BackButton } from '../components/BackButton';
@@ -139,8 +140,7 @@ export const SemesterDashboard: React.FC = () => {
         }
     };
 
-    if (isLoading) return <Layout><DashboardSkeleton /></Layout>;
-    if (!semester) {
+    if (!isLoading && !semester) {
         return (
             <Layout>
                 <Container>
@@ -209,18 +209,23 @@ export const SemesterDashboard: React.FC = () => {
                             flex: isShrunk ? '1' : undefined,
                             minWidth: 0
                         }}>
-                            <h1 className="noselect text-truncate" style={{
-                                fontSize: titleSize,
-                                margin: 0,
-                                fontWeight: 800,
-                                letterSpacing: '-0.02em',
-                                background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                transition: 'font-size 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                            }}>
-                                {semester.name}
-                            </h1>
+                            {isLoading || !semester ? (
+                                <Skeleton width="60%" height={titleSize} style={{ marginBottom: isShrunk ? 0 : '0.5rem' }} />
+                            ) : (
+                                    <h1 className="noselect text-truncate" style={{
+                                        fontSize: titleSize,
+                                        margin: 0,
+                                        fontWeight: 800,
+                                        letterSpacing: '-0.02em',
+                                        background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
+                                        WebkitBackgroundClip: 'text',
+                                        WebkitTextFillColor: 'transparent',
+                                        transition: 'font-size 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                    }}>
+                                        {semester.name}
+                                    </h1>
+                            )}
+
                             <div className="noselect stats-row" style={{
                                 maxHeight: statsMaxHeight, 
                                 opacity: statsOpacity,
@@ -232,15 +237,21 @@ export const SemesterDashboard: React.FC = () => {
                             }}>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>{semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>
+                                        {isLoading || !semester ? <Skeleton width="2rem" height="1.5rem" /> : (semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0)}
+                                    </div>
                                 </div>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Avg</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>{semester.average_percentage.toFixed(1)}%</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>
+                                        {isLoading || !semester ? <Skeleton width="3rem" height="1.5rem" /> : `${semester.average_percentage.toFixed(1)}%`}
+                                    </div>
                                 </div>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>{semester.average_scaled.toFixed(2)}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>
+                                        {isLoading || !semester ? <Skeleton width="2.5rem" height="1.5rem" /> : semester.average_scaled.toFixed(2)}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -254,19 +265,28 @@ export const SemesterDashboard: React.FC = () => {
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                             flexShrink: 0
                         }}>
-                            <Button
-                                onClick={() => setIsSettingsOpen(true)}
-                                variant="glass"
-                                size="md"
-                                shape="circle"
-                                title="Semester Settings"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                                </svg>
-                            </Button>
-                            <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
+                            {isLoading || !semester ? (
+                                <>
+                                    <Skeleton variant="circle" width={32} height={32} />
+                                    <Skeleton width={100} height={32} style={{ borderRadius: 'var(--radius-md)' }} />
+                                </>
+                            ) : (
+                                <>
+                                        <Button
+                                            onClick={() => setIsSettingsOpen(true)}
+                                            variant="glass"
+                                            size="md"
+                                            shape="circle"
+                                            title="Semester Settings"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <circle cx="12" cy="12" r="3"></circle>
+                                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                            </svg>
+                                        </Button>
+                                        <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </Container>
@@ -278,15 +298,19 @@ export const SemesterDashboard: React.FC = () => {
                 marginTop: isShrunk ? '60px' : 'var(--header-expanded-height)',
                 transition: 'margin-top 0.3s ease-in-out'
             }}>
-                <DashboardGrid
-                    widgets={widgets}
-                    onLayoutChange={handleLayoutChange}
-                    onRemoveWidget={handleRemoveWidget}
-                    onEditWidget={(w) => setEditingWidget(w)}
-                    onUpdateWidget={handleUpdateWidget}
-                    onUpdateWidgetDebounced={handleUpdateWidgetDebounced}
-                    semesterId={semester.id}
-                />
+                {isLoading || !semester ? (
+                    <DashboardSkeleton />
+                ) : (
+                        <DashboardGrid
+                            widgets={widgets}
+                            onLayoutChange={handleLayoutChange}
+                            onRemoveWidget={handleRemoveWidget}
+                            onEditWidget={(w) => setEditingWidget(w)}
+                            onUpdateWidget={handleUpdateWidget}
+                            onUpdateWidgetDebounced={handleUpdateWidgetDebounced}
+                            semesterId={semester.id}
+                        />
+                )}
             </Container>
 
             {semester && (

@@ -12,6 +12,7 @@ import { BackButton } from '../components/BackButton';
 import { useHeroGradient } from '../hooks/useHeroGradient';
 import { ProgressBar } from '../components/ProgressBar';
 import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
+import { Skeleton } from '../components/Skeleton/Skeleton';
 
 export const ProgramDashboard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -125,11 +126,7 @@ export const ProgramDashboard: React.FC = () => {
         }
     };
 
-    if (isLoading) {
-        return <Layout><ProgramSkeleton /></Layout>;
-    }
-
-    if (!program) {
+    if (!isLoading && !program) {
         return (
             <Layout>
                 <Container>
@@ -160,224 +157,251 @@ export const ProgramDashboard: React.FC = () => {
                     <BackButton to="/" label="Back to Programs" />
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Program Overview</div>
                     <div className="page-header" style={{ marginBottom: '2.5rem' }}>
-                        <h1 className="noselect text-truncate" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                            {program.name}
-                        </h1>
-                        <Button
-                            variant="glass"
-                            shape="circle"
-                            onClick={() => setIsSettingsOpen(true)}
-                            size="md"
-                            title="Program Settings"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="3"></circle>
-                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                            </svg>
-                        </Button>
+                        {isLoading || !program ? (
+                            <Skeleton width="50%" height="3.5rem" />
+                        ) : (
+                                <h1 className="noselect text-truncate" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                    {program.name}
+                                </h1>
+                        )}
+
+                        {isLoading || !program ? (
+                            <Skeleton variant="circle" width={40} height={40} />
+                        ) : (
+                                <Button
+                                    variant="glass"
+                                    shape="circle"
+                                    onClick={() => setIsSettingsOpen(true)}
+                                    size="md"
+                                    title="Program Settings"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                    </svg>
+                                </Button>
+                        )}
                     </div>
 
                     <div className="program-stats-grid">
                         <div className="noselect program-stat-card">
                             <div className="program-stat-label">
                                 <span className="program-stat-label-text">CGPA (Scaled)</span>
-                                <button
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        handleUpdateProgram({ hide_gpa: !program.hide_gpa });
-                                    }}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        color: 'var(--color-text-secondary)',
-                                        padding: 0,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        flexShrink: 0
-                                    }}
-                                    title={program.hide_gpa ? "Show GPA" : "Hide GPA"}
-                                >
-                                    {program.hide_gpa ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                                            <line x1="1" y1="1" x2="23" y2="23"></line>
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                            <circle cx="12" cy="12" r="3"></circle>
-                                        </svg>
-                                    )}
-                                </button>
+                                {!(isLoading || !program) && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            handleUpdateProgram({ hide_gpa: !program.hide_gpa });
+                                        }}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            color: 'var(--color-text-secondary)',
+                                            padding: 0,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            flexShrink: 0
+                                        }}
+                                        title={program.hide_gpa ? "Show GPA" : "Hide GPA"}
+                                    >
+                                        {program.hide_gpa ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                                            </svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                <circle cx="12" cy="12" r="3"></circle>
+                                            </svg>
+                                        )}
+                                    </button>
+                                )}
                             </div>
                             <div className="program-stat-value primary">
-                                {program.hide_gpa ? '****' : program.cgpa_scaled.toFixed(2)}
+                                {isLoading || !program ? <Skeleton width="4rem" height="2rem" /> : (program.hide_gpa ? '****' : program.cgpa_scaled.toFixed(2))}
                             </div>
                         </div>
                         <div className="noselect program-stat-card">
                             <div className="program-stat-label">Average (%)</div>
                             <div className="program-stat-value">
-                                {program.hide_gpa ? '****' : program.cgpa_percentage.toFixed(1)}
-                                {!program.hide_gpa && <span className="program-stat-unit">%</span>}
+                                {isLoading || !program ? <Skeleton width="5rem" height="2rem" /> : (
+                                    <>
+                                        {program.hide_gpa ? '****' : program.cgpa_percentage.toFixed(1)}
+                                        {!program.hide_gpa && <span className="program-stat-unit">%</span>}
+                                    </>
+                                )}
                             </div>
                         </div>
                         <div className="noselect program-stat-card">
                             <div className="program-stat-label">Credits Progress</div>
                             <div className="program-stat-value" style={{ marginBottom: '0.5rem' }}>
-                                {program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
-                                <span className="program-stat-unit small"> / {program.grad_requirement_credits}</span>
+                                {isLoading || !program ? <Skeleton width="70%" height="2rem" /> : (
+                                    <>
+                                        {program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
+                                        <span className="program-stat-unit small"> / {program.grad_requirement_credits}</span>
+                                    </>
+                                )}
                             </div>
-                            <ProgressBar
-                                value={program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
-                                max={program.grad_requirement_credits}
-                                height="8px"
-                            />
+                            {isLoading || !program ? (
+                                <Skeleton width="100%" height="8px" style={{ borderRadius: '4px' }} />
+                            ) : (
+                                    <ProgressBar
+                                        value={program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
+                                        max={program.grad_requirement_credits}
+                                        height="8px"
+                                    />
+                            )}
                         </div>
                     </div>
                 </Container>
             </div>
 
-            <Container padding="3rem 2rem">
-                <div style={{ marginBottom: '2rem' }}>
-                    <Input
-                        placeholder="Search semesters and courses..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        style={{ fontSize: '1.1rem', padding: '1rem' }}
-                        rightElement={
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                            </svg>
-                        }
-                    />
-                </div>
+            {isLoading || !program ? (
+                <ProgramSkeleton />
+            ) : (
+                    <Container padding="3rem 2rem">
+                        <div style={{ marginBottom: '2rem' }}>
+                            <Input
+                                placeholder="Search semesters and courses..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                style={{ fontSize: '1.1rem', padding: '1rem' }}
+                                rightElement={
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                }
+                            />
+                        </div>
 
-                <div className="page-header" style={{ marginBottom: '2rem' }}>
-                    <h2 style={{ fontSize: '1.75rem' }}>Semesters</h2>
-                    <Button onClick={() => setIsModalOpen(true)}>+ New Semester</Button>
-                </div>
+                        <div className="page-header" style={{ marginBottom: '2rem' }}>
+                            <h2 style={{ fontSize: '1.75rem' }}>Semesters</h2>
+                            <Button onClick={() => setIsModalOpen(true)}>+ New Semester</Button>
+                        </div>
 
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                    gap: '2rem',
-                    marginBottom: '4rem'
-                }}>
-                    {program.semesters
-                        .filter(semester => semester.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                        .map(semester => (
-                        <Link key={semester.id} to={`/semesters/${semester.id}`}>
-                            <div className="noselect" style={{
-                                padding: '2rem',
-                                borderRadius: 'var(--radius-lg)',
-                                backgroundColor: 'var(--color-bg-primary)',
-                                boxShadow: 'var(--shadow-sm)',
-                                border: '1px solid var(--color-border)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease-in-out',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '1rem',
-                                height: '100%',
-                                position: 'relative'
-                            }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(-4px)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                }}
-                            >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 className='text-truncate' style={{ fontSize: '1.5rem', margin: 0 }}>{semester.name}</h3>
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: semester.average_scaled >= 3.0 ? '#10b981' : '#f59e0b' }}></div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                if (window.confirm('Are you sure you want to delete this semester?')) {
-                                                    api.deleteSemester(semester.id).then(() => fetchProgram(program.id)).catch(err => console.error("Failed to delete", err));
-                                                }
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                            gap: '2rem',
+                            marginBottom: '4rem'
+                        }}>
+                            {program.semesters
+                                .filter(semester => semester.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                .map(semester => (
+                                    <Link key={semester.id} to={`/semesters/${semester.id}`}>
+                                        <div className="noselect" style={{
+                                            padding: '2rem',
+                                            borderRadius: 'var(--radius-lg)',
+                                            backgroundColor: 'var(--color-bg-primary)',
+                                            boxShadow: 'var(--shadow-sm)',
+                                            border: '1px solid var(--color-border)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease-in-out',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '1rem',
+                                            height: '100%',
+                                            position: 'relative'
+                                        }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.transform = 'translateY(-4px)';
+                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
                                             }}
-                                            style={{
-                                                background: 'none',
-                                                border: 'none',
-                                                color: 'var(--color-text-secondary)',
-                                                cursor: 'pointer',
-                                                padding: '4px',
-                                                borderRadius: '4px',
-                                                marginLeft: '0.5rem'
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
                                             }}
-                                            onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="3 6 5 6 21 6"></polyline>
-                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '1rem', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
-                                    <div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>GPA</div>
-                                        <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{semester.average_scaled.toFixed(2)}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AVG</div>
-                                        <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{semester.average_percentage.toFixed(1)}%</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Courses</div>
-                                        <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{(semester as any).courses?.length || 0}</div>
-                                    </div>
-                                </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <h3 className='text-truncate' style={{ fontSize: '1.5rem', margin: 0 }}>{semester.name}</h3>
+                                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: semester.average_scaled >= 3.0 ? '#10b981' : '#f59e0b' }}></div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            if (window.confirm('Are you sure you want to delete this semester?')) {
+                                                                api.deleteSemester(semester.id).then(() => fetchProgram(program.id)).catch(err => console.error("Failed to delete", err));
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            color: 'var(--color-text-secondary)',
+                                                            cursor: 'pointer',
+                                                            padding: '4px',
+                                                            borderRadius: '4px',
+                                                            marginLeft: '0.5rem'
+                                                        }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '1rem', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
+                                                <div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>GPA</div>
+                                                    <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{semester.average_scaled.toFixed(2)}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AVG</div>
+                                                    <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{semester.average_percentage.toFixed(1)}%</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Courses</div>
+                                                    <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{(semester as any).courses?.length || 0}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
+
+                            {program.semesters.filter(semester => semester.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && ( /* ... Empty state ... */
+                                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem', color: 'var(--color-text-secondary)' }}>No semesters found.</div>
+                            )}
+                        </div>
+
+                        {/* Course List Section */}
+                        <div style={{ marginBottom: '2rem' }}>
+                            <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>All Courses</h2>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                                gap: '1.5rem'
+                            }}>
+                                {program.semesters.flatMap((s: any) => s.courses || [])
+                                    .filter((course: any) => course.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    .map((course: any) => (
+                                        <Link key={course.id} to={`/courses/${course.id}`}>
+                                            <div style={{
+                                                padding: '1.5rem',
+                                                borderRadius: 'var(--radius-md)',
+                                                backgroundColor: 'var(--color-bg-primary)',
+                                                border: '1px solid var(--color-border)',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                transition: 'border-color 0.2s'
+                                            }}
+                                                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
+                                                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
+                                            >
+                                                <div className='text-truncate' style={{ fontWeight: 600 }}>{course.name}</div>
+                                                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>{course.grade_scaled.toFixed(2)}</div>
+                                            </div>
+                                        </Link>
+                                    ))}
                             </div>
-                        </Link>
-                    ))}
-
-                    {program.semesters.filter(semester => semester.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && ( /* ... Empty state ... */
-                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem', color: 'var(--color-text-secondary)' }}>No semesters found.</div>
-                    )}
-                </div>
-
-                {/* Course List Section */}
-                <div style={{ marginBottom: '2rem' }}>
-                    <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>All Courses</h2>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                        gap: '1.5rem'
-                    }}>
-                        {program.semesters.flatMap((s: any) => s.courses || [])
-                            .filter((course: any) => course.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                            .map((course: any) => (
-                            <Link key={course.id} to={`/courses/${course.id}`}>
-                                <div style={{
-                                    padding: '1.5rem',
-                                    borderRadius: 'var(--radius-md)',
-                                    backgroundColor: 'var(--color-bg-primary)',
-                                    border: '1px solid var(--color-border)',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    transition: 'border-color 0.2s'
-                                }}
-                                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
-                                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
-                                >
-                                    <div className='text-truncate' style={{ fontWeight: 600 }}>{course.name}</div>
-                                    <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>{course.grade_scaled.toFixed(2)}</div>
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
-                </div>
-            </Container>
+                        </div>
+                    </Container>
+            )}
 
             <Modal
                 isOpen={isModalOpen}

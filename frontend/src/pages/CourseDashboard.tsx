@@ -7,6 +7,7 @@ import { AddWidgetModal } from '../components/AddWidgetModal';
 import { DashboardGrid, type WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
+import { Skeleton } from '../components/Skeleton/Skeleton';
 import api from '../services/api';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
@@ -124,8 +125,7 @@ const CourseDashboardContent: React.FC = () => {
         }
     };
 
-    if (isLoading) return <Layout><DashboardSkeleton /></Layout>;
-    if (!course) {
+    if (!isLoading && !course) {
         return (
             <Layout>
                 <Container>
@@ -193,18 +193,23 @@ const CourseDashboardContent: React.FC = () => {
                             flex: isShrunk ? '1' : undefined,
                             minWidth: 0 // Allow text truncation in flex child
                         }}>
-                            <h1 className="noselect text-truncate" style={{
-                                fontSize: titleSize,
-                                margin: 0,
-                                fontWeight: 800,
-                                letterSpacing: '-0.02em',
-                                background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                transition: 'font-size 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                            }}>
-                                {course.name}
-                            </h1>
+                            {isLoading || !course ? (
+                                <Skeleton width="60%" height={titleSize} style={{ marginBottom: isShrunk ? 0 : '0.5rem' }} />
+                            ) : (
+                                    <h1 className="noselect text-truncate" style={{
+                                        fontSize: titleSize,
+                                        margin: 0,
+                                        fontWeight: 800,
+                                        letterSpacing: '-0.02em',
+                                        background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
+                                        WebkitBackgroundClip: 'text',
+                                        WebkitTextFillColor: 'transparent',
+                                        transition: 'font-size 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                    }}>
+                                        {course.name}
+                                    </h1>
+                            )}
+
                             <div className="noselect stats-row" style={{
                                 maxHeight: statsMaxHeight, 
                                 opacity: statsOpacity,
@@ -216,15 +221,21 @@ const CourseDashboardContent: React.FC = () => {
                             }}>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>{course.credits}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>
+                                        {isLoading || !course ? <Skeleton width="2rem" height="1.5rem" /> : course.credits}
+                                    </div>
                                 </div>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Grade</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>{course.hide_gpa ? '****' : `${course.grade_percentage.toFixed(1)}%`}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>
+                                        {isLoading || !course ? <Skeleton width="3rem" height="1.5rem" /> : (course.hide_gpa ? '****' : `${course.grade_percentage.toFixed(1)}%`)}
+                                    </div>
                                 </div>
                                 <div style={{ minWidth: 0, flex: '0 0 auto' }}>
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA (Scaled)</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>{course.hide_gpa ? '****' : course.grade_scaled.toFixed(2)}</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>
+                                        {isLoading || !course ? <Skeleton width="2.5rem" height="1.5rem" /> : (course.hide_gpa ? '****' : course.grade_scaled.toFixed(2))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -236,19 +247,28 @@ const CourseDashboardContent: React.FC = () => {
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                             flexShrink: 0 // Prevent buttons from shrinking
                         }}>
-                            <Button
-                                variant="glass"
-                                onClick={() => setIsSettingsOpen(true)}
-                                size="md"
-                                shape="circle"
-                                title="Course Settings"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                                </svg>
-                            </Button>
-                            <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
+                            {isLoading || !course ? (
+                                <>
+                                    <Skeleton variant="circle" width={32} height={32} />
+                                    <Skeleton width={100} height={32} style={{ borderRadius: 'var(--radius-md)' }} />
+                                </>
+                            ) : (
+                                <>
+                                        <Button
+                                            variant="glass"
+                                            onClick={() => setIsSettingsOpen(true)}
+                                            size="md"
+                                            shape="circle"
+                                            title="Course Settings"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <circle cx="12" cy="12" r="3"></circle>
+                                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                            </svg>
+                                        </Button>
+                                        <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </Container>
@@ -262,16 +282,20 @@ const CourseDashboardContent: React.FC = () => {
             }}>
 
 
-                <DashboardGrid
-                    widgets={widgets}
-                    onLayoutChange={handleLayoutChange}
-                    onRemoveWidget={handleRemoveWidget}
-                    onEditWidget={(w) => setEditingWidget(w)}
-                    onUpdateWidget={handleUpdateWidget}
-                    onUpdateWidgetDebounced={handleUpdateWidgetDebounced}
-                    courseId={course.id}
-                    updateCourseField={updateCourseField}
-                />
+                {isLoading || !course || !course.id ? (  /* Check course.id since useDashboardWidgets needs it */
+                    <DashboardSkeleton />
+                ) : (
+                        <DashboardGrid
+                            widgets={widgets}
+                            onLayoutChange={handleLayoutChange}
+                            onRemoveWidget={handleRemoveWidget}
+                            onEditWidget={(w) => setEditingWidget(w)}
+                            onUpdateWidget={handleUpdateWidget}
+                            onUpdateWidgetDebounced={handleUpdateWidgetDebounced}
+                            courseId={course.id}
+                            updateCourseField={updateCourseField}
+                        />
+                )}
             </Container>
             {
                 course && (
