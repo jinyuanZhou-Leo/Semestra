@@ -30,6 +30,9 @@ const SemesterHomepageContent: React.FC = () => {
     const isShrunkRef = React.useRef(false);
     const isTransitioningRef = React.useRef(false);
     const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const heroRef = React.useRef<HTMLDivElement | null>(null);
+    const isShrunkStateRef = React.useRef(isShrunk);
+    const [heroHeights, setHeroHeights] = useState({ expanded: 0, shrunk: 0 });
 
     useEffect(() => {
         let ticking = false;
@@ -94,6 +97,29 @@ const SemesterHomepageContent: React.FC = () => {
         };
     }, []);
 
+    useEffect(() => {
+        isShrunkStateRef.current = isShrunk;
+    }, [isShrunk]);
+
+    useEffect(() => {
+        const element = heroRef.current;
+        if (!element || typeof ResizeObserver === 'undefined') return;
+
+        const measure = () => {
+            const height = element.getBoundingClientRect().height;
+            setHeroHeights(prev => {
+                const key = isShrunkStateRef.current ? 'shrunk' : 'expanded';
+                if (Math.abs(prev[key] - height) < 1) return prev;
+                return { ...prev, [key]: height };
+            });
+        };
+
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, []);
+
     // Derived styles
     const heroTop = isNavbarVisible ? '60px' : '0px';
 
@@ -108,7 +134,11 @@ const SemesterHomepageContent: React.FC = () => {
     const shadowOpacity = isShrunk ? 0.1 : 0;
     const tabBarHeight = 48;
     const heroMinHeight = isShrunk ? `${60 + tabBarHeight}px` : `calc(var(--header-expanded-height) + ${tabBarHeight}px)`;
-    const contentTopOffset = heroMinHeight;
+    const contentTopOffset = 0;
+    const heroSpacerHeight = useMemo(() => {
+        if (!heroHeights.expanded || !heroHeights.shrunk) return 0;
+        return Math.max(0, heroHeights.expanded - heroHeights.shrunk);
+    }, [heroHeights.expanded, heroHeights.shrunk]);
 
     const {
         widgets,
@@ -278,8 +308,9 @@ const SemesterHomepageContent: React.FC = () => {
             <BuiltinTabProvider value={builtinTabContext}>
                 <div
                     className="hero-section"
+                    ref={heroRef}
                     style={{
-                    position: 'fixed',
+                    position: 'sticky',
                     top: heroTop,
                     left: 0,
                     right: 0,
@@ -288,12 +319,11 @@ const SemesterHomepageContent: React.FC = () => {
                     padding: containerPadding,
                     color: 'var(--color-text-primary)',
                     boxShadow: `0 4px 20px rgba(0,0,0,${shadowOpacity})`,
-                    backdropFilter: 'blur(10px)', // Ensure glass effect if gradient has transparency
                     transition: 'padding 0.1s, top 0.3s ease-in-out, min-height 0.3s ease-in-out', // Smooth out slight jitters and sync with navbar
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
-                    minHeight: heroMinHeight, // Ensure a minimum height for centering to work effectively
+                    // minHeight: heroMinHeight, // Ensure a minimum height for centering to work effectively
                 }}>
                 <Container style={{
                     transition: 'padding-top 0.3s ease-in-out',
@@ -406,7 +436,7 @@ const SemesterHomepageContent: React.FC = () => {
 
                 <Container style={{
                     padding: '1rem 1rem',
-                    minHeight: '100vh',
+                    // minHeight: '100vh',
                     marginTop: contentTopOffset,
                     transition: 'margin-top 0.3s ease-in-out'
                 }}>
@@ -449,6 +479,10 @@ const SemesterHomepageContent: React.FC = () => {
                     })()
                 )}
             </Container>
+                <div
+                    aria-hidden="true"
+                    style={{ height: isShrunk ? heroSpacerHeight : 0 }}
+                />
 
                 {semester && (
                     <>

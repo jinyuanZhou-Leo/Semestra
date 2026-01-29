@@ -14,10 +14,41 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
 
     return (
         <>
-            <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem' }}>Dashboard</h2>
-                <Button onClick={dashboard.onAddWidgetClick} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
-            </div>
+            <Button
+                onClick={dashboard.onAddWidgetClick}
+                size="md"
+                variant="glass"
+                shape="rounded"
+                aria-label="Add widget"
+                style={{
+                    position: 'fixed',
+                    right: '2rem',
+                    bottom: '2rem',
+                    width: '3.25rem',
+                    height: '3.25rem',
+                    padding: 0,
+                    borderRadius: '999px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 20
+                }}
+            >
+                <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+            </Button>
             <DashboardGrid
                 widgets={dashboard.widgets}
                 onLayoutChange={dashboard.onLayoutChange}

@@ -373,13 +373,13 @@ See `frontend/src/plugins/GradeCalculator.tsx` for a complete example demonstrat
 - Calling `updateSettings` for all changes
 - Using `useMemo` for computed values
 
-## UI 设计规范
+## Widget UI 设计规范
 
-- 插件UI中避免在上方添加标题，因为容器已经提供了标题
-- 插件应当适配声明的所有尺寸
-- 插件应当适配深色模式
-- 插件应当高效利用空间，避免过多留白
-- 插件中应对必要元素添加 `user-select: none`
+- WidgetUI中避免在上方添加标题，因为容器已经提供了标题
+- Widget应当适配声明的所有尺寸
+- Widget应当适配深色模式
+- Widget应当高效利用空间，避免过多留白
+- Widget中应对必要元素添加 `user-select: none`
 - 使用 CSS 变量确保主题一致性：
   - `var(--color-text-primary)` - 主要文本颜色
   - `var(--color-text-secondary)` - 次要文本颜色

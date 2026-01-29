@@ -2,7 +2,7 @@ import React from 'react';
 import { SettingsForm } from './SettingsForm';
 
 interface SettingsTabContentProps {
-    title?: string;
+    title?: string | null;
     initialName: string;
     initialSettings?: any;
     onSave: (data: any) => Promise<void>;
@@ -11,7 +11,7 @@ interface SettingsTabContentProps {
 }
 
 export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
-    title = 'Settings',
+    title,
     initialName,
     initialSettings,
     onSave,
@@ -21,7 +21,7 @@ export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
     return (
         <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div>
-                <h2 style={{ marginTop: 0 }}>{title}</h2>
+                {title ? <h2 style={{ marginTop: 0 }}>{title}</h2> : null}
                 <SettingsForm
                     initialName={initialName}
                     initialSettings={initialSettings}
