@@ -145,5 +145,7 @@ export const CourseListDefinition: WidgetDefinition = {
     description: 'Display a list of courses in this semester.',
     icon: '📚',
     component: CourseList,
+    maxInstances: 1,
+    allowedContexts: ['semester'],
     defaultLayout: { w: 6, h: 8, minW: 4, minH: 4 }
 };

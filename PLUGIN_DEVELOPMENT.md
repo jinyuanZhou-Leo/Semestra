@@ -30,6 +30,8 @@ export interface WidgetDefinition {
         minW?: number,     // Minimum width
         minH?: number      // Minimum height
     };
+    maxInstances?: number | 'unlimited'; // Max instances per dashboard
+    allowedContexts?: Array<'semester' | 'course'>; // Where this widget can be added
     // Lifecycle hooks
     onCreate?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
     onDelete?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
@@ -103,7 +105,9 @@ export const MyNewDefinition: WidgetDefinition = {
     icon: '✨',
     component: MyNew,
     defaultSettings: { title: 'Default Title' },
-    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 }
+    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
+    maxInstances: 'unlimited',
+    allowedContexts: ['semester', 'course']
 };
 ```
 

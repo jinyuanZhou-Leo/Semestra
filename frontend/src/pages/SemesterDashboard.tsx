@@ -330,6 +330,8 @@ const SemesterDashboardContent: React.FC = () => {
                         isOpen={isAddWidgetOpen}
                         onClose={() => setIsAddWidgetOpen(false)}
                         onAdd={handleAddWidget}
+                        context="semester"
+                        widgets={widgets}
                     />
                     {editingWidget && (
                         <WidgetSettingsModal

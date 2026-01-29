@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import api from '../services/api';
 import type { Widget } from '../services/api';
-import { WidgetRegistry } from '../services/widgetRegistry';
+import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
 
 interface UseDashboardWidgetsProps {
     courseId?: string;
@@ -46,7 +46,20 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     }, [initialWidgets]);
 
     const addWidget = useCallback(async (type: string) => {
-        if (!courseId && !semesterId) return;
+        const context: WidgetContext | null = courseId ? 'course' : (semesterId ? 'semester' : null);
+        if (!context) return;
+
+        const definition = WidgetRegistry.get(type);
+        if (!definition) {
+            console.warn(`Unknown widget type: ${type}`);
+            return;
+        }
+
+        const currentCount = widgets.filter(w => w.type === type).length;
+        if (!canAddWidget(definition, context, currentCount)) {
+            console.warn(`Widget type ${type} cannot be added to ${context} or max instances reached.`);
+            return;
+        }
 
         try {
             const title = type === 'course-list' ? 'Courses' : (type === 'counter' ? 'Counter' : 'Widget');
@@ -99,7 +112,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         } catch (error) {
             console.error("Failed to create widget", error);
         }
-    }, [courseId, semesterId, onRefresh]);
+    }, [courseId, semesterId, onRefresh, widgets]);
 
     const removeWidget = useCallback(async (id: string) => {
         if (!window.confirm("Are you sure you want to remove this widget?")) return;
@@ -336,9 +349,10 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     }, [flushPendingLayouts]);
 
     const updateLayout = useCallback((layouts: any[]) => {
+        const layoutById = new Map(layouts.map(layout => [layout.i, layout]));
         // OPTIMISTIC UI: Update local state immediately for smooth UX
         setWidgets(prev => prev.map(w => {
-            const layout = layouts.find(l => l.i === w.id);
+            const layout = layoutById.get(w.id);
             if (layout) {
                 return { ...w, layout: { x: layout.x, y: layout.y, w: layout.w, h: layout.h } };
             }

@@ -98,9 +98,11 @@ const arePropsEqual = (
     if (prevProps.courseId !== nextProps.courseId) return false;
 
     // Deep compare settings (most frequent change)
-    const prevSettings = JSON.stringify(prevProps.widget.settings);
-    const nextSettings = JSON.stringify(nextProps.widget.settings);
-    if (prevSettings !== nextSettings) return false;
+    if (prevProps.widget.settings !== nextProps.widget.settings) {
+        const prevSettings = JSON.stringify(prevProps.widget.settings);
+        const nextSettings = JSON.stringify(nextProps.widget.settings);
+        if (prevSettings !== nextSettings) return false;
+    }
 
     // Layout changes don't require child re-render (handled by grid)
     return true;

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTouchDevice } from '../../hooks/useTouchDevice';
 
 interface WidgetContainerProps {
     id: string; // Unique ID
@@ -7,32 +8,46 @@ interface WidgetContainerProps {
     onEdit?: () => void;
 }
 
+type PointerHandler = (event: PointerEvent) => void;
+
+const pointerHandlers = new Set<PointerHandler>();
+let isPointerListenerAttached = false;
+
+const handleGlobalPointerDown = (event: PointerEvent) => {
+    pointerHandlers.forEach(handler => handler(event));
+};
+
+const addGlobalPointerHandler = (handler: PointerHandler) => {
+    if (!isPointerListenerAttached) {
+        document.addEventListener('pointerdown', handleGlobalPointerDown);
+        isPointerListenerAttached = true;
+    }
+    pointerHandlers.add(handler);
+};
+
+const removeGlobalPointerHandler = (handler: PointerHandler) => {
+    pointerHandlers.delete(handler);
+    if (pointerHandlers.size === 0 && isPointerListenerAttached) {
+        document.removeEventListener('pointerdown', handleGlobalPointerDown);
+        isPointerListenerAttached = false;
+    }
+};
+
 /**
  * WidgetContainer - Memoized for performance
  * Contains the visual wrapper and control buttons for widgets
  */
 const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit }) => {
     const [isHovered, setIsHovered] = React.useState(false);
-    const [isTouchDevice, setIsTouchDevice] = React.useState(false);
+    const isTouchDevice = useTouchDevice();
     const [isTouchControlsVisible, setIsTouchControlsVisible] = React.useState(false);
     const containerRef = React.useRef<HTMLDivElement | null>(null);
 
     React.useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const media = window.matchMedia('(hover: none), (pointer: coarse)');
-        const update = () => {
-            const touchCapable = media.matches || navigator.maxTouchPoints > 0;
-            setIsTouchDevice(touchCapable);
-            if (!touchCapable) setIsTouchControlsVisible(false);
-        };
-        update();
-        if (media.addEventListener) {
-            media.addEventListener('change', update);
-            return () => media.removeEventListener('change', update);
+        if (!isTouchDevice) {
+            setIsTouchControlsVisible(false);
         }
-        media.addListener(update);
-        return () => media.removeListener(update);
-    }, []);
+    }, [isTouchDevice]);
 
     React.useEffect(() => {
         if (!isTouchDevice) return;
@@ -41,8 +56,8 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
             if (containerRef.current.contains(event.target as Node)) return;
             setIsTouchControlsVisible(false);
         };
-        document.addEventListener('pointerdown', handlePointerDown);
-        return () => document.removeEventListener('pointerdown', handlePointerDown);
+        addGlobalPointerHandler(handlePointerDown);
+        return () => removeGlobalPointerHandler(handlePointerDown);
     }, [isTouchDevice]);
 
     const isInteractiveTarget = (target: EventTarget | null) => {
@@ -112,6 +127,16 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                     justifyContent: isTouchDevice ? 'flex-end' : 'space-between',
                     padding: controlsPadding,
                 }}
+                onMouseDown={(event) => {
+                    const target = event.target as HTMLElement | null;
+                    if (target?.closest('.drag-handle')) return;
+                    event.stopPropagation();
+                }}
+                onPointerDown={(event) => {
+                    const target = event.target as HTMLElement | null;
+                    if (target?.closest('.drag-handle')) return;
+                    event.stopPropagation();
+                }}
             >
                 {!isTouchDevice && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', pointerEvents: 'auto' }}>
@@ -141,7 +166,6 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 e.currentTarget.style.color = 'var(--color-text-tertiary)';
                             }}
                             title="Drag to move"
-                            data-widget-control
                         >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                 <circle cx="8" cy="6" r="2" />

@@ -1,18 +1,37 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { WidgetRegistry } from '../services/widgetRegistry';
+import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
+import type { WidgetItem } from './widgets/DashboardGrid';
 
 interface AddWidgetModalProps {
     isOpen: boolean;
     onClose: () => void;
     onAdd: (type: string, title?: string) => void;
+    context: WidgetContext;
+    widgets: WidgetItem[];
 }
 
-export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose, onAdd }) => {
+export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose, onAdd, context, widgets }) => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
 
-    const widgets = WidgetRegistry.getAll();
+    const availableWidgets = useMemo(() => {
+        const counts = new Map<string, number>();
+        widgets.forEach((widget) => {
+            counts.set(widget.type, (counts.get(widget.type) ?? 0) + 1);
+        });
+
+        return WidgetRegistry.getAll().filter((definition) => {
+            const currentCount = counts.get(definition.type) ?? 0;
+            return canAddWidget(definition, context, currentCount);
+        });
+    }, [context, widgets]);
+
+    useEffect(() => {
+        if (selectedType && !availableWidgets.some((widget) => widget.type === selectedType)) {
+            setSelectedType(null);
+        }
+    }, [availableWidgets, selectedType]);
 
     const handleAdd = () => {
         if (selectedType) {
@@ -25,7 +44,12 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Add Widget">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                {widgets.map((widget) => (
+                {availableWidgets.length === 0 && (
+                    <div style={{ gridColumn: '1 / -1', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '1rem' }}>
+                        No widgets available for this dashboard.
+                    </div>
+                )}
+                {availableWidgets.map((widget) => (
                     <div
                         key={widget.type}
                         onClick={() => setSelectedType(widget.type)}

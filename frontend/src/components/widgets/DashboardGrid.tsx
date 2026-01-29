@@ -1,10 +1,11 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 import { DashboardWidgetWrapper } from './DashboardWidgetWrapper';
 import { WidgetRegistry } from '../../services/widgetRegistry';
+import { useTouchDevice } from '../../hooks/useTouchDevice';
 
 import { Responsive } from 'react-grid-layout';
 import { WidthProvider } from './WidthProvider';
@@ -46,20 +47,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     courseId,
     updateCourseField
 }) => {
-    const [isTouchDevice, setIsTouchDevice] = useState(false);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const media = window.matchMedia('(hover: none), (pointer: coarse)');
-        const update = () => setIsTouchDevice(media.matches || navigator.maxTouchPoints > 0);
-        update();
-        if (media.addEventListener) {
-            media.addEventListener('change', update);
-            return () => media.removeEventListener('change', update);
-        }
-        media.addListener(update);
-        return () => media.removeListener(update);
-    }, []);
+    const isTouchDevice = useTouchDevice();
 
     // Convert widgets to RGL layout format
     const layouts = useMemo(() => {

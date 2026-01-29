@@ -2,6 +2,13 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Widget performance notes
+
+- Touch detection is centralized in `src/hooks/useTouchDevice.ts` to avoid a per-widget `matchMedia` listener.
+- Widget containers share a single `pointerdown` listener on touch devices to prevent N global listeners.
+- Tests covering these behaviors live in `src/hooks/__tests__/useTouchDevice.test.tsx` and
+  `src/components/widgets/__tests__/WidgetContainer.test.tsx`.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh

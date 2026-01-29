@@ -123,6 +123,14 @@ const ProgramDashboardContent: React.FC = () => {
     }
 
 
+    const totalCredits = React.useMemo(() => {
+        if (!program) return 0;
+        return program.semesters.reduce(
+            (acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0),
+            0
+        );
+    }, [program]);
+
     return (
         <Layout>
             <div
@@ -241,7 +249,7 @@ const ProgramDashboardContent: React.FC = () => {
                                 ) : (
                                     <>
                                         <AnimatedNumber
-                                            value={program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
+                                            value={totalCredits}
                                             format={(val) => (Number.isInteger(val) ? val.toString() : val.toFixed(1))}
                                             animateOnMount
                                         />
@@ -253,7 +261,7 @@ const ProgramDashboardContent: React.FC = () => {
                                 <Skeleton width="100%" height="8px" style={{ borderRadius: '4px' }} />
                             ) : (
                                     <ProgressBar
-                                        value={program.semesters.reduce((acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0), 0)}
+                                        value={totalCredits}
                                         max={program.grad_requirement_credits}
                                         height="8px"
                                     />

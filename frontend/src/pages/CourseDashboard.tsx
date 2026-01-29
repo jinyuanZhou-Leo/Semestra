@@ -343,6 +343,8 @@ const CourseDashboardContent: React.FC = () => {
                             isOpen={isAddWidgetOpen}
                             onClose={() => setIsAddWidgetOpen(false)}
                             onAdd={handleAddWidget}
+                            context="course"
+                            widgets={widgets}
                         />
                         {editingWidget && (
                             <WidgetSettingsModal
