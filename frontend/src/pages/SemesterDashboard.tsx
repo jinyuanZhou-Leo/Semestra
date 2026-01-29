@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
-import { SettingsModal } from '../components/SettingsModal';
 import { AddWidgetModal } from '../components/AddWidgetModal';
+import { AddTabModal } from '../components/AddTabModal';
+import { Tabs } from '../components/Tabs';
+import { SettingsTabContent } from '../components/SettingsTabContent';
 import { DashboardGrid } from '../components/widgets/DashboardGrid';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
@@ -13,13 +15,16 @@ import { AnimatedNumber } from '../components/AnimatedNumber';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
+import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
+import { TabRegistry } from '../services/tabRegistry';
 
 const SemesterDashboardContent: React.FC = () => {
     const { semester, updateSemester, refreshSemester, isLoading } = useSemesterData();
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
+    const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
+    const [activeTabId, setActiveTabId] = useState('dashboard');
     const [isShrunk, setIsShrunk] = useState(false);
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
     const lastScrollY = React.useRef(0);
@@ -102,6 +107,9 @@ const SemesterDashboardContent: React.FC = () => {
     const statsMaxHeight = isShrunk ? '0px' : '150px';
     const containerPadding = isShrunk ? '0.5rem 0' : '1.0rem 0'; // Kept reduced padding
     const shadowOpacity = isShrunk ? 0.1 : 0;
+    const tabBarHeight = 48;
+    const heroMinHeight = isShrunk ? `${60 + tabBarHeight}px` : `calc(var(--header-expanded-height) + ${tabBarHeight}px)`;
+    const contentTopOffset = heroMinHeight;
 
     const {
         widgets,
@@ -115,6 +123,85 @@ const SemesterDashboardContent: React.FC = () => {
         initialWidgets: semester?.widgets,
         onRefresh: refreshSemester
     });
+
+    const {
+        tabs,
+        addTab: handleAddTab,
+        removeTab: handleRemoveTab,
+        updateTabSettingsDebounced,
+        reorderTabs
+    } = useDashboardTabs({
+        semesterId: semester?.id,
+        initialTabs: semester?.tabs,
+        onRefresh: refreshSemester
+    });
+
+    const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
+        updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
+    }, [updateTabSettingsDebounced]);
+
+    const pluginTabItems = useMemo(() => {
+        return tabs.map(tab => {
+            const definition = TabRegistry.get(tab.type);
+            return {
+                id: tab.id,
+                label: definition?.name ?? tab.title ?? tab.type,
+                icon: definition?.icon,
+                removable: tab.is_removable !== false,
+                draggable: tab.is_removable !== false
+            };
+        });
+    }, [tabs]);
+
+    const tabBarItems = useMemo(() => ([
+        { id: 'dashboard', label: 'Dashboard', removable: false, draggable: false },
+        ...pluginTabItems,
+        { id: 'settings', label: 'Settings', removable: false, draggable: false }
+    ]), [pluginTabItems]);
+
+    const handleReorderTabs = useCallback((orderedIds: string[]) => {
+        const pluginIdSet = new Set(tabs.map(tab => tab.id));
+        reorderTabs(orderedIds.filter(id => pluginIdSet.has(id)));
+    }, [reorderTabs, tabs]);
+
+    useEffect(() => {
+        if (activeTabId === 'dashboard' || activeTabId === 'settings') return;
+        if (!tabs.some(tab => tab.id === activeTabId)) {
+            setActiveTabId('dashboard');
+        }
+    }, [activeTabId, tabs]);
+
+    const tabSettingsSections = useMemo(() => {
+        const sections = tabs.map(tab => {
+            const definition = TabRegistry.get(tab.type);
+            const SettingsComponent = definition?.settingsComponent;
+            if (!SettingsComponent) return null;
+            return (
+                <div key={tab.id} style={{ padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                    <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>
+                        {definition?.name ?? tab.title ?? tab.type}
+                    </div>
+                    <SettingsComponent
+                        tabId={tab.id}
+                        settings={tab.settings || {}}
+                        semesterId={semester?.id}
+                        updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
+                    />
+                </div>
+            );
+        }).filter(Boolean);
+
+        if (sections.length === 0) return null;
+
+        return (
+            <div>
+                <h3 style={{ marginTop: 0 }}>Tab Settings</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {sections}
+                </div>
+            </div>
+        );
+    }, [tabs, semester?.id, handleUpdateTabSettings]);
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
@@ -158,7 +245,7 @@ const SemesterDashboardContent: React.FC = () => {
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
-                    minHeight: isShrunk ? '60px' : 'var(--header-expanded-height)', // Ensure a minimum height for centering to work effectively
+                    minHeight: heroMinHeight, // Ensure a minimum height for centering to work effectively
                 }}>
                 <Container style={{
                     transition: 'padding-top 0.3s ease-in-out',
@@ -257,52 +344,32 @@ const SemesterDashboardContent: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <div style={{
-                            display: 'flex',
-                            gap: '0.5rem', // Reduced gap to match CourseDashboard
-                            alignSelf: isShrunk ? 'center' : 'flex-start',
-                            paddingTop: isShrunk ? 0 : '10px',
-                            // transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // This was present in CourseDashboard too?
-                            // Checking lines 350-357: Transition was there. I will keep it.
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                            flexShrink: 0
-                        }}>
-                            {isLoading || !semester ? (
-                                <>
-                                    <Skeleton variant="circle" width={32} height={32} />
-                                    <Skeleton width={100} height={32} style={{ borderRadius: 'var(--radius-md)' }} />
-                                </>
-                            ) : (
-                                <>
-                                        <Button
-                                            onClick={() => setIsSettingsOpen(true)}
-                                            variant="glass"
-                                            size="md"
-                                            shape="circle"
-                                            title="Semester Settings"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <circle cx="12" cy="12" r="3"></circle>
-                                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                                            </svg>
-                                        </Button>
-                                        <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
-                                </>
-                            )}
-                        </div>
                     </div>
+                    <Tabs
+                        items={tabBarItems}
+                        activeId={activeTabId}
+                        onSelect={setActiveTabId}
+                        onRemove={handleRemoveTab}
+                        onReorder={handleReorderTabs}
+                        onAdd={() => setIsAddTabOpen(true)}
+                    />
                 </Container>
             </div>
 
             <Container style={{
                 padding: '1rem 1rem',
                 minHeight: '100vh',
-                marginTop: isShrunk ? '60px' : 'var(--header-expanded-height)',
+                marginTop: contentTopOffset,
                 transition: 'margin-top 0.3s ease-in-out'
             }}>
                 {isLoading || !semester ? (
                     <DashboardSkeleton />
-                ) : (
+                ) : activeTabId === 'dashboard' ? (
+                    <>
+                        <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.5rem' }}>Dashboard</h2>
+                            <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
+                        </div>
                         <DashboardGrid
                             widgets={widgets}
                             onLayoutChange={handleLayoutChange}
@@ -312,26 +379,54 @@ const SemesterDashboardContent: React.FC = () => {
                             onUpdateWidgetDebounced={handleUpdateWidgetDebounced}
                             semesterId={semester.id}
                         />
+                    </>
+                ) : activeTabId === 'settings' ? (
+                    <SettingsTabContent
+                        initialName={semester.name}
+                        initialSettings={{}}
+                        onSave={handleUpdateSemester}
+                        type="semester"
+                        extraSections={tabSettingsSections}
+                    />
+                ) : (
+                    (() => {
+                        const activeTab = tabs.find(tab => tab.id === activeTabId);
+                        const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
+                        if (!activeTab) {
+                            return <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>Tab not found.</div>;
+                        }
+                        if (!TabComponent) {
+                            return <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>Unknown tab type: {activeTab.type}</div>;
+                        }
+                        return (
+                            <React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading tab...</div>}>
+                                <TabComponent
+                                    tabId={activeTab.id}
+                                    settings={activeTab.settings || {}}
+                                    semesterId={semester.id}
+                                    updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
+                                />
+                            </React.Suspense>
+                        );
+                    })()
                 )}
             </Container>
 
             {semester && (
                 <>
-                    <SettingsModal
-                        isOpen={isSettingsOpen}
-                        onClose={() => setIsSettingsOpen(false)}
-                        title="Semester Settings"
-                        initialName={semester.name}
-                        initialSettings={{}}
-                        onSave={handleUpdateSemester}
-                        type="semester"
-                    />
                     <AddWidgetModal
                         isOpen={isAddWidgetOpen}
                         onClose={() => setIsAddWidgetOpen(false)}
                         onAdd={handleAddWidget}
                         context="semester"
                         widgets={widgets}
+                    />
+                    <AddTabModal
+                        isOpen={isAddTabOpen}
+                        onClose={() => setIsAddTabOpen(false)}
+                        onAdd={handleAddTab}
+                        context="semester"
+                        tabs={tabs}
                     />
                     {editingWidget && (
                         <WidgetSettingsModal

@@ -51,6 +51,7 @@ class Semester(Base):
     program = relationship("Program", back_populates="semesters")
     courses = relationship("Course", back_populates="semester", cascade="all, delete-orphan")
     widgets = relationship("Widget", back_populates="semester_context", cascade="all, delete-orphan")
+    tabs = relationship("Tab", back_populates="semester_context", cascade="all, delete-orphan")
 
 
 class Course(Base):
@@ -69,6 +70,7 @@ class Course(Base):
     # Relationships
     semester = relationship("Semester", back_populates="courses")
     widgets = relationship("Widget", back_populates="course_context", cascade="all, delete-orphan")
+    tabs = relationship("Tab", back_populates="course_context", cascade="all, delete-orphan")
 
 class Widget(Base):
     __tablename__ = "widgets"
@@ -97,3 +99,25 @@ class Widget(Base):
     # Relationships
     semester_context = relationship("Semester", back_populates="widgets")
     course_context = relationship("Course", back_populates="widgets")
+
+class Tab(Base):
+    __tablename__ = "tabs"
+    __table_args__ = (
+        CheckConstraint(
+            "((semester_id IS NOT NULL AND course_id IS NULL) OR (semester_id IS NULL AND course_id IS NOT NULL))",
+            name="ck_tabs_single_context",
+        ),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    tab_type = Column(String, index=True)
+    title = Column(String)
+    settings = Column(Text, default="{}")
+    order_index = Column(Integer, default=0)
+    is_removable = Column(Boolean, default=True)
+
+    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
+    course_id = Column(String, ForeignKey("courses.id"), nullable=True)
+
+    semester_context = relationship("Semester", back_populates="tabs")
+    course_context = relationship("Course", back_populates="tabs")

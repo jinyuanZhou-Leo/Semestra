@@ -18,14 +18,17 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         };
 
         if (isOpen) {
+            // 保存原始的 overflow 值
+            const originalOverflow = document.body.style.overflow;
             document.body.style.overflow = 'hidden';
             document.addEventListener('keydown', handleEscape);
-        }
 
-        return () => {
-            document.body.style.overflow = 'unset';
-            document.removeEventListener('keydown', handleEscape);
-        };
+            return () => {
+                // 恢复原始值而不是使用 'unset'，以确保触屏设备上的滚动功能正常
+                document.body.style.overflow = originalOverflow;
+                document.removeEventListener('keydown', handleEscape);
+            };
+        }
     }, [isOpen, onClose]);
 
     return createPortal(
@@ -47,7 +50,9 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
                         justifyContent: 'center',
                         alignItems: 'center',
                         zIndex: 1000,
-                        backdropFilter: 'blur(4px)'
+                        backdropFilter: 'blur(4px)',
+                        overscrollBehavior: 'contain',
+                        touchAction: 'none'
                     }}
                     onClick={(e: React.MouseEvent) => {
                         if (e.target === e.currentTarget) onClose();
@@ -66,7 +71,10 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
                             width: '90%',
                             maxWidth: '500px',
                             maxHeight: '90vh',
-                            overflowY: 'auto'
+                            overflowY: 'auto',
+                            overscrollBehavior: 'contain',
+                            touchAction: 'pan-y',
+                            WebkitOverflowScrolling: 'touch'
                         }}
                         onClick={(e: React.MouseEvent) => e.stopPropagation()}
                     >

@@ -66,6 +66,29 @@ class WidgetUpdate(BaseModel):
     layout_config: Optional[str] = None
     settings: Optional[str] = None
 
+# --- Tab Schemas ---
+class TabBase(BaseModel):
+    tab_type: str
+    title: str
+    settings: str = "{}"
+    order_index: int = 0
+    is_removable: bool = True
+
+class TabCreate(TabBase):
+    order_index: Optional[int] = None
+
+class Tab(TabBase):
+    id: str
+    semester_id: Optional[str] = None
+    course_id: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class TabUpdate(BaseModel):
+    title: Optional[str] = None
+    settings: Optional[str] = None
+    order_index: Optional[int] = None
+
 # --- Course Schemas ---
 class CourseBase(BaseModel):
     name: str
@@ -94,6 +117,7 @@ class Course(CourseBase):
 
 class CourseWithWidgets(Course):
     widgets: List[Widget] = []
+    tabs: List[Tab] = []
 
 
 # --- Semester Schemas ---
@@ -114,6 +138,7 @@ class Semester(SemesterBase):
 class SemesterWithDetails(Semester):
     courses: List[Course] = []
     widgets: List[Widget] = []
+    tabs: List[Tab] = []
 
 
 # --- Program Schemas ---

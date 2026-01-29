@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
-import { SettingsModal } from '../components/SettingsModal';
 import { AddWidgetModal } from '../components/AddWidgetModal';
+import { AddTabModal } from '../components/AddTabModal';
+import { Tabs } from '../components/Tabs';
+import { SettingsTabContent } from '../components/SettingsTabContent';
 import { DashboardGrid, type WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
@@ -14,13 +16,16 @@ import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
 import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
+import { useDashboardTabs } from '../hooks/useDashboardTabs';
+import { TabRegistry } from '../services/tabRegistry';
 
 // Inner component that uses the context
 const CourseDashboardContent: React.FC = () => {
     const { course, updateCourseField, refreshCourse, isLoading } = useCourseData();
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
+    const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
+    const [activeTabId, setActiveTabId] = useState('dashboard');
     const [isShrunk, setIsShrunk] = useState(false);
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
     const lastScrollY = React.useRef(0);
@@ -99,6 +104,9 @@ const CourseDashboardContent: React.FC = () => {
     const statsMaxHeight = isShrunk ? '0px' : '150px';
     const containerPadding = isShrunk ? '0.5rem 0' : '1.0rem 0';
     const shadowOpacity = isShrunk ? 0.1 : 0;
+    const tabBarHeight = 48;
+    const heroMinHeight = isShrunk ? `${60 + tabBarHeight}px` : `calc(var(--header-expanded-height) + ${tabBarHeight}px)`;
+    const contentTopOffset = heroMinHeight;
 
 
 
@@ -114,6 +122,85 @@ const CourseDashboardContent: React.FC = () => {
         initialWidgets: course?.widgets,
         onRefresh: refreshCourse
     });
+
+    const {
+        tabs,
+        addTab: handleAddTab,
+        removeTab: handleRemoveTab,
+        updateTabSettingsDebounced,
+        reorderTabs
+    } = useDashboardTabs({
+        courseId: course?.id,
+        initialTabs: course?.tabs,
+        onRefresh: refreshCourse
+    });
+
+    const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
+        updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
+    }, [updateTabSettingsDebounced]);
+
+    const pluginTabItems = useMemo(() => {
+        return tabs.map(tab => {
+            const definition = TabRegistry.get(tab.type);
+            return {
+                id: tab.id,
+                label: definition?.name ?? tab.title ?? tab.type,
+                icon: definition?.icon,
+                removable: tab.is_removable !== false,
+                draggable: tab.is_removable !== false
+            };
+        });
+    }, [tabs]);
+
+    const tabBarItems = useMemo(() => ([
+        { id: 'dashboard', label: 'Dashboard', removable: false, draggable: false },
+        ...pluginTabItems,
+        { id: 'settings', label: 'Settings', removable: false, draggable: false }
+    ]), [pluginTabItems]);
+
+    const handleReorderTabs = useCallback((orderedIds: string[]) => {
+        const pluginIdSet = new Set(tabs.map(tab => tab.id));
+        reorderTabs(orderedIds.filter(id => pluginIdSet.has(id)));
+    }, [reorderTabs, tabs]);
+
+    useEffect(() => {
+        if (activeTabId === 'dashboard' || activeTabId === 'settings') return;
+        if (!tabs.some(tab => tab.id === activeTabId)) {
+            setActiveTabId('dashboard');
+        }
+    }, [activeTabId, tabs]);
+
+    const tabSettingsSections = useMemo(() => {
+        const sections = tabs.map(tab => {
+            const definition = TabRegistry.get(tab.type);
+            const SettingsComponent = definition?.settingsComponent;
+            if (!SettingsComponent) return null;
+            return (
+                <div key={tab.id} style={{ padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                    <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>
+                        {definition?.name ?? tab.title ?? tab.type}
+                    </div>
+                    <SettingsComponent
+                        tabId={tab.id}
+                        settings={tab.settings || {}}
+                        courseId={course?.id}
+                        updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
+                    />
+                </div>
+            );
+        }).filter(Boolean);
+
+        if (sections.length === 0) return null;
+
+        return (
+            <div>
+                <h3 style={{ marginTop: 0 }}>Tab Settings</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {sections}
+                </div>
+            </div>
+        );
+    }, [tabs, course?.id, handleUpdateTabSettings]);
 
     const handleUpdateCourse = async (data: any) => {
         if (!course) return;
@@ -163,7 +250,7 @@ const CourseDashboardContent: React.FC = () => {
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
-                    minHeight: isShrunk ? '60px' : 'var(--header-expanded-height)',
+                    minHeight: heroMinHeight,
                 }}>
                 <Container style={{
                     transition: 'padding-top 0.3s ease-in-out, padding-bottom 0.3s ease-in-out',
@@ -265,52 +352,34 @@ const CourseDashboardContent: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <div style={{
-                            display: 'flex',
-                            gap: '0.5rem', // Reduce gap slightly for mobile space
-                            alignSelf: isShrunk ? 'center' : 'flex-start',
-                            paddingTop: isShrunk ? 0 : '10px',
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                            flexShrink: 0 // Prevent buttons from shrinking
-                        }}>
-                            {isLoading || !course ? (
-                                <>
-                                    <Skeleton variant="circle" width={32} height={32} />
-                                    <Skeleton width={100} height={32} style={{ borderRadius: 'var(--radius-md)' }} />
-                                </>
-                            ) : (
-                                <>
-                                        <Button
-                                            variant="glass"
-                                            onClick={() => setIsSettingsOpen(true)}
-                                            size="md"
-                                            shape="circle"
-                                            title="Course Settings"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <circle cx="12" cy="12" r="3"></circle>
-                                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                                            </svg>
-                                        </Button>
-                                        <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
-                                </>
-                            )}
-                        </div>
                     </div>
+                    <Tabs
+                        items={tabBarItems}
+                        activeId={activeTabId}
+                        onSelect={setActiveTabId}
+                        onRemove={handleRemoveTab}
+                        onReorder={handleReorderTabs}
+                        onAdd={() => setIsAddTabOpen(true)}
+                    />
                 </Container>
             </div>
 
             <Container style={{
                 padding: '1rem 1rem',
                 minHeight: '100vh',
-                marginTop: isShrunk ? '60px' : 'var(--header-expanded-height)',
+                marginTop: contentTopOffset,
                 transition: 'margin-top 0.3s ease-in-out'
             }}>
 
 
                 {isLoading || !course || !course.id ? (  /* Check course.id since useDashboardWidgets needs it */
                     <DashboardSkeleton />
-                ) : (
+                ) : activeTabId === 'dashboard' ? (
+                    <>
+                        <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.5rem' }}>Dashboard</h2>
+                            <Button onClick={() => setIsAddWidgetOpen(true)} size="md" variant="glass" shape="rounded">+ Add Widget</Button>
+                        </div>
                         <DashboardGrid
                             widgets={widgets}
                             onLayoutChange={handleLayoutChange}
@@ -321,30 +390,58 @@ const CourseDashboardContent: React.FC = () => {
                             courseId={course.id}
                             updateCourseField={updateCourseField}
                         />
+                    </>
+                ) : activeTabId === 'settings' ? (
+                    <SettingsTabContent
+                        initialName={course.name}
+                        initialSettings={{
+                            credits: course.credits,
+                            include_in_gpa: course.include_in_gpa,
+                            hide_gpa: course.hide_gpa
+                        }}
+                        onSave={handleUpdateCourse}
+                        type="course"
+                        extraSections={tabSettingsSections}
+                    />
+                ) : (
+                    (() => {
+                        const activeTab = tabs.find(tab => tab.id === activeTabId);
+                        const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
+                        if (!activeTab) {
+                            return <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>Tab not found.</div>;
+                        }
+                        if (!TabComponent) {
+                            return <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>Unknown tab type: {activeTab.type}</div>;
+                        }
+                        return (
+                            <React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading tab...</div>}>
+                                <TabComponent
+                                    tabId={activeTab.id}
+                                    settings={activeTab.settings || {}}
+                                    courseId={course.id}
+                                    updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
+                                />
+                            </React.Suspense>
+                        );
+                    })()
                 )}
             </Container>
             {
                 course && (
                     <>
-                        <SettingsModal
-                            isOpen={isSettingsOpen}
-                            onClose={() => setIsSettingsOpen(false)}
-                            title="Course Settings"
-                            initialName={course.name}
-                            initialSettings={{
-                                credits: course.credits,
-                                include_in_gpa: course.include_in_gpa,
-                                hide_gpa: course.hide_gpa
-                            }}
-                            onSave={handleUpdateCourse}
-                            type="course"
-                        />
                         <AddWidgetModal
                             isOpen={isAddWidgetOpen}
                             onClose={() => setIsAddWidgetOpen(false)}
                             onAdd={handleAddWidget}
                             context="course"
                             widgets={widgets}
+                        />
+                        <AddTabModal
+                            isOpen={isAddTabOpen}
+                            onClose={() => setIsAddTabOpen(false)}
+                            onAdd={handleAddTab}
+                            context="course"
+                            tabs={tabs}
                         />
                         {editingWidget && (
                             <WidgetSettingsModal

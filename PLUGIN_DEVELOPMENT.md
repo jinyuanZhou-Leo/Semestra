@@ -4,11 +4,13 @@ This guide describes how to create and register new widget plugins for the Semes
 
 ## Overview
 
-A widget plugin consists of two main parts:
-1. **The React Component**: The actual UI of the widget.
-2. **The Definition**: Metadata that tells the system about the widget (name, default size, etc.).
+Plugins can be one of two shapes:
+1. **Widget**: A small, grid-based component inside the Dashboard tab.
+2. **Tab**: A full-size panel that appears as a tab under the hero gradient.
 
-All plugins are located in `frontend/src/plugins`.
+Both shapes share a similar definition structure but are registered separately.
+Widget plugins live in `frontend/src/plugins`.
+Tab plugins can live anywhere (recommended: `frontend/src/tabs`).
 
 ## Structure
 
@@ -60,11 +62,47 @@ export interface WidgetProps {
     updateSettings: (newSettings: any) => void;  // Update settings (auto-debounced)
     updateCourseField?: (field: string, value: any) => void; // Update course data
 }
+
+### TabDefinition
+
+```typescript
+export interface TabDefinition {
+    type: string;          // Unique identifier for the tab type
+    name: string;          // Display name (used as tab title)
+    description?: string;  // Optional description
+    icon?: string;         // Emoji or icon string
+    component: React.FC<TabProps>; // The main tab content component
+    settingsComponent?: React.FC<TabSettingsProps>; // Optional settings panel
+    defaultSettings?: any; // Default settings for new tabs
+    maxInstances?: number | 'unlimited'; // Max instances per dashboard
+    allowedContexts?: Array<'semester' | 'course'>; // Where this tab can be added
+}
+```
+
+```typescript
+export interface TabProps {
+    tabId: string;
+    settings: any;
+    semesterId?: string;
+    courseId?: string;
+    updateSettings: (newSettings: any) => void; // Debounced by framework
+}
+```
+
+```typescript
+export interface TabSettingsProps {
+    tabId: string;
+    settings: any;
+    semesterId?: string;
+    courseId?: string;
+    updateSettings: (newSettings: any) => void; // Debounced by framework
+}
+```
 ```
 
 ## Creating a New Plugin
 
-Follow these steps to create a new widget.
+Follow these steps to create a new widget or tab.
 
 ### 1. Create the Plugin File
 
@@ -111,6 +149,42 @@ export const MyNewDefinition: WidgetDefinition = {
 };
 ```
 
+### Tab Example
+
+```typescript
+import React, { useCallback } from 'react';
+import type { TabDefinition, TabProps } from '../services/tabRegistry';
+
+const NotesTab: React.FC<TabProps> = ({ settings, updateSettings }) => {
+    const value = settings?.value || '';
+
+    const handleChange = useCallback((next: string) => {
+        updateSettings({ ...settings, value: next });
+    }, [settings, updateSettings]);
+
+    return (
+        <div style={{ padding: '1rem' }}>
+            <textarea
+                value={value}
+                onChange={(e) => handleChange(e.target.value)}
+                style={{ width: '100%', height: '60vh' }}
+            />
+        </div>
+    );
+};
+
+export const NotesTabDefinition: TabDefinition = {
+    type: 'notes-tab',
+    name: 'Notes',
+    description: 'Large scratchpad for planning.',
+    icon: '📝',
+    component: NotesTab,
+    defaultSettings: { value: '' },
+    maxInstances: 1,
+    allowedContexts: ['semester', 'course']
+};
+```
+
 ### 2. Register the Plugin
 
 Open `frontend/src/widget-setup.ts` and register your new widget.
@@ -122,6 +196,15 @@ import { MyNewDefinition } from './plugins/MyNew';
 
 // ... existing registrations
 WidgetRegistry.register(MyNewDefinition);
+```
+
+For tabs, register in `frontend/src/tab-setup.ts`:
+
+```typescript
+import { TabRegistry } from './services/tabRegistry';
+import { NotesTabDefinition } from './tabs/NotesTab';
+
+TabRegistry.register(NotesTabDefinition);
 ```
 
 ## Framework-Level Performance Optimizations
@@ -158,7 +241,7 @@ Widget components are automatically wrapped with `React.memo` at the framework l
 
 ## Lifecycle Hooks
 
-Plugins can define lifecycle hooks to run custom logic when a widget is created or deleted.
+Lifecycle hooks currently apply to widgets only.
 
 ### onCreate
 
@@ -233,7 +316,8 @@ const handleChange = (newValue) => {
 
 ### Styling
 - Use standard CSS or inline styles.
-- The widget container handles the border and background, so your component should fill the available space (height: 100%).
+- Widgets: the container handles border/background, so fill available space (height: 100%).
+- Tabs: optimize for large layouts; avoid forcing fixed heights.
 - Use CSS variables (e.g., `var(--color-text-primary)`) to respect the theme (light/dark mode).
 
 ### Example: GradeCalculator

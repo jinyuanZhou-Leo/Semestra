@@ -1,0 +1,266 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import api from '../services/api';
+import type { Tab } from '../services/api';
+import { TabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
+
+export interface TabItem {
+    id: string;
+    type: string;
+    title: string;
+    settings?: any;
+    order_index: number;
+    is_removable?: boolean;
+}
+
+interface UseDashboardTabsProps {
+    courseId?: string;
+    semesterId?: string;
+    initialTabs?: Tab[];
+    onRefresh?: () => void;
+}
+
+export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh }: UseDashboardTabsProps) => {
+    const [tabs, setTabs] = useState<TabItem[]>([]);
+    const initialSyncDoneRef = useRef(false);
+
+    useEffect(() => {
+        if (initialTabs && !initialSyncDoneRef.current) {
+            const mappedTabs: TabItem[] = initialTabs.map(tab => {
+                let parsedSettings = {};
+                try {
+                    parsedSettings = JSON.parse(tab.settings || '{}');
+                } catch (e) {
+                    console.warn('Failed to parse tab settings', tab.id, e);
+                }
+                return {
+                    id: tab.id.toString(),
+                    type: tab.tab_type,
+                    title: tab.title,
+                    settings: parsedSettings,
+                    order_index: tab.order_index ?? 0,
+                    is_removable: tab.is_removable
+                };
+            }).sort((a, b) => a.order_index - b.order_index);
+            setTabs(mappedTabs);
+            initialSyncDoneRef.current = true;
+        }
+    }, [initialTabs]);
+
+    const addTab = useCallback(async (type: string) => {
+        const context: TabContext | null = courseId ? 'course' : (semesterId ? 'semester' : null);
+        if (!context) return;
+
+        const definition = TabRegistry.get(type);
+        if (!definition) {
+            console.warn(`Unknown tab type: ${type}`);
+            return;
+        }
+
+        const currentCount = tabs.filter(t => t.type === type).length;
+        if (!canAddTab(definition, context, currentCount)) {
+            console.warn(`Tab type ${type} cannot be added to ${context} or max instances reached.`);
+            return;
+        }
+
+        try {
+            const nextOrder = tabs.reduce((max, t) => Math.max(max, t.order_index), -1) + 1;
+            const title = definition.name;
+            const settings = JSON.stringify(definition.defaultSettings ?? {});
+
+            let newTab: Tab;
+            if (courseId) {
+                newTab = await api.createTabForCourse(courseId, {
+                    tab_type: type,
+                    title,
+                    settings,
+                    order_index: nextOrder
+                });
+            } else {
+                newTab = await api.createTab(semesterId!, {
+                    tab_type: type,
+                    title,
+                    settings,
+                    order_index: nextOrder
+                });
+            }
+
+            const mappedTab: TabItem = {
+                id: newTab.id.toString(),
+                type: newTab.tab_type,
+                title: newTab.title,
+                settings: JSON.parse(newTab.settings || '{}'),
+                order_index: newTab.order_index ?? nextOrder,
+                is_removable: newTab.is_removable
+            };
+
+            setTabs(prev => [...prev, mappedTab].sort((a, b) => a.order_index - b.order_index));
+            if (onRefresh) onRefresh();
+        } catch (error) {
+            console.error('Failed to create tab', error);
+        }
+    }, [courseId, semesterId, onRefresh, tabs]);
+
+    const removeTab = useCallback(async (id: string) => {
+        const tabToRemove = tabs.find(tab => tab.id === id);
+        if (tabToRemove?.is_removable === false) return;
+        if (!window.confirm('Are you sure you want to remove this tab?')) return;
+        const previousTabs = [...tabs];
+        setTabs(prev => prev.filter(t => t.id !== id));
+        try {
+            await api.deleteTab(id);
+            if (onRefresh) onRefresh();
+        } catch (error) {
+            console.error('Failed to delete tab', error);
+            setTabs(previousTabs);
+        }
+    }, [tabs, onRefresh]);
+
+    const updateTab = useCallback(async (id: string, data: any) => {
+        setTabs(prev => prev.map(t => {
+            if (t.id !== id) return t;
+            if (data.settings) {
+                let newSettings = t.settings;
+                if (typeof data.settings === 'string') {
+                    try {
+                        newSettings = JSON.parse(data.settings);
+                    } catch (e) {
+                        console.error('Error parsing settings for optimistic tab update', e);
+                    }
+                } else {
+                    newSettings = data.settings;
+                }
+                return { ...t, settings: newSettings };
+            }
+            return { ...t, ...data };
+        }));
+        try {
+            await api.updateTab(id, data);
+            if (onRefresh) onRefresh();
+        } catch (error) {
+            console.error('Failed to update tab', error);
+            if (onRefresh) onRefresh();
+        }
+    }, [onRefresh]);
+
+    // Debounced settings sync for tabs
+    const settingsSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const pendingSettingsRef = useRef<Map<string, any>>(new Map());
+
+    const flushTabSettings = useCallback(async (tabId: string) => {
+        const timer = settingsSyncTimersRef.current.get(tabId);
+        if (timer) {
+            clearTimeout(timer);
+            settingsSyncTimersRef.current.delete(tabId);
+        }
+        const pending = pendingSettingsRef.current.get(tabId);
+        if (pending) {
+            pendingSettingsRef.current.delete(tabId);
+            try {
+                await api.updateTab(tabId, pending);
+            } catch (error) {
+                console.error('Failed to sync tab settings', tabId, error);
+            }
+        }
+    }, []);
+
+    const updateTabSettingsDebounced = useCallback((id: string, data: any) => {
+        setTabs(prev => prev.map(t => {
+            if (t.id === id) {
+                if (data.settings) {
+                    let newSettings = t.settings;
+                    if (typeof data.settings === 'string') {
+                        try {
+                            newSettings = JSON.parse(data.settings);
+                        } catch (e) {
+                            console.error('Error parsing settings for optimistic tab update', e);
+                        }
+                    } else {
+                        newSettings = data.settings;
+                    }
+                    return { ...t, settings: newSettings };
+                }
+                return { ...t, ...data };
+            }
+            return t;
+        }));
+
+        pendingSettingsRef.current.set(id, data);
+        const existingTimer = settingsSyncTimersRef.current.get(id);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+        }
+        const timer = setTimeout(() => {
+            flushTabSettings(id);
+        }, 300);
+        settingsSyncTimersRef.current.set(id, timer);
+    }, [flushTabSettings]);
+
+    useEffect(() => {
+        return () => {
+            settingsSyncTimersRef.current.forEach(timer => clearTimeout(timer));
+            pendingSettingsRef.current.forEach(async (data, tabId) => {
+                try {
+                    await api.updateTab(tabId, data);
+                } catch (error) {
+                    console.error('Failed to flush tab settings on unmount', tabId, error);
+                }
+            });
+            pendingSettingsRef.current.clear();
+            settingsSyncTimersRef.current.clear();
+        };
+    }, []);
+
+    // Order sync
+    const orderSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingOrderRef = useRef<Map<string, number>>(new Map());
+
+    const flushTabOrder = useCallback(async () => {
+        if (pendingOrderRef.current.size === 0) return;
+        const entries = Array.from(pendingOrderRef.current.entries());
+        pendingOrderRef.current.clear();
+        try {
+            await Promise.all(entries.map(([id, order_index]) => api.updateTab(id, { order_index })));
+        } catch (error) {
+            console.error('Failed to sync tab order', error);
+        }
+    }, []);
+
+    const reorderTabs = useCallback((orderedIds: string[]) => {
+        const orderMap = new Map(orderedIds.map((id, index) => [id, index]));
+        setTabs(prev => prev.map(t => {
+            const nextOrder = orderMap.get(t.id);
+            if (nextOrder === undefined) return t;
+            return { ...t, order_index: nextOrder };
+        }).sort((a, b) => a.order_index - b.order_index));
+
+        orderedIds.forEach((id, index) => {
+            pendingOrderRef.current.set(id, index);
+        });
+
+        if (orderSyncTimerRef.current) {
+            clearTimeout(orderSyncTimerRef.current);
+        }
+        orderSyncTimerRef.current = setTimeout(() => {
+            flushTabOrder();
+        }, 300);
+    }, [flushTabOrder]);
+
+    useEffect(() => {
+        return () => {
+            if (orderSyncTimerRef.current) {
+                clearTimeout(orderSyncTimerRef.current);
+            }
+            flushTabOrder();
+        };
+    }, [flushTabOrder]);
+
+    return {
+        tabs,
+        addTab,
+        removeTab,
+        updateTab,
+        updateTabSettingsDebounced,
+        flushTabSettings,
+        reorderTabs
+    };
+};

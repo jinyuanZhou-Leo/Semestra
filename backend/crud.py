@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import models
 import schemas
 import bcrypt
@@ -179,6 +180,10 @@ def _ensure_widget_context(semester_id: str | None, course_id: str | None):
     if (semester_id is None and course_id is None) or (semester_id is not None and course_id is not None):
         raise ValueError("Widget must be attached to exactly one context (semester_id or course_id).")
 
+def _ensure_tab_context(semester_id: str | None, course_id: str | None):
+    if (semester_id is None and course_id is None) or (semester_id is not None and course_id is not None):
+        raise ValueError("Tab must be attached to exactly one context (semester_id or course_id).")
+
 # --- Widget CRUD ---
 def create_widget(db: Session, widget: schemas.WidgetCreate, semester_id: str | None = None, course_id: str | None = None):
     _ensure_widget_context(semester_id, course_id)
@@ -205,3 +210,44 @@ def update_widget(db: Session, widget_id: str, widget_update: schemas.WidgetUpda
     db.commit()
     db.refresh(db_widget)
     return db_widget
+
+# --- Tab CRUD ---
+def _get_next_tab_order(db: Session, semester_id: str | None, course_id: str | None) -> int:
+    query = db.query(func.max(models.Tab.order_index))
+    if semester_id:
+        query = query.filter(models.Tab.semester_id == semester_id)
+    if course_id:
+        query = query.filter(models.Tab.course_id == course_id)
+    max_order = query.scalar()
+    return int(max_order or 0) + 1
+
+def create_tab(db: Session, tab: schemas.TabCreate, semester_id: str | None = None, course_id: str | None = None):
+    _ensure_tab_context(semester_id, course_id)
+    data = tab.dict()
+    order_index = data.pop("order_index", None)
+    if order_index is None:
+        order_index = _get_next_tab_order(db, semester_id, course_id)
+    data["order_index"] = order_index
+    db_tab = models.Tab(**data, semester_id=semester_id, course_id=course_id)
+    db.add(db_tab)
+    db.commit()
+    db.refresh(db_tab)
+    return db_tab
+
+def delete_tab(db: Session, tab_id: str):
+    db_tab = db.query(models.Tab).filter(models.Tab.id == tab_id).first()
+    if db_tab:
+        db.delete(db_tab)
+        db.commit()
+    return db_tab
+
+def update_tab(db: Session, tab_id: str, tab_update: schemas.TabUpdate):
+    db_tab = db.query(models.Tab).filter(models.Tab.id == tab_id).first()
+    if not db_tab:
+        return None
+    for key, value in tab_update.dict(exclude_unset=True).items():
+        setattr(db_tab, key, value)
+    db.add(db_tab)
+    db.commit()
+    db.refresh(db_tab)
+    return db_tab

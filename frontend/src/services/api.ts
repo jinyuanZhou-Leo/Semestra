@@ -29,6 +29,7 @@ export interface Course {
     include_in_gpa?: boolean;
     hide_gpa?: boolean;
     widgets?: Widget[];
+    tabs?: Tab[];
 }
 
 export interface Widget {
@@ -37,6 +38,15 @@ export interface Widget {
     title: string;
     layout_config: string;
     settings: string;
+    is_removable?: boolean;
+}
+
+export interface Tab {
+    id: string;
+    tab_type: string;
+    title: string;
+    settings: string;
+    order_index: number;
     is_removable?: boolean;
 }
 
@@ -82,7 +92,7 @@ const api = {
     },
     getSemester: async (id: string) => {
         // Requires backend to return widgets in response
-        const response = await axios.get<Semester & { courses: Course[], widgets: Widget[] }>(`/api/semesters/${id}`);
+        const response = await axios.get<Semester & { courses: Course[], widgets: Widget[], tabs: Tab[] }>(`/api/semesters/${id}`);
         return response.data;
     },
     updateSemester: async (id: string, data: any) => {
@@ -99,8 +109,7 @@ const api = {
         return response.data;
     },
     getCourse: async (id: string) => {
-        const response = await axios.get<Course>(`/api/courses/${id}`);
-        // Note: modify backend if widgets are needed for courses later
+        const response = await axios.get<Course & { widgets?: Widget[]; tabs?: Tab[] }>(`/api/courses/${id}`);
         return response.data;
     },
     updateCourse: async (id: string, data: any) => {
@@ -126,6 +135,23 @@ const api = {
     },
     deleteWidget: async (widgetId: string) => {
         await axios.delete(`/api/widgets/${widgetId}`);
+    },
+
+    // Tabs
+    createTab: async (semesterId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number }) => {
+        const response = await axios.post<Tab>(`/api/semesters/${semesterId}/tabs/`, data);
+        return response.data;
+    },
+    createTabForCourse: async (courseId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number }) => {
+        const response = await axios.post<Tab>(`/api/courses/${courseId}/tabs/`, data);
+        return response.data;
+    },
+    updateTab: async (tabId: string, data: any) => {
+        const response = await axios.put<Tab>(`/api/tabs/${tabId}`, data);
+        return response.data;
+    },
+    deleteTab: async (tabId: string) => {
+        await axios.delete(`/api/tabs/${tabId}`);
     },
 
     // Auth

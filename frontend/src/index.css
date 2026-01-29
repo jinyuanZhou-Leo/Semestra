@@ -397,6 +397,95 @@ button {
   padding: var(--hero-padding-y, 4rem) 0;
 }
 
+/* Tabs */
+.tabs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.tabs-list {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: none;
+}
+
+.tabs-list::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tab-button:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-tertiary);
+}
+
+.tab-button.active {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+}
+
+.tab-icon {
+  font-size: 0.95rem;
+}
+
+.tab-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.tab-remove {
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.1rem;
+}
+
+.tab-remove:hover {
+  color: var(--color-danger);
+}
+
+.tab-add {
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.tab-add:hover {
+  border-color: var(--color-text-primary);
+  color: var(--color-text-primary);
+}
+
 @media (max-width: 600px) {
   .hero-section {
     padding: var(--hero-padding-y-mobile, 2rem) 0;
@@ -419,11 +508,19 @@ button {
 }
 
 .react-grid-item .drag-handle {
-  touch-action: none;
+  /* 允许垂直滚动，同时在桌面设备上支持拖拽 */
+  touch-action: pan-y;
 }
 
 .react-grid-item .nodrag {
   touch-action: manipulation;
+}
+
+/* 在触屏设备上，确保整体可滚动 */
+@media (hover: none) and (pointer: coarse) {
+  .react-grid-item .drag-handle {
+    touch-action: manipulation;
+  }
 }
 
 .react-grid-item>.react-resizable-handle::after {

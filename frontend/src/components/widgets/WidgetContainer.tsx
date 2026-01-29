@@ -105,7 +105,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                         height: '32px',
                         zIndex: 5,
                         cursor: 'grab',
-                        touchAction: 'none',
+                        touchAction: 'manipulation',
                     }}
                     aria-hidden="true"
                 />

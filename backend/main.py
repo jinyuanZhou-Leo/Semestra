@@ -388,6 +388,61 @@ def delete_widget(
         
     return crud.delete_widget(db=db, widget_id=widget_id)
 
+# --- Tabs ---
+@app.post("/semesters/{semester_id}/tabs/", response_model=schemas.Tab)
+def create_tab_for_semester(
+    semester_id: str, tab: schemas.TabCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+):
+    semester = db.query(models.Semester).join(models.Program).filter(
+        models.Semester.id == semester_id, models.Program.owner_id == current_user.id
+    ).first()
+    if not semester:
+        raise HTTPException(status_code=404, detail="Semester not found")
+    return crud.create_tab(db=db, tab=tab, semester_id=semester_id)
+
+@app.post("/courses/{course_id}/tabs/", response_model=schemas.Tab)
+def create_tab_for_course(
+    course_id: str, tab: schemas.TabCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+):
+    course = db.query(models.Course).join(models.Semester).join(models.Program).filter(
+        models.Course.id == course_id, models.Program.owner_id == current_user.id
+    ).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return crud.create_tab(db=db, tab=tab, course_id=course_id)
+
+@app.put("/tabs/{tab_id}", response_model=schemas.Tab)
+def update_tab(
+    tab_id: str, tab: schemas.TabUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+):
+    db_tab_sem = db.query(models.Tab).join(models.Semester).join(models.Program).filter(
+        models.Tab.id == tab_id, models.Program.owner_id == current_user.id
+    ).first()
+    db_tab_course = db.query(models.Tab).join(models.Course).join(models.Semester).join(models.Program).filter(
+        models.Tab.id == tab_id, models.Program.owner_id == current_user.id
+    ).first()
+    db_tab = db_tab_sem or db_tab_course
+    if not db_tab:
+        raise HTTPException(status_code=404, detail="Tab not found")
+    return crud.update_tab(db=db, tab_id=tab_id, tab_update=tab)
+
+@app.delete("/tabs/{tab_id}")
+def delete_tab(
+    tab_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+):
+    db_tab_sem = db.query(models.Tab).join(models.Semester).join(models.Program).filter(
+        models.Tab.id == tab_id, models.Program.owner_id == current_user.id
+    ).first()
+    db_tab_course = db.query(models.Tab).join(models.Course).join(models.Semester).join(models.Program).filter(
+        models.Tab.id == tab_id, models.Program.owner_id == current_user.id
+    ).first()
+    db_tab = db_tab_sem or db_tab_course
+    if not db_tab:
+        raise HTTPException(status_code=404, detail="Tab not found")
+    if db_tab.is_removable is False:
+        raise HTTPException(status_code=400, detail="Cannot delete this tab")
+    return crud.delete_tab(db, tab_id=tab_id)
+
 @app.get("/")
 def read_root():
     return {"message": "Semestra API Running"}

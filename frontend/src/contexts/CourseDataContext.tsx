@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
 import api from '../services/api';
-import type { Course } from '../services/api';
+import type { Course, Tab } from '../services/api';
 import { useDataFetch } from '../hooks/useDataFetch';
 
 interface CourseWithWidgets extends Course {
     widgets?: any[];
     hide_gpa?: boolean;
+    tabs?: Tab[];
 }
 
 interface CourseDataContextType {
