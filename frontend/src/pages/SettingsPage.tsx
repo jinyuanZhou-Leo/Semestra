@@ -7,6 +7,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../components/BackButton';
+import { Container } from '../components/Container';
 import api from '../services/api';
 
 
@@ -204,18 +205,18 @@ export const SettingsPage: React.FC = () => {
 
     return (
         <Layout>
-            <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
+            <Container padding="2rem">
                 <BackButton label="Back to Home" onClick={handleBack} />
-                <h1 style={{ marginBottom: '2rem' }}>Settings</h1>
+                <h1 style={{ marginBottom: '2rem', userSelect: 'none' }}>Settings</h1>
 
                 <section style={{ marginBottom: '3rem' }}>
-                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem' }}>
+                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', userSelect: 'none' }}>
                         Appearance
                     </h2>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem' }}>Theme</h3>
-                            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', userSelect: 'none' }}>Theme</h3>
+                            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', userSelect: 'none' }}>
                                 Switch between light and dark mode
                             </p>
                         </div>
@@ -226,7 +227,7 @@ export const SettingsPage: React.FC = () => {
                 </section>
 
                 <section style={{ marginBottom: '3rem' }}>
-                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem' }}>
+                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', userSelect: 'none' }}>
                         Account
                     </h2>
                     <div style={{ marginBottom: '1.5rem' }}>
@@ -252,13 +253,13 @@ export const SettingsPage: React.FC = () => {
                             </div>
 
                             <div>
-                                <h3 style={{ fontSize: '1.2rem' }}>{user?.nickname || user?.email}</h3>
-                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', margin: 0 }}>{user?.email}</p>
+                                <h3 style={{ fontSize: '1.2rem', userSelect: 'none' }}>{user?.nickname || user?.email}</h3>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', margin: 0, userSelect: 'none' }}>{user?.email}</p>
                             </div>
                         </div>
 
                         <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, userSelect: 'none' }}>
                                 Nickname
                             </label>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -288,8 +289,8 @@ export const SettingsPage: React.FC = () => {
                             marginBottom: '1rem'
                         }}>
                             <div>
-                                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.25rem' }}>Google</h3>
-                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.25rem', userSelect: 'none' }}>Google</h3>
+                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0, userSelect: 'none' }}>
                                     {user?.google_sub ? 'Connected to your account' : 'Connect Google for one-click sign in'}
                                 </p>
                             </div>
@@ -357,16 +358,16 @@ export const SettingsPage: React.FC = () => {
                 </section>
 
                 <section>
-                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem' }}>
+                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', userSelect: 'none' }}>
                         Global Defaults
                     </h2>
-                    <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
+                    <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem', userSelect: 'none' }}>
                         Set default GPA scaling tables for new Programs. These settings will be applied when no program-specific table is defined.
                     </p>
 
                     <div style={{ marginBottom: '1rem' }}>
 
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, userSelect: 'none' }}>
                             Default GPA Scaling Table
                         </label>
                         <GPAScalingTable
@@ -405,7 +406,7 @@ export const SettingsPage: React.FC = () => {
                         </Button>
                     </div>
                 </section>
-            </div>
+            </Container>
         </Layout>
     );
 };

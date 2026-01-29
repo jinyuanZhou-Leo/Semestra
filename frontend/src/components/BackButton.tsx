@@ -38,7 +38,8 @@ export const BackButton: React.FC<BackButtonProps> = ({ to, label = 'Back', onCl
                 padding: '0.5rem 0',
                 marginBottom: '1rem',
                 fontWeight: 500,
-                transition: 'color 0.2s'
+                transition: 'color 0.2s',
+                userSelect: 'none'
             }}
             onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-primary)'}
             onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { SettingsForm } from './SettingsForm';
+import { SettingsSection } from './SettingsSection';
 
 interface SettingsTabContentProps {
     title?: string | null;
@@ -26,11 +27,12 @@ export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
 
     return (
         <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div>
-                {title ? <h2 style={{ marginTop: 0 }}>{title}</h2> : null}
-                <div style={{ fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-primary)', marginBottom: '0.5rem' }}>
-                    {mainSectionTitle}
-                </div>
+            {title && <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>{title}</h2>}
+
+            <SettingsSection
+                title={mainSectionTitle}
+                description={`Manage general settings for this ${type}.`}
+            >
                 <SettingsForm
                     initialName={initialName}
                     initialSettings={initialSettings}
@@ -38,8 +40,18 @@ export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
                     type={type}
                     submitLabel="Save Settings"
                 />
-            </div>
-            {extraSections}
+            </SettingsSection>
+
+            {extraSections && (
+                <SettingsSection
+                    title="Plugin Settings"
+                    description={`Configure installed plugins for this ${type}.`}
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        {extraSections}
+                    </div>
+                </SettingsSection>
+            )}
         </div>
     );
 };
