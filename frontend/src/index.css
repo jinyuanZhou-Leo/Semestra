@@ -464,6 +464,7 @@ button {
   height: 1.25rem;
   cursor: pointer;
   padding: 0;
+  user-select: none;
 }
 
 .tab-remove:hover {
@@ -483,6 +484,7 @@ button {
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  user-select: none;
 }
 
 .tab-add:hover {
