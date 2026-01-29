@@ -45,5 +45,5 @@ export const CounterDefinition: WidgetDefinition = {
     icon: '🔢',
     component: Counter,
     defaultSettings: { value: 0 },
-    defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 }
+    layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 }
 };

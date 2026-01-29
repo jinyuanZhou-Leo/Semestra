@@ -33,7 +33,7 @@ export interface WidgetDefinition {
     icon?: string;
     component: React.FC<WidgetProps>;
     defaultSettings?: any;
-    defaultLayout?: { w: number, h: number, minW?: number, minH?: number };
+    layout?: { w: number, h: number, minW?: number, minH?: number, maxW?: number, maxH?: number };
     /** Limit how many instances can be added. Use a number or 'unlimited' for no limit. */
     maxInstances?: MaxInstances;
     /** Limit where this widget can be added. Defaults to both contexts. */

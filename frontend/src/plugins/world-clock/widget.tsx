@@ -120,5 +120,5 @@ export const WorldClockDefinition: WidgetDefinition = {
     icon: '🌍',
     component: WorldClock,
     defaultSettings: { timezone: 'UTC' },
-    defaultLayout: { w: 2, h: 3, minW: 2, minH: 2 }
+    layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 }
 };

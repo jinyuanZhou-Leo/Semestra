@@ -130,8 +130,6 @@ const CourseHomepageContent: React.FC = () => {
     const statsMaxHeight = isShrunk ? '0px' : '150px';
     const containerPadding = isShrunk ? '0.5rem 0' : '1.0rem 0';
     const shadowOpacity = isShrunk ? 0.1 : 0;
-    const tabBarHeight = 48;
-    const heroMinHeight = isShrunk ? `${60 + tabBarHeight}px` : `calc(var(--header-expanded-height) + ${tabBarHeight}px)`;
     const contentTopOffset = 0;
     const heroSpacerHeight = useMemo(() => {
         if (!heroHeights.expanded || !heroHeights.shrunk) return 0;
@@ -358,10 +356,11 @@ const CourseHomepageContent: React.FC = () => {
                     </div>
 
                     <div className="page-header" style={{
-                        marginBottom: 0,
+                            marginBottom: isShrunk ? '0rem' : '1rem',
                         flexDirection: isShrunk ? 'row' : undefined,
                         alignItems: isShrunk ? 'center' : undefined,
-                        gap: isShrunk ? '1rem' : undefined
+                            gap: isShrunk ? '1rem' : undefined,
+                            transition: 'margin-bottom 0.3s ease-in-out'
                     }}>
                         <div style={{
                             display: 'flex',

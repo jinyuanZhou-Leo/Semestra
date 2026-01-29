@@ -54,15 +54,17 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
         return {
             lg: widgets.map((w, i) => {
                 const def = WidgetRegistry.get(w.type);
-                const defaultLayout = def?.defaultLayout || { w: 4, h: 4, minW: 2, minH: 2 };
+                const layout = def?.layout || { w: 4, h: 4, minW: 2, minH: 2 };
                 return {
                     i: w.id,
-                    x: w.layout?.x ?? (i * defaultLayout.w) % 12,
-                    y: w.layout?.y ?? Math.floor(i / 3) * defaultLayout.h,
-                    w: w.layout?.w ?? defaultLayout.w,
-                    h: w.layout?.h ?? defaultLayout.h,
-                    minW: defaultLayout.minW || 2,
-                    minH: defaultLayout.minH || 2
+                    x: w.layout?.x ?? (i * layout.w) % 12,
+                    y: w.layout?.y ?? Math.floor(i / 3) * layout.h,
+                    w: w.layout?.w ?? layout.w,
+                    h: w.layout?.h ?? layout.h,
+                    minW: layout.minW || 2,
+                    minH: layout.minH || 2,
+                    maxW: layout.maxW,
+                    maxH: layout.maxH
                 };
             })
         };
@@ -91,7 +93,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             layouts={layouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
             cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-            rowHeight={60}
+            rowHeight={85}
             margin={[16, 16]}
             onLayoutChange={(layout: Layout[]) => onLayoutChange(layout)}
             draggableHandle=".drag-handle"

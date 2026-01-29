@@ -18,13 +18,13 @@ beforeAll(() => {
         type: 'counter',
         name: 'Counter',
         component: Counter,
-        defaultLayout: { w: 3, h: 4 }
+        layout: { w: 3, h: 4 }
     });
     WidgetRegistry.register({
         type: 'course-list',
         name: 'Course List',
         component: CourseList,
-        defaultLayout: { w: 6, h: 8 }
+        layout: { w: 6, h: 8 }
     });
 });
 
