@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
+import { IconCircle } from './IconCircle';
 import type { WidgetItem } from './widgets/DashboardGrid';
 
 interface AddWidgetModalProps {
@@ -62,7 +63,9 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
                             transition: 'all 0.2s ease',
                         }}
                     >
-                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{widget.icon}</div>
+                        <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <IconCircle icon={widget.icon} label={widget.name} size={32} />
+                        </div>
                         <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{widget.name}</div>
                         <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{widget.description}</div>
                     </div>

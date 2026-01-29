@@ -30,7 +30,7 @@ export interface WidgetDefinition {
     type: string;
     name: string;
     description?: string;
-    icon?: string;
+    icon?: React.ReactNode;
     component: React.FC<WidgetProps>;
     defaultSettings?: any;
     layout?: { w: number, h: number, minW?: number, minH?: number, maxW?: number, maxH?: number };

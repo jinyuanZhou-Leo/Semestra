@@ -138,7 +138,7 @@ export const TemplateTabDefinition: TabDefinition = {
     type: 'tab-template',
     name: 'Tab Template',
     description: 'Starter tab with editable settings and layout scaffolding.',
-    icon: '🧩',
+    icon: '',
     component: TemplateTab,
     settingsComponent: TemplateTabSettings,
     defaultSettings: {

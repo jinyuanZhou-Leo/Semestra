@@ -448,10 +448,6 @@ button {
   background: var(--color-bg-tertiary);
 }
 
-.tab-icon {
-  font-size: 0.95rem;
-}
-
 .tab-label {
   font-size: 0.9rem;
   font-weight: 600;
@@ -461,10 +457,13 @@ button {
   border: none;
   background: transparent;
   color: var(--color-text-tertiary);
-  font-size: 1rem;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
   cursor: pointer;
-  padding: 0 0.1rem;
+  padding: 0;
 }
 
 .tab-remove:hover {

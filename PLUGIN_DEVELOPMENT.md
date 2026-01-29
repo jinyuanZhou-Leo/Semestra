@@ -46,7 +46,7 @@ export interface WidgetDefinition {
     type: string;          // Unique identifier for the widget type
     name: string;          // Display name
     description?: string;  // Optional description
-    icon?: string;         // Emoji or icon string
+    icon?: React.ReactNode; // Emoji, React node, or image URL (imported from plugin folder)
     component: React.FC<WidgetProps>; // The React component
     defaultSettings?: any; // Default values for settings
     defaultLayout?: { 
@@ -69,6 +69,8 @@ export interface WidgetLifecycleContext {
     settings: any;         // Widget settings at the time of the event
 }
 ```
+
+**Icon rendering:** Icons are displayed inside a circular badge in the UI. If `icon` is omitted, a placeholder badge with the first letter of the plugin name is shown. For image icons, place the asset in the plugin folder and import it (Vite will provide a URL string).
 
 ### WidgetProps
 
@@ -94,7 +96,7 @@ export interface TabDefinition {
     type: string;          // Unique identifier for the tab type
     name: string;          // Display name (used as tab title)
     description?: string;  // Optional description
-    icon?: string;         // Emoji or icon string
+    icon?: React.ReactNode; // Emoji, React node, or image URL (imported from plugin folder)
     component: React.FC<TabProps>; // The main tab content component
     settingsComponent?: React.FC<TabSettingsProps>; // Optional settings panel
     defaultSettings?: any; // Default settings for new tabs
@@ -147,6 +149,7 @@ Create a new folder in `frontend/src/plugins/`, for example `my-new-plugin/`.
 ```typescript
 import React, { useCallback } from 'react';
 import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
+import myIconUrl from './icon.svg';
 
 export const MyNew: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     // 1. Access settings directly - framework handles parsing
@@ -176,7 +179,7 @@ export const MyNewDefinition: WidgetDefinition = {
     type: 'my-new-widget',
     name: 'My New Widget',
     description: 'A description of what this widget does.',
-    icon: '✨',
+    icon: myIconUrl,
     component: MyNew,
     defaultSettings: { title: 'Default Title' },
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
@@ -192,6 +195,7 @@ export const MyNewDefinition: WidgetDefinition = {
 ```typescript
 import React, { useCallback } from 'react';
 import type { TabDefinition, TabProps } from '../../services/tabRegistry';
+import myIconUrl from './icon.svg';
 
 const NotesTab: React.FC<TabProps> = ({ settings, updateSettings }) => {
     const value = settings?.value || '';
@@ -215,7 +219,7 @@ export const NotesTabDefinition: TabDefinition = {
     type: 'notes-tab',
     name: 'Notes',
     description: 'Large scratchpad for planning.',
-    icon: '📝',
+    icon: myIconUrl,
     component: NotesTab,
     defaultSettings: { value: '' },
     maxInstances: 1,
@@ -391,3 +395,4 @@ See `frontend/src/plugins/GradeCalculator.tsx` for a complete example demonstrat
 - Tab 内容中避免显示标题，Tab 栏已提供名称
 - Tab 组件应将主要空间留给内容本身，避免额外占用垂直空间
 - Tab 组件需适配深色模式，使用 CSS 变量保持主题一致
+- Tab 内容应使用响应式设计

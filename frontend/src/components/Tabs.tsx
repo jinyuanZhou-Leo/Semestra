@@ -3,7 +3,7 @@ import React from 'react';
 export interface TabItem {
     id: string;
     label: string;
-    icon?: string;
+    icon?: React.ReactNode;
     removable?: boolean;
     draggable?: boolean;
 }
@@ -79,7 +79,6 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                             onDragOver={item.draggable && onReorder ? handleDragOver(item.id) : undefined}
                             onDrop={item.draggable && onReorder ? handleDrop(item.id) : undefined}
                         >
-                            {item.icon && <span className="tab-icon" aria-hidden="true">{item.icon}</span>}
                             <span className="tab-label">{item.label}</span>
                             {onRemove && item.removable && (
                                 <button
@@ -91,7 +90,20 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                         onRemove(item.id);
                                     }}
                                 >
-                                    ×
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        width="14"
+                                        height="14"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
                                 </button>
                             )}
                         </div>

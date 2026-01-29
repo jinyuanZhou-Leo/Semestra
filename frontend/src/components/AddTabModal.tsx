@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { TabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
+import { IconCircle } from './IconCircle';
 import type { TabItem } from '../hooks/useDashboardTabs';
 
 interface AddTabModalProps {
@@ -65,7 +66,9 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
                             transition: 'all 0.2s ease'
                         }}
                     >
-                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{tab.icon}</div>
+                        <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <IconCircle icon={tab.icon} label={tab.name} size={32} />
+                        </div>
                         <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{tab.name}</div>
                         <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{tab.description}</div>
                     </div>

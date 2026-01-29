@@ -32,7 +32,7 @@ export interface TabDefinition {
     type: string;
     name: string;
     description?: string;
-    icon?: string;
+    icon?: React.ReactNode;
     component: React.FC<TabProps>;
     settingsComponent?: React.FC<TabSettingsProps>;
     defaultSettings?: any;
