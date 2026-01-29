@@ -221,9 +221,12 @@ const SemesterHomepageContent: React.FC = () => {
             if (!SettingsComponent) return null;
             return (
                 <div key={tab.id} style={{ padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-                    <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>
-                        {definition?.name ?? tab.title ?? tab.type}
+                    <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-primary)', marginBottom: '0.25rem' }}>
+                        Plugin Settings
                     </div>
+                    <h4 style={{ margin: 0, marginBottom: '0.75rem', fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>
+                        {definition?.name ?? tab.title ?? tab.type}
+                    </h4>
                     <SettingsComponent
                         tabId={tab.id}
                         settings={tab.settings || {}}
@@ -238,7 +241,7 @@ const SemesterHomepageContent: React.FC = () => {
 
         return (
             <div>
-                <h3 style={{ marginTop: 0 }}>Tab Settings</h3>
+                <h3 style={{ marginTop: 0, fontSize: '1.25rem', color: 'var(--color-text-primary)' }}>Plugin Settings</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {sections}
                 </div>
@@ -320,8 +323,7 @@ const SemesterHomepageContent: React.FC = () => {
                     transition: 'padding 0.1s, top 0.3s ease-in-out, min-height 0.3s ease-in-out', // Smooth out slight jitters and sync with navbar
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'center',
-                    // minHeight: heroMinHeight, // Ensure a minimum height for centering to work effectively
+                        justifyContent: 'center',
                 }}>
                 <Container style={{
                     transition: 'padding-top 0.3s ease-in-out',
@@ -434,8 +436,8 @@ const SemesterHomepageContent: React.FC = () => {
                 </div>
 
                 <Container style={{
-                    padding: '1rem 1rem',
-                    // minHeight: '100vh',
+                    paddingTop: '1rem',
+                    paddingBottom: '1rem',
                     marginTop: contentTopOffset,
                     transition: 'margin-top 0.3s ease-in-out'
                 }}>

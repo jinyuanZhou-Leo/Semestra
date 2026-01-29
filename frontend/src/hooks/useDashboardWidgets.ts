@@ -349,19 +349,34 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     }, [flushPendingLayouts]);
 
     const updateLayout = useCallback((layouts: any[]) => {
+        const widgetById = new Map(widgets.map(w => [w.id, w]));
         const layoutById = new Map(layouts.map(layout => [layout.i, layout]));
         // OPTIMISTIC UI: Update local state immediately for smooth UX
         setWidgets(prev => prev.map(w => {
             const layout = layoutById.get(w.id);
             if (layout) {
-                return { ...w, layout: { x: layout.x, y: layout.y, w: layout.w, h: layout.h } };
+                const def = WidgetRegistry.get(w.type);
+                const layoutDef = def?.layout || { minW: 2, minH: 2 };
+                const minW = layoutDef.minW || 2;
+                const minH = layoutDef.minH || 2;
+                const safeW = Math.max(layout.w, minW);
+                const safeH = Math.max(layout.h, minH);
+                const nextLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
+                return { ...w, layout: nextLayout };
             }
             return w;
         }));
 
         // Queue layout changes for debounced API sync
         layouts.forEach(layout => {
-            const newLayout = { x: layout.x, y: layout.y, w: layout.w, h: layout.h };
+            const widget = widgetById.get(layout.i);
+            const def = widget ? WidgetRegistry.get(widget.type) : undefined;
+            const layoutDef = def?.layout || { minW: 2, minH: 2 };
+            const minW = layoutDef.minW || 2;
+            const minH = layoutDef.minH || 2;
+            const safeW = Math.max(layout.w, minW);
+            const safeH = Math.max(layout.h, minH);
+            const newLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
             pendingLayoutsRef.current.set(layout.i, newLayout);
         });
 
@@ -372,7 +387,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         layoutSyncTimerRef.current = setTimeout(() => {
             syncLayoutsToApi();
         }, 500);
-    }, [syncLayoutsToApi]);
+    }, [syncLayoutsToApi, widgets]);
 
     return {
         widgets,

@@ -55,14 +55,20 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             lg: widgets.map((w, i) => {
                 const def = WidgetRegistry.get(w.type);
                 const layout = def?.layout || { w: 4, h: 4, minW: 2, minH: 2 };
+                const minW = layout.minW || 2;
+                const minH = layout.minH || 2;
+                const rawW = w.layout?.w ?? layout.w;
+                const rawH = w.layout?.h ?? layout.h;
+                const safeW = Math.max(rawW, minW);
+                const safeH = Math.max(rawH, minH);
                 return {
                     i: w.id,
                     x: w.layout?.x ?? (i * layout.w) % 12,
                     y: w.layout?.y ?? Math.floor(i / 3) * layout.h,
-                    w: w.layout?.w ?? layout.w,
-                    h: w.layout?.h ?? layout.h,
-                    minW: layout.minW || 2,
-                    minH: layout.minH || 2,
+                    w: safeW,
+                    h: safeH,
+                    minW,
+                    minH,
                     maxW: layout.maxW,
                     maxH: layout.maxH
                 };
@@ -95,6 +101,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
             rowHeight={85}
             margin={[16, 16]}
+            containerPadding={[0, 0]}
             onLayoutChange={(layout: Layout[]) => onLayoutChange(layout)}
             draggableHandle=".drag-handle"
             draggableCancel=".nodrag, input, textarea, button, select, option, a, [contenteditable='true'], [data-widget-control]"
