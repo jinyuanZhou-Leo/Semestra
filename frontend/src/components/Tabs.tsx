@@ -36,7 +36,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
         event.dataTransfer.setData('text/plain', id);
     };
 
-    const handleDragOver = (id: string) => (event: React.DragEvent) => {
+    const handleDragOver = (_id: string) => (event: React.DragEvent) => {
         if (!onReorder) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';

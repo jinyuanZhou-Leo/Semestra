@@ -1,6 +1,6 @@
 # Plugin Development Guide
 
-This guide describes how to create and register new widget plugins for the Semestra application. The plugin system is designed to be modular and easy to extend.
+This guide describes how to create and register new widget and tab plugins for the Semestra application. The plugin system is designed to be modular and easy to extend.
 
 ## Overview
 
@@ -9,8 +9,31 @@ Plugins can be one of two shapes:
 2. **Tab**: A full-size panel that appears as a tab under the hero gradient.
 
 Both shapes share a similar definition structure but are registered separately.
-Widget plugins live in `frontend/src/plugins`.
-Tab plugins can live anywhere (recommended: `frontend/src/tabs`).
+Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement a widget, a tab, or both.
+
+### Plugin Folder Structure (Recommended)
+
+```
+frontend/src/plugins/<plugin-name>/
+  index.ts        // Exports widgetDefinition and/or tabDefinition
+  widget.tsx      // Optional: widget implementation
+  tab.tsx         // Optional: tab implementation
+  shared.ts       // Optional: shared types/helpers
+```
+
+### Built-in Tabs
+
+The application provides built-in tab plugins:
+- `dashboard`
+- `settings`
+
+These are registered from `frontend/src/plugins/builtin-dashboard/` and `frontend/src/plugins/builtin-settings/`.
+Do not reuse these `type` values in custom plugins.
+
+### Auto Registration
+
+`widget-setup.ts` and `tab-setup.ts` automatically scan all plugin `index.ts` files using `import.meta.glob`.
+If you export `widgetDefinition` and/or `tabDefinition`, the framework registers them at startup.
 
 ## Structure
 
@@ -62,6 +85,7 @@ export interface WidgetProps {
     updateSettings: (newSettings: any) => void;  // Update settings (auto-debounced)
     updateCourseField?: (field: string, value: any) => void; // Update course data
 }
+```
 
 ### TabDefinition
 
@@ -76,6 +100,8 @@ export interface TabDefinition {
     defaultSettings?: any; // Default settings for new tabs
     maxInstances?: number | 'unlimited'; // Max instances per dashboard
     allowedContexts?: Array<'semester' | 'course'>; // Where this tab can be added
+    onCreate?: (ctx: TabLifecycleContext) => Promise<void> | void;
+    onDelete?: (ctx: TabLifecycleContext) => Promise<void> | void;
 }
 ```
 
@@ -98,19 +124,29 @@ export interface TabSettingsProps {
     updateSettings: (newSettings: any) => void; // Debounced by framework
 }
 ```
+
+```typescript
+export interface TabLifecycleContext {
+    tabId: string;
+    semesterId?: string;
+    courseId?: string;
+    settings: any;
+}
 ```
 
 ## Creating a New Plugin
 
 Follow these steps to create a new widget or tab.
 
-### 1. Create the Plugin File
+### 1. Create the Plugin Files
 
-Create a new file in `frontend/src/plugins/`, for example `MyNew.tsx`.
+Create a new folder in `frontend/src/plugins/`, for example `my-new-plugin/`.
+
+`frontend/src/plugins/my-new-plugin/widget.tsx`
 
 ```typescript
 import React, { useCallback } from 'react';
-import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
 
 export const MyNew: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     // 1. Access settings directly - framework handles parsing
@@ -151,9 +187,11 @@ export const MyNewDefinition: WidgetDefinition = {
 
 ### Tab Example
 
+`frontend/src/plugins/my-new-plugin/tab.tsx`
+
 ```typescript
 import React, { useCallback } from 'react';
-import type { TabDefinition, TabProps } from '../services/tabRegistry';
+import type { TabDefinition, TabProps } from '../../services/tabRegistry';
 
 const NotesTab: React.FC<TabProps> = ({ settings, updateSettings }) => {
     const value = settings?.value || '';
@@ -187,24 +225,16 @@ export const NotesTabDefinition: TabDefinition = {
 
 ### 2. Register the Plugin
 
-Open `frontend/src/widget-setup.ts` and register your new widget.
+Plugins are auto-registered via Vite's `import.meta.glob`. You only need to export from `index.ts`.
+
+`frontend/src/plugins/my-new-plugin/index.ts`
 
 ```typescript
-import { WidgetRegistry } from './services/widgetRegistry';
-// ... other imports
-import { MyNewDefinition } from './plugins/MyNew';
+export { MyNewDefinition, MyNew } from './widget';
+export { MyNewDefinition as widgetDefinition } from './widget';
 
-// ... existing registrations
-WidgetRegistry.register(MyNewDefinition);
-```
-
-For tabs, register in `frontend/src/tab-setup.ts`:
-
-```typescript
-import { TabRegistry } from './services/tabRegistry';
-import { NotesTabDefinition } from './tabs/NotesTab';
-
-TabRegistry.register(NotesTabDefinition);
+export { NotesTabDefinition, NotesTab } from './tab';
+export { NotesTabDefinition as tabDefinition } from './tab';
 ```
 
 ## Framework-Level Performance Optimizations
@@ -241,11 +271,11 @@ Widget components are automatically wrapped with `React.memo` at the framework l
 
 ## Lifecycle Hooks
 
-Lifecycle hooks currently apply to widgets only.
+Lifecycle hooks apply to both widgets and tabs.
 
 ### onCreate
 
-Called **after** the widget is successfully created in the database. If this function throws an error, the widget will be automatically rolled back (deleted).
+Called **after** the widget/tab is successfully created in the database. If this function throws an error, the widget/tab will be automatically rolled back (deleted).
 
 ```typescript
 onCreate: async (ctx) => {
@@ -257,7 +287,7 @@ onCreate: async (ctx) => {
 
 ### onDelete
 
-Called **after** the widget is successfully deleted from the database. Errors in this function are logged but do not affect the deletion.
+Called **after** the widget/tab is successfully deleted from the database. Errors in this function are logged but do not affect the deletion.
 
 ```typescript
 onDelete: async (ctx) => {
@@ -295,6 +325,22 @@ export const MyDefinition: WidgetDefinition = {
 - **Use `settings` prop directly**: The framework handles parsing and provides an object
 - **Use `updateSettings` for persistence**: Don't call `api.updateWidget` directly for settings
 - **Trust the Optimistic UI**: UI updates are immediate, no need for local state in most cases
+
+### Shared Settings (Tab + Widget)
+
+When a plugin provides both a tab and a widget, keep settings in a single JSON object
+but split into namespaces to avoid conflicts:
+
+```json
+{
+  "shared": { "timezone": "UTC" },
+  "widget": { "sizeMode": "compact" },
+  "tab": { "layout": "timeline" }
+}
+```
+
+- Put business data in `shared`
+- Put view-only configuration in `widget` or `tab`
 
 ### When to Use Local State
 
@@ -339,3 +385,9 @@ See `frontend/src/plugins/GradeCalculator.tsx` for a complete example demonstrat
   - `var(--color-text-secondary)` - 次要文本颜色
   - `var(--color-bg-primary)` - 主要背景色
   - `var(--color-border)` - 边框颜色
+
+## Tab UI 设计规范
+
+- Tab 内容中避免显示标题，Tab 栏已提供名称
+- Tab 组件应将主要空间留给内容本身，避免额外占用垂直空间
+- Tab 组件需适配深色模式，使用 CSS 变量保持主题一致

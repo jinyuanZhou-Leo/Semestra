@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Counter } from '../../../plugins/Counter';
+import { Counter } from '../../../plugins/counter';
 import { vi, describe, it, expect } from 'vitest';
 
 describe('CounterWidget', () => {

@@ -8,8 +8,8 @@ const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default
 const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(module => ({ default: module.RegisterPage })));
 const ProgramDashboard = lazy(() => import('./pages/ProgramDashboard').then(module => ({ default: module.ProgramDashboard })));
-const SemesterDashboard = lazy(() => import('./pages/SemesterDashboard').then(module => ({ default: module.SemesterDashboard })));
-const CourseDashboard = lazy(() => import('./pages/CourseDashboard').then(module => ({ default: module.CourseDashboard })));
+const SemesterHomepage = lazy(() => import('./pages/SemesterHomepage').then(module => ({ default: module.SemesterHomepage })));
+const CourseHomepage = lazy(() => import('./pages/CourseHomepage').then(module => ({ default: module.CourseHomepage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 
 function App() {
@@ -41,7 +41,7 @@ function App() {
               path="/semesters/:id"
               element={
                 <RequireAuth>
-                  <SemesterDashboard />
+                  <SemesterHomepage />
                 </RequireAuth>
               }
             />
@@ -49,7 +49,7 @@ function App() {
               path="/courses/:id"
               element={
                 <RequireAuth>
-                  <CourseDashboard />
+                  <CourseHomepage />
                 </RequireAuth>
               }
             />

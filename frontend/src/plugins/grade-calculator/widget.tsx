@@ -1,10 +1,10 @@
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
-import { Button } from '../components/Button';
-import { Input } from '../components/Input';
-import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
-import { DEFAULT_GPA_SCALING_TABLE_JSON, calculateGPA } from '../utils/gpaUtils';
-import api from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
+import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
+import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
+import { DEFAULT_GPA_SCALING_TABLE_JSON, calculateGPA } from '../../utils/gpaUtils';
+import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Assessment {
     id: string;

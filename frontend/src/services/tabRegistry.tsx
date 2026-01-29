@@ -18,6 +18,13 @@ export interface TabSettingsProps {
     updateSettings: (newSettings: any) => void | Promise<void>;
 }
 
+export interface TabLifecycleContext {
+    tabId: string;
+    semesterId?: string;
+    courseId?: string;
+    settings: any;
+}
+
 export type TabContext = 'semester' | 'course';
 export type MaxInstances = number | 'unlimited';
 
@@ -31,6 +38,8 @@ export interface TabDefinition {
     defaultSettings?: any;
     maxInstances?: MaxInstances;
     allowedContexts?: TabContext[];
+    onCreate?: (context: TabLifecycleContext) => Promise<void> | void;
+    onDelete?: (context: TabLifecycleContext) => Promise<void> | void;
 }
 
 class TabRegistryClass {

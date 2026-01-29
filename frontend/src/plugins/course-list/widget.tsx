@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Button } from '../components/Button';
-import { Modal } from '../components/Modal';
-import { Input } from '../components/Input';
-import api from '../services/api';
-import type { Course } from '../services/api';
-import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
+import { Button } from '../../components/Button';
+import { Modal } from '../../components/Modal';
+import { Input } from '../../components/Input';
+import api from '../../services/api';
+import type { Course } from '../../services/api';
+import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
 
 /**
  * CourseList Plugin - Memoized for performance

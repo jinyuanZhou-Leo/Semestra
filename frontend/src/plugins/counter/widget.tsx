@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
-import { Button } from '../components/Button';
-import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
+import { Button } from '../../components/Button';
+import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
 
 /**
  * Counter Plugin - Memoized for performance

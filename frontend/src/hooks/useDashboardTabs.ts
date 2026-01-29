@@ -93,6 +93,21 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                 is_removable: newTab.is_removable
             };
 
+            if (definition.onCreate) {
+                try {
+                    await definition.onCreate({
+                        tabId: newTab.id.toString(),
+                        semesterId,
+                        courseId,
+                        settings: JSON.parse(newTab.settings || '{}')
+                    });
+                } catch (error) {
+                    console.error('onCreate hook failed, rolling back tab creation', error);
+                    await api.deleteTab(newTab.id.toString());
+                    throw error;
+                }
+            }
+
             setTabs(prev => [...prev, mappedTab].sort((a, b) => a.order_index - b.order_index));
             if (onRefresh) onRefresh();
         } catch (error) {
@@ -108,6 +123,21 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
         setTabs(prev => prev.filter(t => t.id !== id));
         try {
             await api.deleteTab(id);
+            if (tabToRemove) {
+                const definition = TabRegistry.get(tabToRemove.type);
+                if (definition?.onDelete) {
+                    try {
+                        await definition.onDelete({
+                            tabId: id,
+                            semesterId,
+                            courseId,
+                            settings: tabToRemove.settings
+                        });
+                    } catch (error) {
+                        console.error('onDelete hook failed', error);
+                    }
+                }
+            }
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Failed to delete tab', error);

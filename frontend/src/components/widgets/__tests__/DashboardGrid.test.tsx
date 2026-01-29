@@ -3,8 +3,8 @@ import { DashboardGrid } from '../DashboardGrid';
 import { vi, describe, it, expect, beforeAll } from 'vitest';
 
 import { WidgetRegistry } from '../../../services/widgetRegistry';
-import { Counter } from '../../../plugins/Counter';
-import { CourseList } from '../../../plugins/CourseList';
+import { Counter } from '../../../plugins/counter';
+import { CourseList } from '../../../plugins/course-list';
 
 // Mock ResizeObserver
 beforeAll(() => {
@@ -37,10 +37,10 @@ vi.mock('react-grid-layout', () => {
 });
 
 // Mock child widgets to avoid complexity
-vi.mock('../../../plugins/Counter', () => ({
+vi.mock('../../../plugins/counter', () => ({
     Counter: () => <div data-testid="counter-widget">Counter</div>
 }));
-vi.mock('../../../plugins/CourseList', () => ({
+vi.mock('../../../plugins/course-list', () => ({
     CourseList: () => <div data-testid="course-list-widget">Course List</div>
 }));
 

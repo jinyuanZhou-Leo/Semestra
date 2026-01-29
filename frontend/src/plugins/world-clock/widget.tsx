@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { WidgetDefinition, WidgetProps } from '../services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
 
 const AVAILABLE_TIMEZONES = [
     { value: 'UTC', label: 'UTC' },

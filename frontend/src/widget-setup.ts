@@ -1,13 +1,15 @@
-import { WidgetRegistry } from './services/widgetRegistry';
-import { CourseListDefinition } from './plugins/CourseList';
-import { CounterDefinition } from './plugins/Counter';
-import { WorldClockDefinition } from './plugins/WorldClock';
-import { GradeCalculatorDefinition } from './plugins/GradeCalculator';
+import { WidgetRegistry, type WidgetDefinition } from './services/widgetRegistry';
 
-// Register built-in widgets
-WidgetRegistry.register(CourseListDefinition);
-WidgetRegistry.register(CounterDefinition);
-WidgetRegistry.register(WorldClockDefinition);
-WidgetRegistry.register(GradeCalculatorDefinition);
+type PluginModule = {
+    widgetDefinition?: WidgetDefinition;
+};
+
+const pluginModules = import.meta.glob('./plugins/**/index.ts', { eager: true }) as Record<string, PluginModule>;
+
+Object.values(pluginModules).forEach((module) => {
+    if (module.widgetDefinition) {
+        WidgetRegistry.register(module.widgetDefinition);
+    }
+});
 
 console.log('Widgets registered:', WidgetRegistry.getAll().map(w => w.type));
