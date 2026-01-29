@@ -52,7 +52,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
             try {
                 JSON.parse(gpaTableJson);
                 setJsonError('');
-            } catch (e) {
+            } catch {
                 setJsonError('Invalid JSON for GPA Table');
                 return;
             }

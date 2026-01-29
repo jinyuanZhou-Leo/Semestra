@@ -104,6 +104,14 @@ const ProgramDashboardContent: React.FC = () => {
         updateProgram(data);
     };
 
+    const totalCredits = React.useMemo(() => {
+        if (!program) return 0;
+        return program.semesters.reduce(
+            (acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0),
+            0
+        );
+    }, [program]);
+
     if (!isLoading && !program) {
         return (
             <Layout>
@@ -121,15 +129,6 @@ const ProgramDashboardContent: React.FC = () => {
             </Layout>
         );
     }
-
-
-    const totalCredits = React.useMemo(() => {
-        if (!program) return 0;
-        return program.semesters.reduce(
-            (acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0),
-            0
-        );
-    }, [program]);
 
     return (
         <Layout>

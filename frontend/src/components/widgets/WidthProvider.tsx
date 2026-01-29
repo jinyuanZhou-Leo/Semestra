@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 export const WidthProvider = (ComposedComponent: any) => {
-    return (props: any) => {
+    const WithWidth = (props: any) => {
         const [width, setWidth] = useState(1200);
         const elementRef = useRef<HTMLDivElement>(null);
         const mountedRef = useRef(false);
@@ -35,4 +35,6 @@ export const WidthProvider = (ComposedComponent: any) => {
             </div>
         );
     };
+
+    return WithWidth;
 };

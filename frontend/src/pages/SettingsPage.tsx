@@ -145,7 +145,7 @@ export const SettingsPage: React.FC = () => {
     const handleSaveDefaults = async () => {
         try {
             JSON.parse(gpaTableJson);
-        } catch (e) {
+        } catch {
             alert('Invalid GPA Table data');
             return;
         }

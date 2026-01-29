@@ -290,7 +290,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     useEffect(() => {
         return () => {
             // Flush all pending settings
-            settingsSyncTimersRef.current.forEach((timer, _widgetId) => {
+            settingsSyncTimersRef.current.forEach((timer) => {
                 clearTimeout(timer);
             });
             pendingSettingsRef.current.forEach(async (data, widgetId) => {

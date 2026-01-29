@@ -3,12 +3,17 @@ import { useEffect, useState } from 'react';
 type Listener = (value: boolean) => void;
 
 let mediaQuery: MediaQueryList | null = null;
-let listeners: Set<Listener> = new Set();
+const listeners: Set<Listener> = new Set();
 let mediaChangeHandler: (() => void) | null = null;
+let matchMediaSource: typeof window.matchMedia | null = null;
 
 const getCurrentValue = (): boolean => {
     if (typeof window === 'undefined') return false;
-    if (!mediaQuery) {
+    if (typeof window.matchMedia !== 'function') {
+        return navigator.maxTouchPoints > 0;
+    }
+    if (!mediaQuery || matchMediaSource !== window.matchMedia) {
+        matchMediaSource = window.matchMedia;
         mediaQuery = window.matchMedia('(hover: none), (pointer: coarse)');
     }
     return mediaQuery.matches || navigator.maxTouchPoints > 0;
@@ -19,8 +24,12 @@ const notify = (value: boolean) => {
 };
 
 const ensureListener = () => {
-    if (typeof window === 'undefined' || mediaQuery) return;
-    mediaQuery = window.matchMedia('(hover: none), (pointer: coarse)');
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    if (!mediaQuery || matchMediaSource !== window.matchMedia) {
+        matchMediaSource = window.matchMedia;
+        mediaQuery = window.matchMedia('(hover: none), (pointer: coarse)');
+    }
+    if (!mediaQuery || mediaChangeHandler) return;
     mediaChangeHandler = () => notify(getCurrentValue());
     if (mediaQuery.addEventListener) {
         mediaQuery.addEventListener('change', mediaChangeHandler);
@@ -38,6 +47,7 @@ const cleanupListener = () => {
     }
     mediaQuery = null;
     mediaChangeHandler = null;
+    matchMediaSource = null;
 };
 
 export const useTouchDevice = () => {

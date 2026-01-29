@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { useTouchDevice } from '../useTouchDevice';
 
@@ -69,7 +69,9 @@ describe('useTouchDevice', () => {
         expect(screen.getByTestId('touch-value')).toHaveTextContent('false');
 
         mql.matches = true;
-        mql.dispatch();
+        act(() => {
+            mql.dispatch();
+        });
 
         expect(screen.getByTestId('touch-value')).toHaveTextContent('true');
     });
