@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal } from './Modal';
+import { Card } from './Card';
 import { SettingsForm } from './SettingsForm';
 
 interface SettingsModalProps {
@@ -22,18 +23,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     type
 }) => {
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title}>
-            <SettingsForm
-                initialName={initialName}
-                initialSettings={initialSettings}
-                onSave={async (data) => {
-                    await onSave(data);
-                    onClose();
-                }}
-                type={type}
-                showCancel
-                onCancel={onClose}
-            />
+        <Modal isOpen={isOpen} onClose={onClose} title={title} contentPadding="0">
+            <Card>
+                <SettingsForm
+                    initialName={initialName}
+                    initialSettings={initialSettings}
+                    onSave={async (data) => {
+                        await onSave(data);
+                        onClose();
+                    }}
+                    type={type}
+                    showCancel
+                    onCancel={onClose}
+                />
+            </Card>
         </Modal>
     );
 };

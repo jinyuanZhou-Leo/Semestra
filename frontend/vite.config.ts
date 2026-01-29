@@ -27,4 +27,16 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          motion: ['framer-motion'],
+          grid: ['react-grid-layout'],
+          http: ['axios'],
+        },
+      },
+    },
+  },
 })

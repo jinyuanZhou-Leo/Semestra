@@ -29,9 +29,12 @@ const reorderIds = (ids: string[], fromId: string, toId: string) => {
 
 export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove, onReorder, onAdd }) => {
     const dragIdRef = React.useRef<string | null>(null);
+    const [draggingId, setDraggingId] = React.useState<string | null>(null);
+    const [dragOverId, setDragOverId] = React.useState<string | null>(null);
 
     const handleDragStart = (id: string) => (event: React.DragEvent) => {
         dragIdRef.current = id;
+        setDraggingId(id);
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', id);
     };
@@ -53,6 +56,8 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
         const orderedIds = reorderIds(items.map(item => item.id), draggedId, id);
         onReorder(orderedIds);
         dragIdRef.current = null;
+        setDraggingId(null);
+        setDragOverId(null);
     };
 
     return (
@@ -60,12 +65,14 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
             <div className="tabs-list" role="tablist" aria-label="Dashboard Tabs">
                 {items.map(item => {
                     const isActive = item.id === activeId;
+                    const isDragging = item.id === draggingId;
+                    const isDragOver = item.id === dragOverId && item.id !== draggingId;
                     return (
                         <div
                             key={item.id}
                             role="tab"
                             aria-selected={isActive}
-                            className={`tab-button ${isActive ? 'active' : ''}`}
+                            className={`tab-button ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
                             tabIndex={0}
                             onClick={() => onSelect(item.id)}
                             onKeyDown={(event) => {
@@ -77,7 +84,32 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                             draggable={!!item.draggable && !!onReorder}
                             onDragStart={item.draggable && onReorder ? handleDragStart(item.id) : undefined}
                             onDragOver={item.draggable && onReorder ? handleDragOver() : undefined}
+                            onDragEnter={
+                                item.draggable && onReorder
+                                    ? () => {
+                                          if (draggingId && item.id !== draggingId) {
+                                              setDragOverId(item.id);
+                                          }
+                                      }
+                                    : undefined
+                            }
+                            onDragLeave={
+                                item.draggable && onReorder
+                                    ? () => {
+                                          if (dragOverId === item.id) setDragOverId(null);
+                                      }
+                                    : undefined
+                            }
                             onDrop={item.draggable && onReorder ? handleDrop(item.id) : undefined}
+                            onDragEnd={
+                                item.draggable && onReorder
+                                    ? () => {
+                                          dragIdRef.current = null;
+                                          setDraggingId(null);
+                                          setDragOverId(null);
+                                      }
+                                    : undefined
+                            }
                         >
                             <span className="tab-label">{item.label}</span>
                             {onRemove && item.removable && (

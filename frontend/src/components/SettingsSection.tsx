@@ -1,4 +1,5 @@
 import React from 'react';
+import { Card } from './Card';
 
 interface SettingsSectionProps {
     title?: string;
@@ -14,52 +15,44 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
     headerAction
 }) => {
     return (
-        <section style={{ marginBottom: '3rem' }}>
+        <Card
+            as="section"
+            style={{
+                display: 'flex',
+                gap: '1.25rem',
+                flexWrap: 'wrap',
+                alignItems: 'flex-start'
+            }}
+        >
             {(title || description || headerAction) && (
-                <div style={{
-                    marginBottom: '1rem',
-                    borderBottom: '1px solid var(--color-border)',
-                    paddingBottom: '0.5rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    gap: '1rem'
-                }}>
-                    <div>
+                <div style={{ minWidth: '220px', flex: '0 0 220px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {title && (
-                            <h2 style={{
-                                margin: 0,
-                                fontSize: '1.5rem',
-                                fontWeight: 'normal',
-                                color: 'var(--color-text-primary)',
-                                userSelect: 'none'
-                            }}>
+                            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-secondary)' }}>
                                 {title}
-                            </h2>
+                            </div>
                         )}
                         {description && (
                             <p style={{
-                                marginTop: '0.5rem',
-                                marginBottom: 0,
-                                fontSize: '0.9rem',
-                                color: 'var(--color-text-secondary)',
-                                lineHeight: 1.5,
-                                userSelect: 'none'
+                                margin: 0,
+                                fontSize: '0.95rem',
+                                color: 'var(--color-text-primary)',
+                                lineHeight: 1.5
                             }}>
                                 {description}
                             </p>
                         )}
+                        {headerAction && (
+                            <div style={{ marginTop: '0.5rem' }}>
+                                {headerAction}
+                            </div>
+                        )}
                     </div>
-                    {headerAction && (
-                        <div>
-                            {headerAction}
-                        </div>
-                    )}
                 </div>
             )}
-            <div style={{ padding: '0.5rem 0' }}>
+            <div style={{ flex: '1 1 320px', minWidth: '240px' }}>
                 {children}
             </div>
-        </section>
+        </Card>
     );
 };

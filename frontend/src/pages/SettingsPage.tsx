@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
+import { SettingsSection } from '../components/SettingsSection';
 import api from '../services/api';
 
 
@@ -209,27 +210,28 @@ export const SettingsPage: React.FC = () => {
                 <BackButton label="Back to Home" onClick={handleBack} />
                 <h1 style={{ marginBottom: '2rem', userSelect: 'none' }}>Settings</h1>
 
-                <section style={{ marginBottom: '3rem' }}>
-                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', userSelect: 'none' }}>
-                        Appearance
-                    </h2>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <SettingsSection
+                    title="Appearance"
+                    description="Switch between light and dark mode."
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
                         <div>
                             <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', userSelect: 'none' }}>Theme</h3>
                             <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', userSelect: 'none' }}>
-                                Switch between light and dark mode
+                                Choose your preferred interface style
                             </p>
                         </div>
                         <Button variant="secondary" onClick={toggleTheme}>
                             {isDarkMode ? '🌙 Dark Mode' : '☀️ Light Mode'}
                         </Button>
                     </div>
-                </section>
+                </SettingsSection>
 
-                <section style={{ marginBottom: '3rem' }}>
-                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', userSelect: 'none' }}>
-                        Account
-                    </h2>
+                <SettingsSection
+                    title="Account"
+                    description="Manage your profile and sign-in settings."
+                >
                     <div style={{ marginBottom: '1.5rem' }}>
                         <div style={{
                             display: 'flex',
@@ -355,18 +357,13 @@ export const SettingsPage: React.FC = () => {
                     <Button variant="secondary" onClick={handleLogout} style={{ color: 'var(--color-error, #ef4444)', borderColor: 'var(--color-error, #ef4444)' }}>
                         Sign Out
                     </Button>
-                </section>
+                </SettingsSection>
 
-                <section>
-                    <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', userSelect: 'none' }}>
-                        Global Defaults
-                    </h2>
-                    <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem', userSelect: 'none' }}>
-                        Set default GPA scaling tables for new Programs. These settings will be applied when no program-specific table is defined.
-                    </p>
-
+                <SettingsSection
+                    title="Global Defaults"
+                    description="Set defaults for new programs when no custom table is defined."
+                >
                     <div style={{ marginBottom: '1rem' }}>
-
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, userSelect: 'none' }}>
                             Default GPA Scaling Table
                         </label>
@@ -405,7 +402,8 @@ export const SettingsPage: React.FC = () => {
                             {isSaving ? 'Saving...' : 'Save Settings'}
                         </Button>
                     </div>
-                </section>
+                </SettingsSection>
+                </div>
             </Container>
         </Layout>
     );

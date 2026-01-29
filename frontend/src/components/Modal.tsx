@@ -7,9 +7,10 @@ interface ModalProps {
     onClose: () => void;
     title?: string;
     children: React.ReactNode;
+    contentPadding?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, contentPadding }) => {
     const modalRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -102,7 +103,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
                                 </button>
                             </div>
                         )}
-                        <div style={{ padding: '1.5rem' }}>
+                        <div style={{ padding: contentPadding ?? '1.5rem' }}>
                             {children}
                         </div>
                     </motion.div>

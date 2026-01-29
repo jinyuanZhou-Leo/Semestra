@@ -220,13 +220,38 @@ const CourseHomepageContent: React.FC = () => {
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div key={tab.id} style={{ padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-                    <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-primary)', marginBottom: '0.25rem' }}>
-                        Plugin Settings
+                <div
+                    key={tab.id}
+                    style={{
+                        padding: '1.25rem',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'var(--color-bg-secondary)'
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem' }}>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
+                                Plugin
+                            </div>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>
+                                {definition?.name ?? tab.title ?? tab.type}
+                            </h3>
+                        </div>
+                        <span style={{
+                            fontSize: '0.75rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: 'var(--color-primary)',
+                            background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
+                            border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
+                            borderRadius: '999px',
+                            padding: '0.15rem 0.6rem',
+                            fontWeight: 600
+                        }}>
+                            Tab
+                        </span>
                     </div>
-                    <h4 style={{ margin: 0, marginBottom: '0.75rem', fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>
-                        {definition?.name ?? tab.title ?? tab.type}
-                    </h4>
                     <SettingsComponent
                         tabId={tab.id}
                         settings={tab.settings || {}}
@@ -240,11 +265,8 @@ const CourseHomepageContent: React.FC = () => {
         if (sections.length === 0) return null;
 
         return (
-            <div>
-                <h3 style={{ marginTop: 0, fontSize: '1.25rem', color: 'var(--color-text-primary)' }}>Plugin Settings</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {sections}
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {sections}
             </div>
         );
     }, [tabs, course?.id, handleUpdateTabSettings]);
