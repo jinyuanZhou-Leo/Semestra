@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, Text, Enum
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, Text, Enum, CheckConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 import uuid
@@ -72,6 +72,12 @@ class Course(Base):
 
 class Widget(Base):
     __tablename__ = "widgets"
+    __table_args__ = (
+        CheckConstraint(
+            "((semester_id IS NOT NULL AND course_id IS NULL) OR (semester_id IS NULL AND course_id IS NOT NULL))",
+            name="ck_widgets_single_context",
+        ),
+    )
     
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     widget_type = Column(String, index=True) # e.g., "course-list", "counter"

@@ -128,6 +128,18 @@ Semestra/
 
 ---
 
+## Settings Inheritance
+
+GPA scaling tables resolve in this order (highest priority first):
+
+1. Program-level `gpa_scaling_table`
+2. User-level `gpa_scaling_table`
+3. App default scaling table
+
+If a higher level has no table (or an empty/invalid one), the next level is used.
+
+---
+
 ## Running Tests
 
 ### Backend Tests

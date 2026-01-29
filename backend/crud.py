@@ -175,10 +175,13 @@ def update_course(db: Session, course_id: str, course_update: schemas.CourseUpda
     
     return db_course
 
+def _ensure_widget_context(semester_id: str | None, course_id: str | None):
+    if (semester_id is None and course_id is None) or (semester_id is not None and course_id is not None):
+        raise ValueError("Widget must be attached to exactly one context (semester_id or course_id).")
+
 # --- Widget CRUD ---
 def create_widget(db: Session, widget: schemas.WidgetCreate, semester_id: str | None = None, course_id: str | None = None):
-    # Ensure only one parent is set (though models allow both as nullable, logic likely implies one)
-    # For now, just pass both. Logic caller ensures exclusivity if needed.
+    _ensure_widget_context(semester_id, course_id)
     db_widget = models.Widget(**widget.dict(), semester_id=semester_id, course_id=course_id)
     db.add(db_widget)
     db.commit()
