@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider } from './contexts/AuthContext';
 import { RequireAuth } from './components/RequireAuth';
 
@@ -63,6 +64,7 @@ function App() {
             />
           </Routes>
         </Suspense>
+        <SpeedInsights />
       </AuthProvider>
     </Router>
   );
