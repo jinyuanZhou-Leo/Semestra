@@ -18,6 +18,12 @@ DEFAULT_SCALING_TABLE = {
     "0-49": 0.0
 }
 
+def _round_gpa(value: float, decimals: int = 3) -> float:
+    try:
+        return round(float(value), decimals)
+    except Exception:
+        return 0.0
+
 def _parse_scaling_table(raw_table: str | None) -> dict | None:
     if not raw_table:
         return None
@@ -62,16 +68,16 @@ def calculate_gpa(percentage: float, scaling_table: dict) -> float:
             if '-' in key:
                 start, end = map(float, key.split('-'))
                 if min(start, end) <= percentage <= max(start, end):
-                    return float(gpa)
+                    return _round_gpa(float(gpa))
             elif key.startswith('>') or key.startswith('>='):
                 val = float(''.join(ch for ch in key if (ch.isdigit() or ch == '.')))
                 if percentage >= val:
-                    return float(gpa)
+                    return _round_gpa(float(gpa))
             else:
                 # Exact numeric match
                 val = float(key)
                 if abs(percentage - val) < 0.01:
-                    return float(gpa)
+                    return _round_gpa(float(gpa))
         except Exception:
             continue
 
@@ -92,7 +98,7 @@ def calculate_gpa(percentage: float, scaling_table: dict) -> float:
         for val, gpa in numeric_entries:
             if percentage >= val:
                 try:
-                    return float(gpa)
+                    return _round_gpa(float(gpa))
                 except Exception:
                     return 0.0
 
@@ -147,7 +153,7 @@ def update_semester_stats(semester: models.Semester, db: Session):
             weighted_percentage_sum += course.grade_percentage * course.credits
             
     if total_credits > 0:
-        semester.average_scaled = weighted_gpa_sum / total_credits
+        semester.average_scaled = _round_gpa(weighted_gpa_sum / total_credits)
         semester.average_percentage = weighted_percentage_sum / total_credits
     else:
         semester.average_scaled = 0.0
@@ -192,7 +198,7 @@ def update_program_stats(program: models.Program, db: Session):
                  weighted_percentage_sum += course.grade_percentage * course.credits
     
     if total_credits > 0:
-        program.cgpa_scaled = weighted_gpa_sum / total_credits
+        program.cgpa_scaled = _round_gpa(weighted_gpa_sum / total_credits)
         program.cgpa_percentage = weighted_percentage_sum / total_credits
     else:
         program.cgpa_scaled = 0.0

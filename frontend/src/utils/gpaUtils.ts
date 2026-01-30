@@ -1,5 +1,10 @@
 export const DEFAULT_GPA_SCALING_TABLE_JSON = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}';
 
+const roundGpa = (value: number, decimals: number = 3): number => {
+    if (!Number.isFinite(value)) return 0;
+    return Number(value.toFixed(decimals));
+};
+
 export const calculateGPA = (percentage: number, scalingTableJson: string | undefined): number | string => {
     if (!scalingTableJson || scalingTableJson === '{}') {
         return 0;
@@ -24,7 +29,7 @@ export const calculateGPA = (percentage: number, scalingTableJson: string | unde
                         const min = Math.min(v1, v2);
                         const max = Math.max(v1, v2);
                         if (percentage >= min && percentage <= max) {
-                            return gpa;
+                            return roundGpa(gpa);
                         }
                     }
                 }
@@ -33,7 +38,7 @@ export const calculateGPA = (percentage: number, scalingTableJson: string | unde
             else if (cleanRange.startsWith('>') || cleanRange.startsWith('>=')) {
                 const val = parseFloat(cleanRange.replace(/[^0-9.]/g, ''));
                 if (!isNaN(val) && percentage >= val) {
-                    return gpa;
+                    return roundGpa(gpa);
                 }
             }
             // Handle single number "90" -> imply 90 to 100? Or just exact? 
@@ -47,7 +52,7 @@ export const calculateGPA = (percentage: number, scalingTableJson: string | unde
                 const val = parseFloat(cleanRange);
                 if (!isNaN(val)) {
                     // Exact match
-                    if (Math.abs(percentage - val) < 0.01) return gpa;
+                    if (Math.abs(percentage - val) < 0.01) return roundGpa(gpa);
                 }
             }
         }
@@ -66,7 +71,7 @@ export const calculateGPA = (percentage: number, scalingTableJson: string | unde
             numericEntries.sort((a, b) => b.k - a.k);
             for (const entry of numericEntries) {
                 if (percentage >= entry.k) {
-                    return entry.v;
+                    return roundGpa(entry.v);
                 }
             }
         }

@@ -90,7 +90,9 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                     <div style={{ textAlign: 'right' }}>
                                         <div style={{ fontWeight: 600 }}>{course.grade_percentage}%</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>GPA: {course.grade_scaled}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                            GPA: {Number.isFinite(course.grade_scaled) ? course.grade_scaled.toFixed(2) : '0.00'}
+                                        </div>
                                     </div>
                                     <button
                                         onClick={() => {
