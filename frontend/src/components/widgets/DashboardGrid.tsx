@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -48,6 +48,20 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     updateCourseField
 }) => {
     const isTouchDevice = useTouchDevice();
+    const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 } as const;
+    const cols = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 } as const;
+    const margin: [number, number] = [16, 16];
+    const containerPadding: [number, number] = [0, 0];
+    const [activeCols, setActiveCols] = useState(cols.lg);
+    const [activeWidth, setActiveWidth] = useState<number | null>(null);
+
+    const rowHeight = useMemo(() => {
+        if (!activeWidth || activeCols <= 0) return 85;
+        const totalMargin = margin[0] * (activeCols - 1);
+        const totalPadding = containerPadding[0] * 2;
+        const columnWidth = (activeWidth - totalMargin - totalPadding) / activeCols;
+        return Math.max(40, Math.floor(columnWidth));
+    }, [activeWidth, activeCols, margin, containerPadding]);
 
     // Convert widgets to RGL layout format
     const layouts = useMemo(() => {
@@ -97,12 +111,16 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
         <ResponsiveGridLayout
             className="layout"
             layouts={layouts}
-            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-            rowHeight={85}
-            margin={[16, 16]}
-            containerPadding={[0, 0]}
+            breakpoints={breakpoints}
+            cols={cols}
+            rowHeight={rowHeight}
+            margin={margin}
+            containerPadding={containerPadding}
             onLayoutChange={(layout: Layout[]) => onLayoutChange(layout)}
+            onWidthChange={(width, _margin, currentCols) => {
+                setActiveWidth(width);
+                setActiveCols(currentCols);
+            }}
             draggableHandle=".drag-handle"
             draggableCancel=".nodrag, input, textarea, button, select, option, a, [contenteditable='true'], [data-widget-control]"
             isDraggable={!isTouchDevice}

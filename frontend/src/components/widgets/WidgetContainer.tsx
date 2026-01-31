@@ -67,7 +67,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
 
     const style: React.CSSProperties = {
         backgroundColor: 'var(--color-bg-primary)',
-        borderRadius: '0.75rem',
+        borderRadius: 'var(--radius-widget)',
         boxShadow: isHovered ? 'var(--shadow-md)' : 'var(--shadow-sm)',
         border: isHovered ? '1px solid var(--color-text-tertiary)' : '1px solid var(--color-border)',
         height: '100%',
