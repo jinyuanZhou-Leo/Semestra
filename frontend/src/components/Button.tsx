@@ -76,33 +76,9 @@ export const Button: React.FC<ButtonProps> = ({
         }
     };
 
-    const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
-        if (!disableScale) e.currentTarget.style.transform = 'scale(1.05)';
-        onMouseEnter?.(e);
-    };
-
-    const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
-        if (!disableScale) e.currentTarget.style.transform = 'scale(1)';
-        onMouseLeave?.(e);
-    };
-
-    const handleMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
-        if (!disableScale) e.currentTarget.style.transform = 'scale(0.95)';
-        onMouseDown?.(e);
-    };
-
-    const handleMouseUp = (e: React.MouseEvent<HTMLButtonElement>) => {
-        if (!disableScale) e.currentTarget.style.transform = 'scale(1)';
-        onMouseUp?.(e);
-    };
-
     return (
         <button
             style={{ ...baseStyle, ...variantStyles[variant], ...style }}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
             {...props}
         >
             {children}

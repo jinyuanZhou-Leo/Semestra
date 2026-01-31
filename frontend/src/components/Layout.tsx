@@ -14,6 +14,52 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
 
+    // Theme Logic - mirrored from SettingsPage but with added persistence check
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        if (typeof window === 'undefined') return false;
+
+        // 1. Check if DOM is already set (e.g. by SettingsPage or previous Layout mount)
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        if (currentTheme) {
+            return currentTheme === 'dark';
+        }
+
+        // 2. Check LocalStorage (Persistence)
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            return savedTheme === 'dark';
+        }
+
+        // 3. Check System Preference
+        return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    });
+
+    const toggleTheme = () => {
+        const newMode = !isDarkMode;
+        setIsDarkMode(newMode);
+        const themeValue = newMode ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', themeValue);
+        localStorage.setItem('theme', themeValue);
+    };
+
+    // Initialize theme on mount to ensure consistency
+    React.useEffect(() => {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        } else {
+            // If no preference, we don't force 'data-theme' so CSS media query works, 
+            // but we update state to match system
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (systemDark !== isDarkMode) {
+                setIsDarkMode(systemDark);
+            }
+        }
+    }, []);
+
+    // Page Blur Logic
+    const [isPageBlurred, setIsPageBlurred] = useState(false);
+
     // Navbar Auto-hide Logic
     const [isVisible, setIsVisible] = useState(true);
     const lastScrollY = React.useRef(0);
@@ -86,6 +132,85 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
                     </Link>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <button
+                            onClick={toggleTheme}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--color-text-primary)',
+                                padding: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '50%',
+                                transition: 'background-color 0.2s',
+                            }}
+                            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                            {isDarkMode ? (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                                </svg>
+                            ) : (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="5"></circle>
+                                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                                </svg>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={() => setIsPageBlurred(!isPageBlurred)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--color-text-primary)',
+                                padding: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '50%',
+                                transition: 'background-color 0.2s',
+                            }}
+                            title={isPageBlurred ? "Unblur page" : "Blur page"}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                {isPageBlurred ? (
+                                    <>
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                        <line x1="1" y1="1" x2="23" y2="23" />
+                                    </>
+                                ) : (
+                                    <>
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                        <circle cx="12" cy="12" r="3" />
+                                    </>
+                                )}
+                            </svg>
+                        </button>
+
                         {!isOnline && (
                             <div
                                 className="offline-indicator user-selected"
@@ -122,26 +247,43 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
                                 </button>
 
                                 {isMenuOpen && (
-                                    <div style={{
-                                        position: 'absolute',
-                                        top: '100%',
-                                        right: 0,
-                                        marginTop: '0.5rem',
-                                        background: 'var(--color-bg-primary)',
-                                        border: '1px solid var(--color-border)',
-                                        borderRadius: 'var(--radius-md)',
-                                        boxShadow: 'var(--shadow-md)',
-                                        minWidth: '150px',
-                                        zIndex: 100
-                                    }}>
+                                    <div
+                                        className="fade-in-down"
+                                        style={{
+                                            position: 'absolute',
+                                            top: 'calc(100% + 10px)',
+                                            right: 0,
+                                            background: 'var(--color-bg-primary)',
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: 'var(--radius-lg)',
+                                            boxShadow: 'var(--shadow-lg)',
+                                            minWidth: '200px',
+                                            zIndex: 100,
+                                            overflow: 'hidden',
+                                            padding: '0.25rem'
+                                        }}
+                                    >
+                                        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--color-border)', marginBottom: '0.25rem' }}>
+                                            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                                                {user.nickname || 'User'}
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {user.email}
+                                            </div>
+                                        </div>
                                         <div
                                             onClick={() => navigate('/settings')}
                                             style={{
-                                                padding: '0.75rem 1rem',
+                                                padding: '0.6rem 1rem',
                                                 cursor: 'pointer',
-                                                borderBottom: '1px solid var(--color-border)',
-                                                color: 'var(--color-text-primary)'
+                                                color: 'var(--color-text-primary)',
+                                                fontSize: '0.9rem',
+                                                borderRadius: 'var(--radius-sm)',
+                                                transition: 'background-color 0.2s',
+                                                margin: '0 0.25rem'
                                             }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                         >
                                             Settings
                                         </div>
@@ -151,11 +293,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
                                                 window.location.href = '/login';
                                             }}
                                             style={{
-                                                padding: '0.75rem 1rem',
+                                                padding: '0.6rem 1rem',
                                                 cursor: 'pointer',
-                                                color: 'var(--color-error)',
-                                                borderTop: '1px solid var(--color-border)'
+                                                color: 'var(--color-danger)',
+                                                fontSize: '0.9rem',
+                                                borderRadius: 'var(--radius-sm)',
+                                                transition: 'background-color 0.2s',
+                                                margin: '0.25rem 0.25rem 0.25rem 0.25rem'
                                             }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                         >
                                             Sign out
                                         </div>
@@ -167,7 +314,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
                     </div>
                 </Container>
             </header>
-            <main style={{ flex: 1, paddingTop: '60px' }}>
+            <main style={{
+                flex: 1,
+                paddingTop: '60px',
+                transition: 'filter 0.3s ease',
+                filter: isPageBlurred ? 'blur(10px)' : 'none'
+            }}>
                 {children}
             </main>
         </div>

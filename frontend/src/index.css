@@ -756,3 +756,114 @@ button {
     opacity: 1;
   }
 }
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fade-in-down {
+  animation: fadeInDown 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  transform-origin: top right;
+}
+
+/* Animated Save Button */
+.save-btn-content {
+  display: grid;
+  place-items: center;
+  position: relative;
+  height: 24px;
+  /* Fixed height to prevent layout shifts */
+  min-width: 100px;
+}
+
+.save-btn-text {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  grid-area: 1 / 1;
+}
+
+.save-btn-text.exit-up {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.save-btn-text.enter-up {
+  animation: textEnterUp 0.3s ease forwards;
+}
+
+@keyframes textEnterUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.save-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  /* Animation handled by separate element/class to avoid conflicts */
+  animation: spinner-spin 0.8s linear infinite;
+  grid-area: 1 / 1;
+}
+
+@keyframes spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.save-check {
+  width: 20px;
+  height: 20px;
+  color: #fff;
+  grid-area: 1 / 1;
+}
+
+.save-check path {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: check-draw 0.4s ease forwards;
+}
+
+@keyframes check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Fade util */
+.fade-enter {
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.fade-exit {
+  opacity: 1;
+  animation: fadeOut 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}

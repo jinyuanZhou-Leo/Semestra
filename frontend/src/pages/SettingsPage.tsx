@@ -24,8 +24,6 @@ export const SettingsPage: React.FC = () => {
     // Global Defaults State
     const [gpaTableJson, setGpaTableJson] = useState('{}');
     const [nickname, setNickname] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-    const [showSuccess, setShowSuccess] = useState(false);
 
     // Dirty checking
     const [initialState, setInitialState] = useState<{ nickname: string, gpaTableJson: string } | null>(null);
@@ -144,15 +142,46 @@ export const SettingsPage: React.FC = () => {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isDirty]);
 
-    const handleSaveDefaults = async () => {
+    // Auto-save & Animation 
+    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'success'>('idle');
+    const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Auto-save Effect
+    useEffect(() => {
+        if (!initialState) return;
+
+        // Check if actually changed
+        const hasChanged = nickname !== initialState.nickname || gpaTableJson !== initialState.gpaTableJson;
+
+        if (hasChanged) {
+            // Clear existing timer
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+            }
+
+            // Set new timer
+            autoSaveTimerRef.current = setTimeout(() => {
+                saveSettings();
+            }, 1000); // 1s debounce
+        }
+
+        return () => {
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+            }
+        };
+    }, [nickname, gpaTableJson, initialState]);
+
+    const saveSettings = async () => {
         try {
             JSON.parse(gpaTableJson);
         } catch {
-            alert('Invalid GPA Table data');
+            // Don't auto-save invalid JSON, maybe show error? 
+            // For now just return to avoid annoyance
             return;
         }
 
-        setIsSaving(true);
+        setSaveState('saving');
         try {
             await api.updateUser({
                 gpa_scaling_table: gpaTableJson,
@@ -160,31 +189,33 @@ export const SettingsPage: React.FC = () => {
             });
             await refreshUser();
 
-            // Update initial state to new saved state
             setInitialState({ nickname, gpaTableJson });
-            setIsDirty(false); // Clear dirty flag immediately
+            setIsDirty(false);
 
-            // Show static success message
-            setShowSuccess(true);
-            setTimeout(() => setShowSuccess(false), 3000);
+            setSaveState('success');
+
+            // Revert to idle after delay
+            setTimeout(() => {
+                setSaveState('idle');
+            }, 2000);
+
         } catch (error) {
             console.error("Failed to save settings", error);
+            setSaveState('idle'); // Or error state if needed
             alert('Failed to save settings');
-        } finally {
-            setIsSaving(false);
         }
     };
 
     // Manual Back Handler
     const handleBack = (e: React.MouseEvent) => {
-        if (isDirty) {
+        // If saving, wait? Or allow exit? Allow exit for now.
+        // If dirty but not saved (network error?), confirm.
+        if (isDirty && saveState === 'idle') {
             e.preventDefault();
             if (window.confirm("You have unsaved changes. Are you sure you want to leave?")) {
                 navigate(-1);
             }
         } else {
-            // Default behavior handles standard navigation if I used a link, but for BackButton component
-            // If I just pass a custom onClick, I can manually navigate.
             navigate(-1);
         }
     };
@@ -376,30 +407,30 @@ export const SettingsPage: React.FC = () => {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem' }}>
-                        {showSuccess && (
-                            <span style={{
-                                color: 'var(--color-success, #22c55e)',
-                                fontSize: '0.9rem',
-                                fontWeight: 500,
-                                animation: 'fadeIn 0.3s ease-in-out'
-                            }}>
-                                <style>
-                                    {`
-                                        @keyframes fadeIn {
-                                            from { opacity: 0; transform: translateX(10px); }
-                                            to { opacity: 1; transform: translateX(0); }
-                                        }
-                                    `}
-                                </style>
-                                Saved successfully
-                            </span>
-                        )}
-                        <Button
-                            onClick={handleSaveDefaults}
-                            disabled={isSaving}
-                            style={{ minWidth: '140px' }} // Fix width to prevent jump
-                        >
-                            {isSaving ? 'Saving...' : 'Save Settings'}
+                            <Button
+                                onClick={() => saveSettings()}
+                                disabled={saveState === 'saving'}
+                                style={{ minWidth: '140px' }}
+                            >
+                                <div className="save-btn-content">
+                                    {(saveState === 'idle' || saveState === 'saving') && (
+                                        <span className={`save-btn-text ${saveState === 'saving' ? 'exit-up' : 'enter-up'}`}>
+                                            Save Settings
+                                        </span>
+                                    )}
+
+                                    {saveState === 'saving' && (
+                                        <div className="save-spinner"></div>
+                                    )}
+
+                                    {saveState === 'success' && (
+                                        <div className="fade-enter" style={{ gridArea: '1 / 1', display: 'grid', placeItems: 'center' }}>
+                                            <svg className="save-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M20 6L9 17l-5-5" />
+                                            </svg>
+                                        </div>
+                                    )}
+                                </div>
                         </Button>
                     </div>
                 </SettingsSection>
