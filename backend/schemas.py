@@ -45,7 +45,6 @@ class GoogleAuthRequest(BaseModel):
 # --- Widget Schemas ---
 class WidgetBase(BaseModel):
     widget_type: str
-    title: str
     layout_config: str = "{}"
     settings: str = "{}"
     is_removable: bool = True
@@ -62,14 +61,12 @@ class Widget(WidgetBase):
 
 class WidgetUpdate(BaseModel):
     widget_type: Optional[str] = None
-    title: Optional[str] = None
     layout_config: Optional[str] = None
     settings: Optional[str] = None
 
 # --- Tab Schemas ---
 class TabBase(BaseModel):
     tab_type: str
-    title: str
     settings: str = "{}"
     order_index: int = 0
     is_removable: bool = True
@@ -85,7 +82,6 @@ class Tab(TabBase):
         from_attributes = True
 
 class TabUpdate(BaseModel):
-    title: Optional[str] = None
     settings: Optional[str] = None
     order_index: Optional[int] = None
 

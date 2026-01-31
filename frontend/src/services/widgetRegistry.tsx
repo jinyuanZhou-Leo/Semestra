@@ -1,5 +1,20 @@
 import React from 'react';
 
+export interface HeaderButtonContext {
+    widgetId: string;
+    settings: any;
+    semesterId?: string;
+    courseId?: string;
+    updateSettings: (newSettings: any) => void | Promise<void>;
+}
+
+export interface HeaderButton {
+    id: string;
+    icon: React.ReactNode;
+    title: string;
+    onClick: (context: HeaderButtonContext) => void;
+}
+
 export interface WidgetProps {
     widgetId: string;
     settings: any;
@@ -11,8 +26,6 @@ export interface WidgetProps {
      * Returns void since framework debounces API calls (Optimistic UI pattern)
      */
     updateSettings: (newSettings: any) => void | Promise<void>;
-    title?: string;
-    pluginName?: string;
     updateCourseField?: (field: string, value: any) => void;
 }
 
@@ -38,6 +51,8 @@ export interface WidgetDefinition {
     maxInstances?: MaxInstances;
     /** Limit where this widget can be added. Defaults to both contexts. */
     allowedContexts?: WidgetContext[];
+    /** Custom buttons to display in the widget header */
+    headerButtons?: HeaderButton[];
     /** Called after widget is created. If throws, the widget will be rolled back (deleted). */
     onCreate?: (context: WidgetLifecycleContext) => Promise<void> | void;
     /** Called after widget is deleted. Errors are logged but don't affect deletion. */

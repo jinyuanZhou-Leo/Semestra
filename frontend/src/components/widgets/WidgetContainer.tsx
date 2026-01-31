@@ -6,6 +6,7 @@ interface WidgetContainerProps {
     children: React.ReactNode;
     onRemove?: () => void;
     onEdit?: () => void;
+    headerButtons?: React.ReactNode; // Custom header buttons from plugin definition
 }
 
 type PointerHandler = (event: PointerEvent) => void;
@@ -37,7 +38,7 @@ const removeGlobalPointerHandler = (handler: PointerHandler) => {
  * WidgetContainer - Memoized for performance
  * Contains the visual wrapper and control buttons for widgets
  */
-const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit }) => {
+const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, headerButtons }) => {
     const [isHovered, setIsHovered] = React.useState(false);
     const isTouchDevice = useTouchDevice();
     const [isTouchControlsVisible, setIsTouchControlsVisible] = React.useState(false);
@@ -176,6 +177,8 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 <circle cx="16" cy="18" r="2" />
                             </svg>
                         </div>
+                        {/* Custom header buttons from plugin definition */}
+                        {headerButtons}
                     </div>
                 )}
 

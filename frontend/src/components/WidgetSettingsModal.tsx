@@ -16,17 +16,21 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
     widget,
     onSave
 }) => {
-    const [title, setTitle] = useState(widget?.title || '');
-    const [min, setMin] = useState(widget?.settings?.min || 0);
-    const [max, setMax] = useState(widget?.settings?.max || 10);
+    const [displayText, setDisplayText] = useState(widget?.settings?.displayText || '');
+    const [min, setMin] = useState(widget?.settings?.min ?? 0);
+    const [max, setMax] = useState(widget?.settings?.max ?? 100);
+    const [step, setStep] = useState(widget?.settings?.step ?? 1);
+    const [initialValue, setInitialValue] = useState(widget?.settings?.initialValue ?? 0);
 
     // Update state when widget changes
     React.useEffect(() => {
         if (widget) {
-            setTitle(widget.title);
             if (widget.type === 'counter') {
+                setDisplayText(widget.settings?.displayText || '');
                 setMin(widget.settings?.min ?? 0);
-                setMax(widget.settings?.max ?? 10);
+                setMax(widget.settings?.max ?? 100);
+                setStep(widget.settings?.step ?? 1);
+                setInitialValue(widget.settings?.initialValue ?? 0);
             }
         }
     }, [widget]);
@@ -36,11 +40,16 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
 
         const newSettings = {
             ...widget.settings,
-            ...(widget.type === 'counter' ? { min, max } : {})
+            ...(widget.type === 'counter' ? {
+                displayText,
+                min: Number(min),
+                max: Number(max),
+                step: Number(step),
+                initialValue: Number(initialValue)
+            } : {})
         };
 
         await onSave(widget.id, {
-            title,
             settings: JSON.stringify(newSettings)
         });
         onClose();
@@ -49,31 +58,48 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Widget Settings">
             <form onSubmit={handleSave}>
-                <Input
-                    label="Title"
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                    required
-                />
-
                 {widget?.type === 'counter' && (
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <div style={{ flex: 1 }}>
+                    <>
+                        <Input
+                            label="Display Text"
+                            value={displayText}
+                            onChange={e => setDisplayText(e.target.value)}
+                            placeholder="Enter custom text to display below counter"
+                        />
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                             <Input
                                 label="Min Value"
                                 type="number"
                                 value={min}
                                 onChange={e => setMin(Number(e.target.value))}
                             />
-                        </div>
-                        <div style={{ flex: 1 }}>
                             <Input
                                 label="Max Value"
                                 type="number"
                                 value={max}
                                 onChange={e => setMax(Number(e.target.value))}
                             />
+                            <Input
+                                label="Step"
+                                type="number"
+                                value={step}
+                                onChange={e => setStep(Number(e.target.value))}
+                                min="1"
+                            />
+                            <Input
+                                label="Initial Value"
+                                type="number"
+                                value={initialValue}
+                                onChange={e => setInitialValue(Number(e.target.value))}
+                            />
                         </div>
+                    </>
+                )}
+
+                {!widget?.type && (
+                    <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>
+                        No settings available for this widget type.
                     </div>
                 )}
 

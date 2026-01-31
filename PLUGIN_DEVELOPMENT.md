@@ -57,9 +57,25 @@ export interface WidgetDefinition {
     };
     maxInstances?: number | 'unlimited'; // Max instances per dashboard
     allowedContexts?: Array<'semester' | 'course'>; // Where this widget can be added
+    headerButtons?: HeaderButton[]; // Optional custom action buttons in widget header
     // Lifecycle hooks
     onCreate?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
     onDelete?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
+}
+
+export interface HeaderButton {
+    id: string;            // Unique identifier for this button
+    icon: React.ReactNode; // Icon to display (emoji, SVG, etc.)
+    title: string;         // Tooltip text
+    onClick: (context: HeaderButtonContext) => void; // Click handler with widget context
+}
+
+export interface HeaderButtonContext {
+    widgetId: string;      // The unique ID of this widget instance
+    settings: any;         // Current widget settings
+    semesterId?: string;   // Semester context (if applicable)
+    courseId?: string;     // Course context (if applicable)
+    updateSettings: (newSettings: any) => void; // Update widget settings
 }
 
 export interface WidgetLifecycleContext {
@@ -68,6 +84,27 @@ export interface WidgetLifecycleContext {
     courseId?: string;     // Course context (if applicable)
     settings: any;         // Widget settings at the time of the event
 }
+```
+
+**Header Buttons**: Widgets can define custom action buttons that appear in the widget header (alongside drag handle, edit, and remove buttons). These buttons only appear when the widget controls are visible (on hover for desktop, on tap for touch devices).
+
+**Example - Reset Button**:
+```typescript
+export const MyWidgetDefinition: WidgetDefinition = {
+    type: 'my-widget',
+    name: 'My Widget',
+    component: MyWidget,
+    headerButtons: [
+        {
+            id: 'reset',
+            icon: '↺',
+            title: 'Reset to default',
+            onClick: ({ settings, updateSettings }) => {
+                updateSettings({ ...settings, value: 0 });
+            }
+        }
+    ]
+};
 ```
 
 **Icon rendering:** Icons are displayed inside a circular badge in the UI. If `icon` is omitted, a placeholder badge with the first letter of the plugin name is shown. For image icons, place the asset in the plugin folder and import it (Vite will provide a URL string).
@@ -380,7 +417,7 @@ See `frontend/src/plugins/GradeCalculator.tsx` for a complete example demonstrat
 ## Widget UI 设计规范
 
 - WidgetUI中避免在上方添加标题，因为容器已经提供了标题
-- Widget应当适配声明的所有尺寸
+- Widget应当适配声明的所有尺寸， 使用响应式设计
 - Widget应当适配深色模式
 - Widget应当高效利用空间，避免过多留白
 - Widget中应对必要元素添加 `user-select: none`

@@ -37,6 +37,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     updateCourseField
 }) => {
     const WidgetComponent = WidgetRegistry.getComponent(widget.type);
+    const widgetDefinition = WidgetRegistry.get(widget.type);
 
     /**
      * updateSettings for plugins - uses debounced update by default
@@ -63,6 +64,66 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
         if (onEdit) onEdit(widget);
     }, [onEdit, widget]);
 
+    // Render custom header buttons from widget definition
+    const headerButtons = React.useMemo(() => {
+        if (!widgetDefinition?.headerButtons || widgetDefinition.headerButtons.length === 0) {
+            return null;
+        }
+
+        return widgetDefinition.headerButtons.map((buttonDef) => {
+            const handleClick = (e: React.MouseEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                buttonDef.onClick({
+                    widgetId: widget.id,
+                    settings: widget.settings || {},
+                    semesterId,
+                    courseId,
+                    updateSettings: handleUpdateSettings
+                });
+            };
+
+            const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+            const controlSize = isTouchDevice ? 36 : 28;
+
+            return (
+                <button
+                    key={buttonDef.id}
+                    onClick={handleClick}
+                    title={buttonDef.title}
+                    data-widget-control
+                    style={{
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-primary)',
+                        borderRadius: '50%',
+                        width: `${controlSize}px`,
+                        height: `${controlSize}px`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: 'var(--color-text-secondary)',
+                        transition: 'all 0.1s',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        fontSize: isTouchDevice ? '16px' : '14px',
+                    }}
+                    onMouseEnter={e => {
+                        e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
+                        e.currentTarget.style.color = 'var(--color-text-primary)';
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={e => {
+                        e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
+                        e.currentTarget.style.color = 'var(--color-text-secondary)';
+                        e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                >
+                    {buttonDef.icon}
+                </button>
+            );
+        });
+    }, [widgetDefinition, widget.id, widget.settings, semesterId, courseId, handleUpdateSettings]);
+
     if (!WidgetComponent) {
         return <div>Unknown Widget Type: {widget.type}</div>;
     }
@@ -72,6 +133,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
             id={widget.id}
             onRemove={onRemove ? handleRemove : undefined}
             onEdit={onEdit ? handleEdit : undefined}
+            headerButtons={headerButtons}
         >
             <WidgetComponent
                 widgetId={widget.id}

@@ -83,7 +83,6 @@ class Widget(Base):
     
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     widget_type = Column(String, index=True) # e.g., "course-list", "counter"
-    title = Column(String)
     
     # Layout props
     layout_config = Column(Text, default="{}") # JSON: {x, y, w, h}
@@ -111,7 +110,6 @@ class Tab(Base):
 
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     tab_type = Column(String, index=True)
-    title = Column(String)
     settings = Column(Text, default="{}")
     order_index = Column(Integer, default=0)
     is_removable = Column(Boolean, default=True)

@@ -110,7 +110,6 @@ def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: s
     # Create default widgets
     create_widget(db, schemas.WidgetCreate(
         widget_type="course-list",
-        title="Courses",
         is_removable=False
     ), semester_id=db_semester.id)
     
