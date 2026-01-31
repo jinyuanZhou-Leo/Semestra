@@ -85,7 +85,7 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
                                             {course.name}
                                         </Link>
                                     </div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{course.credits} Credits</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{Number(course.credits).toFixed(2)} Credits</div>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                     <div style={{ textAlign: 'right' }}>

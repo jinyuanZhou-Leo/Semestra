@@ -427,7 +427,7 @@ const CourseHomepageContent: React.FC = () => {
                                         ) : (
                                             <AnimatedNumber
                                                 value={course.credits}
-                                                format={(val) => (Number.isInteger(val) ? val.toString() : val.toFixed(1))}
+                                                        format={(val) => val.toFixed(2)}
                                             />
                                         )}
                                     </div>

@@ -242,7 +242,7 @@ const ProgramDashboardContent: React.FC = () => {
                                     <>
                                         <AnimatedNumber
                                             value={totalCredits}
-                                            format={(val) => (Number.isInteger(val) ? val.toString() : val.toFixed(1))}
+                                                format={(val) => val.toFixed(2)}
                                             animateOnMount
                                         />
                                         <span className="program-stat-unit small"> / {program.grad_requirement_credits}</span>

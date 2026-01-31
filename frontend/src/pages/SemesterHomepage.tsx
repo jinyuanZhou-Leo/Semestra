@@ -412,7 +412,7 @@ const SemesterHomepageContent: React.FC = () => {
                                         ) : (
                                             <AnimatedNumber
                                                 value={semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}
-                                                format={(val) => (Number.isInteger(val) ? val.toString() : val.toFixed(1))}
+                                                        format={(val) => val.toFixed(2)}
                                             />
                                         )}
                                     </div>
