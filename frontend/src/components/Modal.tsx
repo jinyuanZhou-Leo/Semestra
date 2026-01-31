@@ -8,9 +8,25 @@ interface ModalProps {
     title?: string;
     children: React.ReactNode;
     contentPadding?: string;
+    width?: string | number;
+    maxWidth?: string | number;
+    height?: string | number;
+    minHeight?: string | number;
+    maxHeight?: string | number;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, contentPadding }) => {
+export const Modal: React.FC<ModalProps> = ({
+    isOpen,
+    onClose,
+    title,
+    children,
+    contentPadding,
+    width = '90%',
+    maxWidth = '500px',
+    height,
+    minHeight = 300,
+    maxHeight = '90vh'
+}) => {
     const modalRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -69,9 +85,11 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                             backgroundColor: 'var(--color-bg-primary)',
                             borderRadius: 'var(--radius-lg)',
                             boxShadow: 'var(--shadow-lg)',
-                            width: '90%',
-                            maxWidth: '500px',
-                            maxHeight: '90vh',
+                            width: width,
+                            maxWidth: maxWidth,
+                            height: height,
+                            minHeight: minHeight,
+                            maxHeight: maxHeight,
                             overflowY: 'auto',
                             overscrollBehavior: 'contain',
                             touchAction: 'pan-y',

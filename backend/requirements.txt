@@ -8,5 +8,5 @@ python-jose[cryptography]
 passlib[bcrypt]
 requests
 google-auth
-alembic
+
 python-dotenv

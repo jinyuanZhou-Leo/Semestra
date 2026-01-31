@@ -5,6 +5,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     size?: 'sm' | 'md' | 'lg';
     shape?: 'default' | 'rounded' | 'circle';
     fullWidth?: boolean;
+    disableScale?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -13,6 +14,7 @@ export const Button: React.FC<ButtonProps> = ({
     size = 'md',
     shape = 'default',
     fullWidth = false,
+    disableScale = false,
     style,
     onMouseEnter,
     onMouseLeave,
@@ -75,22 +77,22 @@ export const Button: React.FC<ButtonProps> = ({
     };
 
     const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.currentTarget.style.transform = 'scale(1.05)';
+        if (!disableScale) e.currentTarget.style.transform = 'scale(1.05)';
         onMouseEnter?.(e);
     };
 
     const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.currentTarget.style.transform = 'scale(1)';
+        if (!disableScale) e.currentTarget.style.transform = 'scale(1)';
         onMouseLeave?.(e);
     };
 
     const handleMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.currentTarget.style.transform = 'scale(0.95)';
+        if (!disableScale) e.currentTarget.style.transform = 'scale(0.95)';
         onMouseDown?.(e);
     };
 
     const handleMouseUp = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.currentTarget.style.transform = 'scale(1)';
+        if (!disableScale) e.currentTarget.style.transform = 'scale(1)';
         onMouseUp?.(e);
     };
 

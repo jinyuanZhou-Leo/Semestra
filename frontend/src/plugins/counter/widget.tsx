@@ -21,7 +21,6 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
         min = 0,
         max = 100,
         step = 1,
-        initialValue = 0,
         displayText = ''
     } = (settings as CounterSettings) || {};
 

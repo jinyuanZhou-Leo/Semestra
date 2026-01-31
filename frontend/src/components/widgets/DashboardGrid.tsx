@@ -52,7 +52,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     const cols = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 } as const;
     const margin: [number, number] = [16, 16];
     const containerPadding: [number, number] = [0, 0];
-    const [activeCols, setActiveCols] = useState(cols.lg);
+    const [activeCols, setActiveCols] = useState<number>(cols.lg);
     const [activeWidth, setActiveWidth] = useState<number | null>(null);
 
     const rowHeight = useMemo(() => {
@@ -117,7 +117,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             margin={margin}
             containerPadding={containerPadding}
             onLayoutChange={(layout: Layout[]) => onLayoutChange(layout)}
-            onWidthChange={(width, _margin, currentCols) => {
+            onWidthChange={(width: number, _margin: [number, number], currentCols: number) => {
                 setActiveWidth(width);
                 setActiveCols(currentCols);
             }}

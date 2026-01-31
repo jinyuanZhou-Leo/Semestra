@@ -153,6 +153,13 @@ def create_course(db: Session, course: schemas.CourseCreate, semester_id: str):
     db.commit()
     db.refresh(db_course)
     
+    
+    # Create default widgets
+    create_widget(db, schemas.WidgetCreate(
+        widget_type="grade-calculator",
+        is_removable=False
+    ), course_id=db_course.id)
+
     # Trigger logic
     logic.update_course_stats(db_course, db)
     

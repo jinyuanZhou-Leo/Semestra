@@ -22,7 +22,6 @@ const ProgramDashboardContent: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newSemesterName, setNewSemesterName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [creationMethod, setCreationMethod] = useState<'manual' | 'upload'>('manual');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -74,22 +73,16 @@ const ProgramDashboardContent: React.FC = () => {
 
         setIsSubmitting(true);
         try {
-            if (creationMethod === 'manual') {
+            if (selectedFile) {
+                await api.uploadSemesterICS(program.id, selectedFile, newSemesterName || undefined);
+            } else {
                 await api.createSemester(program.id, {
                     name: newSemesterName
                 });
-            } else {
-                if (!selectedFile) {
-                    alert("Please select a file to upload");
-                    setIsSubmitting(false);
-                    return;
-                }
-                await api.uploadSemesterICS(program.id, selectedFile, newSemesterName || undefined);
             }
             setIsModalOpen(false);
             setNewSemesterName('');
             setSelectedFile(null);
-            setCreationMethod('manual');
             refreshProgram();
         } catch (error) {
             console.error("Failed to create semester", error);
@@ -421,110 +414,86 @@ const ProgramDashboardContent: React.FC = () => {
                 title="Create New Semester"
             >
                 <form onSubmit={handleCreateSemester}>
-                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', background: 'var(--color-bg-secondary)', padding: '0.25rem', borderRadius: 'var(--radius-md)' }}>
-                        <Button
-                            type="button"
-                            variant={creationMethod === 'manual' ? 'primary' : 'secondary'}
-                            onClick={() => setCreationMethod('manual')}
-                            style={{ flex: 1 }}
-                        >
-                            Manual
-                        </Button>
-                        <Button
-                            type="button"
-                            variant={creationMethod === 'upload' ? 'primary' : 'secondary'}
-                            onClick={() => setCreationMethod('upload')}
-                            style={{ flex: 1 }}
-                        >
-                            Upload ICS
-                        </Button>
-                    </div>
-
-                    {creationMethod === 'manual' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minHeight: '270px' }}>
                         <Input
                             label="Semester Name"
                             placeholder="e.g. Fall 2025"
                             value={newSemesterName}
                             onChange={(e) => setNewSemesterName(e.target.value)}
-                            required
+                            required={!selectedFile}
                             autoFocus
                         />
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Import Schedule (Optional)</div>
                             <div style={{
-                                    border: `2px dashed ${isDragging ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                border: `2px dashed ${isDragging ? 'var(--color-primary)' : 'var(--color-border)'}`,
                                 borderRadius: 'var(--radius-md)',
                                 padding: '2rem',
                                 textAlign: 'center',
                                 cursor: 'pointer',
-                                    background: isDragging ? 'rgba(var(--color-primary-rgb), 0.05)' : 'var(--color-bg-primary)',
-                                    transition: 'all 0.2s ease',
-                                    transform: isDragging ? 'scale(1.02)' : 'scale(1)'
+                                background: isDragging ? 'rgba(var(--color-primary-rgb), 0.05)' : 'var(--color-bg-primary)',
+                                transition: 'all 0.2s ease',
+                                transform: isDragging ? 'scale(1.02)' : 'scale(1)'
                             }}
                                 onClick={() => document.getElementById('ics-upload')?.click()}
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={handleDrop}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
                             >
                                 <input
                                     type="file"
                                     id="ics-upload"
                                     accept=".ics"
                                     style={{ display: 'none' }}
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                                setSelectedFile(file);
-                                                if (!newSemesterNameRef.current) {
-                                                    const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
-                                                    setNewSemesterName(name);
-                                                }
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            setSelectedFile(file);
+                                            if (!newSemesterNameRef.current) {
+                                                const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
+                                                setNewSemesterName(name);
                                             }
-                                        }}
+                                        }
+                                    }}
                                 />
                                 <div style={{ marginBottom: '0.5rem' }}>
-                                        {selectedFile ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--color-primary)' }}>
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                                    <line x1="12" y1="18" x2="12" y2="12"></line>
-                                                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                                    {selectedFile ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--color-primary)' }}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="12" y1="18" x2="12" y2="12"></line>
+                                                <line x1="9" y1="15" x2="15" y2="15"></line>
+                                            </svg>
+                                            {selectedFile.name}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{ marginBottom: '0.5rem' }}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)' }}>
+                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                                    <line x1="12" y1="3" x2="12" y2="15"></line>
                                                 </svg>
-                                                {selectedFile.name}
                                             </div>
-                                        ) : (
-                                            <>
-                                                <div style={{ marginBottom: '0.5rem' }}>
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)' }}>
-                                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                                        <polyline points="17 8 12 3 7 8"></polyline>
-                                                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                                                    </svg>
-                                                </div>
-                                                <div>Click or drag .ics file here</div>
-                                            </>
-                                        )}
+                                            <div>Click or drag .ics file to upload</div>
+                                        </>
+                                    )}
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                                     Supports standard calendar export files
                                 </div>
                             </div>
-                            <Input
-                                label="Semester Name (Optional)"
-                                placeholder="Auto-generated from filename if empty"
-                                value={newSemesterName}
-                                onChange={(e) => setNewSemesterName(e.target.value)}
-                            />
                         </div>
-                    )}
+                    </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
                         <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
                             Cancel
                         </Button>
                         <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? (creationMethod === 'upload' ? 'Uploading...' : 'Creating...') : (creationMethod === 'upload' ? 'Upload & Create' : 'Create Semester')}
+                            {isSubmitting ? (selectedFile ? 'Uploading...' : 'Creating...') : (selectedFile ? 'Upload & Create' : 'Create Semester')}
                         </Button>
                     </div>
                 </form>
