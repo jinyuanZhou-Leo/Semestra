@@ -31,7 +31,7 @@ export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
             : 'Program';
 
     return (
-        <div style={{ padding: '0.75rem 0', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+        <div style={{ padding: '0.75rem 0', display: 'flex', flexDirection: 'column', gap: '3rem', userSelect: 'none' }}>
             <div
                 role="region"
                 aria-label={ariaTitle}

@@ -39,6 +39,12 @@ export interface WidgetLifecycleContext {
 export type WidgetContext = 'semester' | 'course';
 export type MaxInstances = number | 'unlimited';
 
+export interface WidgetSettingsProps {
+    settings: any;
+    onSave: (newSettings: any) => void;
+    onClose: () => void;
+}
+
 export interface WidgetDefinition {
     type: string;
     name: string;
@@ -53,6 +59,8 @@ export interface WidgetDefinition {
     allowedContexts?: WidgetContext[];
     /** Custom buttons to display in the widget header */
     headerButtons?: HeaderButton[];
+    /** Optional settings component. If provided, a settings button will be shown in the widget header. */
+    SettingsComponent?: React.FC<WidgetSettingsProps>;
     /** Called after widget is created. If throws, the widget will be rolled back (deleted). */
     onCreate?: (context: WidgetLifecycleContext) => Promise<void> | void;
     /** Called after widget is deleted. Errors are logged but don't affect deletion. */

@@ -131,8 +131,8 @@ const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, up
     );
 };
 
-export const TemplateTab = React.memo(TemplateTabComponent);
-export const TemplateTabSettings = React.memo(TemplateTabSettingsComponent);
+export const TemplateTab = TemplateTabComponent;
+export const TemplateTabSettings = TemplateTabSettingsComponent;
 
 export const TemplateTabDefinition: TabDefinition = {
     type: 'tab-template',

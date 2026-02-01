@@ -44,10 +44,15 @@ export interface TabDefinition {
 
 class TabRegistryClass {
     private tabs: Map<string, TabDefinition> = new Map();
+    private memoizedComponents: Map<string, React.FC<TabProps>> = new Map();
+    private memoizedSettingsComponents: Map<string, React.FC<TabSettingsProps>> = new Map();
 
     register(definition: TabDefinition) {
         if (this.tabs.has(definition.type)) {
             console.warn(`Tab type ${definition.type} is already registered. Overwriting.`);
+            // Clear cached memoized components when re-registering
+            this.memoizedComponents.delete(definition.type);
+            this.memoizedSettingsComponents.delete(definition.type);
         }
         this.tabs.set(definition.type, definition);
     }
@@ -61,11 +66,52 @@ class TabRegistryClass {
     }
 
     getComponent(type: string): React.FC<TabProps> | undefined {
-        return this.tabs.get(type)?.component;
+        const definition = this.tabs.get(type);
+        if (!definition) return undefined;
+
+        // Return cached memoized component if available
+        if (this.memoizedComponents.has(type)) {
+            return this.memoizedComponents.get(type);
+        }
+
+        // Create memoized version with custom comparison
+        const MemoizedComponent = React.memo(definition.component, (prevProps, nextProps) => {
+            // Only re-render if these specific props change
+            return (
+                prevProps.tabId === nextProps.tabId &&
+                prevProps.semesterId === nextProps.semesterId &&
+                prevProps.courseId === nextProps.courseId &&
+                JSON.stringify(prevProps.settings) === JSON.stringify(nextProps.settings)
+            );
+        });
+
+        // Cache and return
+        this.memoizedComponents.set(type, MemoizedComponent);
+        return MemoizedComponent;
     }
 
     getSettingsComponent(type: string): React.FC<TabSettingsProps> | undefined {
-        return this.tabs.get(type)?.settingsComponent;
+        const definition = this.tabs.get(type);
+        if (!definition?.settingsComponent) return undefined;
+
+        // Return cached memoized settings component if available
+        if (this.memoizedSettingsComponents.has(type)) {
+            return this.memoizedSettingsComponents.get(type);
+        }
+
+        // Create memoized version
+        const MemoizedSettingsComponent = React.memo(definition.settingsComponent, (prevProps, nextProps) => {
+            return (
+                prevProps.tabId === nextProps.tabId &&
+                prevProps.semesterId === nextProps.semesterId &&
+                prevProps.courseId === nextProps.courseId &&
+                JSON.stringify(prevProps.settings) === JSON.stringify(nextProps.settings)
+            );
+        });
+
+        // Cache and return
+        this.memoizedSettingsComponents.set(type, MemoizedSettingsComponent);
+        return MemoizedSettingsComponent;
     }
 }
 

@@ -7,6 +7,7 @@ interface WidgetContainerProps {
     onRemove?: () => void;
     onEdit?: () => void;
     headerButtons?: React.ReactNode; // Custom header buttons from plugin definition
+    isLocked?: boolean; // Lock widgets to prevent dragging
 }
 
 type PointerHandler = (event: PointerEvent) => void;
@@ -38,7 +39,7 @@ const removeGlobalPointerHandler = (handler: PointerHandler) => {
  * WidgetContainer - Memoized for performance
  * Contains the visual wrapper and control buttons for widgets
  */
-const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, headerButtons }) => {
+const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, headerButtons, isLocked = false }) => {
     const [isHovered, setIsHovered] = React.useState(false);
     const isTouchDevice = useTouchDevice();
     const [isTouchControlsVisible, setIsTouchControlsVisible] = React.useState(false);
@@ -95,7 +96,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                 setIsTouchControlsVisible(true);
             }}
         >
-            {isTouchDevice && (
+            {isTouchDevice && !isLocked && (
                 <div
                     className="drag-surface"
                     style={{
@@ -155,42 +156,44 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
             >
                 {!isTouchDevice && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', pointerEvents: 'auto' }}>
-                        <div
-                            className="drag-handle"
-                            style={{
-                                width: `${controlSize}px`,
-                                height: `${controlSize}px`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'grab',
-                                color: 'var(--color-text-tertiary)',
-                                borderRadius: '50%',
-                                border: '1px solid var(--color-border)',
-                                background: 'var(--color-bg-primary)',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                transition: 'all 0.1s',
-                                touchAction: 'none',
-                            }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
-                                e.currentTarget.style.color = 'var(--color-text-primary)';
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
-                                e.currentTarget.style.color = 'var(--color-text-tertiary)';
-                            }}
-                            title="Drag to move"
-                        >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                <circle cx="8" cy="6" r="2" />
-                                <circle cx="16" cy="6" r="2" />
-                                <circle cx="8" cy="12" r="2" />
-                                <circle cx="16" cy="12" r="2" />
-                                <circle cx="8" cy="18" r="2" />
-                                <circle cx="16" cy="18" r="2" />
-                            </svg>
-                        </div>
+                        {!isLocked && (
+                            <div
+                                className="drag-handle"
+                                style={{
+                                    width: `${controlSize}px`,
+                                    height: `${controlSize}px`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'grab',
+                                    color: 'var(--color-text-tertiary)',
+                                    borderRadius: '50%',
+                                    border: '1px solid var(--color-border)',
+                                    background: 'var(--color-bg-primary)',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    transition: 'all 0.1s',
+                                    touchAction: 'none',
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
+                                    e.currentTarget.style.color = 'var(--color-text-primary)';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
+                                    e.currentTarget.style.color = 'var(--color-text-tertiary)';
+                                }}
+                                title="Drag to move"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                    <circle cx="8" cy="6" r="2" />
+                                    <circle cx="16" cy="6" r="2" />
+                                    <circle cx="8" cy="12" r="2" />
+                                    <circle cx="16" cy="12" r="2" />
+                                    <circle cx="8" cy="18" r="2" />
+                                    <circle cx="16" cy="18" r="2" />
+                                </svg>
+                            </div>
+                        )}
                         {/* Custom header buttons from plugin definition */}
                         {headerButtons}
                     </div>
@@ -312,5 +315,23 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
     );
 };
 
+// Custom comparison function to ensure isLocked changes trigger re-renders
+const arePropsEqual = (
+    prevProps: WidgetContainerProps,
+    nextProps: WidgetContainerProps
+): boolean => {
+    // Always re-render if isLocked changes
+    if (prevProps.isLocked !== nextProps.isLocked) return false;
+
+    // Re-render if other key props change
+    if (prevProps.id !== nextProps.id) return false;
+    if (prevProps.onRemove !== nextProps.onRemove) return false;
+    if (prevProps.onEdit !== nextProps.onEdit) return false;
+    if (prevProps.headerButtons !== nextProps.headerButtons) return false;
+    if (prevProps.children !== nextProps.children) return false;
+
+    return true;
+};
+
 // Memoize to prevent re-renders when parent updates unrelated state
-export const WidgetContainer = React.memo(WidgetContainerComponent);
+export const WidgetContainer = React.memo(WidgetContainerComponent, arePropsEqual);

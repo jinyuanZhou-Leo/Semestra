@@ -259,7 +259,7 @@ export const SettingsPage: React.FC = () => {
                 <BackButton label="Back to Home" onClick={handleBack} />
                 <h1 style={{ marginBottom: '2rem', userSelect: 'none' }}>Settings</h1>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', userSelect: 'none' }}>
                 <SettingsSection
                     title="Appearance"
                         description="Customize the look and feel of the application."

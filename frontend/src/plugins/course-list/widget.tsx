@@ -72,8 +72,7 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
     );
 };
 
-// Memoize to prevent re-renders when parent updates unrelated state
-export const CourseList = React.memo(CourseListComponent);
+export const CourseList = CourseListComponent;
 
 export const CourseListDefinition: WidgetDefinition = {
     type: 'course-list',

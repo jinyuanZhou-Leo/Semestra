@@ -22,7 +22,7 @@ const BuiltinSettingsTabComponent: React.FC<TabProps> = () => {
     );
 };
 
-export const BuiltinSettingsTab = React.memo(BuiltinSettingsTabComponent);
+export const BuiltinSettingsTab = BuiltinSettingsTabComponent;
 
 export const BuiltinSettingsTabDefinition: TabDefinition = {
     type: 'settings',

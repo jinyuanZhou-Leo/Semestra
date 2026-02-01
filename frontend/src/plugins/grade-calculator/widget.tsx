@@ -205,8 +205,7 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
     );
 };
 
-// Memoize to prevent re-renders when parent updates unrelated state
-export const GradeCalculator = React.memo(GradeCalculatorComponent);
+export const GradeCalculator = GradeCalculatorComponent;
 
 export const GradeCalculatorDefinition: WidgetDefinition = {
     type: 'grade-calculator',

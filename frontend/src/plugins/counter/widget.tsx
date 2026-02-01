@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Button } from '../../components/Button';
-import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
+import { Input } from '../../components/Input';
+import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
 
 interface CounterSettings {
     value: number;
@@ -10,6 +11,75 @@ interface CounterSettings {
     initialValue: number;
     displayText?: string;
 }
+
+/**
+ * Counter Settings Component
+ */
+const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSave, onClose }) => {
+    const counterSettings = settings as CounterSettings;
+    const [displayText, setDisplayText] = useState(counterSettings.displayText || '');
+    const [min, setMin] = useState(counterSettings.min ?? 0);
+    const [max, setMax] = useState(counterSettings.max ?? 100);
+    const [step, setStep] = useState(counterSettings.step ?? 1);
+    const [initialValue, setInitialValue] = useState(counterSettings.initialValue ?? 0);
+
+    const handleSave = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave({
+            ...settings,
+            displayText,
+            min: Number(min),
+            max: Number(max),
+            step: Number(step),
+            initialValue: Number(initialValue)
+        });
+        onClose();
+    };
+
+    return (
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <Input
+                label="Display Text"
+                value={displayText}
+                onChange={e => setDisplayText(e.target.value)}
+                placeholder="Enter custom text to display below counter"
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <Input
+                    label="Min Value"
+                    type="number"
+                    value={min}
+                    onChange={e => setMin(Number(e.target.value))}
+                />
+                <Input
+                    label="Max Value"
+                    type="number"
+                    value={max}
+                    onChange={e => setMax(Number(e.target.value))}
+                />
+                <Input
+                    label="Step"
+                    type="number"
+                    value={step}
+                    onChange={e => setStep(Number(e.target.value))}
+                    min="1"
+                />
+                <Input
+                    label="Initial Value"
+                    type="number"
+                    value={initialValue}
+                    onChange={e => setInitialValue(Number(e.target.value))}
+                />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem' }}>
+                <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+                <Button type="submit">Save</Button>
+            </div>
+        </form>
+    );
+};
 
 /**
  * Counter Plugin - A customizable counter with bounds and jitter animation
@@ -125,7 +195,7 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
                 {displayText && (
                     <div className="counter-text" style={{
                         fontSize: '0.875rem',
-                        color: 'var(--text-secondary)',
+                        color: 'var(--color-text-secondary)',
                         textAlign: 'center',
                         maxWidth: '90%',
                         wordBreak: 'break-word',
@@ -216,6 +286,7 @@ export const CounterDefinition: WidgetDefinition = {
     description: 'A customizable counter with min/max bounds, step value, and reset functionality.',
     icon: '🔢',
     component: Counter,
+    SettingsComponent: CounterSettingsComponent,
     defaultSettings: {
         value: 0,
         min: 0,

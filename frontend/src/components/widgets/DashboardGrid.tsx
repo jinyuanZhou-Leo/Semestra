@@ -34,6 +34,8 @@ interface DashboardGridProps {
     semesterId?: string;
     courseId?: string;
     updateCourse?: (updates: any) => void;
+    /** Lock widgets to prevent dragging and resizing */
+    isLocked?: boolean;
 }
 
 export const DashboardGrid: React.FC<DashboardGridProps> = ({
@@ -45,7 +47,8 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     onUpdateWidgetDebounced,
     semesterId,
     courseId,
-    updateCourse
+    updateCourse,
+    isLocked = false
 }) => {
     const isTouchDevice = useTouchDevice();
     const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 } as const;
@@ -100,11 +103,12 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                     minW,
                     minH,
                     maxW: layout.maxW,
-                    maxH: layout.maxH
+                    maxH: layout.maxH,
+                    static: isLocked // Disable drag and resize when locked
                 };
             })
         };
-    }, [widgets]);
+    }, [widgets, isLocked]);
 
     if (widgets.length === 0) {
         return (
@@ -125,6 +129,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
 
     return (
         <ResponsiveGridLayout
+            key={`grid-${isLocked ? 'locked' : 'unlocked'}`}
             className="layout"
             layouts={layouts}
             breakpoints={breakpoints}
@@ -139,8 +144,8 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             }}
             draggableHandle={isTouchDevice ? ".drag-surface" : ".drag-handle"}
             draggableCancel=".nodrag, input, textarea, button, select, option, a, [contenteditable='true'], [data-widget-control]"
-            isDraggable={true}
-            isResizable={!isTouchDevice}
+            isDraggable={!isLocked}
+            isResizable={!isLocked && !isTouchDevice}
         >
             {widgets.map((widget, index) => {
                 const isRemovable = widget.is_removable !== false;
@@ -157,6 +162,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                             semesterId={semesterId}
                             courseId={courseId}
                             updateCourse={updateCourse}
+                            isLocked={isLocked}
                         />
                     </div>
                 );

@@ -309,13 +309,13 @@ const handleChange = async (value: string) => {
 
 ### React.memo Optimization
 
-Widget components are automatically wrapped with `React.memo` at the framework level. The framework uses a custom comparison function that only triggers re-renders when:
-- Widget ID changes
-- Widget type changes
-- Settings object changes (deep comparison)
+Both Widget and Tab components are automatically wrapped with `React.memo` at the framework level. The framework uses custom comparison functions that only trigger re-renders when:
+- Widget/Tab ID changes
+- Widget/Tab type changes
+- Settings object changes (deep comparison via JSON.stringify)
 - Context (semesterId/courseId) changes
 
-**Important**: Do NOT manually wrap your widget component with `React.memo` - the `DashboardWidgetWrapper` already does this. However, for Tab components, you MAY optionally use `React.memo` if needed for performance optimization.
+**Important**: Do NOT manually wrap your widget or tab component with `React.memo` - the framework already handles this optimization via `DashboardWidgetWrapper` (for widgets) and `TabRegistry` (for tabs).
 
 ## Lifecycle Hooks
 

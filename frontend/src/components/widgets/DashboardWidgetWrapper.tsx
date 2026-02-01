@@ -15,6 +15,8 @@ interface DashboardWidgetWrapperProps {
     semesterId?: string;
     courseId?: string;
     updateCourse?: (updates: any) => void;
+    /** Lock widgets to prevent dragging and resizing */
+    isLocked?: boolean;
 }
 
 /**
@@ -34,7 +36,8 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     onUpdateWidgetDebounced,
     semesterId,
     courseId,
-    updateCourse
+    updateCourse,
+    isLocked = false
 }) => {
     const WidgetComponent = WidgetRegistry.getComponent(widget.type);
     const widgetDefinition = WidgetRegistry.get(widget.type);
@@ -128,12 +131,16 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
         return <div>Unknown Widget Type: {widget.type}</div>;
     }
 
+    // Check if widget has a settings component (auto-detect settings availability)
+    const hasSettings = !!widgetDefinition?.SettingsComponent;
+
     return (
         <WidgetContainer
             id={widget.id}
             onRemove={onRemove ? handleRemove : undefined}
-            onEdit={onEdit ? handleEdit : undefined}
+            onEdit={onEdit && hasSettings ? handleEdit : undefined}
             headerButtons={headerButtons}
+            isLocked={isLocked}
         >
             <WidgetComponent
                 widgetId={widget.id}
