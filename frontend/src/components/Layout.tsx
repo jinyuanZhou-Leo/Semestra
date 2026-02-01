@@ -14,46 +14,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
 
-    // Theme Logic - mirrored from SettingsPage but with added persistence check
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        if (typeof window === 'undefined') return false;
-
-        // 1. Check if DOM is already set (e.g. by SettingsPage or previous Layout mount)
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        if (currentTheme) {
-            return currentTheme === 'dark';
-        }
-
-        // 2. Check LocalStorage (Persistence)
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme) {
-            return savedTheme === 'dark';
-        }
-
-        // 3. Check System Preference
-        return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    });
-
-    const toggleTheme = () => {
-        const newMode = !isDarkMode;
-        setIsDarkMode(newMode);
-        const themeValue = newMode ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', themeValue);
-        localStorage.setItem('theme', themeValue);
-    };
-
-    // Initialize theme on mount to ensure consistency
+    // Initialize theme from localStorage on mount
     React.useEffect(() => {
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme) {
-            document.documentElement.setAttribute('data-theme', savedTheme);
-        } else {
-            // If no preference, we don't force 'data-theme' so CSS media query works, 
-            // but we update state to match system
-            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (systemDark !== isDarkMode) {
-                setIsDarkMode(systemDark);
-            }
+        const saved = localStorage.getItem('themePreference');
+        if (saved === 'light' || saved === 'dark') {
+            document.documentElement.setAttribute('data-theme', saved);
+        } else if (saved === 'system' || !saved) {
+            // Follow system preference
+            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', systemTheme);
+
+            // Listen for system theme changes when in system mode
+            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            const handler = (e: MediaQueryListEvent) => {
+                const currentPref = localStorage.getItem('themePreference');
+                if (currentPref === 'system' || !currentPref) {
+                    document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+                }
+            };
+            mediaQuery.addEventListener('change', handler);
+            return () => mediaQuery.removeEventListener('change', handler);
         }
     }, []);
 
@@ -133,59 +113,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <button
-                            onClick={toggleTheme}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: 'var(--color-text-primary)',
-                                padding: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: '50%',
-                                transition: 'background-color 0.2s',
-                            }}
-                            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                        >
-                            {isDarkMode ? (
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                                </svg>
-                            ) : (
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="12" cy="12" r="5"></circle>
-                                    <line x1="12" y1="1" x2="12" y2="3"></line>
-                                    <line x1="12" y1="21" x2="12" y2="23"></line>
-                                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                                    <line x1="1" y1="12" x2="3" y2="12"></line>
-                                    <line x1="21" y1="12" x2="23" y2="12"></line>
-                                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                                </svg>
-                            )}
-                        </button>
-
-                        <button
                             onClick={() => setIsPageBlurred(!isPageBlurred)}
                             style={{
                                 background: 'transparent',
                                 border: 'none',
                                 cursor: 'pointer',
-                                color: 'var(--color-text-primary)',
+                                color: 'var(--color-text-tertiary)',
                                 padding: '8px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 borderRadius: '50%',
-                                transition: 'background-color 0.2s',
+                                transition: 'background-color 0.2s, color 0.2s',
                             }}
                             title={isPageBlurred ? "Unblur page" : "Blur page"}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                e.currentTarget.style.color = 'var(--color-text-secondary)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.color = 'var(--color-text-tertiary)';
+                            }}
                         >
                             <svg
                                 width="20"
