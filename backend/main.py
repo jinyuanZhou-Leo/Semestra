@@ -280,12 +280,34 @@ def create_course_for_semester(
     ).first()
     if not semester:
         raise HTTPException(status_code=404, detail="Semester not found")
-    return crud.create_course(db=db, course=course, semester_id=semester_id)
+    return crud.create_course(db=db, course=course, program_id=semester.program_id, semester_id=semester_id)
+
+@app.post("/programs/{program_id}/courses/", response_model=schemas.Course)
+def create_course_for_program(
+    program_id: str, course: schemas.CourseCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    return crud.create_course(db=db, course=course, program_id=program_id, semester_id=None)
+
+@app.get("/programs/{program_id}/courses/", response_model=list[schemas.Course])
+def read_courses_for_program(
+    program_id: str, 
+    semester_id: str = None, 
+    unassigned: bool = False, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    return crud.get_courses(db, program_id=program_id, semester_id=semester_id, unassigned=unassigned)
 
 @app.get("/courses/{course_id}", response_model=schemas.CourseWithWidgets)
 def read_course(course_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    # Verify ownership via semester -> program -> user
-    db_course = db.query(models.Course).join(models.Semester).join(models.Program).filter(
+    # Verify ownership via program -> user
+    db_course = db.query(models.Course).join(models.Program).filter(
         models.Course.id == course_id, models.Program.owner_id == current_user.id
     ).first()
     if not db_course:
@@ -297,8 +319,8 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
 def update_course(
     course_id: str, course: schemas.CourseUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
-    # Verify ownership (via semester -> program -> user)
-    db_course = db.query(models.Course).join(models.Semester).join(models.Program).filter(
+    # Verify ownership (via program -> user)
+    db_course = db.query(models.Course).join(models.Program).filter(
         models.Course.id == course_id, models.Program.owner_id == current_user.id
     ).first()
     if not db_course:
@@ -310,7 +332,7 @@ def update_course(
 def delete_course(
     course_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
-    db_course = db.query(models.Course).join(models.Semester).join(models.Program).filter(
+    db_course = db.query(models.Course).join(models.Program).filter(
         models.Course.id == course_id, models.Program.owner_id == current_user.id
     ).first()
     if not db_course:

@@ -14,7 +14,7 @@ interface DashboardWidgetWrapperProps {
     onUpdateWidgetDebounced?: (id: string, newSettings: any) => void;
     semesterId?: string;
     courseId?: string;
-    updateCourseField?: (field: string, value: any) => void;
+    updateCourse?: (updates: any) => void;
 }
 
 /**
@@ -34,7 +34,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     onUpdateWidgetDebounced,
     semesterId,
     courseId,
-    updateCourseField
+    updateCourse
 }) => {
     const WidgetComponent = WidgetRegistry.getComponent(widget.type);
     const widgetDefinition = WidgetRegistry.get(widget.type);
@@ -141,7 +141,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                 semesterId={semesterId}
                 courseId={courseId}
                 updateSettings={handleUpdateSettings}
-                updateCourseField={updateCourseField}
+                updateCourse={updateCourse}
             />
         </WidgetContainer>
     );

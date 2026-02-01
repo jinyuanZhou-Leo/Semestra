@@ -104,10 +104,12 @@ class CourseUpdate(BaseModel):
     grade_scaled: Optional[float] = None
     include_in_gpa: Optional[bool] = None
     hide_gpa: Optional[bool] = None
+    semester_id: Optional[str] = None
 
 class Course(CourseBase):
     id: str
-    semester_id: str
+    program_id: str
+    semester_id: Optional[str] = None
     class Config:
         from_attributes = True
 

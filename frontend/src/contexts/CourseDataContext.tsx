@@ -12,7 +12,7 @@ interface CourseWithWidgets extends Course {
 interface CourseDataContextType {
     course: CourseWithWidgets | null;
     setCourse: React.Dispatch<React.SetStateAction<CourseWithWidgets | null>>;
-    updateCourseField: (field: string, value: any) => void;
+    updateCourse: (updates: Partial<CourseWithWidgets>) => void;
     refreshCourse: () => Promise<void>;
     isLoading: boolean;
 }
@@ -64,15 +64,15 @@ export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId
         }
     }, [courseId]);
 
-    const updateCourseField = useCallback((field: string, value: any) => {
+    const updateCourse = useCallback((updates: Partial<CourseWithWidgets>) => {
         // Update local state immediately for reactive UI
         setCourse(prev => {
             if (!prev) return prev;
-            return { ...prev, [field]: value };
+            return { ...prev, ...updates };
         });
 
         // Queue update for backend sync
-        pendingUpdates.current[field] = value;
+        pendingUpdates.current = { ...pendingUpdates.current, ...updates };
 
         // Debounce backend sync (1 second)
         if (syncTimerRef.current) {
@@ -99,7 +99,7 @@ export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId
     const value: CourseDataContextType = {
         course,
         setCourse,
-        updateCourseField,
+        updateCourse,
         refreshCourse: silentRefresh,
         isLoading
     };

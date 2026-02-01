@@ -25,6 +25,7 @@ export interface Course {
     credits: number;
     grade_scaled: number;
     grade_percentage: number;
+    program_id: string;
     semester_id?: string;
     include_in_gpa?: boolean;
     hide_gpa?: boolean;
@@ -104,6 +105,14 @@ const api = {
     },
 
     // Courses
+    createCourseForProgram: async (programId: string, data: any) => {
+        const response = await axios.post<Course>(`/api/programs/${programId}/courses/`, data);
+        return response.data;
+    },
+    getCoursesForProgram: async (programId: string, params?: { semester_id?: string, unassigned?: boolean }) => {
+        const response = await axios.get<Course[]>(`/api/programs/${programId}/courses/`, { params });
+        return response.data;
+    },
     createCourse: async (semesterId: string, data: any) => {
         const response = await axios.post<Course>(`/api/semesters/${semesterId}/courses/`, data);
         return response.data;
@@ -112,7 +121,7 @@ const api = {
         const response = await axios.get<Course & { widgets?: Widget[]; tabs?: Tab[] }>(`/api/courses/${id}`);
         return response.data;
     },
-    updateCourse: async (id: string, data: any) => {
+    updateCourse: async (id: string, data: Partial<Course>) => {
         const response = await axios.put<Course>(`/api/courses/${id}`, data);
         return response.data;
     },

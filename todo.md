@@ -1,0 +1,8 @@
+统一Semester, Course Context的实现逻辑
+
+
+把Course从Semester中删除，应当是从Semester中移除该Course而不是永久删除该Course。Course作为Semester的属性，Semester的设置应当有一个配置Course的设置选项，可以移除已经添加的Course，也可以添加新的Course。添加新Course时，应当弹出一个模态框，提供一个带有搜索功能的Course列表，包含所有无从属Semester的Course，用户可以搜索Course，然后选择添加到Semester中。也提供一个类似现在Courselist插件中的A新建Course功能
+
+Courselist插件只用来显示Course，不包含对Course增删改查的功能。
+
+Program Homepage也应当支持新建Course，使用和新建Semester相同的模态框

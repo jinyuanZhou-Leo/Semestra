@@ -6,13 +6,15 @@ interface SettingsSectionProps {
     description?: string;
     children: React.ReactNode;
     headerAction?: React.ReactNode;
+    center?: boolean;
 }
 
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
     title,
     description,
     children,
-    headerAction
+    headerAction,
+    center = false
 }) => {
     return (
         <Card
@@ -21,7 +23,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                 display: 'flex',
                 gap: '1.25rem',
                 flexWrap: 'wrap',
-                alignItems: 'flex-start'
+                alignItems: center ? 'center' : 'flex-start'
             }}
         >
             {(title || description || headerAction) && (

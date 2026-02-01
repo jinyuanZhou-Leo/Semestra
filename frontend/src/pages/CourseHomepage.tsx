@@ -21,7 +21,7 @@ import { TabRegistry } from '../services/tabRegistry';
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
-    const { course, updateCourseField, refreshCourse, isLoading } = useCourseData();
+    const { course, updateCourse, refreshCourse, isLoading } = useCourseData();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
@@ -220,38 +220,37 @@ const CourseHomepageContent: React.FC = () => {
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div
-                    key={tab.id}
-                    style={{
-                        padding: '1.25rem',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 'var(--radius-lg)',
-                        background: 'var(--color-bg-secondary)'
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem' }}>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
-                                Plugin
-                            </div>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>
-                                {definition?.name ?? tab.title ?? tab.type}
-                            </h3>
-                        </div>
+                <div key={tab.id}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        marginBottom: '1rem',
+                        paddingLeft: '0.5rem'
+                    }}>
                         <span style={{
-                            fontSize: '0.75rem',
+                            fontSize: '0.7rem',
                             textTransform: 'uppercase',
                             letterSpacing: '0.08em',
                             color: 'var(--color-primary)',
                             background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
                             border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
                             borderRadius: '999px',
-                            padding: '0.15rem 0.6rem',
+                            padding: '0.1rem 0.5rem',
                             fontWeight: 600
                         }}>
-                            Tab
+                            Plugin
                         </span>
+                        <h3 style={{
+                            margin: 0,
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                            color: 'var(--color-text-primary)'
+                        }}>
+                            {definition?.name ?? tab.title ?? tab.type}
+                        </h3>
                     </div>
+
                     <SettingsComponent
                         tabId={tab.id}
                         settings={tab.settings || {}}
@@ -293,7 +292,7 @@ const CourseHomepageContent: React.FC = () => {
             onUpdateWidgetDebounced: handleUpdateWidgetDebounced,
             onLayoutChange: handleLayoutChange,
             courseId: course?.id,
-            updateCourseField
+            updateCourse
         },
         settings: {
             initialName: course?.name ?? '',
@@ -318,7 +317,7 @@ const CourseHomepageContent: React.FC = () => {
         course?.credits,
         course?.include_in_gpa,
         course?.hide_gpa,
-        updateCourseField,
+        updateCourse,
         handleUpdateCourse,
         tabSettingsSections
     ]);

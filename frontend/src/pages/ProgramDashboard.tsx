@@ -14,12 +14,14 @@ import { AnimatedNumber } from '../components/AnimatedNumber';
 import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
 import { Skeleton } from '../components/Skeleton/Skeleton';
 import { ProgramDataProvider, useProgramData } from '../contexts/ProgramDataContext';
+import { CourseManagerModal } from '../components/CourseManagerModal';
 
 const ProgramDashboardContent: React.FC = () => {
     const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
     const [newSemesterName, setNewSemesterName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -375,7 +377,10 @@ const ProgramDashboardContent: React.FC = () => {
 
                         {/* Course List Section */}
                         <div style={{ marginBottom: '2rem' }}>
-                            <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>All Courses</h2>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h2 style={{ fontSize: '1.75rem', margin: 0 }}>All Courses</h2>
+                                <Button onClick={() => setIsCourseModalOpen(true)}>+ New Course</Button>
+                            </div>
                             <div style={{
                                 display: 'grid',
                                 gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
@@ -512,6 +517,15 @@ const ProgramDashboardContent: React.FC = () => {
                     }}
                     onSave={handleUpdateProgram}
                     type="program"
+                />
+            )}
+
+            {program && (
+                <CourseManagerModal
+                    isOpen={isCourseModalOpen}
+                    onClose={() => setIsCourseModalOpen(false)}
+                    programId={program.id}
+                    onCourseAdded={refreshProgram}
                 />
             )}
         </Layout>

@@ -11,7 +11,7 @@ type DashboardContextValue = {
     onLayoutChange: (layouts: any) => void;
     semesterId?: string;
     courseId?: string;
-    updateCourseField?: (field: string, value: any) => void;
+    updateCourse?: (updates: any) => void;
 };
 
 type SettingsContextValue = {

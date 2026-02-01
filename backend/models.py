@@ -59,7 +59,8 @@ class Course(Base):
     
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     name = Column(String, index=True)
-    semester_id = Column(String, ForeignKey("semesters.id"))
+    program_id = Column(String, ForeignKey("programs.id"), nullable=True) # Should be NOT NULL eventually
+    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
     
     credits = Column(Float, default=0.0)
     grade_percentage = Column(Float, default=0.0)

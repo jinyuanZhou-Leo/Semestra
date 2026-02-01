@@ -58,7 +58,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                 onUpdateWidgetDebounced={dashboard.onUpdateWidgetDebounced}
                 semesterId={dashboard.semesterId}
                 courseId={dashboard.courseId}
-                updateCourseField={dashboard.updateCourseField}
+                updateCourse={dashboard.updateCourse}
             />
         </>
     );

@@ -26,7 +26,7 @@ export interface WidgetProps {
      * Returns void since framework debounces API calls (Optimistic UI pattern)
      */
     updateSettings: (newSettings: any) => void | Promise<void>;
-    updateCourseField?: (field: string, value: any) => void;
+    updateCourse?: (updates: any) => void;
 }
 
 export interface WidgetLifecycleContext {

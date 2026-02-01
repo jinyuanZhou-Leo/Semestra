@@ -33,7 +33,7 @@ interface DashboardGridProps {
     onUpdateWidgetDebounced?: (id: string, newSettings: any) => void;
     semesterId?: string;
     courseId?: string;
-    updateCourseField?: (field: string, value: any) => void;
+    updateCourse?: (updates: any) => void;
 }
 
 export const DashboardGrid: React.FC<DashboardGridProps> = ({
@@ -45,7 +45,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     onUpdateWidgetDebounced,
     semesterId,
     courseId,
-    updateCourseField
+    updateCourse
 }) => {
     const isTouchDevice = useTouchDevice();
     const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 } as const;
@@ -140,7 +140,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                             onUpdateWidgetDebounced={onUpdateWidgetDebounced}
                             semesterId={semesterId}
                             courseId={courseId}
-                            updateCourseField={updateCourseField}
+                            updateCourse={updateCourse}
                         />
                     </div>
                 );

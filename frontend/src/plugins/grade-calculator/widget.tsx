@@ -21,7 +21,7 @@ interface Assessment {
  * - Plugin just calls updateSettings, framework does Optimistic UI + debounced API sync
  * - No need for internal debouncing logic
  */
-const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourseField }) => {
+const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourse }) => {
     const { user } = useAuth();
     // Use settings directly - framework handles Optimistic UI
     const assessments: Assessment[] = settings.assessments || [];
@@ -82,11 +82,13 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
 
     // Update course via context for reactive UI
     useEffect(() => {
-        if (totalPercentage === 100 && courseId && updateCourseField) {
-            updateCourseField('grade_percentage', totalGrade);
-            updateCourseField('grade_scaled', typeof totalGradeScaled === 'number' ? totalGradeScaled : 0);
+        if (totalPercentage === 100 && courseId && updateCourse) {
+            updateCourse({
+                grade_percentage: totalGrade,
+                grade_scaled: typeof totalGradeScaled === 'number' ? totalGradeScaled : 0
+            });
         }
-    }, [totalPercentage, totalGrade, totalGradeScaled, courseId, updateCourseField]);
+    }, [totalPercentage, totalGrade, totalGradeScaled, courseId, updateCourse]);
 
     // Simple handlers - just call updateSettings, framework handles debouncing
     const handleAddRow = useCallback(() => {

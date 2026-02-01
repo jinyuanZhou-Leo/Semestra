@@ -17,6 +17,7 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 import { TabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
+import { SemesterCoursesSettings } from '../components/SemesterCoursesSettings';
 
 const SemesterHomepageContent: React.FC = () => {
     const { semester, updateSemester, refreshSemester, isLoading } = useSemesterData();
@@ -220,38 +221,37 @@ const SemesterHomepageContent: React.FC = () => {
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div
-                    key={tab.id}
-                    style={{
-                        padding: '1.25rem',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 'var(--radius-lg)',
-                        background: 'var(--color-bg-secondary)'
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem' }}>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
-                                Plugin
-                            </div>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>
-                                {definition?.name ?? tab.title ?? tab.type}
-                            </h3>
-                        </div>
+                <div key={tab.id}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        marginBottom: '1rem',
+                        paddingLeft: '0.5rem'
+                    }}>
                         <span style={{
-                            fontSize: '0.75rem',
+                            fontSize: '0.7rem',
                             textTransform: 'uppercase',
                             letterSpacing: '0.08em',
                             color: 'var(--color-primary)',
                             background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
                             border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
                             borderRadius: '999px',
-                            padding: '0.15rem 0.6rem',
+                            padding: '0.1rem 0.5rem',
                             fontWeight: 600
                         }}>
-                            Tab
+                            Plugin
                         </span>
+                        <h3 style={{
+                            margin: 0,
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                            color: 'var(--color-text-primary)'
+                        }}>
+                            {definition?.name ?? tab.title ?? tab.type}
+                        </h3>
                     </div>
+
                     <SettingsComponent
                         tabId={tab.id}
                         settings={tab.settings || {}}
@@ -293,7 +293,19 @@ const SemesterHomepageContent: React.FC = () => {
             initialSettings: {},
             onSave: handleUpdateSemester,
             type: 'semester' as const,
-            extraSections: tabSettingsSections
+            extraSections: (
+                <>
+                    {semester && (
+                        <SemesterCoursesSettings
+                            semesterId={semester.id}
+                            programId={semester.program_id || ''}
+                            courses={semester.courses || []}
+                            onRefresh={refreshSemester}
+                        />
+                    )}
+                    {tabSettingsSections}
+                </>
+            )
         }
     }), [
         isLoading,

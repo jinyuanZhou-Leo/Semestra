@@ -17,9 +17,25 @@ export const SettingsPage: React.FC = () => {
     const navigate = useNavigate();
 
     // Theme state
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        return document.documentElement.getAttribute('data-theme') === 'dark';
+    const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
+        const saved = localStorage.getItem('themePreference');
+        return (saved === 'light' || saved === 'dark' || saved === 'system') ? saved : 'system';
     });
+
+    const applyTheme = (mode: 'light' | 'dark' | 'system') => {
+        if (mode === 'system') {
+            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', systemTheme);
+        } else {
+            document.documentElement.setAttribute('data-theme', mode);
+        }
+    };
+
+    const handleThemeChange = (mode: 'light' | 'dark' | 'system') => {
+        setThemeMode(mode);
+        localStorage.setItem('themePreference', mode);
+        applyTheme(mode);
+    };
 
     // Global Defaults State
     const [gpaTableJson, setGpaTableJson] = useState('{}');
@@ -228,13 +244,6 @@ export const SettingsPage: React.FC = () => {
         navigate('/login');
     };
 
-    const toggleTheme = () => {
-        const newMode = !isDarkMode;
-        setIsDarkMode(newMode);
-        document.documentElement.setAttribute('data-theme', newMode ? 'dark' : 'light');
-        localStorage.setItem('theme', newMode ? 'dark' : 'light');
-    };
-
     return (
         <Layout>
             <Container padding="2rem">
@@ -244,18 +253,41 @@ export const SettingsPage: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <SettingsSection
                     title="Appearance"
-                    description="Switch between light and dark mode."
+                        description="Customize the look and feel of the application."
+                        center
                 >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
                         <div>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', userSelect: 'none' }}>Theme</h3>
-                            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', userSelect: 'none' }}>
-                                Choose your preferred interface style
-                            </p>
-                        </div>
-                        <Button variant="secondary" onClick={toggleTheme}>
-                            {isDarkMode ? '🌙 Dark Mode' : '☀️ Light Mode'}
-                        </Button>
+                                <h3 style={{ fontSize: '1.1rem', margin: 0, userSelect: 'none' }}>Theme</h3>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--color-bg-secondary)', padding: '0.25rem', borderRadius: 'var(--radius-md)' }}>
+                                {(['light', 'dark', 'system'] as const).map((mode) => (
+                                    <button
+                                        key={mode}
+                                        onClick={() => handleThemeChange(mode)}
+                                        style={{
+                                            border: 'none',
+                                            background: themeMode === mode ? 'var(--color-bg-primary)' : 'transparent',
+                                            color: themeMode === mode ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                                            padding: '0.4rem 0.8rem',
+                                            borderRadius: 'var(--radius-sm)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            fontWeight: 500,
+                                            boxShadow: themeMode === mode ? 'var(--shadow-sm)' : 'none',
+                                            transition: 'all 0.2s',
+                                            userSelect: 'none',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem'
+                                        }}
+                                    >
+                                        {mode === 'light' && '☀️ Light'}
+                                        {mode === 'dark' && '🌙 Dark'}
+                                        {mode === 'system' && '🖥️ System'}
+                                    </button>
+                                ))}
+                            </div>
                     </div>
                 </SettingsSection>
 

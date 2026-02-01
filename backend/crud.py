@@ -141,14 +141,19 @@ def delete_semester(db: Session, semester_id: str):
 import logic
 
 # --- Course CRUD ---
-def get_courses(db: Session, semester_id: str):
-    return db.query(models.Course).filter(models.Course.semester_id == semester_id).all()
+def get_courses(db: Session, program_id: str, semester_id: str | None = None, unassigned: bool = False):
+    query = db.query(models.Course).filter(models.Course.program_id == program_id)
+    if unassigned:
+        query = query.filter(models.Course.semester_id == None)
+    elif semester_id:
+        query = query.filter(models.Course.semester_id == semester_id)
+    return query.all()
 
 def get_course(db: Session, course_id: str):
     return db.query(models.Course).filter(models.Course.id == course_id).first()
 
-def create_course(db: Session, course: schemas.CourseCreate, semester_id: str):
-    db_course = models.Course(**course.dict(), semester_id=semester_id)
+def create_course(db: Session, course: schemas.CourseCreate, program_id: str, semester_id: str | None = None):
+    db_course = models.Course(**course.dict(), program_id=program_id, semester_id=semester_id)
     db.add(db_course)
     db.commit()
     db.refresh(db_course)
@@ -161,7 +166,8 @@ def create_course(db: Session, course: schemas.CourseCreate, semester_id: str):
     ), course_id=db_course.id)
 
     # Trigger logic
-    logic.update_course_stats(db_course, db)
+    if semester_id:
+        logic.update_course_stats(db_course, db)
     
     return db_course
 
@@ -178,7 +184,8 @@ def update_course(db: Session, course_id: str, course_update: schemas.CourseUpda
     db.refresh(db_course)
     
     # Trigger logic
-    logic.update_course_stats(db_course, db)
+    if db_course.semester_id:
+        logic.update_course_stats(db_course, db)
     
     return db_course
 
