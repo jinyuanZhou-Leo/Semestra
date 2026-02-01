@@ -3,7 +3,7 @@ import api from '../services/api';
 import type { Semester, Course, Widget, Tab } from '../services/api';
 import { useDataFetch } from '../hooks/useDataFetch';
 
-type SemesterWithDetails = Semester & { courses: Course[]; widgets: Widget[]; tabs?: Tab[] };
+type SemesterWithDetails = Semester & { courses: Course[]; widgets?: Widget[]; tabs?: Tab[] };
 
 interface SemesterDataContextType {
     semester: SemesterWithDetails | null;
