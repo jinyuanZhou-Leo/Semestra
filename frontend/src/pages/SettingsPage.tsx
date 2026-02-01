@@ -11,6 +11,7 @@ import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
 import { SettingsSection } from '../components/SettingsSection';
 import api from '../services/api';
+import versionInfo from '../version.json';
 
 
 export const SettingsPage: React.FC = () => {
@@ -486,6 +487,24 @@ export const SettingsPage: React.FC = () => {
                         </Button>
                     </div>
                 </SettingsSection>
+                </div>
+
+                {/* Version Info */}
+                <div style={{
+                    marginTop: '3rem',
+                    paddingTop: '1.5rem',
+                    borderTop: '1px solid var(--color-border)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.75rem',
+                    color: 'var(--color-text-tertiary)',
+                    userSelect: 'none'
+                }}>
+                    <span>v{versionInfo.version}</span>
+                    <span>•</span>
+                    <span>{versionInfo.branch}@{versionInfo.commit}</span>
                 </div>
             </Container>
         </Layout>
