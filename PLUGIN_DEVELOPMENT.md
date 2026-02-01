@@ -33,7 +33,21 @@ Do not reuse these `type` values in custom plugins.
 ### Auto Registration
 
 `widget-setup.ts` and `tab-setup.ts` automatically scan all plugin `index.ts` files using `import.meta.glob`.
-If you export `widgetDefinition` and/or `tabDefinition`, the framework registers them at startup.
+If you export `widgetDefinition` and/or `tabDefinition`, the framework registers them asynchronously.
+
+**Lazy Loading**: Plugins are loaded asynchronously in the background. The UI renders immediately without waiting for plugins to load. When plugins finish loading, components automatically re-render to show the newly available widgets/tabs.
+
+**Reactive Hooks**: Use `useWidgetRegistry()` and `useTabRegistry()` hooks to subscribe to registry changes:
+
+```typescript
+import { useWidgetRegistry } from '../services/widgetRegistry';
+import { useTabRegistry } from '../services/tabRegistry';
+
+// These hooks return the current list of registered widgets/tabs
+// and automatically re-render when new plugins are registered
+const widgets = useWidgetRegistry();
+const tabs = useTabRegistry();
+```
 
 ## Structure
 

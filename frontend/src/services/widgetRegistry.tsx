@@ -67,14 +67,28 @@ export interface WidgetDefinition {
     onDelete?: (context: WidgetLifecycleContext) => Promise<void> | void;
 }
 
+type Listener = () => void;
+
 class WidgetRegistryClass {
     private widgets: Map<string, WidgetDefinition> = new Map();
+    private listeners: Set<Listener> = new Set();
 
     register(definition: WidgetDefinition) {
         if (this.widgets.has(definition.type)) {
             console.warn(`Widget type ${definition.type} is already registered. Overwriting.`);
         }
         this.widgets.set(definition.type, definition);
+        // Notify all subscribers when a new widget is registered
+        this.notifyListeners();
+    }
+
+    private notifyListeners() {
+        this.listeners.forEach(listener => listener());
+    }
+
+    subscribe(listener: Listener): () => void {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
     }
 
     get(type: string): WidgetDefinition | undefined {
@@ -89,6 +103,8 @@ class WidgetRegistryClass {
         return this.widgets.get(type)?.component;
     }
 }
+
+export const WidgetRegistry = new WidgetRegistryClass();
 
 const DEFAULT_ALLOWED_CONTEXTS: WidgetContext[] = ['semester', 'course'];
 
@@ -109,4 +125,24 @@ export const canAddWidget = (definition: WidgetDefinition, context: WidgetContex
     return true;
 };
 
-export const WidgetRegistry = new WidgetRegistryClass();
+/**
+ * React Hook to subscribe to widget registry changes.
+ * Automatically re-renders when new widgets are registered.
+ */
+export const useWidgetRegistry = (): WidgetDefinition[] => {
+    const [widgets, setWidgets] = React.useState<WidgetDefinition[]>(() => WidgetRegistry.getAll());
+
+    React.useEffect(() => {
+        // Update immediately in case widgets were registered before subscription
+        setWidgets(WidgetRegistry.getAll());
+
+        // Subscribe to future changes
+        const unsubscribe = WidgetRegistry.subscribe(() => {
+            setWidgets(WidgetRegistry.getAll());
+        });
+
+        return unsubscribe;
+    }, []);
+
+    return widgets;
+};

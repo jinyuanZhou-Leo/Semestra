@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
+import { useWidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
 import { IconCircle } from './IconCircle';
 import type { WidgetItem } from './widgets/DashboardGrid';
 
@@ -16,17 +16,20 @@ interface AddWidgetModalProps {
 export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose, onAdd, context, widgets }) => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
 
+    // Use reactive hook - automatically updates when plugins are registered
+    const allWidgets = useWidgetRegistry();
+
     const availableWidgets = useMemo(() => {
         const counts = new Map<string, number>();
         widgets.forEach((widget) => {
             counts.set(widget.type, (counts.get(widget.type) ?? 0) + 1);
         });
 
-        return WidgetRegistry.getAll().filter((definition) => {
+        return allWidgets.filter((definition) => {
             const currentCount = counts.get(definition.type) ?? 0;
             return canAddWidget(definition, context, currentCount);
         });
-    }, [context, widgets]);
+    }, [context, widgets, allWidgets]);
 
     useEffect(() => {
         if (selectedType && !availableWidgets.some((widget) => widget.type === selectedType)) {

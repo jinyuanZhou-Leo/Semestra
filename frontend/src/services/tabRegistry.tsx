@@ -42,10 +42,13 @@ export interface TabDefinition {
     onDelete?: (context: TabLifecycleContext) => Promise<void> | void;
 }
 
+type Listener = () => void;
+
 class TabRegistryClass {
     private tabs: Map<string, TabDefinition> = new Map();
     private memoizedComponents: Map<string, React.FC<TabProps>> = new Map();
     private memoizedSettingsComponents: Map<string, React.FC<TabSettingsProps>> = new Map();
+    private listeners: Set<Listener> = new Set();
 
     register(definition: TabDefinition) {
         if (this.tabs.has(definition.type)) {
@@ -55,6 +58,17 @@ class TabRegistryClass {
             this.memoizedSettingsComponents.delete(definition.type);
         }
         this.tabs.set(definition.type, definition);
+        // Notify all subscribers when a new tab is registered
+        this.notifyListeners();
+    }
+
+    private notifyListeners() {
+        this.listeners.forEach(listener => listener());
+    }
+
+    subscribe(listener: Listener): () => void {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
     }
 
     get(type: string): TabDefinition | undefined {
@@ -115,6 +129,8 @@ class TabRegistryClass {
     }
 }
 
+export const TabRegistry = new TabRegistryClass();
+
 const DEFAULT_ALLOWED_CONTEXTS: TabContext[] = ['semester', 'course'];
 
 export const resolveAllowedContexts = (definition: TabDefinition) => {
@@ -134,4 +150,24 @@ export const canAddTab = (definition: TabDefinition, context: TabContext, curren
     return true;
 };
 
-export const TabRegistry = new TabRegistryClass();
+/**
+ * React Hook to subscribe to tab registry changes.
+ * Automatically re-renders when new tabs are registered.
+ */
+export const useTabRegistry = (): TabDefinition[] => {
+    const [tabs, setTabs] = React.useState<TabDefinition[]>(() => TabRegistry.getAll());
+
+    React.useEffect(() => {
+        // Update immediately in case tabs were registered before subscription
+        setTabs(TabRegistry.getAll());
+
+        // Subscribe to future changes
+        const unsubscribe = TabRegistry.subscribe(() => {
+            setTabs(TabRegistry.getAll());
+        });
+
+        return unsubscribe;
+    }, []);
+
+    return tabs;
+};

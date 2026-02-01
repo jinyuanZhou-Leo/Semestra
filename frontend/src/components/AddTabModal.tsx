@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { TabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
+import { useTabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
 import { IconCircle } from './IconCircle';
 import type { TabItem } from '../hooks/useDashboardTabs';
 
@@ -16,16 +16,19 @@ interface AddTabModalProps {
 export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd, context, tabs }) => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
 
+    // Use reactive hook - automatically updates when plugins are registered
+    const allTabs = useTabRegistry();
+
     const availableTabs = useMemo(() => {
         const counts = new Map<string, number>();
         tabs.forEach(tab => {
             counts.set(tab.type, (counts.get(tab.type) ?? 0) + 1);
         });
-        return TabRegistry.getAll().filter(definition => {
+        return allTabs.filter(definition => {
             const currentCount = counts.get(definition.type) ?? 0;
             return canAddTab(definition, context, currentCount);
         });
-    }, [context, tabs]);
+    }, [context, tabs, allTabs]);
 
     useEffect(() => {
         if (selectedType && !availableTabs.some(tab => tab.type === selectedType)) {

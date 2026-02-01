@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -12,8 +12,10 @@ import { Container } from '../components/Container';
 import { SettingsSection } from '../components/SettingsSection';
 import api from '../services/api';
 import versionInfo from '../version.json';
-import { ImportPreviewModal, type ImportData, type ConflictMode } from '../components/ImportPreviewModal';
+import type { ImportData, ConflictMode } from '../components/ImportPreviewModal';
 
+// Lazy load ImportPreviewModal - only loaded when user clicks Import
+const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
 
 export const SettingsPage: React.FC = () => {
     const { user, logout, refreshUser } = useAuth();
@@ -577,21 +579,25 @@ export const SettingsPage: React.FC = () => {
                                 </Button>
                             </div>
 
-                            <ImportPreviewModal
-                                isOpen={importModalOpen}
-                                onClose={() => {
-                                    setImportModalOpen(false);
-                                    setImportData(null);
-                                }}
-                                importData={importData}
-                                existingProgramNames={existingProgramNames}
-                                onConfirm={async (conflictMode: ConflictMode, includeSettings: boolean) => {
-                                    if (!importData) return;
-                                    const result = await api.importUserData(importData, conflictMode, includeSettings);
-                                    alert(`Import successful!\n\nImported: ${result.imported.programs} programs, ${result.imported.semesters} semesters, ${result.imported.courses} courses${result.skipped?.programs > 0 ? `\nSkipped: ${result.skipped.programs} programs (conflicts)` : ''}`);
-                                    await refreshUser();
-                                }}
-                            />
+                            {importModalOpen && (
+                                <Suspense fallback={null}>
+                                    <ImportPreviewModal
+                                        isOpen={importModalOpen}
+                                        onClose={() => {
+                                            setImportModalOpen(false);
+                                            setImportData(null);
+                                        }}
+                                        importData={importData}
+                                        existingProgramNames={existingProgramNames}
+                                        onConfirm={async (conflictMode: ConflictMode, includeSettings: boolean) => {
+                                            if (!importData) return;
+                                            const result = await api.importUserData(importData, conflictMode, includeSettings);
+                                            alert(`Import successful!\n\nImported: ${result.imported.programs} programs, ${result.imported.semesters} semesters, ${result.imported.courses} courses${result.skipped?.programs > 0 ? `\nSkipped: ${result.skipped.programs} programs (conflicts)` : ''}`);
+                                            await refreshUser();
+                                        }}
+                                    />
+                                </Suspense>
+                            )}
                         </div>
                     </SettingsSection>
                 </div>
