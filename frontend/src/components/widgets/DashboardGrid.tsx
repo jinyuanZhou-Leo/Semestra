@@ -60,7 +60,23 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
         const totalMargin = margin[0] * (activeCols - 1);
         const totalPadding = containerPadding[0] * 2;
         const columnWidth = (activeWidth - totalMargin - totalPadding) / activeCols;
-        return Math.max(40, Math.floor(columnWidth));
+
+        // Use responsive scale factor for row height
+        // Desktop: full square (1.0x), Tablet: slightly compressed (0.8x), Mobile: more compressed (0.6x)
+        let scale = 1.0;
+        if (activeCols <= 2) {
+            // xxs breakpoint
+            scale = 0.6;
+        } else if (activeCols <= 4) {
+            // xs breakpoint
+            scale = 0.6;
+        } else if (activeCols <= 6) {
+            // sm breakpoint
+            scale = 0.8;
+        }
+
+        const scaledRowHeight = columnWidth * scale;
+        return Math.max(40, Math.floor(scaledRowHeight));
     }, [activeWidth, activeCols, margin, containerPadding]);
 
     // Convert widgets to RGL layout format
