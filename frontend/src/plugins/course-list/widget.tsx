@@ -149,5 +149,5 @@ export const CourseListDefinition: WidgetDefinition = {
     component: CourseList,
     maxInstances: 1,
     allowedContexts: ['semester'],
-    layout: { w: 4, h: 3, minW: 4, minH: 3, maxW: 6, maxH: 6 }
+    layout: { w: 4, h: 3, minW: 3, minH: 2, maxW: 6, maxH: 6 }
 };

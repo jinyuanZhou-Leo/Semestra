@@ -215,5 +215,5 @@ export const GradeCalculatorDefinition: WidgetDefinition = {
     maxInstances: 1,
     allowedContexts: ['course'],
     defaultSettings: { assessments: [] },
-    layout: { w: 4, h: 5, minW: 4, minH: 3, maxW: 6, maxH: 6 }
+    layout: { w: 4, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 }
 };
