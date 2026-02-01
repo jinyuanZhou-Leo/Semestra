@@ -169,3 +169,60 @@ class Program(ProgramBase):
 
 class ProgramWithSemesters(Program):
     semesters: List[SemesterWithDetails] = []
+
+
+# --- Export/Import Schemas ---
+class WidgetExport(BaseModel):
+    widget_type: str
+    layout_config: str = "{}"
+    settings: str = "{}"
+    is_removable: bool = True
+
+class TabExport(BaseModel):
+    tab_type: str
+    settings: str = "{}"
+    order_index: int = 0
+    is_removable: bool = True
+
+class CourseExport(BaseModel):
+    name: str
+    credits: float = 0.0
+    grade_percentage: float = 0.0
+    grade_scaled: float = 0.0
+    include_in_gpa: bool = True
+    hide_gpa: bool = False
+    widgets: List[WidgetExport] = []
+    tabs: List[TabExport] = []
+
+class SemesterExport(BaseModel):
+    name: str
+    average_percentage: float = 0.0
+    average_scaled: float = 0.0
+    courses: List[CourseExport] = []
+    widgets: List[WidgetExport] = []
+    tabs: List[TabExport] = []
+
+class ProgramExport(BaseModel):
+    name: str
+    cgpa_scaled: float = 0.0
+    cgpa_percentage: float = 0.0
+    gpa_scaling_table: Optional[str] = None
+    grad_requirement_credits: float = 0.0
+    hide_gpa: bool = False
+    semesters: List[SemesterExport] = []
+
+class UserSettingsExport(BaseModel):
+    nickname: Optional[str] = None
+    gpa_scaling_table: Optional[str] = None
+    default_course_credit: float = 0.0
+
+class UserDataExport(BaseModel):
+    version: str = "1.0"
+    exported_at: str
+    settings: UserSettingsExport
+    programs: List[ProgramExport] = []
+
+class UserDataImport(BaseModel):
+    version: Optional[str] = None
+    settings: Optional[UserSettingsExport] = None
+    programs: List[ProgramExport] = []

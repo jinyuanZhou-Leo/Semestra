@@ -12,6 +12,7 @@ import { Container } from '../components/Container';
 import { SettingsSection } from '../components/SettingsSection';
 import api from '../services/api';
 import versionInfo from '../version.json';
+import { ImportPreviewModal, type ImportData, type ConflictMode } from '../components/ImportPreviewModal';
 
 
 export const SettingsPage: React.FC = () => {
@@ -47,6 +48,11 @@ export const SettingsPage: React.FC = () => {
     // Dirty checking
     const [initialState, setInitialState] = useState<{ nickname: string, gpaTableJson: string, defaultCourseCredit: number } | null>(null);
     const [isDirty, setIsDirty] = useState(false);
+
+    // Import modal state
+    const [importModalOpen, setImportModalOpen] = useState(false);
+    const [importData, setImportData] = useState<ImportData | null>(null);
+    const [existingProgramNames, setExistingProgramNames] = useState<string[]>([]);
 
     const [googleLinkError, setGoogleLinkError] = useState('');
     const [googleLinkSuccess, setGoogleLinkSuccess] = useState(false);
@@ -487,6 +493,107 @@ export const SettingsPage: React.FC = () => {
                         </Button>
                     </div>
                 </SettingsSection>
+
+                    <SettingsSection
+                        title="Data Management"
+                        description="Backup and restore your account data."
+                        center
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.05rem', marginBottom: '0.25rem', userSelect: 'none' }}>Export Data</h3>
+                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0, userSelect: 'none' }}>
+                                        Download all your programs, semesters, and courses as a JSON file.
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="secondary"
+                                    onClick={async () => {
+                                        try {
+                                            const data = await api.exportUserData();
+                                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `semestra-backup-${new Date().toISOString().split('T')[0]}.json`;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            document.body.removeChild(a);
+                                            URL.revokeObjectURL(url);
+                                        } catch (error) {
+                                            console.error('Export failed:', error);
+                                            alert('Export failed. Please try again.');
+                                        }
+                                    }}
+                                    style={{ minWidth: '140px' }}
+                                >
+                                    📥 Export
+                                </Button>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.05rem', marginBottom: '0.25rem', userSelect: 'none' }}>Import Data</h3>
+                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0, userSelect: 'none' }}>
+                                        Restore data from a previously exported JSON file.
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.accept = '.json,application/json';
+                                        input.onchange = async (e) => {
+                                            const file = (e.target as HTMLInputElement).files?.[0];
+                                            if (!file) return;
+
+                                            try {
+                                                const text = await file.text();
+                                                const data = JSON.parse(text) as ImportData;
+
+                                                // Validate basic structure
+                                                if (!data.programs || !Array.isArray(data.programs)) {
+                                                    alert('Invalid backup file format.');
+                                                    return;
+                                                }
+
+                                                // Fetch existing programs to detect conflicts
+                                                const programs = await api.getPrograms();
+                                                setExistingProgramNames(programs.map(p => p.name));
+                                                setImportData(data);
+                                                setImportModalOpen(true);
+                                            } catch (error: any) {
+                                                console.error('Import failed:', error);
+                                                alert('Import failed. Please make sure the file is a valid Semestra backup.');
+                                            }
+                                        };
+                                        input.click();
+                                    }}
+                                    style={{ minWidth: '140px' }}
+                                >
+                                    📤 Import
+                                </Button>
+                            </div>
+
+                            <ImportPreviewModal
+                                isOpen={importModalOpen}
+                                onClose={() => {
+                                    setImportModalOpen(false);
+                                    setImportData(null);
+                                }}
+                                importData={importData}
+                                existingProgramNames={existingProgramNames}
+                                onConfirm={async (conflictMode: ConflictMode, includeSettings: boolean) => {
+                                    if (!importData) return;
+                                    const result = await api.importUserData(importData, conflictMode, includeSettings);
+                                    alert(`Import successful!\n\nImported: ${result.imported.programs} programs, ${result.imported.semesters} semesters, ${result.imported.courses} courses${result.skipped?.programs > 0 ? `\nSkipped: ${result.skipped.programs} programs (conflicts)` : ''}`);
+                                    await refreshUser();
+                                }}
+                            />
+                        </div>
+                    </SettingsSection>
                 </div>
 
                 {/* Version Info */}

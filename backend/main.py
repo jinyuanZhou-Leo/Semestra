@@ -166,6 +166,275 @@ async def read_users_me(current_user: models.User = Depends(auth.get_current_use
 async def update_user_me(user_update: schemas.UserUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     return crud.update_user(db, current_user.id, user_update)
 
+from datetime import datetime
+
+@app.get("/users/me/export", response_model=schemas.UserDataExport)
+async def export_user_data(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Export all user data (programs, semesters, courses, widgets, tabs)."""
+    programs = crud.get_programs(db, user_id=current_user.id)
+    
+    programs_export = []
+    for program in programs:
+        semesters_export = []
+        for semester in program.semesters:
+            # Courses for this semester
+            courses_export = []
+            for course in semester.courses:
+                widgets_export = [
+                    schemas.WidgetExport(
+                        widget_type=w.widget_type,
+                        layout_config=w.layout_config,
+                        settings=w.settings,
+                        is_removable=w.is_removable
+                    ) for w in course.widgets
+                ]
+                tabs_export = [
+                    schemas.TabExport(
+                        tab_type=t.tab_type,
+                        settings=t.settings,
+                        order_index=t.order_index,
+                        is_removable=t.is_removable
+                    ) for t in course.tabs
+                ]
+                courses_export.append(schemas.CourseExport(
+                    name=course.name,
+                    credits=course.credits,
+                    grade_percentage=course.grade_percentage,
+                    grade_scaled=course.grade_scaled,
+                    include_in_gpa=course.include_in_gpa,
+                    hide_gpa=course.hide_gpa,
+                    widgets=widgets_export,
+                    tabs=tabs_export
+                ))
+            
+            # Semester widgets and tabs
+            semester_widgets = [
+                schemas.WidgetExport(
+                    widget_type=w.widget_type,
+                    layout_config=w.layout_config,
+                    settings=w.settings,
+                    is_removable=w.is_removable
+                ) for w in semester.widgets
+            ]
+            semester_tabs = [
+                schemas.TabExport(
+                    tab_type=t.tab_type,
+                    settings=t.settings,
+                    order_index=t.order_index,
+                    is_removable=t.is_removable
+                ) for t in semester.tabs
+            ]
+            
+            semesters_export.append(schemas.SemesterExport(
+                name=semester.name,
+                average_percentage=semester.average_percentage,
+                average_scaled=semester.average_scaled,
+                courses=courses_export,
+                widgets=semester_widgets,
+                tabs=semester_tabs
+            ))
+        
+        programs_export.append(schemas.ProgramExport(
+            name=program.name,
+            cgpa_scaled=program.cgpa_scaled,
+            cgpa_percentage=program.cgpa_percentage,
+            gpa_scaling_table=program.gpa_scaling_table,
+            grad_requirement_credits=program.grad_requirement_credits,
+            hide_gpa=program.hide_gpa,
+            semesters=semesters_export
+        ))
+    
+    return schemas.UserDataExport(
+        version="1.0",
+        exported_at=datetime.utcnow().isoformat(),
+        settings=schemas.UserSettingsExport(
+            nickname=current_user.nickname,
+            gpa_scaling_table=current_user.gpa_scaling_table,
+            default_course_credit=current_user.default_course_credit
+        ),
+        programs=programs_export
+    )
+
+@app.post("/users/me/import")
+async def import_user_data(
+    data: schemas.UserDataImport,
+    conflict_mode: str = "skip",
+    include_settings: bool = True,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Import user data with smart conflict handling.
+    conflict_mode: 'skip' (ignore conflicts), 'overwrite' (replace existing), 'rename' (add suffix)
+    """
+    if conflict_mode not in ["skip", "overwrite", "rename"]:
+        raise HTTPException(status_code=400, detail="conflict_mode must be 'skip', 'overwrite', or 'rename'")
+    
+    # Get existing program names for conflict detection
+    existing_programs = crud.get_programs(db, user_id=current_user.id)
+    existing_names = {p.name.lower(): p for p in existing_programs}
+    
+    # Import settings if provided and requested
+    if include_settings and data.settings:
+        update_data = {}
+        if data.settings.nickname is not None:
+            update_data["nickname"] = data.settings.nickname
+        if data.settings.gpa_scaling_table is not None:
+            update_data["gpa_scaling_table"] = data.settings.gpa_scaling_table
+        if data.settings.default_course_credit is not None:
+            update_data["default_course_credit"] = data.settings.default_course_credit
+        if update_data:
+            crud.update_user(db, current_user.id, schemas.UserUpdate(**update_data))
+    
+    # Import programs with conflict handling
+    imported_programs = 0
+    skipped_programs = 0
+    imported_semesters = 0
+    imported_courses = 0
+    
+    def import_program_data(program_data, program_name: str):
+        """Helper to import a program and its nested data."""
+        nonlocal imported_programs, imported_semesters, imported_courses
+        
+        program = crud.create_program(
+            db=db,
+            program=schemas.ProgramCreate(
+                name=program_name,
+                cgpa_scaled=program_data.cgpa_scaled,
+                cgpa_percentage=program_data.cgpa_percentage,
+                gpa_scaling_table=program_data.gpa_scaling_table,
+                grad_requirement_credits=program_data.grad_requirement_credits,
+                hide_gpa=program_data.hide_gpa
+            ),
+            user_id=current_user.id
+        )
+        imported_programs += 1
+        
+        for semester_data in program_data.semesters:
+            semester = crud.create_semester(
+                db=db,
+                semester=schemas.SemesterCreate(
+                    name=semester_data.name,
+                    average_percentage=semester_data.average_percentage,
+                    average_scaled=semester_data.average_scaled
+                ),
+                program_id=program.id
+            )
+            imported_semesters += 1
+            
+            # Create semester widgets
+            for widget_data in semester_data.widgets:
+                crud.create_widget(
+                    db=db,
+                    widget=schemas.WidgetCreate(
+                        widget_type=widget_data.widget_type,
+                        layout_config=widget_data.layout_config,
+                        settings=widget_data.settings,
+                        is_removable=widget_data.is_removable
+                    ),
+                    semester_id=semester.id
+                )
+            
+            # Create semester tabs
+            for tab_data in semester_data.tabs:
+                crud.create_tab(
+                    db=db,
+                    tab=schemas.TabCreate(
+                        tab_type=tab_data.tab_type,
+                        settings=tab_data.settings,
+                        order_index=tab_data.order_index,
+                        is_removable=tab_data.is_removable
+                    ),
+                    semester_id=semester.id
+                )
+            
+            # Create courses
+            for course_data in semester_data.courses:
+                course = crud.create_course(
+                    db=db,
+                    course=schemas.CourseCreate(
+                        name=course_data.name,
+                        credits=course_data.credits,
+                        grade_percentage=course_data.grade_percentage,
+                        grade_scaled=course_data.grade_scaled,
+                        include_in_gpa=course_data.include_in_gpa,
+                        hide_gpa=course_data.hide_gpa
+                    ),
+                    program_id=program.id,
+                    semester_id=semester.id
+                )
+                imported_courses += 1
+                
+                # Create course widgets
+                for widget_data in course_data.widgets:
+                    crud.create_widget(
+                        db=db,
+                        widget=schemas.WidgetCreate(
+                            widget_type=widget_data.widget_type,
+                            layout_config=widget_data.layout_config,
+                            settings=widget_data.settings,
+                            is_removable=widget_data.is_removable
+                        ),
+                        course_id=course.id
+                    )
+                
+                # Create course tabs
+                for tab_data in course_data.tabs:
+                    crud.create_tab(
+                        db=db,
+                        tab=schemas.TabCreate(
+                            tab_type=tab_data.tab_type,
+                            settings=tab_data.settings,
+                            order_index=tab_data.order_index,
+                            is_removable=tab_data.is_removable
+                        ),
+                        course_id=course.id
+                    )
+    
+    for program_data in data.programs:
+        name_lower = program_data.name.lower()
+        
+        if name_lower in existing_names:
+            # Conflict detected
+            if conflict_mode == "skip":
+                skipped_programs += 1
+                continue
+            elif conflict_mode == "overwrite":
+                # Delete existing program first
+                existing_program = existing_names[name_lower]
+                crud.delete_program(db, program_id=existing_program.id, user_id=current_user.id)
+                import_program_data(program_data, program_data.name)
+            elif conflict_mode == "rename":
+                # Find a unique name
+                suffix = 2
+                new_name = f"{program_data.name} ({suffix})"
+                while new_name.lower() in existing_names:
+                    suffix += 1
+                    new_name = f"{program_data.name} ({suffix})"
+                import_program_data(program_data, new_name)
+                # Add to existing names to prevent future conflicts
+                existing_names[new_name.lower()] = True
+        else:
+            # No conflict, just import
+            import_program_data(program_data, program_data.name)
+            existing_names[name_lower] = True
+    
+    return {
+        "ok": True,
+        "conflict_mode": conflict_mode,
+        "imported": {
+            "programs": imported_programs,
+            "semesters": imported_semesters,
+            "courses": imported_courses
+        },
+        "skipped": {
+            "programs": skipped_programs
+        }
+    }
+
 # --- Programs ---
 @app.post("/programs/", response_model=schemas.Program)
 def create_program(program: schemas.ProgramCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):

@@ -167,6 +167,16 @@ const api = {
     updateUser: async (data: any) => {
         const response = await axios.put<{ id: string, email: string, gpa_scaling_table?: string, default_course_credit?: number }>('/api/users/me', data);
         return response.data;
+    },
+
+    // Data Export/Import
+    exportUserData: async () => {
+        const response = await axios.get('/api/users/me/export');
+        return response.data;
+    },
+    importUserData: async (data: any, conflictMode: 'skip' | 'overwrite' | 'rename' = 'skip', includeSettings: boolean = true) => {
+        const response = await axios.post(`/api/users/me/import?conflict_mode=${conflictMode}&include_settings=${includeSettings}`, data);
+        return response.data;
     }
 };
 
