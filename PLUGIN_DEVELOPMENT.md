@@ -49,11 +49,13 @@ export interface WidgetDefinition {
     icon?: React.ReactNode; // Emoji, React node, or image URL (imported from plugin folder)
     component: React.FC<WidgetProps>; // The React component
     defaultSettings?: any; // Default values for settings
-    defaultLayout?: { 
+    layout?: { 
         w: number,         // Default width (grid units)
         h: number,         // Default height (grid units)
         minW?: number,     // Minimum width
-        minH?: number      // Minimum height
+        minH?: number,     // Minimum height
+        maxW?: number,     // Maximum width
+        maxH?: number      // Maximum height
     };
     maxInstances?: number | 'unlimited'; // Max instances per dashboard
     allowedContexts?: Array<'semester' | 'course'>; // Where this widget can be added
@@ -122,7 +124,7 @@ export interface WidgetProps {
     
     // Framework-provided functions
     updateSettings: (newSettings: any) => void;  // Update settings (auto-debounced)
-    updateCourseField?: (field: string, value: any) => void; // Update course data
+    updateCourse?: (updates: any) => void; // Update course data (if applicable)
 }
 ```
 
@@ -151,6 +153,8 @@ export interface TabProps {
     semesterId?: string;
     courseId?: string;
     updateSettings: (newSettings: any) => void; // Debounced by framework
+    title?: string;         // Tab title (provided by framework)
+    pluginName?: string;    // Plugin name (provided by framework)
 }
 ```
 
@@ -219,7 +223,7 @@ export const MyNewDefinition: WidgetDefinition = {
     icon: myIconUrl,
     component: MyNew,
     defaultSettings: { title: 'Default Title' },
-    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
+    layout: { w: 3, h: 2, minW: 2, minH: 2 },
     maxInstances: 'unlimited',
     allowedContexts: ['semester', 'course']
 };
@@ -274,6 +278,7 @@ Plugins are auto-registered via Vite's `import.meta.glob`. You only need to expo
 export { MyNewDefinition, MyNew } from './widget';
 export { MyNewDefinition as widgetDefinition } from './widget';
 
+// If you also have a tab:
 export { NotesTabDefinition, NotesTab } from './tab';
 export { NotesTabDefinition as tabDefinition } from './tab';
 ```
@@ -310,6 +315,8 @@ Widget components are automatically wrapped with `React.memo` at the framework l
 - Settings object changes (deep comparison)
 - Context (semesterId/courseId) changes
 
+**Important**: Do NOT manually wrap your widget component with `React.memo` - the `DashboardWidgetWrapper` already does this. However, for Tab components, you MAY optionally use `React.memo` if needed for performance optimization.
+
 ## Lifecycle Hooks
 
 Lifecycle hooks apply to both widgets and tabs.
@@ -345,7 +352,7 @@ export const MyDefinition: WidgetDefinition = {
     name: 'My Widget',
     component: My,
     defaultSettings: {},
-    defaultLayout: { w: 3, h: 2 },
+    layout: { w: 3, h: 2 },
     
     onCreate: async (ctx) => {
         // Example: register with an external service
@@ -409,7 +416,7 @@ const handleChange = (newValue) => {
 
 ### Example: GradeCalculator
 
-See `frontend/src/plugins/GradeCalculator.tsx` for a complete example demonstrating:
+See `frontend/src/plugins/grade-calculator/widget.tsx` for a complete example demonstrating:
 - Using `settings` directly without local state duplication
 - Calling `updateSettings` for all changes
 - Using `useMemo` for computed values

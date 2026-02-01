@@ -7,6 +7,7 @@ interface User {
     email: string;
     nickname?: string;
     gpa_scaling_table?: string;
+    default_course_credit?: number;
     google_sub?: string | null;
 }
 

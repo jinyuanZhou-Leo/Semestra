@@ -1,18 +1,18 @@
-import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useCallback } from 'react';
 import api from '../services/api';
-import type { Course, Tab } from '../services/api';
-import { useDataFetch } from '../hooks/useDataFetch';
+import type { Course, Widget, Tab } from '../services/api';
+import { useEntityContext } from '../hooks/useEntityContext';
 
-interface CourseWithWidgets extends Course {
-    widgets?: any[];
-    hide_gpa?: boolean;
+export type CourseWithDetails = Course & {
+    widgets?: Widget[];
     tabs?: Tab[];
-}
+    hide_gpa?: boolean;
+};
 
 interface CourseDataContextType {
-    course: CourseWithWidgets | null;
-    setCourse: React.Dispatch<React.SetStateAction<CourseWithWidgets | null>>;
-    updateCourse: (updates: Partial<CourseWithWidgets>) => void;
+    course: CourseWithDetails | null;
+    setCourse: React.Dispatch<React.SetStateAction<CourseWithDetails | null>>;
+    updateCourse: (updates: Partial<CourseWithDetails>) => void;
     refreshCourse: () => Promise<void>;
     isLoading: boolean;
 }
@@ -33,74 +33,26 @@ interface CourseDataProviderProps {
 }
 
 export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId, children }) => {
-    const pendingUpdates = useRef<Record<string, any>>({});
-    const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const fetchFn = useCallback(() => api.getCourse(courseId), [courseId]);
+    const fetchFn = useCallback((id: string) => api.getCourse(id), []);
+    const updateFn = useCallback((id: string, updates: Partial<CourseWithDetails>) => api.updateCourse(id, updates), []);
 
     const {
         data: course,
         setData: setCourse,
-        isLoading,
-        silentRefresh
-    } = useDataFetch<CourseWithWidgets>({
+        updateData: updateCourse,
+        refresh: refreshCourse,
+        isLoading
+    } = useEntityContext<CourseWithDetails>({
+        entityId: courseId,
         fetchFn,
-        enabled: !!courseId
+        updateFn
     });
-
-    // Debounced sync to backend
-    const syncToBackend = useCallback(async () => {
-        if (!courseId || Object.keys(pendingUpdates.current).length === 0) return;
-
-        const updates = { ...pendingUpdates.current };
-        pendingUpdates.current = {};
-
-        try {
-            await api.updateCourse(courseId, updates);
-        } catch (error) {
-            console.error("Failed to sync course to backend", error);
-            // On error, merge updates back to pending
-            pendingUpdates.current = { ...updates, ...pendingUpdates.current };
-        }
-    }, [courseId]);
-
-    const updateCourse = useCallback((updates: Partial<CourseWithWidgets>) => {
-        // Update local state immediately for reactive UI
-        setCourse(prev => {
-            if (!prev) return prev;
-            return { ...prev, ...updates };
-        });
-
-        // Queue update for backend sync
-        pendingUpdates.current = { ...pendingUpdates.current, ...updates };
-
-        // Debounce backend sync (1 second)
-        if (syncTimerRef.current) {
-            clearTimeout(syncTimerRef.current);
-        }
-        syncTimerRef.current = setTimeout(() => {
-            syncToBackend();
-        }, 1000);
-    }, [syncToBackend, setCourse]);
-
-    // Cleanup on unmount - ensure pending updates are synced
-    useEffect(() => {
-        return () => {
-            if (syncTimerRef.current) {
-                clearTimeout(syncTimerRef.current);
-            }
-            // Sync any pending updates before unmount
-            if (Object.keys(pendingUpdates.current).length > 0 && courseId) {
-                api.updateCourse(courseId, pendingUpdates.current).catch(console.error);
-            }
-        };
-    }, [courseId]);
 
     const value: CourseDataContextType = {
         course,
         setCourse,
         updateCourse,
-        refreshCourse: silentRefresh,
+        refreshCourse,
         isLoading
     };
 

@@ -15,6 +15,7 @@ class User(Base):
     hashed_password = Column(String, nullable=True)
     google_sub = Column(String, unique=True, index=True, nullable=True)
     gpa_scaling_table = Column(Text, nullable=True)
+    default_course_credit = Column(Float, default=0.0)
     
     # Relationships
     programs = relationship("Program", back_populates="owner")

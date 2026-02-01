@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Input } from './Input';
+import { TabSwitch } from './TabSwitch';
 import api, { type Course } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CourseManagerModalProps {
     isOpen: boolean;
@@ -20,6 +22,9 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     semesterId,
     onCourseAdded
 }) => {
+    const { user } = useAuth();
+    const defaultCredit = (user as any)?.default_course_credit?.toString() || '0.5';
+
     const [mode, setMode] = useState<'list' | 'create'>(semesterId ? 'list' : 'create');
     const [unassignedCourses, setUnassignedCourses] = useState<Course[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +32,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
 
     // Create Form State
     const [newName, setNewName] = useState('');
-    const [newCredits, setNewCredits] = useState('0.5');
+    const [newCredits, setNewCredits] = useState(defaultCredit);
     const [newGrade, setNewGrade] = useState('0');
 
     const fetchUnassigned = useCallback(async () => {
@@ -44,6 +49,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
 
     useEffect(() => {
         if (isOpen) {
+            setNewCredits(defaultCredit);
             if (semesterId) {
                 // If opening in a semester, default to list but fetch data
                 setMode('list');
@@ -91,7 +97,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 onClose();
             }
             setNewName('');
-            setNewCredits('0.5');
+            setNewCredits(defaultCredit);
             setNewGrade('0');
         } catch (error) {
             console.error("Failed to create course", error);
@@ -112,49 +118,15 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '400px' }}>
                 {/* Mode Switcher (only if semesterId is present) */}
                 {semesterId && (
-                    <div style={{
-                        display: 'flex',
-                        padding: '0.25rem',
-                        background: 'var(--color-bg-secondary)',
-                        borderRadius: 'var(--radius-lg)',
-                        marginBottom: '1.5rem'
-                    }}>
-                        <button
-                            onClick={() => setMode('list')}
-                            style={{
-                                flex: 1,
-                                padding: '0.5rem',
-                                border: 'none',
-                                borderRadius: 'var(--radius-md)',
-                                background: mode === 'list' ? 'var(--color-bg-primary)' : 'transparent',
-                                color: mode === 'list' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                                boxShadow: mode === 'list' ? 'var(--shadow-sm)' : 'none',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem',
-                                fontWeight: 500,
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Select Existing
-                        </button>
-                        <button
-                            onClick={() => setMode('create')}
-                            style={{
-                                flex: 1,
-                                padding: '0.5rem',
-                                border: 'none',
-                                borderRadius: 'var(--radius-md)',
-                                background: mode === 'create' ? 'var(--color-bg-primary)' : 'transparent',
-                                color: mode === 'create' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                                boxShadow: mode === 'create' ? 'var(--shadow-sm)' : 'none',
-                                cursor: 'pointer',
-                                fontSize: '0.9rem',
-                                fontWeight: 500,
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Create New
-                        </button>
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <TabSwitch
+                            value={mode}
+                            onChange={setMode}
+                            options={[
+                                { value: 'list' as const, label: 'Select Existing' },
+                                { value: 'create' as const, label: 'Create New' }
+                            ]}
+                        />
                     </div>
                 )}
 
@@ -242,52 +214,42 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.2 }}
+                                style={{ display: 'flex', flexDirection: 'column', flex: 1 }}
                         >
-                            <form onSubmit={handleCreateNew} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                <div>
+                                <form onSubmit={handleCreateNew} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                     <Input
                                         label="Course Name"
                                         value={newName}
                                         onChange={e => setNewName(e.target.value)}
                                         required
-                                        placeholder="e.g. Introduction to Computer Science"
-                                        style={{ fontSize: '1.1rem', padding: '0.75rem' }}
-                                    />
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                    <Input
-                                        label="Credits"
-                                        type="number"
-                                        step="0.5"
-                                        value={newCredits}
-                                        onChange={e => setNewCredits(e.target.value)}
-                                        required
-                                    />
-                                    <Input
-                                        label="Grade (%)"
-                                        type="number"
-                                        step="0.1"
-                                        value={newGrade}
-                                        onChange={e => setNewGrade(e.target.value)}
-                                        required
-                                    />
+                                            placeholder="e.g. Introduction to Computer Science"
+                                        />
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                            <Input
+                                                label="Credits"
+                                                type="number"
+                                                step="0.5"
+                                                value={newCredits}
+                                                onChange={e => setNewCredits(e.target.value)}
+                                                required
+                                            />
+                                            <Input
+                                                label="Grade (%)"
+                                                type="number"
+                                                step="0.1"
+                                                value={newGrade}
+                                                onChange={e => setNewGrade(e.target.value)}
+                                                required
+                                            />
+                                        </div>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                                    {(semesterId || mode === 'create') && (
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            onClick={() => semesterId ? setMode('list') : onClose()}
-                                            style={{ flex: 1 }}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    )}
-                                    <Button type="submit" style={{ flex: 2 }}>
+                                    <div style={{ flex: 1 }} />
+
+                                    <Button type="submit" style={{ width: '100%' }}>
                                         Create Course
                                     </Button>
-                                </div>
                             </form>
                         </motion.div>
                     )}

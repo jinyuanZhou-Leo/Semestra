@@ -28,7 +28,7 @@ def get_user_by_google_sub(db: Session, google_sub: str):
 
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = get_password_hash(user.password)
-    db_user = models.User(email=user.email, hashed_password=hashed_password, gpa_scaling_table=DEFAULT_GPA_SCALING)
+    db_user = models.User(email=user.email, hashed_password=hashed_password, gpa_scaling_table=DEFAULT_GPA_SCALING, default_course_credit=0.5)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -40,7 +40,8 @@ def create_user_from_google(db: Session, email: str, google_sub: str):
         email=email,
         hashed_password=None,
         google_sub=google_sub,
-        gpa_scaling_table=DEFAULT_GPA_SCALING
+        gpa_scaling_table=DEFAULT_GPA_SCALING,
+        default_course_credit=0.5
     )
     db.add(db_user)
     db.commit()

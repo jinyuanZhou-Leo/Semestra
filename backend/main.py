@@ -232,8 +232,8 @@ async def create_semester_from_ics(
     
     # Create Courses
     for course_name in course_names:
-        course_create = schemas.CourseCreate(name=course_name, credit=0.5) # Default credit
-        crud.create_course(db=db, course=course_create, semester_id=semester.id)
+        course_create = schemas.CourseCreate(name=course_name, credits=current_user.default_course_credit)
+        crud.create_course(db=db, course=course_create, program_id=program_id, semester_id=semester.id)
         
     return semester
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
+import { Input } from '../components/Input';
 import { GPAScalingTable } from '../components/GPAScalingTable';
 import axios from 'axios';
 
@@ -40,9 +41,10 @@ export const SettingsPage: React.FC = () => {
     // Global Defaults State
     const [gpaTableJson, setGpaTableJson] = useState('{}');
     const [nickname, setNickname] = useState('');
+    const [defaultCourseCredit, setDefaultCourseCredit] = useState(0.5);
 
     // Dirty checking
-    const [initialState, setInitialState] = useState<{ nickname: string, gpaTableJson: string } | null>(null);
+    const [initialState, setInitialState] = useState<{ nickname: string, gpaTableJson: string, defaultCourseCredit: number } | null>(null);
     const [isDirty, setIsDirty] = useState(false);
 
     const [googleLinkError, setGoogleLinkError] = useState('');
@@ -56,19 +58,23 @@ export const SettingsPage: React.FC = () => {
         if (user) {
             const initialGpa = (user as any).gpa_scaling_table || '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}';
             const initialNick = user.nickname || '';
+            const initialCredit = (user as any).default_course_credit || 0.5;
 
             setGpaTableJson(initialGpa);
             setNickname(initialNick);
-            setInitialState({ nickname: initialNick, gpaTableJson: initialGpa });
+            setDefaultCourseCredit(initialCredit);
+            setInitialState({ nickname: initialNick, gpaTableJson: initialGpa, defaultCourseCredit: initialCredit });
         }
     }, [user]);
 
     useEffect(() => {
         if (initialState) {
-            const hasChanged = nickname !== initialState.nickname || gpaTableJson !== initialState.gpaTableJson;
+            const hasChanged = nickname !== initialState.nickname ||
+                gpaTableJson !== initialState.gpaTableJson ||
+                defaultCourseCredit !== initialState.defaultCourseCredit;
             setIsDirty(hasChanged);
         }
-    }, [nickname, gpaTableJson, initialState]);
+    }, [nickname, gpaTableJson, defaultCourseCredit, initialState]);
 
     useEffect(() => {
         setGoogleLinkError('');
@@ -167,7 +173,9 @@ export const SettingsPage: React.FC = () => {
         if (!initialState) return;
 
         // Check if actually changed
-        const hasChanged = nickname !== initialState.nickname || gpaTableJson !== initialState.gpaTableJson;
+        const hasChanged = nickname !== initialState.nickname ||
+            gpaTableJson !== initialState.gpaTableJson ||
+            defaultCourseCredit !== initialState.defaultCourseCredit;
 
         if (hasChanged) {
             // Clear existing timer
@@ -186,7 +194,7 @@ export const SettingsPage: React.FC = () => {
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [nickname, gpaTableJson, initialState]);
+    }, [nickname, gpaTableJson, defaultCourseCredit, initialState]);
 
     const saveSettings = async () => {
         try {
@@ -201,11 +209,12 @@ export const SettingsPage: React.FC = () => {
         try {
             await api.updateUser({
                 gpa_scaling_table: gpaTableJson,
-                nickname: nickname
+                nickname: nickname,
+                default_course_credit: defaultCourseCredit
             });
             await refreshUser();
 
-            setInitialState({ nickname, gpaTableJson });
+            setInitialState({ nickname, gpaTableJson, defaultCourseCredit });
             setIsDirty(false);
 
             setSaveState('success');
@@ -437,6 +446,17 @@ export const SettingsPage: React.FC = () => {
                             }}
                         />
                     </div>
+
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <Input
+                                label="Default Course Credit"
+                                type="number"
+                                step="0.5"
+                                value={defaultCourseCredit}
+                                onChange={(e) => setDefaultCourseCredit(parseFloat(e.target.value) || 0)}
+                                style={{ width: '150px' }}
+                            />
+                        </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem' }}>
                             <Button

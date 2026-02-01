@@ -165,7 +165,7 @@ const api = {
 
     // Auth
     updateUser: async (data: any) => {
-        const response = await axios.put<{ id: string, email: string, gpa_scaling_table?: string }>('/api/users/me', data);
+        const response = await axios.put<{ id: string, email: string, gpa_scaling_table?: string, default_course_credit?: number }>('/api/users/me', data);
         return response.data;
     }
 };
