@@ -103,13 +103,27 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                         top: 0,
                         left: 0,
                         right: 0,
-                        height: '32px',
+                        height: controlsHeight,
                         zIndex: 5,
                         cursor: 'grab',
-                        touchAction: 'manipulation',
+                        touchAction: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        pointerEvents: 'auto',
                     }}
-                    aria-hidden="true"
-                />
+                    aria-label="Drag handle"
+                >
+                    {controlsVisible && (
+                        <div style={{
+                            width: '40px',
+                            height: '4px',
+                            borderRadius: '2px',
+                            backgroundColor: 'var(--color-text-tertiary)',
+                            opacity: 0.5,
+                        }} />
+                    )}
+                </div>
             )}
             {/* Controls Overlay - Appears on hover */}
             <div

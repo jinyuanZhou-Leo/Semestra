@@ -137,9 +137,9 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                 setActiveWidth(width);
                 setActiveCols(currentCols);
             }}
-            draggableHandle=".drag-handle"
+            draggableHandle={isTouchDevice ? ".drag-surface" : ".drag-handle"}
             draggableCancel=".nodrag, input, textarea, button, select, option, a, [contenteditable='true'], [data-widget-control]"
-            isDraggable={!isTouchDevice}
+            isDraggable={true}
             isResizable={!isTouchDevice}
         >
             {widgets.map((widget, index) => {
