@@ -7,7 +7,7 @@ import { Button } from '../components/Button';
 import { Checkbox } from '../components/Checkbox';
 import { motion } from 'framer-motion';
 
-import { useHeroGradient } from '../hooks/useHeroGradient';
+import GradientBlinds from '../components/GradientBlinds';
 import { getPasswordRuleError } from '../utils/passwordRules';
 
 export const LoginPage: React.FC = () => {
@@ -25,8 +25,47 @@ export const LoginPage: React.FC = () => {
     const googleButtonRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
-    // Physics-based lighting
-    const heroStyle = useHeroGradient();
+    // Theme detection
+    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
+        const themePreference = localStorage.getItem('themePreference');
+        if (themePreference === 'system' || !themePreference) {
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        return themePreference === 'dark' ? 'dark' : 'light';
+    });
+
+    // Listen to theme changes
+    useEffect(() => {
+        const applyTheme = () => {
+            const themePreference = localStorage.getItem('themePreference');
+            if (themePreference === 'system' || !themePreference) {
+                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                setCurrentTheme(systemTheme);
+            } else {
+                setCurrentTheme(themePreference === 'dark' ? 'dark' : 'light');
+            }
+        };
+
+        applyTheme();
+
+        // Listen to storage changes (when user changes theme in another tab)
+        window.addEventListener('storage', applyTheme);
+        // Listen to system theme changes
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = () => applyTheme();
+        mediaQuery.addEventListener('change', handleChange);
+
+        return () => {
+            window.removeEventListener('storage', applyTheme);
+            mediaQuery.removeEventListener('change', handleChange);
+        };
+    }, []);
+
+    // Define gradient colors based on theme
+    // For light mode: use dark colors that invert to light purple
+    const gradientColors = currentTheme === 'light'
+        ? ['#206d6dff', '#6d650dff'] // Dark teal/olive that inverts to pink/purple
+        : ['#FF9FFC', '#5227FF']; // Original vibrant colors for dark mode
 
     useEffect(() => {
         if (!googleClientId) {
@@ -141,17 +180,55 @@ export const LoginPage: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            ...heroStyle,
-            padding: '1rem'
+            padding: '1rem',
+            position: 'relative',
+            background: 'var(--color-bg-primary)',
+            overflow: 'hidden'
         }}>
+            <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 0
+            }}>
+                <GradientBlinds
+                    gradientColors={gradientColors}
+                    filter={currentTheme === 'light' ? 'invert(1) contrast(0.8)' : undefined}
+                />
+            </div>
+
+            {/* Background Logo */}
+            <div style={{
+                position: 'absolute',
+                top: '2rem',
+                left: '2rem',
+                fontWeight: 700,
+                fontSize: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                color: 'var(--color-text-primary)',
+                textShadow: '0 2px 4px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.1)',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                zIndex: 1 // Sits above background
+            }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-accent-primary)', boxShadow: '0 0 10px var(--color-accent-primary)' }}></div>
+                Semestra
+            </div>
+
             <motion.div
                 initial={{ opacity: 0, y: 30, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 style={{
+                    position: 'relative', // Ensure z-index works
+                    zIndex: 1, // Above the logo
                     width: '100%',
-                    maxWidth: '380px',
-                    padding: '3rem 2.5rem',
+                    maxWidth: '360px', // Slightly narrower
+                    padding: '2rem 2rem', // More compact padding
                     backgroundColor: 'var(--color-bg-glass)', // Fallback
                     background: 'color-mix(in srgb, var(--color-bg-primary), transparent 15%)', // More opaque (85%)
                     backdropFilter: 'blur(40px)', // Stronger blur
@@ -161,42 +238,27 @@ export const LoginPage: React.FC = () => {
                 }}
             >
                 <div style={{
-                    marginBottom: '2.5rem',
+                    marginBottom: '1.5rem', // Reduced margin
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start'
                 }}>
-                    {/* Logo Area */}
-                    <div style={{
-                        marginBottom: '1.5rem',
-                        fontWeight: 700,
-                        fontSize: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        color: 'var(--color-text-primary)',
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none'
-                    }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-accent-primary)' }}></div>
-                        Semestra
-                    </div>
-
                     <h1 style={{
-                        fontSize: '3rem',
-                        lineHeight: 1,
+                        fontSize: '2.5rem', // Slightly smaller
+                        lineHeight: 1.2, // Increased line height to prevent clipping
+                        paddingBottom: '0.1em', // Extra safety for descenders
                         letterSpacing: '-0.04em',
                         background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
-                        marginBottom: '0.5rem',
+                        marginBottom: '0.25rem', // Reduced margin
                         userSelect: 'none',
                         WebkitUserSelect: 'none'
                     }}>
                         Welcome
                     </h1>
                     <h2 style={{
-                        fontSize: '1.25rem',
+                        fontSize: '1rem', // Slightly smaller
                         color: 'var(--color-text-tertiary)',
                         marginBottom: '0.5rem',
                         fontWeight: 500,
@@ -207,7 +269,7 @@ export const LoginPage: React.FC = () => {
                     </h2>
                 </div>
 
-                <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ marginBottom: '1.25rem' }}>
                     {googleClientId ? (
                         <>
                             <div ref={googleButtonRef} style={{ width: '100%' }} />
@@ -235,7 +297,7 @@ export const LoginPage: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem',
-                    marginBottom: '1.5rem',
+                    marginBottom: '1.25rem',
                     color: 'var(--color-text-tertiary)',
                     fontSize: '0.8rem'
                 }}>
@@ -257,7 +319,8 @@ export const LoginPage: React.FC = () => {
                                 backgroundColor: 'var(--color-bg-secondary)',
                                 borderColor: 'var(--color-border)',
                                 borderRadius: '0.75rem',
-                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                                fontSize: '0.925rem' // Slightly compact font
                             }}
                             wrapperStyle={{ marginBottom: 0 }}
                         />
@@ -272,7 +335,8 @@ export const LoginPage: React.FC = () => {
                                 backgroundColor: 'var(--color-bg-secondary)',
                                 borderColor: 'var(--color-border)',
                                 borderRadius: '0.75rem',
-                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                                fontSize: '0.925rem'
                             }}
                             rightElement={
                                 <button
@@ -295,14 +359,14 @@ export const LoginPage: React.FC = () => {
                                     {showPassword ? (
                                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                                     ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                     )}
                                 </button>
                             }
                         />
                     </div>
 
-                    <div style={{ marginBottom: '1.5rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ marginBottom: '1.25rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Checkbox
                             id="remember_me"
                             checked={rememberMe}
@@ -345,8 +409,8 @@ export const LoginPage: React.FC = () => {
                         disabled={isLoading || isGoogleLoading}
                         style={{
                             borderRadius: '0.75rem', // Matching input radius for consistency, or use pill
-                            height: '3rem',
-                            fontSize: '1rem',
+                            height: '2.75rem', // Slightly smaller
+                            fontSize: '0.925rem',
                             fontWeight: 600,
                             letterSpacing: '-0.01em',
                             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
@@ -357,11 +421,11 @@ export const LoginPage: React.FC = () => {
                 </form>
 
                 <div style={{
-                    marginTop: '2rem',
+                    marginTop: '1.5rem',
                     fontSize: '0.875rem',
                     color: 'var(--color-text-secondary)',
                     borderTop: '1px solid var(--color-border)',
-                    paddingTop: '1.5rem',
+                    paddingTop: '1.25rem',
                     textAlign: 'left', // Ensure left alignment
                     display: 'flex',
                     alignItems: 'center',

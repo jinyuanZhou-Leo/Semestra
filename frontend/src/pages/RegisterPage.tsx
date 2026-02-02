@@ -6,7 +6,7 @@ import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { motion } from 'framer-motion';
 
-import { useHeroGradient } from '../hooks/useHeroGradient';
+import GradientBlinds from '../components/GradientBlinds';
 import { getPasswordRuleError, passwordRuleHint } from '../utils/passwordRules';
 
 export const RegisterPage: React.FC = () => {
@@ -26,8 +26,50 @@ export const RegisterPage: React.FC = () => {
     const googleButtonRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
+    // Theme detection
+    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
+        const themePreference = localStorage.getItem('themePreference');
+        if (themePreference === 'system' || !themePreference) {
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        return themePreference === 'dark' ? 'dark' : 'light';
+    });
+
+    // Listen to theme changes
+    useEffect(() => {
+        const applyTheme = () => {
+            const themePreference = localStorage.getItem('themePreference');
+            if (themePreference === 'system' || !themePreference) {
+                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                setCurrentTheme(systemTheme);
+            } else {
+                setCurrentTheme(themePreference === 'dark' ? 'dark' : 'light');
+            }
+        };
+
+        applyTheme();
+
+        // Listen to storage changes (when user changes theme in another tab)
+        window.addEventListener('storage', applyTheme);
+        // Listen to system theme changes
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = () => applyTheme();
+        mediaQuery.addEventListener('change', handleChange);
+
+        return () => {
+            window.removeEventListener('storage', applyTheme);
+            mediaQuery.removeEventListener('change', handleChange);
+        };
+    }, []);
+
+    // Define gradient colors based on theme
+    // For light mode: use dark colors that invert to light purple
+    const gradientColors = currentTheme === 'light'
+        ? ['#005050', '#2D2900'] // Dark teal/olive that inverts to pink/purple
+        : ['#FF9FFC', '#5227FF']; // Original vibrant colors for dark mode
+
     // Physics-based lighting
-    const heroStyle = useHeroGradient();
+    // const heroStyle = useHeroGradient();
 
     useEffect(() => {
         if (!googleClientId) {
@@ -151,17 +193,55 @@ export const RegisterPage: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            ...heroStyle,
-            padding: '1rem'
+            padding: '1rem',
+            position: 'relative',
+            background: 'var(--color-bg-primary)',
+            overflow: 'hidden'
         }}>
+            <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 0
+            }}>
+                <GradientBlinds
+                    gradientColors={gradientColors}
+                    filter={currentTheme === 'light' ? 'invert(1) contrast(0.8)' : undefined}
+                />
+            </div>
+
+            {/* Background Logo */}
+            <div style={{
+                position: 'absolute',
+                top: '2rem',
+                left: '2rem',
+                fontWeight: 700,
+                fontSize: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                color: 'var(--color-text-primary)',
+                textShadow: '0 2px 4px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.1)',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                zIndex: 1 // Above background
+            }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-accent-primary)', boxShadow: '0 0 10px var(--color-accent-primary)' }}></div>
+                Semestra
+            </div>
+
             <motion.div
                 initial={{ opacity: 0, y: 30, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 style={{
+                    position: 'relative', // Ensure z-index works
+                    zIndex: 1, // Above the logo
                     width: '100%',
-                    maxWidth: '380px',
-                    padding: '3rem 2.5rem',
+                    maxWidth: '360px', // Compact
+                    padding: '2rem 2rem', // Compact
                     backgroundColor: 'var(--color-bg-glass)', // Fallback
                     background: 'color-mix(in srgb, var(--color-bg-primary), transparent 15%)', // High opacity glass
                     backdropFilter: 'blur(40px)',
@@ -171,42 +251,27 @@ export const RegisterPage: React.FC = () => {
                 }}
             >
                 <div style={{ 
-                    marginBottom: '2rem',
+                    marginBottom: '1.5rem', // Compact
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start'
                 }}>
-                    {/* Logo Area */}
-                    <div style={{
-                        marginBottom: '1.5rem',
-                        fontWeight: 700,
-                        fontSize: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        color: 'var(--color-text-primary)',
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none'
-                    }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-accent-primary)' }}></div>
-                        Semestra
-                    </div>
-
                     <h1 style={{
-                        fontSize: '3rem',
-                        lineHeight: 1,
+                        fontSize: '2.5rem', // Compact
+                        lineHeight: 1.2, // Fix clipping
+                        paddingBottom: '0.1em', // Safety
                         letterSpacing: '-0.04em',
                         background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
-                        marginBottom: '0.5rem',
+                        marginBottom: '0.25rem', // Compact
                         userSelect: 'none',
                         WebkitUserSelect: 'none'
                     }}>
                         Sign Up
                     </h1>
                     <h2 style={{
-                        fontSize: '1.25rem',
+                        fontSize: '1rem', // Compact
                         color: 'var(--color-text-tertiary)',
                         marginBottom: '0.5rem',
                         fontWeight: 500,
@@ -217,7 +282,7 @@ export const RegisterPage: React.FC = () => {
                     </h2>
                 </div>
 
-                <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ marginBottom: '1.25rem' }}>
                     {googleClientId ? (
                         <>
                             <div ref={googleButtonRef} style={{ width: '100%' }} />
@@ -245,7 +310,7 @@ export const RegisterPage: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem',
-                    marginBottom: '1.5rem',
+                    marginBottom: '1.25rem',
                     color: 'var(--color-text-tertiary)',
                     fontSize: '0.8rem'
                 }}>
@@ -267,7 +332,8 @@ export const RegisterPage: React.FC = () => {
                                 backgroundColor: 'var(--color-bg-secondary)',
                                 borderColor: 'var(--color-border)',
                                 borderRadius: '0.75rem',
-                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                                fontSize: '0.925rem'
                             }}
                             wrapperStyle={{ marginBottom: 0 }}
                         />
@@ -303,7 +369,8 @@ export const RegisterPage: React.FC = () => {
                                     backgroundColor: 'var(--color-bg-secondary)',
                                     borderColor: 'var(--color-border)',
                                     borderRadius: '0.75rem',
-                                    boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                                    boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                                    fontSize: '0.925rem'
                                 }}
                                 wrapperStyle={{ marginBottom: 0 }}
                                 rightElement={
@@ -344,7 +411,8 @@ export const RegisterPage: React.FC = () => {
                                 backgroundColor: 'var(--color-bg-secondary)',
                                 borderColor: 'var(--color-border)',
                                 borderRadius: '0.75rem',
-                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                                fontSize: '0.925rem'
                             }}
                             rightElement={
                                 <button
@@ -409,8 +477,8 @@ export const RegisterPage: React.FC = () => {
                         style={{
                             marginTop: '1.5rem',
                             borderRadius: '0.75rem',
-                            height: '3rem',
-                            fontSize: '1rem',
+                            height: '2.75rem', // Smaller
+                            fontSize: '0.925rem',
                             fontWeight: 600,
                             letterSpacing: '-0.01em',
                             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
@@ -421,11 +489,11 @@ export const RegisterPage: React.FC = () => {
                 </form>
 
                 <div style={{
-                    marginTop: '2rem',
+                    marginTop: '1.5rem',
                     fontSize: '0.875rem',
                     color: 'var(--color-text-secondary)',
                     borderTop: '1px solid var(--color-border)',
-                    paddingTop: '1.5rem',
+                    paddingTop: '1.25rem',
                     textAlign: 'left',
                     display: 'flex',
                     alignItems: 'center',
