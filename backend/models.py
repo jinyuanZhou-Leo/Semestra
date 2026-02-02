@@ -60,6 +60,7 @@ class Course(Base):
     
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     name = Column(String, index=True)
+    alias = Column(String, nullable=True)  # Optional alias to help identify the course
     program_id = Column(String, ForeignKey("programs.id"), nullable=True) # Should be NOT NULL eventually
     semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
     

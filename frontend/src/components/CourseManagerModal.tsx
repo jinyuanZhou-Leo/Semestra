@@ -32,6 +32,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
 
     // Create Form State
     const [newName, setNewName] = useState('');
+    const [newAlias, setNewAlias] = useState('');
     const [newCredits, setNewCredits] = useState(defaultCredit);
     const [newGrade, setNewGrade] = useState('0');
 
@@ -74,20 +75,17 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     const handleCreateNew = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const courseData = {
+                name: newName,
+                alias: newAlias || undefined,
+                credits: parseFloat(newCredits),
+                grade_percentage: parseFloat(newGrade),
+                program_id: programId
+            };
             if (semesterId) {
-                await api.createCourse(semesterId, {
-                    name: newName,
-                    credits: parseFloat(newCredits),
-                    grade_percentage: parseFloat(newGrade),
-                    program_id: programId
-                });
+                await api.createCourse(semesterId, courseData);
             } else {
-                await api.createCourseForProgram(programId, {
-                    name: newName,
-                    credits: parseFloat(newCredits),
-                    grade_percentage: parseFloat(newGrade),
-                    program_id: programId
-                });
+                await api.createCourseForProgram(programId, courseData);
             }
             onCourseAdded();
             if (semesterId) {
@@ -97,6 +95,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 onClose();
             }
             setNewName('');
+            setNewAlias('');
             setNewCredits(defaultCredit);
             setNewGrade('0');
         } catch (error) {
@@ -185,6 +184,11 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                         }}>
                                             <div>
                                                 <div style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '0.25rem' }}>{course.name}</div>
+                                                {course.alias && (
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginBottom: '0.25rem' }}>
+                                                        {course.alias}
+                                                    </div>
+                                                )}
                                                 <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                                         <span style={{ opacity: 0.7 }}>Credits:</span> {course.credits}
@@ -224,6 +228,12 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                         onChange={e => setNewName(e.target.value)}
                                         required
                                             placeholder="e.g. Introduction to Computer Science"
+                                        />
+                                        <Input
+                                            label="Alias (optional)"
+                                            value={newAlias}
+                                            onChange={e => setNewAlias(e.target.value)}
+                                            placeholder="e.g. CS101 - Prof. Smith"
                                         />
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                             <Input

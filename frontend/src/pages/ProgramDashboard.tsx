@@ -387,7 +387,10 @@ const ProgramDashboardContent: React.FC = () => {
                                 gap: '1.5rem'
                             }}>
                                 {program.semesters.flatMap((s: any) => s.courses || [])
-                                    .filter((course: any) => course.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    .filter((course: any) =>
+                                        course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                        (course.alias && course.alias.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    )
                                     .map((course: any) => (
                                         <Link key={course.id} to={`/courses/${course.id}`}>
                                             <div style={{
@@ -403,8 +406,15 @@ const ProgramDashboardContent: React.FC = () => {
                                                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
                                                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
                                             >
-                                                <div className='text-truncate' style={{ fontWeight: 600 }}>{course.name}</div>
-                                                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>{course.grade_scaled.toFixed(2)}</div>
+                                                <div style={{ minWidth: 0, flex: 1 }}>
+                                                    <div className='text-truncate' style={{ fontWeight: 600 }}>{course.name}</div>
+                                                    {course.alias && (
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: '0.125rem' }}>
+                                                            {course.alias}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginLeft: '1rem' }}>{course.grade_scaled.toFixed(2)}</div>
                                             </div>
                                         </Link>
                                     ))}

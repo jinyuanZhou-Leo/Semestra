@@ -74,6 +74,8 @@ export interface WidgetDefinition {
     maxInstances?: number | 'unlimited'; // Max instances per dashboard
     allowedContexts?: Array<'semester' | 'course'>; // Where this widget can be added
     headerButtons?: HeaderButton[]; // Optional custom action buttons in widget header
+    SettingsComponent?: React.FC<WidgetSettingsProps>; // Optional per-instance settings modal
+    globalSettingsComponent?: React.FC<WidgetGlobalSettingsProps>; // Optional plugin-level settings
     // Lifecycle hooks
     onCreate?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
     onDelete?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
@@ -100,6 +102,20 @@ export interface WidgetLifecycleContext {
     courseId?: string;     // Course context (if applicable)
     settings: any;         // Widget settings at the time of the event
 }
+
+// Per-instance settings (shown in modal when clicking gear icon on widget)
+export interface WidgetSettingsProps {
+    settings: any;
+    onSave: (newSettings: any) => void;
+    onClose: () => void;
+}
+
+// Plugin-level global settings (shown in Settings tab)
+export interface WidgetGlobalSettingsProps {
+    semesterId?: string;   // Semester context (if applicable)
+    courseId?: string;     // Course context (if applicable)
+    onRefresh: () => void; // Call to refresh parent data after mutations
+}
 ```
 
 **Header Buttons**: Widgets can define custom action buttons that appear in the widget header (alongside drag handle, edit, and remove buttons). These buttons only appear when the widget controls are visible (on hover for desktop, on tap for touch devices).
@@ -124,6 +140,42 @@ export const MyWidgetDefinition: WidgetDefinition = {
 ```
 
 **Icon rendering:** Icons are displayed inside a circular badge in the UI. If `icon` is omitted, a placeholder badge with the first letter of the plugin name is shown. For image icons, place the asset in the plugin folder and import it (Vite will provide a URL string).
+
+### Plugin-Level Global Settings
+
+Widgets can provide a `globalSettingsComponent` that is rendered in the Settings tab. Unlike `SettingsComponent` (which is per-instance and shown in a modal), `globalSettingsComponent` is shown once in the Settings tab regardless of how many widget instances exist. This is useful for:
+
+- Plugin-wide configuration that applies to all instances
+- Management functions (e.g., adding/removing items)
+- Settings that don't belong to any specific widget instance
+
+**Example - Course List Plugin with Global Settings**:
+```typescript
+import type { WidgetGlobalSettingsProps } from '../../services/widgetRegistry';
+
+const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
+    semesterId, 
+    onRefresh 
+}) => {
+    // Fetch semester data, manage courses, etc.
+    return (
+        <SettingsSection title="Courses" description="Manage courses">
+            {/* Course management UI */}
+        </SettingsSection>
+    );
+};
+
+export const CourseListDefinition: WidgetDefinition = {
+    type: 'course-list',
+    name: 'Course List',
+    component: CourseList,
+    allowedContexts: ['semester'],
+    globalSettingsComponent: CourseListGlobalSettings  // Shown in Settings tab
+};
+```
+
+**Note**: The `globalSettingsComponent` is only shown for widgets whose `allowedContexts` includes the current page context (semester or course).
+
 
 ### WidgetProps
 
@@ -454,3 +506,142 @@ See `frontend/src/plugins/grade-calculator/widget.tsx` for a complete example de
 - Tab 组件应将主要空间留给内容本身，避免额外占用垂直空间
 - Tab 组件需适配深色模式，使用 CSS 变量保持主题一致
 - Tab 内容应使用响应式设计
+
+## Plugin Settings UI 设计规范
+
+插件在 Settings 页面中的设置 UI 需要遵循以下规范：
+
+### Settings 页面结构
+
+Settings 页面采用以下层次结构：
+
+```
+Settings Page
+├── Semester/Course Setting (小标题)
+│   └── General (SettingsSection 卡片)
+│       └── 基本设置表单
+│
+├── [Plugin] Plugin Name (胶囊 + 小标题)
+│   ├── Global Settings (SettingsSection 卡片)
+│   └── Other Category (SettingsSection 卡片, 如有)
+│
+├── [Plugin] Another Plugin (胶囊 + 小标题)
+│   └── Display (SettingsSection 卡片)
+...
+```
+
+### globalSettingsComponent (Widget 插件全局设置)
+
+`globalSettingsComponent` 在 Settings 页面渲染，用于插件级别的配置。
+
+**设计要求：**
+- 必须使用 `SettingsSection` 包装设置内容
+- 可以返回多个 `SettingsSection`，每个代表一个设置分类
+- 框架已经提供了插件标题（Plugin 胶囊 + 插件名），组件内部不需要重复
+
+**示例：**
+```typescript
+import { SettingsSection } from '../../components/SettingsSection';
+
+const MyPluginGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
+    semesterId, 
+    onRefresh 
+}) => {
+    return (
+        <>
+            {/* Global 设置卡片 */}
+            <SettingsSection
+                title="Courses"
+                description="Manage courses assigned to this semester."
+            >
+                {/* 课程管理 UI */}
+            </SettingsSection>
+            
+            {/* 如果有其他分类，可以添加更多 SettingsSection */}
+            <SettingsSection
+                title="Import/Export"
+                description="Import or export course data."
+            >
+                {/* 导入导出 UI */}
+            </SettingsSection>
+        </>
+    );
+};
+```
+
+### settingsComponent (Tab 插件设置)
+
+`settingsComponent` 在 Settings 页面渲染，用于 Tab 实例的配置。
+
+**设计要求：**
+- 必须使用 `SettingsSection` 包装设置内容
+- 可以返回多个 `SettingsSection`，每个代表一个设置分类
+- 框架已经提供了插件标题（Plugin 胶囊 + 插件名），组件内部不需要重复
+
+**示例：**
+```typescript
+import { SettingsSection } from '../../components/SettingsSection';
+
+const MyTabSettings: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
+    return (
+        <SettingsSection
+            title="Display"
+            description="Configure how this tab is displayed."
+        >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <Input
+                    label="Title"
+                    value={settings.title}
+                    onChange={(e) => updateSettings({ ...settings, title: e.target.value })}
+                />
+                <Checkbox
+                    checked={settings.showHeader}
+                    onChange={(checked) => updateSettings({ ...settings, showHeader: checked })}
+                    label="Show header"
+                />
+            </div>
+        </SettingsSection>
+    );
+};
+```
+
+### SettingsSection 组件
+
+`SettingsSection` 是一个卡片容器，用于组织设置项：
+
+```typescript
+interface SettingsSectionProps {
+    title?: string;          // 分类标题（小写大写字母）
+    description?: string;    // 分类描述
+    children: React.ReactNode;
+    headerAction?: React.ReactNode;  // 可选的标题区操作按钮
+    center?: boolean;        // 是否垂直居中对齐
+}
+```
+
+**布局结构：**
+- 左侧：标题 + 描述 + 可选操作按钮（固定宽度 220px）
+- 右侧：设置内容（弹性宽度）
+
+### 设置 UI 最佳实践
+
+1. **使用 SettingsSection 分组**
+   - 每个逻辑分类使用一个 `SettingsSection`
+   - 标题使用简洁的分类名称（如 "Display", "Courses", "Import/Export"）
+   - 描述简要说明该分类的用途
+
+2. **表单布局**
+   - 使用 `display: flex; flex-direction: column; gap: 1rem;` 排列表单项
+   - 使用项目提供的 `Input`, `Checkbox`, `Select` 等组件保持一致性
+
+3. **避免冗余**
+   - 不要在组件内重复插件名称或标题
+   - 框架已经渲染了 "Plugin + 插件名" 的标题
+
+4. **响应式设计**
+   - `SettingsSection` 内置响应式布局
+   - 在窄屏幕上，左侧标题区和右侧内容区会垂直堆叠
+
+5. **主题兼容**
+   - 使用 CSS 变量确保深色/浅色模式兼容
+   - 使用项目组件而非原生 HTML 元素

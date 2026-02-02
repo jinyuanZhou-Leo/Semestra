@@ -24,6 +24,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
     onCancel
 }) => {
     const [name, setName] = useState(initialName);
+    const [alias, setAlias] = useState(initialSettings?.alias || '');
     const [extraSettings, setExtraSettings] = useState(initialSettings);
     const [jsonError, setJsonError] = useState('');
     const [gpaTableJson, setGpaTableJson] = useState('{}');
@@ -32,6 +33,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
 
     useEffect(() => {
         setName(initialName);
+        setAlias(initialSettings?.alias || '');
         setExtraSettings({
             ...initialSettings,
             include_in_gpa: initialSettings.include_in_gpa !== undefined ? initialSettings.include_in_gpa : true,
@@ -68,6 +70,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
             data.grad_requirement_credits = parseFloat(extraSettings.grad_requirement_credits || 0);
             data.hide_gpa = extraSettings.hide_gpa;
         } else if (type === 'course') {
+            data.alias = alias || null;
             data.credits = parseFloat(extraSettings.credits || 0);
             data.include_in_gpa = extraSettings.include_in_gpa;
             data.hide_gpa = extraSettings.hide_gpa;
@@ -111,6 +114,13 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
 
             {type === 'course' && (
                 <>
+                    <Input
+                        label="Alias (optional)"
+                        value={alias}
+                        onChange={e => setAlias(e.target.value)}
+                        placeholder="e.g. CS101 - Prof. Smith"
+                        style={{ marginBottom: '0.5rem' }}
+                    />
                     <Input
                         label="Credits"
                         type="number"

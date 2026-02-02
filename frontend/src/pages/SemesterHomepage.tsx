@@ -17,7 +17,7 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 import { TabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
-import { SemesterCoursesSettings } from '../components/SemesterCoursesSettings';
+import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 
 const SemesterHomepageContent: React.FC = () => {
     const { semester, updateSemester, refreshSemester, isLoading } = useSemesterData();
@@ -221,32 +221,33 @@ const SemesterHomepageContent: React.FC = () => {
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div key={tab.id}>
+                <div key={tab.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.75rem',
-                        marginBottom: '1rem',
-                        paddingLeft: '0.5rem'
+                        gap: '0.5rem',
+                        paddingLeft: '0.25rem'
                     }}>
                         <span style={{
-                            fontSize: '0.7rem',
+                            fontSize: '0.65rem',
                             textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
+                            letterSpacing: '0.05em',
                             color: 'var(--color-primary)',
                             background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
                             border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
                             borderRadius: '999px',
-                            padding: '0.1rem 0.5rem',
+                            padding: '0.1rem 0.45rem',
                             fontWeight: 600
                         }}>
                             Plugin
                         </span>
                         <h3 style={{
                             margin: 0,
-                            fontSize: '1rem',
+                            fontSize: '0.85rem',
                             fontWeight: 600,
-                            color: 'var(--color-text-primary)'
+                            color: 'var(--color-text-secondary)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
                         }}>
                             {definition?.name ?? tab.title ?? tab.type}
                         </h3>
@@ -265,11 +266,71 @@ const SemesterHomepageContent: React.FC = () => {
         if (sections.length === 0) return null;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                 {sections}
             </div>
         );
     }, [tabs, semester?.id, handleUpdateTabSettings]);
+
+    // Widget plugin global settings sections
+    const widgetDefinitions = useWidgetRegistry();
+    const widgetSettingsSections = useMemo(() => {
+        const sections = widgetDefinitions
+            .filter(def => {
+                // Only show settings for widgets allowed in semester context
+                const allowedContexts = resolveAllowedContexts(def);
+                return allowedContexts.includes('semester') && def.globalSettingsComponent;
+            })
+            .map(def => {
+                const GlobalSettingsComponent = def.globalSettingsComponent!;
+                return (
+                    <div key={def.type} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            paddingLeft: '0.25rem'
+                        }}>
+                            <span style={{
+                                fontSize: '0.65rem',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                color: 'var(--color-primary)',
+                                background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
+                                border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
+                                borderRadius: '999px',
+                                padding: '0.1rem 0.45rem',
+                                fontWeight: 600
+                            }}>
+                                Plugin
+                            </span>
+                            <h3 style={{
+                                margin: 0,
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                color: 'var(--color-text-secondary)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>
+                                {def.name}
+                            </h3>
+                        </div>
+                        <GlobalSettingsComponent
+                            semesterId={semester?.id}
+                            onRefresh={refreshSemester}
+                        />
+                    </div>
+                );
+            });
+
+        if (sections.length === 0) return null;
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {sections}
+            </div>
+        );
+    }, [widgetDefinitions, semester?.id, refreshSemester]);
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
@@ -295,14 +356,7 @@ const SemesterHomepageContent: React.FC = () => {
             type: 'semester' as const,
             extraSections: (
                 <>
-                    {semester && (
-                        <SemesterCoursesSettings
-                            semesterId={semester.id}
-                            programId={semester.program_id || ''}
-                            courses={semester.courses || []}
-                            onRefresh={refreshSemester}
-                        />
-                    )}
+                    {widgetSettingsSections}
                     {tabSettingsSections}
                 </>
             )
@@ -317,6 +371,7 @@ const SemesterHomepageContent: React.FC = () => {
         semester?.id,
         semester?.name,
         handleUpdateSemester,
+        widgetSettingsSections,
         tabSettingsSections
     ]);
 

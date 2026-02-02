@@ -45,6 +45,17 @@ export interface WidgetSettingsProps {
     onClose: () => void;
 }
 
+/**
+ * Props for plugin-level global settings component.
+ * This settings component is shown in the Settings tab and applies to the plugin as a whole,
+ * not to individual widget instances.
+ */
+export interface WidgetGlobalSettingsProps {
+    semesterId?: string;
+    courseId?: string;
+    onRefresh: () => void;
+}
+
 export interface WidgetDefinition {
     type: string;
     name: string;
@@ -59,8 +70,14 @@ export interface WidgetDefinition {
     allowedContexts?: WidgetContext[];
     /** Custom buttons to display in the widget header */
     headerButtons?: HeaderButton[];
-    /** Optional settings component. If provided, a settings button will be shown in the widget header. */
+    /** Optional settings component for individual widget instance. If provided, a settings button will be shown in the widget header. */
     SettingsComponent?: React.FC<WidgetSettingsProps>;
+    /** 
+     * Optional global settings component for the plugin as a whole.
+     * This will be rendered in the Settings tab, regardless of how many widget instances exist.
+     * Use this for settings that affect all instances or for plugin-level management (e.g., course management).
+     */
+    globalSettingsComponent?: React.FC<WidgetGlobalSettingsProps>;
     /** Called after widget is created. If throws, the widget will be rolled back (deleted). */
     onCreate?: (context: WidgetLifecycleContext) => Promise<void> | void;
     /** Called after widget is deleted. Errors are logged but don't affect deletion. */

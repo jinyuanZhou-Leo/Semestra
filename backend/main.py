@@ -201,6 +201,7 @@ async def export_user_data(
                 ]
                 courses_export.append(schemas.CourseExport(
                     name=course.name,
+                    alias=course.alias,
                     credits=course.credits,
                     grade_percentage=course.grade_percentage,
                     grade_scaled=course.grade_scaled,
@@ -357,6 +358,7 @@ async def import_user_data(
                     db=db,
                     course=schemas.CourseCreate(
                         name=course_data.name,
+                        alias=course_data.alias,
                         credits=course_data.credits,
                         grade_percentage=course_data.grade_percentage,
                         grade_scaled=course_data.grade_scaled,

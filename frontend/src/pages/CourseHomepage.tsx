@@ -18,6 +18,7 @@ import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { TabRegistry } from '../services/tabRegistry';
+import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
@@ -220,32 +221,33 @@ const CourseHomepageContent: React.FC = () => {
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div key={tab.id}>
+                <div key={tab.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.75rem',
-                        marginBottom: '1rem',
-                        paddingLeft: '0.5rem'
+                        gap: '0.5rem',
+                        paddingLeft: '0.25rem'
                     }}>
                         <span style={{
-                            fontSize: '0.7rem',
+                            fontSize: '0.65rem',
                             textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
+                            letterSpacing: '0.05em',
                             color: 'var(--color-primary)',
                             background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
                             border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
                             borderRadius: '999px',
-                            padding: '0.1rem 0.5rem',
+                            padding: '0.1rem 0.45rem',
                             fontWeight: 600
                         }}>
                             Plugin
                         </span>
                         <h3 style={{
                             margin: 0,
-                            fontSize: '1rem',
+                            fontSize: '0.85rem',
                             fontWeight: 600,
-                            color: 'var(--color-text-primary)'
+                            color: 'var(--color-text-secondary)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
                         }}>
                             {definition?.name ?? tab.title ?? tab.type}
                         </h3>
@@ -264,11 +266,71 @@ const CourseHomepageContent: React.FC = () => {
         if (sections.length === 0) return null;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                 {sections}
             </div>
         );
     }, [tabs, course?.id, handleUpdateTabSettings]);
+
+    // Widget plugin global settings sections
+    const widgetDefinitions = useWidgetRegistry();
+    const widgetSettingsSections = useMemo(() => {
+        const sections = widgetDefinitions
+            .filter(def => {
+                // Only show settings for widgets allowed in course context
+                const allowedContexts = resolveAllowedContexts(def);
+                return allowedContexts.includes('course') && def.globalSettingsComponent;
+            })
+            .map(def => {
+                const GlobalSettingsComponent = def.globalSettingsComponent!;
+                return (
+                    <div key={def.type} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            paddingLeft: '0.25rem'
+                        }}>
+                            <span style={{
+                                fontSize: '0.65rem',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                color: 'var(--color-primary)',
+                                background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
+                                border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
+                                borderRadius: '999px',
+                                padding: '0.1rem 0.45rem',
+                                fontWeight: 600
+                            }}>
+                                Plugin
+                            </span>
+                            <h3 style={{
+                                margin: 0,
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                color: 'var(--color-text-secondary)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>
+                                {def.name}
+                            </h3>
+                        </div>
+                        <GlobalSettingsComponent
+                            courseId={course?.id}
+                            onRefresh={refreshCourse}
+                        />
+                    </div>
+                );
+            });
+
+        if (sections.length === 0) return null;
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {sections}
+            </div>
+        );
+    }, [widgetDefinitions, course?.id, refreshCourse]);
 
     const handleUpdateCourse = async (data: any) => {
         if (!course) return;
@@ -297,13 +359,19 @@ const CourseHomepageContent: React.FC = () => {
         settings: {
             initialName: course?.name ?? '',
             initialSettings: {
+                alias: course?.alias,
                 credits: course?.credits,
                 include_in_gpa: course?.include_in_gpa,
                 hide_gpa: course?.hide_gpa
             },
             onSave: handleUpdateCourse,
             type: 'course' as const,
-            extraSections: tabSettingsSections
+            extraSections: (
+                <>
+                    {widgetSettingsSections}
+                    {tabSettingsSections}
+                </>
+            )
         }
     }), [
         isLoading,
@@ -314,11 +382,13 @@ const CourseHomepageContent: React.FC = () => {
         handleLayoutChange,
         course?.id,
         course?.name,
+        course?.alias,
         course?.credits,
         course?.include_in_gpa,
         course?.hide_gpa,
         updateCourse,
         handleUpdateCourse,
+        widgetSettingsSections,
         tabSettingsSections
     ]);
 
@@ -395,6 +465,7 @@ const CourseHomepageContent: React.FC = () => {
                             {isLoading || !course ? (
                                 <Skeleton width="60%" height={titleSize} style={{ marginBottom: isShrunk ? 0 : '0.5rem' }} />
                             ) : (
+                                        <>
                                     <h1 className="noselect text-truncate" style={{
                                         fontSize: titleSize,
                                         margin: 0,
@@ -407,6 +478,17 @@ const CourseHomepageContent: React.FC = () => {
                                     }}>
                                         {course.name}
                                     </h1>
+                                            {!isShrunk && course.alias && (
+                                                <div style={{
+                                                    fontSize: '0.875rem',
+                                                    color: 'var(--color-text-secondary)',
+                                                    marginTop: '0.25rem',
+                                                    opacity: 0.8
+                                                }}>
+                                                    {course.alias}
+                                                </div>
+                                            )}
+                                        </>
                             )}
 
                             <div className="noselect stats-row" style={{

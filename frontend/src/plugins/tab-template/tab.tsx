@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { Input } from '../../components/Input';
 import { Checkbox } from '../../components/Checkbox';
+import { SettingsSection } from '../../components/SettingsSection';
 import type { TabDefinition, TabProps, TabSettingsProps } from '../../services/tabRegistry';
 
 type TemplateSettings = {
@@ -116,18 +117,23 @@ const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, up
     }, [resolved, updateSettings]);
 
     return (
-        <div>
-            <Input
-                label="Template Title"
-                value={resolved.title}
-                onChange={(event) => handleTitleChange(event.target.value)}
-            />
-            <Checkbox
-                checked={resolved.showChecklist}
-                onChange={handleChecklistToggle}
-                label="Show quick-start checklist"
-            />
-        </div>
+        <SettingsSection
+            title="Display"
+            description="Configure how this tab is displayed."
+        >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <Input
+                    label="Template Title"
+                    value={resolved.title}
+                    onChange={(event) => handleTitleChange(event.target.value)}
+                />
+                <Checkbox
+                    checked={resolved.showChecklist}
+                    onChange={handleChecklistToggle}
+                    label="Show quick-start checklist"
+                />
+            </div>
+        </SettingsSection>
     );
 };
 

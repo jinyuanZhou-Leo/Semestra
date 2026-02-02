@@ -25,6 +25,7 @@ export interface SemesterExport {
 
 export interface CourseExport {
     name: string;
+    alias?: string;
     credits: number;
     grade_percentage: number;
     grade_scaled: number;

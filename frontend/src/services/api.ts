@@ -17,11 +17,13 @@ export interface Semester {
     average_scaled: number;
     average_percentage: number;
     program_id?: string;
+    courses?: Course[];
 }
 
 export interface Course {
     id: string;
     name: string;
+    alias?: string;
     credits: number;
     grade_scaled: number;
     grade_percentage: number;
