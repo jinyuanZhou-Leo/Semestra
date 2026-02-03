@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Semester, Course, Widget, Tab } from '../services/api';
 import { useEntityContext } from '../hooks/useEntityContext';
@@ -48,13 +48,13 @@ export const SemesterDataProvider: React.FC<SemesterDataProviderProps> = ({ seme
         updateFn
     });
 
-    const value: SemesterDataContextType = {
+    const value: SemesterDataContextType = useMemo(() => ({
         semester,
         setSemester,
         updateSemester,
         refreshSemester,
         isLoading
-    };
+    }), [semester, setSemester, updateSemester, refreshSemester, isLoading]);
 
     return (
         <SemesterDataContext.Provider value={value}>

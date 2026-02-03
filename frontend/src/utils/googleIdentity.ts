@@ -60,7 +60,7 @@ export const loadGoogleIdentityScriptWhenIdle = () => {
             (window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number })
                 .requestIdleCallback?.(schedule, { timeout: 1500 });
         } else {
-            window.setTimeout(schedule, 250);
+            globalThis.setTimeout(schedule, 250);
         }
     });
 };

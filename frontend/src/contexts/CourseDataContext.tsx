@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Course, Widget, Tab } from '../services/api';
 import { useEntityContext } from '../hooks/useEntityContext';
@@ -48,13 +48,13 @@ export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId
         updateFn
     });
 
-    const value: CourseDataContextType = {
+    const value: CourseDataContextType = useMemo(() => ({
         course,
         setCourse,
         updateCourse,
         refreshCourse,
         isLoading
-    };
+    }), [course, setCourse, updateCourse, refreshCourse, isLoading]);
 
     return (
         <CourseDataContext.Provider value={value}>

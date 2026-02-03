@@ -11,6 +11,10 @@ import { Responsive } from 'react-grid-layout';
 import { WidthProvider } from './WidthProvider';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
+const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 } as const;
+const GRID_COLS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 } as const;
+const GRID_MARGIN: [number, number] = [16, 16];
+const GRID_CONTAINER_PADDING: [number, number] = [0, 0];
 
 export interface WidgetItem {
     id: string;
@@ -51,17 +55,13 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     isLocked = false
 }) => {
     const isTouchDevice = useTouchDevice();
-    const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 } as const;
-    const cols = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 } as const;
-    const margin: [number, number] = [16, 16];
-    const containerPadding: [number, number] = [0, 0];
-    const [activeCols, setActiveCols] = useState<number>(cols.lg);
+    const [activeCols, setActiveCols] = useState<number>(GRID_COLS.lg);
     const [activeWidth, setActiveWidth] = useState<number | null>(null);
 
     const rowHeight = useMemo(() => {
         if (!activeWidth || activeCols <= 0) return 85;
-        const totalMargin = margin[0] * (activeCols - 1);
-        const totalPadding = containerPadding[0] * 2;
+        const totalMargin = GRID_MARGIN[0] * (activeCols - 1);
+        const totalPadding = GRID_CONTAINER_PADDING[0] * 2;
         const columnWidth = (activeWidth - totalMargin - totalPadding) / activeCols;
 
         // Use responsive scale factor for row height
@@ -80,7 +80,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
 
         const scaledRowHeight = columnWidth * scale;
         return Math.max(40, Math.floor(scaledRowHeight));
-    }, [activeWidth, activeCols, margin, containerPadding]);
+    }, [activeWidth, activeCols]);
 
     // Convert widgets to RGL layout format
     const layouts = useMemo(() => {
@@ -132,11 +132,11 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             key={`grid-${isLocked ? 'locked' : 'unlocked'}`}
             className="layout"
             layouts={layouts}
-            breakpoints={breakpoints}
-            cols={cols}
+            breakpoints={GRID_BREAKPOINTS}
+            cols={GRID_COLS}
             rowHeight={rowHeight}
-            margin={margin}
-            containerPadding={containerPadding}
+            margin={GRID_MARGIN}
+            containerPadding={GRID_CONTAINER_PADDING}
             onLayoutChange={(layout: Layout[]) => onLayoutChange(layout)}
             onWidthChange={(width: number, _margin: [number, number], currentCols: number) => {
                 setActiveWidth(width);

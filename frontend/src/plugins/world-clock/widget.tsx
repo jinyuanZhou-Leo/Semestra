@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../../components/Button';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
 
@@ -72,20 +72,23 @@ const WorldClockComponent: React.FC<WidgetProps> = ({ settings }) => {
         return () => clearInterval(timer);
     }, []);
 
-    const formattedTime = new Intl.DateTimeFormat('en-US', {
+    const timeFormatter = useMemo(() => new Intl.DateTimeFormat('en-US', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         timeZone: timezone,
         hour12: false
-    }).format(time);
+    }), [timezone]);
 
-    const formattedDate = new Intl.DateTimeFormat('en-US', {
+    const dateFormatter = useMemo(() => new Intl.DateTimeFormat('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         timeZone: timezone
-    }).format(time);
+    }), [timezone]);
+
+    const formattedTime = timeFormatter.format(time);
+    const formattedDate = dateFormatter.format(time);
 
     return (
         <div style={{

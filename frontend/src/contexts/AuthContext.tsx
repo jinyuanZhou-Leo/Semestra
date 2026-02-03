@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { SessionExpiredModal } from '../components/SessionExpiredModal';
 
@@ -26,6 +26,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isLoading, setIsLoading] = useState(true);
     const [isSessionExpired, setIsSessionExpired] = useState(false);
     const interceptorIdRef = useRef<number | null>(null);
+
+    const logout = useCallback(() => {
+        localStorage.removeItem('token');
+        delete axios.defaults.headers.common['Authorization'];
+        setUser(null);
+    }, []);
+
+    const fetchUser = useCallback(async () => {
+        try {
+            const response = await axios.get('/api/users/me');
+            setUser(response.data);
+        } catch (error) {
+            console.error("Failed to fetch user", error);
+            // Don't call logout here, the interceptor handles 401
+            if ((error as any).response?.status !== 401) {
+                logout();
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    }, [logout]);
+
+    const login = useCallback((token: string) => {
+        localStorage.setItem('token', token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        setIsSessionExpired(false); // Clear any previous session expired state
+        setIsLoading(true);
+        fetchUser();
+    }, [fetchUser]);
 
     useEffect(() => {
         // Set up axios response interceptor for 401 errors
@@ -58,43 +87,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 axios.interceptors.response.eject(interceptorIdRef.current);
             }
         };
-    }, []);
-
-    const fetchUser = async () => {
-        try {
-            const response = await axios.get('/api/users/me');
-            setUser(response.data);
-        } catch (error) {
-            console.error("Failed to fetch user", error);
-            // Don't call logout here, the interceptor handles 401
-            if ((error as any).response?.status !== 401) {
-                logout();
-            }
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const login = (token: string) => {
-        localStorage.setItem('token', token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        setIsSessionExpired(false); // Clear any previous session expired state
-        setIsLoading(true);
-        fetchUser();
-    };
-
-    const logout = () => {
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
-        setUser(null);
-    };
+    }, [fetchUser]);
 
     const handleCloseSessionExpiredModal = () => {
         setIsSessionExpired(false);
     };
 
+    const value = useMemo(() => ({
+        user,
+        login,
+        logout,
+        refreshUser: fetchUser,
+        isLoading
+    }), [user, login, logout, fetchUser, isLoading]);
+
     return (
-        <AuthContext.Provider value={{ user, login, logout, refreshUser: fetchUser, isLoading }}>
+        <AuthContext.Provider value={value}>
             {children}
             <SessionExpiredModal
                 isOpen={isSessionExpired}

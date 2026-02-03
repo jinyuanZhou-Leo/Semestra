@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '../components/Button';
@@ -106,6 +106,26 @@ const ProgramDashboardContent: React.FC = () => {
             0
         );
     }, [program]);
+
+    const normalizedQuery = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery]);
+
+    const filteredSemesters = useMemo(() => {
+        if (!program) return [];
+        if (!normalizedQuery) return program.semesters;
+        return program.semesters.filter(semester =>
+            semester.name.toLowerCase().includes(normalizedQuery)
+        );
+    }, [program, normalizedQuery]);
+
+    const filteredCourses = useMemo(() => {
+        if (!program) return [];
+        const courses = program.semesters.flatMap((s: any) => s.courses || []);
+        if (!normalizedQuery) return courses;
+        return courses.filter((course: any) =>
+            course.name.toLowerCase().includes(normalizedQuery) ||
+            (course.alias && course.alias.toLowerCase().includes(normalizedQuery))
+        );
+    }, [program, normalizedQuery]);
 
     if (!isLoading && !program) {
         return (
@@ -295,9 +315,7 @@ const ProgramDashboardContent: React.FC = () => {
                             gap: '2rem',
                             marginBottom: '4rem'
                         }}>
-                            {program.semesters
-                                .filter(semester => semester.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                .map(semester => (
+                            {filteredSemesters.map(semester => (
                                     <Link key={semester.id} to={`/semesters/${semester.id}`}>
                                         <div className="noselect" style={{
                                             padding: '2rem',
@@ -370,7 +388,7 @@ const ProgramDashboardContent: React.FC = () => {
                                     </Link>
                                 ))}
 
-                            {program.semesters.filter(semester => semester.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && ( /* ... Empty state ... */
+                            {filteredSemesters.length === 0 && ( /* ... Empty state ... */
                                 <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem', color: 'var(--color-text-secondary)' }}>No semesters found.</div>
                             )}
                         </div>
@@ -386,12 +404,7 @@ const ProgramDashboardContent: React.FC = () => {
                                 gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
                                 gap: '1.5rem'
                             }}>
-                                {program.semesters.flatMap((s: any) => s.courses || [])
-                                    .filter((course: any) =>
-                                        course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                        (course.alias && course.alias.toLowerCase().includes(searchQuery.toLowerCase()))
-                                    )
-                                    .map((course: any) => (
+                                {filteredCourses.map((course: any) => (
                                         <Link key={course.id} to={`/courses/${course.id}`}>
                                             <div style={{
                                                 padding: '1.5rem',

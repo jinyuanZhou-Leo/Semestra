@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useRef, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import type { Program, Semester } from '../services/api';
 import { useDataFetch } from '../hooks/useDataFetch';
@@ -85,13 +85,13 @@ export const ProgramDataProvider: React.FC<ProgramDataProviderProps> = ({ progra
         };
     }, [programId]);
 
-    const value: ProgramDataContextType = {
+    const value: ProgramDataContextType = useMemo(() => ({
         program,
         setProgram,
         updateProgram,
         refreshProgram: silentRefresh,
         isLoading
-    };
+    }), [program, setProgram, updateProgram, silentRefresh, isLoading]);
 
     return (
         <ProgramDataContext.Provider value={value}>
