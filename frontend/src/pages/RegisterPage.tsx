@@ -228,7 +228,7 @@ export const RegisterPage: React.FC = () => {
                 WebkitUserSelect: 'none',
                 zIndex: 1 // Above background
             }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-accent-primary)', boxShadow: '0 0 10px var(--color-accent-primary)' }}></div>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-accent-primary)' }}></div>
                 Semestra
             </div>
 
@@ -247,7 +247,7 @@ export const RegisterPage: React.FC = () => {
                     backdropFilter: 'blur(40px)',
                     WebkitBackdropFilter: 'blur(40px)',
                     borderRadius: 'var(--radius-xl)',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.2)',
                 }}
             >
                 <div style={{ 
