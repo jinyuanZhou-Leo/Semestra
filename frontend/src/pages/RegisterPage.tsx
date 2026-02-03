@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 
 import GradientBlinds from '../components/GradientBlinds';
 import { getPasswordRuleError, passwordRuleHint } from '../utils/passwordRules';
+import { loadGoogleIdentityScriptWhenIdle } from '../utils/googleIdentity';
 
 export const RegisterPage: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -21,10 +22,12 @@ export const RegisterPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [isGoogleReady, setIsGoogleReady] = useState(false);
+    const [isGlassReady, setIsGlassReady] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
     const googleButtonRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    const currentYear = new Date().getFullYear();
 
     // Theme detection
     const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
@@ -72,21 +75,29 @@ export const RegisterPage: React.FC = () => {
     // const heroStyle = useHeroGradient();
 
     useEffect(() => {
-        if (!googleClientId) {
+        if (!googleClientId || !isGlassReady) {
             return;
         }
 
         let cancelled = false;
-        let initialized = false;
 
-        const tryInitGoogle = () => {
-            if (initialized || cancelled || !googleButtonRef.current) {
-                return initialized;
+        const initGoogle = async () => {
+            try {
+                await loadGoogleIdentityScriptWhenIdle();
+            } catch (err) {
+                if (!cancelled) {
+                    setGoogleError('Google sign-in is unavailable right now. Please try again later.');
+                }
+                return;
+            }
+
+            if (cancelled || !googleButtonRef.current) {
+                return;
             }
 
             const google = (window as any).google;
             if (!google?.accounts?.id) {
-                return false;
+                return;
             }
 
             google.accounts.id.initialize({
@@ -112,36 +123,28 @@ export const RegisterPage: React.FC = () => {
                 }
             });
 
-            const buttonWidth = googleButtonRef.current.offsetWidth;
-            google.accounts.id.renderButton(googleButtonRef.current, {
-                theme: 'outline',
-                size: 'large',
-                text: 'continue_with',
-                shape: 'pill',
-                ...(buttonWidth ? { width: buttonWidth } : {})
+            requestAnimationFrame(() => {
+                if (cancelled || !googleButtonRef.current) {
+                    return;
+                }
+                const buttonWidth = Math.floor(googleButtonRef.current.getBoundingClientRect().width);
+                google.accounts.id.renderButton(googleButtonRef.current, {
+                    theme: 'outline',
+                    size: 'large',
+                    text: 'continue_with',
+                    shape: 'pill',
+                    ...(buttonWidth ? { width: buttonWidth } : {})
+                });
+                setIsGoogleReady(true);
             });
-
-            initialized = true;
-            setIsGoogleReady(true);
-            return true;
         };
 
-        if (!tryInitGoogle()) {
-            const intervalId = window.setInterval(() => {
-                if (tryInitGoogle()) {
-                    window.clearInterval(intervalId);
-                }
-            }, 200);
-            return () => {
-                cancelled = true;
-                window.clearInterval(intervalId);
-            };
-        }
+        initGoogle();
 
         return () => {
             cancelled = true;
         };
-    }, [googleClientId, login, navigate]);
+    }, [googleClientId, login, navigate, isGlassReady]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -209,6 +212,7 @@ export const RegisterPage: React.FC = () => {
                 <GradientBlinds
                     gradientColors={gradientColors}
                     filter={currentTheme === 'light' ? 'invert(1) contrast(0.8)' : undefined}
+                    blindMinWidth={80}
                 />
             </div>
 
@@ -236,16 +240,20 @@ export const RegisterPage: React.FC = () => {
                 initial={{ opacity: 0, y: 30, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                onAnimationComplete={() => setIsGlassReady(true)}
                 style={{
                     position: 'relative', // Ensure z-index works
                     zIndex: 1, // Above the logo
                     width: '100%',
                     maxWidth: '360px', // Compact
                     padding: '2rem 2rem', // Compact
-                    backgroundColor: 'var(--color-bg-glass)', // Fallback
-                    background: 'color-mix(in srgb, var(--color-bg-primary), transparent 15%)', // High opacity glass
-                    backdropFilter: 'blur(40px)',
-                    WebkitBackdropFilter: 'blur(40px)',
+                    backgroundColor: isGlassReady ? 'var(--color-bg-glass)' : 'var(--color-bg-primary)',
+                    background: isGlassReady
+                        ? 'color-mix(in srgb, var(--color-bg-primary), transparent 15%)'
+                        : 'var(--color-bg-primary)',
+                    backdropFilter: isGlassReady ? 'blur(40px)' : undefined,
+                    WebkitBackdropFilter: isGlassReady ? 'blur(40px)' : undefined,
+                    transition: 'background-color 240ms ease, background 240ms ease, backdrop-filter 240ms ease, -webkit-backdrop-filter 240ms ease',
                     borderRadius: 'var(--radius-xl)',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.2)',
                 }}
@@ -284,18 +292,28 @@ export const RegisterPage: React.FC = () => {
 
                 <div style={{ marginBottom: '1.25rem' }}>
                     {googleClientId ? (
-                        <>
+                        <div
+                            style={{
+                                minHeight: '3rem',
+                                position: 'relative',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                        >
                             <div ref={googleButtonRef} style={{ width: '100%' }} />
                             {!isGoogleReady && (
                                 <div style={{
-                                    marginTop: '0.5rem',
+                                    position: 'absolute',
+                                    left: 0,
+                                    right: 0,
+                                    textAlign: 'center',
                                     fontSize: '0.8rem',
                                     color: 'var(--color-text-tertiary)'
                                 }}>
                                     Loading Google sign-in...
                                 </div>
                             )}
-                        </>
+                        </div>
                     ) : (
                         <div style={{
                             fontSize: '0.8rem',
@@ -326,7 +344,6 @@ export const RegisterPage: React.FC = () => {
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            placeholder="hello@example.com"
                             required
                             style={{
                                 backgroundColor: 'var(--color-bg-secondary)',
@@ -363,7 +380,6 @@ export const RegisterPage: React.FC = () => {
                                 onChange={(e) => setPassword(e.target.value)}
                                 onFocus={() => setIsPasswordFocused(true)}
                                 onBlur={() => setIsPasswordFocused(false)}
-                                placeholder="••••••••"
                                 required
                                 style={{
                                     backgroundColor: 'var(--color-bg-secondary)',
@@ -405,7 +421,6 @@ export const RegisterPage: React.FC = () => {
                             type={showConfirmPassword ? "text" : "password"}
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            placeholder="••••••••"
                             required
                             style={{
                                 backgroundColor: 'var(--color-bg-secondary)',
@@ -516,6 +531,22 @@ export const RegisterPage: React.FC = () => {
                     </Link>
                 </div>
             </motion.div>
+            <div
+                style={{
+                    position: 'absolute',
+                    bottom: '1rem',
+                    left: 0,
+                    right: 0,
+                    textAlign: 'center',
+                    fontSize: '0.75rem',
+                    color: 'var(--color-text-tertiary)',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    zIndex: 1
+                }}
+            >
+                © {currentYear} Semestra. All rights reserved.
+            </div>
         </div>
     );
 };

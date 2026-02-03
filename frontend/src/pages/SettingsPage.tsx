@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
 import { SettingsSection } from '../components/SettingsSection';
+import { loadGoogleIdentityScriptWhenIdle } from '../utils/googleIdentity';
 import api from '../services/api';
 import versionInfo from '../version.json';
 import type { ImportData, ConflictMode } from '../components/ImportPreviewModal';
@@ -96,16 +97,24 @@ export const SettingsPage: React.FC = () => {
         }
 
         let cancelled = false;
-        let initialized = false;
 
-        const tryInitGoogle = () => {
-            if (initialized || cancelled || !googleLinkRef.current) {
-                return initialized;
+        const initGoogle = async () => {
+            try {
+                await loadGoogleIdentityScriptWhenIdle();
+            } catch (err) {
+                if (!cancelled) {
+                    setGoogleLinkError('Google link is unavailable right now. Please try again later.');
+                }
+                return;
+            }
+
+            if (cancelled || !googleLinkRef.current) {
+                return;
             }
 
             const google = (window as any).google;
             if (!google?.accounts?.id) {
-                return false;
+                return;
             }
 
             google.accounts.id.initialize({
@@ -139,22 +148,10 @@ export const SettingsPage: React.FC = () => {
                 width: '220'
             });
 
-            initialized = true;
             setIsGoogleLinkReady(true);
-            return true;
         };
 
-        if (!tryInitGoogle()) {
-            const intervalId = window.setInterval(() => {
-                if (tryInitGoogle()) {
-                    window.clearInterval(intervalId);
-                }
-            }, 200);
-            return () => {
-                cancelled = true;
-                window.clearInterval(intervalId);
-            };
-        }
+        initGoogle();
 
         return () => {
             cancelled = true;
