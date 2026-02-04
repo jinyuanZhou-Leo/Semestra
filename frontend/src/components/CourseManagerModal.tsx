@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
@@ -113,13 +112,15 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="p-0 sm:max-w-[600px]"
-                style={{ height: '100%', minHeight: '400px' }}
+                className="p-0 sm:max-w-[600px] max-h-[80vh] overflow-hidden"
             >
                 <DialogHeader className="border-b px-6 py-4">
                     <DialogTitle className="text-base font-semibold">Manage Courses</DialogTitle>
                 </DialogHeader>
-                <div className="p-6" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '400px' }}>
+                <div
+                    className="flex max-h-[calc(80vh-72px)] flex-col p-6"
+                    style={{ minHeight: '320px' }}
+                >
                 {/* Mode Switcher (only if semesterId is present) */}
                 {semesterId && (
                     <div style={{ marginBottom: '1.5rem' }}>
@@ -142,16 +143,8 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                     </div>
                 )}
 
-                <AnimatePresence mode="wait">
-                    {mode === 'list' && semesterId ? (
-                        <motion.div
-                            key="list"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.2 }}
-                            style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
-                        >
+                {mode === 'list' && semesterId ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                             <div className="relative mb-4">
                                 <span
                                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -182,6 +175,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                             <div style={{
                                 flex: 1,
                                 overflowY: 'auto',
+                                minHeight: 0,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '0.75rem',
@@ -244,18 +238,11 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                     ))
                                 )}
                             </div>
-                        </motion.div>
+                        </div>
                     ) : (
-                        <motion.div
-                            key="create"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.2 }}
-                                style={{ display: 'flex', flexDirection: 'column', flex: 1 }}
-                        >
-                                <form onSubmit={handleCreateNew} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                <form className="flex flex-1 flex-col">
+                                    <div className="flex flex-col gap-6">
                                     <div className="grid gap-2">
                                         <Label htmlFor="course-name">Course Name</Label>
                                         <Input
@@ -301,15 +288,14 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                     </div>
                                 </div>
 
-                                    <div style={{ flex: 1 }} />
-
-                                    <Button type="submit" style={{ width: '100%' }}>
+                                    <div className="mt-auto pt-6">
+                                        <Button type="submit" className="w-full">
                                         Create Course
-                                    </Button>
+                                        </Button>
+                                    </div>
                             </form>
-                        </motion.div>
+                        </div>
                     )}
-                </AnimatePresence>
                 </div>
             </DialogContent>
         </Dialog>

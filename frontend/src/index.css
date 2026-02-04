@@ -13,66 +13,95 @@
 }
 
 :root {
-  /* Color Palette - OpenAI Style (Clean, Monochrome, Pastel) */
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f9f9f9;
-  /* Extremely light gray */
-  --color-bg-tertiary: #f0f0f0;
+  --radius: 0.625rem;
 
-  --color-text-primary: #101010;
-  /* Near black */
-  --color-text-secondary: #505050;
-  /* Neutral gray */
-  --color-text-tertiary: #8e8e8e;
+  /* Base theme tokens for Tailwind utilities (OKLCH). */
+    --background: 1 0 0;
+    --foreground: 0.145 0 0;
+    --card: 1 0 0;
+    --card-foreground: 0.145 0 0;
+    --popover: 1 0 0;
+    --popover-foreground: 0.145 0 0;
+    --primary: 0.205 0 0;
+    --primary-foreground: 0.985 0 0;
+    --secondary: 0.97 0 0;
+    --secondary-foreground: 0.205 0 0;
+    --muted: 0.97 0 0;
+    --muted-foreground: 0.556 0 0;
+    --accent: 0.97 0 0;
+    --accent-foreground: 0.205 0 0;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+    --border: 0.922 0 0;
+    --input: 0.922 0 0;
+    --ring: 0.708 0 0;
+    --chart-1: 0.646 0.222 41.116;
+    --chart-2: 0.6 0.118 184.704;
+    --chart-3: 0.398 0.07 227.392;
+    --chart-4: 0.828 0.189 84.429;
+    --chart-5: 0.769 0.188 70.08;
+    --sidebar: 0.985 0 0;
+    --sidebar-foreground: 0.145 0 0;
+    --sidebar-primary: 0.205 0 0;
+    --sidebar-primary-foreground: 0.985 0 0;
+    --sidebar-accent: 0.97 0 0;
+    --sidebar-accent-foreground: 0.205 0 0;
+    --sidebar-border: 0.922 0 0;
+    --sidebar-ring: 0.708 0 0;
 
-  /* Accents - Subtle/Pastel */
-  --color-accent-primary: #000000;
-  /* Primary action is often black in minimalist design */
-  --color-accent-hover: #333333;
-  --color-accent-text: #ffffff;
-  
-  --color-primary: var(--color-accent-primary);
-    /* Alias for primary color */
-  /* Destructive */
-  --color-danger: #ef4444;
-  --color-error: var(--color-danger);
-
-  --color-border: #e6e6e6;
+  /* Back-compat tokens used by inline styles and custom CSS. */
+    --color-bg-primary: oklch(var(--card));
+    --color-bg-secondary: oklch(var(--background));
+    --color-bg-tertiary: oklch(var(--muted));
+    --color-text-primary: oklch(var(--foreground));
+    --color-text-secondary: oklch(var(--muted-foreground));
+    --color-text-tertiary: hsl(0 0% 56%);
+    --color-accent-primary: oklch(var(--primary));
+    --color-accent-hover: hsl(0 0% 20%);
+    --color-accent-text: oklch(var(--primary-foreground));
+    --color-primary: oklch(var(--primary));
+    --color-danger: oklch(var(--destructive));
+    --color-error: oklch(var(--destructive));
+    --color-border: oklch(var(--border));
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  /* Softer shadow */
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
 
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-sm: 0.25rem;
-  --radius-xl: 1rem;
-    --radius-2xl: 1.5rem;
+  --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+    --radius-2xl: calc(var(--radius) + 12px);
   --radius-widget: 0.75rem;
   --radius-widget-handle: var(--radius-widget);
+
   /* Z-Index Scale */
   --z-base: 1;
   --z-floating: 20;
-  --z-header: 1000;
+  --z-header: 40;
   --z-modal-overlay: 1100;
   --z-modal-content: 1101;
 
-  /* Mesh Gradient Colors - Light Mode (Slightly more saturated) */
+  /* Mesh Gradient Colors - Light Mode */
     --mesh-color-1: rgba(255, 200, 180, 0.6);
-    /* Warm Peach */
-    --mesh-color-2: rgba(180, 255, 200, 0.6);
-    /* Cool Sage */
-    --mesh-color-3: rgba(160, 190, 255, 0.5);
-    /* Soft Blue/Lavender */
+  --mesh-color-2: rgba(180, 255, 200, 0.6);
+  --mesh-color-3: rgba(160, 190, 255, 0.5);
   --gradient-hero: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-  /* Subtle light gradient */
   --color-bg-glass: rgba(255, 255, 255, 0.6);
-  
+
   --header-expanded-height: 140px;
 }
 
+/* Ensure Radix Dialog overlay/content sit above fixed headers */
+body>div>div[style*="pointer-events: auto"][data-state] {
+  z-index: var(--z-modal-overlay) !important;
+}
+
+body>div>div[role="dialog"][data-state] {
+  z-index: var(--z-modal-content) !important;
+}
 @media (max-width: 768px) {
   :root {
     --header-expanded-height: 240px;
@@ -82,21 +111,42 @@
 /* Dark Mode - Auto (Media Query) or Manual (data-theme) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-bg-primary: #1a1a1a;
-    --color-bg-secondary: #000000;
-    --color-bg-tertiary: #262626;
+    --background: 0.145 0 0;
+      --foreground: 0.985 0 0;
+      --card: 0.205 0 0;
+      --card-foreground: 0.985 0 0;
+      --popover: 0.205 0 0;
+      --popover-foreground: 0.985 0 0;
+      --primary: 0.922 0 0;
+      --primary-foreground: 0.205 0 0;
+      --secondary: 0.269 0 0;
+      --secondary-foreground: 0.985 0 0;
+      --muted: 0.269 0 0;
+      --muted-foreground: 0.708 0 0;
+      --accent: 0.269 0 0;
+      --accent-foreground: 0.985 0 0;
+      --destructive: 0.704 0.191 22.216;
+      --destructive-foreground: 0.985 0 0;
+      --border: 1 0 0 / 10%;
+      --input: 1 0 0 / 15%;
+      --ring: 0.556 0 0;
+      --chart-1: 0.488 0.243 264.376;
+      --chart-2: 0.696 0.17 162.48;
+      --chart-3: 0.769 0.188 70.08;
+      --chart-4: 0.627 0.265 303.9;
+      --chart-5: 0.645 0.246 16.439;
+      --sidebar: 0.205 0 0;
+      --sidebar-foreground: 0.985 0 0;
+      --sidebar-primary: 0.488 0.243 264.376;
+      --sidebar-primary-foreground: 0.985 0 0;
+      --sidebar-accent: 0.269 0 0;
+      --sidebar-accent-foreground: 0.985 0 0;
+      --sidebar-border: 1 0 0 / 10%;
+      --sidebar-ring: 0.556 0 0;
+      --color-text-tertiary: hsl(0 0% 45%);
+      --color-accent-hover: hsl(0 0% 90%);
 
-    --color-text-primary: #ffffff;
-    --color-text-secondary: #a3a3a3;
-    --color-text-tertiary: #737373;
-
-    --color-accent-primary: #ffffff;
-    --color-accent-hover: #e5e5e5;
-    --color-accent-text: #000000;
-
-    --color-border: #2e2e2e;
-
-    /* Mesh Gradient Colors - Dark Mode (Balanced Creative) */
+    /* Mesh Gradient Colors - Dark Mode */
       --mesh-color-1: rgba(124, 58, 237, 0.3);
       --mesh-color-2: rgba(14, 165, 233, 0.25);
       --mesh-color-3: rgba(236, 72, 153, 0.25);
@@ -106,21 +156,42 @@
 }
 
 [data-theme='dark'] {
-  --color-bg-primary: #1a1a1a;
-  --color-bg-secondary: #000000;
-  --color-bg-tertiary: #262626;
+  --background: 0.145 0 0;
+    --foreground: 0.985 0 0;
+    --card: 0.205 0 0;
+    --card-foreground: 0.985 0 0;
+    --popover: 0.205 0 0;
+    --popover-foreground: 0.985 0 0;
+    --primary: 0.922 0 0;
+    --primary-foreground: 0.205 0 0;
+    --secondary: 0.269 0 0;
+    --secondary-foreground: 0.985 0 0;
+    --muted: 0.269 0 0;
+    --muted-foreground: 0.708 0 0;
+    --accent: 0.269 0 0;
+    --accent-foreground: 0.985 0 0;
+    --destructive: 0.704 0.191 22.216;
+    --destructive-foreground: 0.985 0 0;
+    --border: 1 0 0 / 10%;
+    --input: 1 0 0 / 15%;
+    --ring: 0.556 0 0;
+    --chart-1: 0.488 0.243 264.376;
+    --chart-2: 0.696 0.17 162.48;
+    --chart-3: 0.769 0.188 70.08;
+    --chart-4: 0.627 0.265 303.9;
+    --chart-5: 0.645 0.246 16.439;
+    --sidebar: 0.205 0 0;
+    --sidebar-foreground: 0.985 0 0;
+    --sidebar-primary: 0.488 0.243 264.376;
+    --sidebar-primary-foreground: 0.985 0 0;
+    --sidebar-accent: 0.269 0 0;
+    --sidebar-accent-foreground: 0.985 0 0;
+    --sidebar-border: 1 0 0 / 10%;
+    --sidebar-ring: 0.556 0 0;
+    --color-text-tertiary: hsl(0 0% 45%);
+    --color-accent-hover: hsl(0 0% 90%);
 
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #a3a3a3;
-  --color-text-tertiary: #737373;
-
-  --color-accent-primary: #ffffff;
-  --color-accent-hover: #e5e5e5;
-  --color-accent-text: #000000;
-
-  --color-border: #2e2e2e;
-
-  /* Mesh Gradient Colors - Dark Mode (Balanced Creative) */
+  /* Mesh Gradient Colors - Dark Mode */
     --mesh-color-1: rgba(124, 58, 237, 0.3);
     --mesh-color-2: rgba(14, 165, 233, 0.25);
     --mesh-color-3: rgba(236, 72, 153, 0.25);
@@ -588,10 +659,6 @@ button {
   }
 }
 
-/* Progress Bar Animations */
-.progress-bar-fill {
-  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
 /* Widget Title */
 .widget-title {
   position: absolute;

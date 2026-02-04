@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Container } from '../components/Container';
 import api from '../services/api';
 import { useHeroGradient } from '../hooks/useHeroGradient';
-import { ProgressBar } from '../components/ProgressBar';
+import { Progress } from '@/components/ui/progress';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -145,6 +145,13 @@ const ProgramDashboardContent: React.FC = () => {
             (course.alias && course.alias.toLowerCase().includes(normalizedQuery))
         );
     }, [program, normalizedQuery]);
+
+    const creditsProgressPercent = useMemo(() => {
+        if (!program) return 0;
+        const maxCredits = program.grad_requirement_credits || 0;
+        if (maxCredits <= 0) return 0;
+        return Math.min((totalCredits / maxCredits) * 100, 100);
+    }, [program, totalCredits]);
 
     if (!isLoading && !program) {
         return (
@@ -315,11 +322,7 @@ const ProgramDashboardContent: React.FC = () => {
                             {isLoading || !program ? (
                                 <Skeleton className="h-2 w-full rounded-[4px]" />
                             ) : (
-                                    <ProgressBar
-                                        value={totalCredits}
-                                        max={program.grad_requirement_credits}
-                                        height="8px"
-                                    />
+                                    <Progress value={creditsProgressPercent} />
                             )}
                         </div>
                     </div>

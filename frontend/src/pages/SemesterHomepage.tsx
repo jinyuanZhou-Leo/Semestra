@@ -438,7 +438,7 @@ const SemesterHomepageContent: React.FC = () => {
                     top: heroTop,
                     left: 0,
                     right: 0,
-                    zIndex: 900,
+                    zIndex: 40,
                     background: 'var(--gradient-hero)', // Keep original gradient
                     padding: containerPadding,
                     color: 'var(--color-text-primary)',
