@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppStatus } from '../hooks/useAppStatus';
 import { Container } from './Container';
 
 interface LayoutProps {
@@ -11,8 +12,8 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = false }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { status, clearStatus } = useAppStatus();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
 
     // Initialize theme from localStorage on mount
     React.useEffect(() => {
@@ -73,18 +74,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
         return () => window.removeEventListener('scroll', handleScroll);
     }, [disableAutoHide]);
 
-    React.useEffect(() => {
-        const handleOnline = () => setIsOnline(true);
-        const handleOffline = () => setIsOnline(false);
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-
     return (
         <div style={{
             minHeight: '100vh',
@@ -112,6 +101,66 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
                     </Link>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div
+                            style={{
+                                width: '240px',
+                                minWidth: '240px',
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                alignItems: 'center',
+                                height: '32px'
+                            }}
+                        >
+                            {status ? (
+                                <div
+                                    role="status"
+                                    aria-live="polite"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        padding: '0.35rem 0.6rem',
+                                        borderRadius: '999px',
+                                        background: status.type === 'error'
+                                            ? 'rgba(239, 68, 68, 0.12)'
+                                            : 'rgba(59, 130, 246, 0.12)',
+                                        color: status.type === 'error'
+                                            ? 'rgb(239, 68, 68)'
+                                            : 'rgb(59, 130, 246)',
+                                        border: `1px solid ${status.type === 'error' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(59, 130, 246, 0.35)'}`,
+                                        fontSize: '0.8rem',
+                                        fontWeight: 600,
+                                        maxWidth: '100%',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                    }}
+                                >
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{status.message}</span>
+                                    <button
+                                        onClick={clearStatus}
+                                        aria-label="Dismiss status"
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'inherit',
+                                            cursor: 'pointer',
+                                            fontSize: '1rem',
+                                            lineHeight: 1,
+                                            padding: 0,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ) : (
+                                <div aria-hidden="true" style={{ width: '100%', height: '100%', visibility: 'hidden' }} />
+                            )}
+                        </div>
+
                         <button
                             onClick={() => setIsPageBlurred(!isPageBlurred)}
                             style={{
@@ -159,20 +208,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
                                 )}
                             </svg>
                         </button>
-
-                        {!isOnline && (
-                            <div
-                                className="offline-indicator user-selected"
-                                title="Offline: sync unavailable"
-                                aria-label="Offline: sync unavailable"
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.7 1.2A3.5 3.5 0 0 1 17 18H7z" />
-                                    <line x1="4" y1="4" x2="20" y2="20" />
-                                </svg>
-                                <span>Offline</span>
-                            </div>
-                        )}
 
                         {user && (
                             <div style={{ position: 'relative' }}>

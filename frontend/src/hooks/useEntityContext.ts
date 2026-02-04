@@ -1,10 +1,11 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { useDataFetch } from './useDataFetch';
+import { reportError } from '../services/appStatus';
 
 interface UseEntityContextOptions<T> {
     entityId: string;
     fetchFn: (id: string) => Promise<T>;
-    updateFn: (id: string, updates: Partial<T>) => Promise<unknown>;
+    updateFn: (id: string, updates: Partial<T>) => Promise<Partial<T>>;
     debounceMs?: number;
 }
 
@@ -38,6 +39,7 @@ export function useEntityContext<T extends object>({
 }: UseEntityContextOptions<T>): UseEntityContextResult<T> {
     const pendingUpdates = useRef<Partial<T>>({});
     const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const syncSeqRef = useRef(0);
 
     const fetchEntityFn = useCallback(() => fetchFn(entityId), [entityId, fetchFn]);
 
@@ -56,15 +58,24 @@ export function useEntityContext<T extends object>({
 
         const updates = { ...pendingUpdates.current };
         pendingUpdates.current = {};
+        const syncSeq = ++syncSeqRef.current;
 
         try {
-            await updateFn(entityId, updates);
+            const result = await updateFn(entityId, updates);
+            // Apply server-authoritative data only if no newer updates are pending.
+            if (syncSeq === syncSeqRef.current && Object.keys(pendingUpdates.current).length === 0) {
+                setData(prev => {
+                    if (!prev) return result as T;
+                    return { ...prev, ...result };
+                });
+            }
         } catch (error) {
             console.error(`Failed to sync entity ${entityId} to backend`, error);
             // On error, merge updates back to pending for retry
             pendingUpdates.current = { ...updates, ...pendingUpdates.current };
+            reportError('Failed to sync changes. Will retry.');
         }
-    }, [entityId, updateFn]);
+    }, [entityId, updateFn, setData]);
 
     const updateData = useCallback((updates: Partial<T>) => {
         // Optimistic update: apply changes to local state immediately
@@ -90,10 +101,20 @@ export function useEntityContext<T extends object>({
                 clearTimeout(syncTimerRef.current);
             }
             if (Object.keys(pendingUpdates.current).length > 0 && entityId) {
-                updateFn(entityId, pendingUpdates.current).catch(console.error);
+                updateFn(entityId, pendingUpdates.current)
+                    .then((result) => {
+                        setData(prev => {
+                            if (!prev) return result as T;
+                            return { ...prev, ...result };
+                        });
+                    })
+                    .catch((error) => {
+                        console.error(`Failed to flush entity ${entityId} updates`, error);
+                        reportError('Failed to sync changes. Please retry.');
+                    });
             }
         };
-    }, [entityId, updateFn]);
+    }, [entityId, updateFn, setData]);
 
     return {
         data,

@@ -53,19 +53,48 @@ export interface Tab {
     is_removable?: boolean;
 }
 
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+const dedupeGet = async <T>(key: string, fetcher: () => Promise<T>): Promise<T> => {
+    const existing = inFlightRequests.get(key) as Promise<T> | undefined;
+    if (existing) return existing;
+    const request = fetcher()
+        .finally(() => {
+            if (inFlightRequests.get(key) === request) {
+                inFlightRequests.delete(key);
+            }
+        });
+    inFlightRequests.set(key, request);
+    return request;
+};
+
+const stableStringify = (value?: Record<string, unknown>) => {
+    if (!value) return '';
+    const entries = Object.entries(value).filter(([, v]) => v !== undefined);
+    if (entries.length === 0) return '';
+    return entries
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .join('&');
+};
+
 const api = {
     // Programs
     getPrograms: async () => {
-        const response = await axios.get<Program[]>('/api/programs/');
-        return response.data;
+        return dedupeGet('GET:/api/programs/', async () => {
+            const response = await axios.get<Program[]>('/api/programs/');
+            return response.data;
+        });
     },
     createProgram: async (data: { name: string; grad_requirement_credits: number }) => {
         const response = await axios.post<Program>('/api/programs/', data);
         return response.data;
     },
     getProgram: async (id: string) => {
-        const response = await axios.get<Program & { semesters: Semester[] }>(`/api/programs/${id}`);
-        return response.data;
+        return dedupeGet(`GET:/api/programs/${id}`, async () => {
+            const response = await axios.get<Program & { semesters: Semester[] }>(`/api/programs/${id}`);
+            return response.data;
+        });
     },
     updateProgram: async (id: string, data: any) => {
         const response = await axios.put<Program>(`/api/programs/${id}`, data);
@@ -94,9 +123,11 @@ const api = {
         return response.data;
     },
     getSemester: async (id: string) => {
-        // Requires backend to return widgets in response
-        const response = await axios.get<Semester & { courses: Course[], widgets: Widget[], tabs: Tab[] }>(`/api/semesters/${id}`);
-        return response.data;
+        return dedupeGet(`GET:/api/semesters/${id}`, async () => {
+            // Requires backend to return widgets in response
+            const response = await axios.get<Semester & { courses: Course[], widgets: Widget[], tabs: Tab[] }>(`/api/semesters/${id}`);
+            return response.data;
+        });
     },
     updateSemester: async (id: string, data: any) => {
         const response = await axios.put<Semester>(`/api/semesters/${id}`, data);
@@ -112,16 +143,21 @@ const api = {
         return response.data;
     },
     getCoursesForProgram: async (programId: string, params?: { semester_id?: string, unassigned?: boolean }) => {
-        const response = await axios.get<Course[]>(`/api/programs/${programId}/courses/`, { params });
-        return response.data;
+        const key = `GET:/api/programs/${programId}/courses/?${stableStringify(params)}`;
+        return dedupeGet(key, async () => {
+            const response = await axios.get<Course[]>(`/api/programs/${programId}/courses/`, { params });
+            return response.data;
+        });
     },
     createCourse: async (semesterId: string, data: any) => {
         const response = await axios.post<Course>(`/api/semesters/${semesterId}/courses/`, data);
         return response.data;
     },
     getCourse: async (id: string) => {
-        const response = await axios.get<Course & { widgets?: Widget[]; tabs?: Tab[] }>(`/api/courses/${id}`);
-        return response.data;
+        return dedupeGet(`GET:/api/courses/${id}`, async () => {
+            const response = await axios.get<Course & { widgets?: Widget[]; tabs?: Tab[] }>(`/api/courses/${id}`);
+            return response.data;
+        });
     },
     updateCourse: async (id: string, data: Partial<Course>) => {
         const response = await axios.put<Course>(`/api/courses/${id}`, data);
@@ -173,8 +209,10 @@ const api = {
 
     // Data Export/Import
     exportUserData: async () => {
-        const response = await axios.get('/api/users/me/export');
-        return response.data;
+        return dedupeGet('GET:/api/users/me/export', async () => {
+            const response = await axios.get('/api/users/me/export');
+            return response.data;
+        });
     },
     importUserData: async (data: any, conflictMode: 'skip' | 'overwrite' | 'rename' = 'skip', includeSettings: boolean = true) => {
         const response = await axios.post(`/api/users/me/import?conflict_mode=${conflictMode}&include_settings=${includeSettings}`, data);

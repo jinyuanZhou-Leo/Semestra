@@ -11,6 +11,7 @@ import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
 import { Skeleton } from '../components/Skeleton/Skeleton';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import api from '../services/api';
+import { reportError } from '../services/appStatus';
 import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
 import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext';
@@ -339,7 +340,7 @@ const CourseHomepageContent: React.FC = () => {
             refreshCourse();
         } catch (error) {
             console.error("Failed to update course", error);
-            alert("Failed to update course");
+            reportError('Failed to update course. Please retry.');
         }
     };
 

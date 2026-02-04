@@ -2,6 +2,7 @@ import React, { createContext, useContext, useCallback, useRef, useEffect, useMe
 import api from '../services/api';
 import type { Program, Semester } from '../services/api';
 import { useDataFetch } from '../hooks/useDataFetch';
+import { reportError } from '../services/appStatus';
 
 type ProgramWithSemesters = Program & { semesters: Semester[] };
 
@@ -31,6 +32,7 @@ interface ProgramDataProviderProps {
 export const ProgramDataProvider: React.FC<ProgramDataProviderProps> = ({ programId, children }) => {
     const pendingUpdates = useRef<Record<string, any>>({});
     const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const syncSeqRef = useRef(0);
 
     const fetchFn = useCallback(() => api.getProgram(programId), [programId]);
 
@@ -49,14 +51,22 @@ export const ProgramDataProvider: React.FC<ProgramDataProviderProps> = ({ progra
 
         const updates = { ...pendingUpdates.current };
         pendingUpdates.current = {};
+        const syncSeq = ++syncSeqRef.current;
 
         try {
-            await api.updateProgram(programId, updates);
+            const result = await api.updateProgram(programId, updates);
+            if (syncSeq === syncSeqRef.current && Object.keys(pendingUpdates.current).length === 0) {
+                setProgram(prev => {
+                    if (!prev) return result as ProgramWithSemesters;
+                    return { ...prev, ...result };
+                });
+            }
         } catch (error) {
             console.error("Failed to sync program to backend", error);
             pendingUpdates.current = { ...updates, ...pendingUpdates.current };
+            reportError('Failed to sync program changes. Will retry.');
         }
-    }, [programId]);
+    }, [programId, setProgram]);
 
     const updateProgram = useCallback((updates: Partial<Program>) => {
         setProgram(prev => {
@@ -80,10 +90,20 @@ export const ProgramDataProvider: React.FC<ProgramDataProviderProps> = ({ progra
                 clearTimeout(syncTimerRef.current);
             }
             if (Object.keys(pendingUpdates.current).length > 0 && programId) {
-                api.updateProgram(programId, pendingUpdates.current).catch(console.error);
+                api.updateProgram(programId, pendingUpdates.current)
+                    .then((result) => {
+                        setProgram(prev => {
+                            if (!prev) return result as ProgramWithSemesters;
+                            return { ...prev, ...result };
+                        });
+                    })
+                    .catch((error) => {
+                        console.error("Failed to flush program updates", error);
+                        reportError('Failed to sync program changes. Please retry.');
+                    });
             }
         };
-    }, [programId]);
+    }, [programId, setProgram]);
 
     const value: ProgramDataContextType = useMemo(() => ({
         program,

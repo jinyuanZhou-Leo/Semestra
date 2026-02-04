@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { reportError } from '../services/appStatus';
 
 interface UseDataFetchOptions<T> {
     fetchFn: () => Promise<T>;
@@ -36,6 +37,9 @@ export function useDataFetch<T>({ fetchFn, enabled = true }: UseDataFetchOptions
         } catch (err) {
             console.error("Failed to fetch data", err);
             setError(err instanceof Error ? err : new Error(String(err)));
+            if (!silent) {
+                reportError('Failed to load data. Please retry.');
+            }
         } finally {
             if (!silent) setIsLoading(false);
         }
