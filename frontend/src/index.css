@@ -1,3 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
 :root {
   /* Color Palette - OpenAI Style (Clean, Monochrome, Pastel) */
   --color-bg-primary: #ffffff;
@@ -37,7 +51,13 @@
   --radius-xl: 1rem;
     --radius-2xl: 1.5rem;
   --radius-widget: 0.75rem;
-  --radius-widget-handle: 0.55rem;
+  --radius-widget-handle: var(--radius-widget);
+  /* Z-Index Scale */
+  --z-base: 1;
+  --z-floating: 20;
+  --z-header: 1000;
+  --z-modal-overlay: 1100;
+  --z-modal-content: 1101;
 
   /* Mesh Gradient Colors - Light Mode (Slightly more saturated) */
     --mesh-color-1: rgba(255, 200, 180, 0.6);
@@ -399,123 +419,23 @@ button {
   padding: var(--hero-padding-y, 4rem) 0;
 }
 
-/* Tabs */
-.tabs-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 0.75rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.tabs-list {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
+/* Dashboard Tabs */
+.dashboard-tabs-scroll {
   scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.tabs-list::-webkit-scrollbar {
+.dashboard-tabs-scroll::-webkit-scrollbar {
   display: none;
 }
 
-.tab-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2.1rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-primary);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  position: relative;
-  transition: color 0.15s ease, border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-  user-select: none;
-  white-space: nowrap;
+/* Course List: hide scrollbar while allowing scroll */
+.course-list-scroll {
+  scrollbar-width: none;
 }
 
-.tab-button:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-text-tertiary);
-}
-
-
-.tab-button.active {
-  color: var(--color-text-primary);
-  border-color: var(--color-text-primary);
-  background: var(--color-bg-tertiary);
-}
-
-.tab-button:active {
-  transform: translateY(0);
-}
-
-.tab-button.dragging {
-  opacity: 0.7;
-  transform: scale(0.98) translateY(1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-}
-
-.tab-button.drag-over {
-  border-color: var(--color-text-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
-}
-
-.tab-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.tab-remove {
-  border: none;
-  background: transparent;
-  color: var(--color-text-tertiary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.25rem;
-  height: 1.25rem;
-  cursor: pointer;
-  padding: 0;
-  user-select: none;
-}
-
-.tab-remove:hover {
-  color: var(--color-danger);
-}
-
-.tab-add {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 2.1rem;
-  border: 1px dashed var(--color-border);
-  background: transparent;
-  color: var(--color-text-secondary);
-  padding: 0.4rem 0.75rem;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-  user-select: none;
-}
-
-.tab-add:hover {
-  border-color: var(--color-text-primary);
-  color: var(--color-text-primary);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tab-button {
-    transition: none;
-  }
+.course-list-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 600px) {

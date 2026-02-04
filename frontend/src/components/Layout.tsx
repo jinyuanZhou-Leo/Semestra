@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStatus } from '../hooks/useAppStatus';
 import { Container } from './Container';
+import { Spinner } from '@/components/ui/spinner';
+import { toast } from 'sonner';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -14,6 +16,46 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
     const navigate = useNavigate();
     const { status, clearStatus } = useAppStatus();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const isSyncStatus = status?.type === 'error' && /sync/i.test(status.message);
+    const isSyncRetrying = Boolean(isSyncStatus && /retrying/i.test(status?.message ?? ''));
+    const lastToastIdRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (!status || !isSyncStatus) return;
+        if (lastToastIdRef.current === status.id) return;
+        lastToastIdRef.current = status.id;
+        if (isSyncRetrying) {
+            toast.message(status.message, {
+                icon: <Spinner size="sm" className="text-destructive" />,
+                duration: 4000,
+            });
+        } else {
+            toast.error(status.message, {
+                duration: Infinity,
+                onDismiss: clearStatus,
+                icon: (
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                ),
+                action: {
+                    label: "Dismiss",
+                    onClick: clearStatus,
+                },
+            });
+        }
+    }, [clearStatus, isSyncRetrying, isSyncStatus, status]);
 
     // Initialize theme from localStorage on mount
     React.useEffect(() => {
@@ -90,7 +132,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
                 top: 0,
                 left: 0,
                 right: 0,
-                zIndex: 1000,
+                zIndex: 'var(--z-header)',
                 transition: 'transform 0.3s ease-in-out',
                 transform: isVisible ? 'translateY(0)' : 'translateY(-100%)',
             }}>
@@ -101,66 +143,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
                     </Link>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div
-                            style={{
-                                width: '240px',
-                                minWidth: '240px',
-                                display: 'flex',
-                                justifyContent: 'flex-end',
-                                alignItems: 'center',
-                                height: '32px'
-                            }}
-                        >
-                            {status ? (
-                                <div
-                                    role="status"
-                                    aria-live="polite"
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0.35rem 0.6rem',
-                                        borderRadius: '999px',
-                                        background: status.type === 'error'
-                                            ? 'rgba(239, 68, 68, 0.12)'
-                                            : 'rgba(59, 130, 246, 0.12)',
-                                        color: status.type === 'error'
-                                            ? 'rgb(239, 68, 68)'
-                                            : 'rgb(59, 130, 246)',
-                                        border: `1px solid ${status.type === 'error' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(59, 130, 246, 0.35)'}`,
-                                        fontSize: '0.8rem',
-                                        fontWeight: 600,
-                                        maxWidth: '100%',
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis'
-                                    }}
-                                >
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{status.message}</span>
-                                    <button
-                                        onClick={clearStatus}
-                                        aria-label="Dismiss status"
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: 'inherit',
-                                            cursor: 'pointer',
-                                            fontSize: '1rem',
-                                            lineHeight: 1,
-                                            padding: 0,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            flexShrink: 0
-                                        }}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            ) : (
-                                <div aria-hidden="true" style={{ width: '100%', height: '100%', visibility: 'hidden' }} />
-                            )}
-                        </div>
-
                         <button
                             onClick={() => setIsPageBlurred(!isPageBlurred)}
                             style={{

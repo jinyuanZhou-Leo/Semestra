@@ -2,6 +2,8 @@ import React, { useCallback } from 'react';
 import { WidgetContainer } from './WidgetContainer';
 import { WidgetRegistry } from '../../services/widgetRegistry';
 import type { WidgetItem } from './DashboardGrid';
+import { Button } from '../ui/button';
+import { cn } from '@/lib/utils';
 
 interface DashboardWidgetWrapperProps {
     widget: WidgetItem;
@@ -87,42 +89,25 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
             };
 
             const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-            const controlSize = isTouchDevice ? 36 : 28;
+            const controlSizeClass = isTouchDevice ? 'h-9 w-9 text-base' : 'h-7 w-7 text-sm';
 
             return (
-                <button
+                <Button
                     key={buttonDef.id}
+                    type="button"
+                    variant="outline"
+                    size="icon"
                     onClick={handleClick}
                     title={buttonDef.title}
                     data-widget-control
-                    style={{
-                        border: '1px solid var(--color-border)',
-                        background: 'var(--color-bg-primary)',
-                        borderRadius: '50%',
-                        width: `${controlSize}px`,
-                        height: `${controlSize}px`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        color: 'var(--color-text-secondary)',
-                        transition: 'all 0.1s',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                        fontSize: isTouchDevice ? '16px' : '14px',
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
-                        e.currentTarget.style.color = 'var(--color-text-primary)';
-                        e.currentTarget.style.transform = 'scale(1.05)';
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
-                        e.currentTarget.style.color = 'var(--color-text-secondary)';
-                        e.currentTarget.style.transform = 'scale(1)';
-                    }}
+                    className={cn(
+                        'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
+                        'hover:bg-muted hover:text-foreground',
+                        controlSizeClass
+                    )}
                 >
                     {buttonDef.icon}
-                </button>
+                </Button>
             );
         });
     }, [widgetDefinition, widget.id, widget.settings, semesterId, courseId, handleUpdateSettings]);

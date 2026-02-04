@@ -1,60 +1,50 @@
-import React from 'react';
-import { Card } from './Card';
+import React from "react";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface SettingsSectionProps {
-    title?: string;
-    description?: string;
-    children: React.ReactNode;
-    headerAction?: React.ReactNode;
-    center?: boolean;
+  title?: string;
+  description?: string;
+  children: React.ReactNode;
+  headerAction?: React.ReactNode;
+  center?: boolean;
 }
 
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
-    title,
-    description,
-    children,
-    headerAction,
-    center = false
+  title,
+  description,
+  children,
+  headerAction,
+  center = false,
 }) => {
-    return (
-        <Card
-            as="section"
-            style={{
-                display: 'flex',
-                gap: '1.25rem',
-                flexWrap: 'wrap',
-                alignItems: center ? 'center' : 'flex-start'
-            }}
+  const hasHeader = Boolean(title || description || headerAction);
+
+  return (
+    <section>
+      <Card>
+        <div
+          className={cn(
+            "grid gap-6 p-6",
+            hasHeader && "md:grid-cols-[220px_minmax(0,1fr)]",
+            center && "items-center"
+          )}
         >
-            {(title || description || headerAction) && (
-                <div style={{ minWidth: '220px', flex: '0 0 220px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {title && (
-                            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-secondary)' }}>
-                                {title}
-                            </div>
-                        )}
-                        {description && (
-                            <p style={{
-                                margin: 0,
-                                fontSize: '0.95rem',
-                                color: 'var(--color-text-primary)',
-                                lineHeight: 1.5
-                            }}>
-                                {description}
-                            </p>
-                        )}
-                        {headerAction && (
-                            <div style={{ marginTop: '0.5rem' }}>
-                                {headerAction}
-                            </div>
-                        )}
-                    </div>
+          {hasHeader && (
+            <div className="space-y-2">
+              {title && (
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  {title}
                 </div>
-            )}
-            <div style={{ flex: '1 1 320px', minWidth: '240px' }}>
-                {children}
+              )}
+              {description && (
+                <p className="text-sm text-foreground/90">{description}</p>
+              )}
+              {headerAction && <div className="pt-2">{headerAction}</div>}
             </div>
-        </Card>
-    );
+          )}
+          <div className="min-w-0">{children}</div>
+        </div>
+      </Card>
+    </section>
+  );
 };

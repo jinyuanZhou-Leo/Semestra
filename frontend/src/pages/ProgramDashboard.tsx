@@ -7,17 +7,26 @@ import { SettingsModal } from '../components/SettingsModal';
 import { Input } from '../components/Input';
 import { Container } from '../components/Container';
 import api from '../services/api';
-import { BackButton } from '../components/BackButton';
 import { useHeroGradient } from '../hooks/useHeroGradient';
 import { ProgressBar } from '../components/ProgressBar';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
-import { Skeleton } from '../components/Skeleton/Skeleton';
+import { Skeleton } from '../components/ui/skeleton';
 import { ProgramDataProvider, useProgramData } from '../contexts/ProgramDataContext';
 import { CourseManagerModal } from '../components/CourseManagerModal';
+import { useDialog } from '../contexts/DialogContext';
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from '../components/ui/breadcrumb';
 
 const ProgramDashboardContent: React.FC = () => {
     const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
+    const { alert: showAlert, confirm } = useDialog();
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,7 +53,7 @@ const ProgramDashboardContent: React.FC = () => {
         setIsDragging(false);
     };
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
 
@@ -59,7 +68,10 @@ const ProgramDashboardContent: React.FC = () => {
                     setNewSemesterName(name);
                 }
             } else {
-                alert('Please upload a valid .ics file');
+                await showAlert({
+                    title: "Invalid file",
+                    description: "Please upload a valid .ics file."
+                });
             }
         }
     };
@@ -88,7 +100,10 @@ const ProgramDashboardContent: React.FC = () => {
             refreshProgram();
         } catch (error) {
             console.error("Failed to create semester", error);
-            alert('Failed to create semester');
+            await showAlert({
+                title: "Create failed",
+                description: "Failed to create semester."
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -157,11 +172,33 @@ const ProgramDashboardContent: React.FC = () => {
                     '--hero-margin-bottom': '1.25rem',
                 } as React.CSSProperties}>
                 <Container>
-                    <BackButton to="/" label="Back to Programs" />
-                    <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Program Overview</div>
+                    <Breadcrumb>
+                        <BreadcrumbList
+                            style={{
+                                fontSize: '0.875rem',
+                                fontWeight: 600,
+                                letterSpacing: '0.05em',
+                                color: 'var(--color-primary)',
+                                marginBottom: '0.5rem',
+                                textTransform: 'uppercase'
+                            }}
+                        >
+                            <BreadcrumbItem>
+                                <BreadcrumbLink asChild className="text-primary">
+                                    <Link to="/">Academic</Link>
+                                </BreadcrumbLink>
+                            </BreadcrumbItem>
+                            <BreadcrumbSeparator />
+                            <BreadcrumbItem>
+                                <BreadcrumbPage className="text-primary normal-case">
+                                    {program?.name || 'Program'}
+                                </BreadcrumbPage>
+                            </BreadcrumbItem>
+                        </BreadcrumbList>
+                    </Breadcrumb>
                     <div className="page-header" style={{ marginBottom: '2.5rem' }}>
                         {isLoading || !program ? (
-                            <Skeleton width="50%" height="3.5rem" />
+                            <Skeleton className="h-14 w-1/2" />
                         ) : (
                                 <h1 className="noselect text-truncate" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                                     {program.name}
@@ -169,7 +206,7 @@ const ProgramDashboardContent: React.FC = () => {
                         )}
 
                         {isLoading || !program ? (
-                            <Skeleton variant="circle" width={40} height={40} />
+                            <Skeleton className="h-10 w-10 rounded-full" />
                         ) : (
                         <Button
                             variant="glass"
@@ -224,7 +261,7 @@ const ProgramDashboardContent: React.FC = () => {
                             </div>
                             <div className="program-stat-value primary">
                                 {isLoading || !program ? (
-                                    <Skeleton width="4rem" height="2rem" />
+                                    <Skeleton className="h-8 w-16" />
                                 ) : program.hide_gpa ? (
                                     '****'
                                 ) : (
@@ -240,7 +277,7 @@ const ProgramDashboardContent: React.FC = () => {
                             <div className="program-stat-label">Average (%)</div>
                             <div className="program-stat-value">
                                 {isLoading || !program ? (
-                                    <Skeleton width="5rem" height="2rem" />
+                                    <Skeleton className="h-8 w-20" />
                                 ) : program.hide_gpa ? (
                                     '****'
                                 ) : (
@@ -259,7 +296,7 @@ const ProgramDashboardContent: React.FC = () => {
                             <div className="program-stat-label">Credits Progress</div>
                             <div className="program-stat-value" style={{ marginBottom: '0.5rem' }}>
                                 {isLoading || !program ? (
-                                    <Skeleton width="70%" height="2rem" />
+                                    <Skeleton className="h-8 w-[70%]" />
                                 ) : (
                                     <>
                                         <AnimatedNumber
@@ -272,7 +309,7 @@ const ProgramDashboardContent: React.FC = () => {
                                 )}
                             </div>
                             {isLoading || !program ? (
-                                <Skeleton width="100%" height="8px" style={{ borderRadius: '4px' }} />
+                                <Skeleton className="h-2 w-full rounded-[4px]" />
                             ) : (
                                     <ProgressBar
                                         value={totalCredits}
@@ -345,11 +382,19 @@ const ProgramDashboardContent: React.FC = () => {
                                                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: semester.average_scaled >= 3.0 ? '#10b981' : '#f59e0b' }}></div>
                                                     <button
-                                                        onClick={(e) => {
+                                                        onClick={async (e) => {
                                                             e.preventDefault();
-                                                            if (window.confirm('Are you sure you want to delete this semester?')) {
-                                                                api.deleteSemester(semester.id).then(() => refreshProgram()).catch(err => console.error("Failed to delete", err));
-                                                            }
+                                                            const shouldDelete = await confirm({
+                                                                title: "Delete semester?",
+                                                                description: "Are you sure you want to delete this semester?",
+                                                                confirmText: "Delete",
+                                                                cancelText: "Cancel",
+                                                                tone: "destructive"
+                                                            });
+                                                            if (!shouldDelete) return;
+                                                            api.deleteSemester(semester.id)
+                                                                .then(() => refreshProgram())
+                                                                .catch(err => console.error("Failed to delete", err));
                                                         }}
                                                         style={{
                                                             background: 'none',
@@ -485,10 +530,10 @@ const ProgramDashboardContent: React.FC = () => {
                                         }
                                     }}
                                 />
-                                <div style={{ marginBottom: '0.5rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
                                     {selectedFile ? (
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--color-primary)' }}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
                                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                                 <polyline points="14 2 14 8 20 8"></polyline>
                                                 <line x1="12" y1="18" x2="12" y2="12"></line>
@@ -498,13 +543,11 @@ const ProgramDashboardContent: React.FC = () => {
                                         </div>
                                     ) : (
                                         <>
-                                            <div style={{ marginBottom: '0.5rem' }}>
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)' }}>
-                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                                    <polyline points="17 8 12 3 7 8"></polyline>
-                                                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                                                </svg>
-                                            </div>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)', display: 'block' }}>
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                <polyline points="17 8 12 3 7 8"></polyline>
+                                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                                            </svg>
                                             <div>Click or drag .ics file to upload</div>
                                         </>
                                     )}

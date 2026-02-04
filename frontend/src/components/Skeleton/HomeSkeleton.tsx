@@ -1,5 +1,5 @@
 import React from 'react';
-import { Skeleton } from './Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Container } from '../Container';
 
 export const HomeSkeleton: React.FC = () => {
@@ -11,7 +11,7 @@ export const HomeSkeleton: React.FC = () => {
                 gap: '1.5rem'
             }}>
                 {[1, 2, 3, 4].map(i => (
-                    <Skeleton key={i} height="150px" style={{ borderRadius: 'var(--radius-lg)' }} />
+                    <Skeleton key={i} className="h-[150px] w-full rounded-lg" />
                 ))}
             </div>
         </Container>

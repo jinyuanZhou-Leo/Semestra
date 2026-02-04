@@ -1,19 +1,28 @@
-import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
-import { Layout } from '../components/Layout';
-import { Button } from '../components/Button';
-import { Input } from '../components/Input';
-import { GPAScalingTable } from '../components/GPAScalingTable';
-import axios from 'axios';
+import React, { useEffect, useRef, useState, Suspense, lazy } from "react";
+import { Layout } from "../components/Layout";
+import { Button } from "../components/Button";
+import { GPAScalingTable } from "../components/GPAScalingTable";
+import axios from "axios";
 
-import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { BackButton } from '../components/BackButton';
-import { Container } from '../components/Container';
-import { SettingsSection } from '../components/SettingsSection';
-import { loadGoogleIdentityScriptWhenIdle } from '../utils/googleIdentity';
-import api from '../services/api';
-import versionInfo from '../version.json';
-import type { ImportData, ConflictMode } from '../components/ImportPreviewModal';
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { BackButton } from "../components/BackButton";
+import { Container } from "../components/Container";
+import { SettingsSection } from "../components/SettingsSection";
+import { loadGoogleIdentityScriptWhenIdle } from "../utils/googleIdentity";
+import api from "../services/api";
+import versionInfo from "../version.json";
+import type { ImportData, ConflictMode } from "../components/ImportPreviewModal";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
+import { useDialog } from '../contexts/DialogContext';
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
@@ -21,25 +30,39 @@ const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal')
 export const SettingsPage: React.FC = () => {
     const { user, logout, refreshUser } = useAuth();
     const navigate = useNavigate();
+    const { alert: showAlert, confirm } = useDialog();
 
     // Theme state
-    const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
-        const saved = localStorage.getItem('themePreference');
-        return (saved === 'light' || saved === 'dark' || saved === 'system') ? saved : 'system';
-    });
+    const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">(
+        () => {
+            const saved = localStorage.getItem("themePreference");
+            return saved === "light" || saved === "dark" || saved === "system"
+                ? saved
+                : "system";
+        }
+    );
 
-    const applyTheme = (mode: 'light' | 'dark' | 'system') => {
-        if (mode === 'system') {
-            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', systemTheme);
+    const themeOptions: Array<{ value: "light" | "dark" | "system"; label: string }> = [
+        { value: "light", label: "Light" },
+        { value: "dark", label: "Dark" },
+        { value: "system", label: "System" }
+    ];
+
+    const applyTheme = (mode: "light" | "dark" | "system") => {
+        if (mode === "system") {
+            const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+                .matches
+                ? "dark"
+                : "light";
+            document.documentElement.setAttribute("data-theme", systemTheme);
         } else {
-            document.documentElement.setAttribute('data-theme', mode);
+            document.documentElement.setAttribute("data-theme", mode);
         }
     };
 
-    const handleThemeChange = (mode: 'light' | 'dark' | 'system') => {
+    const handleThemeChange = (mode: "light" | "dark" | "system") => {
         setThemeMode(mode);
-        localStorage.setItem('themePreference', mode);
+        localStorage.setItem("themePreference", mode);
         applyTheme(mode);
     };
 
@@ -233,17 +256,27 @@ export const SettingsPage: React.FC = () => {
         } catch (error) {
             console.error("Failed to save settings", error);
             setSaveState('idle'); // Or error state if needed
-            alert('Failed to save settings');
+            await showAlert({
+                title: "Save failed",
+                description: "Failed to save settings."
+            });
         }
     };
 
     // Manual Back Handler
-    const handleBack = (e: React.MouseEvent) => {
+    const handleBack = async (e: React.MouseEvent) => {
         // If saving, wait? Or allow exit? Allow exit for now.
         // If dirty but not saved (network error?), confirm.
         if (isDirty && saveState === 'idle') {
             e.preventDefault();
-            if (window.confirm("You have unsaved changes. Are you sure you want to leave?")) {
+            const shouldLeave = await confirm({
+                title: "Unsaved changes",
+                description: "You have unsaved changes. Are you sure you want to leave?",
+                confirmText: "Leave",
+                cancelText: "Stay",
+                tone: "destructive"
+            });
+            if (shouldLeave) {
                 navigate(-1);
             }
         } else {
@@ -259,251 +292,214 @@ export const SettingsPage: React.FC = () => {
         navigate('/login');
     };
 
+    const avatarInitial = (user?.email?.charAt(0).toUpperCase() || "U").trim();
+
     return (
         <Layout>
-            <Container padding="2rem">
+            <Container padding="2rem" className="space-y-8 select-none">
                 <BackButton label="Back to Home" onClick={handleBack} />
-                <h1 style={{ marginBottom: '2rem', userSelect: 'none' }}>Settings</h1>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', userSelect: 'none' }}>
-                <SettingsSection
-                    title="Appearance"
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-semibold">Settings</h1>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <SettingsSection
+                        title="Appearance"
                         description="Customize the look and feel of the application."
                         center
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-                        <div>
-                                <h3 style={{ fontSize: '1.1rem', margin: 0, userSelect: 'none' }}>Theme</h3>
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--color-bg-secondary)', padding: '0.25rem', borderRadius: 'var(--radius-md)' }}>
-                                {(['light', 'dark', 'system'] as const).map((mode) => (
-                                    <button
-                                        key={mode}
-                                        onClick={() => handleThemeChange(mode)}
-                                        style={{
-                                            border: 'none',
-                                            background: themeMode === mode ? 'var(--color-bg-primary)' : 'transparent',
-                                            color: themeMode === mode ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                                            padding: '0.4rem 0.8rem',
-                                            borderRadius: 'var(--radius-sm)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.9rem',
-                                            fontWeight: 500,
-                                            boxShadow: themeMode === mode ? 'var(--shadow-sm)' : 'none',
-                                            transition: 'all 0.2s',
-                                            userSelect: 'none',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.4rem'
-                                        }}
-                                    >
-                                        {mode === 'light' && '☀️ Light'}
-                                        {mode === 'dark' && '🌙 Dark'}
-                                        {mode === 'system' && '🖥️ System'}
-                                    </button>
-                                ))}
-                            </div>
-                    </div>
-                </SettingsSection>
-
-                <SettingsSection
-                    title="Account"
-                    description="Manage your profile and sign-in settings."
-                >
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '1rem',
-                            marginBottom: '1rem'
-                        }}>
-                            <div style={{
-                                width: '64px',
-                                height: '64px',
-                                borderRadius: '50%',
-                                background: 'var(--color-primary)',
-                                color: 'var(--color-accent-text)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '24px',
-                                fontWeight: 'bold'
-                            }}>
-                                {user?.email?.charAt(0).toUpperCase() || 'U'}
-                            </div>
-
+                    >
+                        <div className="flex flex-wrap items-center justify-between gap-4">
                             <div>
-                                <h3 style={{ fontSize: '1.2rem', userSelect: 'none' }}>{user?.nickname || user?.email}</h3>
-                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', margin: 0, userSelect: 'none' }}>{user?.email}</p>
+                                <p className="text-sm font-medium">Theme</p>
                             </div>
+                            <RadioGroup
+                                value={themeMode}
+                                onValueChange={(value) =>
+                                    handleThemeChange(value as "light" | "dark" | "system")
+                                }
+                                className="grid grid-cols-3 gap-2"
+                            >
+                                {themeOptions.map((option) => (
+                                    <div key={option.value} className="relative">
+                                        <RadioGroupItem
+                                            id={`theme-${option.value}`}
+                                            value={option.value}
+                                            className="peer sr-only"
+                                        />
+                                        <Label
+                                            htmlFor={`theme-${option.value}`}
+                                            className={cn(
+                                                "flex min-w-[96px] items-center justify-center rounded-md border px-3 py-2 text-sm font-medium text-muted-foreground transition",
+                                                "hover:border-muted-foreground/40 hover:text-foreground",
+                                                "peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary"
+                                            )}
+                                        >
+                                            {option.label}
+                                        </Label>
+                                    </div>
+                                ))}
+                            </RadioGroup>
                         </div>
+                    </SettingsSection>
 
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, userSelect: 'none' }}>
-                                Nickname
-                            </label>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input
+                    <SettingsSection
+                        title="Account"
+                        description="Manage your profile and sign-in settings."
+                    >
+                        <div className="space-y-6">
+                            <div className="flex flex-wrap items-center gap-4">
+                                <Avatar className="h-14 w-14">
+                                    <AvatarFallback>{avatarInitial}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="text-base font-semibold">
+                                        {user?.nickname || user?.email}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {user?.email}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-2 sm:max-w-md">
+                                <Label htmlFor="nickname-input">Nickname</Label>
+                                <Input
+                                    id="nickname-input"
                                     type="text"
                                     value={nickname}
                                     onChange={(e) => setNickname(e.target.value)}
                                     placeholder="Enter a nickname"
-                                    style={{
-                                        flex: 1,
-                                        padding: '0.5rem',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: '1px solid var(--color-border)',
-                                        background: 'var(--color-bg-secondary)',
-                                        color: 'var(--color-text-primary)'
+                                />
+                            </div>
+
+                            <Separator />
+
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <div>
+                                    <p className="text-sm font-medium">Google</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {user?.google_sub
+                                            ? "Connected to your account"
+                                            : "Connect Google for one-click sign in"}
+                                    </p>
+                                </div>
+                                {googleClientId ? (
+                                    user?.google_sub ? (
+                                        <Badge variant="secondary">Connected</Badge>
+                                    ) : (
+                                        <div
+                                            className={cn(
+                                                "min-w-[220px]",
+                                                isGoogleLinking && "opacity-70"
+                                            )}
+                                        >
+                                            <div ref={googleLinkRef} />
+                                            {!isGoogleLinkReady && (
+                                                <p className="mt-2 text-xs text-muted-foreground">
+                                                    Loading Google sign-in...
+                                                </p>
+                                            )}
+                                        </div>
+                                    )
+                                ) : (
+                                    <Badge variant="outline">Not configured</Badge>
+                                )}
+                            </div>
+
+                            {googleLinkError && (
+                                <Alert variant="destructive">
+                                    <AlertTitle>Google link failed</AlertTitle>
+                                    <AlertDescription>{googleLinkError}</AlertDescription>
+                                </Alert>
+                            )}
+
+                            {googleLinkSuccess && (
+                                <Alert>
+                                    <AlertTitle>Google connected</AlertTitle>
+                                    <AlertDescription>
+                                        Your Google account is linked successfully.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
+                            <div className="flex items-center justify-end">
+                                <Button
+                                    variant="secondary"
+                                    onClick={handleLogout}
+                                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                                >
+                                    Sign Out
+                                </Button>
+                            </div>
+                        </div>
+                    </SettingsSection>
+
+                    <SettingsSection
+                        title="Global Defaults"
+                        description="Set defaults for new programs when no custom table is defined."
+                    >
+                        <div className="space-y-6">
+                            <div className="grid gap-3">
+                                <Label>Default GPA Scaling Table</Label>
+                                <GPAScalingTable
+                                    value={gpaTableJson}
+                                    onChange={(newValue) => {
+                                        setGpaTableJson(newValue);
                                     }}
                                 />
                             </div>
-                        </div>
 
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '1rem',
-                            flexWrap: 'wrap',
-                            marginBottom: '1rem'
-                        }}>
-                            <div>
-                                <h3 style={{ fontSize: '1.05rem', marginBottom: '0.25rem', userSelect: 'none' }}>Google</h3>
-                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0, userSelect: 'none' }}>
-                                    {user?.google_sub ? 'Connected to your account' : 'Connect Google for one-click sign in'}
-                                </p>
+                            <div className="grid gap-2">
+                                <Label htmlFor="default-credit">Default Course Credit</Label>
+                                <Input
+                                    id="default-credit"
+                                    type="number"
+                                    step="0.5"
+                                    value={defaultCourseCredit}
+                                    onChange={(e) =>
+                                        setDefaultCourseCredit(parseFloat(e.target.value) || 0)
+                                    }
+                                    className="max-w-[160px]"
+                                />
                             </div>
-                            {googleClientId ? (
-                                user?.google_sub ? (
-                                    <span style={{
-                                        padding: '0.4rem 0.8rem',
-                                        borderRadius: '999px',
-                                        background: 'rgba(16, 185, 129, 0.15)',
-                                        color: 'rgb(16, 185, 129)',
-                                        fontSize: '0.85rem',
-                                        fontWeight: 600
-                                    }}>
-                                        Connected
-                                    </span>
-                                ) : (
-                                    <div style={{ minWidth: '220px', opacity: isGoogleLinking ? 0.6 : 1 }}>
-                                        <div ref={googleLinkRef} />
-                                        {!isGoogleLinkReady && (
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: '0.5rem' }}>
-                                                Loading Google sign-in...
-                                            </div>
-                                        )}
-                                    </div>
-                                )
-                            ) : (
-                                <span style={{ color: 'var(--color-text-tertiary)', fontSize: '0.85rem' }}>
-                                    Not configured
-                                </span>
-                            )}
-                        </div>
 
-                        {googleLinkError && (
-                            <div style={{
-                                color: 'var(--color-danger)',
-                                fontSize: '0.875rem',
-                                marginBottom: '1rem',
-                                padding: '0.75rem',
-                                backgroundColor: 'rgba(239, 68, 68, 0.05)',
-                                borderRadius: '0.75rem',
-                                border: '1px solid rgba(239, 68, 68, 0.1)'
-                            }}>
-                                {googleLinkError}
+                            <div className="flex flex-wrap items-center justify-end gap-3">
+                                <Button
+                                    onClick={() => saveSettings()}
+                                    disabled={saveState === "saving"}
+                                    className="min-w-[160px]"
+                                >
+                                    {saveState === "saving" && (
+                                        <Spinner size="sm" className="mr-2" />
+                                    )}
+                                    {saveState === "success" && (
+                                        <span className="mr-2 text-emerald-500">✓</span>
+                                    )}
+                                    {saveState === "success"
+                                        ? "Saved"
+                                        : saveState === "saving"
+                                            ? "Saving..."
+                                            : "Save Settings"}
+                                </Button>
                             </div>
-                        )}
-
-                        {googleLinkSuccess && (
-                            <div style={{
-                                color: 'rgb(16, 185, 129)',
-                                fontSize: '0.875rem',
-                                marginBottom: '1rem',
-                                padding: '0.75rem',
-                                backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                                borderRadius: '0.75rem',
-                                border: '1px solid rgba(16, 185, 129, 0.2)'
-                            }}>
-                                Google account connected.
-                            </div>
-                        )}
-                    </div>
-
-                    <Button variant="secondary" onClick={handleLogout} style={{ color: 'var(--color-error, #ef4444)', borderColor: 'var(--color-error, #ef4444)' }}>
-                        Sign Out
-                    </Button>
-                </SettingsSection>
-
-                <SettingsSection
-                    title="Global Defaults"
-                    description="Set defaults for new programs when no custom table is defined."
-                >
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, userSelect: 'none' }}>
-                            Default GPA Scaling Table
-                        </label>
-                        <GPAScalingTable
-                            value={gpaTableJson}
-                            onChange={(newValue) => {
-                                setGpaTableJson(newValue);
-                            }}
-                        />
-                    </div>
-
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <Input
-                                label="Default Course Credit"
-                                type="number"
-                                step="0.5"
-                                value={defaultCourseCredit}
-                                onChange={(e) => setDefaultCourseCredit(parseFloat(e.target.value) || 0)}
-                                style={{ width: '150px' }}
-                            />
                         </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem' }}>
-                            <Button
-                                onClick={() => saveSettings()}
-                                disabled={saveState === 'saving'}
-                                style={{ minWidth: '140px' }}
-                            >
-                                <div className="save-btn-content">
-                                    {(saveState === 'idle' || saveState === 'saving') && (
-                                        <span className={`save-btn-text ${saveState === 'saving' ? 'exit-up' : 'enter-up'}`}>
-                                            Save Settings
-                                        </span>
-                                    )}
-
-                                    {saveState === 'saving' && (
-                                        <div className="save-spinner"></div>
-                                    )}
-
-                                    {saveState === 'success' && (
-                                        <div className="fade-enter" style={{ gridArea: '1 / 1', display: 'grid', placeItems: 'center' }}>
-                                            <svg className="save-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M20 6L9 17l-5-5" />
-                                            </svg>
-                                        </div>
-                                    )}
-                                </div>
-                        </Button>
-                    </div>
-                </SettingsSection>
+                    </SettingsSection>
 
                     <SettingsSection
                         title="Data Management"
                         description="Backup and restore your account data."
                         center
                     >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div className="grid gap-4">
+                            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-muted/40 p-4">
                                 <div>
-                                    <h3 style={{ fontSize: '1.05rem', marginBottom: '0.25rem', userSelect: 'none' }}>Export Data</h3>
-                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0, userSelect: 'none' }}>
-                                        Download all your programs, semesters, and courses as a JSON file.
+                                    <p className="text-sm font-medium">Export Data</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Download all your programs, semesters, and courses as a JSON
+                                        file.
                                     </p>
                                 </div>
                                 <Button
@@ -511,39 +507,46 @@ export const SettingsPage: React.FC = () => {
                                     onClick={async () => {
                                         try {
                                             const data = await api.exportUserData();
-                                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                            const blob = new Blob(
+                                                [JSON.stringify(data, null, 2)],
+                                                { type: "application/json" }
+                                            );
                                             const url = URL.createObjectURL(blob);
-                                            const a = document.createElement('a');
+                                            const a = document.createElement("a");
                                             a.href = url;
-                                            a.download = `semestra-backup-${new Date().toISOString().split('T')[0]}.json`;
+                                            a.download = `semestra-backup-${new Date()
+                                                .toISOString()
+                                                .split("T")[0]}.json`;
                                             document.body.appendChild(a);
                                             a.click();
                                             document.body.removeChild(a);
                                             URL.revokeObjectURL(url);
                                         } catch (error) {
-                                            console.error('Export failed:', error);
-                                            alert('Export failed. Please try again.');
+                                            console.error("Export failed:", error);
+                                            await showAlert({
+                                                title: "Export failed",
+                                                description: "Export failed. Please try again."
+                                            });
                                         }
                                     }}
-                                    style={{ minWidth: '140px' }}
                                 >
-                                    📥 Export
+                                    Export
                                 </Button>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-muted/40 p-4">
                                 <div>
-                                    <h3 style={{ fontSize: '1.05rem', marginBottom: '0.25rem', userSelect: 'none' }}>Import Data</h3>
-                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0, userSelect: 'none' }}>
+                                    <p className="text-sm font-medium">Import Data</p>
+                                    <p className="text-xs text-muted-foreground">
                                         Restore data from a previously exported JSON file.
                                     </p>
                                 </div>
                                 <Button
                                     variant="secondary"
                                     onClick={() => {
-                                        const input = document.createElement('input');
-                                        input.type = 'file';
-                                        input.accept = '.json,application/json';
+                                        const input = document.createElement("input");
+                                        input.type = "file";
+                                        input.accept = ".json,application/json";
                                         input.onchange = async (e) => {
                                             const file = (e.target as HTMLInputElement).files?.[0];
                                             if (!file) return;
@@ -552,27 +555,31 @@ export const SettingsPage: React.FC = () => {
                                                 const text = await file.text();
                                                 const data = JSON.parse(text) as ImportData;
 
-                                                // Validate basic structure
                                                 if (!data.programs || !Array.isArray(data.programs)) {
-                                                    alert('Invalid backup file format.');
+                                                    await showAlert({
+                                                        title: "Invalid backup file",
+                                                        description: "Invalid backup file format."
+                                                    });
                                                     return;
                                                 }
 
-                                                // Fetch existing programs to detect conflicts
                                                 const programs = await api.getPrograms();
-                                                setExistingProgramNames(programs.map(p => p.name));
+                                                setExistingProgramNames(programs.map((p) => p.name));
                                                 setImportData(data);
                                                 setImportModalOpen(true);
                                             } catch (error: any) {
-                                                console.error('Import failed:', error);
-                                                alert('Import failed. Please make sure the file is a valid Semestra backup.');
+                                                console.error("Import failed:", error);
+                                                await showAlert({
+                                                    title: "Import failed",
+                                                    description:
+                                                        "Import failed. Please make sure the file is a valid Semestra backup."
+                                                });
                                             }
                                         };
                                         input.click();
                                     }}
-                                    style={{ minWidth: '140px' }}
                                 >
-                                    📤 Import
+                                    Import
                                 </Button>
                             </div>
 
@@ -586,10 +593,20 @@ export const SettingsPage: React.FC = () => {
                                         }}
                                         importData={importData}
                                         existingProgramNames={existingProgramNames}
-                                        onConfirm={async (conflictMode: ConflictMode, includeSettings: boolean) => {
+                                        onConfirm={async (
+                                            conflictMode: ConflictMode,
+                                            includeSettings: boolean
+                                        ) => {
                                             if (!importData) return;
-                                            const result = await api.importUserData(importData, conflictMode, includeSettings);
-                                            alert(`Import successful!\n\nImported: ${result.imported.programs} programs, ${result.imported.semesters} semesters, ${result.imported.courses} courses${result.skipped?.programs > 0 ? `\nSkipped: ${result.skipped.programs} programs (conflicts)` : ''}`);
+                                            const result = await api.importUserData(
+                                                importData,
+                                                conflictMode,
+                                                includeSettings
+                                            );
+                                            await showAlert({
+                                                title: "Import successful",
+                                                description: `Imported: ${result.imported.programs} programs, ${result.imported.semesters} semesters, ${result.imported.courses} courses${result.skipped?.programs > 0 ? `\nSkipped: ${result.skipped.programs} programs (conflicts)` : ""}`
+                                            });
                                             await refreshUser();
                                         }}
                                     />
@@ -599,22 +616,13 @@ export const SettingsPage: React.FC = () => {
                     </SettingsSection>
                 </div>
 
-                {/* Version Info */}
-                <div style={{
-                    marginTop: '3rem',
-                    paddingTop: '1.5rem',
-                    borderTop: '1px solid var(--color-border)',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    fontSize: '0.75rem',
-                    color: 'var(--color-text-tertiary)',
-                    userSelect: 'none'
-                }}>
+                <Separator />
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                     <span>v{versionInfo.version}</span>
                     <span>•</span>
-                    <span>{versionInfo.branch}@{versionInfo.commit}</span>
+                    <span>
+                        {versionInfo.branch}@{versionInfo.commit}
+                    </span>
                 </div>
             </Container>
         </Layout>

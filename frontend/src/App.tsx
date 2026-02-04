@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider } from './contexts/AuthContext';
 import { RequireAuth } from './components/RequireAuth';
+import { DialogProvider } from './contexts/DialogContext';
+import { Toaster } from './components/ui/sonner';
 
 // Lazy load page components
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
@@ -17,54 +19,57 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        {/* Use null fallback to keep index.html spinner visible during lazy load */}
-        <Suspense fallback={null}>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <HomePage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/programs/:id"
-              element={
-                <RequireAuth>
-                  <ProgramDashboard />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/semesters/:id"
-              element={
-                <RequireAuth>
-                  <SemesterHomepage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/courses/:id"
-              element={
-                <RequireAuth>
-                  <CourseHomepage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <RequireAuth>
-                  <SettingsPage />
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </Suspense>
-        <SpeedInsights />
+        <DialogProvider>
+          {/* Use null fallback to keep index.html spinner visible during lazy load */}
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route
+                path="/"
+                element={
+                  <RequireAuth>
+                    <HomePage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/programs/:id"
+                element={
+                  <RequireAuth>
+                    <ProgramDashboard />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/semesters/:id"
+                element={
+                  <RequireAuth>
+                    <SemesterHomepage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/courses/:id"
+                element={
+                  <RequireAuth>
+                    <CourseHomepage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <RequireAuth>
+                    <SettingsPage />
+                  </RequireAuth>
+                }
+              />
+            </Routes>
+          </Suspense>
+          <Toaster />
+          <SpeedInsights />
+        </DialogProvider>
       </AuthProvider>
     </Router>
   );

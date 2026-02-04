@@ -1,65 +1,48 @@
-import React, { type InputHTMLAttributes } from 'react';
+import React, { type InputHTMLAttributes, useId } from "react";
+import { Input as UiInput } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-    label?: string;
-    wrapperStyle?: React.CSSProperties;
-    rightElement?: React.ReactNode;
+  label?: string;
+  wrapperStyle?: React.CSSProperties;
+  rightElement?: React.ReactNode;
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, style, wrapperStyle, rightElement, onFocus, onBlur, ...props }, ref) => {
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ label, style, wrapperStyle, rightElement, className, id, ...props }, ref) => {
+    const generatedId = useId();
+    const inputId = id ?? (label ? `input-${generatedId}` : undefined);
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem', ...wrapperStyle }}>
-            {label && (
-                <label style={{
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    color: 'var(--color-text-secondary)'
-                }}>
-                    {label}
-                </label>
-            )}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <input
-                    ref={ref}
-                    style={{
-                        padding: '0.75rem',
-                        paddingRight: rightElement ? '2.5rem' : '0.75rem',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                        backgroundColor: 'var(--color-bg-primary)',
-                        color: 'var(--color-text-primary)',
-                        fontSize: '1rem',
-                        outline: 'none',
-                        transition: 'border-color 0.2s',
-                        width: '100%',
-                        ...style
-                    }}
-                    onFocus={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--color-accent-primary)';
-                        onFocus?.(e);
-                    }}
-                    onBlur={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--color-border)';
-                        onBlur?.(e);
-                    }}
-                    {...props}
-                />
-                {rightElement && (
-                    <div style={{
-                        position: 'absolute',
-                        right: '0.75rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--color-text-tertiary)'
-                    }}>
-                        {rightElement}
-                    </div>
-                )}
+      <div
+        className="flex flex-col gap-2 mb-4"
+        style={{ ...wrapperStyle }}
+      >
+        {label && (
+          <label
+            htmlFor={inputId}
+            className="text-sm font-medium text-muted-foreground"
+          >
+            {label}
+          </label>
+        )}
+        <div className="relative flex items-center">
+          <UiInput
+            ref={ref}
+            id={inputId}
+            className={cn(rightElement && "pr-10", className)}
+            style={style}
+            {...props}
+          />
+          {rightElement && (
+            <div className="absolute right-3 flex items-center text-muted-foreground">
+              {rightElement}
             </div>
+          )}
         </div>
+      </div>
     );
-});
+  }
+);
 
 Input.displayName = "Input";
-

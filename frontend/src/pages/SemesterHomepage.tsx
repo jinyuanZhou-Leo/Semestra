@@ -8,9 +8,8 @@ import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
-import { Skeleton } from '../components/Skeleton/Skeleton';
+import { Skeleton } from '../components/ui/skeleton';
 import { AnimatedNumber } from '../components/AnimatedNumber';
-import { BackButton } from '../components/BackButton';
 import { Container } from '../components/Container';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
@@ -18,6 +17,15 @@ import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataC
 import { TabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
+import api from '../services/api';
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from '../components/ui/breadcrumb';
 
 const SemesterHomepageContent: React.FC = () => {
     const { semester, updateSemester, refreshSemester, isLoading } = useSemesterData();
@@ -27,6 +35,7 @@ const SemesterHomepageContent: React.FC = () => {
     const [activeTabId, setActiveTabId] = useState('dashboard');
     const [isShrunk, setIsShrunk] = useState(false);
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    const [programName, setProgramName] = useState<string | null>(null);
     const lastScrollY = React.useRef(0);
     const isShrunkRef = React.useRef(false);
     const isTransitioningRef = React.useRef(false);
@@ -97,6 +106,31 @@ const SemesterHomepageContent: React.FC = () => {
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
         };
     }, []);
+
+    useEffect(() => {
+        let isActive = true;
+        const programId = semester?.program_id;
+        if (!programId) {
+            setProgramName(null);
+            return () => {
+                isActive = false;
+            };
+        }
+        api.getProgram(programId)
+            .then((program) => {
+                if (isActive) {
+                    setProgramName(program.name);
+                }
+            })
+            .catch(() => {
+                if (isActive) {
+                    setProgramName(null);
+                }
+            });
+        return () => {
+            isActive = false;
+        };
+    }, [semester?.program_id]);
 
     useEffect(() => {
         isShrunkStateRef.current = isShrunk;
@@ -427,8 +461,44 @@ const SemesterHomepageContent: React.FC = () => {
                         marginBottom: isShrunk ? '0' : '0.25rem',
                         transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-bottom 0.3s'
                     }}>
-                        <BackButton label="Back to Program" />
-                        <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Semester Dashboard</div>
+                        <Breadcrumb>
+                            <BreadcrumbList
+                                style={{
+                                    fontSize: '0.875rem',
+                                    fontWeight: 600,
+                                    letterSpacing: '0.05em',
+                                    color: 'var(--color-primary)',
+                                    marginBottom: '0.5rem',
+                                    textTransform: 'uppercase'
+                                }}
+                            >
+                                <BreadcrumbItem>
+                                    <BreadcrumbLink asChild className="text-primary">
+                                        <Link to="/">Academic</Link>
+                                    </BreadcrumbLink>
+                                </BreadcrumbItem>
+                                <BreadcrumbSeparator />
+                                <BreadcrumbItem>
+                                    {semester?.program_id ? (
+                                        <BreadcrumbLink asChild className="text-primary normal-case">
+                                            <Link to={`/programs/${semester.program_id}`}>
+                                                {programName || 'Program'}
+                                            </Link>
+                                        </BreadcrumbLink>
+                                    ) : (
+                                        <span className="text-primary normal-case">
+                                            {programName || 'Program'}
+                                        </span>
+                                    )}
+                                </BreadcrumbItem>
+                                <BreadcrumbSeparator />
+                                <BreadcrumbItem>
+                                    <BreadcrumbPage className="text-primary normal-case">
+                                        {semester?.name || 'Semester'}
+                                    </BreadcrumbPage>
+                                </BreadcrumbItem>
+                            </BreadcrumbList>
+                        </Breadcrumb>
                     </div>
 
                     <div className="page-header" style={{
@@ -446,7 +516,10 @@ const SemesterHomepageContent: React.FC = () => {
                             minWidth: 0
                         }}>
                             {isLoading || !semester ? (
-                                <Skeleton width="60%" height={titleSize} style={{ marginBottom: isShrunk ? 0 : '0.5rem' }} />
+                                <Skeleton
+                                    className="w-3/5"
+                                    style={{ height: titleSize, marginBottom: isShrunk ? 0 : '0.5rem' }}
+                                />
                             ) : (
                                     <h1 className="noselect text-truncate" style={{
                                         fontSize: titleSize,
@@ -475,7 +548,7 @@ const SemesterHomepageContent: React.FC = () => {
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem' }}>
                                         {isLoading || !semester ? (
-                                            <Skeleton width="2rem" height="1.5rem" />
+                                            <Skeleton className="h-6 w-8" />
                                         ) : (
                                             <AnimatedNumber
                                                 value={semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}
@@ -488,7 +561,7 @@ const SemesterHomepageContent: React.FC = () => {
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Avg</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>
                                         {isLoading || !semester ? (
-                                            <Skeleton width="3rem" height="1.5rem" />
+                                            <Skeleton className="h-6 w-12" />
                                         ) : (
                                             <AnimatedNumber
                                                 value={semester.average_percentage}
@@ -501,7 +574,7 @@ const SemesterHomepageContent: React.FC = () => {
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>
                                         {isLoading || !semester ? (
-                                            <Skeleton width="2.5rem" height="1.5rem" />
+                                            <Skeleton className="h-6 w-10" />
                                         ) : (
                                             <AnimatedNumber
                                                 value={semester.average_scaled}

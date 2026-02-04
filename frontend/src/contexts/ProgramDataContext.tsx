@@ -64,7 +64,7 @@ export const ProgramDataProvider: React.FC<ProgramDataProviderProps> = ({ progra
         } catch (error) {
             console.error("Failed to sync program to backend", error);
             pendingUpdates.current = { ...updates, ...pendingUpdates.current };
-            reportError('Failed to sync program changes. Will retry.');
+            reportError('Failed to sync program changes.');
         }
     }, [programId, setProgram]);
 

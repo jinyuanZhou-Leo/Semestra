@@ -8,12 +8,20 @@ import { Input } from '../components/Input';
 import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program } from '../services/api';
+import { useDialog } from '../contexts/DialogContext';
 
 import { useHeroGradient } from '../hooks/useHeroGradient';
 import { HomeSkeleton } from '../components/Skeleton/HomeSkeleton';
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbList,
+    BreadcrumbPage,
+} from '../components/ui/breadcrumb';
 
 export const HomePage: React.FC = () => {
     const { user } = useAuth();
+    const { alert: showAlert, confirm } = useDialog();
     const [programs, setPrograms] = useState<Program[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -55,7 +63,10 @@ export const HomePage: React.FC = () => {
             fetchPrograms();
         } catch (error) {
             console.error("Failed to create program", error);
-            alert('Failed to create program');
+            await showAlert({
+                title: "Create failed",
+                description: "Failed to create program."
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -72,7 +83,22 @@ export const HomePage: React.FC = () => {
                 <Container>
                     <div className="page-header" style={{ marginBottom: 0 }}>
                         <div>
-                            <div style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--color-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Academic Overview</div>
+                            <Breadcrumb>
+                                <BreadcrumbList
+                                    style={{
+                                        fontSize: '0.875rem',
+                                        fontWeight: 600,
+                                        letterSpacing: '0.05em',
+                                        color: 'var(--color-primary)',
+                                        marginBottom: '0.5rem',
+                                        textTransform: 'uppercase'
+                                    }}
+                                >
+                                    <BreadcrumbItem>
+                                    <BreadcrumbPage className="text-primary">Academic</BreadcrumbPage>
+                                    </BreadcrumbItem>
+                                </BreadcrumbList>
+                            </Breadcrumb>
                             <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                                 Academics
                             </h1>
@@ -125,12 +151,20 @@ export const HomePage: React.FC = () => {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                                         <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{program.name}</h3>
                                         <button
-                                            onClick={(e) => {
+                                            onClick={async (e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
-                                                if (window.confirm('Are you sure you want to delete this program?')) {
-                                                    api.deleteProgram(program.id).then(fetchPrograms).catch(err => console.error("Failed to delete", err));
-                                                }
+                                                const shouldDelete = await confirm({
+                                                    title: "Delete program?",
+                                                    description: "Are you sure you want to delete this program?",
+                                                    confirmText: "Delete",
+                                                    cancelText: "Cancel",
+                                                    tone: "destructive"
+                                                });
+                                                if (!shouldDelete) return;
+                                                api.deleteProgram(program.id)
+                                                    .then(fetchPrograms)
+                                                    .catch(err => console.error("Failed to delete", err));
                                             }}
                                             style={{
                                                 background: 'none',

@@ -2,8 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { Input } from './Input';
-import { TabSwitch } from './TabSwitch';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from './ui/empty';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Spinner } from './ui/spinner';
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import api, { type Course } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -118,14 +121,22 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 {/* Mode Switcher (only if semesterId is present) */}
                 {semesterId && (
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <TabSwitch
-                            value={mode}
-                            onChange={setMode}
-                            options={[
-                                { value: 'list' as const, label: 'Select Existing' },
-                                { value: 'create' as const, label: 'Create New' }
-                            ]}
-                        />
+                        <Tabs value={mode} onValueChange={(value) => setMode(value as 'list' | 'create')}>
+                            <TabsList className="w-full">
+                                <TabsTrigger
+                                    value="list"
+                                    className="flex-1"
+                                >
+                                    Select Existing
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="create"
+                                    className="flex-1"
+                                >
+                                    Create New
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
                     </div>
                 )}
 
@@ -139,12 +150,32 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                             transition={{ duration: 0.2 }}
                             style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
                         >
-                            <Input
-                                placeholder="Search unassigned courses..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{ marginBottom: '1rem' }}
-                            />
+                            <div className="relative mb-4">
+                                <span
+                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                                    aria-hidden="true"
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        width="16"
+                                        height="16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <circle cx="11" cy="11" r="8" />
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                    </svg>
+                                </span>
+                                <Input
+                                    placeholder="Search unassigned courses..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9"
+                                />
+                            </div>
 
                             <div style={{
                                 flex: 1,
@@ -155,21 +186,22 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                 paddingRight: '0.5rem'
                             }}>
                                 {isLoading ? (
-                                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading...</div>
+                                    <Empty className="border-border/70 bg-muted/40">
+                                        <EmptyHeader>
+                                            <EmptyTitle>Loading...</EmptyTitle>
+                                            <EmptyDescription>Fetching unassigned courses.</EmptyDescription>
+                                        </EmptyHeader>
+                                        <Spinner size="lg" className="text-muted-foreground" />
+                                    </Empty>
                                 ) : filteredCourses.length === 0 ? (
-                                    <div style={{
-                                        padding: '3rem 1rem',
-                                        textAlign: 'center',
-                                        color: 'var(--color-text-secondary)',
-                                        background: 'var(--color-bg-secondary)',
-                                        borderRadius: 'var(--radius-lg)',
-                                        border: '1px dashed var(--color-border)'
-                                    }}>
-                                        <div style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>No courses found</div>
-                                        <div style={{ fontSize: '0.85rem' }}>
-                                            {searchTerm ? 'Try a different search term' : 'All courses are assigned to semesters'}
-                                        </div>
-                                    </div>
+                                    <Empty className="border-border/70 bg-muted/40">
+                                        <EmptyHeader>
+                                            <EmptyTitle>No courses found</EmptyTitle>
+                                            <EmptyDescription>
+                                                {searchTerm ? 'Try a different search term.' : 'All courses are assigned to semesters.'}
+                                            </EmptyDescription>
+                                        </EmptyHeader>
+                                    </Empty>
                                 ) : (
                                     filteredCourses.map(course => (
                                         <div key={course.id} style={{
@@ -222,30 +254,41 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                         >
                                 <form onSubmit={handleCreateNew} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                    <Input
-                                        label="Course Name"
-                                        value={newName}
-                                        onChange={e => setNewName(e.target.value)}
-                                        required
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="course-name">Course Name</Label>
+                                        <Input
+                                            id="course-name"
+                                            value={newName}
+                                            onChange={e => setNewName(e.target.value)}
+                                            required
                                             placeholder="e.g. Introduction to Computer Science"
                                         />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="course-alias">Alias (optional)</Label>
                                         <Input
-                                            label="Alias (optional)"
+                                            id="course-alias"
                                             value={newAlias}
                                             onChange={e => setNewAlias(e.target.value)}
                                             placeholder="e.g. CS101 - Prof. Smith"
                                         />
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="course-credits">Credits</Label>
                                             <Input
-                                                label="Credits"
+                                                id="course-credits"
                                                 type="number"
                                                 step="0.5"
                                                 value={newCredits}
                                                 onChange={e => setNewCredits(e.target.value)}
                                                 required
                                             />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="course-grade">Grade (%)</Label>
                                             <Input
-                                                label="Grade (%)"
+                                                id="course-grade"
                                                 type="number"
                                                 step="0.1"
                                                 value={newGrade}
@@ -253,6 +296,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                                 required
                                             />
                                         </div>
+                                    </div>
                                 </div>
 
                                     <div style={{ flex: 1 }} />

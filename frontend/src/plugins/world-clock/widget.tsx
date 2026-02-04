@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button } from '../../components/Button';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Separator } from '@/components/ui/separator';
 
 const AVAILABLE_TIMEZONES = [
     { value: 'UTC', label: 'UTC' },
@@ -24,31 +28,30 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
     };
 
     return (
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-                    Timezone
-                </label>
-                <select
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    style={{
-                        width: '100%',
-                        padding: '0.5rem',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                        background: 'var(--color-bg-secondary)',
-                        color: 'var(--color-text-primary)'
-                    }}
-                >
-                    {AVAILABLE_TIMEZONES.map(tz => (
-                        <option key={tz.value} value={tz.value}>{tz.label}</option>
-                    ))}
-                </select>
+        <form onSubmit={handleSave} className="flex flex-col gap-4">
+            <div className="grid gap-2">
+                <Label htmlFor="world-clock-timezone">Timezone</Label>
+                <div className="relative">
+                    <NativeSelect
+                        id="world-clock-timezone"
+                        value={timezone}
+                        onChange={(e) => setTimezone(e.target.value)}
+                        className="pr-8"
+                    >
+                        {AVAILABLE_TIMEZONES.map(tz => (
+                            <option key={tz.value} value={tz.value}>{tz.label}</option>
+                        ))}
+                    </NativeSelect>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        ▾
+                    </span>
+                </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem' }}>
-                <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+            <div className="flex justify-end gap-3 pt-1">
+                <Button type="button" variant="secondary" onClick={onClose}>
+                    Cancel
+                </Button>
                 <Button type="submit">Save</Button>
             </div>
         </form>
@@ -91,22 +94,15 @@ const WorldClockComponent: React.FC<WidgetProps> = ({ settings }) => {
     const formattedDate = dateFormatter.format(time);
 
     return (
-        <div style={{
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: '1rem',
-            userSelect: 'none'
-        }}>
-            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-3 text-center select-none">
+            <Badge variant="secondary" className="text-xs">
                 {timezone.split('/')[1]?.replace('_', ' ') || timezone}
-            </div>
-            <div style={{ fontSize: '2.5rem', fontWeight: 700, fontFamily: 'monospace', lineHeight: 1 }}>
+            </Badge>
+            <div className="text-4xl font-semibold leading-none tabular-nums tracking-tight">
                 {formattedTime}
             </div>
-            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-tertiary)', marginTop: '0.5rem' }}>
+            <Separator className="w-16" />
+            <div className="text-sm text-muted-foreground">
                 {formattedDate}
             </div>
         </div>

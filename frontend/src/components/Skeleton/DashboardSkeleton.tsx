@@ -3,7 +3,7 @@ import { Responsive } from 'react-grid-layout';
 import { WidthProvider } from '../widgets/WidthProvider';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { Skeleton } from './Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -65,7 +65,7 @@ export const DashboardSkeleton: React.FC = () => {
         >
             {Array.from({ length: skeletonCount }, (_, i) => (
                 <div key={`skeleton-${i}`} style={{ border: '1px solid transparent' }}>
-                    <Skeleton height="100%" style={{ borderRadius: 'var(--radius-lg)' }} />
+                    <Skeleton className="h-full w-full rounded-lg" />
                 </div>
             ))}
         </ResponsiveGridLayout>

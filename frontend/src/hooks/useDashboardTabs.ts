@@ -4,6 +4,7 @@ import type { Tab } from '../services/api';
 import { TabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
 import { reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
+import { useDialog } from '../contexts/DialogContext';
 
 export interface TabItem {
     id: string;
@@ -44,6 +45,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
     const tabUpdateSeqRef = useRef<Map<string, number>>(new Map());
     const settingsRetryCountsRef = useRef<Map<string, number>>(new Map());
     const orderRetryCountsRef = useRef<Map<string, number>>(new Map());
+    const { confirm } = useDialog();
 
     useEffect(() => {
         if (initialTabs && !initialSyncDoneRef.current) {
@@ -121,7 +123,14 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
     const removeTab = useCallback(async (id: string) => {
         const tabToRemove = tabs.find(tab => tab.id === id);
         if (tabToRemove?.is_removable === false) return;
-        if (!window.confirm('Are you sure you want to remove this tab?')) return;
+        const shouldRemove = await confirm({
+            title: "Remove tab?",
+            description: "Are you sure you want to remove this tab?",
+            confirmText: "Remove",
+            cancelText: "Cancel",
+            tone: "destructive"
+        });
+        if (!shouldRemove) return;
         const previousTabs = [...tabs];
         setTabs(prev => prev.filter(t => t.id !== id));
         settingsRetryCountsRef.current.delete(id);
@@ -149,7 +158,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
             setTabs(previousTabs);
             reportError('Failed to remove tab. Please try again.');
         }
-    }, [tabs, onRefresh]);
+    }, [confirm, tabs, onRefresh]);
 
     const updateTab = useCallback(async (id: string, data: any) => {
         const nextSeq = (tabUpdateSeqRef.current.get(id) ?? 0) + 1;

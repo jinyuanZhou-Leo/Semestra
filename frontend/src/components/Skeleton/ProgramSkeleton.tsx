@@ -1,15 +1,15 @@
 import React from 'react';
-import { Skeleton } from './Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Container } from '../Container';
 
 export const ProgramSkeleton: React.FC = () => {
     return (
         <Container padding="3rem 2rem">
-            <Skeleton width="100%" height="3rem" style={{ marginBottom: '2rem', borderRadius: 'var(--radius-md)' }} />
+            <Skeleton className="mb-8 h-12 w-full rounded-md" />
 
             <div className="page-header" style={{ marginBottom: '2rem' }}>
-                <Skeleton width="150px" height="2rem" />
-                <Skeleton width="140px" height="2.5rem" style={{ borderRadius: '20px' }} />
+                <Skeleton className="h-8 w-[150px]" />
+                <Skeleton className="h-10 w-[140px] rounded-[20px]" />
             </div>
 
             <div style={{
@@ -20,7 +20,7 @@ export const ProgramSkeleton: React.FC = () => {
             }}>
                 {[1, 2, 3].map(i => (
                     <div key={i} style={{ height: '200px', display: 'flex', flexDirection: 'column' }}>
-                        <Skeleton height="100%" style={{ borderRadius: 'var(--radius-lg)' }} />
+                        <Skeleton className="h-full w-full rounded-lg" />
                     </div>
                 ))}
             </div>

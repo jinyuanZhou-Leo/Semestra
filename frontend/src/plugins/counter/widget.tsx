@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
-import { Button } from '../../components/Button';
-import { Input } from '../../components/Input';
+import React, { useCallback, useId, useState } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface CounterSettings {
     value: number;
@@ -17,6 +18,7 @@ interface CounterSettings {
  */
 const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSave, onClose }) => {
     const counterSettings = settings as CounterSettings;
+    const formId = useId();
     const [displayText, setDisplayText] = useState(counterSettings.displayText || '');
     const [min, setMin] = useState(counterSettings.min ?? 0);
     const [max, setMax] = useState(counterSettings.max ?? 100);
@@ -37,44 +39,61 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
     };
 
     return (
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <Input
-                label="Display Text"
-                value={displayText}
-                onChange={e => setDisplayText(e.target.value)}
-                placeholder="Enter custom text to display below counter"
-            />
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <form onSubmit={handleSave} className="flex flex-col gap-4">
+            <div className="grid gap-2">
+                <Label htmlFor={`${formId}-display`}>Display Text</Label>
                 <Input
-                    label="Min Value"
-                    type="number"
-                    value={min}
-                    onChange={e => setMin(Number(e.target.value))}
-                />
-                <Input
-                    label="Max Value"
-                    type="number"
-                    value={max}
-                    onChange={e => setMax(Number(e.target.value))}
-                />
-                <Input
-                    label="Step"
-                    type="number"
-                    value={step}
-                    onChange={e => setStep(Number(e.target.value))}
-                    min="1"
-                />
-                <Input
-                    label="Initial Value"
-                    type="number"
-                    value={initialValue}
-                    onChange={e => setInitialValue(Number(e.target.value))}
+                    id={`${formId}-display`}
+                    value={displayText}
+                    onChange={e => setDisplayText(e.target.value)}
+                    placeholder="Enter custom text to display below counter"
                 />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem' }}>
-                <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+            <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                    <Label htmlFor={`${formId}-min`}>Min Value</Label>
+                    <Input
+                        id={`${formId}-min`}
+                        type="number"
+                        value={min}
+                        onChange={e => setMin(Number(e.target.value))}
+                    />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor={`${formId}-max`}>Max Value</Label>
+                    <Input
+                        id={`${formId}-max`}
+                        type="number"
+                        value={max}
+                        onChange={e => setMax(Number(e.target.value))}
+                    />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor={`${formId}-step`}>Step</Label>
+                    <Input
+                        id={`${formId}-step`}
+                        type="number"
+                        value={step}
+                        onChange={e => setStep(Number(e.target.value))}
+                        min="1"
+                    />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor={`${formId}-initial`}>Initial Value</Label>
+                    <Input
+                        id={`${formId}-initial`}
+                        type="number"
+                        value={initialValue}
+                        onChange={e => setInitialValue(Number(e.target.value))}
+                    />
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-1">
+                <Button type="button" variant="secondary" onClick={onClose}>
+                    Cancel
+                </Button>
                 <Button type="submit">Save</Button>
             </div>
         </form>
@@ -126,82 +145,42 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
 
     return (
         <div
-            className="counter-container"
+            className="counter-container h-full w-full overflow-hidden"
             style={{
-                height: '100%',
-                width: '100%',
                 containerType: 'size',
                 containerName: 'counter'
             }}
         >
-            <div className="counter-content" style={{
-                height: '100%',
-                width: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: '0.75rem',
-                userSelect: 'none',
-                padding: '0.75rem',
-                boxSizing: 'border-box',
-                overflow: 'auto'
-            }}>
+            <div className="counter-content flex h-full w-full flex-col items-center justify-center gap-3 overflow-auto p-3 select-none">
                 <div
-                    className="counter-value"
+                    className="counter-value text-5xl font-semibold leading-none tabular-nums"
                     style={{
-                        fontSize: '3.5rem',
-                        fontWeight: 700,
-                        lineHeight: 1,
-                        flexShrink: 0,
                         animation: jitter ? 'jitter 0.3s ease-in-out' : 'none'
                     }}
                 >
                     {value}
                 </div>
 
-                <div className="counter-buttons" style={{
-                    display: 'flex',
-                    gap: '0.5rem',
-                    alignItems: 'center',
-                    flexShrink: 0
-                }}>
+                <div className="counter-buttons flex items-center gap-2">
                     <Button
                         onClick={handleDecrement}
-                        variant="secondary"
-                        style={{
-                            minWidth: '2.5rem',
-                            minHeight: '2.5rem',
-                            padding: '0.5rem',
-                            fontSize: '1.25rem'
-                        }}
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 text-lg"
                     >
                         -
                     </Button>
                     <Button
                         onClick={handleIncrement}
-                        style={{
-                            minWidth: '2.5rem',
-                            minHeight: '2.5rem',
-                            padding: '0.5rem',
-                            fontSize: '1.25rem'
-                        }}
+                        size="icon"
+                        className="h-10 w-10 text-lg"
                     >
                         +
                     </Button>
                 </div>
 
-                {/* Display text (read-only, editable only through settings) */}
                 {displayText && (
-                    <div className="counter-text" style={{
-                        fontSize: '0.875rem',
-                        color: 'var(--color-text-secondary)',
-                        textAlign: 'center',
-                        maxWidth: '90%',
-                        wordBreak: 'break-word',
-                        lineHeight: 1.3,
-                        flexShrink: 1
-                    }}>
+                    <div className="counter-text max-w-[90%] text-center text-sm text-muted-foreground">
                         {displayText}
                     </div>
                 )}

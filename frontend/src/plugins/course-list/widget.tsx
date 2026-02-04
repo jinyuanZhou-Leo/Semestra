@@ -7,6 +7,8 @@ import type { WidgetDefinition, WidgetProps, WidgetGlobalSettingsProps } from '.
 import { Button } from '../../components/Button';
 import { CourseManagerModal } from '../../components/CourseManagerModal';
 import { SettingsSection } from '../../components/SettingsSection';
+import { Card, CardContent } from '../../components/ui/card';
+import { useDialog } from '../../contexts/DialogContext';
 
 /**
  * CourseList Plugin - Memoized for performance
@@ -31,49 +33,43 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
     }
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', userSelect: 'none' }}>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="flex h-full flex-col select-none">
+            <div className="course-list-scroll flex-1 overflow-y-auto">
                 {courses.length === 0 ? (
-                    <div style={{ color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: '1rem' }}>No courses</div>
+                    <div className="mt-4 text-center text-sm text-muted-foreground">No courses</div>
                 ) : (
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    <div className="space-y-3">
                         {courses.map(course => (
-                            <li key={course.id} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                padding: '0.75rem',
-                                borderBottom: '1px solid var(--color-border)',
-                                alignItems: 'center'
-                            }}>
-                                <div>
-                                    <div style={{ fontWeight: 500 }}>
+                            <Card key={course.id} className="rounded-[var(--radius-widget)] border-border/60 bg-card/90 shadow-sm">
+                                <CardContent className="flex items-center justify-between gap-4 p-4">
+                                    <div className="min-w-0">
                                         <Link
                                             to={`/courses/${course.id}`}
-                                            style={{ color: 'var(--color-text-primary)', textDecoration: 'none' }}
-                                            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                                            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                                            className="text-base font-semibold text-foreground transition hover:underline"
                                         >
                                             {course.name}
                                         </Link>
-                                    </div>
-                                    {course.alias && (
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.125rem' }}>
-                                            {course.alias}
+                                        {course.alias && (
+                                            <div className="mt-1 text-xs text-muted-foreground">
+                                                {course.alias}
+                                            </div>
+                                        )}
+                                        <div className="mt-1 text-sm text-muted-foreground">
+                                            {Number(course.credits).toFixed(2)} Credits
                                         </div>
-                                    )}
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{Number(course.credits).toFixed(2)} Credits</div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontWeight: 600 }}>{course.grade_percentage}%</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-lg font-semibold text-foreground">
+                                            {course.grade_percentage}%
+                                        </div>
+                                        <div className="text-sm text-muted-foreground">
                                             GPA: {Number.isFinite(course.grade_scaled) ? course.grade_scaled.toFixed(2) : '0.00'}
                                         </div>
                                     </div>
-                                </div>
-                            </li>
+                                </CardContent>
+                            </Card>
                         ))}
-                    </ul>
+                    </div>
                 )}
             </div>
         </div>
@@ -87,6 +83,7 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
 const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semesterId, onRefresh }) => {
     const [semester, setSemester] = useState<Semester | null>(null);
     const [isManagerOpen, setIsManagerOpen] = useState(false);
+    const { confirm } = useDialog();
 
     const fetchSemester = useCallback(async () => {
         if (!semesterId) return;
@@ -103,9 +100,14 @@ const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semeste
     }, [fetchSemester]);
 
     const handleRemoveCourse = async (courseId: string) => {
-        if (!window.confirm("Are you sure you want to remove this course from the semester? It will remain in the program.")) {
-            return;
-        }
+        const shouldRemove = await confirm({
+            title: "Remove course?",
+            description: "Are you sure you want to remove this course from the semester? It will remain in the program.",
+            confirmText: "Remove",
+            cancelText: "Cancel",
+            tone: "destructive"
+        });
+        if (!shouldRemove) return;
         try {
             await api.updateCourse(courseId, { semester_id: null as any });
             fetchSemester();
