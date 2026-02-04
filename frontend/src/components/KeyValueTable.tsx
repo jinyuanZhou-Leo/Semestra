@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Button } from './Button';
-import { Input } from './Input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export interface KeyValueEntry {
     key: string;
@@ -29,6 +30,7 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
     onRemove,
     title = "Entries",
     keyLabel,
+    valueLabel,
     keyPlaceholder = "Key",
     valuePlaceholder = "Value",
     validateKey,
@@ -124,24 +126,27 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
 
             <div className="kv-input-row">
                 <div className="kv-input-key">
-                    <Input
-                        placeholder={keyPlaceholder}
-                        value={newKey}
-                        onChange={e => setNewKey(e.target.value)}
-                        wrapperStyle={{ marginBottom: 0 }}
-                        label={keyLabel}
-                        type={keyType}
-                    />
+                    <div className="flex flex-col gap-2">
+                        {keyLabel && <Label className="text-muted-foreground">{keyLabel}</Label>}
+                        <Input
+                            placeholder={keyPlaceholder}
+                            value={newKey}
+                            onChange={e => setNewKey(e.target.value)}
+                            type={keyType}
+                        />
+                    </div>
                 </div>
                 <div className="kv-input-value">
-                    <Input
-                        placeholder={valuePlaceholder}
-                        value={newValue}
-                        onChange={e => setNewValue(e.target.value)}
-                        type={valueType}
-                        step={valueStep}
-                        wrapperStyle={{ marginBottom: 0 }}
-                    />
+                    <div className="flex flex-col gap-2">
+                        {valueLabel && <Label className="text-muted-foreground">{valueLabel}</Label>}
+                        <Input
+                            placeholder={valuePlaceholder}
+                            value={newValue}
+                            onChange={e => setNewValue(e.target.value)}
+                            type={valueType}
+                            step={valueStep}
+                        />
+                    </div>
                 </div>
                 <div className="kv-input-action">
                     <Button onClick={handleAdd} disabled={!newKey || !newValue} type="button">

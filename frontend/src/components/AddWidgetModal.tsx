@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal } from './Modal';
-import { Button } from './Button';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useWidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
 import { IconCircle } from './IconCircle';
 import type { WidgetItem } from './widgets/DashboardGrid';
@@ -46,7 +46,12 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Add Widget">
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="p-0 sm:max-w-[600px]">
+                <DialogHeader className="border-b px-6 py-4">
+                    <DialogTitle className="text-base font-semibold">Add Widget</DialogTitle>
+                </DialogHeader>
+                <div className="p-6">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                 {availableWidgets.length === 0 && (
                     <div style={{ gridColumn: '1 / -1', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '1rem' }}>
@@ -78,6 +83,8 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
                 <Button variant="secondary" onClick={onClose}>Cancel</Button>
                 <Button disabled={!selectedType} onClick={handleAdd}>Add to Dashboard</Button>
             </div>
-        </Modal>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 };

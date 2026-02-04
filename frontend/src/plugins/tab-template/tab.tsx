@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo } from 'react';
-import { Input } from '../../components/Input';
-import { Checkbox } from '../../components/Checkbox';
+import React, { useCallback, useId, useMemo } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { SettingsSection } from '../../components/SettingsSection';
 import type { TabDefinition, TabProps, TabSettingsProps } from '../../services/tabRegistry';
 
@@ -107,6 +108,8 @@ const TemplateTabComponent: React.FC<TabProps> = ({ settings, updateSettings }) 
 
 const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
     const resolved = useMemo(() => getSettings(settings), [settings]);
+    const titleId = useId();
+    const checklistId = useId();
 
     const handleTitleChange = useCallback((value: string) => {
         updateSettings({ ...resolved, title: value });
@@ -122,16 +125,29 @@ const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, up
             description="Configure how this tab is displayed."
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <Input
-                    label="Template Title"
-                    value={resolved.title}
-                    onChange={(event) => handleTitleChange(event.target.value)}
-                />
-                <Checkbox
-                    checked={resolved.showChecklist}
-                    onChange={handleChecklistToggle}
-                    label="Show quick-start checklist"
-                />
+                <div className="grid gap-2">
+                    <Label htmlFor={titleId} className="text-muted-foreground">
+                        Template Title
+                    </Label>
+                    <Input
+                        id={titleId}
+                        value={resolved.title}
+                        onChange={(event) => handleTitleChange(event.target.value)}
+                    />
+                </div>
+                <div className="flex items-center gap-3">
+                    <Checkbox
+                        id={checklistId}
+                        checked={resolved.showChecklist}
+                        onCheckedChange={(checked) => {
+                            if (checked === "indeterminate") return;
+                            handleChecklistToggle(checked);
+                        }}
+                    />
+                    <Label htmlFor={checklistId} className="text-sm text-muted-foreground">
+                        Show quick-start checklist
+                    </Label>
+                </div>
             </div>
         </SettingsSection>
     );

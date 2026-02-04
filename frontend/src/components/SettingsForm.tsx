@@ -1,8 +1,8 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "./Button";
-import { Checkbox } from "./Checkbox";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GPAScalingTable } from "./GPAScalingTable";
 
 interface SettingsFormProps {
@@ -96,6 +96,10 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
     await onSave(data);
   };
 
+  const hideGpaId = `${fieldId}-hide-gpa`;
+  const includeGpaId = `${fieldId}-include-gpa`;
+  const hideGpaCourseId = `${fieldId}-course-hide-gpa`;
+
   return (
     <form onSubmit={handleSave} className="grid gap-6">
       <div className="grid gap-2">
@@ -128,13 +132,19 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
               required
             />
           </div>
-          <Checkbox
-            checked={extraSettings.hide_gpa ?? false}
-            onChange={(checked) =>
-              setExtraSettings({ ...extraSettings, hide_gpa: checked })
-            }
-            label="Hide GPA Info"
-          />
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id={hideGpaId}
+              checked={extraSettings.hide_gpa ?? false}
+              onCheckedChange={(checked) => {
+                if (checked === "indeterminate") return;
+                setExtraSettings({ ...extraSettings, hide_gpa: checked });
+              }}
+            />
+            <Label htmlFor={hideGpaId} className="text-sm text-muted-foreground">
+              Hide GPA Info
+            </Label>
+          </div>
         </div>
       )}
 
@@ -163,20 +173,32 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Checkbox
-              checked={extraSettings.include_in_gpa ?? true}
-              onChange={(checked) =>
-                setExtraSettings({ ...extraSettings, include_in_gpa: checked })
-              }
-              label="Include in GPA"
-            />
-            <Checkbox
-              checked={extraSettings.hide_gpa ?? false}
-              onChange={(checked) =>
-                setExtraSettings({ ...extraSettings, hide_gpa: checked })
-              }
-              label="Hide GPA Info"
-            />
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id={includeGpaId}
+                checked={extraSettings.include_in_gpa ?? true}
+                onCheckedChange={(checked) => {
+                  if (checked === "indeterminate") return;
+                  setExtraSettings({ ...extraSettings, include_in_gpa: checked });
+                }}
+              />
+              <Label htmlFor={includeGpaId} className="text-sm text-muted-foreground">
+                Include in GPA
+              </Label>
+            </div>
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id={hideGpaCourseId}
+                checked={extraSettings.hide_gpa ?? false}
+                onCheckedChange={(checked) => {
+                  if (checked === "indeterminate") return;
+                  setExtraSettings({ ...extraSettings, hide_gpa: checked });
+                }}
+              />
+              <Label htmlFor={hideGpaCourseId} className="text-sm text-muted-foreground">
+                Hide GPA Info
+              </Label>
+            </div>
           </div>
         </div>
       )}

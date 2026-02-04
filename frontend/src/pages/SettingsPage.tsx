@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, Suspense, lazy } from "react";
 import { Layout } from "../components/Layout";
-import { Button } from "../components/Button";
+import { Button } from "@/components/ui/button";
 import { GPAScalingTable } from "../components/GPAScalingTable";
 import axios from "axios";
 
@@ -16,7 +16,6 @@ import type { ImportData, ConflictMode } from "../components/ImportPreviewModal"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -86,6 +85,13 @@ export const SettingsPage: React.FC = () => {
     const [isGoogleLinkReady, setIsGoogleLinkReady] = useState(false);
     const googleLinkRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    const alertClassName = (variant?: "destructive") =>
+        cn(
+            "relative w-full rounded-lg border p-4 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7",
+            variant === "destructive"
+                ? "border-destructive/50 text-destructive dark:border-destructive"
+                : "bg-background text-foreground"
+        );
 
     useEffect(() => {
         if (user) {
@@ -410,19 +416,19 @@ export const SettingsPage: React.FC = () => {
                             </div>
 
                             {googleLinkError && (
-                                <Alert variant="destructive">
-                                    <AlertTitle>Google link failed</AlertTitle>
-                                    <AlertDescription>{googleLinkError}</AlertDescription>
-                                </Alert>
+                                <div className={alertClassName("destructive")} role="alert">
+                                    <div className="mb-1 font-medium leading-none tracking-tight">Google link failed</div>
+                                    <div className="text-sm text-muted-foreground">{googleLinkError}</div>
+                                </div>
                             )}
 
                             {googleLinkSuccess && (
-                                <Alert>
-                                    <AlertTitle>Google connected</AlertTitle>
-                                    <AlertDescription>
+                                <div className={alertClassName()} role="alert">
+                                    <div className="mb-1 font-medium leading-none tracking-tight">Google connected</div>
+                                    <div className="text-sm text-muted-foreground">
                                         Your Google account is linked successfully.
-                                    </AlertDescription>
-                                </Alert>
+                                    </div>
+                                </div>
                             )}
 
                             <div className="flex items-center justify-end">
@@ -473,7 +479,7 @@ export const SettingsPage: React.FC = () => {
                                     className="min-w-[160px]"
                                 >
                                     {saveState === "saving" && (
-                                        <Spinner size="sm" className="mr-2" />
+                                        <Spinner className="mr-2 size-3" />
                                     )}
                                     {saveState === "success" && (
                                         <span className="mr-2 text-emerald-500">✓</span>

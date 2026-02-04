@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { Modal } from './Modal';
-import { Button } from './Button';
-import { Checkbox } from './Checkbox';
-import { RadioGroup } from './Radio';
+import React, { useId, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 export interface ProgramExport {
     name: string;
@@ -66,6 +68,8 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
     const [conflictMode, setConflictMode] = useState<ConflictMode>('skip');
     const [includeSettings, setIncludeSettings] = useState(true);
     const [isImporting, setIsImporting] = useState(false);
+    const radioBaseId = useId();
+    const includeSettingsId = useId();
 
     const analysis = useMemo(() => {
         if (!importData) return { newPrograms: [], conflictPrograms: [], totalSemesters: 0, totalCourses: 0 };
@@ -106,8 +110,12 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
     if (!importData) return null;
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="📤 Import Preview" maxWidth="550px">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="p-0 sm:max-w-[550px]">
+                <DialogHeader className="border-b px-6 py-4">
+                    <DialogTitle className="text-base font-semibold">📤 Import Preview</DialogTitle>
+                </DialogHeader>
+                <div className="p-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {/* Summary */}
                 <div style={{
                     padding: '1rem',
@@ -188,23 +196,59 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                         </div>
                         <RadioGroup
                             value={conflictMode}
-                            onChange={setConflictMode}
-                            options={[
+                            onValueChange={(value) => setConflictMode(value as ConflictMode)}
+                            className="flex flex-col gap-2"
+                        >
+                            {([
                                 { value: 'skip', label: 'Skip', description: 'Keep existing, ignore imported' },
                                 { value: 'overwrite', label: 'Overwrite', description: 'Replace existing with imported' },
-                                { value: 'rename', label: 'Rename', description: 'Import as "Name (2)"' }
-                            ]}
-                        />
+                                { value: 'rename', label: 'Rename', description: 'Import as \"Name (2)\"' }
+                            ] as const).map((option, index) => {
+                                const id = `${radioBaseId}-${index}`;
+                                const isChecked = conflictMode === option.value;
+                                return (
+                                    <Label
+                                        key={option.value}
+                                        htmlFor={id}
+                                        className={cn(
+                                            "flex items-start gap-3 rounded-md border p-3 transition-colors",
+                                            isChecked ? "bg-secondary" : "bg-transparent",
+                                            "cursor-pointer hover:bg-accent"
+                                        )}
+                                    >
+                                        <RadioGroupItem
+                                            id={id}
+                                            value={option.value}
+                                            className="mt-0.5"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="text-sm font-medium text-foreground">{option.label}</div>
+                                            <div className="mt-0.5 text-xs text-muted-foreground">
+                                                {option.description}
+                                            </div>
+                                        </div>
+                                    </Label>
+                                );
+                            })}
+                        </RadioGroup>
                     </div>
                 )}
 
                 {/* Settings Toggle */}
                 {importData.settings && (
-                    <Checkbox
-                        checked={includeSettings}
-                        onChange={setIncludeSettings}
-                        label="Import user settings (nickname, default credit, GPA table)"
-                    />
+                    <div className="flex items-center gap-3">
+                        <Checkbox
+                            id={includeSettingsId}
+                            checked={includeSettings}
+                            onCheckedChange={(checked) => {
+                                if (checked === "indeterminate") return;
+                                setIncludeSettings(checked);
+                            }}
+                        />
+                        <Label htmlFor={includeSettingsId} className="text-sm text-muted-foreground">
+                            Import user settings (nickname, default credit, GPA table)
+                        </Label>
+                    </div>
                 )}
 
                 {/* Actions */}
@@ -217,6 +261,7 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                     </Button>
                 </div>
             </div>
-        </Modal>
+            </DialogContent>
+        </Dialog>
     );
 };

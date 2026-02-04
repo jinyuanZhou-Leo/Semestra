@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
-import { Button } from '../ui/button';
-import { Card } from '../ui/card';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 interface WidgetContainerProps {

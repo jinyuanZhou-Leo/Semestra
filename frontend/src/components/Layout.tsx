@@ -26,7 +26,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
         lastToastIdRef.current = status.id;
         if (isSyncRetrying) {
             toast.message(status.message, {
-                icon: <Spinner size="sm" className="text-destructive" />,
+                icon: <Spinner className="size-3 text-destructive" />,
                 duration: 4000,
             });
         } else {

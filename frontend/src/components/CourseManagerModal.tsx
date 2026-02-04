@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Modal } from './Modal';
-import { Button } from './Button';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from './ui/empty';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Spinner } from './ui/spinner';
-import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api, { type Course } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -111,13 +111,15 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     );
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onClose={onClose}
-            title="Manage Courses"
-            maxWidth="600px"
-        >
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '400px' }}>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent
+                className="p-0 sm:max-w-[600px]"
+                style={{ height: '100%', minHeight: '400px' }}
+            >
+                <DialogHeader className="border-b px-6 py-4">
+                    <DialogTitle className="text-base font-semibold">Manage Courses</DialogTitle>
+                </DialogHeader>
+                <div className="p-6" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '400px' }}>
                 {/* Mode Switcher (only if semesterId is present) */}
                 {semesterId && (
                     <div style={{ marginBottom: '1.5rem' }}>
@@ -191,7 +193,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                             <EmptyTitle>Loading...</EmptyTitle>
                                             <EmptyDescription>Fetching unassigned courses.</EmptyDescription>
                                         </EmptyHeader>
-                                        <Spinner size="lg" className="text-muted-foreground" />
+                                        <Spinner className="size-5 text-muted-foreground" />
                                     </Empty>
                                 ) : filteredCourses.length === 0 ? (
                                     <Empty className="border-border/70 bg-muted/40">
@@ -308,7 +310,8 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
-        </Modal>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 };

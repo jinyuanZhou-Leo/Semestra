@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '../../components/Button';
+import { Button } from '@/components/ui/button';
 import { DashboardSkeleton } from '../../components/Skeleton/DashboardSkeleton';
 import { DashboardGrid } from '../../components/widgets/DashboardGrid';
 import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
@@ -7,6 +7,8 @@ import type { TabDefinition, TabProps } from '../../services/tabRegistry';
 
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinTabContext();
+    const glassButtonClassName =
+        "border border-border bg-[color:var(--color-bg-glass)] text-foreground backdrop-blur-md shadow-none hover:bg-[color:var(--color-bg-glass)] hover:text-foreground hover:shadow-md";
 
     // Use a unique key for each dashboard (semester or course)
     const storageKey = `dashboard-locked-${dashboard.semesterId || dashboard.courseId || 'default'}`;
@@ -53,9 +55,8 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
             {/* Lock Button */}
             <Button
                 onClick={toggleLock}
-                size="md"
-                variant="glass"
-                shape="rounded"
+                variant="outline"
+                className={glassButtonClassName}
                 aria-label={isLocked ? "Unlock widgets" : "Lock widgets"}
                 title={isLocked ? "Unlock widgets" : "Lock widgets"}
                 style={{
@@ -110,9 +111,8 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
             {/* Add Widget Button */}
             <Button
                 onClick={dashboard.onAddWidgetClick}
-                size="md"
-                variant="glass"
-                shape="rounded"
+                variant="outline"
+                className={glassButtonClassName}
                 aria-label="Add widget"
                 style={{
                     position: 'fixed',

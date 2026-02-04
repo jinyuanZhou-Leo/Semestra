@@ -3,7 +3,13 @@ import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../s
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { NativeSelect } from '@/components/ui/native-select';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 
 const AVAILABLE_TIMEZONES = [
@@ -31,21 +37,18 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
         <form onSubmit={handleSave} className="flex flex-col gap-4">
             <div className="grid gap-2">
                 <Label htmlFor="world-clock-timezone">Timezone</Label>
-                <div className="relative">
-                    <NativeSelect
-                        id="world-clock-timezone"
-                        value={timezone}
-                        onChange={(e) => setTimezone(e.target.value)}
-                        className="pr-8"
-                    >
+                <Select value={timezone} onValueChange={setTimezone}>
+                    <SelectTrigger id="world-clock-timezone" className="h-10 pr-8">
+                        <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent>
                         {AVAILABLE_TIMEZONES.map(tz => (
-                            <option key={tz.value} value={tz.value}>{tz.label}</option>
+                            <SelectItem key={tz.value} value={tz.value}>
+                                {tz.label}
+                            </SelectItem>
                         ))}
-                    </NativeSelect>
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                        ▾
-                    </span>
-                </div>
+                    </SelectContent>
+                </Select>
             </div>
 
             <div className="flex justify-end gap-3 pt-1">

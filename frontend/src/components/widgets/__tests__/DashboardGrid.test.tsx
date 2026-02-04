@@ -36,6 +36,11 @@ vi.mock('react-grid-layout', () => {
     };
 });
 
+// Mock WidthProvider to ensure grid renders with a width
+vi.mock('../WidthProvider', () => ({
+    WidthProvider: (Comp: any) => (props: any) => <Comp {...props} width={1200} />
+}));
+
 // Mock child widgets to avoid complexity
 vi.mock('../../../plugins/counter', () => ({
     Counter: () => <div data-testid="counter-widget">Counter</div>

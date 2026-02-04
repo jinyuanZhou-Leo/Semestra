@@ -1,17 +1,18 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useId, useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { Button } from '../components/Button';
-import { Modal } from '../components/Modal';
+import { Button } from '@/components/ui/button';
 import { SettingsModal } from '../components/SettingsModal';
-import { Input } from '../components/Input';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
 import { useHeroGradient } from '../hooks/useHeroGradient';
 import { ProgressBar } from '../components/ProgressBar';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
-import { Skeleton } from '../components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ProgramDataProvider, useProgramData } from '../contexts/ProgramDataContext';
 import { CourseManagerModal } from '../components/CourseManagerModal';
 import { useDialog } from '../contexts/DialogContext';
@@ -22,7 +23,7 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
-} from '../components/ui/breadcrumb';
+} from '@/components/ui/breadcrumb';
 
 const ProgramDashboardContent: React.FC = () => {
     const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
@@ -36,6 +37,7 @@ const ProgramDashboardContent: React.FC = () => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const semesterNameId = useId();
 
     // Ref to track the latest newSemesterName, avoiding stale closure
     const newSemesterNameRef = useRef(newSemesterName);
@@ -80,6 +82,8 @@ const ProgramDashboardContent: React.FC = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const heroStyle = useHeroGradient();
+    const glassButtonClassName =
+        "border border-border bg-[color:var(--color-bg-glass)] text-foreground backdrop-blur-md shadow-none hover:bg-[color:var(--color-bg-glass)] hover:text-foreground hover:shadow-md";
 
     const handleCreateSemester = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -209,10 +213,10 @@ const ProgramDashboardContent: React.FC = () => {
                             <Skeleton className="h-10 w-10 rounded-full" />
                         ) : (
                         <Button
-                            variant="glass"
-                            shape="circle"
+                            variant="outline"
+                            size="icon"
+                            className={`h-10 w-10 rounded-full ${glassButtonClassName}`}
                             onClick={() => setIsSettingsOpen(true)}
-                            size="md"
                             title="Program Settings"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -327,18 +331,21 @@ const ProgramDashboardContent: React.FC = () => {
             ) : (
                     <Container padding="3rem 2rem">
                         <div style={{ marginBottom: '2rem' }}>
-                            <Input
-                                placeholder="Search semesters and courses..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                style={{ fontSize: '1.1rem', padding: '1rem' }}
-                                rightElement={
+                            <div className="relative mb-4">
+                                <Input
+                                    placeholder="Search semesters and courses..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pr-10"
+                                    style={{ fontSize: '1.1rem', padding: '1rem' }}
+                                />
+                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <circle cx="11" cy="11" r="8"></circle>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                     </svg>
-                                }
-                            />
+                                </div>
+                            </div>
                         </div>
 
                         <div className="page-header" style={{ marginBottom: '2rem' }}>
@@ -481,21 +488,27 @@ const ProgramDashboardContent: React.FC = () => {
                     </Container>
             )}
 
-            <Modal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title="Create New Semester"
-            >
+            <Dialog open={isModalOpen} onOpenChange={(open) => !open && setIsModalOpen(false)}>
+                <DialogContent className="p-0 sm:max-w-[520px]">
+                    <DialogHeader className="border-b px-6 py-4">
+                        <DialogTitle className="text-base font-semibold">Create New Semester</DialogTitle>
+                    </DialogHeader>
+                    <div className="p-6">
                 <form onSubmit={handleCreateSemester}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minHeight: '270px' }}>
-                        <Input
-                            label="Semester Name"
-                            placeholder="e.g. Fall 2025"
-                            value={newSemesterName}
-                            onChange={(e) => setNewSemesterName(e.target.value)}
-                            required={!selectedFile}
-                            autoFocus
-                        />
+                        <div className="grid gap-2 mb-4">
+                            <Label htmlFor={semesterNameId} className="text-muted-foreground">
+                                Semester Name
+                            </Label>
+                            <Input
+                                id={semesterNameId}
+                                placeholder="e.g. Fall 2025"
+                                value={newSemesterName}
+                                onChange={(e) => setNewSemesterName(e.target.value)}
+                                required={!selectedFile}
+                                autoFocus
+                            />
+                        </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Import Schedule (Optional)</div>
@@ -568,7 +581,9 @@ const ProgramDashboardContent: React.FC = () => {
                         </Button>
                     </div>
                 </form>
-            </Modal>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {program && (
                 <SettingsModal

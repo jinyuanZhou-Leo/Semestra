@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { Button } from '../components/Button';
+import { Button } from '@/components/ui/button';
 import { AddWidgetModal } from '../components/AddWidgetModal';
 import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
-import { Skeleton } from '../components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import api from '../services/api';
 import { reportError } from '../services/appStatus';
@@ -27,15 +27,14 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
-} from '../components/ui/breadcrumb';
-import { Button as UiButton } from '../components/ui/button';
+} from '@/components/ui/breadcrumb';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuGroup,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
@@ -49,7 +48,6 @@ const CourseHomepageContent: React.FC = () => {
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
     const [programName, setProgramName] = useState<string | null>(null);
     const [semesterName, setSemesterName] = useState<string | null>(null);
-    const [isEllipsisOpen, setIsEllipsisOpen] = useState(false);
     const shouldCollapseProgram = Boolean(course?.program_id && course?.semester_id);
     const shouldShowProgramDirect = Boolean(course?.program_id && !shouldCollapseProgram);
     const shouldShowSemester = Boolean(course?.semester_id);
@@ -554,7 +552,6 @@ const CourseHomepageContent: React.FC = () => {
                                                                 className="normal-case"
                                                                 onSelect={(event) => {
                                                                     event.preventDefault();
-                                                                    setIsEllipsisOpen(false);
                                                                     if (course?.program_id) {
                                                                         navigate(`/programs/${course.program_id}`);
                                                                     }

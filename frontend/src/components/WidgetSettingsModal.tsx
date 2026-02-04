@@ -1,7 +1,6 @@
 import React from "react";
-import { Modal } from "./Modal";
 import { WidgetRegistry } from "../services/widgetRegistry";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface WidgetSettingsModalProps {
   isOpen: boolean;
@@ -28,28 +27,45 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
 
   if (!SettingsComponent) {
     return (
-      <Modal isOpen={isOpen} onClose={onClose} title="Widget Settings">
-        <Alert>
-          <AlertTitle>Settings unavailable</AlertTitle>
-          <AlertDescription>
-            No settings are available for this widget type.
-          </AlertDescription>
-        </Alert>
-      </Modal>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="p-0 sm:max-w-[520px]">
+          <DialogHeader className="border-b px-6 py-4">
+            <DialogTitle className="text-base font-semibold">Widget Settings</DialogTitle>
+          </DialogHeader>
+          <div className="p-6">
+            <div
+              className="relative w-full rounded-lg border bg-background p-4 text-foreground [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7"
+              role="alert"
+            >
+              <div className="mb-1 font-medium leading-none tracking-tight">
+                Settings unavailable
+              </div>
+              <div className="text-sm text-muted-foreground">
+                No settings are available for this widget type.
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     );
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`${widgetDefinition?.name} Settings`}
-    >
-      <SettingsComponent
-        settings={widget?.settings || {}}
-        onSave={handleSave}
-        onClose={onClose}
-      />
-    </Modal>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="p-0 sm:max-w-[520px]">
+        <DialogHeader className="border-b px-6 py-4">
+          <DialogTitle className="text-base font-semibold">
+            {widgetDefinition?.name} Settings
+          </DialogTitle>
+        </DialogHeader>
+        <div className="p-6">
+          <SettingsComponent
+            settings={widget?.settings || {}}
+            onSave={handleSave}
+            onClose={onClose}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };

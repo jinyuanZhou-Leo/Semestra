@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Modal } from './Modal';
-import { Button } from './Button';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 interface SessionExpiredModalProps {
     isOpen: boolean;
@@ -17,13 +17,9 @@ export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({ isOpen
     };
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onClose={handleLogin}
-            maxWidth={400}
-            contentPadding="2rem"
-        >
-            <div style={{ textAlign: 'center' }}>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && handleLogin()}>
+            <DialogContent className="p-0 sm:max-w-[400px]">
+                <div className="p-8" style={{ textAlign: 'center' }}>
                 <div style={{
                     width: '64px',
                     height: '64px',
@@ -66,10 +62,11 @@ export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({ isOpen
                     Your session has expired for security reasons. Please log in again to continue.
                 </p>
 
-                <Button onClick={handleLogin} fullWidth>
+                <Button onClick={handleLogin} className="w-full">
                     Log In Again
                 </Button>
             </div>
-        </Modal>
+            </DialogContent>
+        </Dialog>
     );
 };

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
-import { Button } from '../components/Button';
-import { Modal } from '../components/Modal';
-import { Input } from '../components/Input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program } from '../services/api';
@@ -17,7 +18,7 @@ import {
     BreadcrumbItem,
     BreadcrumbList,
     BreadcrumbPage,
-} from '../components/ui/breadcrumb';
+} from '@/components/ui/breadcrumb';
 
 export const HomePage: React.FC = () => {
     const { user } = useAuth();
@@ -30,9 +31,13 @@ export const HomePage: React.FC = () => {
     const [newProgramName, setNewProgramName] = useState('');
     const [newProgramCredits, setNewProgramCredits] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const programNameId = useId();
+    const programCreditsId = useId();
 
     // Physics-based lighting
     const heroStyle = useHeroGradient();
+    const glassButtonClassName =
+        "border border-border bg-[color:var(--color-bg-glass)] text-foreground backdrop-blur-md shadow-none hover:bg-[color:var(--color-bg-glass)] hover:text-foreground hover:shadow-md";
 
     useEffect(() => {
         fetchPrograms();
@@ -109,8 +114,8 @@ export const HomePage: React.FC = () => {
                         <Button
                             onClick={() => setIsModalOpen(true)}
                             size="lg"
-                            variant="glass"
-                            shape="rounded"
+                            variant="outline"
+                            className={`rounded-full ${glassButtonClassName}`}
                         >
                             + New Program
                         </Button>
@@ -217,29 +222,40 @@ export const HomePage: React.FC = () => {
                 )}
             </Container>
 
-            <Modal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title="Create New Program"
-            >
+            <Dialog open={isModalOpen} onOpenChange={(open) => !open && setIsModalOpen(false)}>
+                <DialogContent className="p-0 sm:max-w-[520px]">
+                    <DialogHeader className="border-b px-6 py-4">
+                        <DialogTitle className="text-base font-semibold">Create New Program</DialogTitle>
+                    </DialogHeader>
+                    <div className="p-6">
                 <form onSubmit={handleCreateProgram}>
-                    <Input
-                        label="Program Name"
-                        placeholder="e.g. Computer Science"
-                        value={newProgramName}
-                        onChange={(e) => setNewProgramName(e.target.value)}
-                        required
-                        autoFocus
-                    />
-                    <Input
-                        label="Graduation Requirement (Credits)"
-                        type="number"
-                        step="0.5"
-                        placeholder="e.g. 120"
-                        value={newProgramCredits}
-                        onChange={(e) => setNewProgramCredits(e.target.value)}
-                        required
-                    />
+                    <div className="grid gap-2 mb-4">
+                        <Label htmlFor={programNameId} className="text-muted-foreground">
+                            Program Name
+                        </Label>
+                        <Input
+                            id={programNameId}
+                            placeholder="e.g. Computer Science"
+                            value={newProgramName}
+                            onChange={(e) => setNewProgramName(e.target.value)}
+                            required
+                            autoFocus
+                        />
+                    </div>
+                    <div className="grid gap-2 mb-4">
+                        <Label htmlFor={programCreditsId} className="text-muted-foreground">
+                            Graduation Requirement (Credits)
+                        </Label>
+                        <Input
+                            id={programCreditsId}
+                            type="number"
+                            step="0.5"
+                            placeholder="e.g. 120"
+                            value={newProgramCredits}
+                            onChange={(e) => setNewProgramCredits(e.target.value)}
+                            required
+                        />
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
                         <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
                             Cancel
@@ -249,7 +265,9 @@ export const HomePage: React.FC = () => {
                         </Button>
                     </div>
                 </form>
-            </Modal>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </Layout>
     );
 };

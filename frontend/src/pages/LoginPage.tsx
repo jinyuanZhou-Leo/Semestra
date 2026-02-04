@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { Input } from '../components/Input';
-import { Button } from '../components/Button';
-import { Checkbox } from '../components/Checkbox';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 
 import GradientBlinds from '../components/GradientBlinds';
@@ -27,6 +28,9 @@ export const LoginPage: React.FC = () => {
     const googleButtonRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
     const currentYear = new Date().getFullYear();
+    const emailId = useId();
+    const passwordId = useId();
+    const rememberMeId = useId();
 
     // Theme detection
     const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
@@ -326,69 +330,88 @@ export const LoginPage: React.FC = () => {
 
                 <form onSubmit={handleSubmit}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <Input
-                            label="Email"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                borderColor: 'var(--color-border)',
-                                borderRadius: '0.75rem',
-                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
-                                fontSize: '0.925rem' // Slightly compact font
-                            }}
-                            wrapperStyle={{ marginBottom: 0 }}
-                        />
-                        <Input
-                            label="Password"
-                            type={showPassword ? "text" : "password"}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                borderColor: 'var(--color-border)',
-                                borderRadius: '0.75rem',
-                                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
-                                fontSize: '0.925rem'
-                            }}
-                            rightElement={
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
+                        <div className="grid gap-2">
+                            <Label htmlFor={emailId} className="text-muted-foreground">
+                                Email
+                            </Label>
+                            <Input
+                                id={emailId}
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                style={{
+                                    backgroundColor: 'var(--color-bg-secondary)',
+                                    borderColor: 'var(--color-border)',
+                                    borderRadius: '0.75rem',
+                                    boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                                    fontSize: '0.925rem' // Slightly compact font
+                                }}
+                            />
+                        </div>
+                        <div className="grid gap-2 mb-4">
+                            <Label htmlFor={passwordId} className="text-muted-foreground">
+                                Password
+                            </Label>
+                            <div className="relative flex items-center">
+                                <Input
+                                    id={passwordId}
+                                    type={showPassword ? "text" : "password"}
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                    className="pr-10"
                                     style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        padding: 0,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: 'inherit',
-                                        opacity: 0.7
+                                        backgroundColor: 'var(--color-bg-secondary)',
+                                        borderColor: 'var(--color-border)',
+                                        borderRadius: '0.75rem',
+                                        boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                                        fontSize: '0.925rem'
                                     }}
-                                    onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
-                                    onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
-                                >
-                                    {showPassword ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                                    ) : (
+                                />
+                                <div className="absolute right-3 flex items-center text-muted-foreground">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            padding: 0,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'inherit',
+                                            opacity: 0.7
+                                        }}
+                                        onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                                        onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
+                                    >
+                                        {showPassword ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                        ) : (
                                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                    )}
-                                </button>
-                            }
-                        />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div style={{ marginBottom: '1.25rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Checkbox
-                            id="remember_me"
-                            checked={rememberMe}
-                            onChange={(checked) => setRememberMe(checked)}
-                            label="Remember me"
-                        />
+                        <div className="flex items-center gap-3">
+                            <Checkbox
+                                id={rememberMeId}
+                                checked={rememberMe}
+                                onCheckedChange={(checked) => {
+                                    if (checked === "indeterminate") return;
+                                    setRememberMe(checked);
+                                }}
+                            />
+                            <Label htmlFor={rememberMeId} className="text-sm text-muted-foreground">
+                                Remember me
+                            </Label>
+                        </div>
                     </div>
 
                     {error && (
@@ -421,7 +444,7 @@ export const LoginPage: React.FC = () => {
 
                     <Button
                         type="submit"
-                        fullWidth
+                        className="w-full"
                         disabled={isLoading || isGoogleLoading}
                         style={{
                             borderRadius: '0.75rem', // Matching input radius for consistency, or use pill

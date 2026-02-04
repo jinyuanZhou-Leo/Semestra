@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal } from './Modal';
-import { Button } from './Button';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
 import { IconCircle } from './IconCircle';
 import type { TabItem } from '../hooks/useDashboardTabs';
@@ -49,7 +49,12 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Add Tab">
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="p-0 sm:max-w-[600px]">
+                <DialogHeader className="border-b px-6 py-4">
+                    <DialogTitle className="text-base font-semibold">Add Tab</DialogTitle>
+                </DialogHeader>
+                <div className="p-6">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                 {availableTabs.length === 0 && (
                     <div style={{ gridColumn: '1 / -1', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '1rem' }}>
@@ -81,6 +86,8 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
                 <Button variant="secondary" onClick={onClose}>Cancel</Button>
                 <Button disabled={!selectedType} onClick={handleAdd}>Add Tab</Button>
             </div>
-        </Modal>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 };

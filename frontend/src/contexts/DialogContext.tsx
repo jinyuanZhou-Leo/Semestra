@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { Modal } from "@/components/Modal";
-import { Button } from "@/components/Button";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type DialogTone = "default" | "destructive";
 
@@ -44,7 +44,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const alert = useCallback((options: DialogOptions) => {
     return new Promise<void>((resolve) => {
-      resolverRef.current = () => resolve(true);
+      resolverRef.current = () => resolve();
       setState({ type: "alert", ...options });
     });
   }, []);
@@ -58,32 +58,35 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   return (
     <DialogContext.Provider value={value}>
       {children}
-      <Modal
-        isOpen={Boolean(state)}
-        onClose={() => resolveAndClose(state?.type === "alert")}
-        title={state?.title}
-        maxWidth="420px"
-        minHeight="auto"
-      >
-        {state?.description && (
-          <div className="text-sm text-muted-foreground whitespace-pre-line">
-            {state.description}
-          </div>
-        )}
-        <div className="mt-6 flex justify-end gap-2">
-          {state?.type === "confirm" && (
-            <Button variant="secondary" onClick={() => resolveAndClose(false)}>
-              {state.cancelText ?? "Cancel"}
-            </Button>
+      <Dialog open={Boolean(state)} onOpenChange={(open) => !open && resolveAndClose(state?.type === "alert")}>
+        <DialogContent className="p-0 sm:max-w-[420px]">
+          {state?.title && (
+            <DialogHeader className="border-b px-6 py-4">
+              <DialogTitle className="text-base font-semibold">{state.title}</DialogTitle>
+            </DialogHeader>
           )}
-          <Button
-            onClick={() => resolveAndClose(true)}
-            className={confirmToneClass}
-          >
-            {state?.confirmText ?? (state?.type === "confirm" ? "Confirm" : "OK")}
-          </Button>
-        </div>
-      </Modal>
+          <div className="p-6">
+            {state?.description && (
+              <div className="text-sm text-muted-foreground whitespace-pre-line">
+                {state.description}
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-2">
+              {state?.type === "confirm" && (
+                <Button variant="secondary" onClick={() => resolveAndClose(false)}>
+                  {state.cancelText ?? "Cancel"}
+                </Button>
+              )}
+              <Button
+                onClick={() => resolveAndClose(true)}
+                className={confirmToneClass}
+              >
+                {state?.confirmText ?? (state?.type === "confirm" ? "Confirm" : "OK")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DialogContext.Provider>
   );
 };

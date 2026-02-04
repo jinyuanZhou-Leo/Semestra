@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { WidgetContainer } from './WidgetContainer';
 import { WidgetRegistry } from '../../services/widgetRegistry';
 import type { WidgetItem } from './DashboardGrid';
-import { Button } from '../ui/button';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface DashboardWidgetWrapperProps {

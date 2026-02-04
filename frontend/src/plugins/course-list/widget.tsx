@@ -4,10 +4,10 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import type { Course, Semester } from '../../services/api';
 import type { WidgetDefinition, WidgetProps, WidgetGlobalSettingsProps } from '../../services/widgetRegistry';
-import { Button } from '../../components/Button';
+import { Button } from '@/components/ui/button';
 import { CourseManagerModal } from '../../components/CourseManagerModal';
 import { SettingsSection } from '../../components/SettingsSection';
-import { Card, CardContent } from '../../components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { useDialog } from '../../contexts/DialogContext';
 
 /**
