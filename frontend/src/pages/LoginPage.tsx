@@ -161,7 +161,8 @@ export const LoginPage: React.FC = () => {
 
         try {
             const formData = new URLSearchParams();
-            formData.append('username', email); // backend expects username for email
+            const lowerEmail = email.toLowerCase();
+            formData.append('username', lowerEmail); // backend expects username for email
             formData.append('password', password);
             if (rememberMe) {
                 formData.append('remember_me', 'true');
@@ -257,7 +258,7 @@ export const LoginPage: React.FC = () => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="h-11 shadow-inner bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-colors"
+                                    className="h-11"
                                 />
                             </div>
                             <div className="grid gap-2">
@@ -269,7 +270,7 @@ export const LoginPage: React.FC = () => {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
-                                        className="h-11 pr-10 shadow-inner bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-colors"
+                                        className="h-11 pr-10"
                                     />
                                     <Button
                                         type="button"

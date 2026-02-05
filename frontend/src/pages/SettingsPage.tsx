@@ -18,9 +18,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
 import { Spinner } from "@/components/ui/spinner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
 
@@ -295,140 +295,124 @@ export const SettingsPage: React.FC = () => {
 
     return (
         <Layout>
-            <Container padding="2rem" className="space-y-8 select-none">
+            <Container padding="2rem" className="max-w-2xl space-y-8 select-none">
                 <BackButton label="Back to Home" onClick={handleBack} />
 
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-semibold">Settings</h1>
-                    </div>
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+                    <p className="text-muted-foreground">
+                        Manage your account settings and set global defaults.
+                    </p>
                 </div>
 
-                <div className="space-y-6">
+                <Separator />
+
+                <div className="space-y-10">
                     <SettingsSection
                         title="Appearance"
                         description="Customize the look and feel of the application."
-                        center
                     >
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                            <div>
-                                <p className="text-sm font-medium">Theme</p>
-                            </div>
-                            <RadioGroup
-                                value={themeMode}
-                                onValueChange={(value) =>
-                                    handleThemeChange(value as "light" | "dark" | "system")
-                                }
-                                className="grid grid-cols-3 gap-2"
-                            >
+                        <div className="flex items-center justify-between gap-4 rounded-lg border p-4 shadow-sm">
+                            <Label htmlFor="theme-select" className="text-base">Theme</Label>
+                            <div className="flex items-center gap-2">
                                 {themeOptions.map((option) => (
-                                    <div key={option.value} className="relative">
-                                        <RadioGroupItem
-                                            id={`theme-${option.value}`}
-                                            value={option.value}
-                                            className="peer sr-only"
-                                        />
-                                        <Label
-                                            htmlFor={`theme-${option.value}`}
-                                            className={cn(
-                                                "flex min-w-[96px] items-center justify-center rounded-md border px-3 py-2 text-sm font-medium text-muted-foreground transition",
-                                                "hover:border-muted-foreground/40 hover:text-foreground",
-                                                "peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary"
-                                            )}
-                                        >
-                                            {option.label}
-                                        </Label>
-                                    </div>
+                                    <Button
+                                        key={option.value}
+                                        variant={themeMode === option.value ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => handleThemeChange(option.value)}
+                                        className="min-w-[80px]"
+                                    >
+                                        {option.label}
+                                    </Button>
                                 ))}
-                            </RadioGroup>
+                            </div>
                         </div>
                     </SettingsSection>
+
+                    <Separator />
 
                     <SettingsSection
                         title="Account"
                         description="Manage your profile and sign-in settings."
                     >
                         <div className="space-y-6">
-                            <div className="flex flex-wrap items-center gap-4">
-                                <Avatar className="h-14 w-14">
-                                    <AvatarFallback>{avatarInitial}</AvatarFallback>
+                            <div className="flex items-center gap-4">
+                                <Avatar className="h-16 w-16 border">
+                                    <AvatarFallback className="text-xl">{avatarInitial}</AvatarFallback>
                                 </Avatar>
                                 <div>
-                                    <p className="text-base font-semibold">
+                                    <p className="text-lg font-semibold leading-none">
                                         {user?.nickname || user?.email}
                                     </p>
-                                    <p className="text-sm text-muted-foreground">
+                                    <p className="text-sm text-muted-foreground mt-1">
                                         {user?.email}
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="grid gap-2 sm:max-w-md">
-                                <Label htmlFor="nickname-input">Nickname</Label>
+                            <div className="grid gap-3 max-w-sm">
+                                <Label htmlFor="nickname-input">Display Name</Label>
                                 <Input
                                     id="nickname-input"
                                     type="text"
                                     value={nickname}
                                     onChange={(e) => setNickname(e.target.value)}
                                     placeholder="Enter a nickname"
+                                    className="max-w-md"
                                 />
                             </div>
 
-                            <Separator />
+                            <div className="rounded-lg border bg-card p-4 shadow-sm">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-medium">Google Account</p>
+                                            {googleClientId && user?.google_sub ? (
+                                                <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">Linked</Badge>
+                                            ) : (
+                                                <Badge variant="outline">Not Linked</Badge>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                            Use your Google account to sign in securely.
+                                        </p>
+                                    </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-4">
-                                <div>
-                                    <p className="text-sm font-medium">Google</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {user?.google_sub
-                                            ? "Connected to your account"
-                                            : "Connect Google for one-click sign in"}
-                                    </p>
-                                </div>
-                                {googleClientId ? (
-                                    user?.google_sub ? (
-                                        <Badge variant="secondary">Connected</Badge>
-                                    ) : (
+                                    {googleClientId && !user?.google_sub && (
                                         <div
                                             className={cn(
-                                                "min-w-[220px]",
+                                                "shrink-0",
                                                 isGoogleLinking && "opacity-70"
                                             )}
                                         >
                                             <div ref={googleLinkRef} />
                                             {!isGoogleLinkReady && (
-                                                <p className="mt-2 text-xs text-muted-foreground">
-                                                    Loading Google sign-in...
+                                                <p className="text-xs text-muted-foreground">
+                                                    Loading...
                                                 </p>
                                             )}
                                         </div>
-                                    )
-                                ) : (
-                                    <Badge variant="outline">Not configured</Badge>
+                                    )}
+                                </div>
+
+                                {(googleLinkError || googleLinkSuccess) && (
+                                    <div className="mt-4">
+                                        {googleLinkError && (
+                                            <p className="text-sm text-destructive">{googleLinkError}</p>
+                                        )}
+                                        {googleLinkSuccess && (
+                                            <p className="text-sm text-emerald-600">Google account linked successfully.</p>
+                                        )}
+                                    </div>
                                 )}
                             </div>
 
-                            {googleLinkError && (
-                                <Alert variant="destructive">
-                                    <AlertTitle>Google link failed</AlertTitle>
-                                    <AlertDescription>{googleLinkError}</AlertDescription>
-                                </Alert>
-                            )}
-
-                            {googleLinkSuccess && (
-                                <Alert>
-                                    <AlertTitle>Google connected</AlertTitle>
-                                    <AlertDescription>
-                                        Your Google account is linked successfully.
-                                    </AlertDescription>
-                                </Alert>
-                            )}
-
-                            <div className="flex items-center justify-end">
+                            <div className="pt-2">
                                 <Button
-                                    variant="secondary"
+                                    variant="outline"
                                     onClick={handleLogout}
-                                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
                                 >
                                     Sign Out
                                 </Button>
@@ -436,22 +420,27 @@ export const SettingsPage: React.FC = () => {
                         </div>
                     </SettingsSection>
 
+                    <Separator />
+
                     <SettingsSection
                         title="Global Defaults"
-                        description="Set defaults for new programs when no custom table is defined."
+                        description="Set default values for new programs."
                     >
                         <div className="space-y-6">
-                            <div className="grid gap-3">
-                                <Label>Default GPA Scaling Table</Label>
+                            <div className="grid gap-4">
+                                <Label className="text-base">Default GPA Scaling Table</Label>
                                 <GPAScalingTable
                                     value={gpaTableJson}
                                     onChange={(newValue) => {
                                         setGpaTableJson(newValue);
                                     }}
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                    This table will be applied to all new programs you create.
+                                </p>
                             </div>
 
-                            <div className="grid gap-2">
+                            <div className="grid gap-3 pt-2">
                                 <Label htmlFor="default-credit">Default Course Credit</Label>
                                 <Input
                                     id="default-credit"
@@ -461,48 +450,49 @@ export const SettingsPage: React.FC = () => {
                                     onChange={(e) =>
                                         setDefaultCourseCredit(parseFloat(e.target.value) || 0)
                                     }
-                                    className="max-w-[160px]"
+                                    className="max-w-[120px]"
                                 />
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-end gap-3">
+                            <div className="flex justify-start pt-4">
                                 <Button
                                     onClick={() => saveSettings()}
                                     disabled={saveState === "saving"}
-                                    className="min-w-[160px]"
+                                    className="min-w-[140px]"
                                 >
                                     {saveState === "saving" && (
                                         <Spinner className="mr-2 size-3" />
                                     )}
                                     {saveState === "success" && (
-                                        <span className="mr-2 text-emerald-500">✓</span>
+                                        <span className="mr-2 text-emerald-100">✓</span>
                                     )}
                                     {saveState === "success"
                                         ? "Saved"
                                         : saveState === "saving"
-                                            ? "Saving..."
-                                            : "Save Settings"}
+                                            ? "Saving"
+                                            : "Save Changes"}
                                 </Button>
                             </div>
                         </div>
                     </SettingsSection>
 
+                    <Separator />
+
                     <SettingsSection
                         title="Data Management"
-                        description="Backup and restore your account data."
-                        center
+                        description="Export your data for backup or import from a backup file."
                     >
-                        <div className="grid gap-4">
-                            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-muted/40 p-4">
-                                <div>
-                                    <p className="text-sm font-medium">Export Data</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Download all your programs, semesters, and courses as a JSON
-                                        file.
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm hover:bg-accent/50 transition-colors">
+                                <div className="space-y-2 mb-4">
+                                    <p className="font-medium">Export Data</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Download a JSON file containing all your programs, semesters, and courses.
                                     </p>
                                 </div>
                                 <Button
                                     variant="secondary"
+                                    className="w-full"
                                     onClick={async () => {
                                         try {
                                             const data = await api.exportUserData();
@@ -529,19 +519,20 @@ export const SettingsPage: React.FC = () => {
                                         }
                                     }}
                                 >
-                                    Export
+                                    Download Backup
                                 </Button>
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-muted/40 p-4">
-                                <div>
-                                    <p className="text-sm font-medium">Import Data</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Restore data from a previously exported JSON file.
+                            <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm hover:bg-accent/50 transition-colors">
+                                <div className="space-y-2 mb-4">
+                                    <p className="font-medium">Import Data</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Restore your data from a valid Semestra backup file.
                                     </p>
                                 </div>
                                 <Button
                                     variant="secondary"
+                                    className="w-full"
                                     onClick={() => {
                                         const input = document.createElement("input");
                                         input.type = "file";
@@ -578,7 +569,7 @@ export const SettingsPage: React.FC = () => {
                                         input.click();
                                     }}
                                 >
-                                    Import
+                                    Restore Backup
                                 </Button>
                             </div>
 
@@ -616,11 +607,11 @@ export const SettingsPage: React.FC = () => {
                 </div>
 
                 <Separator />
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                    <span>v{versionInfo.version}</span>
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-4">
+                    <span>Semestra v{versionInfo.version}</span>
                     <span>•</span>
                     <span>
-                        {versionInfo.branch}@{versionInfo.commit}
+                        {versionInfo.branch} ({versionInfo.commit})
                     </span>
                 </div>
             </Container>

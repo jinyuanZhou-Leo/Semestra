@@ -25,80 +25,50 @@ const TemplateTabComponent: React.FC<TabProps> = ({ settings, updateSettings }) 
     }, [resolved, updateSettings]);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{
-                padding: '1rem',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-bg-primary)'
-            }}>
-                <div style={{ fontSize: '0.85rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>
+        <div className="flex flex-col gap-4">
+            <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
+                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Template Overview
                 </div>
-                <div style={{ marginTop: '0.5rem', color: 'var(--color-text-primary)', fontSize: '1.1rem', fontWeight: 600 }}>
+                <div className="mt-2 text-lg font-semibold text-foreground">
                     {resolved.title}
                 </div>
-                <div style={{ marginTop: '0.35rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                <div className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
                     Use this tab as a starting point for new plugins. Swap out the blocks below with real data, and wire up
                     any settings through the settings panel.
                 </div>
             </div>
 
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                gap: '1rem'
-            }}>
-                <div style={{
-                    padding: '1rem',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1px solid var(--color-border)',
-                    background: 'var(--color-bg-primary)'
-                }}>
-                    <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '0.5rem' }}>
+            <div className="grid gap-4 min-[500px]:grid-cols-2 lg:grid-cols-3">
+                <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
+                    <div className="font-semibold mb-2">
                         Layout Scaffold
                     </div>
-                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                    <div className="text-sm text-muted-foreground leading-relaxed">
                         Keep tab content focused on the main area. Avoid duplicating the tab title, and use CSS variables for
                         theme-aware colors.
                     </div>
                     {resolved.showChecklist && (
-                        <ul style={{ marginTop: '0.75rem', paddingLeft: '1rem', color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
-                            <li>Use <code style={{ color: 'var(--color-text-primary)' }}>updateSettings</code> for persistence.</li>
-                            <li>Prefer <code style={{ color: 'var(--color-text-primary)' }}>useCallback</code> for handlers.</li>
+                        <ul className="mt-3 list-disc pl-4 text-sm text-muted-foreground space-y-1">
+                            <li>Use <code className="bg-muted px-1 py-0.5 rounded text-foreground font-mono text-xs">updateSettings</code> for persistence.</li>
+                            <li>Prefer <code className="bg-muted px-1 py-0.5 rounded text-foreground font-mono text-xs">useCallback</code> for handlers.</li>
                             <li>Keep layout responsive with auto-fit grids.</li>
                         </ul>
                     )}
                 </div>
 
-                <div style={{
-                    padding: '1rem',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1px solid var(--color-border)',
-                    background: 'var(--color-bg-primary)'
-                }}>
-                    <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '0.5rem' }}>
+                <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
+                    <div className="font-semibold mb-2">
                         Persistent Notes
                     </div>
-                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
+                    <div className="text-sm text-muted-foreground mb-3">
                         This textarea writes directly to tab settings. Use it as a placeholder for any editable content.
                     </div>
                     <textarea
                         value={resolved.note}
                         onChange={(event) => handleNoteChange(event.target.value)}
                         placeholder="Type notes that persist with the tab..."
-                        style={{
-                            width: '100%',
-                            minHeight: '160px',
-                            padding: '0.75rem',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--color-border)',
-                            background: 'var(--color-bg-secondary)',
-                            color: 'var(--color-text-primary)',
-                            resize: 'vertical',
-                            fontSize: '0.95rem',
-                            lineHeight: 1.5
-                        }}
+                        className="w-full min-h-[160px] p-3 rounded-md border bg-background text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                 </div>
             </div>
@@ -124,9 +94,9 @@ const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, up
             title="Display"
             description="Configure how this tab is displayed."
         >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="grid gap-4">
                 <div className="grid gap-2">
-                    <Label htmlFor={titleId} className="text-muted-foreground">
+                    <Label htmlFor={titleId}>
                         Template Title
                     </Label>
                     <Input
@@ -135,7 +105,7 @@ const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, up
                         onChange={(event) => handleTitleChange(event.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     <Checkbox
                         id={checklistId}
                         checked={resolved.showChecklist}
@@ -144,7 +114,7 @@ const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, up
                             handleChecklistToggle(checked);
                         }}
                     />
-                    <Label htmlFor={checklistId} className="text-sm text-muted-foreground">
+                    <Label htmlFor={checklistId} className="text-sm font-normal text-muted-foreground cursor-pointer">
                         Show quick-start checklist
                     </Label>
                 </div>

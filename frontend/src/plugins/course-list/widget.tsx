@@ -9,6 +9,15 @@ import { CourseManagerModal } from '../../components/CourseManagerModal';
 import { SettingsSection } from '../../components/SettingsSection';
 
 import { useDialog } from '../../contexts/DialogContext';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 /**
  * CourseList Plugin - Memoized for performance
@@ -43,7 +52,7 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
                                 <Link
                                     key={course.id}
                                     to={`/courses/${course.id}`}
-                                    className="group flex flex-col gap-1 rounded-md border border-transparent bg-muted/40 p-2.5 transition-all hover:border-border hover:bg-muted"
+                                    className="group flex flex-col gap-1 rounded-md border border-transparent bg-muted/40 px-2.5 py-0.5 transition-all hover:border-border hover:bg-muted"
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <span className="line-clamp-1 text-sm font-medium leading-none text-foreground/90 group-hover:text-primary transition-colors">
@@ -56,6 +65,11 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
 
                                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                                         <div className="flex items-center gap-1.5">
+                                            {course.category && (
+                                                <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 border-transparent bg-muted text-muted-foreground hover:bg-muted">
+                                                    {course.category}
+                                                </Badge>
+                                            )}
                                         {course.alias && (
                                                 <span className="font-medium">{course.alias}</span>
                                         )}
@@ -133,49 +147,62 @@ const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semeste
             title="Courses"
             description="Manage courses assigned to this semester."
         >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+            <div className="space-y-4">
+                <div className="rounded-md border bg-card">
                     {courses.length === 0 ? (
-                        <div style={{ padding: '1rem', color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
+                        <div className="p-8 text-center text-sm text-muted-foreground">
                             No courses assigned.
                         </div>
                     ) : (
-                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                            {courses.map((course: Course) => (
-                                <li key={course.id} style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    padding: '0.75rem',
-                                    borderBottom: '1px solid var(--color-border)',
-                                    background: 'var(--color-bg-secondary)'
-                                }}>
-                                    <div>
-                                        <div style={{ fontWeight: 500 }}>{course.name}</div>
-                                        {course.alias && (
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: '0.125rem' }}>
-                                                {course.alias}
-                                            </div>
-                                        )}
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                            {course.credits} Credits • {course.grade_percentage}%
-                                        </div>
-                                    </div>
-                                    <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() => handleRemoveCourse(course.id)}
-                                        style={{ color: 'var(--color-error)', borderColor: 'var(--color-error)' }}
-                                    >
-                                        Remove
-                                    </Button>
-                                </li>
-                            ))}
-                        </ul>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Credits</TableHead>
+                                        <TableHead>Grade</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {courses.map((course: Course) => (
+                                        <TableRow key={course.id}>
+                                            <TableCell className="font-medium">
+                                                <div className="flex flex-col">
+                                                    <span>{course.name}</span>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        {course.category && (
+                                                            <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
+                                                                {course.category}
+                                                            </Badge>
+                                                        )}
+                                                        {course.alias && (
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {course.alias}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>{course.credits}</TableCell>
+                                            <TableCell>{course.grade_percentage}%</TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleRemoveCourse(course.id)}
+                                                    className="h-8 text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive"
+                                                >
+                                                    Remove
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
                     )}
                 </div>
 
-                <Button onClick={() => setIsManagerOpen(true)}>
+                <Button onClick={() => setIsManagerOpen(true)} className="w-full">
                     + Add / Manage Courses
                 </Button>
 

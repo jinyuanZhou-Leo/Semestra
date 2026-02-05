@@ -173,15 +173,16 @@ export const RegisterPage: React.FC = () => {
         setIsLoading(true);
 
         try {
+            const lowerEmail = email.toLowerCase();
             // Register
             await axios.post('/api/auth/register', {
-                email,
+                email: lowerEmail,
                 password
             });
 
             // After register, login to get token
             const formData = new URLSearchParams();
-            formData.append('username', email);
+            formData.append('username', lowerEmail);
             formData.append('password', password);
 
             const loginResponse = await axios.post('/api/auth/token', formData, {
@@ -274,7 +275,7 @@ export const RegisterPage: React.FC = () => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="h-11 shadow-inner bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-colors"
+                                    className="h-11"
                                 />
                             </div>
 
@@ -292,7 +293,7 @@ export const RegisterPage: React.FC = () => {
                                                     onFocus={() => setIsPasswordFocused(true)}
                                                     onBlur={() => setIsPasswordFocused(false)}
                                                     required
-                                                    className="h-11 pr-10 shadow-inner bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-colors"
+                                                    className="h-11 pr-10"
                                                 />
                                                 <Button
                                                     type="button"
@@ -325,7 +326,7 @@ export const RegisterPage: React.FC = () => {
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
                                         required
-                                        className="h-11 pr-10 shadow-inner bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-colors"
+                                        className="h-11 pr-10"
                                     />
                                     <Button
                                         type="button"

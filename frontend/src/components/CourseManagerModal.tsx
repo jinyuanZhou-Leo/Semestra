@@ -122,21 +122,21 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 <DialogHeader className="border-b px-6 py-4 flex-none">
                     <DialogTitle className="text-base font-semibold">Manage Courses</DialogTitle>
                 </DialogHeader>
-                <div className="flex-1 flex flex-col p-6 overflow-hidden">
+                <div className="flex-1 flex flex-col p-4 overflow-hidden">
                     {/* Mode Switcher (only if semesterId is present) */}
                     {semesterId && (
-                        <div className="mb-6 flex-none">
+                        <div className="mb-4 flex-none">
                             <Tabs value={mode} onValueChange={(value) => setMode(value as 'list' | 'create')}>
-                                <TabsList className="w-full">
+                                <TabsList className="w-full grid grid-cols-2">
                                     <TabsTrigger
                                         value="list"
-                                        className="flex-1"
+                                        className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
                                     >
                                         Select Existing
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="create"
-                                        className="flex-1"
+                                        className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
                                     >
                                         Create New
                                     </TabsTrigger>

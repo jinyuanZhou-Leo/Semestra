@@ -1,5 +1,5 @@
 import React from "react";
-import { Card } from "@/components/ui/card";
+
 import { cn } from "@/lib/utils";
 
 interface SettingsSectionProps {
@@ -17,34 +17,22 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   headerAction,
   center = false,
 }) => {
-  const hasHeader = Boolean(title || description || headerAction);
-
   return (
-    <section>
-      <Card>
-        <div
-          className={cn(
-            "grid gap-6 p-6",
-            hasHeader && "md:grid-cols-[220px_minmax(0,1fr)]",
-            center && "items-center"
+    <section className="space-y-4">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          {title && (
+            <h3 className="text-lg font-medium leading-6 decoration-foreground">
+              {title}
+            </h3>
           )}
-        >
-          {hasHeader && (
-            <div className="space-y-2">
-              {title && (
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  {title}
-                </div>
-              )}
-              {description && (
-                <p className="text-sm text-foreground/90">{description}</p>
-              )}
-              {headerAction && <div className="pt-2">{headerAction}</div>}
-            </div>
-          )}
-          <div className="min-w-0">{children}</div>
+          {headerAction && <div>{headerAction}</div>}
         </div>
-      </Card>
+        {description && (
+          <p className="text-sm text-muted-foreground">{description}</p>
+        )}
+      </div>
+      <div className={cn(center && "flex justify-center")}>{children}</div>
     </section>
   );
 };

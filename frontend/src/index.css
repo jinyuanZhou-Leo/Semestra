@@ -123,8 +123,8 @@ body>div>div[role="dialog"][data-state] {
       --accent-foreground: 0.985 0 0;
       --destructive: 0.704 0.191 22.216;
       --destructive-foreground: 0.985 0 0;
-      --border: 0.25 0 0;
-        --input: 0.25 0 0;
+      --border: 0.23 0 0;
+        --input: 0.23 0 0;
       --ring: 0.556 0 0;
       --chart-1: 0.488 0.243 264.376;
       --chart-2: 0.696 0.17 162.48;
@@ -137,7 +137,7 @@ body>div>div[role="dialog"][data-state] {
       --sidebar-primary-foreground: 0.985 0 0;
       --sidebar-accent: 0.269 0 0;
       --sidebar-accent-foreground: 0.985 0 0;
-      --sidebar-border: 0.25 0 0;
+      --sidebar-border: 0.23 0 0;
         --sidebar-ring: 0.708 0 0;
       --color-text-tertiary: hsl(0 0% 45%);
       --color-accent-hover: hsl(0 0% 90%);
@@ -168,8 +168,8 @@ body>div>div[role="dialog"][data-state] {
     --accent-foreground: 0.985 0 0;
     --destructive: 0.704 0.191 22.216;
     --destructive-foreground: 0.985 0 0;
-    --border: 0.25 0 0;
-      --input: 0.25 0 0;
+    --border: 0.23 0 0;
+      --input: 0.23 0 0;
     --ring: 0.556 0 0;
     --chart-1: 0.488 0.243 264.376;
     --chart-2: 0.696 0.17 162.48;
@@ -182,7 +182,7 @@ body>div>div[role="dialog"][data-state] {
     --sidebar-primary-foreground: 0.985 0 0;
     --sidebar-accent: 0.269 0 0;
     --sidebar-accent-foreground: 0.985 0 0;
-    --sidebar-border: 0.25 0 0;
+    --sidebar-border: 0.23 0 0;
     --sidebar-ring: 0.556 0 0;
     --color-text-tertiary: hsl(0 0% 45%);
     --color-accent-hover: hsl(0 0% 90%);
@@ -771,4 +771,9 @@ button {
   to {
     opacity: 0;
   }
+}
+
+/* Dialog Overlay Override */
+[data-slot="dialog-overlay"] {
+  @apply bg-black/40 backdrop-blur-sm duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0;
 }
