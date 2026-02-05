@@ -118,7 +118,7 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
 
 
     return (
-        <div className="flex h-full flex-col gap-2 p-1 select-none text-xs">
+        <div className="flex h-full flex-col gap-2 select-none text-xs">
             <div className="flex-1 overflow-auto rounded-md bg-card/50">
                 <Table className="relative w-full text-xs">
                     <TableHeader className="sticky top-0 bg-secondary/80 backdrop-blur-sm z-10">

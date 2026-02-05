@@ -13,7 +13,7 @@ import api from '../services/api';
 import type { Program } from '../services/api';
 import { useDialog } from '../contexts/DialogContext';
 
-import { HomeSkeleton } from '../components/Skeleton/HomeSkeleton';
+import { ProgramCardSkeleton } from '../components/skeletons';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -109,7 +109,11 @@ export const HomePage: React.FC = () => {
 
             <Container className="py-8 md:py-10">
                 {isLoading ? (
-                    <HomeSkeleton />
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                            <ProgramCardSkeleton key={i} />
+                        ))}
+                    </div>
                 ) : (
                         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {programs.map(program => (

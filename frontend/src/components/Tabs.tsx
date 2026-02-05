@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { X } from 'lucide-react';
 
 export interface TabItem {
     id: string;
@@ -157,19 +158,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                             onRemove(item.id);
                                         }}
                                     >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            width="12"
-                                            height="12"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="3"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <line x1="18" y1="6" x2="6" y2="18" />
-                                            <line x1="6" y1="6" x2="18" y2="18" />
-                                        </svg>
+                                        <X className="h-3 w-3" strokeWidth={3} />
                                     </div>
                                 )}
                             </div>

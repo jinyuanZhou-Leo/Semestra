@@ -14,8 +14,8 @@ import api from '../services/api';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { AnimatedNumber } from '../components/AnimatedNumber';
-import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatCardSkeleton, SemesterCardSkeleton, TextSkeleton } from '../components/skeletons';
 import { ProgramDataProvider, useProgramData } from '../contexts/ProgramDataContext';
 import { CourseManagerModal } from '../components/CourseManagerModal';
 import { useDialog } from '../contexts/DialogContext';
@@ -35,7 +35,21 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, X, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
+
+// Helper function to extract course level from course name
+const extractCourseLevel = (courseName: string): number | null => {
+    // Match patterns like "CS 101", "MAT180", "MAT 180", "MAT-180", "MATH180", etc.
+    // Look for 3-4 digit course numbers where the first digit is 1-5
+    const match = courseName.match(/([1-5])(\d{2,3})(?!\d)/);
+    if (match) {
+        const level = parseInt(match[1], 10);
+        return level * 100; // Return 100, 200, 300, 400, or 500
+    }
+    return null;
+};
 
 const ProgramDashboardContent: React.FC = () => {
     const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
@@ -51,6 +65,10 @@ const ProgramDashboardContent: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [courseSearchQuery, setCourseSearchQuery] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
+    const [activeFilters, setActiveFilters] = useState<Array<{ type: string; value: string; label: string }>>([]);
+    const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+    const searchInputRef = useRef<HTMLInputElement>(null);
     const semesterNameId = useId();
 
     // Ref to track the latest newSemesterName, avoiding stale closure
@@ -146,6 +164,84 @@ const ProgramDashboardContent: React.FC = () => {
         );
     }, [program, normalizedQuery]);
 
+    // Extract unique values for suggestions
+    const suggestions = useMemo(() => {
+        if (!program) return [];
+
+        const allCourses = program.semesters.flatMap(sem =>
+            (sem.courses || []).map(course => ({
+                ...course,
+                semesterName: sem.name,
+                semesterId: sem.id
+            }))
+        );
+
+        const categories = Array.from(new Set(allCourses.map(c => c.category).filter(Boolean)));
+        const semesters = Array.from(new Set(allCourses.map(c => c.semesterName)));
+        const credits = Array.from(new Set(allCourses.map(c => c.credits)));
+        const levels = Array.from(new Set(
+            allCourses.map(c => extractCourseLevel(c.name)).filter((level): level is number => level !== null)
+        )).sort((a, b) => a - b);
+
+        const items: Array<{ type: string; value: string; label: string; icon: any }> = [];
+
+        // Add category suggestions
+        categories.forEach(cat => {
+            items.push({
+                type: 'category',
+                value: cat!,
+                label: `Category: ${cat}`,
+                icon: Tag
+            });
+        });
+
+        // Add semester suggestions
+        semesters.forEach(sem => {
+            items.push({
+                type: 'semester',
+                value: sem,
+                label: `Semester: ${sem}`,
+                icon: Calendar
+            });
+        });
+
+        // Add credit suggestions
+        credits.sort((a, b) => a - b).forEach(cred => {
+            items.push({
+                type: 'credits',
+                value: String(cred),
+                label: `Credits: ${cred}`,
+                icon: Hash
+            });
+        });
+
+        // Add level suggestions
+        levels.forEach(level => {
+            items.push({
+                type: 'level',
+                value: String(level),
+                label: `Level: ${level}`,
+                icon: Layers
+            });
+        });
+
+        // Add GPA threshold suggestions
+        items.push(
+            { type: 'gpa', value: '3.0', label: 'GPA ≥ 3.0', icon: TrendingUp },
+            { type: 'gpa', value: '3.5', label: 'GPA ≥ 3.5', icon: TrendingUp },
+            { type: 'gpa', value: '4.0', label: 'GPA = 4.0', icon: TrendingUp }
+        );
+
+        return items;
+    }, [program]);
+
+    // Filter suggestions based on search query
+    const filteredSuggestions = useMemo(() => {
+        if (!courseSearchQuery.trim()) return suggestions;
+        const query = courseSearchQuery.toLowerCase();
+        return suggestions.filter(s => s.label.toLowerCase().includes(query));
+    }, [suggestions, courseSearchQuery]);
+
     const filteredAndSortedCourses = useMemo(() => {
         if (!program) return [];
 
@@ -157,10 +253,39 @@ const ProgramDashboardContent: React.FC = () => {
             }))
         );
 
-        if (courseSearchQuery.trim()) {
+        // Apply active filters
+        if (activeFilters.length > 0) {
+            courses = courses.filter(course => {
+                return activeFilters.every(filter => {
+                    switch (filter.type) {
+                        case 'category':
+                            return course.category === filter.value;
+                        case 'semester':
+                            return course.semesterName === filter.value;
+                        case 'credits':
+                            return String(course.credits) === filter.value;
+                        case 'level':
+                            const courseLevel = extractCourseLevel(course.name);
+                            return courseLevel !== null && String(courseLevel) === filter.value;
+                        case 'gpa':
+                            const threshold = parseFloat(filter.value);
+                            if (threshold === 4.0) {
+                                return course.grade_scaled === 4.0;
+                            }
+                            return course.grade_scaled >= threshold;
+                        default:
+                            return true;
+                    }
+                });
+            });
+        }
+
+        // Apply text search
+        if (courseSearchQuery.trim() && activeFilters.length === 0) {
             const query = courseSearchQuery.toLowerCase();
             courses = courses.filter(course =>
                 course.name.toLowerCase().includes(query) ||
+                (course.alias && course.alias.toLowerCase().includes(query)) ||
                 (course.category && course.category.toLowerCase().includes(query))
             );
         }
@@ -192,7 +317,7 @@ const ProgramDashboardContent: React.FC = () => {
         }
 
         return courses;
-    }, [program, courseSearchQuery, sortConfig]);
+    }, [program, courseSearchQuery, sortConfig, activeFilters]);
 
     const getCategoryColor = (category: string) => {
         if (!category) return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
@@ -237,6 +362,56 @@ const ProgramDashboardContent: React.FC = () => {
         return sortConfig.direction === 'asc'
             ? <ArrowUp className="ml-2 h-4 w-4 text-foreground" />
             : <ArrowDown className="ml-2 h-4 w-4 text-foreground" />;
+    };
+
+    const handleAddFilter = (suggestion: { type: string; value: string; label: string }) => {
+        // Check if filter already exists
+        const exists = activeFilters.some(f => f.type === suggestion.type && f.value === suggestion.value);
+        if (!exists) {
+            setActiveFilters([...activeFilters, suggestion]);
+        }
+        setCourseSearchQuery('');
+        setIsSuggestionsOpen(false);
+        setSelectedSuggestionIndex(0);
+    };
+
+    const handleRemoveFilter = (index: number) => {
+        setActiveFilters(activeFilters.filter((_, i) => i !== index));
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (!isSuggestionsOpen || filteredSuggestions.length === 0) {
+            if (e.key === 'ArrowDown' && !isSuggestionsOpen) {
+                setIsSuggestionsOpen(true);
+                e.preventDefault();
+            }
+            return;
+        }
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prev =>
+                    prev < filteredSuggestions.length - 1 ? prev + 1 : prev
+                );
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : 0);
+                break;
+            case 'Enter':
+            case 'Tab':
+                e.preventDefault();
+                if (filteredSuggestions[selectedSuggestionIndex]) {
+                    handleAddFilter(filteredSuggestions[selectedSuggestionIndex]);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setIsSuggestionsOpen(false);
+                setSelectedSuggestionIndex(0);
+                break;
+        }
     };
 
 
@@ -326,7 +501,32 @@ const ProgramDashboardContent: React.FC = () => {
 
             <Container className="py-8 md:py-10 space-y-10">
                 {isLoading || !program ? (
-                    <ProgramSkeleton />
+                    <>
+                        {/* Overview Section Skeleton */}
+                        <section>
+                            <TextSkeleton variant="h3" className="mb-4" />
+                            <div className="grid gap-4 md:grid-cols-3">
+                                {[1, 2, 3].map(i => (
+                                    <StatCardSkeleton key={i} />
+                                ))}
+                            </div>
+                        </section>
+
+                        <Separator />
+
+                        {/* Semesters Section Skeleton */}
+                        <section className="space-y-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <TextSkeleton variant="h3" />
+                                <Skeleton className="h-10 w-full max-w-sm" />
+                            </div>
+                            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <SemesterCardSkeleton key={i} />
+                                ))}
+                            </div>
+                        </section>
+                    </>
                 ) : (
                     <>
                         {/* Stats Section */}
@@ -502,17 +702,107 @@ const ProgramDashboardContent: React.FC = () => {
                                     <h2 className="text-lg font-semibold tracking-tight">
                                         All Courses
                                     </h2>
-                                    <div className="relative flex-1 max-w-sm">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            placeholder="Search courses..."
-                                            value={courseSearchQuery}
-                                            onChange={(e) => setCourseSearchQuery(e.target.value)}
-                                            className="pl-9 h-10"
-                                        />
+                                    <div className="flex-1 max-w-sm space-y-3">
+                                        {/* Active Filters */}
+                                        {activeFilters.length > 0 && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {activeFilters.map((filter, index) => (
+                                                    <Badge
+                                                        key={index}
+                                                        variant="secondary"
+                                                        className="pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5"
+                                                    >
+                                                        {filter.label}
+                                                        <button
+                                                            onClick={() => handleRemoveFilter(index)}
+                                                            className="hover:bg-muted/80 rounded-sm p-0.5 transition-colors"
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </button>
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {/* Search with Suggestions */}
+                                        <Popover open={isSuggestionsOpen}>
+                                            <PopoverTrigger asChild>
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                                                    <Input
+                                                        ref={searchInputRef}
+                                                        placeholder="Search or filter courses..."
+                                                        value={courseSearchQuery}
+                                                        onChange={(e) => {
+                                                            setCourseSearchQuery(e.target.value);
+                                                            setIsSuggestionsOpen(true);
+                                                            setSelectedSuggestionIndex(0);
+                                                        }}
+                                                        onFocus={() => setIsSuggestionsOpen(true)}
+                                                        onBlur={(e) => {
+                                                            // Don't close if clicking inside the popover content
+                                                            const relatedTarget = e.relatedTarget as HTMLElement | null;
+                                                            if (relatedTarget?.closest('[data-radix-popper-content-wrapper]')) {
+                                                                return;
+                                                            }
+                                                            setIsSuggestionsOpen(false);
+                                                            setSelectedSuggestionIndex(0);
+                                                        }}
+                                                        onKeyDown={handleKeyDown}
+                                                        className="pl-9 h-10"
+                                                    />
+                                                </div>
+                                            </PopoverTrigger>
+                                            <PopoverContent
+                                                className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg"
+                                                align="start"
+                                                onOpenAutoFocus={(e) => e.preventDefault()}
+                                                onInteractOutside={(e) => {
+                                                    // Don't close if clicking on the input trigger
+                                                    const target = e.target as HTMLElement | null;
+                                                    if (target === searchInputRef.current || target?.closest('[data-radix-popover-trigger]')) {
+                                                        e.preventDefault();
+                                                        return;
+                                                    }
+                                                    setIsSuggestionsOpen(false);
+                                                    setSelectedSuggestionIndex(0);
+                                                }}
+                                            >
+                                                <Command className="rounded-lg">
+                                                    <CommandList>
+                                                        {filteredSuggestions.length === 0 ? (
+                                                            <CommandEmpty>No suggestions found.</CommandEmpty>
+                                                        ) : (
+                                                            <CommandGroup heading="Filter by">
+                                                                {filteredSuggestions.map((suggestion, index) => {
+                                                                    const Icon = suggestion.icon;
+                                                                    return (
+                                                                        <CommandItem
+                                                                            key={`${suggestion.type}-${suggestion.value}`}
+                                                                            onSelect={() => handleAddFilter(suggestion)}
+                                                                            className={`cursor-pointer ${index === selectedSuggestionIndex
+                                                                                ? 'bg-accent'
+                                                                                : ''
+                                                                                }`}
+                                                                        >
+                                                                            <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                                                                            <span>{suggestion.label}</span>
+                                                                        </CommandItem>
+                                                                    );
+                                                                })}
+                                                            </CommandGroup>
+                                                        )}
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
                                     </div>
                                 </div>
-                                <div className="rounded-md border bg-card">
+                                <div className="rounded-md border bg-card min-h-[300px] flex flex-col">
+                                    {filteredAndSortedCourses.length === 0 ? (
+                                        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                                            {courseSearchQuery || activeFilters.length > 0 ? "No courses found matching your search." : "No courses added yet."}
+                                        </div>
+                                    ) : (
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="hover:bg-transparent">
@@ -573,14 +863,7 @@ const ProgramDashboardContent: React.FC = () => {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {filteredAndSortedCourses.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={5} className="h-24 text-center">
-                                                        {courseSearchQuery ? "No courses found matching your search." : "No courses added yet."}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                filteredAndSortedCourses.map(course => (
+                                                    {filteredAndSortedCourses.map(course => (
                                                     <TableRow key={course.id}>
                                                         <TableCell className="font-medium">
                                                             <div className="flex flex-col">
@@ -593,7 +876,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                             {course.category && (
                                                                 <Badge
                                                                     variant="outline"
-                                                                    className={`rounded-md border-0 font-medium ${getCategoryColor(course.category)}`}
+                                                                        className={`border-0 font-medium ${getCategoryColor(course.category)}`}
                                                                 >
                                                                     {course.category}
                                                                 </Badge>
@@ -618,10 +901,10 @@ const ProgramDashboardContent: React.FC = () => {
                                                             )}
                                                         </TableCell>
                                                     </TableRow>
-                                                ))
-                                            )}
+                                                    ))}
                                         </TableBody>
                                     </Table>
+                                    )}
                                 </div>
                             </section>
                     </>

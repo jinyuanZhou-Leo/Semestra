@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,7 @@ export const LoginPage: React.FC = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
-    const [googleError, setGoogleError] = useState('');
+    // const [googleError, setGoogleError] = useState(''); // Removed in favor of toast
     const [isLoading, setIsLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [isGoogleReady, setIsGoogleReady] = useState(false);
@@ -88,7 +89,7 @@ export const LoginPage: React.FC = () => {
                 await loadGoogleIdentityScriptWhenIdle();
             } catch (err) {
                 if (!cancelled) {
-                    setGoogleError('Google sign-in is unavailable right now. Please try again later.');
+                    toast.error('Google sign-in is unavailable right now. Please try again later.');
                 }
                 return;
             }
@@ -106,10 +107,10 @@ export const LoginPage: React.FC = () => {
                 client_id: googleClientId,
                 callback: async (response: { credential: string }) => {
                     if (!response?.credential) {
-                        setGoogleError('Google sign-in failed. Please try again.');
+                        toast.error('Google sign-in failed. Please try again.');
                         return;
                     }
-                    setGoogleError('');
+                    // setGoogleError(''); // Removed
                     setIsGoogleLoading(true);
                     try {
                         const loginResponse = await axios.post('/api/auth/google', {
@@ -118,7 +119,7 @@ export const LoginPage: React.FC = () => {
                         login(loginResponse.data.access_token);
                         navigate('/');
                     } catch (err: any) {
-                        setGoogleError(err.response?.data?.detail || 'Google sign-in failed.');
+                        toast.error(err.response?.data?.detail || 'Google sign-in failed.');
                     } finally {
                         setIsGoogleLoading(false);
                     }
@@ -178,7 +179,7 @@ export const LoginPage: React.FC = () => {
             login(response.data.access_token);
             navigate('/');
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Failed to login. Please check your credentials.');
+            toast.error(err.response?.data?.detail || 'Failed to login. Please check your credentials.');
         } finally {
             setIsLoading(false);
         }
@@ -259,7 +260,7 @@ export const LoginPage: React.FC = () => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="h-11"
+                                    className="h-11 bg-secondary/50 border-muted-foreground/20 hover:bg-secondary/70 transition-colors focus-visible:ring-offset-0"
                                 />
                             </div>
                             <div className="grid gap-2">
@@ -271,7 +272,7 @@ export const LoginPage: React.FC = () => {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
-                                        className="h-11 pr-10"
+                                        className="h-11 pr-10 bg-secondary/50 border-muted-foreground/20 hover:bg-secondary/70 transition-colors focus-visible:ring-offset-0"
                                     />
                                     <Button
                                         type="button"
@@ -297,6 +298,7 @@ export const LoginPage: React.FC = () => {
                                         if (checked === "indeterminate") return;
                                         setRememberMe(checked);
                                     }}
+                                    className="bg-secondary/50 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                 />
                                 <Label htmlFor={rememberMeId} className="text-sm text-muted-foreground font-normal cursor-pointer">
                                     Remember me
@@ -306,12 +308,6 @@ export const LoginPage: React.FC = () => {
                             {error && (
                                 <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
                                     {error}
-                                </div>
-                            )}
-
-                            {googleError && (
-                                <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                                    {googleError}
                                 </div>
                             )}
 

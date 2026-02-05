@@ -474,11 +474,64 @@ const handleChange = (newValue) => {
 };
 ```
 
-### Styling
-- Use standard CSS or inline styles.
-- Widgets: the container handles border/background, so fill available space (height: 100%).
-- Tabs: optimize for large layouts; avoid forcing fixed heights.
-- Use CSS variables (e.g., `var(--color-text-primary)`) to respect the theme (light/dark mode).
+### Styling with Tailwind CSS and shadcn/ui
+
+Semestra uses **Tailwind CSS** and **shadcn/ui** for all UI components. Plugin developers should follow these conventions:
+
+#### Tailwind CSS Utilities
+
+- **Spacing**: Use Tailwind spacing utilities (`p-4`, `mb-2`, `gap-4`) instead of custom CSS
+- **Colors**: Use Tailwind color tokens that adapt to theme:
+  - Text: `text-foreground`, `text-muted-foreground`, `text-primary`
+  - Backgrounds: `bg-background`, `bg-card`, `bg-muted`
+  - Borders: `border-border`, `border-input`
+- **Responsive Design**: Use responsive modifiers (`sm:`, `md:`, `lg:`)
+- **Dark Mode**: Classes automatically adapt via `dark:` variant
+
+#### shadcn/ui Components
+
+Use shadcn/ui components for consistent UI. Common components:
+
+- **Forms**: `Input`, `Label`, `Checkbox`, `Select`, `RadioGroup`
+- **Feedback**: `Button`, `Badge`, `Progress`, `Skeleton`
+- **Layout**: `Card`, `Separator`, `Tabs`, `Dialog`
+- **Data**: `Table`, `Avatar`
+
+**Example usage**:
+```typescript
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Card } from '../../components/ui/card';
+
+const MyWidget: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
+    return (
+        <div className="h-full flex flex-col gap-4 p-4">
+            <Input 
+                value={settings.title} 
+                onChange={(e) => updateSettings({ ...settings, title: e.target.value })}
+                className="w-full"
+            />
+            <Button onClick={handleAction}>Save</Button>
+        </div>
+    );
+};
+```
+
+#### CSS Variables for Theme Consistency
+
+When custom CSS is needed, use CSS variables:
+- `var(--foreground)` - Primary text color
+- `var(--muted-foreground)` - Secondary text color
+- `var(--background)` - Primary background
+- `var(--card)` - Card background
+- `var(--border)` - Border color
+- `var(--radius-md)` - Border radius
+
+#### Layout Guidelines
+
+- **Widgets**: Container handles border/background, fill available space with `h-full`
+- **Tabs**: Optimize for large layouts, avoid fixed heights
+- **Responsive**: Test on different screen sizes and grid dimensions
 
 ### Example: GradeCalculator
 
@@ -487,27 +540,202 @@ See `frontend/src/plugins/grade-calculator/widget.tsx` for a complete example de
 - Calling `updateSettings` for all changes
 - Using `useMemo` for computed values
 
-## Widget UI 设计规范
+## Widget UI Design Guidelines
 
-- WidgetUI中避免在上方添加标题，因为容器已经提供了标题
-- Widget应当适配声明的所有尺寸， 使用响应式设计
-- Widget应当适配深色模式
-- Widget应当高效利用空间，避免过多留白
-- Widget中应对必要元素添加 `user-select: none`
-- 使用 CSS 变量确保主题一致性：
-  - `var(--color-text-primary)` - 主要文本颜色
-  - `var(--color-text-secondary)` - 次要文本颜色
-  - `var(--color-bg-primary)` - 主要背景色
-  - `var(--color-bg-primary)` - 主要背景色
-  - `var(--color-border)` - 边框颜色
-- **避免多重边框**：Widget 容器已提供边框，Widget 内部 UI 勿在最外层再次添加边框，这是多余且不美观的。确保根元素无边框或使用 transparent。
+### Core Principles
 
-## Tab UI 设计规范
+1. **No Duplicate Titles**: Avoid adding titles at the top; the container already provides them
+2. **Responsive Design**: Adapt to all declared sizes using responsive Tailwind utilities
+3. **Dark Mode Support**: Use Tailwind classes that automatically adapt to theme
+4. **Efficient Space Usage**: Minimize unnecessary whitespace, maximize content density
+5. **No Double Borders**: Widget container provides borders; avoid adding borders on root elements
 
-- Tab 内容中避免显示标题，Tab 栏已提供名称
-- Tab 组件应将主要空间留给内容本身，避免额外占用垂直空间
-- Tab 组件需适配深色模式，使用 CSS 变量保持主题一致
-- Tab 内容应使用响应式设计
+### Tailwind CSS Best Practices
+
+**Layout & Spacing**:
+```tsx
+// ✅ Good: Use Tailwind utilities
+<div className="h-full flex flex-col gap-4 p-4">
+
+// ❌ Bad: Custom inline styles
+<div style={{ height: '100%', display: 'flex', padding: '1rem' }}>
+```
+
+**Colors & Theming**:
+```tsx
+// ✅ Good: Use semantic color tokens
+<span className="text-foreground">Main text</span>
+<span className="text-muted-foreground">Secondary text</span>
+<div className="bg-card border border-border rounded-md">
+
+// ❌ Bad: Hard-coded colors
+<span style={{ color: '#000' }}>Text</span>
+```
+
+**Responsive Design**:
+```tsx
+// ✅ Good: Adapt to widget size
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+
+// Support different widget dimensions
+const isCompact = widgetWidth < 4; // Adjust layout based on grid units
+```
+
+**Interactive Elements**:
+```tsx
+// Add user-select-none to prevent text selection during drag
+<button className="select-none hover:bg-accent transition-colors">
+```
+
+### shadcn/ui Component Usage
+
+**Buttons & Actions**:
+```tsx
+import { Button } from '../../components/ui/button';
+
+<Button variant="default" size="sm">Action</Button>
+<Button variant="outline" size="sm">Secondary</Button>
+<Button variant="ghost" size="icon">🔄</Button>
+```
+
+**Forms**:
+```tsx
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Select } from '../../components/ui/select';
+
+<div className="space-y-2">
+    <Label htmlFor="title">Title</Label>
+    <Input id="title" value={value} onChange={handleChange} />
+</div>
+```
+
+**Data Display**:
+```tsx
+import { Badge } from '../../components/ui/badge';
+import { Progress } from '../../components/ui/progress';
+
+<Badge variant="default">{status}</Badge>
+<Progress value={percentage} className="w-full" />
+```
+
+### Accessibility Requirements
+
+1. **Keyboard Navigation**: Ensure all interactive elements are keyboard accessible
+2. **ARIA Labels**: Add `aria-label` for icon-only buttons
+3. **Focus Indicators**: Use Tailwind's `focus:ring-2 focus:ring-primary`
+4. **Semantic HTML**: Use proper elements (`<button>`, `<input>`, etc.)
+
+### Performance Optimization
+
+1. **Avoid Inline Styles**: Use Tailwind classes for better performance
+2. **Minimize Re-renders**: Use `React.memo` for expensive components
+3. **Lazy Load**: Use dynamic imports for large components
+4. **Optimize Images**: Use appropriate formats and sizes
+
+### CSS Variables (Legacy Support)
+
+For custom styling when Tailwind doesn't suffice:
+- `var(--foreground)` - Primary text color
+- `var(--muted-foreground)` - Secondary text
+- `var(--background)` - Primary background
+- `var(--card)` - Card background
+- `var(--border)` - Border color
+
+## Tab UI Design Guidelines
+
+### Core Principles
+
+1. **No Duplicate Titles**: Avoid displaying titles; the tab bar already shows the name
+2. **Maximize Content Space**: Leave vertical space for content, avoid unnecessary padding
+3. **Dark Mode Support**: Use Tailwind theme-aware classes
+4. **Responsive Design**: Adapt to different screen sizes
+
+### Layout Structure
+
+**Full-Height Content**:
+```tsx
+const MyTab: React.FC<TabProps> = ({ settings, updateSettings }) => {
+    return (
+        <div className="h-full flex flex-col">
+            {/* Optional toolbar */}
+            <div className="border-b border-border p-4">
+                <Button>Action</Button>
+            </div>
+            
+            {/* Main content area - grows to fill space */}
+            <div className="flex-1 overflow-y-auto p-6">
+                {/* Tab content */}
+            </div>
+        </div>
+    );
+};
+```
+
+### Tailwind Best Practices for Tabs
+
+**Container Layout**:
+```tsx
+// ✅ Use flexbox for vertical layout
+<div className="h-full flex flex-col">
+
+// ✅ Make content scrollable
+<div className="flex-1 overflow-y-auto">
+
+// ✅ Add consistent padding
+<div className="p-6 space-y-6">
+```
+
+**Responsive Grid**:
+```tsx
+// Adapt to screen size
+<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+```
+
+### shadcn/ui Components for Tabs
+
+**Sub-navigation**:
+```tsx
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
+
+<Tabs defaultValue="overview">
+    <TabsList>
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="settings">Settings</TabsTrigger>
+    </TabsList>
+    <TabsContent value="overview">{/* Content */}</TabsContent>
+</Tabs>
+```
+
+**Cards for Content Sections**:
+```tsx
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+
+<Card>
+    <CardHeader>
+        <CardTitle>Section Title</CardTitle>
+    </CardHeader>
+    <CardContent>{/* Content */}</CardContent>
+</Card>
+```
+
+**Tables for Data**:
+```tsx
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/table';
+
+<Table>
+    <TableHeader>
+        <TableRow>
+            <TableHead>Column 1</TableHead>
+        </TableRow>
+    </TableHeader>
+    <TableBody>
+        <TableRow>
+            <TableCell>Data</TableCell>
+        </TableRow>
+    </TableBody>
+</Table>
+```
 
 ## Plugin Settings UI 设计规范
 
@@ -644,6 +872,21 @@ interface SettingsSectionProps {
    - `SettingsSection` 内置响应式布局
    - 在窄屏幕上，左侧标题区和右侧内容区会垂直堆叠
 
-5. **主题兼容**
-   - 使用 CSS 变量确保深色/浅色模式兼容
-   - 使用项目组件而非原生 HTML 元素
+5. **Theme Compatibility**
+   - Use Tailwind color tokens (e.g., `bg-card`, `text-foreground`)
+   - Use shadcn/ui components instead of native HTML elements
+   - Test in both light and dark modes
+
+6. **Tailwind Conventions**
+   - Prefer utility classes over custom CSS
+   - Use `className` with Tailwind utilities
+   - Use `cn()` utility from `lib/utils` to merge class names conditionally:
+     ```tsx
+     import { cn } from '../../lib/utils';
+     
+     <div className={cn(
+         "base-classes",
+         condition && "conditional-classes",
+         variant === 'compact' ? "compact-classes" : "default-classes"
+     )} />
+     ```

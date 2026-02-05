@@ -9,8 +9,8 @@ import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
-import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CardSkeleton } from '../components/skeletons';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import api from '../services/api';
 import { reportError } from '../services/appStatus';
@@ -19,7 +19,7 @@ import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
-import { TabRegistry } from '../services/tabRegistry';
+import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 
 import {
@@ -48,6 +48,9 @@ const CourseHomepageContent: React.FC = () => {
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('dashboard');
+
+    // Subscribe to tab registry changes so we re-render when builtin tabs are loaded
+    const registeredTabs = useTabRegistry();
     const [programName, setProgramName] = useState<string | null>(null);
     const [semesterName, setSemesterName] = useState<string | null>(null);
 
@@ -261,6 +264,9 @@ const CourseHomepageContent: React.FC = () => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
 
+    // Create a lookup for registered tab types to trigger re-render when tabs load
+    const registeredTabTypes = useMemo(() => new Set(registeredTabs.map(t => t.type)), [registeredTabs]);
+
     const dashboardContent = useMemo(() => {
         if (!course) return null;
         if (activeTabId === 'dashboard' || activeTabId === 'settings') {
@@ -322,7 +328,7 @@ const CourseHomepageContent: React.FC = () => {
                 />
             </React.Suspense>
         );
-    }, [activeTabId, course, tabs, handleUpdateTabSettings]);
+    }, [activeTabId, course, tabs, handleUpdateTabSettings, registeredTabTypes]);
 
     const pluginTabItems = useMemo(() => {
         return tabs.map(tab => {
@@ -673,7 +679,11 @@ const CourseHomepageContent: React.FC = () => {
 
 
                 {isLoading || !course || !course.id ? (  /* Check course.id since useDashboardWidgets needs it */
-                    <DashboardSkeleton />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <CardSkeleton key={i} className="h-[240px]" />
+                            ))}
+                        </div>
                 ) : (
                             dashboardContent
                 )}

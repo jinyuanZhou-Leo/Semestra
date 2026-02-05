@@ -6,6 +6,19 @@
 
 - **后端**: Python FastAPI + SQLite
 - **前端**: React + Vite + TypeScript
+- **样式**: Tailwind CSS + shadcn/ui
+- **UI 组件**: Radix UI 原语
+
+---
+
+## 功能特性
+
+- 📚 **课程管理**：按学期组织课程并追踪作业
+- 📊 **成绩计算器**：内置 GPA 计算，支持自定义等级表
+- 🧩 **插件系统**：可扩展的 Widget 和 Tab 插件，实现自定义功能
+- 🎨 **现代化 UI**：基于 Tailwind CSS 和 shadcn/ui 组件构建
+- 🌙 **深色模式**：完整的主题支持，自动深色模式
+- 📱 **响应式设计**：在桌面和移动设备上无缝运行
 
 ---
 
@@ -151,6 +164,47 @@ npm run test
 
 ---
 
+## 插件开发
+
+Semestra 提供了可扩展的插件系统，支持自定义 Widget 和 Tab。详细指南请参阅 [`PLUGIN_DEVELOPMENT.md`](./PLUGIN_DEVELOPMENT.md)。
+
+### 快速概览
+
+**Widget 插件**：Dashboard Tab 中显示的小型网格组件  
+**Tab 插件**：作为独立标签页显示的全尺寸面板
+
+### UI 开发指南
+
+所有插件必须遵循以下规范：
+
+- **使用 Tailwind CSS**：使用工具类进行样式设置（`className="flex gap-4 p-4"`）
+- **使用 shadcn/ui 组件**：从 `../../components/ui/*` 导入以保持一致性
+- **主题支持**：使用 Tailwind 颜色标记（`text-foreground`、`bg-card` 等）
+- **响应式设计**：使用 Tailwind 响应式修饰符在不同屏幕尺寸上测试
+- **可访问性**：确保键盘导航和 ARIA 标签
+
+**示例**：
+```tsx
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+
+const MyWidget: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
+    return (
+        <div className="h-full flex flex-col gap-4 p-4">
+            <Input 
+                value={settings.title}
+                onChange={(e) => updateSettings({ ...settings, title: e.target.value })}
+            />
+            <Button onClick={handleAction}>保存</Button>
+        </div>
+    );
+};
+```
+
+详细文档请参阅 [`PLUGIN_DEVELOPMENT.md`](./PLUGIN_DEVELOPMENT.md)。
+
+---
+
 ## 常见问题
 
 ### Q: 数据库在哪里？
@@ -193,4 +247,4 @@ MIT License
 
 ---
 
-*最后更新: 2026-01-26*
+*最后更新: 2026-02-05*

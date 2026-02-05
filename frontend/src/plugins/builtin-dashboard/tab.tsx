@@ -1,9 +1,10 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { DashboardSkeleton } from '../../components/Skeleton/DashboardSkeleton';
+import { CardSkeleton } from '../../components/skeletons';
 import { DashboardGrid } from '../../components/widgets/DashboardGrid';
 import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
 import type { TabDefinition, TabProps } from '../../services/tabRegistry';
+import { Lock, LockOpen, Plus } from 'lucide-react';
 
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinTabContext();
@@ -47,7 +48,13 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     }, [storageKey]);
 
     if (isLoading) {
-        return <DashboardSkeleton />;
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                    <CardSkeleton key={i} className="h-[240px]" />
+                ))}
+            </div>
+        );
     }
 
     return (
@@ -76,35 +83,9 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                 }}
             >
                 {isLocked ? (
-                    <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                    >
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
+                    <Lock className="h-5 w-5" aria-hidden="true" />
                 ) : (
-                    <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                    >
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                    </svg>
+                        <LockOpen className="h-5 w-5" aria-hidden="true" />
                 )}
             </Button>
 
@@ -128,20 +109,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                     zIndex: 20
                 }}
             >
-                <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
+                <Plus className="h-5 w-5" aria-hidden="true" />
             </Button>
 
             <DashboardGrid

@@ -10,14 +10,14 @@ import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
-import { DashboardSkeleton } from '../components/Skeleton/DashboardSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CardSkeleton } from '../components/skeletons';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { Container } from '../components/Container';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
-import { TabRegistry } from '../services/tabRegistry';
+import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 
@@ -37,6 +37,9 @@ const SemesterHomepageContent: React.FC = () => {
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('dashboard');
+
+    // Subscribe to tab registry changes so we re-render when builtin tabs are loaded
+    const registeredTabs = useTabRegistry();
 
     const [programName, setProgramName] = useState<string | null>(null);
 
@@ -229,6 +232,9 @@ const SemesterHomepageContent: React.FC = () => {
         </Breadcrumb>
     ), [semester?.program_id, semester?.name, programName]);
 
+    // Create a lookup for registered tab types to trigger re-render when tabs load
+    const registeredTabTypes = useMemo(() => new Set(registeredTabs.map(t => t.type)), [registeredTabs]);
+
     const dashboardContent = useMemo(() => {
         if (!semester) return null;
         if (activeTabId === 'dashboard' || activeTabId === 'settings') {
@@ -290,7 +296,7 @@ const SemesterHomepageContent: React.FC = () => {
                 />
             </React.Suspense>
         );
-    }, [activeTabId, semester, customTabs, handleUpdateTabSettings]);
+    }, [activeTabId, semester, customTabs, handleUpdateTabSettings, registeredTabTypes]);
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
@@ -532,7 +538,11 @@ const SemesterHomepageContent: React.FC = () => {
 
                 <Container className="py-4">
                     {isLoading || !semester ? (
-                        <DashboardSkeleton />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <CardSkeleton key={i} className="h-[240px]" />
+                            ))}
+                        </div>
                     ) : (
                             dashboardContent
                     )}

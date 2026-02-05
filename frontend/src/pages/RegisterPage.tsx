@@ -276,7 +276,7 @@ export const RegisterPage: React.FC = () => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="h-11"
+                                    className="h-11 bg-secondary/50 border-muted-foreground/20 hover:bg-secondary/70 transition-colors focus-visible:ring-offset-0"
                                 />
                             </div>
 
@@ -294,7 +294,7 @@ export const RegisterPage: React.FC = () => {
                                                     onFocus={() => setIsPasswordFocused(true)}
                                                     onBlur={() => setIsPasswordFocused(false)}
                                                     required
-                                                    className="h-11 pr-10"
+                                                    className="h-11 pr-10 bg-secondary/50 border-muted-foreground/20 hover:bg-secondary/70 transition-colors focus-visible:ring-offset-0"
                                                 />
                                                 <Button
                                                     type="button"
@@ -327,7 +327,7 @@ export const RegisterPage: React.FC = () => {
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
                                         required
-                                        className="h-11 pr-10"
+                                        className="h-11 pr-10 bg-secondary/50 border-muted-foreground/20 hover:bg-secondary/70 transition-colors focus-visible:ring-offset-0"
                                     />
                                     <Button
                                         type="button"

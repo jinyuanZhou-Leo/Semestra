@@ -1,4 +1,5 @@
 import React, { useId, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -13,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { AlertTriangle, Check, FileDown, ArrowRight, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -111,9 +112,17 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
         setIsImporting(true);
         try {
             await onConfirm(conflictMode, includeSettings);
+            toast.success('Import successful');
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Import failed:', error);
+            toast.error('Import failed', {
+                description: error.message || 'An unexpected error occurred during import.',
+                action: {
+                    label: 'Retry',
+                    onClick: handleConfirm,
+                },
+            });
         } finally {
             setIsImporting(false);
         }

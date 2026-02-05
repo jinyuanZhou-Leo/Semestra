@@ -6,6 +6,19 @@ A modern semester management application for students to organize courses, track
 
 - **Backend**: Python FastAPI + SQLite
 - **Frontend**: React + Vite + TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui
+- **UI Components**: Radix UI primitives
+
+---
+
+## Features
+
+- 📚 **Course Management**: Organize courses by semester and track assignments
+- 📊 **Grade Calculator**: Built-in GPA calculation with customizable scaling
+- 🧩 **Plugin System**: Extensible widget and tab plugins for custom functionality
+- 🎨 **Modern UI**: Built with Tailwind CSS and shadcn/ui components
+- 🌙 **Dark Mode**: Full theme support with automatic dark mode
+- 📱 **Responsive**: Works seamlessly on desktop and mobile devices
 
 ---
 
@@ -164,6 +177,47 @@ Once the backend is running, visit `http://localhost:8000/docs` to view the inte
 
 ---
 
+## Plugin Development
+
+Semestra features an extensible plugin system for custom widgets and tabs. See [`PLUGIN_DEVELOPMENT.md`](./PLUGIN_DEVELOPMENT.md) for a comprehensive guide.
+
+### Quick Overview
+
+**Widget Plugins**: Small, grid-based components displayed in the Dashboard tab  
+**Tab Plugins**: Full-size panels that appear as separate tabs
+
+### UI Development Guidelines
+
+All plugins must follow these conventions:
+
+- **Use Tailwind CSS**: Use utility classes for styling (`className="flex gap-4 p-4"`)
+- **Use shadcn/ui Components**: Import from `../../components/ui/*` for consistency
+- **Theme Support**: Use Tailwind color tokens (`text-foreground`, `bg-card`, etc.)
+- **Responsive Design**: Test on different screen sizes using Tailwind responsive modifiers
+- **Accessibility**: Ensure keyboard navigation and ARIA labels
+
+**Example**:
+```tsx
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+
+const MyWidget: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
+    return (
+        <div className="h-full flex flex-col gap-4 p-4">
+            <Input 
+                value={settings.title}
+                onChange={(e) => updateSettings({ ...settings, title: e.target.value })}
+            />
+            <Button onClick={handleAction}>Save</Button>
+        </div>
+    );
+};
+```
+
+For detailed documentation, see [`PLUGIN_DEVELOPMENT.md`](./PLUGIN_DEVELOPMENT.md).
+
+---
+
 ## FAQ
 
 ### Where is the database?
@@ -203,4 +257,4 @@ MIT License
 
 ---
 
-*Last updated: 2026-01-26*
+*Last updated: 2026-02-05*

@@ -39,6 +39,7 @@ export default {
         lg: "var(--radius-lg)",
         md: "var(--radius-md)",
         sm: "var(--radius-sm)",
+        "4xl": "2rem",
       },
       fontFamily: {
         sans: ["var(--font-family)"],
