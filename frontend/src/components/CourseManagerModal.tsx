@@ -241,7 +241,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                                <form className="flex flex-1 flex-col">
+                                <form className="flex flex-1 flex-col" onSubmit={handleCreateNew}>
                                     <div className="flex flex-col gap-6">
                                     <div className="grid gap-2">
                                         <Label htmlFor="course-name">Course Name</Label>

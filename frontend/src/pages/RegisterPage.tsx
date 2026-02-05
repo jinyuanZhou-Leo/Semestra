@@ -5,7 +5,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 import { motion } from 'framer-motion';
 
 import GradientBlinds from '../components/GradientBlinds';
@@ -75,9 +82,6 @@ export const RegisterPage: React.FC = () => {
     const gradientColors = currentTheme === 'light'
         ? ['#005050', '#2D2900'] // Dark teal/olive that inverts to pink/purple
         : ['#FF9FFC', '#5227FF']; // Original vibrant colors for dark mode
-
-    // Physics-based lighting
-    // const heroStyle = useHeroGradient();
 
     useEffect(() => {
         if (!googleClientId || !isGlassReady) {
@@ -196,24 +200,8 @@ export const RegisterPage: React.FC = () => {
     };
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-            position: 'relative',
-            background: 'var(--color-bg-primary)',
-            overflow: 'hidden'
-        }}>
-            <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                zIndex: 0
-            }}>
+        <div className="min-h-screen flex items-center justify-center p-4 relative bg-background overflow-hidden">
+            <div className="absolute inset-0 z-0">
                 <GradientBlinds
                     gradientColors={gradientColors}
                     filter={currentTheme === 'light' ? 'invert(1) contrast(0.8)' : undefined}
@@ -222,22 +210,8 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             {/* Background Logo */}
-            <div style={{
-                position: 'absolute',
-                top: '2rem',
-                left: '2rem',
-                fontWeight: 700,
-                fontSize: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                color: 'var(--color-text-primary)',
-                textShadow: '0 2px 4px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.1)',
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-                zIndex: 1 // Above background
-            }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-accent-primary)' }}></div>
+            <div className="absolute top-8 left-8 font-bold text-xl flex items-center gap-2 text-foreground z-10 select-none drop-shadow-md">
+                <div className="w-2.5 h-2.5 rounded-full bg-primary" />
                 Semestra
             </div>
 
@@ -246,318 +220,164 @@ export const RegisterPage: React.FC = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 onAnimationComplete={() => setIsGlassReady(true)}
-                style={{
-                    position: 'relative', // Ensure z-index works
-                    zIndex: 1, // Above the logo
-                    width: '100%',
-                    maxWidth: '360px', // Compact
-                }}
+                className="relative z-10 w-full max-w-[360px]"
             >
-                <Card
-                    className="border-none shadow-none"
-                    style={{
-                        padding: '2rem 2rem', // Compact
-                        backgroundColor: isGlassReady ? 'var(--color-bg-glass)' : 'var(--color-bg-primary)',
-                        background: isGlassReady
-                            ? 'color-mix(in srgb, var(--color-bg-primary), transparent 15%)'
-                            : 'var(--color-bg-primary)',
-                        backdropFilter: isGlassReady ? 'blur(40px)' : undefined,
-                        WebkitBackdropFilter: isGlassReady ? 'blur(40px)' : undefined,
-                        transition: 'background-color 240ms ease, background 240ms ease, backdrop-filter 240ms ease, -webkit-backdrop-filter 240ms ease',
-                        borderRadius: 'var(--radius-xl)',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.2)',
-                    }}
+                <Card 
+                    className={`border-none shadow-2xl transition-all duration-300 rounded-xl overflow-hidden ${isGlassReady
+                        ? 'bg-background/60 backdrop-blur-3xl support-[backdrop-filter]:bg-background/40'
+                        : 'bg-background'
+                        }`}
                 >
-                    <CardHeader className="p-0 pb-6">
-                        <div style={{ 
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start'
-                        }}>
-                            <h1 style={{
-                                fontSize: '2.5rem', // Compact
-                                lineHeight: 1.2, // Fix clipping
-                                paddingBottom: '0.1em', // Safety
-                                letterSpacing: '-0.04em',
-                                background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                marginBottom: '0.25rem', // Compact
-                                userSelect: 'none',
-                                WebkitUserSelect: 'none'
-                            }}>
-                                Sign Up
-                            </h1>
-                            <h2 style={{
-                                fontSize: '1rem', // Compact
-                                color: 'var(--color-text-tertiary)',
-                                marginBottom: '0.5rem',
-                                fontWeight: 500,
-                                userSelect: 'none',
-                                WebkitUserSelect: 'none'
-                            }}>
-                                Get Started
-                            </h2>
-                        </div>
+                    <CardHeader className="pb-6">
+                        <CardTitle className="text-4xl tracking-tight bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent pb-1">
+                            Sign Up
+                        </CardTitle>
+                        <CardDescription className="text-base font-medium">
+                            Get Started
+                        </CardDescription>
                     </CardHeader>
-                    <CardContent className="p-0">
-
-                <div style={{ marginBottom: '1.25rem' }}>
-                    {googleClientId ? (
-                        <div
-                            style={{
-                                minHeight: '3rem',
-                                position: 'relative',
-                                display: 'flex',
-                                alignItems: 'center'
-                            }}
-                        >
-                            <div ref={googleButtonRef} style={{ width: '100%' }} />
-                            {!isGoogleReady && (
-                                <div style={{
-                                    position: 'absolute',
-                                    left: 0,
-                                    right: 0,
-                                    textAlign: 'center',
-                                    fontSize: '0.8rem',
-                                    color: 'var(--color-text-tertiary)'
-                                }}>
-                                    Loading Google sign-in...
+                    <CardContent className="space-y-4">
+                        <div className="min-h-[3rem] relative flex items-center justify-center">
+                            {googleClientId ? (
+                                <>
+                                    <div ref={googleButtonRef} className="w-full" />
+                                    {!isGoogleReady && (
+                                        <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                                            Loading Google sign-in...
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="text-sm text-muted-foreground text-center">
+                                    Google sign-in is not configured.
                                 </div>
                             )}
                         </div>
-                    ) : (
-                        <div style={{
-                            fontSize: '0.8rem',
-                            color: 'var(--color-text-tertiary)'
-                        }}>
-                            Google sign-in is not configured.
-                        </div>
-                    )}
-                </div>
 
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    marginBottom: '1.25rem',
-                    color: 'var(--color-text-tertiary)',
-                    fontSize: '0.8rem'
-                }}>
-                    <div style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
-                    <span>or</span>
-                    <div style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
-                </div>
-
-                <form onSubmit={handleSubmit}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div className="grid gap-2">
-                            <Label htmlFor={emailId} className="text-muted-foreground">
-                                Email
-                            </Label>
-                            <Input
-                                id={emailId}
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                style={{
-                                    backgroundColor: 'var(--color-bg-secondary)',
-                                    borderColor: 'var(--color-border)',
-                                    borderRadius: '0.75rem',
-                                    boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
-                                    fontSize: '0.925rem'
-                                }}
-                            />
-                        </div>
-                        <div style={{ position: 'relative', width: '100%' }}>
-                            {isPasswordFocused && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '-2.25rem',
-                                    left: 0,
-                                    right: 0,
-                                    background: 'var(--color-bg-primary)',
-                                    color: 'var(--color-text-secondary)',
-                                    border: '1px solid var(--color-border)',
-                                    borderRadius: '0.5rem',
-                                    padding: '0.4rem 0.6rem',
-                                    fontSize: '0.75rem',
-                                    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.08)',
-                                    zIndex: 2
-                                }}>
-                                    {passwordRuleHint}
-                                </div>
-                            )}
-                            <div className="grid gap-2">
-                                <Label htmlFor={passwordId} className="text-muted-foreground">
-                                    Password
-                                </Label>
-                                <div className="relative flex items-center">
-                                    <Input
-                                        id={passwordId}
-                                        type={showPassword ? "text" : "password"}
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        onFocus={() => setIsPasswordFocused(true)}
-                                        onBlur={() => setIsPasswordFocused(false)}
-                                        required
-                                        className="pr-10"
-                                        style={{
-                                            backgroundColor: 'var(--color-bg-secondary)',
-                                            borderColor: 'var(--color-border)',
-                                            borderRadius: '0.75rem',
-                                            boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
-                                            fontSize: '0.925rem'
-                                        }}
-                                    />
-                                    <div className="absolute right-2 flex items-center text-muted-foreground">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 text-muted-foreground opacity-70 hover:opacity-100"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                        >
-                                            {showPassword ? (
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                                            ) : (
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                            )}
-                                        </Button>
-                                    </div>
-                                </div>
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-border" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-background px-2 text-muted-foreground">
+                                    or
+                                </span>
                             </div>
                         </div>
-                        <div className="grid gap-2 mb-4">
-                            <Label htmlFor={confirmPasswordId} className="text-muted-foreground">
-                                Confirm Password
-                            </Label>
-                            <div className="relative flex items-center">
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor={emailId}>Email</Label>
                                 <Input
-                                    id={confirmPasswordId}
-                                    type={showConfirmPassword ? "text" : "password"}
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    id={emailId}
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="pr-10"
-                                    style={{
-                                        backgroundColor: 'var(--color-bg-secondary)',
-                                        borderColor: 'var(--color-border)',
-                                        borderRadius: '0.75rem',
-                                        boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
-                                        fontSize: '0.925rem'
-                                    }}
+                                    className="h-11 shadow-inner bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-colors"
                                 />
-                                <div className="absolute right-2 flex items-center text-muted-foreground">
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor={passwordId}>Password</Label>
+                                <TooltipProvider>
+                                    <Tooltip open={isPasswordFocused}>
+                                        <TooltipTrigger asChild>
+                                            <div className="relative">
+                                                <Input
+                                                    id={passwordId}
+                                                    type={showPassword ? "text" : "password"}
+                                                    value={password}
+                                                    onChange={(e) => setPassword(e.target.value)}
+                                                    onFocus={() => setIsPasswordFocused(true)}
+                                                    onBlur={() => setIsPasswordFocused(false)}
+                                                    required
+                                                    className="h-11 pr-10 shadow-inner bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-colors"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="absolute right-0 top-0 h-11 w-11 text-muted-foreground hover:text-foreground"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                >
+                                                    {showPassword ? (
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                                    ) : (
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8-11-8-11-8-11-8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" align="start" className="max-w-[300px] text-xs">
+                                            {passwordRuleHint}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor={confirmPasswordId}>Confirm Password</Label>
+                                <div className="relative">
+                                    <Input
+                                        id={confirmPasswordId}
+                                        type={showConfirmPassword ? "text" : "password"}
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        required
+                                        className="h-11 pr-10 shadow-inner bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-colors"
+                                    />
                                     <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 text-muted-foreground opacity-70 hover:opacity-100"
+                                        className="absolute right-0 top-0 h-11 w-11 text-muted-foreground hover:text-foreground"
                                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                     >
                                         {showConfirmPassword ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                                         ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8-11-8-11-8-11-8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                         )}
                                     </Button>
                                 </div>
                             </div>
+
+                            {error && (
+                                <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                                    {error}
+                                </div>
+                            )}
+
+                            {googleError && (
+                                <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                                    {googleError}
+                                </div>
+                            )}
+
+                            <Button
+                                type="submit"
+                                className="w-full h-11 text-base font-semibold shadow-lg hover:shadow-xl transition-all"
+                                disabled={isLoading || isGoogleLoading}
+                            >
+                                {isLoading ? 'Creating account...' : 'Register'}
+                            </Button>
+                        </form>
+
+                        <div className="pt-4 mt-2 border-t text-sm text-muted-foreground flex items-center gap-1">
+                            Already have an account?
+                            <Link
+                                to="/login"
+                                className="font-semibold text-foreground hover:underline underline-offset-4 decoration-2"
+                            >
+                                Sign In
+                            </Link>
                         </div>
-                    </div>
-
-                    {error && (
-                        <div style={{
-                            color: 'var(--color-danger)',
-                            fontSize: '0.875rem',
-                            marginTop: '1rem',
-                            padding: '0.75rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
-                            borderRadius: '0.75rem',
-                            border: '1px solid rgba(239, 68, 68, 0.1)'
-                        }}>
-                            {error}
-                        </div>
-                    )}
-
-                    {googleError && (
-                        <div style={{
-                            color: 'var(--color-danger)',
-                            fontSize: '0.875rem',
-                            marginTop: '1rem',
-                            padding: '0.75rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
-                            borderRadius: '0.75rem',
-                            border: '1px solid rgba(239, 68, 68, 0.1)'
-                        }}>
-                            {googleError}
-                        </div>
-                    )}
-
-                    <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={isLoading || isGoogleLoading}
-                        style={{
-                            marginTop: '1.5rem',
-                            borderRadius: '0.75rem',
-                            height: '2.75rem', // Smaller
-                            fontSize: '0.925rem',
-                            fontWeight: 600,
-                            letterSpacing: '-0.01em',
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
-                        }}
-                    >
-                        {isLoading ? 'Creating account...' : 'Register'}
-                    </Button>
-                </form>
-
-                <div style={{
-                    marginTop: '1.5rem',
-                    fontSize: '0.875rem',
-                    color: 'var(--color-text-secondary)',
-                    borderTop: '1px solid var(--color-border)',
-                    paddingTop: '1.25rem',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none'
-                }}>
-                    <span style={{ opacity: 0.8 }}>Already have an account?</span>{' '}
-                    <Link
-                        to="/login"
-                        style={{
-                            color: 'var(--color-text-primary)',
-                            fontWeight: 600,
-                            textDecoration: 'none',
-                            borderBottom: '1px solid var(--color-text-primary)',
-                            paddingBottom: '1px'
-                        }}
-                    >
-                        Sign In
-                    </Link>
-                </div>
                     </CardContent>
                 </Card>
             </motion.div>
-            <div
-                style={{
-                    position: 'absolute',
-                    bottom: '1rem',
-                    left: 0,
-                    right: 0,
-                    textAlign: 'center',
-                    fontSize: '0.75rem',
-                    color: 'var(--color-text-tertiary)',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    zIndex: 1
-                }}
-            >
+
+            <div className="absolute bottom-4 left-0 right-0 text-center text-xs text-muted-foreground select-none z-10">
                 © {currentYear} Semestra. All rights reserved.
             </div>
         </div>

@@ -8,11 +8,11 @@ import { toast } from 'sonner';
 
 interface LayoutProps {
     children: React.ReactNode;
-    disableAutoHide?: boolean;
+
     breadcrumb?: React.ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = false, breadcrumb }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { status, clearStatus } = useAppStatus();
@@ -84,43 +84,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
     // Page Blur Logic
     const [isPageBlurred, setIsPageBlurred] = useState(false);
 
-    // Navbar Auto-hide Logic
-    const [isVisible, setIsVisible] = useState(true);
-    const lastScrollY = React.useRef(0);
+    // Navbar Auto-hide Logic removed as per request
+    // const [isVisible, setIsVisible] = useState(true); // Default to always visible
 
-    React.useEffect(() => {
-        if (disableAutoHide) {
-            setIsVisible(true);
-            return;
-        }
+    // We can just keep the navbar always visible for now
+    const isVisible = true;
 
-        const handleScroll = () => {
-            const currentScrollY = window.scrollY;
+    // ... (rest of the file remains similar, but invalidating the auto-hide effect) ...
+    // Note: The previous effect that toggled `isVisible` is no longer needed.
 
-            // Show if at top
-            if (currentScrollY < 10) {
-                setIsVisible(true);
-            }
-            // Hide if scrolling down and past navbar height
-            else if (currentScrollY > lastScrollY.current && currentScrollY > 60) {
-                setIsVisible(false);
-            }
-            // Show if scrolling up
-            else if (currentScrollY < lastScrollY.current) {
-                setIsVisible(true);
-            }
-
-            lastScrollY.current = currentScrollY;
-        };
-
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, [disableAutoHide]);
 
     return (
         <div className="flex min-h-screen flex-col">
             <header
-                className={`fixed left-0 right-0 top-0 z-[var(--z-header)] h-[60px] border-b border-border bg-[var(--color-bg-glass)] backdrop-blur-md transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}
+                className={`fixed left-0 right-0 top-0 z-50 h-[60px] border-b border-border bg-[var(--color-bg-glass)] backdrop-blur-md transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}
             >
                 <Container className="flex h-full items-center justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-3">

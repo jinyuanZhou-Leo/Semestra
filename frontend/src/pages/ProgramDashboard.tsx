@@ -7,7 +7,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
 import { Progress } from '@/components/ui/progress';
@@ -26,6 +26,7 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen } from 'lucide-react';
 
 const ProgramDashboardContent: React.FC = () => {
     const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
@@ -134,15 +135,7 @@ const ProgramDashboardContent: React.FC = () => {
         );
     }, [program, normalizedQuery]);
 
-    const filteredCourses = useMemo(() => {
-        if (!program) return [];
-        const courses = program.semesters.flatMap((s: any) => s.courses || []);
-        if (!normalizedQuery) return courses;
-        return courses.filter((course: any) =>
-            course.name.toLowerCase().includes(normalizedQuery) ||
-            (course.alias && course.alias.toLowerCase().includes(normalizedQuery))
-        );
-    }, [program, normalizedQuery]);
+
 
     const creditsProgressPercent = useMemo(() => {
         if (!program) return 0;
@@ -155,13 +148,13 @@ const ProgramDashboardContent: React.FC = () => {
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
                 <BreadcrumbItem>
-                    <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground">
-                        <Link to="/">Academic</Link>
+                    <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
+                        <Link to="/">Academics</Link>
                     </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                    <BreadcrumbPage className="text-foreground">
+                    <BreadcrumbPage className="text-foreground font-semibold">
                         {program?.name || 'Program'}
                     </BreadcrumbPage>
                 </BreadcrumbItem>
@@ -193,198 +186,167 @@ const ProgramDashboardContent: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <section className="relative overflow-hidden border-b bg-[var(--gradient-hero)]">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.35),_transparent_60%)]" />
-                <Container className="relative py-10 md:py-14">
-                    <Card className="border-0 bg-transparent shadow-none">
-                        <CardHeader className="gap-6 p-0">
-                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                                <div className="space-y-3">
-                                    {isLoading || !program ? (
-                                        <Skeleton className="h-12 w-1/2" />
-                                    ) : (
-                                        <CardTitle className="text-3xl font-extrabold tracking-tight md:text-4xl">
-                                            <span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-                                                {program.name}
-                                            </span>
-                                        </CardTitle>
-                                    )}
-                                </div>
-                                {isLoading || !program ? (
-                                    <Skeleton className="h-10 w-10 rounded-full" />
-                                ) : (
+            <div className="border-b bg-background sticky top-0 z-20">
+                <Container className="py-4 md:py-6">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                            {isLoading || !program ? (
+                                <Skeleton className="h-8 w-48" />
+                            ) : (
+                                    <h1 className="text-2xl font-bold tracking-tight md:text-3xl flex items-center gap-3">
+                                        {program.name}
                                     <Button
-                                        variant="outline"
+                                            variant="ghost"
                                         size="icon"
-                                        className="h-10 w-10 rounded-full border-border/60 bg-background/60 shadow-sm backdrop-blur hover:bg-background/80"
-                                        onClick={() => setIsSettingsOpen(true)}
-                                        title="Program Settings"
+                                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                            onClick={() => setIsSettingsOpen(true)}
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <circle cx="12" cy="12" r="3"></circle>
-                                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                                        </svg>
+                                            <Settings className="h-4 w-4" />
                                     </Button>
-                                )}
-                            </div>
+                                    </h1>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button onClick={() => setIsCourseModalOpen(true)} variant="outline" size="sm">
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Course
+                            </Button>
+                            <Button onClick={() => setIsModalOpen(true)} size="sm">
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Semester
+                            </Button>
+                        </div>
+                    </div>
+                </Container>
+            </div>
 
-                            <div className="grid gap-4 md:grid-cols-3">
-                                <Card className="bg-background/70 shadow-sm backdrop-blur">
-                                    <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-                                        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                            CGPA (Scaled)
-                                        </CardTitle>
-                                        {!(isLoading || !program) && (
-                                            <Button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    handleUpdateProgram({ hide_gpa: !program.hide_gpa });
-                                                }}
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                                title={program.hide_gpa ? "Show GPA" : "Hide GPA"}
-                                            >
-                                                {program.hide_gpa ? (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                                                        <line x1="1" y1="1" x2="23" y2="23"></line>
-                                                    </svg>
-                                                ) : (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                                        <circle cx="12" cy="12" r="3"></circle>
-                                                    </svg>
+            <Container className="py-8 md:py-10 space-y-10">
+                {isLoading || !program ? (
+                    <ProgramSkeleton />
+                ) : (
+                    <>
+                        {/* Stats Section */}
+                        <section>
+                            <h2 className="text-lg font-semibold tracking-tight mb-4 flex items-center gap-2">
+                                Overview
+                            </h2>
+                                <div className="grid gap-4 md:grid-cols-3">
+                                    <Card>
+                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium">CGPA (Scaled)</CardTitle>
+                                            <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="text-2xl font-bold flex items-center justify-between">
+                                                {program.hide_gpa ? '****' : (
+                                                    <AnimatedNumber
+                                                        value={program.cgpa_scaled}
+                                                        format={(val) => val.toFixed(2)}
+                                                        animateOnMount
+                                                    />
                                                 )}
-                                            </Button>
-                                        )}
-                                    </CardHeader>
-                                    <CardContent className="pt-0">
-                                        <div className="text-2xl font-semibold">
-                                            {isLoading || !program ? (
-                                                <Skeleton className="h-8 w-16" />
-                                            ) : program.hide_gpa ? (
-                                                '****'
-                                            ) : (
-                                                <AnimatedNumber
-                                                    value={program.cgpa_scaled}
-                                                    format={(val) => val.toFixed(2)}
-                                                    animateOnMount
-                                                />
-                                            )}
+                                                <Button
+                                                    onClick={() => handleUpdateProgram({ hide_gpa: !program.hide_gpa })}
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 w-6 p-0"
+                                                >
+                                                    {program.hide_gpa ? (
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                                    ) : (
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8-11-8-11-8-11-8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                    )}
+                                                </Button>
                                         </div>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Cumulative Grade Point Average
+                                            </p>
                                     </CardContent>
                                 </Card>
 
-                                <Card className="bg-background/70 shadow-sm backdrop-blur">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                            Average (%)
-                                        </CardTitle>
+                                    <Card>
+                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium">Average</CardTitle>
+                                            <Percent className="h-4 w-4 text-muted-foreground" />
                                     </CardHeader>
-                                    <CardContent className="pt-0">
-                                        <div className="text-2xl font-semibold">
-                                            {isLoading || !program ? (
-                                                <Skeleton className="h-8 w-20" />
-                                            ) : program.hide_gpa ? (
-                                                '****'
-                                            ) : (
+                                        <CardContent>
+                                            <div className="text-2xl font-bold">
+                                                {program.hide_gpa ? '****' : (
                                                 <>
                                                     <AnimatedNumber
                                                         value={program.cgpa_percentage}
                                                         format={(val) => val.toFixed(1)}
                                                         animateOnMount
                                                     />
-                                                    <span className="ml-1 text-sm font-medium text-muted-foreground">%</span>
+                                                        <span className="text-base font-normal text-muted-foreground ml-1">%</span>
                                                 </>
                                             )}
                                         </div>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Overall score percentage
+                                            </p>
                                     </CardContent>
                                 </Card>
 
-                                <Card className="bg-background/70 shadow-sm backdrop-blur">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                            Credits Progress
-                                        </CardTitle>
+                                    <Card>
+                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium">Credits Progress</CardTitle>
+                                            <BookOpen className="h-4 w-4 text-muted-foreground" />
                                     </CardHeader>
-                                    <CardContent className="space-y-2 pt-0">
-                                        <div className="text-2xl font-semibold">
-                                            {isLoading || !program ? (
-                                                <Skeleton className="h-8 w-[70%]" />
-                                            ) : (
-                                                <>
-                                                    <AnimatedNumber
-                                                        value={totalCredits}
-                                                        format={(val) => val.toFixed(2)}
-                                                        animateOnMount
-                                                    />
-                                                    <span className="ml-2 text-sm font-medium text-muted-foreground">
-                                                        / {program.grad_requirement_credits}
-                                                    </span>
-                                                </>
-                                            )}
+                                        <CardContent>
+                                            <div className="text-2xl font-bold">
+                                                <AnimatedNumber
+                                                    value={totalCredits}
+                                                    format={(val) => val.toFixed(1)} // Format cleaner
+                                                    animateOnMount
+                                                />
+                                                <span className="text-base font-normal text-muted-foreground mx-1">/</span>
+                                                <span className="text-base font-normal text-muted-foreground">{program.grad_requirement_credits}</span>
                                         </div>
-                                        {isLoading || !program ? (
-                                            <Skeleton className="h-2 w-full rounded" />
-                                        ) : (
-                                            <Progress value={creditsProgressPercent} />
-                                        )}
+                                            <Progress value={creditsProgressPercent} className="mt-2 h-2" />
                                     </CardContent>
                                 </Card>
-                            </div>
-                        </CardHeader>
-                    </Card>
-                </Container>
-            </section>
-
-            {isLoading || !program ? (
-                <ProgramSkeleton />
-            ) : (
-                    <Container className="py-10 md:py-12">
-                        <div className="mb-8">
-                            <div className="relative mb-4">
-                                <Input
-                                    placeholder="Search semesters and courses..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="h-12 pr-10 text-base md:text-lg"
-                                />
-                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <circle cx="11" cy="11" r="8"></circle>
-                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                    </svg>
                                 </div>
-                            </div>
-                        </div>
+                            </section>
 
-                        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                            <h2 className="text-2xl font-semibold">Semesters</h2>
-                            <Button onClick={() => setIsModalOpen(true)}>+ New Semester</Button>
-                        </div>
+                            <Separator />
 
-                        <div className="mb-16 grid gap-8 sm:grid-cols-2 xl:grid-cols-3">
-                            {filteredSemesters.map(semester => (
+                            {/* Semesters Section */}
+                            <section className="space-y-6">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <h2 className="text-lg font-semibold tracking-tight">
+                                        Semesters
+                                    </h2>
+                                    <div className="relative flex-1 max-w-sm">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search semesters..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="pl-9 h-10"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                                    {filteredSemesters.map(semester => (
                                     <Link key={semester.id} to={`/semesters/${semester.id}`}>
-                                        <Card className="noselect h-full cursor-pointer transition-shadow hover:shadow-md">
-                                            <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
-                                                <CardTitle className="text-truncate text-2xl">{semester.name}</CardTitle>
-                                                <div className="flex items-center gap-2">
-                                                    <div
-                                                        className={`h-2 w-2 rounded-full ${semester.average_scaled >= 3.0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                                                    />
+                                            <Card className="group h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
+                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                                    <CardTitle className="text-lg font-semibold truncate pr-4">
+                                                        {semester.name}
+                                                    </CardTitle>
                                                     <Button
                                                         onClick={async (e) => {
                                                             e.preventDefault();
+                                                            e.stopPropagation();
                                                             const shouldDelete = await confirm({
                                                                 title: "Delete semester?",
-                                                                description: "Are you sure you want to delete this semester?",
-                                                                confirmText: "Delete",
-                                                                cancelText: "Cancel",
-                                                                tone: "destructive"
-                                                            });
+                                                            description: "Are you sure you want to delete this semester? This action cannot be undone.",
+                                                            confirmText: "Delete",
+                                                            cancelText: "Cancel",
+                                                            tone: "destructive"
+                                                        });
                                                             if (!shouldDelete) return;
                                                             api.deleteSemester(semester.id)
                                                                 .then(() => refreshProgram())
@@ -393,87 +355,54 @@ const ProgramDashboardContent: React.FC = () => {
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                        className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
                                                     >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                                        </svg>
+                                                        <Trash2 className="h-4 w-4" />
                                                     </Button>
-                                                </div>
                                             </CardHeader>
-                                            <CardContent className="mt-auto pt-0">
-                                                <Separator className="mb-4" />
-                                                <div className="flex gap-4">
+                                                <CardContent>
+                                                    <div className="grid grid-cols-2 gap-4 mt-2">
                                                     <div>
-                                                        <div className="text-xs uppercase tracking-wider text-muted-foreground">GPA</div>
-                                                        <div className="text-lg font-semibold">{semester.average_scaled.toFixed(2)}</div>
+                                                            <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">GPA</p>
+                                                            <p className="text-lg font-semibold">{semester.average_scaled.toFixed(2)}</p>
                                                     </div>
-                                                    <div>
-                                                        <div className="text-xs uppercase tracking-wider text-muted-foreground">AVG</div>
-                                                        <div className="text-lg font-semibold">{semester.average_percentage.toFixed(1)}%</div>
+                                                        <div className="text-right">
+                                                            <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Average</p>
+                                                            <p className="text-lg font-semibold">{semester.average_percentage.toFixed(1)}%</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <div className="text-xs uppercase tracking-wider text-muted-foreground">Courses</div>
-                                                        <div className="text-lg font-semibold">{(semester as any).courses?.length || 0}</div>
-                                                    </div>
+                                                    <div className="mt-4 pt-4 border-t flex justify-between items-center text-sm text-muted-foreground">
+                                                        <span>{(semester as any).courses?.length || 0} Courses</span>
+                                                        <div
+                                                            className={`h-2 w-2 rounded-full ${semester.average_scaled >= 3.0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                                        />
                                                 </div>
                                             </CardContent>
                                         </Card>
                                     </Link>
                                 ))}
-
-                            {filteredSemesters.length === 0 && ( /* ... Empty state ... */
-                                <Empty style={{ gridColumn: '1 / -1' }}>
-                                    <EmptyHeader>
-                                        <EmptyTitle>No semesters found</EmptyTitle>
-                                        <EmptyDescription>Try a different search term.</EmptyDescription>
-                                    </EmptyHeader>
-                                </Empty>
-                            )}
-                        </div>
-
-                        {/* Course List Section */}
-                        <div className="mb-8">
-                            <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                                <h2 className="text-2xl font-semibold">All Courses</h2>
-                                <Button onClick={() => setIsCourseModalOpen(true)}>+ New Course</Button>
-                            </div>
-                            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                                {filteredCourses.map((course: any) => (
-                                        <Link key={course.id} to={`/courses/${course.id}`}>
-                                            <Card className="transition-colors hover:border-primary">
-                                                <CardContent className="flex items-center justify-between p-4">
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="text-truncate font-semibold">{course.name}</div>
-                                                        {course.alias && (
-                                                            <div className="mt-0.5 text-xs text-muted-foreground">
-                                                                {course.alias}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="ml-4 text-sm text-muted-foreground">{course.grade_scaled.toFixed(2)}</div>
-                                                </CardContent>
-                                            </Card>
-                                        </Link>
-                                    ))}
-                            </div>
-                        </div>
-                    </Container>
-            )}
+                                    {filteredSemesters.length === 0 && (
+                                        <div className="col-span-full border rounded-lg border-dashed p-8 text-center">
+                                            <p className="text-muted-foreground">No semesters found</p>
+                                            <Button variant="link" onClick={() => setIsModalOpen(true)} className="mt-2 text-primary">
+                                                Create one
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                        </section>
+                    </>
+                )}
+            </Container>
 
             <Dialog open={isModalOpen} onOpenChange={(open) => !open && setIsModalOpen(false)}>
-                <DialogContent className="p-0 sm:max-w-[520px]">
-                    <DialogHeader className="border-b px-6 py-4">
-                        <DialogTitle className="text-base font-semibold">Create New Semester</DialogTitle>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Create New Semester</DialogTitle>
                     </DialogHeader>
-                    <div className="p-6">
-                <form onSubmit={handleCreateSemester}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minHeight: '270px' }}>
-                        <div className="grid gap-2 mb-4">
-                            <Label htmlFor={semesterNameId} className="text-muted-foreground">
-                                Semester Name
-                            </Label>
+                    <form onSubmit={handleCreateSemester} className="space-y-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor={semesterNameId}>Semester Name</Label>
                             <Input
                                 id={semesterNameId}
                                 placeholder="e.g. Fall 2025"
@@ -484,18 +413,13 @@ const ProgramDashboardContent: React.FC = () => {
                             />
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Import Schedule (Optional)</div>
-                            <div style={{
-                                border: `2px dashed ${isDragging ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                                borderRadius: 'var(--radius-md)',
-                                padding: '2rem',
-                                textAlign: 'center',
-                                cursor: 'pointer',
-                                background: isDragging ? 'rgba(var(--color-primary-rgb), 0.05)' : 'var(--color-bg-primary)',
-                                transition: 'all 0.2s ease',
-                                transform: isDragging ? 'scale(1.02)' : 'scale(1)'
-                            }}
+                        <div className="space-y-2">
+                            <Label>Import Schedule (Optional)</Label>
+                            <div
+                                className={`
+                                    border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all
+                                    ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
+                                `}
                                 onClick={() => document.getElementById('ics-upload')?.click()}
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
@@ -505,7 +429,7 @@ const ProgramDashboardContent: React.FC = () => {
                                     type="file"
                                     id="ics-upload"
                                     accept=".ics"
-                                    style={{ display: 'none' }}
+                                    className="hidden"
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
@@ -517,45 +441,33 @@ const ProgramDashboardContent: React.FC = () => {
                                         }
                                     }}
                                 />
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                <div className="flex flex-col items-center gap-2">
                                     {selectedFile ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--color-primary)' }}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
-                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                <polyline points="14 2 14 8 20 8"></polyline>
-                                                <line x1="12" y1="18" x2="12" y2="12"></line>
-                                                <line x1="9" y1="15" x2="15" y2="15"></line>
-                                            </svg>
+                                        <div className="flex items-center gap-2 text-primary font-medium">
+                                            <Upload className="h-5 w-5" />
                                             {selectedFile.name}
                                         </div>
                                     ) : (
                                         <>
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)', display: 'block' }}>
-                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                                <polyline points="17 8 12 3 7 8"></polyline>
-                                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                                            </svg>
-                                            <div>Click or drag .ics file to upload</div>
+                                                <Upload className="h-8 w-8 text-muted-foreground/50" />
+                                                <div className="text-sm text-muted-foreground">
+                                                    Click or drag .ics file to upload
+                                                </div>
                                         </>
                                     )}
                                 </div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                    Supports standard calendar export files
-                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
-                        <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? (selectedFile ? 'Uploading...' : 'Creating...') : (selectedFile ? 'Upload & Create' : 'Create Semester')}
-                        </Button>
-                    </div>
-                </form>
-                    </div>
+                        <DialogFooter className="pt-4">
+                            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? 'Creating...' : (selectedFile ? 'Upload & Create' : 'Create Semester')}
+                            </Button>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
             </Dialog>
 

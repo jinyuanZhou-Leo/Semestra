@@ -41,8 +41,8 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
         event.dataTransfer.setData('text/plain', id);
     };
 
-    const handleDragOver = () => (event: React.DragEvent) => {
-        if (!onReorder) return;
+    const handleDragOver = (_id: string, draggable?: boolean) => (event: React.DragEvent) => {
+        if (!onReorder || !draggable) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
         if (dragIdRef.current === null) {
@@ -50,11 +50,18 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
         }
     };
 
-    const handleDrop = (id: string) => (event: React.DragEvent) => {
-        if (!onReorder) return;
+    const handleDrop = (id: string, draggable?: boolean) => (event: React.DragEvent) => {
+        if (!onReorder || !draggable) return;
         event.preventDefault();
         const draggedId = dragIdRef.current ?? event.dataTransfer.getData('text/plain');
         if (!draggedId || draggedId === id) return;
+
+        // Ensure both source and target are draggable
+        const sourceItem = items.find(i => i.id === draggedId);
+        const targetItem = items.find(i => i.id === id);
+
+        if (!sourceItem?.draggable || !targetItem?.draggable) return;
+
         const orderedIds = reorderIds(items.map(item => item.id), draggedId, id);
         onReorder(orderedIds);
         dragIdRef.current = null;
@@ -63,30 +70,40 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
     };
 
     return (
-        <div className="flex items-center gap-3 pt-3">
-            <div className="flex w-full items-center gap-2 rounded-full border border-border/60 bg-card p-1.5 shadow-sm">
+        <div className="flex items-center gap-2 max-w-full">
+            <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground max-w-full">
                 <div
-                    className="dashboard-tabs-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overflow-y-hidden"
+                    className="dashboard-tabs-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden no-scrollbar"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                     role="tablist"
                     aria-label="Dashboard Tabs"
                 >
+                    <style>{`
+                        .dashboard-tabs-scroll::-webkit-scrollbar {
+                            display: none;
+                        }
+                    `}</style>
                     {items.map(item => {
                         const isActive = item.id === activeId;
                         const isDragging = item.id === draggingId;
                         const isDragOver = item.id === dragOverId && item.id !== draggingId;
+
+                        // Only allow drag interactions if item is draggable
+                        const canDrag = !!item.draggable && !!onReorder;
+
                         return (
                             <div
                                 key={item.id}
                                 role="tab"
                                 aria-selected={isActive}
                                 className={cn(
-                                    "group relative flex select-none items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold tracking-wide transition",
-                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                    "group relative inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer",
                                     isActive
-                                        ? "bg-foreground text-background shadow-sm hover:bg-foreground/90"
-                                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                                    isDragging && "opacity-70 scale-[0.98]",
-                                    isDragOver && "ring-2 ring-foreground/40"
+                                        ? "bg-background text-foreground shadow"
+                                        : "hover:bg-background/50 hover:text-foreground",
+                                    isDragging && "opacity-50",
+                                    isDragOver && "bg-background/50 ring-2 ring-primary/20",
+                                    !canDrag && "cursor-default" // Default cursor for fixed tabs? Actually shadcn tabs are usually pointer.
                                 )}
                                 tabIndex={0}
                                 onClick={() => onSelect(item.id)}
@@ -96,11 +113,11 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                         onSelect(item.id);
                                     }
                                 }}
-                                draggable={!!item.draggable && !!onReorder}
-                                onDragStart={item.draggable && onReorder ? handleDragStart(item.id) : undefined}
-                                onDragOver={item.draggable && onReorder ? handleDragOver() : undefined}
+                                draggable={canDrag}
+                                onDragStart={canDrag ? handleDragStart(item.id) : undefined}
+                                onDragOver={canDrag ? handleDragOver(item.id, item.draggable) : undefined}
                                 onDragEnter={
-                                    item.draggable && onReorder
+                                    canDrag
                                         ? () => {
                                               if (draggingId && item.id !== draggingId) {
                                                   setDragOverId(item.id);
@@ -109,15 +126,15 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                         : undefined
                                 }
                                 onDragLeave={
-                                    item.draggable && onReorder
+                                    canDrag
                                         ? () => {
                                               if (dragOverId === item.id) setDragOverId(null);
                                           }
                                         : undefined
                                 }
-                                onDrop={item.draggable && onReorder ? handleDrop(item.id) : undefined}
+                                onDrop={canDrag ? handleDrop(item.id, item.draggable) : undefined}
                                 onDragEnd={
-                                    item.draggable && onReorder
+                                    canDrag
                                         ? () => {
                                               dragIdRef.current = null;
                                               setDraggingId(null);
@@ -126,17 +143,14 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                         : undefined
                                 }
                             >
-                                {item.icon && <span className="text-base">{item.icon}</span>}
-                                <span className="max-w-[12rem] truncate">{item.label}</span>
+                                {item.icon && <span className="opacity-70 mr-2">{item.icon}</span>}
+                                <span className="truncate">{item.label}</span>
                                 {onRemove && item.removable && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
+                                    <div
+                                        role="button"
                                         aria-label={`Remove ${item.label}`}
                                         className={cn(
-                                            "h-5 w-5 rounded-full p-0 text-current/70 hover:text-current -mr-1",
-                                            isActive ? "hover:bg-background/20" : "hover:bg-foreground/10"
+                                            "ml-1 flex h-4 w-4 items-center justify-center rounded-sm opacity-50 hover:bg-muted-foreground/20 hover:opacity-100",
                                         )}
                                         onClick={(event) => {
                                             event.stopPropagation();
@@ -149,15 +163,14 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                             height="12"
                                             fill="none"
                                             stroke="currentColor"
-                                            strokeWidth="2"
+                                            strokeWidth="3"
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
-                                            aria-hidden="true"
                                         >
                                             <line x1="18" y1="6" x2="6" y2="18" />
                                             <line x1="6" y1="6" x2="18" y2="18" />
                                         </svg>
-                                    </Button>
+                                    </div>
                                 )}
                             </div>
                         );
@@ -167,12 +180,11 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                     <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        aria-label="Add tab"
-                        className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+                        size="sm"
+                        className="h-7 w-7 ml-1 rounded-sm p-0 text-muted-foreground hover:bg-background/50 hover:text-foreground"
                         onClick={onAdd}
                     >
-                        +
+                        <span className="text-lg leading-none">+</span>
                     </Button>
                 )}
             </div>
