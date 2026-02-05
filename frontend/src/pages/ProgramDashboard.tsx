@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SettingsModal } from '../components/SettingsModal';
+import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,7 +35,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen } from 'lucide-react';
+import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 const ProgramDashboardContent: React.FC = () => {
     const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
@@ -48,6 +49,8 @@ const ProgramDashboardContent: React.FC = () => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [courseSearchQuery, setCourseSearchQuery] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
     const semesterNameId = useId();
 
     // Ref to track the latest newSemesterName, avoiding stale closure
@@ -143,6 +146,99 @@ const ProgramDashboardContent: React.FC = () => {
         );
     }, [program, normalizedQuery]);
 
+    const filteredAndSortedCourses = useMemo(() => {
+        if (!program) return [];
+
+        let courses = program.semesters.flatMap(sem =>
+            (sem.courses || []).map(course => ({
+                ...course,
+                semesterName: sem.name,
+                semesterId: sem.id
+            }))
+        );
+
+        if (courseSearchQuery.trim()) {
+            const query = courseSearchQuery.toLowerCase();
+            courses = courses.filter(course =>
+                course.name.toLowerCase().includes(query) ||
+                (course.category && course.category.toLowerCase().includes(query))
+            );
+        }
+
+        if (sortConfig) {
+            courses.sort((a, b) => {
+                let aValue: any = a[sortConfig.key as keyof typeof a];
+                let bValue: any = b[sortConfig.key as keyof typeof b];
+
+                // Handle special sorting cases
+                if (sortConfig.key === 'semesterName') {
+                    // For simplicity, sorting by semester name string for now.
+                    // Ideally could sort by semester logical order if available.
+                } else if (sortConfig.key === 'category') {
+                    aValue = a.category || '';
+                    bValue = b.category || '';
+                } else if (sortConfig.key === 'grade_percentage') {
+                    // Use scaling if percentage is not the primary sort or same?
+                }
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+
+        return courses;
+    }, [program, courseSearchQuery, sortConfig]);
+
+    const getCategoryColor = (category: string) => {
+        if (!category) return 'bg-gray-100 text-gray-800';
+        const colors = [
+            'bg-red-100 text-red-800',
+            'bg-orange-100 text-orange-800',
+            'bg-amber-100 text-amber-800',
+            'bg-yellow-100 text-yellow-800',
+            'bg-lime-100 text-lime-800',
+            'bg-green-100 text-green-800',
+            'bg-emerald-100 text-emerald-800',
+            'bg-teal-100 text-teal-800',
+            'bg-cyan-100 text-cyan-800',
+            'bg-sky-100 text-sky-800',
+            'bg-blue-100 text-blue-800',
+            'bg-indigo-100 text-indigo-800',
+            'bg-violet-100 text-violet-800',
+            'bg-purple-100 text-purple-800',
+            'bg-fuchsia-100 text-fuchsia-800',
+            'bg-pink-100 text-pink-800',
+            'bg-rose-100 text-rose-800',
+        ];
+        let hash = 0;
+        for (let i = 0; i < category.length; i++) {
+            hash = category.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return colors[Math.abs(hash) % colors.length];
+    };
+
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIcon = (key: string) => {
+        if (!sortConfig || sortConfig.key !== key) {
+            return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />;
+        }
+        return sortConfig.direction === 'asc'
+            ? <ArrowUp className="ml-2 h-4 w-4 text-foreground" />
+            : <ArrowDown className="ml-2 h-4 w-4 text-foreground" />;
+    };
+
 
 
     const creditsProgressPercent = useMemo(() => {
@@ -194,7 +290,7 @@ const ProgramDashboardContent: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <div className="border-b bg-background sticky top-0 z-20">
+            <div className="border-b bg-background sticky top-[60px] z-20">
                 <Container className="py-4 md:py-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-1">
@@ -262,7 +358,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                     {program.hide_gpa ? (
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                                                     ) : (
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8-11-8-11-8-11-8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8-11-8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                                     )}
                                                 </Button>
                                         </div>
@@ -402,46 +498,106 @@ const ProgramDashboardContent: React.FC = () => {
 
                             {/* All Courses Section */}
                             <section className="space-y-6">
-                                <h2 className="text-lg font-semibold tracking-tight">
-                                    All Courses
-                                </h2>
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <h2 className="text-lg font-semibold tracking-tight">
+                                        All Courses
+                                    </h2>
+                                    <div className="relative flex-1 max-w-sm">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search courses..."
+                                            value={courseSearchQuery}
+                                            onChange={(e) => setCourseSearchQuery(e.target.value)}
+                                            className="pl-9 h-10"
+                                        />
+                                    </div>
+                                </div>
                                 <div className="rounded-md border bg-card">
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="hover:bg-transparent">
-                                                <TableHead>Course Name</TableHead>
-                                                <TableHead>Semester</TableHead>
-                                                <TableHead>Credits</TableHead>
-                                                <TableHead className="text-right">Grade</TableHead>
-                                                <TableHead className="text-right">GPA</TableHead>
+                                                <TableHead
+                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                                    onClick={() => requestSort('name')}
+                                                >
+                                                    <div className="flex items-center">
+                                                        Course Name
+                                                        {getSortIcon('name')}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead
+                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                                    onClick={() => requestSort('category')}
+                                                >
+                                                    <div className="flex items-center">
+                                                        Category
+                                                        {getSortIcon('category')}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead
+                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                                    onClick={() => requestSort('semesterName')}
+                                                >
+                                                    <div className="flex items-center">
+                                                        Semester
+                                                        {getSortIcon('semesterName')}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead
+                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                                    onClick={() => requestSort('credits')}
+                                                >
+                                                    <div className="flex items-center">
+                                                        Credits
+                                                        {getSortIcon('credits')}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead
+                                                    className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                                                    onClick={() => requestSort('grade_percentage')}
+                                                >
+                                                    <div className="flex items-center justify-end">
+                                                        Grade
+                                                        {getSortIcon('grade_percentage')}
+                                                    </div>
+                                                </TableHead>
+                                                <TableHead
+                                                    className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                                                    onClick={() => requestSort('grade_scaled')}
+                                                >
+                                                    <div className="flex items-center justify-end">
+                                                        GPA
+                                                        {getSortIcon('grade_scaled')}
+                                                    </div>
+                                                </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {(() => {
-                                                const allCourses = program.semesters.flatMap(sem =>
-                                                    (sem.courses || []).map(course => ({
-                                                        ...course,
-                                                        semesterName: sem.name,
-                                                        semesterId: sem.id
-                                                    }))
-                                                ).sort((a, b) => a.name.localeCompare(b.name));
-
-                                                if (allCourses.length === 0) {
-                                                    return (
-                                                        <TableRow>
-                                                            <TableCell colSpan={5} className="h-24 text-center">
-                                                                No courses added yet.
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                }
-
-                                                return allCourses.map(course => (
+                                            {filteredAndSortedCourses.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={5} className="h-24 text-center">
+                                                        {courseSearchQuery ? "No courses found matching your search." : "No courses added yet."}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                filteredAndSortedCourses.map(course => (
                                                     <TableRow key={course.id}>
                                                         <TableCell className="font-medium">
-                                                            <Link to={`/courses/${course.id}`} className="hover:underline">
-                                                                {course.name}
-                                                            </Link>
+                                                            <div className="flex flex-col">
+                                                                <Link to={`/courses/${course.id}`} className="hover:underline">
+                                                                    {course.name}
+                                                                </Link>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {course.category && (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className={`border-0 font-medium ${getCategoryColor(course.category)}`}
+                                                                >
+                                                                    {course.category}
+                                                                </Badge>
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="text-muted-foreground">
                                                             <Link to={`/semesters/${course.semesterId}`} className="hover:underline">
@@ -462,8 +618,8 @@ const ProgramDashboardContent: React.FC = () => {
                                                             )}
                                                         </TableCell>
                                                     </TableRow>
-                                                ));
-                                            })()}
+                                                ))
+                                            )}
                                         </TableBody>
                                     </Table>
                                 </div>

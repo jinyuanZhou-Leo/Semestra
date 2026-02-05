@@ -86,7 +86,7 @@ export const HomePage: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <div className="border-b bg-background sticky top-0 z-20">
+            <div className="border-b bg-background sticky top-[60px] z-20">
                 <Container className="py-4 md:py-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-1">
@@ -114,9 +114,9 @@ export const HomePage: React.FC = () => {
                         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {programs.map(program => (
                             <Link key={program.id} to={`/programs/${program.id}`}>
-                                <Card className="group h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
+                                <Card className="group h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md relative">
                                     <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
-                                        <CardTitle className="text-lg font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors">
+                                        <CardTitle className="text-lg font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors pr-8">
                                             {program.name}
                                         </CardTitle>
                                         <Button
@@ -138,7 +138,7 @@ export const HomePage: React.FC = () => {
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 -mr-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
+                                            className="h-8 w-8 absolute right-4 top-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>

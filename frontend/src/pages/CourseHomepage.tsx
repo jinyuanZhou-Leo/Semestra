@@ -409,6 +409,7 @@ const CourseHomepageContent: React.FC = () => {
             initialName: course?.name ?? '',
             initialSettings: {
                 alias: course?.alias,
+                category: course?.category,
                 credits: course?.credits,
                 include_in_gpa: course?.include_in_gpa,
                 hide_gpa: course?.hide_gpa

@@ -37,6 +37,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     // Create Form State
     const [newName, setNewName] = useState('');
     const [newAlias, setNewAlias] = useState('');
+    const [newCategory, setNewCategory] = useState('');
     const [newCredits, setNewCredits] = useState(defaultCredit);
     const [newGrade, setNewGrade] = useState('0');
 
@@ -82,6 +83,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
             const courseData = {
                 name: newName,
                 alias: newAlias || undefined,
+                category: newCategory || undefined,
                 credits: parseFloat(newCredits),
                 grade_percentage: parseFloat(newGrade),
                 program_id: programId
@@ -100,6 +102,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
             }
             setNewName('');
             setNewAlias('');
+            setNewCategory('');
             setNewCredits(defaultCredit);
             setNewGrade('0');
         } catch (error) {
@@ -218,9 +221,28 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                         <Input
                                             id="course-name"
                                             value={newName}
-                                            onChange={e => setNewName(e.target.value)}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setNewName(val);
+                                                // Simple auto-detect if category is empty
+                                                if (!newCategory) {
+                                                    const match = val.trim().match(/^([A-Za-z]{2,4})\d/);
+                                                    if (match) {
+                                                        setNewCategory(match[1].toUpperCase());
+                                                    }
+                                                }
+                                            }}
                                             required
                                             placeholder="e.g. Introduction to Computer Science"
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="course-category">Category</Label>
+                                        <Input
+                                            id="course-category"
+                                            value={newCategory}
+                                            onChange={e => setNewCategory(e.target.value)}
+                                            placeholder="e.g. CS (Auto-detected from Name)"
                                         />
                                     </div>
                                     <div className="grid gap-2">

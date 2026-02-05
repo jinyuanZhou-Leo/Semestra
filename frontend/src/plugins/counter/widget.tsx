@@ -3,6 +3,7 @@ import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../s
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Minus, Plus, RotateCcw } from 'lucide-react';
 
 interface CounterSettings {
     value: number;
@@ -101,8 +102,8 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
 };
 
 /**
- * Counter Plugin - A customizable counter with bounds and jitter animation
- * Features: min/max bounds, step value, reset functionality, custom display text
+ * Counter Plugin - Premium UI
+ * Features: Circular progress, clean typography, responsive layout
  */
 const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     const {
@@ -115,9 +116,12 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
 
     const [jitter, setJitter] = useState(false);
 
-    // Memoize updateCount to prevent recreating on each render
+    // Circular progress calculation
+    const percentage = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+    const circumference = 2 * Math.PI * 40; // radius 40
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
     const updateCount = useCallback(async (newCount: number) => {
-        // Optimistic UI is handled by parent (useDashboardWidgets hook)
         await updateSettings({ ...settings, value: newCount });
     }, [settings, updateSettings]);
 
@@ -126,7 +130,6 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
         if (newValue <= max) {
             updateCount(newValue);
         } else {
-            // Trigger jitter animation when hitting max
             setJitter(true);
             setTimeout(() => setJitter(false), 300);
         }
@@ -137,122 +140,84 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
         if (newValue >= min) {
             updateCount(newValue);
         } else {
-            // Trigger jitter animation when hitting min
             setJitter(true);
             setTimeout(() => setJitter(false), 300);
         }
     }, [value, step, min, updateCount]);
 
     return (
-        <div
-            className="counter-container h-full w-full overflow-hidden"
-            style={{
-                containerType: 'size',
-                containerName: 'counter'
-            }}
-        >
-            <div className="counter-content flex h-full w-full flex-col items-center justify-center gap-3 overflow-auto p-3 select-none">
-                <div
-                    className="counter-value text-5xl font-semibold leading-none tabular-nums"
+        <div className="flex h-full flex-col items-center justify-center p-4">
+            <div 
+                className="relative flex items-center justify-center"
                     style={{
                         animation: jitter ? 'jitter 0.3s ease-in-out' : 'none'
                     }}
                 >
-                    {value}
+                {/* Circular Progress Background */}
+                <svg className="h-40 w-40 text-muted/20 rotate-[-90deg]" viewBox="0 0 100 100">
+                    <circle
+                        className="text-muted/20"
+                        strokeWidth="6"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="40"
+                        cx="50"
+                        cy="50"
+                    />
+                    <circle
+                        className="text-primary transition-all duration-500 ease-out"
+                        strokeWidth="6"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="round"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="40"
+                        cx="50"
+                        cy="50"
+                    />
+                </svg>
+
+                {/* Centered Value */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-4xl font-bold tabular-nums tracking-tight">
+                        {value}
+                    </span>
+                    {displayText && (
+                        <span className="max-w-[80px] truncate text-xs font-medium text-muted-foreground">
+                            {displayText}
+                        </span>
+                    )}
+                </div>
                 </div>
 
-                <div className="counter-buttons flex items-center gap-2">
+            <div className="mt-4 flex items-center gap-4">
                     <Button
                         onClick={handleDecrement}
-                        variant="outline"
+                    variant="secondary"
                         size="icon"
-                        className="h-10 w-10 text-lg"
+                    className="h-10 w-10 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    disabled={value <= min}
                     >
-                        -
+                    <Minus className="h-5 w-5" />
                     </Button>
                     <Button
                         onClick={handleIncrement}
                         size="icon"
-                        className="h-10 w-10 text-lg"
+                    className="h-10 w-10 rounded-full shadow-sm"
+                    disabled={value >= max}
                     >
-                        +
+                    <Plus className="h-5 w-5" />
                     </Button>
                 </div>
 
-                {displayText && (
-                    <div className="counter-text max-w-[90%] text-center text-sm text-muted-foreground">
-                        {displayText}
-                    </div>
-                )}
-            </div>
-
             <style>{`
-                @keyframes jitter {
-                    0%, 100% { transform: translateX(0); }
-                    25% { transform: translateX(-5px); }
-                    50% { transform: translateX(5px); }
-                    75% { transform: translateX(-5px); }
-                }
-
-                /* Container queries for true responsive design based on widget size */
-                @container counter (max-height: 200px) {
-                    .counter-value {
-                        font-size: 2rem !important;
+                    @keyframes jitter {
+                        0%, 100% { transform: translateX(0); }
+                        25% { transform: translateX(-4px); }
+                        75% { transform: translateX(4px); }
                     }
-                    .counter-buttons button {
-                        min-width: 1.75rem !important;
-                        min-height: 1.75rem !important;
-                        font-size: 1rem !important;
-                        padding: 0.3rem !important;
-                    }
-                    .counter-text {
-                        font-size: 0.75rem !important;
-                    }
-                }
-
-                @container counter (max-height: 150px) {
-                    .counter-value {
-                        font-size: 1.5rem !important;
-                    }
-                    .counter-buttons {
-                        gap: 0.3rem !important;
-                    }
-                    .counter-buttons button {
-                        min-width: 1.5rem !important;
-                        min-height: 1.5rem !important;
-                        font-size: 0.875rem !important;
-                        padding: 0.25rem !important;
-                    }
-                    .counter-text {
-                        font-size: 0.7rem !important;
-                    }
-                    .counter-content {
-                        gap: 0.4rem !important;
-                        padding: 0.4rem !important;
-                    }
-                }
-
-                @container counter (max-width: 200px) {
-                    .counter-value {
-                        font-size: 2.5rem !important;
-                    }
-                    .counter-buttons button {
-                        min-width: 2rem !important;
-                        min-height: 2rem !important;
-                    }
-                }
-
-                @container counter (max-width: 150px) {
-                    .counter-value {
-                        font-size: 2rem !important;
-                    }
-                    .counter-buttons button {
-                        min-width: 1.75rem !important;
-                        min-height: 1.75rem !important;
-                        font-size: 0.9rem !important;
-                    }
-                }
-            `}</style>
+                `}</style>
         </div>
     );
 };
@@ -262,7 +227,7 @@ export const Counter = CounterComponent;
 export const CounterDefinition: WidgetDefinition = {
     type: 'counter',
     name: 'Counter',
-    description: 'A customizable counter with min/max bounds, step value, and reset functionality.',
+    description: 'A premium counter with circular progress and limits.',
     icon: '🔢',
     component: Counter,
     SettingsComponent: CounterSettingsComponent,
@@ -274,11 +239,11 @@ export const CounterDefinition: WidgetDefinition = {
         initialValue: 0,
         displayText: ''
     },
-    layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 },
+    layout: { w: 3, h: 4, minW: 2, minH: 3, maxW: 4, maxH: 6 },
     headerButtons: [
         {
             id: 'reset',
-            icon: '↺',
+            icon: <RotateCcw className="h-4 w-4" />,
             title: 'Reset to initial value',
             onClick: ({ settings, updateSettings }) => {
                 const counterSettings = settings as CounterSettings;

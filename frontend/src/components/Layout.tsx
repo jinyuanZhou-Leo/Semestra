@@ -17,6 +17,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Eye, EyeOff, LogOut, Settings, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from './ThemeToggle';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -53,28 +54,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
         }
     }, [clearStatus, isSyncRetrying, isSyncStatus, status]);
 
-    // Initialize theme from localStorage on mount
-    useEffect(() => {
-        const saved = localStorage.getItem('themePreference');
-        if (saved === 'light' || saved === 'dark') {
-            document.documentElement.setAttribute('data-theme', saved);
-        } else if (saved === 'system' || !saved) {
-            // Follow system preference
-            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', systemTheme);
-
-            // Listen for system theme changes when in system mode
-            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-            const handler = (e: MediaQueryListEvent) => {
-                const currentPref = localStorage.getItem('themePreference');
-                if (currentPref === 'system' || !currentPref) {
-                    document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
-                }
-            };
-            mediaQuery.addEventListener('change', handler);
-            return () => mediaQuery.removeEventListener('change', handler);
-        }
-    }, []);
 
     // Page Blur Logic
     const [isPageBlurred, setIsPageBlurred] = useState(false);
@@ -102,6 +81,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <ThemeToggle />
+
                         <Button
                             variant="ghost"
                             size="icon"

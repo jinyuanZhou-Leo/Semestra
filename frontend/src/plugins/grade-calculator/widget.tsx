@@ -3,10 +3,8 @@ import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistr
 import { DEFAULT_GPA_SCALING_TABLE_JSON, calculateGPA } from '../../utils/gpaUtils';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface Assessment {
@@ -118,90 +116,83 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
         updateSettings({ ...settings, assessments: newAssessments });
     }, [settings, assessments, updateSettings]);
 
-    // Format weight sum to always show 3 digits
-    const formatWeightSum = (weight: number): string => {
-        if (weight > 100) return 'INV';
-        if (weight >= 100) return '100';
-        if (weight >= 10) return weight.toFixed(1);
-        return weight.toFixed(2);
-    };
 
     return (
-        <div className="flex h-full flex-col gap-2 p-2 select-none">
-            <div className="flex-1 overflow-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead className="text-right">
-                                <span className="inline-flex items-center justify-end gap-2">
-                                    Weight
-                                    <Badge
-                                        variant={totalPercentage === 100 ? "secondary" : "destructive"}
-                                        className="px-1.5 py-0.5 text-[10px] tabular-nums"
-                                    >
-                                        {formatWeightSum(totalPercentage)}%
-                                    </Badge>
-                                </span>
-                            </TableHead>
-                            <TableHead className="text-right">Grade</TableHead>
-                            <TableHead className="w-10 text-right"> </TableHead>
+        <div className="flex h-full flex-col gap-2 p-1 select-none text-xs">
+            <div className="flex-1 overflow-auto rounded-md bg-card/50">
+                <Table className="relative w-full text-xs">
+                    <TableHeader className="sticky top-0 bg-secondary/80 backdrop-blur-sm z-10">
+                        <TableRow className="h-8 hover:bg-transparent">
+                            <TableHead className="h-8 pl-3 font-semibold text-foreground/80">Assessment</TableHead>
+                            <TableHead className="h-8 text-right font-semibold text-foreground/80 w-[60px]">Wt(%)</TableHead>
+                            <TableHead className="h-8 text-right font-semibold text-foreground/80 w-[60px]">Score</TableHead>
+                            <TableHead className="h-8 w-8"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {assessments.map(a => (
-                            <TableRow key={a.id}>
-                                <TableCell>
+                            <TableRow key={a.id} className="h-9 hover:bg-muted/30">
+                                <TableCell className="p-0 pl-1">
                                     <Input
                                         value={a.name}
                                         onChange={e => handleUpdateRow(a.id, 'name', e.target.value)}
-                                        placeholder="Assessment name"
-                                        className="h-9"
+                                        placeholder="Name"
+                                        className="h-7 border-0 bg-transparent px-2 text-xs focus-visible:ring-1 focus-visible:ring-ring/20 placeholder:text-muted-foreground/50"
                                     />
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="p-0">
                                     <Input
                                         value={a.percentage}
                                         onChange={e => handleUpdateRow(a.id, 'percentage', e.target.value)}
                                         inputMode="decimal"
                                         placeholder="0"
-                                        className="h-9 text-right tabular-nums"
+                                        className="h-7 border-0 bg-transparent text-right text-xs tabular-nums focus-visible:ring-1 focus-visible:ring-ring/20 pr-3 placeholder:text-muted-foreground/50"
                                     />
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="p-0">
                                     <Input
                                         value={a.grade}
                                         onChange={e => {
                                             let val = e.target.value;
                                             const num = parseFloat(val);
-                                            if (!isNaN(num) && num > 100) {
-                                                val = '100';
-                                            }
+                                            if (!isNaN(num) && num > 100) val = '100';
                                             handleUpdateRow(a.id, 'grade', val);
                                         }}
                                         inputMode="decimal"
                                         placeholder="0"
-                                        className="h-9 text-right tabular-nums"
+                                        className="h-7 border-0 bg-transparent text-right text-xs tabular-nums focus-visible:ring-1 focus-visible:ring-ring/20 pr-3 placeholder:text-muted-foreground/50"
                                     />
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="p-0 text-center">
                                     <Button
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => handleRemoveRow(a.id)}
-                                        className="h-8 w-8 text-destructive hover:text-destructive"
-                                        aria-label="Remove assessment"
+                                        className="h-6 w-6 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
+                                        aria-label="Remove"
                                     >
                                         &times;
                                     </Button>
                                 </TableCell>
                             </TableRow>
                         ))}
+                        {assessments.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={4} className="h-20 text-center text-muted-foreground/50 italic">
+                                    No assessments added
+                                </TableCell>
+                            </TableRow>
+                        )}
                     </TableBody>
                 </Table>
             </div>
-            <Separator />
-            <Button onClick={handleAddRow} size="sm" variant="secondary" className="w-full">
+
+            <Button
+                onClick={handleAddRow}
+                size="sm"
+                variant="outline"
+                className="h-7 w-full border-dashed text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border"
+            >
                 + Add Assessment
             </Button>
         </div>

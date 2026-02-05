@@ -24,6 +24,7 @@ export interface Course {
     id: string;
     name: string;
     alias?: string;
+    category?: string;
     credits: number;
     grade_scaled: number;
     grade_percentage: number;

@@ -26,6 +26,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
 }) => {
   const [name, setName] = useState(initialName);
   const [alias, setAlias] = useState(initialSettings?.alias || "");
+  const [category, setCategory] = useState(initialSettings?.category || "");
   const [extraSettings, setExtraSettings] = useState(initialSettings);
   const [jsonError, setJsonError] = useState("");
   const [gpaTableJson, setGpaTableJson] = useState("{}");
@@ -39,6 +40,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
   useEffect(() => {
     setName(initialName);
     setAlias(initialSettings?.alias || "");
+    setCategory(initialSettings?.category || "");
     setExtraSettings({
       ...initialSettings,
       include_in_gpa:
@@ -84,6 +86,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
       data.hide_gpa = extraSettings.hide_gpa;
     } else if (type === "course") {
       data.alias = alias || null;
+      data.category = category || null;
       data.credits = parseFloat(extraSettings.credits || 0);
       data.include_in_gpa = extraSettings.include_in_gpa;
       data.hide_gpa = extraSettings.hide_gpa;
@@ -157,6 +160,15 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
               placeholder="e.g. CS101 - Prof. Smith"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor={`${fieldId}-category`}>Category (optional)</Label>
+            <Input
+              id={`${fieldId}-category`}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. CS"
             />
           </div>
           <div className="grid gap-2">

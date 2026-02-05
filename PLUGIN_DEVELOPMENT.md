@@ -498,7 +498,9 @@ See `frontend/src/plugins/grade-calculator/widget.tsx` for a complete example de
   - `var(--color-text-primary)` - 主要文本颜色
   - `var(--color-text-secondary)` - 次要文本颜色
   - `var(--color-bg-primary)` - 主要背景色
+  - `var(--color-bg-primary)` - 主要背景色
   - `var(--color-border)` - 边框颜色
+- **避免多重边框**：Widget 容器已提供边框，Widget 内部 UI 勿在最外层再次添加边框，这是多余且不美观的。确保根元素无边框或使用 transparent。
 
 ## Tab UI 设计规范
 

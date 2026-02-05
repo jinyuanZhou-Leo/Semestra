@@ -2,11 +2,11 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './components/ThemeProvider';
 import { RequireAuth } from './components/RequireAuth';
 import { DialogProvider } from './contexts/DialogContext';
 import { Toaster } from '@/components/ui/sonner';
 
-// Lazy load page components
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(module => ({ default: module.RegisterPage })));
@@ -18,59 +18,61 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <DialogProvider>
-          {/* Use null fallback to keep index.html spinner visible during lazy load */}
-          <Suspense fallback={null}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route
-                path="/"
-                element={
-                  <RequireAuth>
-                    <HomePage />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/programs/:id"
-                element={
-                  <RequireAuth>
-                    <ProgramDashboard />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/semesters/:id"
-                element={
-                  <RequireAuth>
-                    <SemesterHomepage />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/courses/:id"
-                element={
-                  <RequireAuth>
-                    <CourseHomepage />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <RequireAuth>
-                    <SettingsPage />
-                  </RequireAuth>
-                }
-              />
-            </Routes>
-          </Suspense>
-          <Toaster />
-          <SpeedInsights />
-        </DialogProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <DialogProvider>
+            {/* Use null fallback to keep index.html spinner visible during lazy load */}
+            <Suspense fallback={null}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route
+                  path="/"
+                  element={
+                    <RequireAuth>
+                      <HomePage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/programs/:id"
+                  element={
+                    <RequireAuth>
+                      <ProgramDashboard />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/semesters/:id"
+                  element={
+                    <RequireAuth>
+                      <SemesterHomepage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/courses/:id"
+                  element={
+                    <RequireAuth>
+                      <CourseHomepage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <RequireAuth>
+                      <SettingsPage />
+                    </RequireAuth>
+                  }
+                />
+              </Routes>
+            </Suspense>
+            <Toaster />
+            <SpeedInsights />
+          </DialogProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   );
 }

@@ -7,7 +7,7 @@ import type { WidgetDefinition, WidgetProps, WidgetGlobalSettingsProps } from '.
 import { Button } from '@/components/ui/button';
 import { CourseManagerModal } from '../../components/CourseManagerModal';
 import { SettingsSection } from '../../components/SettingsSection';
-import { Card, CardContent } from '@/components/ui/card';
+
 import { useDialog } from '../../contexts/DialogContext';
 
 /**
@@ -29,45 +29,44 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
     }, [semesterId, fetchCourses]);
 
     if (!semesterId) {
-        return <div>Course List requires a semester context.</div>;
+        return <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Select a semester</div>;
     }
 
     return (
         <div className="flex h-full flex-col select-none">
-            <div className="course-list-scroll flex-1 overflow-y-auto">
+            <div className="course-list-scroll flex-1 overflow-y-auto pr-1">
                 {courses.length === 0 ? (
-                    <div className="mt-4 text-center text-sm text-muted-foreground">No courses</div>
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No courses</div>
                 ) : (
-                    <div className="space-y-3">
-                        {courses.map(course => (
-                            <Card key={course.id} className="rounded-[var(--radius-widget)] border-border/60 bg-card/90 shadow-sm">
-                                <CardContent className="flex items-center justify-between gap-4 p-4">
-                                    <div className="min-w-0">
-                                        <Link
-                                            to={`/courses/${course.id}`}
-                                            className="text-base font-semibold text-foreground transition hover:underline"
-                                        >
+                        <div className="flex flex-col gap-1.5">
+                            {courses.map(course => (
+                                <Link
+                                    key={course.id}
+                                    to={`/courses/${course.id}`}
+                                    className="group flex flex-col gap-1 rounded-md border border-transparent bg-muted/40 p-2.5 transition-all hover:border-border hover:bg-muted"
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <span className="line-clamp-1 text-sm font-medium leading-none text-foreground/90 group-hover:text-primary transition-colors">
                                             {course.name}
-                                        </Link>
-                                        {course.alias && (
-                                            <div className="mt-1 text-xs text-muted-foreground">
-                                                {course.alias}
-                                            </div>
-                                        )}
-                                        <div className="mt-1 text-sm text-muted-foreground">
-                                            {Number(course.credits).toFixed(2)} Credits
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-lg font-semibold text-foreground">
+                                        </span>
+                                        <span className="text-sm font-semibold tabular-nums leading-none">
                                             {course.grade_percentage}%
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                        <div className="flex items-center gap-1.5">
+                                        {course.alias && (
+                                                <span className="font-medium">{course.alias}</span>
+                                        )}
+                                            {course.alias && <span>•</span>}
+                                            <span>{Number(course.credits).toFixed(1)} cr</span>
                                         </div>
-                                        <div className="text-sm text-muted-foreground">
+                                        <div className="font-medium tabular-nums opacity-70">
                                             GPA: {Number.isFinite(course.grade_scaled) ? course.grade_scaled.toFixed(2) : '0.00'}
                                         </div>
                                     </div>
-                                </CardContent>
-                            </Card>
+                                </Link>
                         ))}
                     </div>
                 )}

@@ -3,6 +3,7 @@ import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../s
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
 import {
     Select,
     SelectContent,
@@ -10,7 +11,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
+import { Clock, Calendar, Globe } from 'lucide-react';
 
 const AVAILABLE_TIMEZONES = [
     { value: 'UTC', label: 'UTC' },
@@ -62,8 +63,8 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
 };
 
 /**
- * WorldClock Plugin - Memoized for performance
- * Internal timer state doesn't trigger parent re-renders
+ * WorldClock Plugin - Premium UI
+ * Features: Digital clock aesthetic, day/night improvements, clear typography
  */
 const WorldClockComponent: React.FC<WidgetProps> = ({ settings }) => {
     const [time, setTime] = useState(new Date());
@@ -96,19 +97,33 @@ const WorldClockComponent: React.FC<WidgetProps> = ({ settings }) => {
     const formattedTime = timeFormatter.format(time);
     const formattedDate = dateFormatter.format(time);
 
+
+
     return (
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-3 text-center select-none">
-            <Badge variant="secondary" className="text-xs">
-                {timezone.split('/')[1]?.replace('_', ' ') || timezone}
-            </Badge>
-            <div className="text-4xl font-semibold leading-none tabular-nums tracking-tight">
-                {formattedTime}
-            </div>
-            <Separator className="w-16" />
-            <div className="text-sm text-muted-foreground">
-                {formattedDate}
-            </div>
-        </div>
+        <Card className="h-full w-full border-0 bg-transparent shadow-none">
+            <CardContent className="flex h-full flex-col items-center justify-center p-4">
+                <div className="flex flex-col items-center gap-2">
+                    <Badge
+                        variant="outline"
+                        className="flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] bg-background/50 backdrop-blur-sm uppercase tracking-wider font-medium text-muted-foreground transition-colors hover:bg-muted"
+                    >
+                        <Globe className="h-3 w-3" />
+                        {timezone.split('/')[1]?.replace('_', ' ') || timezone}
+                    </Badge>
+
+                    <div className="relative z-10 my-1">
+                        <div className="text-5xl font-light tracking-tighter tabular-nums text-foreground">
+                            {formattedTime}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground/80">
+                        <Calendar className="h-3.5 w-3.5 opacity-70" />
+                        <span>{formattedDate}</span>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 };
 
@@ -118,7 +133,7 @@ export const WorldClockDefinition: WidgetDefinition = {
     type: 'world-clock',
     name: 'World Clock',
     description: 'Displays current time in a specific timezone.',
-    icon: '🌍',
+    icon: <Clock className="h-4 w-4" />,
     component: WorldClock,
     SettingsComponent: WorldClockSettingsComponent,
     defaultSettings: { timezone: 'UTC' },

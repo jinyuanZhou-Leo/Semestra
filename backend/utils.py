@@ -46,4 +46,29 @@ def parse_ics(file_content: bytes) -> list[str]:
                 if clean_name:
                     courses.add(clean_name)
 
+
     return list(courses)
+
+def extract_category(course_name: str) -> str | None:
+    """
+    Extracts the category from a course name.
+    e.g. "MIE100" -> "MIE"
+         "ECE444H1" -> "ECE"
+         "Computer Science 101" -> "Computer" (Simple heuristic: first word if no clear code pattern)
+    """
+    if not course_name:
+        return None
+        
+    # Pattern: Starts with 2-4 letters followed by a digit
+    match = re.match(r'^([A-Za-z]{2,4})\d', course_name.strip())
+    if match:
+        return match.group(1).upper()
+    
+    # Fallback: just return None or let user decide? 
+    # Let's try matching just the first word if it's all letters
+    # e.g. "Biology 101" -> "Biology"
+    first_word = course_name.strip().split(' ')[0]
+    if first_word.isalpha() and len(first_word) > 1:
+        return first_word # Keep case? Convention seems to be all caps for codes, but "Biology" might be nicer as "Biology"
+        
+    return None

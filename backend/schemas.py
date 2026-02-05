@@ -91,6 +91,7 @@ class TabUpdate(BaseModel):
 class CourseBase(BaseModel):
     name: str
     alias: Optional[str] = None
+    category: Optional[str] = None
     credits: float = 0.0
     grade_percentage: float = 0.0
     grade_scaled: float = 0.0
@@ -103,6 +104,7 @@ class CourseCreate(CourseBase):
 class CourseUpdate(BaseModel):
     name: Optional[str] = None
     alias: Optional[str] = None
+    category: Optional[str] = None
     credits: Optional[float] = None
     grade_percentage: Optional[float] = None
     grade_scaled: Optional[float] = None
@@ -189,6 +191,7 @@ class TabExport(BaseModel):
 class CourseExport(BaseModel):
     name: str
     alias: Optional[str] = None
+    category: Optional[str] = None
     credits: float = 0.0
     grade_percentage: float = 0.0
     grade_scaled: float = 0.0
