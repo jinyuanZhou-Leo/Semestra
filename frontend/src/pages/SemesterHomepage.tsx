@@ -21,6 +21,7 @@ import { TabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 
+
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -35,9 +36,55 @@ const SemesterHomepageContent: React.FC = () => {
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
-    const [shrinkProgress, setShrunkProgress] = useState(0);
     const [activeTabId, setActiveTabId] = useState('dashboard');
+
     const [programName, setProgramName] = useState<string | null>(null);
+
+    // Refs for direct DOM manipulation to avoid re-renders on scroll
+    const headerRef = React.useRef<HTMLDivElement>(null);
+    const titleRef = React.useRef<HTMLHeadingElement>(null);
+    const statsRef = React.useRef<HTMLDivElement>(null);
+    const hasInitializedRef = React.useRef(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            if (!headerRef.current || !titleRef.current || !statsRef.current) return;
+
+            const threshold = 100;
+            const scrollY = window.scrollY;
+            const progress = Math.min(Math.max(scrollY / threshold, 0), 1);
+
+            // Header Styles
+            const padding = 16 - (8 * progress);
+            headerRef.current.style.paddingTop = `${padding}px`;
+            headerRef.current.style.paddingBottom = `${padding}px`;
+            headerRef.current.style.backgroundColor = `rgba(255, 255, 255, ${progress})`;
+            headerRef.current.style.borderBottomColor = `rgba(229, 231, 235, ${progress})`;
+            headerRef.current.style.boxShadow = progress > 0.5 ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none';
+
+            // Title Scale
+            const scale = 1 - (0.2 * progress);
+            titleRef.current.style.transform = `scale(${scale})`;
+
+            // Stats Opacity & Height
+            const statsOpacity = Math.max(1 - (progress * 2), 0);
+            const statsHeight = Math.max(140 * (1 - progress * 1.5), 0);
+
+            statsRef.current.style.opacity = statsOpacity.toString();
+            statsRef.current.style.maxHeight = `${statsHeight}px`;
+            statsRef.current.style.marginTop = statsOpacity > 0 ? '0.75rem' : '0';
+            statsRef.current.style.display = statsOpacity <= 0 ? 'none' : 'flex';
+        };
+
+        // Initial set
+        if (!hasInitializedRef.current) {
+            handleScroll();
+            hasInitializedRef.current = true;
+        }
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     useEffect(() => {
         let isActive = true;
@@ -66,7 +113,7 @@ const SemesterHomepageContent: React.FC = () => {
 
     const {
         widgets,
-        addWidget: handleAddWidget, // Rename to match pattern if preferred, or keep as is and use handle... wrapper
+        addWidget: handleAddWidget,
         updateWidget: handleUpdateWidget,
         updateWidgetDebounced: handleUpdateWidgetDebounced,
         removeWidget: handleRemoveWidget,
@@ -81,7 +128,6 @@ const SemesterHomepageContent: React.FC = () => {
         tabs: customTabs,
         addTab: handleAddTab,
         removeTab: handleRemoveTab,
-        // updateTab, // We use debounced for settings
         updateTabSettingsDebounced,
         reorderTabs
     } = useDashboardTabs({
@@ -90,7 +136,6 @@ const SemesterHomepageContent: React.FC = () => {
         onRefresh: refreshSemester
     });
 
-    // Wrapped handlers to match CourseHomepage pattern and fix unused vars if any
     const onAddWidgetInner = (type: string) => {
         handleAddWidget(type);
         setIsAddWidgetOpen(false);
@@ -152,38 +197,9 @@ const SemesterHomepageContent: React.FC = () => {
         reorderTabs(orderedIds.filter(id => pluginIdSet.has(id)));
     }, [reorderTabs, customTabs]);
 
-    useEffect(() => {
-        const handleScroll = () => {
-            // Calculate progress: 0 at top, 1 after scrolling 100px (adjust threshold as needed)
-            const progress = Math.min(Math.max(window.scrollY / 100, 0), 1);
-            setShrunkProgress(progress);
-        };
-
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        handleScroll(); // Init
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
-    // Derived state for ease of use in some conditionals
 
 
-    // Dynamic styles based on shrinkProgress
-    const headerStyle = {
-        paddingTop: `${16 - (8 * shrinkProgress)}px`, // 16px to 8px
-        paddingBottom: `${16 - (8 * shrinkProgress)}px`,
-        backgroundColor: `rgba(255, 255, 255, ${shrinkProgress})`, // Fade in background
-        borderBottomColor: `rgba(229, 231, 235, ${shrinkProgress})`, // Fade in border
-        boxShadow: shrinkProgress > 0.5 ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none',
-    } as React.CSSProperties;
-
-    // Title Scale: 1 -> 0.8
-    const titleScale = 1 - (0.2 * shrinkProgress);
-
-    // Stats Opacity: 1 -> 0
-    const statsOpacity = Math.max(1 - (shrinkProgress * 2), 0); // Fade out faster
-    const statsHeight = Math.max(140 * (1 - shrinkProgress * 1.5), 0); // Collapse height
-
-    const breadcrumb = (
+    const breadcrumb = useMemo(() => (
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
                 <BreadcrumbItem>
@@ -211,7 +227,70 @@ const SemesterHomepageContent: React.FC = () => {
                 </BreadcrumbItem>
             </BreadcrumbList>
         </Breadcrumb>
-    );
+    ), [semester?.program_id, semester?.name, programName]);
+
+    const dashboardContent = useMemo(() => {
+        if (!semester) return null;
+        if (activeTabId === 'dashboard' || activeTabId === 'settings') {
+            const BuiltinComponent = TabRegistry.getComponent(activeTabId);
+            if (!BuiltinComponent) {
+                return (
+                    <Empty className="bg-muted/40">
+                        <EmptyHeader>
+                            <EmptyTitle>Builtin tab not found</EmptyTitle>
+                            <EmptyDescription>
+                                The requested tab is unavailable.
+                            </EmptyDescription>
+                        </EmptyHeader>
+                    </Empty>
+                );
+            }
+            return (
+                <BuiltinComponent
+                    tabId={activeTabId}
+                    settings={{}}
+                    semesterId={semester.id}
+                    updateSettings={() => { }}
+                />
+            );
+        }
+        const activeTab = customTabs.find(tab => tab.id === activeTabId);
+        const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
+        if (!activeTab) {
+            return (
+                <Empty className="bg-muted/40">
+                    <EmptyHeader>
+                        <EmptyTitle>Tab not found</EmptyTitle>
+                        <EmptyDescription>
+                            The requested tab is unavailable.
+                        </EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
+            );
+        }
+        if (!TabComponent) {
+            return (
+                <Empty className="bg-muted/40">
+                    <EmptyHeader>
+                        <EmptyTitle>Unknown tab type</EmptyTitle>
+                        <EmptyDescription>
+                            {activeTab.type}
+                        </EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
+            );
+        }
+        return (
+            <React.Suspense fallback={<div className="p-8">Loading tab...</div>}>
+                <TabComponent
+                    tabId={activeTab.id}
+                    settings={activeTab.settings || {}}
+                    semesterId={semester.id}
+                    updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
+                />
+            </React.Suspense>
+        );
+    }, [activeTabId, semester, customTabs, handleUpdateTabSettings]);
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
@@ -353,8 +432,17 @@ const SemesterHomepageContent: React.FC = () => {
         <Layout breadcrumb={breadcrumb}>
             <BuiltinTabProvider value={builtinTabContext}>
                 <div
+                    ref={headerRef}
                     className="sticky left-0 right-0 z-40 top-[60px]" // Always top-60px since navbar is fixed
-                    style={headerStyle}
+                    style={{
+                        paddingTop: '16px',
+                        paddingBottom: '16px',
+                        backgroundColor: 'rgba(255, 255, 255, 0)',
+                        borderBottomColor: 'rgba(229, 231, 235, 0)',
+                        boxShadow: 'none',
+                        transition: 'none'
+                        // Styles managed by direct DOM manipulation
+                    }}
                 >
                     <Container className="flex flex-wrap items-center transition-none">
                         {/* Remove CSS transitions to rely on scroll sync */}
@@ -365,11 +453,12 @@ const SemesterHomepageContent: React.FC = () => {
                                     <Skeleton className="h-12 w-3/5" />
                                 ) : (
                                         <h1
+                                            ref={titleRef}
                                             className="noselect text-truncate font-bold tracking-tight origin-left"
                                             style={{
-                                                transform: `scale(${titleScale})`,
                                                 fontSize: '2.25rem',
-                                                lineHeight: '2.5rem'
+                                                lineHeight: '2.5rem',
+                                                transformOrigin: 'left center'
                                             }}
                                         >
                                             {semester.name}
@@ -377,11 +466,11 @@ const SemesterHomepageContent: React.FC = () => {
                                 )}
 
                                 <div
+                                    ref={statsRef}
                                     className="noselect flex flex-wrap gap-6 overflow-hidden"
                                     style={{
-                                        opacity: statsOpacity,
-                                        maxHeight: `${statsHeight}px`,
-                                        marginTop: statsOpacity > 0 ? '0.75rem' : '0'
+                                        opacity: 1,
+                                        marginTop: '0.75rem'
                                     }}
                                 >
                                     {/* Stats content ... unchanged */}
@@ -445,67 +534,7 @@ const SemesterHomepageContent: React.FC = () => {
                     {isLoading || !semester ? (
                         <DashboardSkeleton />
                     ) : (
-                        (() => {
-                            if (activeTabId === 'dashboard' || activeTabId === 'settings') {
-                                const BuiltinComponent = TabRegistry.getComponent(activeTabId);
-                                if (!BuiltinComponent) {
-                                    return (
-                                        <Empty className="bg-muted/40">
-                                            <EmptyHeader>
-                                                <EmptyTitle>Builtin tab not found</EmptyTitle>
-                                                <EmptyDescription>
-                                                    The requested tab is unavailable.
-                                                </EmptyDescription>
-                                            </EmptyHeader>
-                                        </Empty>
-                                    );
-                                }
-                                return (
-                                    <BuiltinComponent
-                                        tabId={activeTabId}
-                                        settings={{}}
-                                        semesterId={semester.id}
-                                        updateSettings={() => { }}
-                                    />
-                                );
-                            }
-                            const activeTab = customTabs.find(tab => tab.id === activeTabId);
-                            const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
-                            if (!activeTab) {
-                                return (
-                                    <Empty className="bg-muted/40">
-                                        <EmptyHeader>
-                                            <EmptyTitle>Tab not found</EmptyTitle>
-                                            <EmptyDescription>
-                                                The requested tab is unavailable.
-                                            </EmptyDescription>
-                                        </EmptyHeader>
-                                    </Empty>
-                                );
-                            }
-                            if (!TabComponent) {
-                                return (
-                                    <Empty className="bg-muted/40">
-                                        <EmptyHeader>
-                                            <EmptyTitle>Unknown tab type</EmptyTitle>
-                                            <EmptyDescription>
-                                                {activeTab.type}
-                                            </EmptyDescription>
-                                        </EmptyHeader>
-                                    </Empty>
-                                );
-                            }
-                            return (
-                                <React.Suspense fallback={<div className="p-8">Loading tab...</div>}>
-                                    <TabComponent
-                                        tabId={activeTab.id}
-                                        settings={activeTab.settings || {}}
-                                        semesterId={semester.id}
-                                        updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
-                                    />
-                                </React.Suspense>
-                            );
-                        })()
+                            dashboardContent
                     )}
                 </Container>
 

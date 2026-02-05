@@ -12,7 +12,6 @@ const BuiltinSettingsTabComponent: React.FC<TabProps> = () => {
 
     return (
         <SettingsTabContent
-            title={null}
             initialName={settings.initialName}
             initialSettings={settings.initialSettings}
             onSave={settings.onSave}

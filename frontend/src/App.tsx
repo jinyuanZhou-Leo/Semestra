@@ -4,6 +4,7 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './components/ThemeProvider';
 import { RequireAuth } from './components/RequireAuth';
+import { PageSkeleton } from './components/PageSkeleton';
 import { DialogProvider } from './contexts/DialogContext';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -21,53 +22,68 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <DialogProvider>
-            {/* Use null fallback to keep index.html spinner visible during lazy load */}
-            <Suspense fallback={null}>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route
-                  path="/"
-                  element={
-                    <RequireAuth>
+            <Routes>
+              <Route path="/login" element={
+                <Suspense fallback={null}>
+                  <LoginPage />
+                </Suspense>
+              } />
+              <Route path="/register" element={
+                <Suspense fallback={null}>
+                  <RegisterPage />
+                </Suspense>
+              } />
+              <Route
+                path="/"
+                element={
+                  <RequireAuth>
+                    <Suspense fallback={<PageSkeleton />}>
                       <HomePage />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="/programs/:id"
-                  element={
-                    <RequireAuth>
+                    </Suspense>
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/programs/:id"
+                element={
+                  <RequireAuth>
+                    <Suspense fallback={<PageSkeleton />}>
                       <ProgramDashboard />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="/semesters/:id"
-                  element={
-                    <RequireAuth>
+                    </Suspense>
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/semesters/:id"
+                element={
+                  <RequireAuth>
+                    <Suspense fallback={<PageSkeleton />}>
                       <SemesterHomepage />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="/courses/:id"
-                  element={
-                    <RequireAuth>
+                    </Suspense>
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/courses/:id"
+                element={
+                  <RequireAuth>
+                    <Suspense fallback={<PageSkeleton />}>
                       <CourseHomepage />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="/settings"
-                  element={
-                    <RequireAuth>
+                    </Suspense>
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <RequireAuth>
+                    <Suspense fallback={<PageSkeleton />}>
                       <SettingsPage />
-                    </RequireAuth>
-                  }
-                />
-              </Routes>
-            </Suspense>
+                    </Suspense>
+                  </RequireAuth>
+                }
+              />
+            </Routes>
             <Toaster />
             <SpeedInsights />
           </DialogProvider>

@@ -4,7 +4,6 @@ import { SettingsSection } from "./SettingsSection";
 import { Separator } from "@/components/ui/separator";
 
 interface SettingsTabContentProps {
-  title?: string | null;
   initialName: string;
   initialSettings?: any;
   onSave: (data: any) => Promise<void>;
@@ -13,7 +12,6 @@ interface SettingsTabContentProps {
 }
 
 export const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
-  title,
   initialName,
   initialSettings,
   onSave,

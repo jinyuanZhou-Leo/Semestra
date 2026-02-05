@@ -21,6 +21,7 @@ import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { TabRegistry } from '../services/tabRegistry';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
+
 import {
     Breadcrumb,
     BreadcrumbEllipsis,
@@ -47,43 +48,64 @@ const CourseHomepageContent: React.FC = () => {
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('dashboard');
-    const [shrinkProgress, setShrunkProgress] = useState(0);
     const [programName, setProgramName] = useState<string | null>(null);
     const [semesterName, setSemesterName] = useState<string | null>(null);
-    const shouldCollapseProgram = Boolean(course?.program_id && course?.semester_id);
-    const shouldShowProgramDirect = Boolean(course?.program_id && !shouldCollapseProgram);
-    const shouldShowSemester = Boolean(course?.semester_id);
+
+    // Refs for direct DOM manipulation
+    const headerRef = React.useRef<HTMLDivElement>(null);
+    const titleRef = React.useRef<HTMLHeadingElement>(null);
+    const aliasRef = React.useRef<HTMLDivElement>(null);
+    const statsRef = React.useRef<HTMLDivElement>(null);
+    const hasInitializedRef = React.useRef(false);
 
     useEffect(() => {
         const handleScroll = () => {
-            // Calculate progress: 0 at top, 1 after scrolling 100px
-            const progress = Math.min(Math.max(window.scrollY / 100, 0), 1);
-            setShrunkProgress(progress);
+            if (!headerRef.current || !titleRef.current || !statsRef.current) return;
+
+            const threshold = 100;
+            const scrollY = window.scrollY;
+            const progress = Math.min(Math.max(scrollY / threshold, 0), 1);
+
+            // Header Styles
+            const padding = 16 - (8 * progress);
+            headerRef.current.style.paddingTop = `${padding}px`;
+            headerRef.current.style.paddingBottom = `${padding}px`;
+            headerRef.current.style.backgroundColor = `rgba(255, 255, 255, ${progress})`;
+            headerRef.current.style.borderBottomColor = `rgba(229, 231, 235, ${progress})`;
+            headerRef.current.style.boxShadow = progress > 0.5 ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none';
+
+            // Title Scale
+            const scale = 1 - (0.2 * progress);
+            titleRef.current.style.transform = `scale(${scale})`;
+
+            // Stats & Alias Opacity/Height
+            const statsOpacity = Math.max(1 - (progress * 2), 0);
+            const statsHeight = Math.max(140 * (1 - progress * 1.5), 0);
+
+            // Alias
+            if (aliasRef.current) {
+                aliasRef.current.style.opacity = statsOpacity.toString();
+                aliasRef.current.style.display = statsOpacity <= 0 ? 'none' : 'block';
+            }
+
+            // Stats
+            statsRef.current.style.opacity = statsOpacity.toString();
+            statsRef.current.style.maxHeight = `${statsHeight}px`;
+            statsRef.current.style.marginTop = statsOpacity > 0 ? '0.75rem' : '0';
         };
 
+        if (!hasInitializedRef.current) {
+            handleScroll();
+            hasInitializedRef.current = true;
+        }
+
         window.addEventListener('scroll', handleScroll, { passive: true });
-        handleScroll(); // Init
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // Derived state for ease of use in some conditionals
-
-
-    // Dynamic styles based on shrinkProgress
-    const headerStyle = {
-        paddingTop: `${16 - (8 * shrinkProgress)}px`, // 16px to 8px
-        paddingBottom: `${16 - (8 * shrinkProgress)}px`,
-        backgroundColor: `rgba(255, 255, 255, ${shrinkProgress})`, // Fade in background
-        borderBottomColor: `rgba(229, 231, 235, ${shrinkProgress})`, // Fade in border
-        boxShadow: shrinkProgress > 0.5 ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none',
-    } as React.CSSProperties;
-
-    // Title Scale: 1 -> 0.8
-    const titleScale = 1 - (0.2 * shrinkProgress);
-
-    // Stats Opacity: 1 -> 0
-    const statsOpacity = Math.max(1 - (shrinkProgress * 2), 0); // Fade out faster
-    const statsHeight = Math.max(140 * (1 - shrinkProgress * 1.5), 0); // Collapse height
+    const shouldCollapseProgram = Boolean(course?.program_id && course?.semester_id);
+    const shouldShowProgramDirect = Boolean(course?.program_id && !shouldCollapseProgram);
+    const shouldShowSemester = Boolean(course?.semester_id);
 
 
     useEffect(() => {
@@ -161,7 +183,7 @@ const CourseHomepageContent: React.FC = () => {
         onRefresh: refreshCourse
     });
 
-    const breadcrumb = (
+    const breadcrumb = useMemo(() => (
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
                 <BreadcrumbItem>
@@ -231,11 +253,76 @@ const CourseHomepageContent: React.FC = () => {
                 </BreadcrumbItem>
             </BreadcrumbList>
         </Breadcrumb>
-    );
+    ), [shouldCollapseProgram, shouldShowProgramDirect, shouldShowSemester, course?.program_id, course?.semester_id, course?.name, programName, semesterName, navigate]);
+
+
 
     const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
+
+    const dashboardContent = useMemo(() => {
+        if (!course) return null;
+        if (activeTabId === 'dashboard' || activeTabId === 'settings') {
+            const BuiltinComponent = TabRegistry.getComponent(activeTabId);
+            if (!BuiltinComponent) {
+                return (
+                    <Empty className="bg-muted/40">
+                        <EmptyHeader>
+                            <EmptyTitle>Builtin tab not found</EmptyTitle>
+                            <EmptyDescription>
+                                The requested tab is unavailable.
+                            </EmptyDescription>
+                        </EmptyHeader>
+                    </Empty>
+                );
+            }
+            return (
+                <BuiltinComponent
+                    tabId={activeTabId}
+                    settings={{}}
+                    courseId={course.id}
+                    updateSettings={() => { }}
+                />
+            );
+        }
+        const activeTab = tabs.find(tab => tab.id === activeTabId);
+        const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
+        if (!activeTab) {
+            return (
+                <Empty className="bg-muted/40">
+                    <EmptyHeader>
+                        <EmptyTitle>Tab not found</EmptyTitle>
+                        <EmptyDescription>
+                            The requested tab is unavailable.
+                        </EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
+            );
+        }
+        if (!TabComponent) {
+            return (
+                <Empty className="bg-muted/40">
+                    <EmptyHeader>
+                        <EmptyTitle>Unknown tab type</EmptyTitle>
+                        <EmptyDescription>
+                            {activeTab.type}
+                        </EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
+            );
+        }
+        return (
+            <React.Suspense fallback={<div className="p-8">Loading tab...</div>}>
+                <TabComponent
+                    tabId={activeTab.id}
+                    settings={activeTab.settings || {}}
+                    courseId={course.id}
+                    updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
+                />
+            </React.Suspense>
+        );
+    }, [activeTabId, course, tabs, handleUpdateTabSettings]);
 
     const pluginTabItems = useMemo(() => {
         return tabs.map(tab => {
@@ -468,8 +555,16 @@ const CourseHomepageContent: React.FC = () => {
         <Layout breadcrumb={breadcrumb}>
             <BuiltinTabProvider value={builtinTabContext}>
                 <div
+                    ref={headerRef}
                     className="sticky left-0 right-0 z-40 top-[60px]" // Always top-60px since navbar is fixed
-                    style={headerStyle}
+                    style={{
+                        paddingTop: '16px',
+                        paddingBottom: '16px',
+                        backgroundColor: 'rgba(255, 255, 255, 0)',
+                        borderBottomColor: 'rgba(229, 231, 235, 0)',
+                        boxShadow: 'none',
+                        transition: 'none'
+                    }}
                 >
                     <Container className="flex flex-wrap items-center transition-none">
                         <div className="flex flex-col gap-2 relative w-full">
@@ -479,19 +574,21 @@ const CourseHomepageContent: React.FC = () => {
                                 ) : (
                                     <>
                                             <h1
+                                                ref={titleRef}
                                                 className="noselect text-truncate font-bold tracking-tight origin-left"
                                                 style={{
-                                                    transform: `scale(${titleScale})`,
                                                     fontSize: '2.25rem',
-                                                    lineHeight: '2.5rem'
+                                                    lineHeight: '2.5rem',
+                                                    transformOrigin: 'left center'
                                                 }}
                                             >
                                                 {course.name}
                                         </h1>
                                         {course.alias && (
                                             <div
+                                                    ref={aliasRef}
                                                 className="mt-1 text-sm text-muted-foreground/80"
-                                                style={{ opacity: statsOpacity, display: statsOpacity <= 0 ? 'none' : 'block' }}
+                                                    style={{}}
                                             >
                                                 {course.alias}
                                             </div>
@@ -500,11 +597,10 @@ const CourseHomepageContent: React.FC = () => {
                                 )}
 
                                 <div
+                                    ref={statsRef}
                                     className="noselect flex flex-wrap gap-6 overflow-hidden"
                                     style={{
-                                        opacity: statsOpacity,
-                                        maxHeight: `${statsHeight}px`,
-                                        marginTop: statsOpacity > 0 ? '0.75rem' : '0'
+                                        marginTop: '0.75rem'
                                     }}
                                 >
                                     {/* Stats content ... unchanged */}
@@ -579,67 +675,7 @@ const CourseHomepageContent: React.FC = () => {
                 {isLoading || !course || !course.id ? (  /* Check course.id since useDashboardWidgets needs it */
                     <DashboardSkeleton />
                 ) : (
-                    (() => {
-                        if (activeTabId === 'dashboard' || activeTabId === 'settings') {
-                            const BuiltinComponent = TabRegistry.getComponent(activeTabId);
-                            if (!BuiltinComponent) {
-                                return (
-                                    <Empty className="bg-muted/40">
-                                        <EmptyHeader>
-                                            <EmptyTitle>Builtin tab not found</EmptyTitle>
-                                            <EmptyDescription>
-                                                The requested tab is unavailable.
-                                            </EmptyDescription>
-                                        </EmptyHeader>
-                                    </Empty>
-                                );
-                            }
-                            return (
-                                <BuiltinComponent
-                                    tabId={activeTabId}
-                                    settings={{}}
-                                    courseId={course.id}
-                                    updateSettings={() => {}}
-                                />
-                            );
-                        }
-                        const activeTab = tabs.find(tab => tab.id === activeTabId);
-                        const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
-                        if (!activeTab) {
-                            return (
-                                <Empty className="bg-muted/40">
-                                    <EmptyHeader>
-                                        <EmptyTitle>Tab not found</EmptyTitle>
-                                        <EmptyDescription>
-                                            The requested tab is unavailable.
-                                        </EmptyDescription>
-                                    </EmptyHeader>
-                                </Empty>
-                            );
-                        }
-                        if (!TabComponent) {
-                            return (
-                                <Empty className="bg-muted/40">
-                                    <EmptyHeader>
-                                        <EmptyTitle>Unknown tab type</EmptyTitle>
-                                        <EmptyDescription>
-                                            {activeTab.type}
-                                        </EmptyDescription>
-                                    </EmptyHeader>
-                                </Empty>
-                            );
-                        }
-                        return (
-                            <React.Suspense fallback={<div className="p-8">Loading tab...</div>}>
-                                <TabComponent
-                                    tabId={activeTab.id}
-                                    settings={activeTab.settings || {}}
-                                    courseId={course.id}
-                                    updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
-                                />
-                            </React.Suspense>
-                        );
-                    })()
+                            dashboardContent
                 )}
                 </Container>
                 {
