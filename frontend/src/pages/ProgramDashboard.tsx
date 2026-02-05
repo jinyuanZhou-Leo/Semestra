@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
-import { useHeroGradient } from '../hooks/useHeroGradient';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { AnimatedNumber } from '../components/AnimatedNumber';
@@ -84,10 +83,6 @@ const ProgramDashboardContent: React.FC = () => {
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-    const heroStyle = useHeroGradient();
-    const glassButtonClassName =
-        "border border-border bg-[color:var(--color-bg-glass)] text-foreground backdrop-blur-md shadow-none hover:bg-[color:var(--color-bg-glass)] hover:text-foreground hover:shadow-md";
-
     const handleCreateSemester = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!program) return;
@@ -156,6 +151,24 @@ const ProgramDashboardContent: React.FC = () => {
         return Math.min((totalCredits / maxCredits) * 100, 100);
     }, [program, totalCredits]);
 
+    const breadcrumb = (
+        <Breadcrumb>
+            <BreadcrumbList className="text-xs font-medium text-muted-foreground">
+                <BreadcrumbItem>
+                    <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground">
+                        <Link to="/">Academic</Link>
+                    </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                    <BreadcrumbPage className="text-foreground">
+                        {program?.name || 'Program'}
+                    </BreadcrumbPage>
+                </BreadcrumbItem>
+            </BreadcrumbList>
+        </Breadcrumb>
+    );
+
     if (!isLoading && !program) {
         return (
             <Layout>
@@ -179,169 +192,164 @@ const ProgramDashboardContent: React.FC = () => {
     }
 
     return (
-        <Layout>
-            <div
-                className="hero-section"
-                style={{
-                    ...heroStyle,
-                    color: 'var(--color-text-primary)',
-                    '--hero-padding-y': '2.5rem',
-                    '--hero-padding-y-mobile': '1.5rem',
-                    '--hero-margin-bottom': '1.25rem',
-                } as React.CSSProperties}>
-                <Container>
-                    <Breadcrumb>
-                        <BreadcrumbList
-                            style={{
-                                fontSize: '0.875rem',
-                                fontWeight: 600,
-                                letterSpacing: '0.05em',
-                                color: 'var(--color-primary)',
-                                marginBottom: '0.5rem',
-                                textTransform: 'uppercase'
-                            }}
-                        >
-                            <BreadcrumbItem>
-                                <BreadcrumbLink asChild className="text-primary">
-                                    <Link to="/">Academic</Link>
-                                </BreadcrumbLink>
-                            </BreadcrumbItem>
-                            <BreadcrumbSeparator />
-                            <BreadcrumbItem>
-                                <BreadcrumbPage className="text-primary normal-case">
-                                    {program?.name || 'Program'}
-                                </BreadcrumbPage>
-                            </BreadcrumbItem>
-                        </BreadcrumbList>
-                    </Breadcrumb>
-                    <div className="page-header" style={{ marginBottom: '2.5rem' }}>
-                        {isLoading || !program ? (
-                            <Skeleton className="h-14 w-1/2" />
-                        ) : (
-                                <h1 className="noselect text-truncate" style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                    {program.name}
-                                </h1>
-                        )}
-
-                        {isLoading || !program ? (
-                            <Skeleton className="h-10 w-10 rounded-full" />
-                        ) : (
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className={`h-10 w-10 rounded-full ${glassButtonClassName}`}
-                            onClick={() => setIsSettingsOpen(true)}
-                            title="Program Settings"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <circle cx="12" cy="12" r="3"></circle>
-                                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                                    </svg>
-                                </Button>
-                        )}
-                    </div>
-
-                    <div className="program-stats-grid">
-                        <div className="noselect program-stat-card">
-                            <div className="program-stat-label">
-                                <span className="program-stat-label-text">CGPA (Scaled)</span>
-                                {!(isLoading || !program) && (
+        <Layout breadcrumb={breadcrumb}>
+            <section className="relative overflow-hidden border-b bg-[var(--gradient-hero)]">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.35),_transparent_60%)]" />
+                <Container className="relative py-10 md:py-14">
+                    <Card className="border-0 bg-transparent shadow-none">
+                        <CardHeader className="gap-6 p-0">
+                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                <div className="space-y-3">
+                                    {isLoading || !program ? (
+                                        <Skeleton className="h-12 w-1/2" />
+                                    ) : (
+                                        <CardTitle className="text-3xl font-extrabold tracking-tight md:text-4xl">
+                                            <span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+                                                {program.name}
+                                            </span>
+                                        </CardTitle>
+                                    )}
+                                </div>
+                                {isLoading || !program ? (
+                                    <Skeleton className="h-10 w-10 rounded-full" />
+                                ) : (
                                     <Button
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            handleUpdateProgram({ hide_gpa: !program.hide_gpa });
-                                        }}
-                                        type="button"
-                                        variant="ghost"
+                                        variant="outline"
                                         size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                        title={program.hide_gpa ? "Show GPA" : "Hide GPA"}
+                                        className="h-10 w-10 rounded-full border-border/60 bg-background/60 shadow-sm backdrop-blur hover:bg-background/80"
+                                        onClick={() => setIsSettingsOpen(true)}
+                                        title="Program Settings"
                                     >
-                                        {program.hide_gpa ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                                                <line x1="1" y1="1" x2="23" y2="23"></line>
-                                            </svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                                <circle cx="12" cy="12" r="3"></circle>
-                                            </svg>
-                                        )}
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                        </svg>
                                     </Button>
                                 )}
                             </div>
-                            <div className="program-stat-value primary">
-                                {isLoading || !program ? (
-                                    <Skeleton className="h-8 w-16" />
-                                ) : program.hide_gpa ? (
-                                    '****'
-                                ) : (
-                                    <AnimatedNumber
-                                        value={program.cgpa_scaled}
-                                        format={(val) => val.toFixed(2)}
-                                        animateOnMount
-                                    />
-                                )}
+
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <Card className="bg-background/70 shadow-sm backdrop-blur">
+                                    <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+                                        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                            CGPA (Scaled)
+                                        </CardTitle>
+                                        {!(isLoading || !program) && (
+                                            <Button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    handleUpdateProgram({ hide_gpa: !program.hide_gpa });
+                                                }}
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                                title={program.hide_gpa ? "Show GPA" : "Hide GPA"}
+                                            >
+                                                {program.hide_gpa ? (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                                                    </svg>
+                                                ) : (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                        <circle cx="12" cy="12" r="3"></circle>
+                                                    </svg>
+                                                )}
+                                            </Button>
+                                        )}
+                                    </CardHeader>
+                                    <CardContent className="pt-0">
+                                        <div className="text-2xl font-semibold">
+                                            {isLoading || !program ? (
+                                                <Skeleton className="h-8 w-16" />
+                                            ) : program.hide_gpa ? (
+                                                '****'
+                                            ) : (
+                                                <AnimatedNumber
+                                                    value={program.cgpa_scaled}
+                                                    format={(val) => val.toFixed(2)}
+                                                    animateOnMount
+                                                />
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="bg-background/70 shadow-sm backdrop-blur">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                            Average (%)
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="pt-0">
+                                        <div className="text-2xl font-semibold">
+                                            {isLoading || !program ? (
+                                                <Skeleton className="h-8 w-20" />
+                                            ) : program.hide_gpa ? (
+                                                '****'
+                                            ) : (
+                                                <>
+                                                    <AnimatedNumber
+                                                        value={program.cgpa_percentage}
+                                                        format={(val) => val.toFixed(1)}
+                                                        animateOnMount
+                                                    />
+                                                    <span className="ml-1 text-sm font-medium text-muted-foreground">%</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="bg-background/70 shadow-sm backdrop-blur">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                            Credits Progress
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2 pt-0">
+                                        <div className="text-2xl font-semibold">
+                                            {isLoading || !program ? (
+                                                <Skeleton className="h-8 w-[70%]" />
+                                            ) : (
+                                                <>
+                                                    <AnimatedNumber
+                                                        value={totalCredits}
+                                                        format={(val) => val.toFixed(2)}
+                                                        animateOnMount
+                                                    />
+                                                    <span className="ml-2 text-sm font-medium text-muted-foreground">
+                                                        / {program.grad_requirement_credits}
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+                                        {isLoading || !program ? (
+                                            <Skeleton className="h-2 w-full rounded" />
+                                        ) : (
+                                            <Progress value={creditsProgressPercent} />
+                                        )}
+                                    </CardContent>
+                                </Card>
                             </div>
-                        </div>
-                        <div className="noselect program-stat-card">
-                            <div className="program-stat-label">Average (%)</div>
-                            <div className="program-stat-value">
-                                {isLoading || !program ? (
-                                    <Skeleton className="h-8 w-20" />
-                                ) : program.hide_gpa ? (
-                                    '****'
-                                ) : (
-                                    <>
-                                        <AnimatedNumber
-                                            value={program.cgpa_percentage}
-                                            format={(val) => val.toFixed(1)}
-                                            animateOnMount
-                                        />
-                                        <span className="program-stat-unit">%</span>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                        <div className="noselect program-stat-card">
-                            <div className="program-stat-label">Credits Progress</div>
-                            <div className="program-stat-value" style={{ marginBottom: '0.5rem' }}>
-                                {isLoading || !program ? (
-                                    <Skeleton className="h-8 w-[70%]" />
-                                ) : (
-                                    <>
-                                        <AnimatedNumber
-                                            value={totalCredits}
-                                                format={(val) => val.toFixed(2)}
-                                            animateOnMount
-                                        />
-                                        <span className="program-stat-unit small"> / {program.grad_requirement_credits}</span>
-                                    </>
-                                )}
-                            </div>
-                            {isLoading || !program ? (
-                                <Skeleton className="h-2 w-full rounded-[4px]" />
-                            ) : (
-                                    <Progress value={creditsProgressPercent} />
-                            )}
-                        </div>
-                    </div>
+                        </CardHeader>
+                    </Card>
                 </Container>
-            </div>
+            </section>
 
             {isLoading || !program ? (
                 <ProgramSkeleton />
             ) : (
-                    <Container padding="3rem 2rem">
-                        <div style={{ marginBottom: '2rem' }}>
+                    <Container className="py-10 md:py-12">
+                        <div className="mb-8">
                             <div className="relative mb-4">
                                 <Input
                                     placeholder="Search semesters and courses..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pr-10"
-                                    style={{ fontSize: '1.1rem', padding: '1rem' }}
+                                    className="h-12 pr-10 text-base md:text-lg"
                                 />
                                 <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -352,17 +360,12 @@ const ProgramDashboardContent: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="page-header" style={{ marginBottom: '2rem' }}>
-                            <h2 style={{ fontSize: '1.75rem' }}>Semesters</h2>
+                        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <h2 className="text-2xl font-semibold">Semesters</h2>
                             <Button onClick={() => setIsModalOpen(true)}>+ New Semester</Button>
                         </div>
 
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                            gap: '2rem',
-                            marginBottom: '4rem'
-                        }}>
+                        <div className="mb-16 grid gap-8 sm:grid-cols-2 xl:grid-cols-3">
                             {filteredSemesters.map(semester => (
                                     <Link key={semester.id} to={`/semesters/${semester.id}`}>
                                         <Card className="noselect h-full cursor-pointer transition-shadow hover:shadow-md">
@@ -431,16 +434,12 @@ const ProgramDashboardContent: React.FC = () => {
                         </div>
 
                         {/* Course List Section */}
-                        <div style={{ marginBottom: '2rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                <h2 style={{ fontSize: '1.75rem', margin: 0 }}>All Courses</h2>
+                        <div className="mb-8">
+                            <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                <h2 className="text-2xl font-semibold">All Courses</h2>
                                 <Button onClick={() => setIsCourseModalOpen(true)}>+ New Course</Button>
                             </div>
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                                gap: '1.5rem'
-                            }}>
+                            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                                 {filteredCourses.map((course: any) => (
                                         <Link key={course.id} to={`/courses/${course.id}`}>
                                             <Card className="transition-colors hover:border-primary">

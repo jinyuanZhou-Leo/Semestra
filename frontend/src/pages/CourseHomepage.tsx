@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { AddWidgetModal } from '../components/AddWidgetModal';
 import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
@@ -37,6 +38,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
@@ -57,9 +59,6 @@ const CourseHomepageContent: React.FC = () => {
     const isShrunkRef = React.useRef(false);
     const isTransitioningRef = React.useRef(false);
     const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-    const heroRef = React.useRef<HTMLDivElement | null>(null);
-    const isShrunkStateRef = React.useRef(isShrunk);
-    const [heroHeights, setHeroHeights] = useState({ expanded: 0, shrunk: 0 });
 
     useEffect(() => {
         let ticking = false;
@@ -173,43 +172,11 @@ const CourseHomepageContent: React.FC = () => {
         };
     }, [course?.semester_id]);
 
-    useEffect(() => {
-        isShrunkStateRef.current = isShrunk;
-    }, [isShrunk]);
-
-    useEffect(() => {
-        const element = heroRef.current;
-        if (!element || typeof ResizeObserver === 'undefined') return;
-
-        const measure = () => {
-            const height = element.getBoundingClientRect().height;
-            setHeroHeights(prev => {
-                const key = isShrunkStateRef.current ? 'shrunk' : 'expanded';
-                if (Math.abs(prev[key] - height) < 1) return prev;
-                return { ...prev, [key]: height };
-            });
-        };
-
-        measure();
-        const observer = new ResizeObserver(measure);
-        observer.observe(element);
-        return () => observer.disconnect();
-    }, []);
-
-    // Derived styles
-    const heroTop = isNavbarVisible ? '60px' : '0px';
-    const topContentOpacity = isShrunk ? 0 : 1;
-    const topContentHeight = isShrunk ? 0 : 30;
-    const titleSize = isShrunk ? 'clamp(1.1rem, 4vw, 1.5rem)' : 'clamp(1.5rem, 6vw, 2rem)'; 
-    const statsOpacity = isShrunk ? 0 : 1;
-    const statsMaxHeight = isShrunk ? '0px' : '150px';
-    const containerPadding = isShrunk ? '0.5rem 0' : '1.0rem 0';
-    const shadowOpacity = isShrunk ? 0.1 : 0;
-    const contentTopOffset = 0;
-    const heroSpacerHeight = useMemo(() => {
-        if (!heroHeights.expanded || !heroHeights.shrunk) return 0;
-        return Math.max(0, heroHeights.expanded - heroHeights.shrunk);
-    }, [heroHeights.expanded, heroHeights.shrunk]);
+    const heroClassName = cn(
+        "sticky left-0 right-0 z-40 border-b bg-[var(--gradient-hero)] backdrop-blur transition-all",
+        isNavbarVisible ? "top-[60px]" : "top-0",
+        isShrunk ? "py-3 shadow-sm" : "py-6 shadow-none"
+    );
 
 
 
@@ -237,6 +204,78 @@ const CourseHomepageContent: React.FC = () => {
         initialTabs: course?.tabs,
         onRefresh: refreshCourse
     });
+
+    const breadcrumb = (
+        <Breadcrumb>
+            <BreadcrumbList className="text-xs font-medium text-muted-foreground">
+                <BreadcrumbItem>
+                    <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground">
+                        <Link to="/">Academic</Link>
+                    </BreadcrumbLink>
+                </BreadcrumbItem>
+                {shouldCollapseProgram && (
+                    <>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+                                        <BreadcrumbEllipsis />
+                                        <span className="sr-only">Toggle menu</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    <DropdownMenuGroup>
+                                        <DropdownMenuItem
+                                            className="normal-case"
+                                            onSelect={(event) => {
+                                                event.preventDefault();
+                                                if (course?.program_id) {
+                                                    navigate(`/programs/${course.program_id}`);
+                                                }
+                                            }}
+                                        >
+                                            {programName || 'Program'}
+                                        </DropdownMenuItem>
+                                    </DropdownMenuGroup>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </BreadcrumbItem>
+                    </>
+                )}
+                {shouldShowProgramDirect && (
+                    <>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
+                            <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground">
+                                <Link to={`/programs/${course?.program_id}`}>
+                                    {programName || 'Program'}
+                                </Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                    </>
+                )}
+                {shouldShowSemester && (
+                    <>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
+                            <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground">
+                                <Link to={`/semesters/${course?.semester_id}`}>
+                                    {semesterName || 'Semester'}
+                                </Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                    </>
+                )}
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                    <BreadcrumbPage className="text-foreground">
+                        {course?.name || 'Course'}
+                    </BreadcrumbPage>
+                </BreadcrumbItem>
+            </BreadcrumbList>
+        </Breadcrumb>
+    );
 
     const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
@@ -469,240 +508,108 @@ const CourseHomepageContent: React.FC = () => {
     }
 
     return (
-        <Layout>
+        <Layout breadcrumb={breadcrumb}>
             <BuiltinTabProvider value={builtinTabContext}>
-                <div
-                    className="hero-section"
-                    ref={heroRef}
-                    style={{
-                    position: 'sticky',
-                    top: heroTop,
-                    left: 0,
-                    right: 0,
-                    zIndex: 40,
-                    background: 'var(--gradient-hero)',
-                    padding: containerPadding,
-                    color: 'var(--color-text-primary)',
-                    boxShadow: `0 4px 20px rgba(0,0,0,${shadowOpacity})`,
-                    backdropFilter: 'blur(10px)',
-                    transition: 'padding 0.1s, top 0.3s ease-in-out, min-height 0.3s ease-in-out',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                }}>
-                <Container style={{
-                    transition: 'padding-top 0.3s ease-in-out, padding-bottom 0.3s ease-in-out',
-                    display: 'flex',
-                    flexDirection: 'column', 
-                }}>
-                    <div style={{
-                        height: `${topContentHeight}px`,
-                        opacity: topContentOpacity,
-                        overflow: 'hidden',
-                        marginBottom: isShrunk ? '0' : '0.25rem',
-                        transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-bottom 0.3s'
-                    }}>
-                            <Breadcrumb>
-                                <BreadcrumbList
-                                    style={{
-                                        fontSize: '0.875rem',
-                                        fontWeight: 600,
-                                        letterSpacing: '0.05em',
-                                        color: 'var(--color-primary)',
-                                        marginBottom: '0.5rem',
-                                        textTransform: 'uppercase'
-                                    }}
-                                >
-                                    <BreadcrumbItem>
-                                        <BreadcrumbLink asChild className="text-primary">
-                                            <Link to="/">Academic</Link>
-                                        </BreadcrumbLink>
-                                    </BreadcrumbItem>
-                                    {shouldCollapseProgram && (
-                                        <>
-                                            <BreadcrumbSeparator />
-                                            <BreadcrumbItem>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button size="sm" variant="secondary">
-                                                            {/* <Button size="icon-sm" variant="ghost"> */}
-                                                            <BreadcrumbEllipsis />
-                                                            <span className="sr-only">Toggle menu</span>
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent
-                                                        align="start"
-                                                    >
-                                                        <DropdownMenuGroup>
-                                                            <DropdownMenuItem
-                                                                className="normal-case"
-                                                                onSelect={(event) => {
-                                                                    event.preventDefault();
-                                                                    if (course?.program_id) {
-                                                                        navigate(`/programs/${course.program_id}`);
-                                                                    }
-                                                                }}
-                                                            >
-                                                                {programName || 'Program'}
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuGroup>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </BreadcrumbItem>
-                                        </>
-                                    )}
-                                    {shouldShowProgramDirect && (
-                                        <>
-                                            <BreadcrumbSeparator />
-                                            <BreadcrumbItem>
-                                                <BreadcrumbLink asChild className="text-primary normal-case">
-                                                    <Link to={`/programs/${course?.program_id}`}>
-                                                        {programName || 'Program'}
-                                                    </Link>
-                                                </BreadcrumbLink>
-                                            </BreadcrumbItem>
-                                        </>
-                                    )}
-                                    {shouldShowSemester && (
-                                        <>
-                                            <BreadcrumbSeparator />
-                                            <BreadcrumbItem>
-                                                <BreadcrumbLink asChild className="text-primary normal-case">
-                                                    <Link to={`/semesters/${course?.semester_id}`}>
-                                                        {semesterName || 'Semester'}
-                                                    </Link>
-                                                </BreadcrumbLink>
-                                            </BreadcrumbItem>
-                                        </>
-                                    )}
-                                    <BreadcrumbSeparator />
-                                    <BreadcrumbItem>
-                                        <BreadcrumbPage className="text-primary normal-case">
-                                            {course?.name || 'Course'}
-                                        </BreadcrumbPage>
-                                    </BreadcrumbItem>
-                                </BreadcrumbList>
-                            </Breadcrumb>
-                    </div>
+                <div className={heroClassName}>
+                    <Container className="flex flex-col gap-4">
+                        <Card className="border-0 bg-transparent shadow-none">
+                            <CardHeader className="gap-4 p-0">
+                                <div className={cn("flex flex-col gap-2 transition-all", isShrunk ? "mb-0" : "mb-2")}>
+                                    <div className="min-w-0">
+                                        {isLoading || !course ? (
+                                            <Skeleton className={cn("w-3/5", isShrunk ? "h-8" : "h-12")} />
+                                        ) : (
+                                            <>
+                                                <CardTitle
+                                                    className={cn(
+                                                        "noselect text-truncate font-extrabold tracking-tight",
+                                                        isShrunk ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl"
+                                                    )}
+                                                >
+                                                    <span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+                                                        {course.name}
+                                                    </span>
+                                                </CardTitle>
+                                                {!isShrunk && course.alias && (
+                                                    <div className="mt-1 text-sm text-muted-foreground/80">
+                                                        {course.alias}
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
 
-                    <div className="page-header" style={{
-                            marginBottom: isShrunk ? '0rem' : '1rem',
-                        flexDirection: isShrunk ? 'row' : undefined,
-                        alignItems: isShrunk ? 'center' : undefined,
-                            gap: isShrunk ? '1rem' : undefined,
-                            transition: 'margin-bottom 0.3s ease-in-out'
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            flex: isShrunk ? '1' : undefined,
-                            minWidth: 0 // Allow text truncation in flex child
-                        }}>
-                            {isLoading || !course ? (
-                                    <Skeleton
-                                        className="w-3/5"
-                                        style={{ height: titleSize, marginBottom: isShrunk ? 0 : '0.5rem' }}
-                                    />
-                            ) : (
-                                        <>
-                                    <h1 className="noselect text-truncate" style={{
-                                        fontSize: titleSize,
-                                        margin: 0,
-                                        fontWeight: 800,
-                                        letterSpacing: '-0.02em',
-                                        background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
-                                        WebkitBackgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        transition: 'font-size 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                                    }}>
-                                        {course.name}
-                                    </h1>
-                                            {!isShrunk && course.alias && (
-                                                <div style={{
-                                                    fontSize: '0.875rem',
-                                                    color: 'var(--color-text-secondary)',
-                                                    marginTop: '0.25rem',
-                                                    opacity: 0.8
-                                                }}>
-                                                    {course.alias}
-                                                </div>
+                                        <div
+                                            className={cn(
+                                                "noselect flex flex-wrap gap-6 overflow-hidden transition-all",
+                                                isShrunk ? "mt-0 max-h-0 opacity-0" : "mt-3 max-h-40 opacity-100"
                                             )}
-                                        </>
-                            )}
+                                        >
+                                            <div className="min-w-[72px]">
+                                                <div className="text-xs uppercase tracking-wider text-muted-foreground/80">Credits</div>
+                                                <div
+                                                    className={cn(
+                                                        "text-2xl font-semibold",
+                                                        course?.credits === 0 && "text-destructive"
+                                                    )}
+                                                >
+                                                    {isLoading || !course ? (
+                                                        <Skeleton className="h-6 w-8" />
+                                                    ) : (
+                                                        <AnimatedNumber
+                                                            value={course.credits}
+                                                            format={(val) => val.toFixed(2)}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="min-w-[96px]">
+                                                <div className="text-xs uppercase tracking-wider text-muted-foreground/80">Grade</div>
+                                                <div className="text-2xl font-semibold">
+                                                    {isLoading || !course ? (
+                                                        <Skeleton className="h-6 w-12" />
+                                                    ) : course.hide_gpa ? (
+                                                        '****'
+                                                    ) : (
+                                                        <AnimatedNumber
+                                                            value={course.grade_percentage}
+                                                            format={(val) => `${val.toFixed(1)}%`}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="min-w-[110px]">
+                                                <div className="text-xs uppercase tracking-wider text-muted-foreground/80">GPA (Scaled)</div>
+                                                <div className="text-2xl font-semibold">
+                                                    {isLoading || !course ? (
+                                                        <Skeleton className="h-6 w-10" />
+                                                    ) : course.hide_gpa ? (
+                                                        '****'
+                                                    ) : (
+                                                        <AnimatedNumber
+                                                            value={course.grade_scaled}
+                                                            format={(val) => val.toFixed(2)}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                        </Card>
 
-                            <div className="noselect stats-row" style={{
-                                maxHeight: statsMaxHeight, 
-                                opacity: statsOpacity,
-                                overflow: 'hidden',
-                                marginTop: isShrunk ? '0' : '0.75rem',
-                                transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, margin-top 0.3s',
-                                flexWrap: 'wrap',
-                                height: 'auto'
-                            }}>
-                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
-                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Credits</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '3.5rem', color: course?.credits === 0 ? 'var(--color-danger)' : 'inherit' }}>
-                                        {isLoading || !course ? (
-                                                <Skeleton className="h-6 w-8" />
-                                        ) : (
-                                            <AnimatedNumber
-                                                value={course.credits}
-                                                        format={(val) => val.toFixed(2)}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
-                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Grade</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '5.5rem' }}>
-                                        {isLoading || !course ? (
-                                                <Skeleton className="h-6 w-12" />
-                                        ) : course.hide_gpa ? (
-                                            '****'
-                                        ) : (
-                                            <AnimatedNumber
-                                                value={course.grade_percentage}
-                                                format={(val) => `${val.toFixed(1)}%`}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                                <div style={{ minWidth: 0, flex: '0 0 auto' }}>
-                                    <div style={{ fontSize: '0.75rem', opacity: 0.8, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>GPA (Scaled)</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 600, width: '4rem' }}>
-                                        {isLoading || !course ? (
-                                                <Skeleton className="h-6 w-10" />
-                                        ) : course.hide_gpa ? (
-                                            '****'
-                                        ) : (
-                                            <AnimatedNumber
-                                                value={course.grade_scaled}
-                                                format={(val) => val.toFixed(2)}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <Tabs
-                        items={tabBarItems}
-                        activeId={activeTabId}
-                        onSelect={setActiveTabId}
-                        onRemove={handleRemoveTab}
-                        onReorder={handleReorderTabs}
-                        onAdd={() => setIsAddTabOpen(true)}
-                    />
-                </Container>
+                        <Tabs
+                            items={tabBarItems}
+                            activeId={activeTabId}
+                            onSelect={setActiveTabId}
+                            onRemove={handleRemoveTab}
+                            onReorder={handleReorderTabs}
+                            onAdd={() => setIsAddTabOpen(true)}
+                        />
+                    </Container>
                 </div>
 
-                <Container style={{
-                    paddingTop: '1rem',
-                    paddingBottom: '1rem',
-                    marginTop: contentTopOffset,
-                    transition: 'margin-top 0.3s ease-in-out'
-                }}>
+                <Container className="py-4">
 
 
                 {isLoading || !course || !course.id ? (  /* Check course.id since useDashboardWidgets needs it */
@@ -759,7 +666,7 @@ const CourseHomepageContent: React.FC = () => {
                             );
                         }
                         return (
-                            <React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading tab...</div>}>
+                            <React.Suspense fallback={<div className="p-8">Loading tab...</div>}>
                                 <TabComponent
                                     tabId={activeTab.id}
                                     settings={activeTab.settings || {}}
@@ -771,10 +678,6 @@ const CourseHomepageContent: React.FC = () => {
                     })()
                 )}
                 </Container>
-                <div
-                    aria-hidden="true"
-                    style={{ height: isShrunk ? heroSpacerHeight : 0 }}
-                />
                 {
                     course && (
                         <>

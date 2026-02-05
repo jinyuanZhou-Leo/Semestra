@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +13,6 @@ import api from '../services/api';
 import type { Program } from '../services/api';
 import { useDialog } from '../contexts/DialogContext';
 
-import { useHeroGradient } from '../hooks/useHeroGradient';
 import { HomeSkeleton } from '../components/Skeleton/HomeSkeleton';
 import {
     Breadcrumb,
@@ -36,14 +35,19 @@ export const HomePage: React.FC = () => {
     const programNameId = useId();
     const programCreditsId = useId();
 
-    // Physics-based lighting
-    const heroStyle = useHeroGradient();
-    const glassButtonClassName =
-        "border border-border bg-[color:var(--color-bg-glass)] text-foreground backdrop-blur-md shadow-none hover:bg-[color:var(--color-bg-glass)] hover:text-foreground hover:shadow-md";
-
     useEffect(() => {
         fetchPrograms();
     }, []);
+
+    const breadcrumb = (
+        <Breadcrumb>
+            <BreadcrumbList className="text-xs font-medium text-muted-foreground">
+                <BreadcrumbItem>
+                    <BreadcrumbPage className="text-foreground">Academic</BreadcrumbPage>
+                </BreadcrumbItem>
+            </BreadcrumbList>
+        </Breadcrumb>
+    );
 
     const fetchPrograms = async () => {
         try {
@@ -80,60 +84,40 @@ export const HomePage: React.FC = () => {
     };
 
     return (
-        <Layout>
-            <div
-                className="hero-section"
-                style={{
-                    ...heroStyle,
-                color: 'var(--color-text-primary)'
-            }}>
-                <Container>
-                    <div className="page-header" style={{ marginBottom: 0 }}>
-                        <div>
-                            <Breadcrumb>
-                                <BreadcrumbList
-                                    style={{
-                                        fontSize: '0.875rem',
-                                        fontWeight: 600,
-                                        letterSpacing: '0.05em',
-                                        color: 'var(--color-primary)',
-                                        marginBottom: '0.5rem',
-                                        textTransform: 'uppercase'
-                                    }}
-                                >
-                                    <BreadcrumbItem>
-                                    <BreadcrumbPage className="text-primary">Academic</BreadcrumbPage>
-                                    </BreadcrumbItem>
-                                </BreadcrumbList>
-                            </Breadcrumb>
-                            <h1 style={{ fontSize: '3.5rem', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                Academics
-                            </h1>
-                            <p style={{ color: 'var(--color-text-secondary)', marginTop: '0.5rem', fontSize: '1rem', opacity: 0.8 }}>
-                                Welcome back, {user?.nickname || user?.email}
-                            </p>
-                        </div>
-                        <Button
-                            onClick={() => setIsModalOpen(true)}
-                            size="lg"
-                            variant="outline"
-                            className={`rounded-full ${glassButtonClassName}`}
-                        >
-                            + New Program
-                        </Button>
-                    </div>
+        <Layout breadcrumb={breadcrumb}>
+            <section className="relative overflow-hidden border-b bg-[var(--gradient-hero)]">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.35),_transparent_60%)]" />
+                <Container className="relative py-10 md:py-14">
+                    <Card className="border-0 bg-transparent shadow-none">
+                        <CardHeader className="flex flex-col gap-6 p-0 md:flex-row md:items-end md:justify-between">
+                            <div className="space-y-3">
+                                <CardTitle className="text-3xl font-extrabold tracking-tight md:text-4xl">
+                                    <span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+                                        Academics
+                                    </span>
+                                </CardTitle>
+                                <CardDescription className="text-base text-muted-foreground">
+                                    Welcome back, {user?.nickname || user?.email}
+                                </CardDescription>
+                            </div>
+                            <Button
+                                onClick={() => setIsModalOpen(true)}
+                                size="lg"
+                                variant="outline"
+                                className="rounded-full border-border/60 bg-background/60 shadow-sm backdrop-blur hover:bg-background/80"
+                            >
+                                + New Program
+                            </Button>
+                        </CardHeader>
+                    </Card>
                 </Container>
-            </div>
+            </section>
 
-            <Container padding="3rem 2rem">
+            <Container className="py-10 md:py-12">
                 {isLoading ? (
                     <HomeSkeleton />
                 ) : (
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                        gap: '1.5rem'
-                    }}>
+                    <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                         {programs.map(program => (
                             <Link key={program.id} to={`/programs/${program.id}`}>
                                 <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">

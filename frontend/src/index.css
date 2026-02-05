@@ -394,73 +394,7 @@ button {
   }
 }
 
-/* Page Header: Title on left, Actions on right -> Stack on mobile */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  /* Common margin */
-  gap: 1rem;
-}
-
-@media (max-width: 768px) {
-  .page-header {
-    flex-direction: column;
-    align-items: stretch;
-    /* Stretch children to fill width */
-    text-align: left;
-    gap: 1.5rem;
-  }
-
-  .page-header .header-actions {
-    align-self: flex-start;
-    /* Or stretch */
-    width: 100%;
-    display: flex;
-    gap: 1rem;
-  }
-
-  .page-header h1 {
-    font-size: 2.5rem;
-    /* Reduce huge titles on mobile */
-  }
-}
-
-/* Stats Row: Horizontal stats -> Grid or Stack on mobile */
-.stats-row {
-  display: flex;
-  gap: 2rem;
-  margin-top: 1rem;
-}
-
-@media (max-width: 768px) {
-  .stats-row {
-    flex-wrap: wrap;
-    gap: 1.5rem;
-  }
-
-  .stats-row>div {
-    flex: 1 1 calc(50% - 1.5rem);
-    /* 2 columns on tablet/large phone */
-    min-width: 140px;
-  }
-}
-
-@media (max-width: 480px) {
-  .stats-row>div {
-    flex: 1 1 100%;
-    /* 1 column on small phone */
-  }
-}
-
 /* Layout Header Content */
-.layout-header-content {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
 
 /* Grid Layout Adjustments */
 .responsive-grid {
@@ -485,11 +419,6 @@ button {
   }
 }
 
-/* Hero Section */
-.hero-section {
-  padding: var(--hero-padding-y, 4rem) 0;
-}
-
 /* Dashboard Tabs */
 .dashboard-tabs-scroll {
   scrollbar-width: none;
@@ -507,13 +436,6 @@ button {
 
 .course-list-scroll::-webkit-scrollbar {
   display: none;
-}
-
-@media (max-width: 600px) {
-  .hero-section {
-    padding: var(--hero-padding-y-mobile, 2rem) 0;
-    margin-bottom: var(--hero-margin-bottom, 2rem);
-  }
 }
 
 /* Enhanced Widget Resize Handle */

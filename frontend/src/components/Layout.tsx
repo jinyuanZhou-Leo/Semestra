@@ -9,9 +9,10 @@ import { toast } from 'sonner';
 interface LayoutProps {
     children: React.ReactNode;
     disableAutoHide?: boolean;
+    breadcrumb?: React.ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = false }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = false, breadcrumb }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { status, clearStatus } = useAppStatus();
@@ -117,32 +118,24 @@ export const Layout: React.FC<LayoutProps> = ({ children, disableAutoHide = fals
     }, [disableAutoHide]);
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-        }}>
-            <header style={{
-                height: '60px',
-                borderBottom: '1px solid var(--color-border)',
-                backgroundColor: 'var(--color-bg-glass)', // Transparent/Glass background
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                zIndex: 'var(--z-header)',
-                transition: 'transform 0.3s ease-in-out',
-                transform: isVisible ? 'translateY(0)' : 'translateY(-100%)',
-            }}>
+        <div className="flex min-h-screen flex-col">
+            <header
+                className={`fixed left-0 right-0 top-0 z-[var(--z-header)] h-[60px] border-b border-border bg-[var(--color-bg-glass)] backdrop-blur-md transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}
+            >
+                <Container className="flex h-full items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <Link to="/" className="text-lg font-bold text-foreground no-underline">
+                            Semestra
+                        </Link>
+                        {breadcrumb && (
+                            <div className="hidden min-w-0 items-center gap-3 md:flex">
+                                <div className="h-4 w-px bg-border/60" />
+                                <div className="min-w-0">{breadcrumb}</div>
+                            </div>
+                        )}
+                    </div>
 
-                <Container className="layout-header-content" style={{ height: '100%' }}>
-                    <Link to="/" style={{ fontWeight: 'bold', fontSize: '1.25rem', color: 'var(--color-text-primary)', textDecoration: 'none' }}>
-                        Semestra
-                    </Link>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={() => setIsPageBlurred(!isPageBlurred)}
                             style={{
