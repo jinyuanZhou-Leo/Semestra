@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import api from '../services/api';
 import { Layout } from '../components/Layout';
 import { Button } from '@/components/ui/button';
 
@@ -35,6 +36,32 @@ const SemesterHomepageContent: React.FC = () => {
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [shrinkProgress, setShrunkProgress] = useState(0);
     const [activeTabId, setActiveTabId] = useState('dashboard');
+    const [programName, setProgramName] = useState<string | null>(null);
+
+    useEffect(() => {
+        let isActive = true;
+        const programId = semester?.program_id;
+        if (!programId) {
+            setProgramName(null);
+            return () => {
+                isActive = false;
+            };
+        }
+        api.getProgram(programId)
+            .then((program) => {
+                if (isActive) {
+                    setProgramName(program.name);
+                }
+            })
+            .catch(() => {
+                if (isActive) {
+                    setProgramName(null);
+                }
+            });
+        return () => {
+            isActive = false;
+        };
+    }, [semester?.program_id]);
 
     const {
         widgets, 
@@ -116,37 +143,33 @@ const SemesterHomepageContent: React.FC = () => {
         boxShadow: shrinkProgress > 0.5 ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none',
     } as React.CSSProperties;
 
-    // Use CSS variables to control the grid/flex layout interpolation if possible, 
-    // or use inline styles for the "path" animation.
-    // Since we want a "path" animation for the tabs moving up, we can use
-    // FLIP-like concepts or simple absolute positioning interpolation.
-
-    // Let's try to interpolate the width/flex-basis of the title container
-    // and the "break" element height/width.
-
-    // Title Scale: 1 -> 0.8 (approx 36px/48px to 24px/30px)
+    // Title Scale: 1 -> 0.8
     const titleScale = 1 - (0.2 * shrinkProgress);
 
     // Stats Opacity: 1 -> 0
     const statsOpacity = Math.max(1 - (shrinkProgress * 2), 0); // Fade out faster
     const statsHeight = Math.max(140 * (1 - shrinkProgress * 1.5), 0); // Collapse height
 
-    // Break Element (Spacer): 
-    // We want it to go from basis-full (width 100%) to basis-0 (width 0).
-    // Flexible width strategy:
-    // At progress 0: Width 100%
-    // At progress 1: Width 0%
-    const breakWidth = `${(1 - shrinkProgress) * 100}%`;
-    const breakHeight = `${(1 - shrinkProgress) * 16}px`; // 16px to 0px height
-
     const breadcrumb = (
         <Breadcrumb>
             <BreadcrumbList>
                 <BreadcrumbItem>
                     <BreadcrumbLink asChild>
-                        <Link to="/">Home</Link>
+                        <Link to="/">Academics</Link>
                     </BreadcrumbLink>
                 </BreadcrumbItem>
+                {semester?.program_id && (
+                    <>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
+                            <BreadcrumbLink asChild>
+                                <Link to={`/programs/${semester.program_id}`}>
+                                    {programName || 'Program'}
+                                </Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                    </>
+                )}
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
                     <BreadcrumbPage>{semester?.name || 'Semester'}</BreadcrumbPage>
@@ -175,16 +198,26 @@ const SemesterHomepageContent: React.FC = () => {
         }
     }), [isLoading, widgets, removeWidget, updateWidget, updateLayout, semester, updateSemester]);
 
-    const tabBarItems = useMemo(() => [
-        { id: 'dashboard', label: 'Dashboard', draggable: false, removable: false },
-        ...customTabs.map(t => ({
-            id: t.id,
-            label: t.title,
-            draggable: true,
-            removable: t.is_removable !== false
-        })),
-        { id: 'settings', label: 'Settings', draggable: false, removable: false }
-    ], [customTabs]);
+    const tabBarItems = useMemo(() => {
+        const dashboardDef = TabRegistry.get('dashboard');
+        const settingsDef = TabRegistry.get('settings');
+
+        const pluginItems = customTabs.map(t => {
+            const definition = TabRegistry.get(t.type);
+            return {
+                id: t.id,
+                label: definition?.name ?? t.title ?? t.type,
+                draggable: true,
+                removable: t.is_removable !== false
+            };
+        });
+
+        return [
+            { id: 'dashboard', label: dashboardDef?.name ?? 'Dashboard', draggable: false, removable: false },
+            ...pluginItems,
+            { id: 'settings', label: settingsDef?.name ?? 'Settings', draggable: false, removable: false }
+        ];
+    }, [customTabs]);
 
     return (
         <Layout breadcrumb={breadcrumb}>
@@ -196,13 +229,7 @@ const SemesterHomepageContent: React.FC = () => {
                     <Container className="flex flex-wrap items-center transition-none">
                         {/* Remove CSS transitions to rely on scroll sync */}
 
-                        <div
-                            className="flex flex-col gap-2 relative transition-none"
-                            style={{
-                                width: shrinkProgress > 0.9 ? 'auto' : '100%',
-                                marginRight: shrinkProgress > 0.9 ? '1rem' : '0'
-                            }}
-                        >
+                        <div className="flex flex-col gap-2 relative w-full">
                             <div className="min-w-0">
                                 {isLoading || !semester ? (
                                     <Skeleton className="h-12 w-3/5" />
@@ -211,7 +238,7 @@ const SemesterHomepageContent: React.FC = () => {
                                             className="noselect text-truncate font-bold tracking-tight origin-left"
                                             style={{
                                                 transform: `scale(${titleScale})`,
-                                                fontSize: '2.25rem', // Base size (4xl is 2.25rem, 3xl is 1.875rem)
+                                                fontSize: '2.25rem',
                                                 lineHeight: '2.5rem'
                                             }}
                                         >
@@ -271,23 +298,7 @@ const SemesterHomepageContent: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* "Break" element that shrinks width */}
-                        <div
-                            style={{
-                                flexBasis: breakWidth,
-                                width: breakWidth,
-                                height: breakHeight,
-                                overflow: 'hidden'
-                            }}
-                        />
-
-                        <div
-                            className="min-w-0 overflow-hidden"
-                            style={{
-                                flex: 1,
-                                marginLeft: shrinkProgress > 0.5 ? '1rem' : '0'
-                            }}
-                        >
+                        <div className="w-full mt-4">
                             <Tabs
                                 items={tabBarItems}
                                 activeId={activeTabId}

@@ -1,29 +1,27 @@
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
+import React from 'react';
 
 interface ContainerProps {
     children: React.ReactNode;
-    maxWidth?: string;
-    padding?: string;
+    maxWidth?: string; // Kept for backwards compatibility but handled via classes generally
+    padding?: string; // Kept for backwards compatibility
     style?: React.CSSProperties;
     className?: string;
 }
 
 export const Container: React.FC<ContainerProps> = ({ 
     children, 
-    maxWidth = '1200px', 
+    maxWidth, 
     padding,
     style,
     className
 }) => {
     return (
         <div
-            className={clsx('responsive-container', className)}
+            className={cn('w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8', className)}
             style={{
-                maxWidth,
-                margin: '0 auto',
+                ...(maxWidth ? { maxWidth } : {}),
                 ...(padding ? { padding } : {}),
-                width: '100%',
-                boxSizing: 'border-box',
                 ...style
             }}
         >

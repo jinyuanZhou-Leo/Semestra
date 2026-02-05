@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useTabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
 import { IconCircle } from './IconCircle';
 import type { TabItem } from '../hooks/useDashboardTabs';
+import { cn } from '@/lib/utils';
 
 interface AddTabModalProps {
     isOpen: boolean;
@@ -50,42 +51,43 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="p-0 sm:max-w-[600px]">
-                <DialogHeader className="border-b px-6 py-4">
+            <DialogContent className="p-0 sm:max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden">
+                <DialogHeader className="border-b px-6 py-4 flex-none">
                     <DialogTitle className="text-base font-semibold">Add Tab</DialogTitle>
                 </DialogHeader>
-                <div className="p-6">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                {availableTabs.length === 0 && (
-                    <div style={{ gridColumn: '1 / -1', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '1rem' }}>
-                        No tabs available for this dashboard.
+                <div className="flex-1 overflow-y-auto p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        {availableTabs.length === 0 && (
+                            <div className="col-span-full text-center text-muted-foreground py-4">
+                                No tabs available for this dashboard.
+                            </div>
+                        )}
+                        {availableTabs.map(tab => (
+                            <div
+                                key={tab.type}
+                                onClick={() => setSelectedType(tab.type)}
+                                className={cn(
+                                    "cursor-pointer rounded-lg border-2 p-4 transition-all duration-200",
+                                    "hover:border-primary/50 hover:bg-accent/50",
+                                    selectedType === tab.type
+                                        ? "border-primary bg-accent"
+                                        : "border-border bg-card"
+                                )}
+                            >
+                                <div className="mb-2 flex items-center gap-2">
+                                    <IconCircle icon={tab.icon} label={tab.name} size={32} />
+                                </div>
+                                <div className="font-semibold mb-1 truncate">{tab.name}</div>
+                                <div className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+                                    {tab.description}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                )}
-                {availableTabs.map(tab => (
-                    <div
-                        key={tab.type}
-                        onClick={() => setSelectedType(tab.type)}
-                        style={{
-                            border: `2px solid ${selectedType === tab.type ? 'var(--color-text-primary)' : 'var(--color-border)'}`,
-                            borderRadius: 'var(--radius-md)',
-                            padding: '1rem',
-                            cursor: 'pointer',
-                            backgroundColor: selectedType === tab.type ? 'var(--color-bg-tertiary)' : 'var(--color-bg-primary)',
-                            transition: 'all 0.2s ease'
-                        }}
-                    >
-                        <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <IconCircle icon={tab.icon} label={tab.name} size={32} />
-                        </div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{tab.name}</div>
-                        <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{tab.description}</div>
-                    </div>
-                ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <Button variant="secondary" onClick={onClose}>Cancel</Button>
-                <Button disabled={!selectedType} onClick={handleAdd}>Add Tab</Button>
-            </div>
+                </div>
+                <div className="flex-none p-6 pt-0 flex justify-end gap-2">
+                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                    <Button disabled={!selectedType} onClick={handleAdd}>Add Tab</Button>
                 </div>
             </DialogContent>
         </Dialog>

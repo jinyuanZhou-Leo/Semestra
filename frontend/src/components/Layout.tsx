@@ -5,10 +5,21 @@ import { useAppStatus } from '../hooks/useAppStatus';
 import { Container } from './Container';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Eye, EyeOff, LogOut, Settings, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface LayoutProps {
     children: React.ReactNode;
-
     breadcrumb?: React.ReactNode;
 }
 
@@ -16,7 +27,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { status, clearStatus } = useAppStatus();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const isSyncStatus = status?.type === 'error' && /sync/i.test(status.message);
     const isSyncRetrying = Boolean(isSyncStatus && /retrying/i.test(status?.message ?? ''));
     const lastToastIdRef = useRef<number | null>(null);
@@ -34,22 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
             toast.error(status.message, {
                 duration: Infinity,
                 onDismiss: clearStatus,
-                icon: (
-                    <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                ),
+                icon: <AlertCircle className="h-4 w-4" />,
                 action: {
                     label: "Dismiss",
                     onClick: clearStatus,
@@ -59,7 +54,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
     }, [clearStatus, isSyncRetrying, isSyncStatus, status]);
 
     // Initialize theme from localStorage on mount
-    React.useEffect(() => {
+    useEffect(() => {
         const saved = localStorage.getItem('themePreference');
         if (saved === 'light' || saved === 'dark') {
             document.documentElement.setAttribute('data-theme', saved);
@@ -83,25 +78,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
 
     // Page Blur Logic
     const [isPageBlurred, setIsPageBlurred] = useState(false);
-
-    // Navbar Auto-hide Logic removed as per request
-    // const [isVisible, setIsVisible] = useState(true); // Default to always visible
-
-    // We can just keep the navbar always visible for now
     const isVisible = true;
-
-    // ... (rest of the file remains similar, but invalidating the auto-hide effect) ...
-    // Note: The previous effect that toggled `isVisible` is no longer needed.
-
 
     return (
         <div className="flex min-h-screen flex-col">
             <header
-                className={`fixed left-0 right-0 top-0 z-50 h-[60px] border-b border-border bg-[var(--color-bg-glass)] backdrop-blur-md transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}
+                className={cn(
+                    "fixed left-0 right-0 top-0 z-50 h-[60px] border-b bg-background/80 backdrop-blur-md transition-transform duration-300 ease-in-out",
+                    isVisible ? 'translate-y-0' : '-translate-y-full'
+                )}
             >
                 <Container className="flex h-full items-center justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-3">
-                        <Link to="/" className="text-lg font-bold text-foreground no-underline">
+                        <Link to="/" className="text-lg font-bold text-foreground no-underline hover:opacity-80 transition-opacity">
                             Semestra
                         </Link>
                         {breadcrumb && (
@@ -113,149 +102,69 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <button
+                        <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setIsPageBlurred(!isPageBlurred)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: 'var(--color-text-tertiary)',
-                                padding: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: '50%',
-                                transition: 'background-color 0.2s, color 0.2s',
-                            }}
                             title={isPageBlurred ? "Unblur page" : "Blur page"}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
-                                e.currentTarget.style.color = 'var(--color-text-secondary)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                                e.currentTarget.style.color = 'var(--color-text-tertiary)';
-                            }}
+                            className="text-muted-foreground hover:text-foreground"
                         >
-                            <svg
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                {isPageBlurred ? (
-                                    <>
-                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                                        <line x1="1" y1="1" x2="23" y2="23" />
-                                    </>
-                                ) : (
-                                    <>
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                        <circle cx="12" cy="12" r="3" />
-                                    </>
-                                )}
-                            </svg>
-                        </button>
+                            {isPageBlurred ? (
+                                <EyeOff className="h-5 w-5" />
+                            ) : (
+                                <Eye className="h-5 w-5" />
+                            )}
+                        </Button>
 
                         {user && (
-                            <div style={{ position: 'relative' }}>
-                                <button
-                                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                                    style={{
-                                        width: '36px',
-                                        height: '36px',
-                                        borderRadius: '50%',
-                                        background: 'var(--color-accent-primary)',
-                                        color: 'var(--color-accent-text)',
-                                        border: 'none',
-                                        fontWeight: 'bold',
-                                        fontSize: '1rem',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}
-                                >
-                                    {user.email.charAt(0).toUpperCase()}
-                                </button>
-
-                                {isMenuOpen && (
-                                    <div
-                                        className="fade-in-down"
-                                        style={{
-                                            position: 'absolute',
-                                            top: 'calc(100% + 10px)',
-                                            right: 0,
-                                            background: 'var(--color-bg-primary)',
-                                            border: '1px solid var(--color-border)',
-                                            borderRadius: 'var(--radius-lg)',
-                                            boxShadow: 'var(--shadow-lg)',
-                                            minWidth: '200px',
-                                            zIndex: 100,
-                                            overflow: 'hidden',
-                                            padding: '0.25rem'
-                                        }}
-                                    >
-                                        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--color-border)', marginBottom: '0.25rem' }}>
-                                            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
-                                                {user.nickname || 'User'}
-                                            </div>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                                        <Avatar className="h-9 w-9">
+                                            {/* <AvatarImage src="/avatars/01.png" alt={user.nickname} /> */}
+                                            <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                                                {user.email.charAt(0).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-56" align="end" forceMount>
+                                    <DropdownMenuLabel className="font-normal">
+                                        <div className="flex flex-col space-y-1">
+                                            <p className="text-sm font-medium leading-none">{user.nickname || 'User'}</p>
+                                            <p className="text-xs leading-none text-muted-foreground">
                                                 {user.email}
-                                            </div>
+                                            </p>
                                         </div>
-                                        <div
-                                            onClick={() => navigate('/settings')}
-                                            style={{
-                                                padding: '0.6rem 1rem',
-                                                cursor: 'pointer',
-                                                color: 'var(--color-text-primary)',
-                                                fontSize: '0.9rem',
-                                                borderRadius: 'var(--radius-sm)',
-                                                transition: 'background-color 0.2s',
-                                                margin: '0 0.25rem'
-                                            }}
-                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'}
-                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                        >
-                                            Settings
-                                        </div>
-                                        <div
-                                            onClick={() => {
-                                                localStorage.removeItem('token');
-                                                window.location.href = '/login';
-                                            }}
-                                            style={{
-                                                padding: '0.6rem 1rem',
-                                                cursor: 'pointer',
-                                                color: 'var(--color-danger)',
-                                                fontSize: '0.9rem',
-                                                borderRadius: 'var(--radius-sm)',
-                                                transition: 'background-color 0.2s',
-                                                margin: '0.25rem 0.25rem 0.25rem 0.25rem'
-                                            }}
-                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
-                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                        >
-                                            Sign out
-                                        </div>
-                                    </div>
-                                )}
-                                {/* Click outside listener would be nice but skipping for mvp */}
-                            </div>
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+                                        <Settings className="mr-2 h-4 w-4" />
+                                        <span>Settings</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        onClick={() => {
+                                            localStorage.removeItem('token');
+                                            window.location.href = '/login';
+                                        }}
+                                        className="cursor-pointer text-destructive focus:text-destructive"
+                                    >
+                                        <LogOut className="mr-2 h-4 w-4" />
+                                        <span>Sign out</span>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
                     </div>
                 </Container>
             </header>
-            <main style={{
-                flex: 1,
-                paddingTop: '60px',
-                transition: 'filter 0.3s ease',
-                filter: isPageBlurred ? 'blur(10px)' : 'none'
-            }}>
+            <main
+                className={cn(
+                    "flex-1 pt-[60px] transition-[filter] duration-300 ease-out",
+                    isPageBlurred && "blur-sm"
+                )}
+            >
                 {children}
             </main>
         </div>

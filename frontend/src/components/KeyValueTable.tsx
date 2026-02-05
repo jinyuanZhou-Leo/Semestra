@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils'; // Keep usage of cn for potential future flexibility
 
 export interface KeyValueEntry {
     key: string;
@@ -79,53 +81,40 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
     };
 
     return (
-        <div style={{
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            padding: '1rem',
-            backgroundColor: 'var(--color-bg-secondary)'
-        }}>
-            <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+        <div className="rounded-md border p-4 bg-muted/40">
+            <h4 className="mb-4 text-sm font-medium text-muted-foreground">
                 {title}
             </h4>
 
             {entries.length > 0 ? (
-                <div style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="mb-4 flex flex-col gap-2">
                     {entries.map((entry) => (
-                        <div key={entry.key} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            background: 'var(--color-bg-primary)',
-                            padding: '0.75rem 1rem',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--color-border)'
-                        }}>
-                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', overflow: 'hidden' }}>
-                                <span style={{ fontWeight: 500, minWidth: '80px' }}>{entry.key}</span>
-                                <span style={{ color: 'var(--color-text-secondary)' }}>→</span>
-                                <span style={{ fontWeight: 600 }}>{entry.value}</span>
+                        <div key={entry.key} className="flex items-center justify-between rounded-md border bg-background px-4 py-3 shadow-sm">
+                            <div className="flex gap-4 items-center overflow-hidden">
+                                <span className="font-medium min-w-[80px]">{entry.key}</span>
+                                <span className="text-muted-foreground">→</span>
+                                <span className="font-semibold">{entry.value}</span>
                             </div>
                             <Button
-                                variant="secondary"
-                                size="sm"
+                                variant="ghost"
+                                size="icon"
                                 type="button" // Prevent form submission
                                 onClick={() => onRemove(entry.key)}
-                                style={{ color: 'var(--color-error)' }}
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             >
-                                ×
+                                <Trash2 className="h-4 w-4" />
                             </Button>
                         </div>
                     ))}
                 </div>
             ) : (
-                <div style={{ textAlign: 'center', color: 'var(--color-text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                    <div className="text-center text-sm text-muted-foreground mb-4">
                     No entries defined.
                 </div>
             )}
 
-            <div className="kv-input-row">
-                <div className="kv-input-key">
+            <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-1 w-full">
                     <div className="flex flex-col gap-2">
                         {keyLabel && <Label className="text-muted-foreground">{keyLabel}</Label>}
                         <Input
@@ -136,7 +125,7 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
                         />
                     </div>
                 </div>
-                <div className="kv-input-value">
+                <div className="flex-1 w-full">
                     <div className="flex flex-col gap-2">
                         {valueLabel && <Label className="text-muted-foreground">{valueLabel}</Label>}
                         <Input
@@ -148,13 +137,13 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
                         />
                     </div>
                 </div>
-                <div className="kv-input-action">
-                    <Button onClick={handleAdd} disabled={!newKey || !newValue} type="button">
+                <div className="sm:w-auto w-full">
+                    <Button onClick={handleAdd} disabled={!newKey || !newValue} type="button" className="w-full sm:w-auto">
                         Add
                     </Button>
                 </div>
             </div>
-            {error && <div style={{ color: 'var(--color-error)', fontSize: '0.8rem', marginTop: '0.5rem', width: '100%' }}>{error}</div>}
+            {error && <div className="text-xs text-destructive mt-2">{error}</div>}
         </div>
     );
 };

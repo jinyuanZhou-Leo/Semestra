@@ -1,16 +1,19 @@
 import React from 'react';
 import { isImageIcon } from '../utils/icon';
+import { cn } from '@/lib/utils';
 
 interface IconCircleProps {
     icon?: React.ReactNode;
     label: string;
     size?: number;
+    className?: string; // Allow external class overrides
 }
 
 export const IconCircle: React.FC<IconCircleProps> = ({
     icon,
     label,
-    size = 28
+    size = 28,
+    className
 }) => {
     const fallbackText = (label || '?').trim().charAt(0).toUpperCase() || '?';
     const innerSize = Math.max(12, Math.round(size * 0.6));
@@ -20,17 +23,13 @@ export const IconCircle: React.FC<IconCircleProps> = ({
     return (
         <span
             aria-hidden="true"
+            className={cn(
+                "inline-flex shrink-0 items-center justify-center rounded-full border bg-secondary text-primary",
+                className
+            )}
             style={{
                 width: size,
-                height: size,
-                borderRadius: '50%',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--color-bg-tertiary)',
-                color: 'var(--color-text-primary)',
-                border: '1px solid var(--color-border)',
-                flexShrink: 0
+                height: size
             }}
         >
             {isImage ? (
@@ -39,10 +38,11 @@ export const IconCircle: React.FC<IconCircleProps> = ({
                     alt=""
                     width={innerSize}
                     height={innerSize}
-                    style={{ width: innerSize, height: innerSize, objectFit: 'contain', borderRadius: '50%', display: 'block' }}
+                    className="block rounded-full object-contain"
+                    style={{ width: innerSize, height: innerSize }}
                 />
             ) : showPlaceholder ? (
-                <span style={{ fontSize: Math.max(12, Math.floor(size * 0.5)), fontWeight: 700 }}>
+                    <span className="font-bold" style={{ fontSize: Math.max(12, Math.floor(size * 0.5)) }}>
                     {fallbackText}
                 </span>
             ) : (

@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Clock } from 'lucide-react';
 
 interface SessionExpiredModalProps {
     isOpen: boolean;
@@ -19,53 +20,23 @@ export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({ isOpen
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleLogin()}>
             <DialogContent className="p-0 sm:max-w-[400px]">
-                <div className="p-8" style={{ textAlign: 'center' }}>
-                <div style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 1.5rem'
-                }}>
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="32"
-                        height="32"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="var(--color-danger)"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
+                <div className="flex flex-col items-center p-8 text-center">
+                    <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+                        <Clock className="h-8 w-8 text-destructive" />
+                    </div>
+
+                    <h2 className="mb-2 text-2xl font-bold tracking-tight">
+                        Session Expired
+                    </h2>
+
+                    <p className="mb-6 text-muted-foreground leading-relaxed">
+                        Your session has expired for security reasons. Please log in again to continue.
+                    </p>
+
+                    <Button onClick={handleLogin} className="w-full">
+                        Log In Again
+                    </Button>
                 </div>
-
-                <h2 style={{
-                    margin: '0 0 0.5rem',
-                    fontSize: '1.5rem',
-                    fontWeight: 700
-                }}>
-                    Session Expired
-                </h2>
-
-                <p style={{
-                    color: 'var(--color-text-secondary)',
-                    marginBottom: '1.5rem',
-                    lineHeight: 1.6
-                }}>
-                    Your session has expired for security reasons. Please log in again to continue.
-                </p>
-
-                <Button onClick={handleLogin} className="w-full">
-                    Log In Again
-                </Button>
-            </div>
             </DialogContent>
         </Dialog>
     );

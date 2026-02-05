@@ -8,6 +8,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api, { type Course } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { Search, Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CourseManagerModalProps {
     isOpen: boolean;
@@ -112,58 +114,38 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="p-0 sm:max-w-[600px] max-h-[80vh] overflow-hidden"
+                className="p-0 sm:max-w-[600px] h-[80vh] flex flex-col overflow-hidden"
             >
-                <DialogHeader className="border-b px-6 py-4">
+                <DialogHeader className="border-b px-6 py-4 flex-none">
                     <DialogTitle className="text-base font-semibold">Manage Courses</DialogTitle>
                 </DialogHeader>
-                <div
-                    className="flex max-h-[calc(80vh-72px)] flex-col p-6"
-                    style={{ minHeight: '320px' }}
-                >
-                {/* Mode Switcher (only if semesterId is present) */}
-                {semesterId && (
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <Tabs value={mode} onValueChange={(value) => setMode(value as 'list' | 'create')}>
-                            <TabsList className="w-full">
-                                <TabsTrigger
-                                    value="list"
-                                    className="flex-1"
-                                >
-                                    Select Existing
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="create"
-                                    className="flex-1"
-                                >
-                                    Create New
-                                </TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-                    </div>
-                )}
-
-                {mode === 'list' && semesterId ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                            <div className="relative mb-4">
-                                <span
-                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                                    aria-hidden="true"
-                                >
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        width="16"
-                                        height="16"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
+                <div className="flex-1 flex flex-col p-6 overflow-hidden">
+                    {/* Mode Switcher (only if semesterId is present) */}
+                    {semesterId && (
+                        <div className="mb-6 flex-none">
+                            <Tabs value={mode} onValueChange={(value) => setMode(value as 'list' | 'create')}>
+                                <TabsList className="w-full">
+                                    <TabsTrigger
+                                        value="list"
+                                        className="flex-1"
                                     >
-                                        <circle cx="11" cy="11" r="8" />
-                                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                                    </svg>
-                                </span>
+                                        Select Existing
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="create"
+                                        className="flex-1"
+                                    >
+                                        Create New
+                                    </TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                        </div>
+                    )}
+
+                    {mode === 'list' && semesterId ? (
+                        <div className="flex flex-col flex-1 overflow-hidden gap-4">
+                            <div className="relative flex-none">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     placeholder="Search unassigned courses..."
                                     value={searchTerm}
@@ -172,15 +154,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                 />
                             </div>
 
-                            <div style={{
-                                flex: 1,
-                                overflowY: 'auto',
-                                minHeight: 0,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.75rem',
-                                paddingRight: '0.5rem'
-                            }}>
+                            <div className="flex-1 -mr-4 pr-4 overflow-y-auto">
                                 {isLoading ? (
                                     <Empty className="border-border/70 bg-muted/40">
                                         <EmptyHeader>
@@ -199,50 +173,46 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                         </EmptyHeader>
                                     </Empty>
                                 ) : (
-                                    filteredCourses.map(course => (
-                                        <div key={course.id} style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            padding: '1rem',
-                                            background: 'var(--color-bg-secondary)',
-                                            borderRadius: 'var(--radius-lg)',
-                                            border: '1px solid var(--color-border)',
-                                            transition: 'transform 0.2s, box-shadow 0.2s'
-                                        }}>
-                                            <div>
-                                                <div style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '0.25rem' }}>{course.name}</div>
-                                                {course.alias && (
-                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginBottom: '0.25rem' }}>
-                                                        {course.alias}
+                                            <div className="space-y-3">
+                                                {filteredCourses.map(course => (
+                                                    <div key={course.id} className={cn(
+                                                        "flex items-center justify-between p-4",
+                                                        "bg-card rounded-lg border shadow-sm transition-all",
+                                                        "hover:border-primary/50"
+                                                    )}>
+                                                        <div className="min-w-0 flex-1 mr-4">
+                                                            <div className="font-semibold truncate mb-1">{course.name}</div>
+                                                            {course.alias && (
+                                                                <div className="text-xs text-muted-foreground truncate mb-1">
+                                                                    {course.alias}
+                                                                </div>
+                                                            )}
+                                                            <div className="flex gap-4 text-xs text-muted-foreground">
+                                                                <span className="flex items-center gap-1">
+                                                                    <span className="opacity-70">Credits:</span> {course.credits}
+                                                                </span>
+                                                                <span className="flex items-center gap-1">
+                                                                    <span className="opacity-70">Grade:</span> {course.grade_percentage}%
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            onClick={() => handleAddExisting(course.id)}
+                                                            className="shrink-0"
+                                                        >
+                                                            Add
+                                                        </Button>
                                                     </div>
-                                                )}
-                                                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                                        <span style={{ opacity: 0.7 }}>Credits:</span> {course.credits}
-                                                    </span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                                        <span style={{ opacity: 0.7 }}>Grade:</span> {course.grade_percentage}%
-                                                    </span>
-                                                </div>
+                                                ))}
                                             </div>
-                                            <Button
-                                                size="sm"
-                                                variant="secondary"
-                                                onClick={() => handleAddExisting(course.id)}
-                                                style={{ whiteSpace: 'nowrap' }}
-                                            >
-                                                Add
-                                            </Button>
-                                        </div>
-                                    ))
                                 )}
                             </div>
                         </div>
                     ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                                <form className="flex flex-1 flex-col" onSubmit={handleCreateNew}>
-                                    <div className="flex flex-col gap-6">
+                            <div className="flex flex-col flex-1 overflow-y-auto">
+                                <form onSubmit={handleCreateNew} className="flex flex-col flex-1 gap-6">
                                     <div className="grid gap-2">
                                         <Label htmlFor="course-name">Course Name</Label>
                                         <Input
@@ -284,12 +254,12 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                                 onChange={e => setNewGrade(e.target.value)}
                                                 required
                                             />
-                                        </div>
                                     </div>
                                 </div>
 
                                     <div className="mt-auto pt-6">
                                         <Button type="submit" className="w-full">
+                                            <Plus className="mr-2 h-4 w-4" />
                                         Create Course
                                         </Button>
                                     </div>

@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useWidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
 import { IconCircle } from './IconCircle';
 import type { WidgetItem } from './widgets/DashboardGrid';
+import { cn } from '@/lib/utils';
 
 interface AddWidgetModalProps {
     isOpen: boolean;
@@ -47,42 +48,43 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="p-0 sm:max-w-[600px]">
-                <DialogHeader className="border-b px-6 py-4">
+            <DialogContent className="p-0 sm:max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden">
+                <DialogHeader className="border-b px-6 py-4 flex-none">
                     <DialogTitle className="text-base font-semibold">Add Widget</DialogTitle>
                 </DialogHeader>
-                <div className="p-6">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                {availableWidgets.length === 0 && (
-                    <div style={{ gridColumn: '1 / -1', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '1rem' }}>
-                        No widgets available for this dashboard.
+                <div className="flex-1 overflow-y-auto p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        {availableWidgets.length === 0 && (
+                            <div className="col-span-full text-center text-muted-foreground py-4">
+                                No widgets available for this dashboard.
+                            </div>
+                        )}
+                        {availableWidgets.map((widget) => (
+                            <div
+                                key={widget.type}
+                                onClick={() => setSelectedType(widget.type)}
+                                className={cn(
+                                    "cursor-pointer rounded-lg border-2 p-4 transition-all duration-200",
+                                    "hover:border-primary/50 hover:bg-accent/50",
+                                    selectedType === widget.type
+                                        ? "border-primary bg-accent"
+                                        : "border-border bg-card"
+                                )}
+                            >
+                                <div className="mb-2 flex items-center gap-2">
+                                    <IconCircle icon={widget.icon} label={widget.name} size={32} />
+                                </div>
+                                <div className="font-semibold mb-1 truncate">{widget.name}</div>
+                                <div className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+                                    {widget.description}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                )}
-                {availableWidgets.map((widget) => (
-                    <div
-                        key={widget.type}
-                        onClick={() => setSelectedType(widget.type)}
-                        style={{
-                            border: `2px solid ${selectedType === widget.type ? 'var(--color-text-primary)' : 'var(--color-border)'}`,
-                            borderRadius: 'var(--radius-md)',
-                            padding: '1rem',
-                            cursor: 'pointer',
-                            backgroundColor: selectedType === widget.type ? 'var(--color-bg-tertiary)' : 'var(--color-bg-primary)',
-                            transition: 'all 0.2s ease',
-                        }}
-                    >
-                        <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <IconCircle icon={widget.icon} label={widget.name} size={32} />
-                        </div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{widget.name}</div>
-                        <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{widget.description}</div>
-                    </div>
-                ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <Button variant="secondary" onClick={onClose}>Cancel</Button>
-                <Button disabled={!selectedType} onClick={handleAdd}>Add to Dashboard</Button>
-            </div>
+                </div>
+                <div className="flex-none p-6 pt-0 flex justify-end gap-2">
+                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                    <Button disabled={!selectedType} onClick={handleAdd}>Add to Dashboard</Button>
                 </div>
             </DialogContent>
         </Dialog>

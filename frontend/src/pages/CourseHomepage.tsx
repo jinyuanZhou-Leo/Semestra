@@ -78,17 +78,12 @@ const CourseHomepageContent: React.FC = () => {
         boxShadow: shrinkProgress > 0.5 ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none',
     } as React.CSSProperties;
 
-    // Title Scale: 1 -> 0.8 (approx 36px/48px to 24px/30px)
+    // Title Scale: 1 -> 0.8
     const titleScale = 1 - (0.2 * shrinkProgress);
 
     // Stats Opacity: 1 -> 0
     const statsOpacity = Math.max(1 - (shrinkProgress * 2), 0); // Fade out faster
     const statsHeight = Math.max(140 * (1 - shrinkProgress * 1.5), 0); // Collapse height
-
-    // Break Element (Spacer):
-    // We want it to go from basis-full (width 100%) to basis-0 (width 0).
-    const breakWidth = `${(1 - shrinkProgress) * 100}%`;
-    const breakHeight = `${(1 - shrinkProgress) * 16}px`; // 16px to 0px height
 
 
     useEffect(() => {
@@ -476,13 +471,7 @@ const CourseHomepageContent: React.FC = () => {
                     style={headerStyle}
                 >
                     <Container className="flex flex-wrap items-center transition-none">
-                        <div
-                            className="flex flex-col gap-2 relative transition-none"
-                            style={{
-                                width: shrinkProgress > 0.9 ? 'auto' : '100%',
-                                marginRight: shrinkProgress > 0.9 ? '1rem' : '0'
-                            }}
-                        >
+                        <div className="flex flex-col gap-2 relative w-full">
                             <div className="min-w-0">
                                 {isLoading || !course ? (
                                     <Skeleton className="h-12 w-3/5" />
@@ -492,7 +481,7 @@ const CourseHomepageContent: React.FC = () => {
                                                 className="noselect text-truncate font-bold tracking-tight origin-left"
                                                 style={{
                                                     transform: `scale(${titleScale})`,
-                                                    fontSize: '2.25rem', // Base size
+                                                    fontSize: '2.25rem',
                                                     lineHeight: '2.5rem'
                                                 }}
                                             >
@@ -570,23 +559,7 @@ const CourseHomepageContent: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* "Break" element that shrinks width */}
-                        <div
-                            style={{
-                                flexBasis: breakWidth,
-                                width: breakWidth,
-                                height: breakHeight,
-                                overflow: 'hidden'
-                            }}
-                        />
-
-                        <div
-                            className="min-w-0 overflow-hidden"
-                            style={{
-                                flex: 1,
-                                marginLeft: shrinkProgress > 0.5 ? '1rem' : '0'
-                            }}
-                        >
+                        <div className="w-full mt-4">
                             <Tabs
                                 items={tabBarItems}
                                 activeId={activeTabId}

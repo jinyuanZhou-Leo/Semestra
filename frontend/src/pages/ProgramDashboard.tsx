@@ -26,6 +26,14 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen } from 'lucide-react';
 
 const ProgramDashboardContent: React.FC = () => {
@@ -390,7 +398,76 @@ const ProgramDashboardContent: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
-                        </section>
+                            </section>
+
+                            {/* All Courses Section */}
+                            <section className="space-y-6">
+                                <h2 className="text-lg font-semibold tracking-tight">
+                                    All Courses
+                                </h2>
+                                <div className="rounded-md border bg-card">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="hover:bg-transparent">
+                                                <TableHead>Course Name</TableHead>
+                                                <TableHead>Semester</TableHead>
+                                                <TableHead>Credits</TableHead>
+                                                <TableHead className="text-right">Grade</TableHead>
+                                                <TableHead className="text-right">GPA</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {(() => {
+                                                const allCourses = program.semesters.flatMap(sem =>
+                                                    (sem.courses || []).map(course => ({
+                                                        ...course,
+                                                        semesterName: sem.name,
+                                                        semesterId: sem.id
+                                                    }))
+                                                ).sort((a, b) => a.name.localeCompare(b.name));
+
+                                                if (allCourses.length === 0) {
+                                                    return (
+                                                        <TableRow>
+                                                            <TableCell colSpan={5} className="h-24 text-center">
+                                                                No courses added yet.
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                }
+
+                                                return allCourses.map(course => (
+                                                    <TableRow key={course.id}>
+                                                        <TableCell className="font-medium">
+                                                            <Link to={`/courses/${course.id}`} className="hover:underline">
+                                                                {course.name}
+                                                            </Link>
+                                                        </TableCell>
+                                                        <TableCell className="text-muted-foreground">
+                                                            <Link to={`/semesters/${course.semesterId}`} className="hover:underline">
+                                                                {course.semesterName}
+                                                            </Link>
+                                                        </TableCell>
+                                                        <TableCell>{course.credits}</TableCell>
+                                                        <TableCell className="text-right">
+                                                            {course.hide_gpa ? '****' : (
+                                                                <span>{course.grade_percentage.toFixed(1)}%</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-medium">
+                                                            {course.hide_gpa ? '****' : (
+                                                                <span className={course.grade_scaled >= 3.0 ? 'text-emerald-600' : 'text-amber-600'}>
+                                                                    {course.grade_scaled.toFixed(2)}
+                                                                </span>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ));
+                                            })()}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </section>
                     </>
                 )}
             </Container>

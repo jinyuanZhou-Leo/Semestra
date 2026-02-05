@@ -119,7 +119,7 @@ export const GPAScalingTable: React.FC<GPAScalingTableProps> = ({ value, onChang
                 valueStep="0.1"
             />
             {entries.length > 0 && !isFullCoverage && (
-                <div style={{ marginTop: '0.5rem', color: 'var(--color-warning, #f59e0b)', fontSize: '0.85rem' }}>
+                <div className="mt-2 text-sm text-yellow-500">
                     Warning: this table does not cover the full 0-100 range.
                 </div>
             )}
