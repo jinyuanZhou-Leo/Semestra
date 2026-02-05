@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
 
@@ -85,14 +86,6 @@ export const SettingsPage: React.FC = () => {
     const [isGoogleLinkReady, setIsGoogleLinkReady] = useState(false);
     const googleLinkRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-    const alertClassName = (variant?: "destructive") =>
-        cn(
-            "relative w-full rounded-lg border p-4 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7",
-            variant === "destructive"
-                ? "border-destructive/50 text-destructive dark:border-destructive"
-                : "bg-background text-foreground"
-        );
-
     useEffect(() => {
         if (user) {
             const initialGpa = (user as any).gpa_scaling_table || '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}';
@@ -416,19 +409,19 @@ export const SettingsPage: React.FC = () => {
                             </div>
 
                             {googleLinkError && (
-                                <div className={alertClassName("destructive")} role="alert">
-                                    <div className="mb-1 font-medium leading-none tracking-tight">Google link failed</div>
-                                    <div className="text-sm text-muted-foreground">{googleLinkError}</div>
-                                </div>
+                                <Alert variant="destructive">
+                                    <AlertTitle>Google link failed</AlertTitle>
+                                    <AlertDescription>{googleLinkError}</AlertDescription>
+                                </Alert>
                             )}
 
                             {googleLinkSuccess && (
-                                <div className={alertClassName()} role="alert">
-                                    <div className="mb-1 font-medium leading-none tracking-tight">Google connected</div>
-                                    <div className="text-sm text-muted-foreground">
+                                <Alert>
+                                    <AlertTitle>Google connected</AlertTitle>
+                                    <AlertDescription>
                                         Your Google account is linked successfully.
-                                    </div>
-                                </div>
+                                    </AlertDescription>
+                                </Alert>
                             )}
 
                             <div className="flex items-center justify-end">

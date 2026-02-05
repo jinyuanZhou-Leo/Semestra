@@ -2,7 +2,9 @@ import React, { useEffect, useId, useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SettingsModal } from '../components/SettingsModal';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,6 +12,7 @@ import { Container } from '../components/Container';
 import api from '../services/api';
 import { useHeroGradient } from '../hooks/useHeroGradient';
 import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { ProgramSkeleton } from '../components/Skeleton/ProgramSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -157,15 +160,19 @@ const ProgramDashboardContent: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-                        <h2 style={{ marginBottom: '1rem' }}>Program not found</h2>
-                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
-                            The program you are looking for does not exist or has been deleted.
-                        </p>
-                        <Link to="/">
-                            <Button>Back to Home</Button>
-                        </Link>
-                    </div>
+                    <Empty className="my-16">
+                        <EmptyHeader>
+                            <EmptyTitle>Program not found</EmptyTitle>
+                            <EmptyDescription>
+                                The program you are looking for does not exist or has been deleted.
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            <Link to="/">
+                                <Button>Back to Home</Button>
+                            </Link>
+                        </EmptyContent>
+                    </Empty>
                 </Container>
             </Layout>
         );
@@ -239,21 +246,15 @@ const ProgramDashboardContent: React.FC = () => {
                             <div className="program-stat-label">
                                 <span className="program-stat-label-text">CGPA (Scaled)</span>
                                 {!(isLoading || !program) && (
-                                    <button
+                                    <Button
                                         onClick={(e) => {
                                             e.preventDefault();
                                             handleUpdateProgram({ hide_gpa: !program.hide_gpa });
                                         }}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            color: 'var(--color-text-secondary)',
-                                            padding: 0,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            flexShrink: 0
-                                        }}
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                                         title={program.hide_gpa ? "Show GPA" : "Hide GPA"}
                                     >
                                         {program.hide_gpa ? (
@@ -267,7 +268,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                 <circle cx="12" cy="12" r="3"></circle>
                                             </svg>
                                         )}
-                                    </button>
+                                    </Button>
                                 )}
                             </div>
                             <div className="program-stat-value primary">
@@ -364,34 +365,14 @@ const ProgramDashboardContent: React.FC = () => {
                         }}>
                             {filteredSemesters.map(semester => (
                                     <Link key={semester.id} to={`/semesters/${semester.id}`}>
-                                        <div className="noselect" style={{
-                                            padding: '2rem',
-                                            borderRadius: 'var(--radius-lg)',
-                                            backgroundColor: 'var(--color-bg-primary)',
-                                            boxShadow: 'var(--shadow-sm)',
-                                            border: '1px solid var(--color-border)',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s ease-in-out',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '1rem',
-                                            height: '100%',
-                                            position: 'relative'
-                                        }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(-4px)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <h3 className='text-truncate' style={{ fontSize: '1.5rem', margin: 0 }}>{semester.name}</h3>
-                                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: semester.average_scaled >= 3.0 ? '#10b981' : '#f59e0b' }}></div>
-                                                    <button
+                                        <Card className="noselect h-full cursor-pointer transition-shadow hover:shadow-md">
+                                            <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
+                                                <CardTitle className="text-truncate text-2xl">{semester.name}</CardTitle>
+                                                <div className="flex items-center gap-2">
+                                                    <div
+                                                        className={`h-2 w-2 rounded-full ${semester.average_scaled >= 3.0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                                    />
+                                                    <Button
                                                         onClick={async (e) => {
                                                             e.preventDefault();
                                                             const shouldDelete = await confirm({
@@ -406,45 +387,46 @@ const ProgramDashboardContent: React.FC = () => {
                                                                 .then(() => refreshProgram())
                                                                 .catch(err => console.error("Failed to delete", err));
                                                         }}
-                                                        style={{
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            color: 'var(--color-text-secondary)',
-                                                            cursor: 'pointer',
-                                                            padding: '4px',
-                                                            borderRadius: '4px',
-                                                            marginLeft: '0.5rem'
-                                                        }}
-                                                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                                                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                                     >
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                             <polyline points="3 6 5 6 21 6"></polyline>
                                                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                                         </svg>
-                                                    </button>
+                                                    </Button>
                                                 </div>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '1rem', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
-                                                <div>
-                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>GPA</div>
-                                                    <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{semester.average_scaled.toFixed(2)}</div>
+                                            </CardHeader>
+                                            <CardContent className="mt-auto pt-0">
+                                                <Separator className="mb-4" />
+                                                <div className="flex gap-4">
+                                                    <div>
+                                                        <div className="text-xs uppercase tracking-wider text-muted-foreground">GPA</div>
+                                                        <div className="text-lg font-semibold">{semester.average_scaled.toFixed(2)}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-xs uppercase tracking-wider text-muted-foreground">AVG</div>
+                                                        <div className="text-lg font-semibold">{semester.average_percentage.toFixed(1)}%</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-xs uppercase tracking-wider text-muted-foreground">Courses</div>
+                                                        <div className="text-lg font-semibold">{(semester as any).courses?.length || 0}</div>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AVG</div>
-                                                    <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{semester.average_percentage.toFixed(1)}%</div>
-                                                </div>
-                                                <div>
-                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Courses</div>
-                                                    <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{(semester as any).courses?.length || 0}</div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                            </CardContent>
+                                        </Card>
                                     </Link>
                                 ))}
 
                             {filteredSemesters.length === 0 && ( /* ... Empty state ... */
-                                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem', color: 'var(--color-text-secondary)' }}>No semesters found.</div>
+                                <Empty style={{ gridColumn: '1 / -1' }}>
+                                    <EmptyHeader>
+                                        <EmptyTitle>No semesters found</EmptyTitle>
+                                        <EmptyDescription>Try a different search term.</EmptyDescription>
+                                    </EmptyHeader>
+                                </Empty>
                             )}
                         </div>
 
@@ -461,29 +443,19 @@ const ProgramDashboardContent: React.FC = () => {
                             }}>
                                 {filteredCourses.map((course: any) => (
                                         <Link key={course.id} to={`/courses/${course.id}`}>
-                                            <div style={{
-                                                padding: '1.5rem',
-                                                borderRadius: 'var(--radius-md)',
-                                                backgroundColor: 'var(--color-bg-primary)',
-                                                border: '1px solid var(--color-border)',
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                transition: 'border-color 0.2s'
-                                            }}
-                                                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
-                                                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
-                                            >
-                                                <div style={{ minWidth: 0, flex: 1 }}>
-                                                    <div className='text-truncate' style={{ fontWeight: 600 }}>{course.name}</div>
-                                                    {course.alias && (
-                                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: '0.125rem' }}>
-                                                            {course.alias}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginLeft: '1rem' }}>{course.grade_scaled.toFixed(2)}</div>
-                                            </div>
+                                            <Card className="transition-colors hover:border-primary">
+                                                <CardContent className="flex items-center justify-between p-4">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="text-truncate font-semibold">{course.name}</div>
+                                                        {course.alias && (
+                                                            <div className="mt-0.5 text-xs text-muted-foreground">
+                                                                {course.alias}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="ml-4 text-sm text-muted-foreground">{course.grade_scaled.toFixed(2)}</div>
+                                                </CardContent>
+                                            </Card>
                                         </Link>
                                     ))}
                             </div>
@@ -623,15 +595,17 @@ export const ProgramDashboard: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-                        <h2 style={{ marginBottom: '1rem' }}>Program not found</h2>
-                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
-                            No program ID provided.
-                        </p>
-                        <Link to="/">
-                            <Button>Back to Home</Button>
-                        </Link>
-                    </div>
+                    <Empty className="my-16">
+                        <EmptyHeader>
+                            <EmptyTitle>Program not found</EmptyTitle>
+                            <EmptyDescription>No program ID provided.</EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            <Link to="/">
+                                <Button>Back to Home</Button>
+                            </Link>
+                        </EmptyContent>
+                    </Empty>
                 </Container>
             </Layout>
         );

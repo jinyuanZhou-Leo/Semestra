@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { AddWidgetModal } from '../components/AddWidgetModal';
 import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
@@ -262,19 +264,9 @@ const SemesterHomepageContent: React.FC = () => {
                         gap: '0.5rem',
                         paddingLeft: '0.25rem'
                     }}>
-                        <span style={{
-                            fontSize: '0.65rem',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            color: 'var(--color-primary)',
-                            background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
-                            border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
-                            borderRadius: '999px',
-                            padding: '0.1rem 0.45rem',
-                            fontWeight: 600
-                        }}>
+                        <Badge variant="secondary" className="uppercase tracking-[0.05em]">
                             Plugin
-                        </span>
+                        </Badge>
                         <h3 style={{
                             margin: 0,
                             fontSize: '0.85rem',
@@ -325,19 +317,9 @@ const SemesterHomepageContent: React.FC = () => {
                             gap: '0.5rem',
                             paddingLeft: '0.25rem'
                         }}>
-                            <span style={{
-                                fontSize: '0.65rem',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em',
-                                color: 'var(--color-primary)',
-                                background: 'color-mix(in srgb, var(--color-primary), transparent 92%)',
-                                border: '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)',
-                                borderRadius: '999px',
-                                padding: '0.1rem 0.45rem',
-                                fontWeight: 600
-                            }}>
+                            <Badge variant="secondary" className="uppercase tracking-[0.05em]">
                                 Plugin
-                            </span>
+                            </Badge>
                             <h3 style={{
                                 margin: 0,
                                 fontSize: '0.85rem',
@@ -413,15 +395,19 @@ const SemesterHomepageContent: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-                        <h2 style={{ marginBottom: '1rem' }}>Semester not found</h2>
-                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
-                            The semester you are looking for does not exist or has been deleted.
-                        </p>
-                        <Link to="/">
-                            <Button>Back to Home</Button>
-                        </Link>
-                    </div>
+                    <Empty className="my-16">
+                        <EmptyHeader>
+                            <EmptyTitle>Semester not found</EmptyTitle>
+                            <EmptyDescription>
+                                The semester you are looking for does not exist or has been deleted.
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            <Link to="/">
+                                <Button>Back to Home</Button>
+                            </Link>
+                        </EmptyContent>
+                    </Empty>
                 </Container>
             </Layout>
         );
@@ -610,7 +596,16 @@ const SemesterHomepageContent: React.FC = () => {
                         if (activeTabId === 'dashboard' || activeTabId === 'settings') {
                             const BuiltinComponent = TabRegistry.getComponent(activeTabId);
                             if (!BuiltinComponent) {
-                                return <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>Builtin tab not found.</div>;
+                                return (
+                                    <Empty className="bg-muted/40">
+                                        <EmptyHeader>
+                                            <EmptyTitle>Builtin tab not found</EmptyTitle>
+                                            <EmptyDescription>
+                                                The requested tab is unavailable.
+                                            </EmptyDescription>
+                                        </EmptyHeader>
+                                    </Empty>
+                                );
                             }
                             return (
                                 <BuiltinComponent
@@ -624,10 +619,28 @@ const SemesterHomepageContent: React.FC = () => {
                         const activeTab = tabs.find(tab => tab.id === activeTabId);
                         const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
                         if (!activeTab) {
-                            return <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>Tab not found.</div>;
+                            return (
+                                <Empty className="bg-muted/40">
+                                    <EmptyHeader>
+                                        <EmptyTitle>Tab not found</EmptyTitle>
+                                        <EmptyDescription>
+                                            The requested tab is unavailable.
+                                        </EmptyDescription>
+                                    </EmptyHeader>
+                                </Empty>
+                            );
                         }
                         if (!TabComponent) {
-                            return <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>Unknown tab type: {activeTab.type}</div>;
+                            return (
+                                <Empty className="bg-muted/40">
+                                    <EmptyHeader>
+                                        <EmptyTitle>Unknown tab type</EmptyTitle>
+                                        <EmptyDescription>
+                                            {activeTab.type}
+                                        </EmptyDescription>
+                                    </EmptyHeader>
+                                </Empty>
+                            );
                         }
                         return (
                             <React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading tab...</div>}>
@@ -685,15 +698,17 @@ export const SemesterHomepage: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-                        <h2 style={{ marginBottom: '1rem' }}>Semester not found</h2>
-                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
-                            No semester ID provided.
-                        </p>
-                        <Link to="/">
-                            <Button>Back to Home</Button>
-                        </Link>
-                    </div>
+                    <Empty className="my-16">
+                        <EmptyHeader>
+                            <EmptyTitle>Semester not found</EmptyTitle>
+                            <EmptyDescription>No semester ID provided.</EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            <Link to="/">
+                                <Button>Back to Home</Button>
+                            </Link>
+                        </EmptyContent>
+                    </Empty>
                 </Container>
             </Layout>
         );

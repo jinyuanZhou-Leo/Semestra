@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -134,28 +136,10 @@ export const HomePage: React.FC = () => {
                     }}>
                         {programs.map(program => (
                             <Link key={program.id} to={`/programs/${program.id}`}>
-                                <div style={{
-                                    padding: '1.5rem',
-                                    borderRadius: 'var(--radius-lg)',
-                                    backgroundColor: 'var(--color-bg-primary)',
-                                    boxShadow: 'var(--shadow-sm)',
-                                    border: '1px solid var(--color-border)',
-                                    transition: 'transform 0.2s, box-shadow 0.2s',
-                                    cursor: 'pointer',
-                                    position: 'relative'
-                                }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                                        <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{program.name}</h3>
-                                        <button
+                                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
+                                    <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
+                                        <CardTitle className="text-lg">{program.name}</CardTitle>
+                                        <Button
                                             onClick={async (e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
@@ -171,52 +155,44 @@ export const HomePage: React.FC = () => {
                                                     .then(fetchPrograms)
                                                     .catch(err => console.error("Failed to delete", err));
                                             }}
-                                            style={{
-                                                background: 'none',
-                                                border: 'none',
-                                                color: 'var(--color-text-secondary)',
-                                                cursor: 'pointer',
-                                                padding: '4px',
-                                                borderRadius: '4px',
-                                            }}
-                                            onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                 <polyline points="3 6 5 6 21 6"></polyline>
                                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                             </svg>
-                                        </button>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
+                                        </Button>
+                                    </CardHeader>
+                                    <CardContent className="flex justify-between pt-0">
                                         <div>
-                                            <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>CGPA</span>
-                                            <span style={{ fontWeight: 600, fontSize: '1.25rem' }}>
+                                            <span className="block text-xs text-muted-foreground">CGPA</span>
+                                            <span className="text-xl font-semibold">
                                                 {program.cgpa_scaled.toFixed(2)}
                                             </span>
                                         </div>
-                                        <div style={{ textAlign: 'right' }}>
-                                            <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Credits</span>
-                                            <span style={{ fontWeight: 500 }}>
+                                        <div className="text-right">
+                                            <span className="block text-xs text-muted-foreground">Credits</span>
+                                            <span className="font-medium">
                                                 / {program.grad_requirement_credits}
                                             </span>
                                         </div>
-                                    </div>
-                                </div>
+                                    </CardContent>
+                                </Card>
                             </Link>
                         ))}
 
                         {programs.length === 0 && (
-                            <div style={{
-                                gridColumn: '1 / -1',
-                                textAlign: 'center',
-                                padding: '4rem',
-                                color: 'var(--color-text-secondary)',
-                                border: '2px dashed var(--color-border)',
-                                borderRadius: 'var(--radius-lg)'
-                            }}>
-                                No programs found. Start by creating one!
-                            </div>
+                            <Empty style={{ gridColumn: '1 / -1' }}>
+                                <EmptyHeader>
+                                    <EmptyTitle>No programs found</EmptyTitle>
+                                    <EmptyDescription>
+                                        Start by creating one!
+                                    </EmptyDescription>
+                                </EmptyHeader>
+                            </Empty>
                         )}
                     </div>
                 )}

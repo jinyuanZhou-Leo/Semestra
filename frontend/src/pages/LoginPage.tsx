@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 
@@ -237,49 +238,56 @@ export const LoginPage: React.FC = () => {
                     zIndex: 1, // Above the logo
                     width: '100%',
                     maxWidth: '360px', // Slightly narrower
-                    padding: '2rem 2rem', // More compact padding
-                    backgroundColor: isGlassReady ? 'var(--color-bg-glass)' : 'var(--color-bg-primary)',
-                    background: isGlassReady
-                        ? 'color-mix(in srgb, var(--color-bg-primary), transparent 15%)'
-                        : 'var(--color-bg-primary)',
-                    backdropFilter: isGlassReady ? 'blur(40px)' : undefined,
-                    WebkitBackdropFilter: isGlassReady ? 'blur(40px)' : undefined,
-                    transition: 'background-color 240ms ease, background 240ms ease, backdrop-filter 240ms ease, -webkit-backdrop-filter 240ms ease',
-                    borderRadius: 'var(--radius-xl)',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.2)',
                 }}
             >
-                <div style={{
-                    marginBottom: '1.5rem', // Reduced margin
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start'
-                }}>
-                    <h1 style={{
-                        fontSize: '2.5rem', // Slightly smaller
-                        lineHeight: 1.2, // Increased line height to prevent clipping
-                        paddingBottom: '0.1em', // Extra safety for descenders
-                        letterSpacing: '-0.04em',
-                        background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        marginBottom: '0.25rem', // Reduced margin
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none'
-                    }}>
-                        Welcome
-                    </h1>
-                    <h2 style={{
-                        fontSize: '1rem', // Slightly smaller
-                        color: 'var(--color-text-tertiary)',
-                        marginBottom: '0.5rem',
-                        fontWeight: 500,
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none'
-                    }}>
-                        Back to your workspace
-                    </h2>
-                </div>
+                <Card
+                    className="border-none shadow-none"
+                    style={{
+                        padding: '2rem 2rem', // More compact padding
+                        backgroundColor: isGlassReady ? 'var(--color-bg-glass)' : 'var(--color-bg-primary)',
+                        background: isGlassReady
+                            ? 'color-mix(in srgb, var(--color-bg-primary), transparent 15%)'
+                            : 'var(--color-bg-primary)',
+                        backdropFilter: isGlassReady ? 'blur(40px)' : undefined,
+                        WebkitBackdropFilter: isGlassReady ? 'blur(40px)' : undefined,
+                        transition: 'background-color 240ms ease, background 240ms ease, backdrop-filter 240ms ease, -webkit-backdrop-filter 240ms ease',
+                        borderRadius: 'var(--radius-xl)',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+                    }}
+                >
+                    <CardHeader className="p-0 pb-6">
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start'
+                        }}>
+                            <h1 style={{
+                                fontSize: '2.5rem', // Slightly smaller
+                                lineHeight: 1.2, // Increased line height to prevent clipping
+                                paddingBottom: '0.1em', // Extra safety for descenders
+                                letterSpacing: '-0.04em',
+                                background: 'linear-gradient(to right, var(--color-text-primary), var(--color-text-secondary))',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                marginBottom: '0.25rem', // Reduced margin
+                                userSelect: 'none',
+                                WebkitUserSelect: 'none'
+                            }}>
+                                Welcome
+                            </h1>
+                            <h2 style={{
+                                fontSize: '1rem', // Slightly smaller
+                                color: 'var(--color-text-tertiary)',
+                                marginBottom: '0.5rem',
+                                fontWeight: 500,
+                                userSelect: 'none',
+                                WebkitUserSelect: 'none'
+                            }}>
+                                Back to your workspace
+                            </h2>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
 
                 <div style={{ marginBottom: '1.25rem' }}>
                     {googleClientId ? (
@@ -369,30 +377,20 @@ export const LoginPage: React.FC = () => {
                                         fontSize: '0.925rem'
                                     }}
                                 />
-                                <div className="absolute right-3 flex items-center text-muted-foreground">
-                                    <button
+                                <div className="absolute right-2 flex items-center text-muted-foreground">
+                                    <Button
                                         type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground opacity-70 hover:opacity-100"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            padding: 0,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: 'inherit',
-                                            opacity: 0.7
-                                        }}
-                                        onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
-                                        onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
                                     >
                                         {showPassword ? (
                                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                                         ) : (
                                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                         )}
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                         </div>
@@ -486,6 +484,8 @@ export const LoginPage: React.FC = () => {
                         Sign Up
                     </Link>
                 </div>
+                    </CardContent>
+                </Card>
             </motion.div>
             <div
                 style={{
