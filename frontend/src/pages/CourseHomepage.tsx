@@ -166,7 +166,7 @@ const CourseHomepageContent: React.FC = () => {
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
                 <BreadcrumbItem>
                     <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
-                        <Link to="/">Academic</Link>
+                        <Link to="/">Academics</Link>
                     </BreadcrumbLink>
                 </BreadcrumbItem>
                 {shouldCollapseProgram && (

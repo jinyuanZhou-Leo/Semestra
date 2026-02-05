@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
@@ -19,6 +19,7 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 import { TabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
+import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 
 import {
     Breadcrumb,
@@ -64,60 +65,92 @@ const SemesterHomepageContent: React.FC = () => {
     }, [semester?.program_id]);
 
     const {
-        widgets, 
-        addWidget,
-        updateWidget,
-        removeWidget,
-        updateLayout
+        widgets,
+        addWidget: handleAddWidget, // Rename to match pattern if preferred, or keep as is and use handle... wrapper
+        updateWidget: handleUpdateWidget,
+        updateWidgetDebounced: handleUpdateWidgetDebounced,
+        removeWidget: handleRemoveWidget,
+        updateLayout: handleLayoutChange
     } = useDashboardWidgets({
-        semesterId: semester?.id, 
+        semesterId: semester?.id,
         initialWidgets: semester?.widgets,
         onRefresh: refreshSemester
     });
 
-    const { 
+    const {
         tabs: customTabs,
-        addTab,
-        removeTab,
-        updateTab,
+        addTab: handleAddTab,
+        removeTab: handleRemoveTab,
+        // updateTab, // We use debounced for settings
+        updateTabSettingsDebounced,
         reorderTabs
     } = useDashboardTabs({
         semesterId: semester?.id,
         initialTabs: semester?.tabs,
-        onRefresh: refreshSemester 
+        onRefresh: refreshSemester
     });
 
-    const handleAddWidget = (type: string) => {
-        addWidget(type);
+    // Wrapped handlers to match CourseHomepage pattern and fix unused vars if any
+    const onAddWidgetInner = (type: string) => {
+        handleAddWidget(type);
         setIsAddWidgetOpen(false);
     };
 
-    const handleUpdateWidget = async (id: string, data: any) => {
-        await updateWidget(id, data);
+    const onUpdateWidgetInner = async (id: string, data: any) => {
+        await handleUpdateWidget(id, data);
         if (editingWidget && editingWidget.id === id) {
             setEditingWidget(null);
         }
     };
 
-    const handleAddTab = (type: string) => {
-        addTab(type);
+    const onAddTabInner = (type: string) => {
+        handleAddTab(type);
         setIsAddTabOpen(false);
     };
 
-    const handleRemoveTab = (id: string) => {
-        removeTab(id);
-    };
+    const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
+        updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
+    }, [updateTabSettingsDebounced]);
 
-    const handleReorderTabs = (ids: string[]) => {
-        // The Tabs component returns all IDs including built-ins
-        // We only persist the order of custom tabs
-        const customIds = ids.filter(id => id !== 'dashboard' && id !== 'settings');
-        reorderTabs(customIds);
-    };
+    const pluginTabItems = useMemo(() => {
+        return customTabs.map(tab => {
+            const definition = TabRegistry.get(tab.type);
+            return {
+                id: tab.id,
+                label: definition?.name ?? tab.title ?? tab.type,
+                icon: definition?.icon,
+                removable: tab.is_removable !== false,
+                draggable: tab.is_removable !== false
+            };
+        });
+    }, [customTabs]);
 
-    const handleUpdateTabSettings = (id: string, settings: any) => {
-        updateTab(id, { settings });
-    };
+    const tabBarItems = useMemo(() => {
+        const dashboardDef = TabRegistry.get('dashboard');
+        const settingsDef = TabRegistry.get('settings');
+        return [
+            {
+                id: 'dashboard',
+                label: dashboardDef?.name ?? 'Dashboard',
+                icon: dashboardDef?.icon,
+                draggable: false,
+                removable: false
+            },
+            ...pluginTabItems,
+            {
+                id: 'settings',
+                label: settingsDef?.name ?? 'Settings',
+                icon: settingsDef?.icon,
+                draggable: false,
+                removable: false
+            }
+        ];
+    }, [pluginTabItems]);
+
+    const handleReorderTabs = useCallback((orderedIds: string[]) => {
+        const pluginIdSet = new Set(customTabs.map(tab => tab.id));
+        reorderTabs(orderedIds.filter(id => pluginIdSet.has(id)));
+    }, [reorderTabs, customTabs]);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -152,9 +185,9 @@ const SemesterHomepageContent: React.FC = () => {
 
     const breadcrumb = (
         <Breadcrumb>
-            <BreadcrumbList>
+            <BreadcrumbList className="text-xs font-medium text-muted-foreground">
                 <BreadcrumbItem>
-                    <BreadcrumbLink asChild>
+                    <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
                         <Link to="/">Academics</Link>
                     </BreadcrumbLink>
                 </BreadcrumbItem>
@@ -162,7 +195,7 @@ const SemesterHomepageContent: React.FC = () => {
                     <>
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
-                            <BreadcrumbLink asChild>
+                            <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
                                 <Link to={`/programs/${semester.program_id}`}>
                                     {programName || 'Program'}
                                 </Link>
@@ -172,52 +205,149 @@ const SemesterHomepageContent: React.FC = () => {
                 )}
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                    <BreadcrumbPage>{semester?.name || 'Semester'}</BreadcrumbPage>
+                    <BreadcrumbPage className="text-foreground font-semibold">
+                        {semester?.name || 'Semester'}
+                    </BreadcrumbPage>
                 </BreadcrumbItem>
             </BreadcrumbList>
         </Breadcrumb>
     );
+
+    const handleUpdateSemester = async (data: any) => {
+        if (!semester) return;
+        try {
+            await updateSemester(data);
+            refreshSemester();
+        } catch (error) {
+            console.error("Failed to update semester", error);
+        }
+    };
+
+    // Tab settings sections logic from CourseHomepage if needed, otherwise simplified as in original?
+    // Original SemesterHomepage didn't have the explicit settings sections renderer in the settings tab, 
+    // it seems `BuiltinTabContext` handles settings usually? 
+    // Wait, the `settings` tab in `BuiltinTabContext` takes `extraSections`.
+    // Let's implement that to match CourseHomepage logic.
+
+    const tabSettingsSections = useMemo(() => {
+        const sections = customTabs.map(tab => {
+            const definition = TabRegistry.get(tab.type);
+            const SettingsComponent = definition?.settingsComponent;
+            if (!SettingsComponent) return null;
+            return (
+                <div key={tab.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        paddingLeft: '0.25rem'
+                    }}>
+                        <div className="text-[0.65rem] uppercase tracking-[0.05em] text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 font-semibold">
+                            Plugin
+                        </div>
+                        <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-[0.05em]">
+                            {definition?.name ?? tab.title ?? tab.type}
+                        </h3>
+                    </div>
+
+                    <SettingsComponent
+                        tabId={tab.id}
+                        settings={tab.settings || {}}
+                        semesterId={semester?.id}
+                        updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
+                    />
+                </div>
+            );
+        }).filter(Boolean);
+
+        if (sections.length === 0) return null;
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {sections}
+            </div>
+        );
+    }, [customTabs, semester?.id, handleUpdateTabSettings]);
+
+    // Widget plugin global settings sections
+    const widgetDefinitions = useWidgetRegistry();
+    const widgetSettingsSections = useMemo(() => {
+        const sections = widgetDefinitions
+            .filter(def => {
+                // Only show settings for widgets allowed in semester context
+                const allowedContexts = resolveAllowedContexts(def);
+                return allowedContexts.includes('semester') && def.globalSettingsComponent;
+            })
+            .map(def => {
+                const GlobalSettingsComponent = def.globalSettingsComponent!;
+                return (
+                    <div key={def.type} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            paddingLeft: '0.25rem'
+                        }}>
+                            <div className="text-[0.65rem] uppercase tracking-[0.05em] text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 font-semibold">
+                                Plugin
+                            </div>
+                            <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-[0.05em]">
+                                {def.name}
+                            </h3>
+                        </div>
+                        <GlobalSettingsComponent
+                            semesterId={semester?.id}
+                            onRefresh={refreshSemester}
+                        />
+                    </div>
+                );
+            });
+
+        if (sections.length === 0) return null;
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {sections}
+            </div>
+        );
+    }, [widgetDefinitions, semester?.id, refreshSemester]);
 
     const builtinTabContext = useMemo(() => ({
         isLoading: isLoading,
         dashboard: {
             widgets: widgets,
             onAddWidgetClick: () => setIsAddWidgetOpen(true),
-            onRemoveWidget: removeWidget,
+            onRemoveWidget: handleRemoveWidget,
             onEditWidget: setEditingWidget,
-            onUpdateWidget: updateWidget,
-            onLayoutChange: updateLayout,
+            onUpdateWidget: handleUpdateWidget,
+            onUpdateWidgetDebounced: handleUpdateWidgetDebounced,
+            onLayoutChange: handleLayoutChange,
             semesterId: semester?.id
         },
         settings: {
             initialName: semester?.name || '',
-            onSave: async (data: any) => {
-                await updateSemester(data);
-            },
-            type: 'semester' as const
+            initialSettings: {}, // Semester might not have extra settings yet
+            onSave: handleUpdateSemester,
+            type: 'semester' as const,
+            extraSections: (
+                <>
+                    {widgetSettingsSections}
+                    {tabSettingsSections}
+                </>
+            )
         }
-    }), [isLoading, widgets, removeWidget, updateWidget, updateLayout, semester, updateSemester]);
-
-    const tabBarItems = useMemo(() => {
-        const dashboardDef = TabRegistry.get('dashboard');
-        const settingsDef = TabRegistry.get('settings');
-
-        const pluginItems = customTabs.map(t => {
-            const definition = TabRegistry.get(t.type);
-            return {
-                id: t.id,
-                label: definition?.name ?? t.title ?? t.type,
-                draggable: true,
-                removable: t.is_removable !== false
-            };
-        });
-
-        return [
-            { id: 'dashboard', label: dashboardDef?.name ?? 'Dashboard', draggable: false, removable: false },
-            ...pluginItems,
-            { id: 'settings', label: settingsDef?.name ?? 'Settings', draggable: false, removable: false }
-        ];
-    }, [customTabs]);
+    }), [
+        isLoading,
+        widgets,
+        handleRemoveWidget,
+        handleUpdateWidget,
+        handleUpdateWidgetDebounced,
+        handleLayoutChange,
+        semester,
+        handleUpdateSemester,
+        tabSettingsSections,
+        widgetSettingsSections
+    ]);
 
     return (
         <Layout breadcrumb={breadcrumb}>
@@ -312,17 +442,40 @@ const SemesterHomepageContent: React.FC = () => {
                 </div>
 
                 <Container className="py-4">
-                {isLoading || !semester ? (
-                    <DashboardSkeleton />
-                ) : (
-                    (() => {
-                        if (activeTabId === 'dashboard' || activeTabId === 'settings') {
-                            const BuiltinComponent = TabRegistry.getComponent(activeTabId);
-                            if (!BuiltinComponent) {
+                    {isLoading || !semester ? (
+                        <DashboardSkeleton />
+                    ) : (
+                        (() => {
+                            if (activeTabId === 'dashboard' || activeTabId === 'settings') {
+                                const BuiltinComponent = TabRegistry.getComponent(activeTabId);
+                                if (!BuiltinComponent) {
+                                    return (
+                                        <Empty className="bg-muted/40">
+                                            <EmptyHeader>
+                                                <EmptyTitle>Builtin tab not found</EmptyTitle>
+                                                <EmptyDescription>
+                                                    The requested tab is unavailable.
+                                                </EmptyDescription>
+                                            </EmptyHeader>
+                                        </Empty>
+                                    );
+                                }
+                                return (
+                                    <BuiltinComponent
+                                        tabId={activeTabId}
+                                        settings={{}}
+                                        semesterId={semester.id}
+                                        updateSettings={() => { }}
+                                    />
+                                );
+                            }
+                            const activeTab = customTabs.find(tab => tab.id === activeTabId);
+                            const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
+                            if (!activeTab) {
                                 return (
                                     <Empty className="bg-muted/40">
                                         <EmptyHeader>
-                                            <EmptyTitle>Builtin tab not found</EmptyTitle>
+                                            <EmptyTitle>Tab not found</EmptyTitle>
                                             <EmptyDescription>
                                                 The requested tab is unavailable.
                                             </EmptyDescription>
@@ -330,68 +483,45 @@ const SemesterHomepageContent: React.FC = () => {
                                     </Empty>
                                 );
                             }
+                            if (!TabComponent) {
+                                return (
+                                    <Empty className="bg-muted/40">
+                                        <EmptyHeader>
+                                            <EmptyTitle>Unknown tab type</EmptyTitle>
+                                            <EmptyDescription>
+                                                {activeTab.type}
+                                            </EmptyDescription>
+                                        </EmptyHeader>
+                                    </Empty>
+                                );
+                            }
                             return (
-                                <BuiltinComponent
-                                    tabId={activeTabId}
-                                    settings={{}}
-                                    semesterId={semester.id}
-                                    updateSettings={() => {}}
-                                />
+                                <React.Suspense fallback={<div className="p-8">Loading tab...</div>}>
+                                    <TabComponent
+                                        tabId={activeTab.id}
+                                        settings={activeTab.settings || {}}
+                                        semesterId={semester.id}
+                                        updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
+                                    />
+                                </React.Suspense>
                             );
-                        }
-                                const activeTab = customTabs.find(tab => tab.id === activeTabId);
-                        const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
-                        if (!activeTab) {
-                            return (
-                                <Empty className="bg-muted/40">
-                                    <EmptyHeader>
-                                        <EmptyTitle>Tab not found</EmptyTitle>
-                                        <EmptyDescription>
-                                            The requested tab is unavailable.
-                                        </EmptyDescription>
-                                    </EmptyHeader>
-                                </Empty>
-                            );
-                        }
-                        if (!TabComponent) {
-                            return (
-                                <Empty className="bg-muted/40">
-                                    <EmptyHeader>
-                                        <EmptyTitle>Unknown tab type</EmptyTitle>
-                                        <EmptyDescription>
-                                            {activeTab.type}
-                                        </EmptyDescription>
-                                    </EmptyHeader>
-                                </Empty>
-                            );
-                        }
-                        return (
-                            <React.Suspense fallback={<div className="p-8">Loading tab...</div>}>
-                                <TabComponent
-                                    tabId={activeTab.id}
-                                    settings={activeTab.settings || {}}
-                                    semesterId={semester.id}
-                                    updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
-                                />
-                            </React.Suspense>
-                        );
-                    })()
-                )}
-            </Container>
+                        })()
+                    )}
+                </Container>
 
                 {semester && (
                     <>
                         <AddWidgetModal
                             isOpen={isAddWidgetOpen}
                             onClose={() => setIsAddWidgetOpen(false)}
-                            onAdd={handleAddWidget}
+                            onAdd={onAddWidgetInner}
                             context="semester"
                             widgets={widgets}
                         />
                         <AddTabModal
                             isOpen={isAddTabOpen}
                             onClose={() => setIsAddTabOpen(false)}
-                            onAdd={handleAddTab}
+                            onAdd={onAddTabInner}
                             context="semester"
                             tabs={customTabs}
                         />
@@ -400,7 +530,7 @@ const SemesterHomepageContent: React.FC = () => {
                                 isOpen={!!editingWidget}
                                 onClose={() => setEditingWidget(null)}
                                 widget={editingWidget}
-                                onSave={handleUpdateWidget}
+                                onSave={onUpdateWidgetInner}
                             />
                         )}
                     </>
