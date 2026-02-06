@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { WidgetRegistry } from "../services/widgetRegistry";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { SaveSettingButton } from "./SaveSettingButton";
 
 interface WidgetSettingsModalProps {
   isOpen: boolean;
@@ -17,12 +19,28 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
 }) => {
   const widgetDefinition = WidgetRegistry.get(widget?.type);
   const SettingsComponent = widgetDefinition?.SettingsComponent;
+  const [draftSettings, setDraftSettings] = useState<any>(widget?.settings || {});
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
 
-  const handleSave = async (newSettings: any) => {
+  useEffect(() => {
+    setDraftSettings(widget?.settings || {});
+    setSaveState("idle");
+  }, [widget?.id, widget?.settings, isOpen]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!widget || saveState === "saving") return;
+
+    setSaveState("saving");
+    try {
     await onSave(widget.id, {
-      settings: JSON.stringify(newSettings),
+      settings: JSON.stringify(draftSettings),
     });
-    onClose();
+      onClose();
+    } catch (error) {
+      console.error("Failed to save widget settings", error);
+      setSaveState("idle");
+    }
   };
 
   if (!SettingsComponent) {
@@ -51,20 +69,42 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && saveState !== "saving") onClose();
+      }}
+    >
       <DialogContent className="p-0 sm:max-w-[520px]">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">
             {widgetDefinition?.name} Settings
           </DialogTitle>
         </DialogHeader>
-        <div className="p-6">
-          <SettingsComponent
-            settings={widget?.settings || {}}
-            onSave={handleSave}
-            onClose={onClose}
-          />
-        </div>
+        <form onSubmit={handleSave} className="p-6">
+          <div className="space-y-4">
+            <SettingsComponent
+              settings={draftSettings}
+              onSettingsChange={setDraftSettings}
+            />
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={saveState === "saving"}
+            >
+              Cancel
+            </Button>
+            <SaveSettingButton
+              type="submit"
+              label="Save Settings"
+              saveState={saveState}
+              animated={false}
+            />
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

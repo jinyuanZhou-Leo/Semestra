@@ -117,12 +117,18 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="p-0 sm:max-w-[600px] h-[80vh] flex flex-col overflow-hidden"
+                className={cn(
+                    "p-0 sm:max-w-[600px] flex flex-col overflow-hidden",
+                    semesterId ? "h-[80vh]" : "max-h-[85vh]"
+                )}
             >
                 <DialogHeader className="border-b px-6 py-4 flex-none">
                     <DialogTitle className="text-base font-semibold">Manage Courses</DialogTitle>
                 </DialogHeader>
-                <div className="flex-1 flex flex-col p-4 overflow-hidden">
+                <div className={cn(
+                    "flex flex-col p-4",
+                    semesterId ? "flex-1 overflow-hidden" : "overflow-y-auto"
+                )}>
                     {/* Mode Switcher (only if semesterId is present) */}
                     {semesterId && (
                         <div className="mb-4 flex-none">
@@ -214,8 +220,11 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                             </div>
                         </div>
                     ) : (
-                            <div className="flex flex-col flex-1 overflow-y-auto">
-                                <form onSubmit={handleCreateNew} className="flex flex-col flex-1 gap-6">
+                            <div className="flex flex-col overflow-y-auto">
+                                <form onSubmit={handleCreateNew} className={cn(
+                                    "flex flex-col gap-4",
+                                    semesterId && "flex-1"
+                                )}>
                                     <div className="grid gap-2">
                                         <Label htmlFor="course-name">Course Name</Label>
                                         <Input
@@ -254,7 +263,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                             placeholder="e.g. CS101 - Prof. Smith"
                                         />
                                     </div>
-                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <div className="grid gap-2">
                                             <Label htmlFor="course-credits">Credits</Label>
                                             <Input
@@ -279,7 +288,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                     </div>
                                 </div>
 
-                                    <div className="mt-auto pt-6">
+                                    <div className={cn("pt-2", semesterId && "mt-auto pt-6")}>
                                         <Button type="submit" className="w-full">
                                             <Plus className="mr-2 h-4 w-4" />
                                         Create Course

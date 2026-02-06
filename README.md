@@ -196,6 +196,14 @@ All plugins must follow these conventions:
 - **Responsive Design**: Test on different screen sizes using Tailwind responsive modifiers
 - **Accessibility**: Ensure keyboard navigation and ARIA labels
 
+### Multi-size Widget Best Practice
+
+- **Prefer one responsive component**: Use a single `.tsx` with CSS-driven scaling (`clamp()`, container queries, breakpoints, CSS variables).
+- **Avoid duplicate logic**: Do not create one component file per size unless layout structure is fundamentally different.
+- **Split only when structure diverges**: If compact and large layouts are very different, split into internal subviews (for example, `CompactView` and `FullView`) under one widget entry component.
+- **Use size tokens**: Define size variables for spacing, typography, controls, and visual elements to keep behavior consistent.
+- **Test key sizes**: Verify at minimum, medium, and maximum widget sizes to prevent overflow regressions.
+
 **Example**:
 ```tsx
 import { Button } from '../../components/ui/button';

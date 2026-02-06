@@ -705,14 +705,12 @@ const CourseHomepageContent: React.FC = () => {
                                 context="course"
                                 tabs={tabs}
                             />
-                            {editingWidget && (
-                                <WidgetSettingsModal
-                                    isOpen={!!editingWidget}
-                                    onClose={() => setEditingWidget(null)}
-                                    widget={editingWidget}
-                                    onSave={handleUpdateWidget}
-                                />
-                            )}
+                            <WidgetSettingsModal
+                                isOpen={!!editingWidget}
+                                onClose={() => setEditingWidget(null)}
+                                widget={editingWidget}
+                                onSave={handleUpdateWidget}
+                            />
                         </>
                     )
                 }

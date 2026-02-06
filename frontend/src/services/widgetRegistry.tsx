@@ -41,8 +41,7 @@ export type MaxInstances = number | 'unlimited';
 
 export interface WidgetSettingsProps {
     settings: any;
-    onSave: (newSettings: any) => void;
-    onClose: () => void;
+    onSettingsChange: (newSettings: any) => void;
 }
 
 /**

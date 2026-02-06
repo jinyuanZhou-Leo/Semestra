@@ -564,14 +564,12 @@ const SemesterHomepageContent: React.FC = () => {
                             context="semester"
                             tabs={customTabs}
                         />
-                        {editingWidget && (
-                            <WidgetSettingsModal
-                                isOpen={!!editingWidget}
-                                onClose={() => setEditingWidget(null)}
-                                widget={editingWidget}
-                                onSave={onUpdateWidgetInner}
-                            />
-                        )}
+                        <WidgetSettingsModal
+                            isOpen={!!editingWidget}
+                            onClose={() => setEditingWidget(null)}
+                            widget={editingWidget}
+                            onSave={onUpdateWidgetInner}
+                        />
                     </>
                 )}
             </BuiltinTabProvider>

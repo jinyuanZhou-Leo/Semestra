@@ -4,23 +4,33 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GPAScalingTable } from "./GPAScalingTable";
+import { SaveSettingButton } from "./SaveSettingButton";
 
 interface SettingsFormProps {
   initialName: string;
   initialSettings?: any;
   onSave: (data: any) => Promise<void>;
+  onSuccess?: () => void | Promise<void>;
   type: "program" | "semester" | "course";
   submitLabel?: string;
+  animateSubmitButton?: boolean;
   showCancel?: boolean;
   onCancel?: () => void;
 }
+
+const wait = (delayMs: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, delayMs);
+  });
 
 export const SettingsForm: React.FC<SettingsFormProps> = ({
   initialName,
   initialSettings = {},
   onSave,
+  onSuccess,
   type,
   submitLabel = "Save Changes",
+  animateSubmitButton = true,
   showCancel = false,
   onCancel,
 }) => {
@@ -30,6 +40,9 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
   const [extraSettings, setExtraSettings] = useState(initialSettings);
   const [jsonError, setJsonError] = useState("");
   const [gpaTableJson, setGpaTableJson] = useState("{}");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "success">(
+    "idle"
+  );
   const fieldId = useId();
 
   const settingsKey = useMemo(
@@ -62,6 +75,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saveState === "saving") return;
 
     if (type === "program") {
       try {
@@ -96,7 +110,21 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
       data.gpa_scaling_table = gpaTableJson;
     }
 
-    await onSave(data);
+    setSaveState("saving");
+
+    try {
+      await onSave(data);
+      setSaveState("success");
+
+      await wait(700);
+      setSaveState("idle");
+
+      await wait(220);
+      await onSuccess?.();
+    } catch (error) {
+      console.error("Failed to save settings", error);
+      setSaveState("idle");
+    }
   };
 
   const hideGpaId = `${fieldId}-hide-gpa`;
@@ -235,11 +263,21 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
 
       <div className="flex items-center justify-end gap-3">
         {showCancel && (
-          <Button type="button" variant="secondary" onClick={onCancel}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onCancel}
+            disabled={saveState === "saving"}
+          >
             Cancel
           </Button>
         )}
-        <Button type="submit">{submitLabel}</Button>
+        <SaveSettingButton
+          type="submit"
+          label={submitLabel}
+          saveState={saveState}
+          animated={animateSubmitButton}
+        />
       </div>
     </form>
   );

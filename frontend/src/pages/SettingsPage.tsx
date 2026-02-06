@@ -19,10 +19,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-import { Spinner } from "@/components/ui/spinner";
-
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
+import { SaveSettingButton } from "../components/SaveSettingButton";
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
@@ -195,6 +194,7 @@ export const SettingsPage: React.FC = () => {
     // Auto-save & Animation 
     const [saveState, setSaveState] = useState<'idle' | 'saving' | 'success'>('idle');
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const resetSaveStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Auto-save Effect
     useEffect(() => {
@@ -233,6 +233,10 @@ export const SettingsPage: React.FC = () => {
             return;
         }
 
+        if (resetSaveStateTimerRef.current) {
+            clearTimeout(resetSaveStateTimerRef.current);
+        }
+
         setSaveState('saving');
         try {
             await api.updateUser({
@@ -246,11 +250,14 @@ export const SettingsPage: React.FC = () => {
             setIsDirty(false);
 
             setSaveState('success');
+            if (resetSaveStateTimerRef.current) {
+                clearTimeout(resetSaveStateTimerRef.current);
+            }
 
             // Revert to idle after delay
-            setTimeout(() => {
+            resetSaveStateTimerRef.current = setTimeout(() => {
                 setSaveState('idle');
-            }, 2000);
+            }, 900);
 
         } catch (error) {
             console.error("Failed to save settings", error);
@@ -292,6 +299,14 @@ export const SettingsPage: React.FC = () => {
     };
 
     const avatarInitial = (user?.email?.charAt(0).toUpperCase() || "U").trim();
+
+    useEffect(() => {
+        return () => {
+            if (resetSaveStateTimerRef.current) {
+                clearTimeout(resetSaveStateTimerRef.current);
+            }
+        };
+    }, []);
 
     return (
         <Layout>
@@ -455,23 +470,12 @@ export const SettingsPage: React.FC = () => {
                             </div>
 
                             <div className="flex justify-start pt-4">
-                                <Button
+                                <SaveSettingButton
                                     onClick={() => saveSettings()}
-                                    disabled={saveState === "saving"}
+                                    saveState={saveState}
+                                    label="Save Changes"
                                     className="min-w-[140px]"
-                                >
-                                    {saveState === "saving" && (
-                                        <Spinner className="mr-2 size-3" />
-                                    )}
-                                    {saveState === "success" && (
-                                        <span className="mr-2 text-emerald-100">✓</span>
-                                    )}
-                                    {saveState === "success"
-                                        ? "Saved"
-                                        : saveState === "saving"
-                                            ? "Saving"
-                                            : "Save Changes"}
-                                </Button>
+                                />
                             </div>
                         </div>
                     </SettingsSection>

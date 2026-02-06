@@ -1,6 +1,7 @@
 import React, { useCallback, useId, useState } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Minus, Plus, RotateCcw } from 'lucide-react';
@@ -12,42 +13,38 @@ interface CounterSettings {
     step: number;
     initialValue: number;
     displayText?: string;
+    showRing?: boolean;
 }
 
 /**
  * Counter Settings Component
  */
-const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSave, onClose }) => {
+const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSettingsChange }) => {
     const counterSettings = settings as CounterSettings;
     const formId = useId();
-    const [displayText, setDisplayText] = useState(counterSettings.displayText || '');
-    const [min, setMin] = useState(counterSettings.min ?? 0);
-    const [max, setMax] = useState(counterSettings.max ?? 100);
-    const [step, setStep] = useState(counterSettings.step ?? 1);
-    const [initialValue, setInitialValue] = useState(counterSettings.initialValue ?? 0);
-
-    const handleSave = (e: React.FormEvent) => {
-        e.preventDefault();
-        onSave({
-            ...settings,
-            displayText,
-            min: Number(min),
-            max: Number(max),
-            step: Number(step),
-            initialValue: Number(initialValue)
-        });
-        onClose();
-    };
 
     return (
-        <form onSubmit={handleSave} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
             <div className="grid gap-2">
                 <Label htmlFor={`${formId}-display`}>Display Text</Label>
                 <Input
                     id={`${formId}-display`}
-                    value={displayText}
-                    onChange={e => setDisplayText(e.target.value)}
+                    value={counterSettings.displayText || ''}
+                    onChange={e => onSettingsChange({ ...settings, displayText: e.target.value })}
                     placeholder="Enter custom text to display below counter"
+                />
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border p-3">
+                <Label htmlFor={`${formId}-show-ring`} className="cursor-pointer">
+                    Show Ring
+                </Label>
+                <Checkbox
+                    id={`${formId}-show-ring`}
+                    checked={counterSettings.showRing ?? true}
+                    onCheckedChange={(checked) =>
+                        onSettingsChange({ ...settings, showRing: checked === true })
+                    }
                 />
             </div>
 
@@ -57,8 +54,8 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                     <Input
                         id={`${formId}-min`}
                         type="number"
-                        value={min}
-                        onChange={e => setMin(Number(e.target.value))}
+                        value={counterSettings.min ?? 0}
+                        onChange={e => onSettingsChange({ ...settings, min: Number(e.target.value) })}
                     />
                 </div>
                 <div className="grid gap-2">
@@ -66,8 +63,8 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                     <Input
                         id={`${formId}-max`}
                         type="number"
-                        value={max}
-                        onChange={e => setMax(Number(e.target.value))}
+                        value={counterSettings.max ?? 100}
+                        onChange={e => onSettingsChange({ ...settings, max: Number(e.target.value) })}
                     />
                 </div>
                 <div className="grid gap-2">
@@ -75,8 +72,8 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                     <Input
                         id={`${formId}-step`}
                         type="number"
-                        value={step}
-                        onChange={e => setStep(Number(e.target.value))}
+                        value={counterSettings.step ?? 1}
+                        onChange={e => onSettingsChange({ ...settings, step: Number(e.target.value) })}
                         min="1"
                     />
                 </div>
@@ -85,19 +82,12 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                     <Input
                         id={`${formId}-initial`}
                         type="number"
-                        value={initialValue}
-                        onChange={e => setInitialValue(Number(e.target.value))}
+                        value={counterSettings.initialValue ?? 0}
+                        onChange={e => onSettingsChange({ ...settings, initialValue: Number(e.target.value) })}
                     />
                 </div>
             </div>
-
-            <div className="flex justify-end gap-3 pt-1">
-                <Button type="button" variant="secondary" onClick={onClose}>
-                    Cancel
-                </Button>
-                <Button type="submit">Save</Button>
-            </div>
-        </form>
+        </div>
     );
 };
 
@@ -111,7 +101,8 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
         min = 0,
         max = 100,
         step = 1,
-        displayText = ''
+        displayText = '',
+        showRing = true
     } = (settings as CounterSettings) || {};
 
     const [jitter, setJitter] = useState(false);
@@ -145,73 +136,106 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
         }
     }, [value, step, min, updateCount]);
 
+    const responsiveVars = {
+        '--counter-gap': showRing ? 'clamp(0.35rem, 2.6vh, 0.75rem)' : 'clamp(0.25rem, 2vh, 0.6rem)',
+        '--counter-pad': 'clamp(0.4rem, 3vw, 1rem)',
+        '--counter-size': showRing ? 'clamp(4.75rem, 66%, 9rem)' : 'clamp(2.75rem, 40%, 5rem)',
+        '--counter-number': showRing ? 'clamp(1.55rem, 15.5cqw, 3.5rem)' : 'clamp(2.1rem, 18cqw, 6rem)',
+        '--counter-button': 'clamp(1.9rem, 12.5cqw, 2.5rem)',
+        '--counter-icon': 'clamp(0.8rem, 5.2cqw, 1.25rem)',
+        '--counter-text': 'clamp(0.6rem, 3.2cqw, 0.78rem)',
+        '--counter-text-max': 'clamp(1.5rem, 14cqh, 3.2rem)',
+        '--counter-controls-gap': showRing ? 'clamp(0.35rem, 2.8vw, 1rem)' : 'clamp(0.3rem, 2.2vw, 0.75rem)'
+    } as React.CSSProperties;
+
     return (
-        <div className="flex h-full flex-col items-center justify-center p-4">
-            <div 
-                className="relative flex items-center justify-center"
+        <div
+            className="counter-widget flex h-full min-h-0 min-w-0 flex-col items-center justify-center overflow-hidden"
+            style={responsiveVars}
+        >
+            <div
+                className={`relative flex shrink-0 items-center justify-center ${showRing ? 'w-[var(--counter-size)] h-[var(--counter-size)]' : 'h-[var(--counter-size)] w-full'}`}
                     style={{
                         animation: jitter ? 'jitter 0.3s ease-in-out' : 'none'
                     }}
                 >
-                {/* Circular Progress Background */}
-                <svg className="h-40 w-40 text-muted/20 rotate-[-90deg]" viewBox="0 0 100 100">
-                    <circle
-                        className="text-muted/20"
-                        strokeWidth="6"
-                        stroke="currentColor"
-                        fill="transparent"
-                        r="40"
-                        cx="50"
-                        cy="50"
-                    />
-                    <circle
-                        className="text-primary transition-all duration-500 ease-out"
-                        strokeWidth="6"
-                        strokeDasharray={circumference}
-                        strokeDashoffset={strokeDashoffset}
-                        strokeLinecap="round"
-                        stroke="currentColor"
-                        fill="transparent"
-                        r="40"
-                        cx="50"
-                        cy="50"
-                    />
-                </svg>
+                {showRing && (
+                    <svg className="h-full w-full text-muted/20 rotate-[-90deg]" viewBox="0 0 100 100">
+                        <circle
+                            className="text-muted/20"
+                            strokeWidth="6"
+                            stroke="currentColor"
+                            fill="transparent"
+                            r="40"
+                            cx="50"
+                            cy="50"
+                        />
+                        <circle
+                            className="text-primary transition-all duration-500 ease-out"
+                            strokeWidth="6"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={strokeDashoffset}
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="transparent"
+                            r="40"
+                            cx="50"
+                            cy="50"
+                        />
+                    </svg>
+                )}
 
                 {/* Centered Value */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-4xl font-bold tabular-nums tracking-tight">
+                <div className="absolute inset-0 flex items-center justify-center px-2 text-center">
+                    <span
+                        className="font-bold leading-none tabular-nums tracking-tight"
+                        style={{ fontSize: 'var(--counter-number)' }}
+                    >
                         {value}
                     </span>
-                    {displayText && (
-                        <span className="max-w-[80px] truncate text-xs font-medium text-muted-foreground">
-                            {displayText}
-                        </span>
-                    )}
                 </div>
-                </div>
+            </div>
 
-            <div className="mt-4 flex items-center gap-4">
+            <div className="w-full min-w-0 max-w-[220px] px-1 text-center">
+                {displayText && (
+                    <span className="block overflow-hidden whitespace-pre-wrap break-words font-medium leading-relaxed text-muted-foreground"
+                        style={{
+                            maxHeight: 'var(--counter-text-max)',
+                            fontSize: 'var(--counter-text)'
+                        }}>
+                        {displayText}
+                    </span>
+                )}
+            </div>
+
+            <div className="flex shrink-0 items-center" style={{ gap: 'var(--counter-controls-gap)' }}>
                     <Button
                         onClick={handleDecrement}
                     variant="secondary"
                         size="icon"
-                    className="h-10 w-10 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    className="rounded-full transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    style={{ width: 'var(--counter-button)', height: 'var(--counter-button)' }}
                     disabled={value <= min}
                     >
-                    <Minus className="h-5 w-5" />
+                    <Minus style={{ width: 'var(--counter-icon)', height: 'var(--counter-icon)' }} />
                     </Button>
                     <Button
                         onClick={handleIncrement}
                         size="icon"
-                    className="h-10 w-10 rounded-full shadow-sm"
+                    className="rounded-full shadow-sm"
+                    style={{ width: 'var(--counter-button)', height: 'var(--counter-button)' }}
                     disabled={value >= max}
                     >
-                    <Plus className="h-5 w-5" />
+                    <Plus style={{ width: 'var(--counter-icon)', height: 'var(--counter-icon)' }} />
                     </Button>
                 </div>
 
             <style>{`
+                    .counter-widget {
+                        padding: var(--counter-pad);
+                        gap: var(--counter-gap);
+                        container-type: size;
+                    }
                     @keyframes jitter {
                         0%, 100% { transform: translateX(0); }
                         25% { transform: translateX(-4px); }
@@ -234,12 +258,13 @@ export const CounterDefinition: WidgetDefinition = {
     defaultSettings: {
         value: 0,
         min: 0,
-        max: 100,
+        max: 10,
         step: 1,
         initialValue: 0,
-        displayText: ''
+        displayText: '',
+        showRing: true
     },
-    layout: { w: 3, h: 4, minW: 2, minH: 3, maxW: 4, maxH: 6 },
+    layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 6 },
     headerButtons: [
         {
             id: 'reset',

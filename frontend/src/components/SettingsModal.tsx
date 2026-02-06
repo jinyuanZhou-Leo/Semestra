@@ -31,10 +31,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <SettingsForm
           initialName={initialName}
           initialSettings={initialSettings}
-          onSave={async (data) => {
-            await onSave(data);
-            onClose();
-          }}
+          onSave={onSave}
+          onSuccess={onClose}
           type={type}
           showCancel
           onCancel={onClose}

@@ -74,7 +74,7 @@ export interface WidgetDefinition {
     maxInstances?: number | 'unlimited'; // Max instances per dashboard
     allowedContexts?: Array<'semester' | 'course'>; // Where this widget can be added
     headerButtons?: HeaderButton[]; // Optional custom action buttons in widget header
-    SettingsComponent?: React.FC<WidgetSettingsProps>; // Optional per-instance settings modal
+    SettingsComponent?: React.FC<WidgetSettingsProps>; // Optional per-instance settings fields (rendered inside framework modal)
     globalSettingsComponent?: React.FC<WidgetGlobalSettingsProps>; // Optional plugin-level settings
     // Lifecycle hooks
     onCreate?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
@@ -106,8 +106,7 @@ export interface WidgetLifecycleContext {
 // Per-instance settings (shown in modal when clicking gear icon on widget)
 export interface WidgetSettingsProps {
     settings: any;
-    onSave: (newSettings: any) => void;
-    onClose: () => void;
+    onSettingsChange: (newSettings: any) => void;
 }
 
 // Plugin-level global settings (shown in Settings tab)
@@ -140,6 +139,50 @@ export const MyWidgetDefinition: WidgetDefinition = {
 ```
 
 **Icon rendering:** Icons are displayed inside a circular badge in the UI. If `icon` is omitted, a placeholder badge with the first letter of the plugin name is shown. For image icons, place the asset in the plugin folder and import it (Vite will provide a URL string).
+
+### Widget Settings Modal Ownership
+
+For widget `SettingsComponent`, the framework owns the dialog shell and actions:
+
+- Framework provides: dialog layout, footer actions, `Cancel`, and `Save Settings` button.
+- Plugin provides: only settings fields UI.
+- Plugin **must not** implement its own save/cancel buttons for `SettingsComponent`.
+
+When fields change, call `onSettingsChange(...)` to update draft settings. The framework handles submit and persistence.
+
+**Example - Widget SettingsComponent (fields only)**:
+
+```typescript
+import type { WidgetSettingsProps } from '../../services/widgetRegistry';
+import { Label } from '../../components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '../../components/ui/select';
+
+const MyWidgetSettings: React.FC<WidgetSettingsProps> = ({ settings, onSettingsChange }) => {
+    return (
+        <div className="grid gap-2">
+            <Label htmlFor="my-widget-timezone">Timezone</Label>
+            <Select
+                value={settings?.timezone || 'UTC'}
+                onValueChange={(timezone) => onSettingsChange({ ...settings, timezone })}
+            >
+                <SelectTrigger id="my-widget-timezone">
+                    <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="UTC">UTC</SelectItem>
+                    <SelectItem value="America/New_York">New York</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+    );
+};
+```
 
 ### Plugin-Level Global Settings
 
@@ -193,6 +236,18 @@ export interface WidgetProps {
     updateCourse?: (updates: any) => void; // Update course data (if applicable)
 }
 ```
+
+### Multi-size Widget Best Practice
+
+For resizable dashboard widgets, prefer a single responsive component over multiple size-specific `.tsx` files.
+
+- Use one widget entry component and drive adaptation with CSS (`clamp()`, container queries, breakpoints, CSS variables).
+- Avoid duplicating business/state logic across separate files for `small/medium/large`.
+- Split into internal subviews only when layout structure is fundamentally different (for example `CompactView` vs `FullView`), still under one widget component.
+- Define size tokens for spacing, typography, controls, and visual elements so scaling is consistent.
+- Validate at minimum, medium, and maximum widget sizes to prevent overflow regressions.
+
+This keeps behavior consistent, reduces maintenance cost, and avoids state divergence between size variants.
 
 ### TabDefinition
 
