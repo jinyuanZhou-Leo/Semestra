@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+import json
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -247,14 +248,16 @@ async def export_user_data(
             hide_gpa=program.hide_gpa,
             semesters=semesters_export
         ))
+
+    user_setting = crud.get_user_setting_dict(current_user)
     
     return schemas.UserDataExport(
         version="1.0",
         exported_at=datetime.utcnow().isoformat(),
         settings=schemas.UserSettingsExport(
             nickname=current_user.nickname,
-            gpa_scaling_table=current_user.gpa_scaling_table,
-            default_course_credit=current_user.default_course_credit
+            gpa_scaling_table=user_setting["gpa_scaling_table"],
+            default_course_credit=user_setting["default_course_credit"]
         ),
         programs=programs_export
     )
@@ -281,12 +284,18 @@ async def import_user_data(
     # Import settings if provided and requested
     if include_settings and data.settings:
         update_data = {}
+        user_setting = crud.get_user_setting_dict(current_user)
         if data.settings.nickname is not None:
             update_data["nickname"] = data.settings.nickname
         if data.settings.gpa_scaling_table is not None:
-            update_data["gpa_scaling_table"] = data.settings.gpa_scaling_table
+            user_setting["gpa_scaling_table"] = data.settings.gpa_scaling_table
         if data.settings.default_course_credit is not None:
-            update_data["default_course_credit"] = data.settings.default_course_credit
+            user_setting["default_course_credit"] = data.settings.default_course_credit
+        if (
+            data.settings.gpa_scaling_table is not None
+            or data.settings.default_course_credit is not None
+        ):
+            update_data["user_setting"] = json.dumps(user_setting)
         if update_data:
             crud.update_user(db, current_user.id, schemas.UserUpdate(**update_data))
     
@@ -502,9 +511,11 @@ async def create_semester_from_ics(
     semester = crud.create_semester(db=db, semester=semester_create, program_id=program_id)
     
     # Create Courses
+    user_setting = crud.get_user_setting_dict(current_user)
+    default_course_credit = float(user_setting.get("default_course_credit", crud.DEFAULT_COURSE_CREDIT))
     for course_name in course_names:
         category = utils.extract_category(course_name)
-        course_create = schemas.CourseCreate(name=course_name, credits=current_user.default_course_credit, category=category)
+        course_create = schemas.CourseCreate(name=course_name, credits=default_course_credit, category=category)
         crud.create_course(db=db, course=course_create, program_id=program_id, semester_id=semester.id)
         
     return semester

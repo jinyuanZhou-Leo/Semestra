@@ -1,10 +1,46 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+import json
 import models
 import schemas
 import bcrypt
 
 DEFAULT_GPA_SCALING = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}'
+DEFAULT_COURSE_CREDIT = 0.5
+
+def get_default_user_setting_dict() -> dict:
+    return {
+        "gpa_scaling_table": DEFAULT_GPA_SCALING,
+        "default_course_credit": DEFAULT_COURSE_CREDIT,
+    }
+
+def parse_user_setting(raw_setting: str | None) -> dict:
+    if not raw_setting:
+        return {}
+    try:
+        parsed = json.loads(raw_setting)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+def normalize_user_setting_dict(settings: dict | None) -> dict:
+    normalized = dict(settings) if isinstance(settings, dict) else {}
+
+    gpa_table = normalized.get("gpa_scaling_table")
+    if not isinstance(gpa_table, str) or not gpa_table:
+        normalized["gpa_scaling_table"] = DEFAULT_GPA_SCALING
+
+    default_credit = normalized.get("default_course_credit")
+    if isinstance(default_credit, (int, float)):
+        normalized["default_course_credit"] = float(default_credit)
+    else:
+        normalized["default_course_credit"] = DEFAULT_COURSE_CREDIT
+
+    return normalized
+
+def get_user_setting_dict(user: models.User | None) -> dict:
+    settings = parse_user_setting(getattr(user, "user_setting", None)) if user else {}
+    return normalize_user_setting_dict(settings)
 
 def verify_password(plain_password, hashed_password):
     if not hashed_password:
@@ -28,7 +64,11 @@ def get_user_by_google_sub(db: Session, google_sub: str):
 
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = get_password_hash(user.password)
-    db_user = models.User(email=user.email, hashed_password=hashed_password, gpa_scaling_table=DEFAULT_GPA_SCALING, default_course_credit=0.5)
+    db_user = models.User(
+        email=user.email,
+        hashed_password=hashed_password,
+        user_setting=json.dumps(get_default_user_setting_dict())
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -40,8 +80,7 @@ def create_user_from_google(db: Session, email: str, google_sub: str):
         email=email,
         hashed_password=None,
         google_sub=google_sub,
-        gpa_scaling_table=DEFAULT_GPA_SCALING,
-        default_course_credit=0.5
+        user_setting=json.dumps(get_default_user_setting_dict())
     )
     db.add(db_user)
     db.commit()
@@ -53,8 +92,34 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):
     db_user = get_user(db, user_id)
     if not db_user:
         return None
-    for key, value in user_update.dict(exclude_unset=True).items():
-        setattr(db_user, key, value)
+
+    update_data = user_update.dict(exclude_unset=True)
+
+    if "nickname" in update_data:
+        db_user.nickname = update_data["nickname"]
+
+    merged_settings = get_user_setting_dict(db_user)
+    has_settings_update = False
+
+    if "user_setting" in update_data and update_data["user_setting"] is not None:
+        incoming = parse_user_setting(update_data["user_setting"])
+        if incoming:
+            merged_settings.update(incoming)
+            has_settings_update = True
+
+    if "gpa_scaling_table" in update_data and update_data["gpa_scaling_table"] is not None:
+        merged_settings["gpa_scaling_table"] = update_data["gpa_scaling_table"]
+        has_settings_update = True
+
+    if "default_course_credit" in update_data and update_data["default_course_credit"] is not None:
+        merged_settings["default_course_credit"] = float(update_data["default_course_credit"])
+        has_settings_update = True
+
+    merged_settings = normalize_user_setting_dict(merged_settings)
+
+    if has_settings_update or not db_user.user_setting:
+        db_user.user_setting = json.dumps(merged_settings)
+
     db.add(db_user)
     db.commit()
     db.refresh(db_user)

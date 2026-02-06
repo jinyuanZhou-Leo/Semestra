@@ -30,14 +30,15 @@ class User(UserBase):
     id: str
     nickname: Optional[str] = None
     is_active: bool = True
-    gpa_scaling_table: Optional[str] = None
-    default_course_credit: float = 0.0
+    user_setting: Optional[str] = None
     google_sub: Optional[str] = None
     class Config:
         from_attributes = True
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = None
+    user_setting: Optional[str] = None
+    # Backward-compatible fields that are merged into user_setting.
     gpa_scaling_table: Optional[str] = None
     default_course_credit: Optional[float] = None
 

@@ -35,6 +35,15 @@ def _parse_scaling_table(raw_table: str | None) -> dict | None:
         return parsed
     return None
 
+def _parse_user_setting(raw_setting: str | None) -> dict:
+    if not raw_setting:
+        return {}
+    try:
+        parsed = json.loads(raw_setting)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
 def get_scaling_table(program: models.Program | None = None) -> dict:
     """
     Resolves the scaling table to use based on inheritance:
@@ -47,7 +56,8 @@ def get_scaling_table(program: models.Program | None = None) -> dict:
 
     # Check User Global Default
     if program and program.owner:
-        user_table = _parse_scaling_table(program.owner.gpa_scaling_table)
+        user_setting = _parse_user_setting(program.owner.user_setting)
+        user_table = _parse_scaling_table(user_setting.get("gpa_scaling_table"))
         if user_table:
             return user_table
 
