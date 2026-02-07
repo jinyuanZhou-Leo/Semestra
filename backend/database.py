@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import event
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -32,6 +33,13 @@ else:
 engine = create_engine(
     SQLITE_URL, connect_args={"check_same_thread": False}
 )
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, _connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

@@ -20,6 +20,7 @@ import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataC
 import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
+import { useStickyCollapse } from '../hooks/useStickyCollapse';
 
 
 import {
@@ -30,6 +31,9 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+
+const BUILTIN_TIMETABLE_TAB_ID = 'builtin-academic-timetable';
+const LEGACY_SCHEDULE_TAB_ID = 'schedule';
 
 const SemesterHomepageContent: React.FC = () => {
     const { semester, updateSemester, refreshSemester, isLoading } = useSemesterData();
@@ -43,51 +47,7 @@ const SemesterHomepageContent: React.FC = () => {
 
     const [programName, setProgramName] = useState<string | null>(null);
 
-    // Refs for direct DOM manipulation to avoid re-renders on scroll
-    const headerRef = React.useRef<HTMLDivElement>(null);
-    const titleRef = React.useRef<HTMLHeadingElement>(null);
-    const statsRef = React.useRef<HTMLDivElement>(null);
-    const hasInitializedRef = React.useRef(false);
-
-    useEffect(() => {
-        const handleScroll = () => {
-            if (!headerRef.current || !titleRef.current || !statsRef.current) return;
-
-            const threshold = 100;
-            const scrollY = window.scrollY;
-            const progress = Math.min(Math.max(scrollY / threshold, 0), 1);
-
-            // Header Styles
-            const padding = 16 - (8 * progress);
-            headerRef.current.style.paddingTop = `${padding}px`;
-            headerRef.current.style.paddingBottom = `${padding}px`;
-            headerRef.current.style.backgroundColor = `rgba(255, 255, 255, ${progress})`;
-            headerRef.current.style.borderBottomColor = `rgba(229, 231, 235, ${progress})`;
-            headerRef.current.style.boxShadow = progress > 0.5 ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none';
-
-            // Title Scale
-            const scale = 1 - (0.2 * progress);
-            titleRef.current.style.transform = `scale(${scale})`;
-
-            // Stats Opacity & Height
-            const statsOpacity = Math.max(1 - (progress * 2), 0);
-            const statsHeight = Math.max(140 * (1 - progress * 1.5), 0);
-
-            statsRef.current.style.opacity = statsOpacity.toString();
-            statsRef.current.style.maxHeight = `${statsHeight}px`;
-            statsRef.current.style.marginTop = statsOpacity > 0 ? '0.75rem' : '0';
-            statsRef.current.style.display = statsOpacity <= 0 ? 'none' : 'flex';
-        };
-
-        // Initial set
-        if (!hasInitializedRef.current) {
-            handleScroll();
-            hasInitializedRef.current = true;
-        }
-
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
+    const { isShrunk, heroRef, heroSpacerHeight } = useStickyCollapse();
 
     useEffect(() => {
         let isActive = true;
@@ -160,6 +120,14 @@ const SemesterHomepageContent: React.FC = () => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
 
+    // Create a lookup for registered tab types to trigger re-render when tabs load
+    const registeredTabTypes = useMemo(() => new Set(registeredTabs.map(t => t.type)), [registeredTabs]);
+
+    const scheduleTabId = useMemo(
+        () => (registeredTabTypes.has(BUILTIN_TIMETABLE_TAB_ID) ? BUILTIN_TIMETABLE_TAB_ID : LEGACY_SCHEDULE_TAB_ID),
+        [registeredTabTypes]
+    );
+
     const pluginTabItems = useMemo(() => {
         return customTabs.map(tab => {
             const definition = TabRegistry.get(tab.type);
@@ -175,12 +143,20 @@ const SemesterHomepageContent: React.FC = () => {
 
     const tabBarItems = useMemo(() => {
         const dashboardDef = TabRegistry.get('dashboard');
+        const scheduleDef = TabRegistry.get(scheduleTabId);
         const settingsDef = TabRegistry.get('settings');
         return [
             {
                 id: 'dashboard',
                 label: dashboardDef?.name ?? 'Dashboard',
                 icon: dashboardDef?.icon,
+                draggable: false,
+                removable: false
+            },
+            {
+                id: scheduleTabId,
+                label: scheduleDef?.name ?? 'Schedule',
+                icon: scheduleDef?.icon,
                 draggable: false,
                 removable: false
             },
@@ -193,7 +169,7 @@ const SemesterHomepageContent: React.FC = () => {
                 removable: false
             }
         ];
-    }, [pluginTabItems]);
+    }, [pluginTabItems, scheduleTabId]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         const pluginIdSet = new Set(customTabs.map(tab => tab.id));
@@ -232,12 +208,9 @@ const SemesterHomepageContent: React.FC = () => {
         </Breadcrumb>
     ), [semester?.program_id, semester?.name, programName]);
 
-    // Create a lookup for registered tab types to trigger re-render when tabs load
-    const registeredTabTypes = useMemo(() => new Set(registeredTabs.map(t => t.type)), [registeredTabs]);
-
     const dashboardContent = useMemo(() => {
         if (!semester) return null;
-        if (activeTabId === 'dashboard' || activeTabId === 'settings') {
+        if (activeTabId === 'dashboard' || activeTabId === 'settings' || activeTabId === scheduleTabId) {
             const BuiltinComponent = TabRegistry.getComponent(activeTabId);
             if (!BuiltinComponent) {
                 return (
@@ -296,7 +269,7 @@ const SemesterHomepageContent: React.FC = () => {
                 />
             </React.Suspense>
         );
-    }, [activeTabId, semester, customTabs, handleUpdateTabSettings, registeredTabTypes]);
+    }, [activeTabId, semester, customTabs, handleUpdateTabSettings, registeredTabTypes, scheduleTabId]);
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
@@ -438,33 +411,27 @@ const SemesterHomepageContent: React.FC = () => {
         <Layout breadcrumb={breadcrumb}>
             <BuiltinTabProvider value={builtinTabContext}>
                 <div
-                    ref={headerRef}
-                    className="sticky left-0 right-0 z-40 top-[60px]" // Always top-60px since navbar is fixed
+                    ref={heroRef}
+                    className={`sticky left-0 right-0 z-40 top-[60px] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding,box-shadow] duration-300 ease-out ${isShrunk ? 'shadow-sm' : 'shadow-none'}`}
                     style={{
-                        paddingTop: '16px',
-                        paddingBottom: '16px',
-                        backgroundColor: 'rgba(255, 255, 255, 0)',
-                        borderBottomColor: 'rgba(229, 231, 235, 0)',
-                        boxShadow: 'none',
-                        transition: 'none'
-                        // Styles managed by direct DOM manipulation
+                        paddingTop: isShrunk ? '8px' : '16px',
+                        paddingBottom: isShrunk ? '8px' : '16px'
                     }}
                 >
-                    <Container className="flex flex-wrap items-center transition-none">
-                        {/* Remove CSS transitions to rely on scroll sync */}
-
+                    <Container className="flex flex-wrap items-center">
                         <div className="flex flex-col gap-2 relative w-full">
                             <div className="min-w-0">
                                 {isLoading || !semester ? (
                                     <Skeleton className="h-12 w-3/5" />
                                 ) : (
                                         <h1
-                                            ref={titleRef}
                                             className="noselect text-truncate font-bold tracking-tight origin-left"
                                             style={{
                                                 fontSize: '2.25rem',
                                                 lineHeight: '2.5rem',
-                                                transformOrigin: 'left center'
+                                                transformOrigin: 'left center',
+                                                transform: isShrunk ? 'scale(0.8)' : 'scale(1)',
+                                                transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                                             }}
                                         >
                                             {semester.name}
@@ -472,11 +439,13 @@ const SemesterHomepageContent: React.FC = () => {
                                 )}
 
                                 <div
-                                    ref={statsRef}
                                     className="noselect flex flex-wrap gap-6 overflow-hidden"
                                     style={{
-                                        opacity: 1,
-                                        marginTop: '0.75rem'
+                                        maxHeight: isShrunk ? '0px' : '140px',
+                                        opacity: isShrunk ? 0 : 1,
+                                        marginTop: isShrunk ? '0' : '0.75rem',
+                                        transform: isShrunk ? 'translateY(-8px)' : 'translateY(0)',
+                                        transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin-top 0.3s ease, transform 0.3s ease'
                                     }}
                                 >
                                     {/* Stats content ... unchanged */}
@@ -547,6 +516,10 @@ const SemesterHomepageContent: React.FC = () => {
                             dashboardContent
                     )}
                 </Container>
+                <div
+                    aria-hidden="true"
+                    style={{ height: isShrunk ? heroSpacerHeight : 0 }}
+                />
 
                 {semester && (
                     <>

@@ -87,7 +87,7 @@ const api = {
             return response.data;
         });
     },
-    createProgram: async (data: { name: string; grad_requirement_credits: number }) => {
+    createProgram: async (data: { name: string; grad_requirement_credits: number; program_timezone?: string }) => {
         const response = await axios.post<Program>('/api/programs/', data);
         return response.data;
     },

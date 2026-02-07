@@ -2,6 +2,7 @@ import { TabRegistry, type TabDefinition } from './services/tabRegistry';
 
 type PluginModule = {
     tabDefinition?: TabDefinition;
+    tabDefinitions?: TabDefinition[];
 };
 
 // Lazy load plugins - only loaded when actually needed
@@ -14,6 +15,9 @@ const initTabs = async () => {
             const module = await loader();
             if (module.tabDefinition) {
                 TabRegistry.register(module.tabDefinition);
+            }
+            if (module.tabDefinitions) {
+                module.tabDefinitions.forEach((definition) => TabRegistry.register(definition));
             }
         } catch (error) {
             console.error(`Failed to load tab plugin: ${path}`, error);

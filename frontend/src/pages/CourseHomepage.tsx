@@ -21,6 +21,7 @@ import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
+import { useStickyCollapse } from '../hooks/useStickyCollapse';
 
 import {
     Breadcrumb,
@@ -40,6 +41,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
+const BUILTIN_TIMETABLE_TAB_ID = 'builtin-academic-timetable';
+const LEGACY_SCHEDULE_TAB_ID = 'schedule';
+
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
     const { course, updateCourse, refreshCourse, isLoading } = useCourseData();
@@ -54,57 +58,7 @@ const CourseHomepageContent: React.FC = () => {
     const [programName, setProgramName] = useState<string | null>(null);
     const [semesterName, setSemesterName] = useState<string | null>(null);
 
-    // Refs for direct DOM manipulation
-    const headerRef = React.useRef<HTMLDivElement>(null);
-    const titleRef = React.useRef<HTMLHeadingElement>(null);
-    const aliasRef = React.useRef<HTMLDivElement>(null);
-    const statsRef = React.useRef<HTMLDivElement>(null);
-    const hasInitializedRef = React.useRef(false);
-
-    useEffect(() => {
-        const handleScroll = () => {
-            if (!headerRef.current || !titleRef.current || !statsRef.current) return;
-
-            const threshold = 100;
-            const scrollY = window.scrollY;
-            const progress = Math.min(Math.max(scrollY / threshold, 0), 1);
-
-            // Header Styles
-            const padding = 16 - (8 * progress);
-            headerRef.current.style.paddingTop = `${padding}px`;
-            headerRef.current.style.paddingBottom = `${padding}px`;
-            headerRef.current.style.backgroundColor = `rgba(255, 255, 255, ${progress})`;
-            headerRef.current.style.borderBottomColor = `rgba(229, 231, 235, ${progress})`;
-            headerRef.current.style.boxShadow = progress > 0.5 ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none';
-
-            // Title Scale
-            const scale = 1 - (0.2 * progress);
-            titleRef.current.style.transform = `scale(${scale})`;
-
-            // Stats & Alias Opacity/Height
-            const statsOpacity = Math.max(1 - (progress * 2), 0);
-            const statsHeight = Math.max(140 * (1 - progress * 1.5), 0);
-
-            // Alias
-            if (aliasRef.current) {
-                aliasRef.current.style.opacity = statsOpacity.toString();
-                aliasRef.current.style.display = statsOpacity <= 0 ? 'none' : 'block';
-            }
-
-            // Stats
-            statsRef.current.style.opacity = statsOpacity.toString();
-            statsRef.current.style.maxHeight = `${statsHeight}px`;
-            statsRef.current.style.marginTop = statsOpacity > 0 ? '0.75rem' : '0';
-        };
-
-        if (!hasInitializedRef.current) {
-            handleScroll();
-            hasInitializedRef.current = true;
-        }
-
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
+    const { isShrunk, heroRef, heroSpacerHeight } = useStickyCollapse();
 
     const shouldCollapseProgram = Boolean(course?.program_id && course?.semester_id);
     const shouldShowProgramDirect = Boolean(course?.program_id && !shouldCollapseProgram);
@@ -266,10 +220,14 @@ const CourseHomepageContent: React.FC = () => {
 
     // Create a lookup for registered tab types to trigger re-render when tabs load
     const registeredTabTypes = useMemo(() => new Set(registeredTabs.map(t => t.type)), [registeredTabs]);
+    const scheduleTabId = useMemo(
+        () => (registeredTabTypes.has(BUILTIN_TIMETABLE_TAB_ID) ? BUILTIN_TIMETABLE_TAB_ID : LEGACY_SCHEDULE_TAB_ID),
+        [registeredTabTypes]
+    );
 
     const dashboardContent = useMemo(() => {
         if (!course) return null;
-        if (activeTabId === 'dashboard' || activeTabId === 'settings') {
+        if (activeTabId === 'dashboard' || activeTabId === 'settings' || activeTabId === scheduleTabId) {
             const BuiltinComponent = TabRegistry.getComponent(activeTabId);
             if (!BuiltinComponent) {
                 return (
@@ -328,7 +286,7 @@ const CourseHomepageContent: React.FC = () => {
                 />
             </React.Suspense>
         );
-    }, [activeTabId, course, tabs, handleUpdateTabSettings, registeredTabTypes]);
+    }, [activeTabId, course, tabs, handleUpdateTabSettings, registeredTabTypes, scheduleTabId]);
 
     const pluginTabItems = useMemo(() => {
         return tabs.map(tab => {
@@ -345,12 +303,20 @@ const CourseHomepageContent: React.FC = () => {
 
     const tabBarItems = useMemo(() => {
         const dashboardDef = TabRegistry.get('dashboard');
+        const scheduleDef = TabRegistry.get(scheduleTabId);
         const settingsDef = TabRegistry.get('settings');
         return [
             {
                 id: 'dashboard',
                 label: dashboardDef?.name ?? 'Dashboard',
                 icon: dashboardDef?.icon,
+                removable: false,
+                draggable: false
+            },
+            {
+                id: scheduleTabId,
+                label: scheduleDef?.name ?? 'Schedule',
+                icon: scheduleDef?.icon,
                 removable: false,
                 draggable: false
             },
@@ -363,7 +329,7 @@ const CourseHomepageContent: React.FC = () => {
                 draggable: false
             }
         ];
-    }, [pluginTabItems]);
+    }, [pluginTabItems, scheduleTabId]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         const pluginIdSet = new Set(tabs.map(tab => tab.id));
@@ -371,11 +337,11 @@ const CourseHomepageContent: React.FC = () => {
     }, [reorderTabs, tabs]);
 
     useEffect(() => {
-        if (activeTabId === 'dashboard' || activeTabId === 'settings') return;
+        if (activeTabId === 'dashboard' || activeTabId === 'settings' || activeTabId === scheduleTabId) return;
         if (!tabs.some(tab => tab.id === activeTabId)) {
             setActiveTabId('dashboard');
         }
-    }, [activeTabId, tabs]);
+    }, [activeTabId, tabs, scheduleTabId]);
 
     const tabSettingsSections = useMemo(() => {
         const sections = tabs.map(tab => {
@@ -561,18 +527,17 @@ const CourseHomepageContent: React.FC = () => {
         <Layout breadcrumb={breadcrumb}>
             <BuiltinTabProvider value={builtinTabContext}>
                 <div
-                    ref={headerRef}
-                    className="sticky left-0 right-0 z-40 top-[60px]" // Always top-60px since navbar is fixed
+                    ref={heroRef}
+                    className={cn(
+                        "sticky left-0 right-0 z-40 top-[60px] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding,box-shadow] duration-300 ease-out",
+                        isShrunk ? "shadow-sm" : "shadow-none"
+                    )}
                     style={{
-                        paddingTop: '16px',
-                        paddingBottom: '16px',
-                        backgroundColor: 'rgba(255, 255, 255, 0)',
-                        borderBottomColor: 'rgba(229, 231, 235, 0)',
-                        boxShadow: 'none',
-                        transition: 'none'
+                        paddingTop: isShrunk ? '8px' : '16px',
+                        paddingBottom: isShrunk ? '8px' : '16px'
                     }}
                 >
-                    <Container className="flex flex-wrap items-center transition-none">
+                    <Container className="flex flex-wrap items-center">
                         <div className="flex flex-col gap-2 relative w-full">
                             <div className="min-w-0">
                                 {isLoading || !course ? (
@@ -580,21 +545,27 @@ const CourseHomepageContent: React.FC = () => {
                                 ) : (
                                     <>
                                             <h1
-                                                ref={titleRef}
                                                 className="noselect text-truncate font-bold tracking-tight origin-left"
                                                 style={{
                                                     fontSize: '2.25rem',
                                                     lineHeight: '2.5rem',
-                                                    transformOrigin: 'left center'
+                                                    transformOrigin: 'left center',
+                                                    transform: isShrunk ? 'scale(0.8)' : 'scale(1)',
+                                                    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                                                 }}
                                             >
                                                 {course.name}
                                         </h1>
                                         {course.alias && (
                                             <div
-                                                    ref={aliasRef}
                                                 className="mt-1 text-sm text-muted-foreground/80"
-                                                    style={{}}
+                                                    style={{
+                                                        maxHeight: isShrunk ? '0px' : '20px',
+                                                        opacity: isShrunk ? 0 : 1,
+                                                        transform: isShrunk ? 'translateY(-4px)' : 'translateY(0)',
+                                                        overflow: 'hidden',
+                                                        transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, transform 0.3s ease'
+                                                    }}
                                             >
                                                 {course.alias}
                                             </div>
@@ -603,10 +574,13 @@ const CourseHomepageContent: React.FC = () => {
                                 )}
 
                                 <div
-                                    ref={statsRef}
                                     className="noselect flex flex-wrap gap-6 overflow-hidden"
                                     style={{
-                                        marginTop: '0.75rem'
+                                        maxHeight: isShrunk ? '0px' : '140px',
+                                        opacity: isShrunk ? 0 : 1,
+                                        marginTop: isShrunk ? '0' : '0.75rem',
+                                        transform: isShrunk ? 'translateY(-8px)' : 'translateY(0)',
+                                        transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin-top 0.3s ease, transform 0.3s ease'
                                     }}
                                 >
                                     {/* Stats content ... unchanged */}
@@ -688,6 +662,10 @@ const CourseHomepageContent: React.FC = () => {
                             dashboardContent
                 )}
                 </Container>
+                <div
+                    aria-hidden="true"
+                    style={{ height: isShrunk ? heroSpacerHeight : 0 }}
+                />
                 {
                     course && (
                         <>

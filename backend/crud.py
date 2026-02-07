@@ -1,12 +1,33 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import json
+from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 import models
 import schemas
 import bcrypt
 
 DEFAULT_GPA_SCALING = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}'
 DEFAULT_COURSE_CREDIT = 0.5
+DEFAULT_PROGRAM_TIMEZONE = "UTC"
+DEFAULT_SEMESTER_LENGTH_DAYS = 111
+BUILTIN_EVENT_TYPES = [
+    {"code": "LECTURE", "abbreviation": "LEC"},
+    {"code": "TUTORIAL", "abbreviation": "TUT"},
+    {"code": "PRACTICAL", "abbreviation": "PRA"},
+]
+
+def normalize_timezone(timezone_value: str | None) -> str:
+    timezone = (timezone_value or DEFAULT_PROGRAM_TIMEZONE).strip()
+    try:
+        ZoneInfo(timezone)
+    except Exception as exc:
+        raise ValueError("INVALID_TIMEZONE") from exc
+    return timezone
+
+def get_default_semester_dates(today: date | None = None) -> tuple[date, date]:
+    base = today or date.today()
+    return base, base + timedelta(days=DEFAULT_SEMESTER_LENGTH_DAYS)
 
 def get_default_user_setting_dict() -> dict:
     return {
@@ -130,7 +151,9 @@ def get_programs(db: Session, user_id: str, skip: int = 0, limit: int = 100):
     return db.query(models.Program).filter(models.Program.owner_id == user_id).offset(skip).limit(limit).all()
 
 def create_program(db: Session, program: schemas.ProgramCreate, user_id: str):
-    db_program = models.Program(**program.dict(), owner_id=user_id)
+    payload = program.dict()
+    payload["program_timezone"] = normalize_timezone(payload.get("program_timezone"))
+    db_program = models.Program(**payload, owner_id=user_id)
     db.add(db_program)
     db.commit()
     db.refresh(db_program)
@@ -143,7 +166,10 @@ def update_program(db: Session, program_id: str, program_update: schemas.Program
     db_program = db.query(models.Program).filter(models.Program.id == program_id, models.Program.owner_id == user_id).first()
     if not db_program:
         return None
-    for key, value in program_update.dict(exclude_unset=True).items():
+    update_data = program_update.dict(exclude_unset=True)
+    if "program_timezone" in update_data:
+        update_data["program_timezone"] = normalize_timezone(update_data["program_timezone"])
+    for key, value in update_data.items():
         setattr(db_program, key, value)
     db.add(db_program)
     db.commit()
@@ -168,7 +194,14 @@ def get_semesters(db: Session, program_id: str):
     return db.query(models.Semester).filter(models.Semester.program_id == program_id).all()
 
 def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: str):
-    db_semester = models.Semester(**semester.dict(), program_id=program_id)
+    payload = semester.dict()
+    start_date = payload.get("start_date")
+    end_date = payload.get("end_date")
+    if start_date is None or end_date is None:
+        default_start, default_end = get_default_semester_dates()
+        payload["start_date"] = start_date or default_start
+        payload["end_date"] = end_date or default_end
+    db_semester = models.Semester(**payload, program_id=program_id)
     db.add(db_semester)
     db.commit()
     db.refresh(db_semester)
@@ -185,7 +218,12 @@ def update_semester(db: Session, semester_id: str, semester_update: schemas.Seme
     db_semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
     if not db_semester:
         return None
-    for key, value in semester_update.dict().items():
+    update_data = semester_update.dict()
+    if update_data.get("start_date") is None:
+        update_data["start_date"] = db_semester.start_date
+    if update_data.get("end_date") is None:
+        update_data["end_date"] = db_semester.end_date
+    for key, value in update_data.items():
         setattr(db_semester, key, value)
     db.add(db_semester)
     db.commit()
@@ -223,8 +261,18 @@ def create_course(db: Session, course: schemas.CourseCreate, program_id: str, se
     db.add(db_course)
     db.commit()
     db.refresh(db_course)
-    
-    
+
+    for builtin_type in BUILTIN_EVENT_TYPES:
+        db.add(models.CourseEventType(
+            course_id=db_course.id,
+            code=builtin_type["code"],
+            abbreviation=builtin_type["abbreviation"],
+            track_attendance=False,
+            created_at="",
+            updated_at="",
+        ))
+    db.commit()
+
     # Create default widgets
     create_widget(db, schemas.WidgetCreate(
         widget_type="grade-calculator",

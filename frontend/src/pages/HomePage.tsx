@@ -65,9 +65,11 @@ export const HomePage: React.FC = () => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
             await api.createProgram({
                 name: newProgramName,
-                grad_requirement_credits: parseFloat(newProgramCredits)
+                grad_requirement_credits: parseFloat(newProgramCredits),
+                program_timezone: timezone,
             });
             setIsModalOpen(false);
             setNewProgramName('');
