@@ -1,12 +1,14 @@
 import React from 'react';
-import { CalendarDays, Download, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { CalendarDays, Download, Edit, Plus, RefreshCw, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 import {
   Select,
   SelectContent,
@@ -102,17 +104,7 @@ const extractLocationFromNote = (note?: string | null) => {
   return firstLine.trim() || null;
 };
 
-const InlineNotice: React.FC<{ tone: 'error' | 'success'; message: string }> = ({ tone, message }) => (
-  <div
-    className={
-      tone === 'error'
-        ? 'rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600'
-        : 'rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700'
-    }
-  >
-    {message}
-  </div>
-);
+
 
 const EmptyTableRow: React.FC<{ colSpan: number; message: string }> = ({ colSpan, message }) => (
   <TableRow>
@@ -355,9 +347,8 @@ const SectionSlotPlanner: React.FC<{
 const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId }) => {
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [message, setMessage] = React.useState<string | null>(null);
-  const [newType, setNewType] = React.useState({
+  const [editingType, setEditingType] = React.useState<CourseEventType | null>(null);
+  const [formType, setFormType] = React.useState({
     code: '',
     abbreviation: '',
     track_attendance: false,
@@ -365,12 +356,11 @@ const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId
 
   const loadEventTypes = React.useCallback(async () => {
     setIsLoading(true);
-    setError(null);
     try {
       const typeData = await scheduleService.getCourseEventTypes(courseId);
       setEventTypes(typeData);
     } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to load event types.');
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to load event types.');
     } finally {
       setIsLoading(false);
     }
@@ -380,117 +370,114 @@ const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId
     loadEventTypes();
   }, [loadEventTypes]);
 
-  const resetNotice = () => {
-    setError(null);
-    setMessage(null);
-  };
-
-  const handleCreateEventType = async () => {
-    resetNotice();
+  const handleCreateOrUpdateEventType = async () => {
     try {
-      await scheduleService.createCourseEventType(courseId, newType);
-      setNewType({ code: '', abbreviation: '', track_attendance: false });
+      if (editingType) {
+        await scheduleService.updateCourseEventType(courseId, editingType.code, {
+          abbreviation: formType.abbreviation,
+          trackAttendance: formType.track_attendance,
+        });
+        setEditingType(null);
+      } else {
+        await scheduleService.createCourseEventType(courseId, formType);
+      }
+      setFormType({ code: '', abbreviation: '', track_attendance: false });
       await loadEventTypes();
-      setMessage('Event type created.');
     } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to create event type.');
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? `Failed to ${editingType ? 'update' : 'create'} event type.`);
     }
   };
 
-  const handleToggleTrack = async (eventType: CourseEventType, checked: boolean) => {
-    resetNotice();
-    try {
-      const result = await scheduleService.updateCourseEventType(courseId, eventType.code, {
-        trackAttendance: checked,
-      });
-      await loadEventTypes();
-      setMessage(
-        result.normalized_events > 0
-          ? `Normalized ${result.normalized_events} event(s) to skip=false.`
-          : 'Event type updated.'
-      );
-    } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update event type.');
-    }
+  const handleEditType = (eventType: CourseEventType) => {
+    setEditingType(eventType);
+    setFormType({
+      code: eventType.code,
+      abbreviation: eventType.abbreviation,
+      track_attendance: eventType.track_attendance,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingType(null);
+    setFormType({ code: '', abbreviation: '', track_attendance: false });
   };
 
   const handleDeleteEventType = async (eventTypeCode: string) => {
-    resetNotice();
     try {
       await scheduleService.deleteCourseEventType(courseId, eventTypeCode);
       await loadEventTypes();
-      setMessage('Event type deleted.');
     } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete event type.');
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete event type.');
     }
   };
 
   return (
-    <Card className="border border-border/70">
-      <CardHeader className="space-y-2">
-        <CardTitle className="text-sm">Event Types</CardTitle>
-        <CardDescription>Manage type code, abbreviation, and attendance tracking.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && <InlineNotice tone="error" message={error} />}
-        {message && <InlineNotice tone="success" message={message} />}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="settings-new-type-code">Code</Label>
-            <Input
-              id="settings-new-type-code"
-              autoComplete="off"
-              placeholder="WORKSHOP"
-              value={newType.code}
-              onChange={(event) => {
-                const nextCode = event.target.value.toUpperCase();
-                setNewType((prev) => {
-                  const previousDerived = deriveAbbreviationFromCode(prev.code);
-                  const shouldAutofillAbbreviation =
-                    !prev.abbreviation || prev.abbreviation === previousDerived;
-                  return {
-                    ...prev,
-                    code: nextCode,
-                    abbreviation: shouldAutofillAbbreviation
-                      ? deriveAbbreviationFromCode(nextCode)
-                      : prev.abbreviation,
-                  };
-                });
-              }}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="settings-new-type-abbr">Abbreviation</Label>
-            <Input
-              id="settings-new-type-abbr"
-              autoComplete="off"
-              placeholder="WS"
-              value={newType.abbreviation}
-              onChange={(event) => setNewType((prev) => ({ ...prev, abbreviation: event.target.value.toUpperCase() }))}
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-          <Checkbox
-            id="settings-new-type-track"
-            checked={newType.track_attendance}
-            onCheckedChange={(checked) => setNewType((prev) => ({ ...prev, track_attendance: asChecked(checked) }))}
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="settings-new-type-code">Type</Label>
+          <Input
+            id="settings-new-type-code"
+            autoComplete="off"
+            placeholder="e.g. Workshop"
+            value={formType.code}
+            disabled={!!editingType}
+            onChange={(event) => {
+              const nextCode = event.target.value;
+              setFormType((prev) => {
+                const previousDerived = deriveAbbreviationFromCode(prev.code);
+                const shouldAutofillAbbreviation =
+                  !prev.abbreviation || prev.abbreviation === previousDerived;
+                return {
+                  ...prev,
+                  code: nextCode,
+                  abbreviation: shouldAutofillAbbreviation
+                    ? deriveAbbreviationFromCode(nextCode)
+                    : prev.abbreviation,
+                };
+              });
+            }}
           />
-          <Label htmlFor="settings-new-type-track" className="text-sm font-normal text-muted-foreground">
-            Track attendance (forces `skip=false`)
-          </Label>
         </div>
-        <Button className="w-full sm:w-auto" onClick={handleCreateEventType} disabled={!newType.code || !newType.abbreviation || isLoading}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Type
+        <div className="space-y-2">
+          <Label htmlFor="settings-new-type-abbr">Abbreviation</Label>
+          <Input
+            id="settings-new-type-abbr"
+            autoComplete="off"
+            placeholder="WS"
+            value={formType.abbreviation}
+            onChange={(event) => setFormType((prev) => ({ ...prev, abbreviation: event.target.value.toUpperCase() }))}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+        <Checkbox
+          id="settings-new-type-track"
+          checked={formType.track_attendance}
+          onCheckedChange={(checked) => setFormType((prev) => ({ ...prev, track_attendance: asChecked(checked) }))}
+        />
+        <Label htmlFor="settings-new-type-track" className="text-sm font-normal text-muted-foreground">
+          Track attendance (forces `skip=false`)
+        </Label>
+      </div>
+      <div className="flex justify-end gap-2">
+        {editingType && (
+          <Button variant="outline" onClick={handleCancelEdit}>
+            Cancel
+          </Button>
+        )}
+        <Button className="w-full sm:w-auto" onClick={handleCreateOrUpdateEventType} disabled={!formType.code || !formType.abbreviation || isLoading}>
+          {editingType ? <Edit className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+          {editingType ? 'Update Type' : 'Add Type'}
         </Button>
+      </div>
 
+      <div className="rounded-md border border-border/70 p-0">
         <TableShell minWidthClassName="min-w-[560px]">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Code</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Abbr</TableHead>
                 <TableHead>Track Attendance</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -503,35 +490,115 @@ const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId
                   <TableCell className="font-medium">{item.code}</TableCell>
                   <TableCell>{item.abbreviation}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id={`settings-track-${item.id}`}
-                        checked={item.track_attendance}
-                        onCheckedChange={(checked) => handleToggleTrack(item, asChecked(checked))}
-                      />
-                      <Label htmlFor={`settings-track-${item.id}`} className="text-xs font-normal text-muted-foreground">
-                        {item.track_attendance ? 'Enabled' : 'Off'}
-                      </Label>
-                    </div>
+                    <Badge variant={item.track_attendance ? 'default' : 'secondary'}>
+                      {item.track_attendance ? 'Enabled' : 'Off'}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete event type ${item.code}`}
-                      onClick={() => handleDeleteEventType(item.code)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Edit event type ${item.code}`}
+                        onClick={() => handleEditType(item)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete event type ${item.code}`}
+                        onClick={() => handleDeleteEventType(item.code)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </TableShell>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
+  );
+};
+
+const QuickAddTypeDialog: React.FC<{
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  courseId: string;
+  onTypeAdded: (newType: CourseEventType) => void;
+}> = ({ open, onOpenChange, courseId, onTypeAdded }) => {
+  const [newType, setNewType] = React.useState({
+    code: '',
+    abbreviation: '',
+    track_attendance: false,
+  });
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  const handleCreate = async () => {
+    setIsLoading(true);
+    try {
+      const created = await scheduleService.createCourseEventType(courseId, newType);
+      onTypeAdded(created);
+      onOpenChange(false);
+      setNewType({ code: '', abbreviation: '', track_attendance: false });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to create type.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Quick Add Event Type</DialogTitle>
+          <DialogDescription>
+            Add a new event type for your sections. Full settings available in the Settings tab.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="quick-type-code">Type Name</Label>
+            <Input
+              id="quick-type-code"
+              placeholder="e.g. Lab"
+              value={newType.code}
+              onChange={(e) => {
+                const val = e.target.value;
+                setNewType((prev) => {
+                  const derived = deriveAbbreviationFromCode(val);
+                  return {
+                    ...prev,
+                    code: val,
+                    abbreviation: !prev.abbreviation || prev.abbreviation === deriveAbbreviationFromCode(prev.code) ? derived : prev.abbreviation,
+                  };
+                });
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quick-type-abbr">Abbreviation</Label>
+            <Input
+              id="quick-type-abbr"
+              placeholder="LB"
+              value={newType.abbreviation}
+              onChange={(e) => setNewType((prev) => ({ ...prev, abbreviation: e.target.value.toUpperCase() }))}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={handleCreate} disabled={!newType.code || !newType.abbreviation || isLoading}>
+            Create Type
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -540,59 +607,23 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
   const [sections, setSections] = React.useState<CourseSection[]>([]);
   const [events, setEvents] = React.useState<CourseEvent[]>([]);
 
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [isCreateSectionOpen, setIsCreateSectionOpen] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [message, setMessage] = React.useState<string | null>(null);
+  const [isSectionFormOpen, setIsSectionFormOpen] = React.useState(false);
+  const [isQuickAddTypeOpen, setIsQuickAddTypeOpen] = React.useState(false);
+  const [editingSectionId, setEditingSectionId] = React.useState<string | null>(null);
+  const [expandedSectionIds, setExpandedSectionIds] = React.useState<Set<string>>(new Set());
 
-  const [newSection, setNewSection] = React.useState({
+  const [formSection, setFormSection] = React.useState({
     sectionId: '',
     eventTypeCode: 'LECTURE',
     instructor: '',
     weekPattern: 'EVERY' as WeekPattern,
   });
-  const [newSectionSlots, setNewSectionSlots] = React.useState<SectionSlotDraft[]>([
+  // Default start/end slots for new section
+  const [formSlots, setFormSlots] = React.useState<SectionSlotDraft[]>([
     createSectionSlot(1, '09:00', '10:00'),
   ]);
 
-  const termEndWeek = 1;
-
-  const sectionSlotsById = React.useMemo(() => {
-    const map = new Map<string, Array<{ dayOfWeek: number; startTime: string; endTime: string; location?: string | null }>>();
-    events.forEach((event) => {
-      if (!event.sectionId) return;
-      const existing = map.get(event.sectionId) ?? [];
-      const eventLocation = extractLocationFromNote(event.note);
-      const alreadyExists = existing.some(
-        (slot) =>
-          slot.dayOfWeek === event.dayOfWeek &&
-          slot.startTime === event.startTime &&
-          slot.endTime === event.endTime &&
-          (slot.location ?? null) === (eventLocation ?? null)
-      );
-      if (!alreadyExists) {
-        existing.push({
-          dayOfWeek: event.dayOfWeek,
-          startTime: event.startTime,
-          endTime: event.endTime,
-          location: eventLocation,
-        });
-        map.set(event.sectionId, existing);
-      }
-    });
-    map.forEach((slots, key) =>
-      map.set(
-        key,
-        [...slots].sort(
-          (a, b) =>
-            a.dayOfWeek - b.dayOfWeek ||
-            toMinutes(a.startTime) - toMinutes(b.startTime) ||
-            toMinutes(a.endTime) - toMinutes(b.endTime)
-        )
-      )
-    );
-    return map;
-  }, [events]);
+  const termEndWeek = 1; // In a real app this might come from semester context
 
   const loadBaseData = React.useCallback(async () => {
     const [typeData, sectionData, eventData] = await Promise.all([
@@ -605,17 +636,11 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
     setEvents(eventData);
   }, [courseId]);
 
-
-
   const reloadAll = React.useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
     try {
       await loadBaseData();
     } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to load course schedule data.');
-    } finally {
-      setIsLoading(false);
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to load course schedule data.');
     }
   }, [loadBaseData]);
 
@@ -623,270 +648,384 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
     reloadAll();
   }, [reloadAll]);
 
-
-
-  const normalizedSectionSlots = React.useMemo(() => {
-    const normalized = newSectionSlots.map((slot) => {
-      const safeStart = toSafeTime(slot.startTime);
-      const safeEnd = toSafeTime(slot.endTime);
-      const clampedDay = clampMinute(Math.round(slot.dayOfWeek), 1, 7);
-      return {
-        ...slot,
-        dayOfWeek: clampedDay,
-        startTime: safeStart,
-        endTime: safeEnd,
-        location: slot.location.trim(),
-      };
+  // Derived state: group events by section for display in the "Slots" column AND expandable list
+  const eventsBySectionId = React.useMemo(() => {
+    const map = new Map<string, CourseEvent[]>();
+    events.forEach((ev) => {
+      if (!ev.sectionId) return;
+      const list = map.get(ev.sectionId) ?? [];
+      list.push(ev);
+      map.set(ev.sectionId, list);
     });
+    // Sort events in each section
+    map.forEach((list) => {
+      list.sort((a, b) => a.dayOfWeek - b.dayOfWeek || toMinutes(a.startTime) - toMinutes(b.startTime));
+    });
+    return map;
+  }, [events]);
+
+  const toggleSectionExpand = (secId: string) => {
+    setExpandedSectionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(secId)) next.delete(secId);
+      else next.add(secId);
+      return next;
+    });
+  };
+
+  const handleOpenCreate = () => {
+    setEditingSectionId(null);
+    setFormSection({
+      sectionId: '',
+      eventTypeCode: eventTypes[0]?.code || 'LECTURE',
+      instructor: '',
+      weekPattern: 'EVERY',
+    });
+    setFormSlots([createSectionSlot(1, '09:00', '10:00')]);
+    setIsSectionFormOpen(true);
+  };
+
+  const handleOpenEdit = (section: CourseSection) => {
+    setEditingSectionId(section.sectionId);
+    setFormSection({
+      sectionId: section.sectionId,
+      eventTypeCode: section.eventTypeCode,
+      instructor: section.instructor || '',
+      weekPattern: section.weekPattern,
+    });
+
+    // Reconstruct slots from existing events for this section
+    // We try to consolidate identical time/loc events if they exist, but for "Edit" we just take specific unique slots from events.
+    // However, existing events might be many (one per week). We need to distill the "Pattern".
+    // Since we don't store the "Pattern" slots separately in DB (only events), we must infer them.
+    // Heuristic: Group by day/start/end/loc.
+    const sectionEvents = eventsBySectionId.get(section.sectionId) ?? [];
+    const uniqueSignatures = new Set<string>();
+    const inferredSlots: SectionSlotDraft[] = [];
+
+    sectionEvents.forEach((ev) => {
+      const loc = extractLocationFromNote(ev.note) || '';
+      const sig = `${ev.dayOfWeek}-${ev.startTime}-${ev.endTime}-${loc}`;
+      if (!uniqueSignatures.has(sig)) {
+        uniqueSignatures.add(sig);
+        inferredSlots.push({
+          id: slotId(),
+          dayOfWeek: ev.dayOfWeek,
+          startTime: ev.startTime,
+          endTime: ev.endTime,
+          location: loc,
+        });
+      }
+    });
+
+    // If no events found (weird), fallback to default
+    if (inferredSlots.length === 0) {
+      inferredSlots.push(createSectionSlot(section.dayOfWeek, section.startTime, section.endTime, section.location || ''));
+    }
+
+    setFormSlots(inferredSlots);
+    setIsSectionFormOpen(true);
+  };
+
+  const currentNormalizedSlots = React.useMemo(() => {
+    const normalized = formSlots.map((slot) => ({
+      ...slot,
+      startTime: toSafeTime(slot.startTime),
+      endTime: toSafeTime(slot.endTime),
+      dayOfWeek: clampMinute(Math.round(slot.dayOfWeek), 1, 7),
+      location: slot.location.trim(),
+    }));
     normalized.sort((a, b) => a.dayOfWeek - b.dayOfWeek || toMinutes(a.startTime) - toMinutes(b.startTime));
     return normalized;
-  }, [newSectionSlots]);
+  }, [formSlots]);
 
-  const resetNotice = () => {
-    setError(null);
-    setMessage(null);
-  };
-
-  const addSectionSlot = (slot: Omit<SectionSlotDraft, 'id'>) => {
-    setNewSectionSlots((prev) => [...prev, { ...slot, id: slotId() }]);
-  };
-
-  const handleAddSlotRow = () => {
-    const lastSlot = normalizedSectionSlots[normalizedSectionSlots.length - 1];
-    addSectionSlot({
-      dayOfWeek: lastSlot?.dayOfWeek ?? 1,
-      startTime: lastSlot?.startTime ?? '09:00',
-      endTime: lastSlot?.endTime ?? '10:00',
-      location: lastSlot?.location ?? '',
-    });
-  };
-
-  const handleUpdateSlot = (
-    slotIdValue: string,
-    patch: Partial<Pick<SectionSlotDraft, 'dayOfWeek' | 'startTime' | 'endTime' | 'location'>>
-  ) => {
-    setNewSectionSlots((prev) =>
-      prev.map((slot) => {
-        if (slot.id !== slotIdValue) return slot;
-        return {
-          ...slot,
-          ...patch,
-          dayOfWeek: patch.dayOfWeek ?? slot.dayOfWeek,
-          startTime: patch.startTime ?? slot.startTime,
-          endTime: patch.endTime ?? slot.endTime,
-          location: patch.location ?? slot.location,
-        };
-      })
-    );
-  };
-
-  const handleRemoveSlot = (slotIdValue: string) => {
-    setNewSectionSlots((prev) => prev.filter((slot) => slot.id !== slotIdValue));
-  };
-
-  const handleCreateSection = async () => {
-    resetNotice();
-    if (normalizedSectionSlots.length === 0) {
-      setError('Add at least one slot for this section.');
+  const handleSaveSection = async () => {
+    if (currentNormalizedSlots.length === 0) {
+      toast.error('Add at least one slot.');
       return;
     }
-    if (eventTypes.length === 0) {
-      setError('Create an event type first, then add a section.');
+    if (!formSection.sectionId) {
+      toast.error('Section ID is required.');
       return;
     }
-    const invalidSlot = normalizedSectionSlots.find((slot) => !timeRangeIsValid(slot.startTime, slot.endTime));
+    const invalidSlot = currentNormalizedSlots.find((slot) => !timeRangeIsValid(slot.startTime, slot.endTime));
     if (invalidSlot) {
-      setError(`Invalid time range in ${dayLabel(invalidSlot.dayOfWeek)} ${invalidSlot.startTime}-${invalidSlot.endTime}.`);
-      return;
-    }
-    const slotWithoutLocation = normalizedSectionSlots.find((slot) => !slot.location);
-    if (slotWithoutLocation) {
-      setError('Each slot needs a location.');
+      toast.error(`Invalid time range.`);
       return;
     }
 
-    const locationSet = new Set<string>();
-    for (const slot of normalizedSectionSlots) {
-      const normalizedLocation = slot.location.toLowerCase();
-      if (locationSet.has(normalizedLocation)) {
-        setError('Each slot location must be different.');
-        return;
-      }
-      locationSet.add(normalizedLocation);
-    }
-
-    const uniqueSlots = normalizedSectionSlots.filter((slot, index, array) =>
+    const uniqueSlots = currentNormalizedSlots.filter((slot, index, array) =>
       array.findIndex(
-        (candidate) =>
-          candidate.dayOfWeek === slot.dayOfWeek &&
-          candidate.startTime === slot.startTime &&
-          candidate.endTime === slot.endTime &&
-          candidate.location === slot.location
+        (c) =>
+          c.dayOfWeek === slot.dayOfWeek &&
+          c.startTime === slot.startTime &&
+          c.endTime === slot.endTime &&
+          c.location === slot.location
       ) === index
     );
 
     try {
-      const canonicalSlot = uniqueSlots[0];
-      await scheduleService.createCourseSection(courseId, {
-        sectionId: newSection.sectionId,
-        eventTypeCode: newSection.eventTypeCode,
-        title: null,
-        instructor: newSection.instructor,
-        location: uniqueSlots.length === 1 ? uniqueSlots[0].location : 'Multiple locations',
-        dayOfWeek: canonicalSlot.dayOfWeek,
-        startTime: canonicalSlot.startTime,
-        endTime: canonicalSlot.endTime,
-        weekPattern: newSection.weekPattern,
+      const canonical = uniqueSlots[0];
+      const commonData = {
+        eventTypeCode: formSection.eventTypeCode,
+        instructor: formSection.instructor || null,
+        weekPattern: formSection.weekPattern,
+        dayOfWeek: canonical.dayOfWeek,
+        startTime: canonical.startTime,
+        endTime: canonical.endTime,
+        location: uniqueSlots.length === 1 ? canonical.location : 'Multiple locations',
         startWeek: 1,
         endWeek: termEndWeek,
-      });
-      await scheduleService.batchCourseEvents(courseId, {
-        atomic: true,
-        items: uniqueSlots.map((slot) => ({
-          op: 'create' as const,
-          data: {
-            eventTypeCode: newSection.eventTypeCode,
-            sectionId: newSection.sectionId,
-            title: null,
-            dayOfWeek: slot.dayOfWeek,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            weekPattern: newSection.weekPattern,
-            startWeek: 1,
-            endWeek: termEndWeek,
-            enable: true,
-            skip: false,
-            note: buildEventNoteWithLocation(slot.location),
-          },
-        })),
-      });
-      setNewSection((prev) => ({ ...prev, sectionId: '', instructor: '' }));
-      setNewSectionSlots([createSectionSlot(1, '09:00', '10:00')]);
-      setIsCreateSectionOpen(false);
+      };
+
+      const createEventsOps = uniqueSlots.map((slot) => ({
+        op: 'create' as const,
+        data: {
+          eventTypeCode: formSection.eventTypeCode,
+          sectionId: formSection.sectionId,
+          title: null,
+          dayOfWeek: slot.dayOfWeek,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          weekPattern: formSection.weekPattern,
+          startWeek: 1,
+          endWeek: termEndWeek,
+          enable: true,
+          skip: false,
+          note: buildEventNoteWithLocation(slot.location),
+        },
+      }));
+
+      if (editingSectionId) {
+        if (editingSectionId !== formSection.sectionId) {
+          // RENAME SCENARIO: Delete old section -> Create new section -> Create new events
+          await scheduleService.deleteCourseSection(courseId, editingSectionId);
+
+          await scheduleService.createCourseSection(courseId, {
+            sectionId: formSection.sectionId,
+            ...commonData,
+          });
+
+          await scheduleService.batchCourseEvents(courseId, {
+            atomic: true,
+            items: createEventsOps,
+          });
+        } else {
+          // UPDATE SCENARIO: Update metadata -> Replace events
+          await scheduleService.updateCourseSection(courseId, editingSectionId, commonData);
+
+          const existingEvents = eventsBySectionId.get(editingSectionId) ?? [];
+          const deleteOps = existingEvents.map(e => ({ op: 'delete' as const, eventId: e.id }));
+
+          await scheduleService.batchCourseEvents(courseId, {
+            atomic: true,
+            items: [...deleteOps, ...createEventsOps],
+          });
+        }
+      } else {
+        // CREATE SCENARIO
+        await scheduleService.createCourseSection(courseId, {
+          sectionId: formSection.sectionId,
+          ...commonData,
+        });
+
+        await scheduleService.batchCourseEvents(courseId, {
+          atomic: true,
+          items: createEventsOps,
+        });
+      }
+
+      setIsSectionFormOpen(false);
       await reloadAll();
-      setMessage(`Section created with ${uniqueSlots.length} weekly slot(s).`);
+      // No success toast
     } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to create section.');
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to save section.');
     }
   };
 
-  const handleDeleteSection = async (sectionId: string) => {
-    resetNotice();
+  const handleDeleteSection = async (secId: string) => {
     try {
-      await scheduleService.deleteCourseSection(courseId, sectionId);
+      await scheduleService.deleteCourseSection(courseId, secId);
       await reloadAll();
-      setMessage('Section deleted.');
+      // No success toast
     } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete section.');
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete section.');
     }
   };
 
+  const handleToggleEventEnable = async (event: CourseEvent, checked: boolean) => {
+    try {
+      await scheduleService.updateCourseEvent(courseId, event.id, { enable: checked });
+      // Optimistic update or reload? Reload is safer for consistency.
+      // To avoid UI flicker, we could optimistically update local state too, but `reloadAll` is fast enough usually.
+      await reloadAll();
+      // No success toast
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update event.');
+    }
+  };
 
 
   return (
-    <Card className="border border-border/70">
-      <CardHeader className="space-y-4">
+    <div className="space-y-4">
+      <div className="px-1">
         <PanelHeader
-          title="Course Schedule Core"
-          description="Manage sections, scheduling output, and course scheduling settings."
+          title="Section List"
+          description="Manage sections and their slots. Click on a section row to view and manage its individual events."
           right={
-            <Button variant="outline" size="sm" onClick={reloadAll} disabled={isLoading}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
+            <Button type="button" onClick={handleOpenCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Section
             </Button>
           }
         />
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{sections.length} Sections</Badge>
-        </div>
-        {error && <InlineNotice tone="error" message={error} />}
-        {message && <InlineNotice tone="success" message={message} />}
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-4">
-        <Card>
-          <CardHeader>
-            <PanelHeader
-              title="Section List"
-              description="Manage section slots and create new sections in a focused modal."
-              right={
-                <Button type="button" onClick={() => setIsCreateSectionOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Section
-                </Button>
-              }
-            />
-          </CardHeader>
-          <CardContent>
-            <TableShell minWidthClassName="min-w-[760px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Section</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Instructor</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Slots</TableHead>
-                    <TableHead>Weeks</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sections.length === 0 && <EmptyTableRow colSpan={7} message="No sections yet." />}
-                  {sections.map((section) => (
-                    <TableRow key={section.id}>
+      <div className="rounded-md border border-border/70 p-0">
+        <TableShell minWidthClassName="min-w-[760px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[40px]"></TableHead>
+                <TableHead>Section</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Instructor</TableHead>
+                <TableHead>Recurrence</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sections.length === 0 && <EmptyTableRow colSpan={6} message="No sections yet." />}
+              {sections.map((section) => {
+                const isExpanded = expandedSectionIds.has(section.sectionId);
+                const sectionEvents = eventsBySectionId.get(section.sectionId) ?? [];
+                // Summarize slots for display
+                const uniqueSig = new Set<string>();
+                const displaySlots: string[] = [];
+                sectionEvents.forEach(e => {
+                  const loc = extractLocationFromNote(e.note);
+                  const sig = `${e.dayOfWeek}-${e.startTime}-${e.endTime}-${loc}`;
+                  if (!uniqueSig.has(sig)) {
+                    uniqueSig.add(sig);
+                    displaySlots.push(`${dayLabel(e.dayOfWeek)} ${e.startTime}-${e.endTime}${loc ? ` @ ${loc}` : ''}`);
+                  }
+                });
+
+                return (
+                  <React.Fragment key={section.id}>
+                    <TableRow
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => toggleSectionExpand(section.sectionId)}
+                    >
+                      <TableCell>
+                        {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      </TableCell>
                       <TableCell className="font-medium">{section.sectionId}</TableCell>
                       <TableCell>{section.eventTypeCode}</TableCell>
                       <TableCell>{section.instructor || '-'}</TableCell>
-                      <TableCell>{section.location || '-'}</TableCell>
-                      <TableCell className="max-w-[24rem] whitespace-normal text-xs text-muted-foreground">
-                        {(sectionSlotsById.get(section.sectionId) ?? [{
-                          dayOfWeek: section.dayOfWeek,
-                          startTime: section.startTime,
-                          endTime: section.endTime,
-                          location: section.location,
-                        }])
-                          .map((slot) => {
-                            const locationLabel = slot.location ? ` @ ${slot.location}` : '';
-                            return `${dayLabel(slot.dayOfWeek)} ${slot.startTime}-${slot.endTime}${locationLabel}`;
-                          })
-                          .join(', ')}
+                      <TableCell className="max-w-[16rem] truncate text-xs text-muted-foreground">
+                        {displaySlots.join(', ') || 'No slots'}
                       </TableCell>
-                      <TableCell>{section.weekPattern} / {section.startWeek}-{section.endWeek}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Delete section ${section.sectionId}`}
-                          onClick={() => handleDeleteSection(section.sectionId)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenEdit(section)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteSection(section.sectionId)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableShell>
-          </CardContent>
-        </Card>
+                    {isExpanded && (
+                      <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableCell colSpan={6} className="p-0">
+                          <Collapsible open={true}>
+                            <CollapsibleContent className="p-4 pt-1">
+                              <div className="rounded-md border bg-background">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="border-b-0 hover:bg-background">
+                                      <TableHead className="h-9">Event</TableHead>
+                                      <TableHead className="h-9">Time & Loc</TableHead>
+                                      <TableHead className="h-9">Status</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {sectionEvents.map(event => (
+                                      <TableRow key={event.id} className="border-b-0 hover:bg-muted/50">
+                                        <TableCell className="py-2 font-medium">
+                                          {event.eventTypeCode}
+                                        </TableCell>
+                                        <TableCell className="py-2">
+                                          {dayLabel(event.dayOfWeek)} {event.startTime}-{event.endTime}
+                                          {extractLocationFromNote(event.note) && <span className="ml-2 text-muted-foreground">@ {extractLocationFromNote(event.note)}</span>}
+                                        </TableCell>
+                                        <TableCell className="py-2">
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              id={`event-enable-${event.id}`}
+                                              checked={event.enable}
+                                              onCheckedChange={(c) => handleToggleEventEnable(event, asChecked(c))}
+                                            />
+                                            <Label htmlFor={`event-enable-${event.id}`} className="text-sm font-normal text-muted-foreground">
+                                              {event.enable ? 'Active' : 'Ignored'}
+                                            </Label>
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableShell>
+      </div>
 
-        <Dialog open={isCreateSectionOpen} onOpenChange={setIsCreateSectionOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[840px]">
-            <DialogHeader>
-              <DialogTitle>Create Section</DialogTitle>
-              <DialogDescription>
-                Configure a section and add one or more weekly slots.
-              </DialogDescription>
-            </DialogHeader>
+      <Dialog open={isSectionFormOpen} onOpenChange={setIsSectionFormOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[840px]">
+          <DialogHeader>
+            <DialogTitle>{editingSectionId ? 'Edit Section' : 'Create Section'}</DialogTitle>
+            <DialogDescription>
+              {editingSectionId ? 'Update section details and slots. This will regenerate all events for this section.' : 'Configure a new section and its weekly slots.'}
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="space-y-4">
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Event Type</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Event Type</Label>
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickAddTypeOpen(true)}
+                    className="text-xs text-primary hover:underline hover:text-primary/80"
+                  >
+                    + Add Type
+                  </button>
+                </div>
                 <Select
-                  value={newSection.eventTypeCode}
-                  onValueChange={(value) => setNewSection((prev) => ({ ...prev, eventTypeCode: value }))}
+                  value={formSection.eventTypeCode}
+                  onValueChange={(value) => setFormSection((prev) => ({ ...prev, eventTypeCode: value }))}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -904,69 +1043,82 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
                 <Label htmlFor="new-section-id">Section Number</Label>
                 <Input
                   id="new-section-id"
-                  name="new_section_id"
                   autoComplete="off"
                   placeholder="101"
                   inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={newSection.sectionId}
-                  onChange={(event) => {
-                    const nextSectionId = event.target.value.replace(/\D/g, '');
-                    setNewSection((prev) => ({ ...prev, sectionId: nextSectionId }));
-                  }}
+                  // pattern="[0-9]*" // Removed strict pattern to allow alpha-numeric section codes if needed
+                  value={formSection.sectionId}
+                  onChange={(event) => setFormSection((prev) => ({ ...prev, sectionId: event.target.value }))}
                 />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="new-section-instructor">Instructor</Label>
-                  <Input
-                    id="new-section-instructor"
-                    name="new_section_instructor"
-                    autoComplete="off"
-                    placeholder="Optional instructor"
-                    value={newSection.instructor}
-                    onChange={(event) => setNewSection((prev) => ({ ...prev, instructor: event.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Pattern</Label>
-                  <Select
-                    value={newSection.weekPattern}
-                    onValueChange={(value) => setNewSection((prev) => ({ ...prev, weekPattern: value as WeekPattern }))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEEK_PATTERNS.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Section Slots</Label>
-                <SectionSlotPlanner
-                  slots={normalizedSectionSlots}
-                  onAddSlot={handleAddSlotRow}
-                  onUpdateSlot={handleUpdateSlot}
-                  onRemoveSlot={handleRemoveSlot}
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button type="button" onClick={handleCreateSection} disabled={!newSection.sectionId}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Section
-                </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="new-section-instructor">Instructor</Label>
+                <Input
+                  id="new-section-instructor"
+                  autoComplete="off"
+                  placeholder="Optional"
+                  value={formSection.instructor}
+                  onChange={(event) => setFormSection((prev) => ({ ...prev, instructor: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Pattern</Label>
+                <Select
+                  value={formSection.weekPattern}
+                  onValueChange={(value) => setFormSection((prev) => ({ ...prev, weekPattern: value as WeekPattern }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEEK_PATTERNS.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Section Slots</Label>
+              <SectionSlotPlanner
+                slots={currentNormalizedSlots}
+                onAddSlot={() => setFormSlots((prev) => [...prev, createSectionSlot()])}
+                onUpdateSlot={(id, patch) => setFormSlots((prev) => prev.map(s => s.id === id ? { ...s, ...patch } : s))}
+                onRemoveSlot={(id) => setFormSlots((prev) => prev.filter(s => s.id !== id))}
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="button" onClick={handleSaveSection} disabled={!formSection.sectionId}>
+                {editingSectionId ? 'Save Changes' : 'Create Section'}
+              </Button>
+            </div>
+
+            <div className="text-xs text-muted-foreground text-center">
+              Need to manage Event Types? Go to Settings tab.
+            </div>
+
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <QuickAddTypeDialog
+        open={isQuickAddTypeOpen}
+        onOpenChange={setIsQuickAddTypeOpen}
+        courseId={courseId}
+        onTypeAdded={(created) => {
+          // Refresh list and auto-select
+          reloadAll();
+          setFormSection(prev => ({ ...prev, eventTypeCode: created.code }));
+        }}
+      />
+    </div>
   );
 };
 
@@ -977,18 +1129,15 @@ const SemesterSchedulePanel: React.FC<{ semesterId: string }> = ({ semesterId })
   const [showSkipped, setShowSkipped] = React.useState(true);
   const [courseFilter, setCourseFilter] = React.useState('ALL');
   const [typeFilter, setTypeFilter] = React.useState('ALL');
-  const [error, setError] = React.useState<string | null>(null);
-  const [message, setMessage] = React.useState<string | null>(null);
 
   const loadSchedule = React.useCallback(async () => {
-    setError(null);
     try {
       const data = await scheduleService.getSemesterSchedule(semesterId, { week, withConflicts: true });
       setSchedule(data.items);
       setMaxWeek(data.maxWeek);
       if (week > data.maxWeek) setWeek(data.maxWeek);
     } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to load semester schedule.');
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to load semester schedule.');
     }
   }, [semesterId, week]);
 
@@ -1016,8 +1165,6 @@ const SemesterSchedulePanel: React.FC<{ semesterId: string }> = ({ semesterId })
   const typeOptions = React.useMemo(() => Array.from(new Set(schedule.map((item) => item.eventTypeCode))), [schedule]);
 
   const handleExport = async (format: 'png' | 'pdf' | 'ics') => {
-    setError(null);
-    setMessage(null);
     try {
       const payload = {
         scope: 'semester' as const,
@@ -1037,18 +1184,18 @@ const SemesterSchedulePanel: React.FC<{ semesterId: string }> = ({ semesterId })
         anchor.click();
         document.body.removeChild(anchor);
         URL.revokeObjectURL(url);
-        setMessage('ICS exported.');
+        // toast.success('ICS exported.'); // Removed
       } else {
-        setMessage(`${format.toUpperCase()} export prepared (${(result as any).itemCount} items).`);
+        // toast.success(`${format.toUpperCase()} export prepared (${(result as any).itemCount} items).`); // Removed
       }
     } catch (err: any) {
-      setError(err?.response?.data?.detail?.message ?? err?.message ?? `Failed to export ${format}.`);
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? `Failed to export ${format}.`);
     }
   };
 
   return (
-    <Card className="border border-border/70">
-      <CardHeader className="space-y-4">
+    <div className="space-y-4">
+      <div className="px-1">
         <PanelHeader
           title="Semester Schedule"
           description="Filter by course and type, inspect conflicts, and export weekly schedule."
@@ -1059,15 +1206,13 @@ const SemesterSchedulePanel: React.FC<{ semesterId: string }> = ({ semesterId })
             </Button>
           }
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           <Badge variant="outline">{filteredItems.length} Visible Events</Badge>
           <Badge variant="outline">Week {week}/{maxWeek}</Badge>
         </div>
-        {error && <InlineNotice tone="error" message={error} />}
-        {message && <InlineNotice tone="success" message={message} />}
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-4">
+      <div className="space-y-4 p-6 pt-0">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Filters & Export</CardTitle>
@@ -1206,8 +1351,8 @@ const SemesterSchedulePanel: React.FC<{ semesterId: string }> = ({ semesterId })
             </Table>
           </CardContent>
         </Card>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

@@ -533,7 +533,7 @@ def ensure_builtin_event_types_for_course(db: Session, course_id: str):
         ensure_course_event_type_exists(db, course_id, code)
 
 def ensure_course_event_type_exists(db: Session, course_id: str, event_type_code: str) -> models.CourseEventType:
-    event_type_code = event_type_code.strip().upper()
+    event_type_code = event_type_code.strip()
     existing = (
         db.query(models.CourseEventType)
         .filter(models.CourseEventType.course_id == course_id, models.CourseEventType.code == event_type_code)
@@ -578,7 +578,7 @@ def import_course_schedule_from_ics(
     meetings: list[dict[str, Any]],
 ):
     for meeting in meetings:
-        event_type_code = str(meeting.get("eventTypeCode", "")).strip().upper() or "LECTURE"
+        event_type_code = str(meeting.get("eventTypeCode", "")).strip() or "LECTURE"
         ensure_course_event_type_exists(db, course.id, event_type_code)
 
         day_of_week = int(meeting.get("dayOfWeek", 1))
@@ -1280,8 +1280,8 @@ def create_course_event_type(
     current_user: models.User = Depends(auth.get_current_user),
 ):
     get_owned_course(db, current_user, course_id)
-    code = payload.code.strip().upper()
-    abbreviation = payload.abbreviation.strip().upper()
+    code = payload.code.strip()
+    abbreviation = payload.abbreviation.strip()
     if not code:
         raise HTTPException(status_code=422, detail=error_detail("INVALID_EVENT_TYPE_CODE", "code cannot be empty."))
     if not abbreviation:
@@ -1317,13 +1317,13 @@ def update_course_event_type(
     current_user: models.User = Depends(auth.get_current_user),
 ):
     get_owned_course(db, current_user, course_id)
-    event_type = get_event_type_or_404(db, course_id, event_type_code.strip().upper())
+    event_type = get_event_type_or_404(db, course_id, event_type_code.strip())
     update_data = payload.dict(exclude_unset=True, by_alias=False)
     normalized_count = 0
     previous_track = bool(event_type.track_attendance)
 
     if "abbreviation" in update_data and update_data["abbreviation"] is not None:
-        update_data["abbreviation"] = update_data["abbreviation"].strip().upper()
+        update_data["abbreviation"] = update_data["abbreviation"].strip()
         if not update_data["abbreviation"]:
             raise HTTPException(
                 status_code=422,
@@ -1369,7 +1369,7 @@ def delete_course_event_type(
         db.query(models.CourseEventType)
         .filter(
             models.CourseEventType.course_id == course_id,
-            models.CourseEventType.code == event_type_code.strip().upper(),
+            models.CourseEventType.code == event_type_code.strip(),
         )
         .first()
     )
@@ -1398,7 +1398,7 @@ def validate_section_payload(course_id: str, payload: dict, db: Session):
     section_id = payload.get("section_id")
     if section_id is not None:
         validate_section_id(section_id)
-    payload["event_type_code"] = payload["event_type_code"].strip().upper()
+    payload["event_type_code"] = payload["event_type_code"].strip()
     payload["week_pattern"] = normalize_week_pattern_input(payload["week_pattern"])
     validate_day_of_week(payload["day_of_week"])
     validate_time_range(payload["start_time"], payload["end_time"])
@@ -1468,7 +1468,7 @@ def update_course_section(
 
     for key, value in update_data.items():
         if key == "event_type_code" and value is not None:
-            value = value.strip().upper()
+            value = value.strip()
         if key == "week_pattern" and value is not None:
             value = normalize_week_pattern_input(value)
         setattr(db_section, key, value)
@@ -1544,7 +1544,7 @@ def import_course_sections(
 
 # --- Events ---
 def validate_event_payload(course_id: str, payload: dict, db: Session):
-    payload["event_type_code"] = payload["event_type_code"].strip().upper()
+    payload["event_type_code"] = payload["event_type_code"].strip()
     payload["week_pattern"] = normalize_week_pattern_input(payload["week_pattern"])
     validate_day_of_week(payload["day_of_week"])
     validate_time_range(payload["start_time"], payload["end_time"])
