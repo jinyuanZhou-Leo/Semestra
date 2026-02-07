@@ -1,25 +1,18 @@
 import React from "react";
-import { SettingsForm } from "./SettingsForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  initialName: string;
-  initialSettings?: any; // e.g. credits, scaling table
-  onSave: (data: any) => Promise<void>;
-  type: "program" | "semester" | "course";
+  children: React.ReactNode;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   title,
-  initialName,
-  initialSettings = {},
-  onSave,
-  type,
+  children,
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -28,16 +21,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
         </DialogHeader>
         <div className="p-6">
-        <SettingsForm
-          initialName={initialName}
-          initialSettings={initialSettings}
-          onSave={onSave}
-          onSuccess={onClose}
-          type={type}
-          showCancel
-          onCancel={onClose}
-        />
-      </div>
+          {children}
+        </div>
       </DialogContent>
     </Dialog>
   );

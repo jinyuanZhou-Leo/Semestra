@@ -21,6 +21,7 @@ import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
+import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
 
 
 import {
@@ -383,13 +384,16 @@ const SemesterHomepageContent: React.FC = () => {
             semesterId: semester?.id
         },
         settings: {
-            initialName: semester?.name || '',
-            initialSettings: {
-                start_date: semester?.start_date,
-                end_date: semester?.end_date,
-            },
-            onSave: handleUpdateSemester,
-            type: 'semester' as const,
+            content: (
+                <SemesterSettingsPanel
+                    initialName={semester?.name || ''}
+                    initialSettings={{
+                        start_date: semester?.start_date,
+                        end_date: semester?.end_date,
+                    }}
+                    onSave={handleUpdateSemester}
+                />
+            ),
             extraSections: (
                 <>
                     {widgetSettingsSections}

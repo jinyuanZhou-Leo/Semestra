@@ -105,6 +105,7 @@ const scheduleService = {
     courseId: string,
     eventTypeCode: string,
     payload: {
+      code?: string;
       abbreviation?: string;
       trackAttendance?: boolean;
       color?: string;

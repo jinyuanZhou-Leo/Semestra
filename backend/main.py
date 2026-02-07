@@ -1330,8 +1330,48 @@ def update_course_event_type(
                 detail=error_detail("INVALID_EVENT_TYPE_ABBREVIATION", "abbreviation cannot be empty."),
             )
 
+    # Handle code update (event type name)
+    old_code = event_type.code
+    new_code = None
+    if "code" in update_data and update_data["code"] is not None:
+        new_code = update_data["code"].strip()
+        if not new_code:
+            raise HTTPException(
+                status_code=422,
+                detail=error_detail("INVALID_EVENT_TYPE_CODE", "code cannot be empty."),
+            )
+        # Check if new code conflicts with existing types (excluding current one)
+        if new_code != old_code:
+            existing = (
+                db.query(models.CourseEventType)
+                .filter(
+                    models.CourseEventType.course_id == course_id,
+                    models.CourseEventType.code == new_code,
+                    models.CourseEventType.id != event_type.id,
+                )
+                .first()
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=422,
+                    detail=error_detail("EVENT_TYPE_DUPLICATE", "code already exists for this course."),
+                )
+
     for key, value in update_data.items():
         setattr(event_type, key, value)
+
+    # If code changed, update all related events and sections
+    if new_code and new_code != old_code:
+        db.query(models.CourseEvent).filter(
+            models.CourseEvent.course_id == course_id,
+            models.CourseEvent.event_type_code == old_code,
+        ).update({models.CourseEvent.event_type_code: new_code}, synchronize_session=False)
+        
+        db.query(models.CourseSection).filter(
+            models.CourseSection.course_id == course_id,
+            models.CourseSection.event_type_code == old_code,
+        ).update({models.CourseSection.event_type_code: new_code}, synchronize_session=False)
+
 
     if (not previous_track) and event_type.track_attendance:
         normalized_count = (

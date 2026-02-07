@@ -15,10 +15,7 @@ type DashboardContextValue = {
 };
 
 type SettingsContextValue = {
-    initialName: string;
-    initialSettings?: any;
-    onSave: (data: any) => Promise<void>;
-    type: 'semester' | 'course';
+    content: React.ReactNode;
     extraSections?: React.ReactNode;
 };
 

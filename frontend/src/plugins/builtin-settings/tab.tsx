@@ -12,10 +12,7 @@ const BuiltinSettingsTabComponent: React.FC<TabProps> = () => {
 
     return (
         <SettingsTabContent
-            initialName={settings.initialName}
-            initialSettings={settings.initialSettings}
-            onSave={settings.onSave}
-            type={settings.type}
+            content={settings.content}
             extraSections={settings.extraSections}
         />
     );

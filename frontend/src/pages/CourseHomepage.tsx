@@ -22,6 +22,7 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
+import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
 
 import {
     Breadcrumb,
@@ -500,16 +501,19 @@ const CourseHomepageContent: React.FC = () => {
             updateCourse
         },
         settings: {
-            initialName: course?.name ?? '',
-            initialSettings: {
-                alias: course?.alias,
-                category: course?.category,
-                credits: course?.credits,
-                include_in_gpa: course?.include_in_gpa,
-                hide_gpa: course?.hide_gpa
-            },
-            onSave: handleUpdateCourse,
-            type: 'course' as const,
+            content: (
+                <CourseSettingsPanel
+                    initialName={course?.name ?? ''}
+                    initialSettings={{
+                        alias: course?.alias,
+                        category: course?.category,
+                        credits: course?.credits,
+                        include_in_gpa: course?.include_in_gpa,
+                        hide_gpa: course?.hide_gpa
+                    }}
+                    onSave={handleUpdateCourse}
+                />
+            ),
             extraSections: (
                 <>
                     {widgetSettingsSections}

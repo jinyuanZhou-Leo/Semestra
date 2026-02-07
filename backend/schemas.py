@@ -197,6 +197,7 @@ class CourseEventTypeCreate(CourseEventTypeBase):
     pass
 
 class CourseEventTypeUpdate(BaseModel):
+    code: Optional[str] = None
     abbreviation: Optional[str] = None
     color: Optional[str] = None
     icon: Optional[str] = None

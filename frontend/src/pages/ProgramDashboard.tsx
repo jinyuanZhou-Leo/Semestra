@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SettingsModal } from '../components/SettingsModal';
+import { ProgramSettingsPanel } from '../components/ProgramSettingsPanel';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
@@ -992,15 +993,20 @@ const ProgramDashboardContent: React.FC = () => {
                     isOpen={isSettingsOpen}
                     onClose={() => setIsSettingsOpen(false)}
                     title="Program Settings"
-                    initialName={program.name}
-                    initialSettings={{
-                        grad_requirement_credits: program.grad_requirement_credits,
-                        gpa_scaling_table: program.gpa_scaling_table,
-                        hide_gpa: program.hide_gpa
-                    }}
-                    onSave={handleUpdateProgram}
-                    type="program"
-                />
+                >
+                    <ProgramSettingsPanel
+                        initialName={program.name}
+                        initialSettings={{
+                            grad_requirement_credits: program.grad_requirement_credits,
+                            gpa_scaling_table: program.gpa_scaling_table,
+                            hide_gpa: program.hide_gpa
+                        }}
+                        onSave={handleUpdateProgram}
+                        onSuccess={() => setIsSettingsOpen(false)}
+                        showCancel
+                        onCancel={() => setIsSettingsOpen(false)}
+                    />
+                </SettingsModal>
             )}
 
             {program && (

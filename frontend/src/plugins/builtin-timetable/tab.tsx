@@ -32,6 +32,8 @@ import scheduleService, {
   type WeekPattern,
 } from '@/services/schedule';
 import type { TabDefinition, TabProps, TabSettingsProps } from '../../services/tabRegistry';
+import { CrudPanel, TableShell, EmptyTableRow, PanelHeader } from './CrudPanel';
+import { EventTypeFormDialog } from './EventTypeFormDialog';
 
 const WEEK_PATTERNS: WeekPattern[] = ['EVERY', 'ODD', 'EVEN'];
 const DAY_OF_WEEK_OPTIONS = [
@@ -53,7 +55,6 @@ const SLOT_PLANNER_STEP_MINUTES = 30;
 
 const asChecked = (value: boolean | 'indeterminate') => value === true;
 const dayLabel = (value: number) => DAY_OF_WEEK_OPTIONS.find((item) => item.value === value)?.label ?? String(value);
-const deriveAbbreviationFromCode = (code: string) => code.replace(/[^A-Z0-9]/g, '').slice(0, 4);
 const toMinutes = (value: string) => {
   const [hour, minute] = value.split(':').map(Number);
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
@@ -103,41 +104,6 @@ const extractLocationFromNote = (note?: string | null) => {
   const firstLine = note.slice(SLOT_LOCATION_NOTE_PREFIX.length).split('\n')[0];
   return firstLine.trim() || null;
 };
-
-
-
-const EmptyTableRow: React.FC<{ colSpan: number; message: string }> = ({ colSpan, message }) => (
-  <TableRow>
-    <TableCell colSpan={colSpan} className="py-8 text-center text-sm text-muted-foreground">
-      {message}
-    </TableCell>
-  </TableRow>
-);
-
-const TableShell: React.FC<{ children: React.ReactNode; minWidthClassName?: string }> = ({
-  children,
-  minWidthClassName = 'min-w-[720px]',
-}) => (
-  <div className="overflow-x-auto rounded-md border border-border/70">
-    <div className={minWidthClassName}>
-      {children}
-    </div>
-  </div>
-);
-
-const PanelHeader: React.FC<{
-  title: string;
-  description: string;
-  right?: React.ReactNode;
-}> = ({ title, description, right }) => (
-  <div className="flex flex-wrap items-start justify-between gap-3">
-    <div className="min-w-0 space-y-1">
-      <h3 className="text-base font-semibold tracking-tight">{title}</h3>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </div>
-    {right}
-  </div>
-);
 
 const WeeklyCalendarView: React.FC<{ items: ScheduleItem[]; emptyMessage: string }> = ({ items, emptyMessage }) => {
   const calendarData = React.useMemo(() => {
@@ -348,11 +314,7 @@ const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [editingType, setEditingType] = React.useState<CourseEventType | null>(null);
-  const [formType, setFormType] = React.useState({
-    code: '',
-    abbreviation: '',
-    track_attendance: false,
-  });
+
 
   const loadEventTypes = React.useCallback(async () => {
     setIsLoading(true);
@@ -370,36 +332,36 @@ const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId
     loadEventTypes();
   }, [loadEventTypes]);
 
-  const handleCreateOrUpdateEventType = async () => {
+  const handleCreateOrUpdate = async (data: { code: string; abbreviation: string; track_attendance: boolean }) => {
     try {
       if (editingType) {
         await scheduleService.updateCourseEventType(courseId, editingType.code, {
-          abbreviation: formType.abbreviation,
-          trackAttendance: formType.track_attendance,
+          code: data.code,
+          abbreviation: data.abbreviation,
+          trackAttendance: data.track_attendance,
         });
-        setEditingType(null);
       } else {
-        await scheduleService.createCourseEventType(courseId, formType);
+        await scheduleService.createCourseEventType(courseId, data);
       }
-      setFormType({ code: '', abbreviation: '', track_attendance: false });
       await loadEventTypes();
+      setEditingType(null); // Close dialog handled by wrapper but state reset needed
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? `Failed to ${editingType ? 'update' : 'create'} event type.`);
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to save event type.');
+      throw err; // Re-throw to keep dialog open if needed, though implemented dialog closes on success. 
+      // Actually EventTypeFormDialog closes on submit success.
     }
   };
 
-  const handleEditType = (eventType: CourseEventType) => {
-    setEditingType(eventType);
-    setFormType({
-      code: eventType.code,
-      abbreviation: eventType.abbreviation,
-      track_attendance: eventType.track_attendance,
-    });
-  };
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
 
-  const handleCancelEdit = () => {
+  // When editingType changes, open dialog
+  React.useEffect(() => {
+    if (editingType) setIsDialogOpen(true);
+  }, [editingType]);
+
+  const handleOpenCreate = () => {
     setEditingType(null);
-    setFormType({ code: '', abbreviation: '', track_attendance: false });
+    setIsDialogOpen(true);
   };
 
   const handleDeleteEventType = async (eventTypeCode: string) => {
@@ -412,117 +374,72 @@ const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="settings-new-type-code">Type</Label>
-          <Input
-            id="settings-new-type-code"
-            autoComplete="off"
-            placeholder="e.g. Workshop"
-            value={formType.code}
-            disabled={!!editingType}
-            onChange={(event) => {
-              const nextCode = event.target.value;
-              setFormType((prev) => {
-                const previousDerived = deriveAbbreviationFromCode(prev.code);
-                const shouldAutofillAbbreviation =
-                  !prev.abbreviation || prev.abbreviation === previousDerived;
-                return {
-                  ...prev,
-                  code: nextCode,
-                  abbreviation: shouldAutofillAbbreviation
-                    ? deriveAbbreviationFromCode(nextCode)
-                    : prev.abbreviation,
-                };
-              });
-            }}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="settings-new-type-abbr">Abbreviation</Label>
-          <Input
-            id="settings-new-type-abbr"
-            autoComplete="off"
-            placeholder="WS"
-            value={formType.abbreviation}
-            onChange={(event) => setFormType((prev) => ({ ...prev, abbreviation: event.target.value.toUpperCase() }))}
-          />
-        </div>
-      </div>
-      <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-        <Checkbox
-          id="settings-new-type-track"
-          checked={formType.track_attendance}
-          onCheckedChange={(checked) => setFormType((prev) => ({ ...prev, track_attendance: asChecked(checked) }))}
-        />
-        <Label htmlFor="settings-new-type-track" className="text-sm font-normal text-muted-foreground">
-          Track attendance (forces `skip=false`)
-        </Label>
-      </div>
-      <div className="flex justify-end gap-2">
-        {editingType && (
-          <Button variant="outline" onClick={handleCancelEdit}>
-            Cancel
+    <>
+      <CrudPanel
+        title="Event Types"
+        description="Manage the types of events available for this course (e.g., Lecture, Tutorial, Lab)."
+        minWidthClassName="min-w-[560px]"
+        items={eventTypes}
+        isLoading={isLoading}
+        actionButton={
+          <Button onClick={handleOpenCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Type
           </Button>
+        }
+        renderHeader={() => (
+          <TableRow>
+            <TableHead>Type</TableHead>
+            <TableHead>Abbr</TableHead>
+            <TableHead>Track Attendance</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
         )}
-        <Button className="w-full sm:w-auto" onClick={handleCreateOrUpdateEventType} disabled={!formType.code || !formType.abbreviation || isLoading}>
-          {editingType ? <Edit className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-          {editingType ? 'Update Type' : 'Add Type'}
-        </Button>
-      </div>
+        renderRow={(item) => (
+          <TableRow key={item.id}>
+            <TableCell className="font-medium">{item.code}</TableCell>
+            <TableCell>{item.abbreviation}</TableCell>
+            <TableCell>
+              <Badge variant={item.track_attendance ? 'default' : 'secondary'}>
+                {item.track_attendance ? 'Enabled' : 'Off'}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-right">
+              <div className="flex justify-end gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Edit event type ${item.code}`}
+                  onClick={() => setEditingType(item)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Delete event type ${item.code}`}
+                  onClick={() => handleDeleteEventType(item.code)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        )}
+      />
 
-      <div className="rounded-md border border-border/70 p-0">
-        <TableShell minWidthClassName="min-w-[560px]">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Abbr</TableHead>
-                <TableHead>Track Attendance</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {eventTypes.length === 0 && <EmptyTableRow colSpan={4} message="No event types yet." />}
-              {eventTypes.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.code}</TableCell>
-                  <TableCell>{item.abbreviation}</TableCell>
-                  <TableCell>
-                    <Badge variant={item.track_attendance ? 'default' : 'secondary'}>
-                      {item.track_attendance ? 'Enabled' : 'Off'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Edit event type ${item.code}`}
-                        onClick={() => handleEditType(item)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Delete event type ${item.code}`}
-                        onClick={() => handleDeleteEventType(item.code)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableShell>
-      </div>
-    </div>
+      <EventTypeFormDialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) setEditingType(null);
+        }}
+        initialData={editingType}
+        onSubmit={handleCreateOrUpdate}
+      />
+    </>
   );
 };
 
@@ -532,73 +449,23 @@ const QuickAddTypeDialog: React.FC<{
   courseId: string;
   onTypeAdded: (newType: CourseEventType) => void;
 }> = ({ open, onOpenChange, courseId, onTypeAdded }) => {
-  const [newType, setNewType] = React.useState({
-    code: '',
-    abbreviation: '',
-    track_attendance: false,
-  });
-  const [isLoading, setIsLoading] = React.useState(false);
+  // State removed, managed by EventTypeFormDialog now
 
-  const handleCreate = async () => {
-    setIsLoading(true);
-    try {
-      const created = await scheduleService.createCourseEventType(courseId, newType);
-      onTypeAdded(created);
-      onOpenChange(false);
-      setNewType({ code: '', abbreviation: '', track_attendance: false });
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to create type.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+  // handleCreate handled in render now
+
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Quick Add Event Type</DialogTitle>
-          <DialogDescription>
-            Add a new event type for your sections. Full settings available in the Settings tab.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="quick-type-code">Type Name</Label>
-            <Input
-              id="quick-type-code"
-              placeholder="e.g. Lab"
-              value={newType.code}
-              onChange={(e) => {
-                const val = e.target.value;
-                setNewType((prev) => {
-                  const derived = deriveAbbreviationFromCode(val);
-                  return {
-                    ...prev,
-                    code: val,
-                    abbreviation: !prev.abbreviation || prev.abbreviation === deriveAbbreviationFromCode(prev.code) ? derived : prev.abbreviation,
-                  };
-                });
-              }}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="quick-type-abbr">Abbreviation</Label>
-            <Input
-              id="quick-type-abbr"
-              placeholder="LB"
-              value={newType.abbreviation}
-              onChange={(e) => setNewType((prev) => ({ ...prev, abbreviation: e.target.value.toUpperCase() }))}
-            />
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <Button onClick={handleCreate} disabled={!newType.code || !newType.abbreviation || isLoading}>
-            Create Type
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <EventTypeFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Quick Add Event Type"
+      confirmLabel="Create Type"
+      onSubmit={async (data) => {
+        const created = await scheduleService.createCourseEventType(courseId, data);
+        onTypeAdded(created);
+      }}
+    />
   );
 };
 
@@ -856,12 +723,24 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
   const handleToggleEventEnable = async (event: CourseEvent, checked: boolean) => {
     try {
       await scheduleService.updateCourseEvent(courseId, event.id, { enable: checked });
-      // Optimistic update or reload? Reload is safer for consistency.
-      // To avoid UI flicker, we could optimistically update local state too, but `reloadAll` is fast enough usually.
       await reloadAll();
-      // No success toast
     } catch (err: any) {
       toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update event.');
+    }
+  };
+
+  const handleToggleSectionEnable = async (sectionId: string, enable: boolean) => {
+    const evs = eventsBySectionId.get(sectionId) ?? [];
+    if (evs.length === 0) return;
+
+    // Optimistic / Batch update
+    // We'll try to batch update if possible, otherwise parallel requests
+    try {
+      // Parallel updates are safer given current knowledge.
+      await Promise.all(evs.map(e => scheduleService.updateCourseEvent(courseId, e.id, { enable })));
+      await reloadAll();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update section events.');
     }
   };
 
@@ -887,6 +766,7 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
+                <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Section</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Instructor</TableHead>
@@ -911,6 +791,10 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
                   }
                 });
 
+                const allEnabled = sectionEvents.every(e => e.enable);
+                const someEnabled = sectionEvents.some(e => e.enable);
+                const isIndeterminate = someEnabled && !allEnabled;
+
                 return (
                   <React.Fragment key={section.id}>
                     <TableRow
@@ -919,6 +803,12 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
                     >
                       <TableCell>
                         {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={allEnabled ? true : isIndeterminate ? 'indeterminate' : false}
+                          onCheckedChange={(c) => handleToggleSectionEnable(section.sectionId, asChecked(c))}
+                        />
                       </TableCell>
                       <TableCell className="font-medium">{section.sectionId}</TableCell>
                       <TableCell>{section.eventTypeCode}</TableCell>
@@ -949,39 +839,37 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
                     </TableRow>
                     {isExpanded && (
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
-                        <TableCell colSpan={6} className="p-0">
+                        <TableCell colSpan={7} className="p-0">
                           <Collapsible open={true}>
                             <CollapsibleContent className="p-4 pt-1">
                               <div className="rounded-md border bg-background">
                                 <Table>
                                   <TableHeader>
                                     <TableRow className="border-b-0 hover:bg-background">
-                                      <TableHead className="h-9">Event</TableHead>
-                                      <TableHead className="h-9">Time & Loc</TableHead>
-                                      <TableHead className="h-9">Status</TableHead>
+                                      <TableHead className="w-[40px]"></TableHead>
+                                      <TableHead className="h-9">Type</TableHead>
+                                      <TableHead className="h-9">Time</TableHead>
+                                      <TableHead className="h-9">Location</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
                                     {sectionEvents.map(event => (
                                       <TableRow key={event.id} className="border-b-0 hover:bg-muted/50">
+                                        <TableCell className="py-2">
+                                          <Checkbox
+                                            id={`event-enable-${event.id}`}
+                                            checked={event.enable}
+                                            onCheckedChange={(c) => handleToggleEventEnable(event, asChecked(c))}
+                                          />
+                                        </TableCell>
                                         <TableCell className="py-2 font-medium">
                                           {event.eventTypeCode}
                                         </TableCell>
                                         <TableCell className="py-2">
                                           {dayLabel(event.dayOfWeek)} {event.startTime}-{event.endTime}
-                                          {extractLocationFromNote(event.note) && <span className="ml-2 text-muted-foreground">@ {extractLocationFromNote(event.note)}</span>}
                                         </TableCell>
-                                        <TableCell className="py-2">
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              id={`event-enable-${event.id}`}
-                                              checked={event.enable}
-                                              onCheckedChange={(c) => handleToggleEventEnable(event, asChecked(c))}
-                                            />
-                                            <Label htmlFor={`event-enable-${event.id}`} className="text-sm font-normal text-muted-foreground">
-                                              {event.enable ? 'Active' : 'Ignored'}
-                                            </Label>
-                                          </div>
+                                        <TableCell className="py-2 text-muted-foreground">
+                                          {extractLocationFromNote(event.note) || '-'}
                                         </TableCell>
                                       </TableRow>
                                     ))}
@@ -1088,8 +976,40 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
               <Label>Section Slots</Label>
               <SectionSlotPlanner
                 slots={currentNormalizedSlots}
-                onAddSlot={() => setFormSlots((prev) => [...prev, createSectionSlot()])}
-                onUpdateSlot={(id, patch) => setFormSlots((prev) => prev.map(s => s.id === id ? { ...s, ...patch } : s))}
+                onAddSlot={() => setFormSlots((prev) => {
+                  const last = prev[prev.length - 1];
+                  let nextStart = '09:00';
+                  let nextDay = 1;
+                  let nextLoc = '';
+
+                  if (last) {
+                    nextDay = last.dayOfWeek;
+                    nextLoc = last.location;
+                    // Try to be smart about next slot start
+                    const lastEndMin = toMinutes(last.endTime);
+                    nextStart = toSafeTime(formatHour(lastEndMin));
+                    // If it wraps around midnight, just keep it, or reset? 
+                    // toSafeTime clamps to 23:59.
+                  }
+
+                  // Default duration 1 hour
+                  const startMin = toMinutes(nextStart);
+                  const endMin = startMin + 60;
+                  const nextEnd = toSafeTime(formatHour(endMin));
+
+                  return [...prev, createSectionSlot(nextDay, nextStart, nextEnd, nextLoc)];
+                })}
+                onUpdateSlot={(id, patch) => setFormSlots((prev) => prev.map(s => {
+                  if (s.id !== id) return s;
+                  const updated = { ...s, ...patch };
+                  // Auto-update end time if start time changed
+                  if (patch.startTime && !patch.endTime) {
+                    const startMin = toMinutes(patch.startTime);
+                    const endMin = startMin + 60;
+                    updated.endTime = toSafeTime(formatHour(endMin));
+                  }
+                  return updated;
+                }))}
                 onRemoveSlot={(id) => setFormSlots((prev) => prev.filter(s => s.id !== id))}
               />
             </div>
