@@ -350,24 +350,12 @@ const CourseHomepageContent: React.FC = () => {
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div key={tab.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        paddingLeft: '0.25rem'
-                    }}>
-                        <Badge variant="secondary" className="uppercase tracking-[0.05em]">
+                <div key={tab.id} className="flex flex-col gap-4">
+                    <div className="flex items-center gap-2 pl-1">
+                        <Badge variant="secondary" className="uppercase tracking-wider">
                             Plugin
                         </Badge>
-                        <h3 style={{
-                            margin: 0,
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            color: 'hsl(var(--muted-foreground))',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em'
-                        }}>
+                        <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
                             {definition?.name ?? tab.title ?? tab.type}
                         </h3>
                     </div>
@@ -386,24 +374,12 @@ const CourseHomepageContent: React.FC = () => {
         const BuiltinScheduleSettingsComponent = builtinScheduleDefinition?.settingsComponent;
         if (BuiltinScheduleSettingsComponent) {
             sections.push(
-                <div key={`builtin-${scheduleTabId}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        paddingLeft: '0.25rem'
-                    }}>
-                        <Badge variant="secondary" className="uppercase tracking-[0.05em]">
+                <div key={`builtin-${scheduleTabId}`} className="flex flex-col gap-4">
+                    <div className="flex items-center gap-2 pl-1">
+                        <Badge variant="secondary" className="uppercase tracking-wider">
                             Plugin
                         </Badge>
-                        <h3 style={{
-                            margin: 0,
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            color: 'hsl(var(--muted-foreground))',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em'
-                        }}>
+                        <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
                             {builtinScheduleDefinition?.name ?? 'Timetable'}
                         </h3>
                     </div>
@@ -420,7 +396,7 @@ const CourseHomepageContent: React.FC = () => {
         if (sections.length === 0) return null;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div className="flex flex-col gap-8">
                 {sections}
             </div>
         );
@@ -438,24 +414,12 @@ const CourseHomepageContent: React.FC = () => {
             .map(def => {
                 const GlobalSettingsComponent = def.globalSettingsComponent!;
                 return (
-                    <div key={def.type} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            paddingLeft: '0.25rem'
-                        }}>
-                            <Badge variant="secondary" className="uppercase tracking-[0.05em]">
+                    <div key={def.type} className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2 pl-1">
+                            <Badge variant="secondary" className="uppercase tracking-wider">
                                 Plugin
                             </Badge>
-                            <h3 style={{
-                                margin: 0,
-                                fontSize: '0.85rem',
-                                fontWeight: 600,
-                                color: 'hsl(var(--muted-foreground))',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                            }}>
+                            <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
                                 {def.name}
                             </h3>
                         </div>
@@ -470,7 +434,7 @@ const CourseHomepageContent: React.FC = () => {
         if (sections.length === 0) return null;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div className="flex flex-col gap-8">
                 {sections}
             </div>
         );

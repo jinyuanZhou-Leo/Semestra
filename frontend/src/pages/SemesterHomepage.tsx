@@ -294,17 +294,12 @@ const SemesterHomepageContent: React.FC = () => {
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div key={tab.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        paddingLeft: '0.25rem'
-                    }}>
-                        <div className="text-[0.65rem] uppercase tracking-[0.05em] text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 font-semibold">
+                <div key={tab.id} className="flex flex-col gap-4">
+                    <div className="flex items-center gap-2 pl-1">
+                        <div className="text-[0.65rem] uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 font-semibold">
                             Plugin
                         </div>
-                        <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-[0.05em]">
+                        <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
                             {definition?.name ?? tab.title ?? tab.type}
                         </h3>
                     </div>
@@ -322,7 +317,7 @@ const SemesterHomepageContent: React.FC = () => {
         if (sections.length === 0) return null;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div className="flex flex-col gap-8">
                 {sections}
             </div>
         );
@@ -340,17 +335,12 @@ const SemesterHomepageContent: React.FC = () => {
             .map(def => {
                 const GlobalSettingsComponent = def.globalSettingsComponent!;
                 return (
-                    <div key={def.type} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            paddingLeft: '0.25rem'
-                        }}>
-                            <div className="text-[0.65rem] uppercase tracking-[0.05em] text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 font-semibold">
+                    <div key={def.type} className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2 pl-1">
+                            <div className="text-[0.65rem] uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 font-semibold">
                                 Plugin
                             </div>
-                            <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-[0.05em]">
+                            <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
                                 {def.name}
                             </h3>
                         </div>
@@ -365,7 +355,7 @@ const SemesterHomepageContent: React.FC = () => {
         if (sections.length === 0) return null;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div className="flex flex-col gap-8">
                 {sections}
             </div>
         );

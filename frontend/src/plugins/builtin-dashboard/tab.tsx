@@ -63,24 +63,9 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
             <Button
                 onClick={toggleLock}
                 variant="outline"
-                className={glassButtonClassName}
+                className={`${glassButtonClassName} fixed right-8 bottom-24 size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center z-20 transition-opacity duration-200 ${isLocked ? 'opacity-100' : 'opacity-70'}`}
                 aria-label={isLocked ? "Unlock widgets" : "Lock widgets"}
                 title={isLocked ? "Unlock widgets" : "Lock widgets"}
-                style={{
-                    position: 'fixed',
-                    right: '2rem',
-                    bottom: '6rem',
-                    width: '3.25rem',
-                    height: '3.25rem',
-                    padding: 0,
-                    borderRadius: '999px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 20,
-                    opacity: isLocked ? 1 : 0.7,
-                    transition: 'opacity 0.2s'
-                }}
             >
                 {isLocked ? (
                     <Lock className="h-5 w-5" aria-hidden="true" />
@@ -93,21 +78,8 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
             <Button
                 onClick={dashboard.onAddWidgetClick}
                 variant="outline"
-                className={glassButtonClassName}
+                className={`${glassButtonClassName} fixed right-8 bottom-8 size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center z-20`}
                 aria-label="Add widget"
-                style={{
-                    position: 'fixed',
-                    right: '2rem',
-                    bottom: '2rem',
-                    width: '3.25rem',
-                    height: '3.25rem',
-                    padding: 0,
-                    borderRadius: '999px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 20
-                }}
             >
                 <Plus className="h-5 w-5" aria-hidden="true" />
             </Button>

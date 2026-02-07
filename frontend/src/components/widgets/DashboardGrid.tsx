@@ -112,15 +112,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
 
     if (widgets.length === 0) {
         return (
-            <div style={{
-                textAlign: 'center',
-                padding: '3rem',
-                marginTop: '2rem',
-                border: '2px dashed hsl(var(--border))',
-                borderRadius: 'var(--radius-widget)',
-                color: 'hsl(var(--muted-foreground))',
-                backgroundColor: 'hsl(var(--background))'
-            }}>
+            <div className="text-center p-12 mt-8 border-2 border-dashed border-border rounded-[var(--radius-widget)] text-muted-foreground bg-background">
                 <h3>No Widgets</h3>
                 <p>Click "Add Widget" to customize your dashboard.</p>
             </div>
@@ -151,7 +143,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                 const isRemovable = widget.is_removable !== false;
 
                 return (
-                    <div key={widget.id} style={{ border: '1px solid transparent' }}>
+                    <div key={widget.id} className="border border-transparent">
                         <DashboardWidgetWrapper
                             widget={widget}
                             index={index}

@@ -2,8 +2,6 @@
 
 @plugin "tailwindcss-animate";
 
-@custom-variant dark (&:is(.dark *));
-
 /* Ensure Radix Dialog overlay/content sit above fixed headers */
 body>div>div[style*="pointer-events: auto"][data-state] {
   z-index: var(--z-modal-overlay) !important;
@@ -95,22 +93,12 @@ body>div>div[role="dialog"][data-state] {
   background: rgba(0, 0, 0, 0.3);
 }
 
-/* Dark mode scrollbar support */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-  }
-
-  :root:not([data-theme='light']) ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
-}
-
-[data-theme='dark'] ::-webkit-scrollbar-thumb {
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
 }
 
-[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+.dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 

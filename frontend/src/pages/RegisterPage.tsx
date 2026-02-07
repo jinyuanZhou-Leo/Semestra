@@ -226,7 +226,7 @@ export const RegisterPage: React.FC = () => {
             >
                 <Card 
                     className={`border-none shadow-2xl transition-all duration-300 rounded-xl overflow-hidden ${isGlassReady
-                        ? 'bg-background/60 backdrop-blur-3xl support-[backdrop-filter]:bg-background/40'
+                        ? 'bg-background/60 backdrop-blur-3xl'
                         : 'bg-background'
                         }`}
                 >
