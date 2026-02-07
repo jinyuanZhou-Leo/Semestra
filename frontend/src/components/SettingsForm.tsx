@@ -3,8 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { GPAScalingTable } from "./GPAScalingTable";
 import { SaveSettingButton } from "./SaveSettingButton";
+import { cn } from "@/lib/utils";
+import { format, parseISO } from "date-fns";
+import { CalendarDays } from "lucide-react";
 
 interface SettingsFormProps {
   initialName: string;
@@ -39,7 +44,10 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
   const [category, setCategory] = useState(initialSettings?.category || "");
   const [extraSettings, setExtraSettings] = useState(initialSettings);
   const [jsonError, setJsonError] = useState("");
+  const [formError, setFormError] = useState("");
   const [gpaTableJson, setGpaTableJson] = useState("{}");
+  const [semesterStartDate, setSemesterStartDate] = useState<Date | undefined>(undefined);
+  const [semesterEndDate, setSemesterEndDate] = useState<Date | undefined>(undefined);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success">(
     "idle"
   );
@@ -71,6 +79,16 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
       setGpaTableJson("{}");
     }
     setJsonError("");
+    setFormError("");
+
+    const startDateRaw = initialSettings?.start_date;
+    const endDateRaw = initialSettings?.end_date;
+    const parsedStartDate =
+      typeof startDateRaw === "string" && startDateRaw.length > 0 ? parseISO(startDateRaw) : undefined;
+    const parsedEndDate =
+      typeof endDateRaw === "string" && endDateRaw.length > 0 ? parseISO(endDateRaw) : undefined;
+    setSemesterStartDate(parsedStartDate && !Number.isNaN(parsedStartDate.getTime()) ? parsedStartDate : undefined);
+    setSemesterEndDate(parsedEndDate && !Number.isNaN(parsedEndDate.getTime()) ? parsedEndDate : undefined);
   }, [initialName, settingsKey, type]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -85,6 +103,12 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
         setJsonError("Invalid JSON for GPA Table");
         return;
       }
+    }
+    setFormError("");
+
+    if (type === "semester" && semesterStartDate && semesterEndDate && semesterStartDate > semesterEndDate) {
+      setFormError("Start date must be earlier than or equal to end date.");
+      return;
     }
 
     const data: any = { name };
@@ -108,6 +132,10 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
 
     if (type === "program") {
       data.gpa_scaling_table = gpaTableJson;
+    }
+    if (type === "semester") {
+      data.start_date = semesterStartDate ? format(semesterStartDate, "yyyy-MM-dd") : null;
+      data.end_date = semesterEndDate ? format(semesterEndDate, "yyyy-MM-dd") : null;
     }
 
     setSaveState("saving");
@@ -243,6 +271,54 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
         </div>
       )}
 
+      {type === "semester" && (
+        <div className="grid gap-2">
+          <Label>Semester Duration</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="date"
+                variant={"outline"}
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !semesterStartDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarDays className="mr-2 h-4 w-4" />
+                {semesterStartDate ? (
+                  semesterEndDate ? (
+                    <>
+                      {format(semesterStartDate, "PPP")} -{" "}
+                      {format(semesterEndDate, "PPP")}
+                    </>
+                  ) : (
+                    format(semesterStartDate, "PPP")
+                  )
+                ) : (
+                  <span>Pick a date range</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                autoFocus
+                mode="range"
+                defaultMonth={semesterStartDate}
+                selected={{
+                  from: semesterStartDate,
+                  to: semesterEndDate,
+                }}
+                onSelect={(range) => {
+                  setSemesterStartDate(range?.from);
+                  setSemesterEndDate(range?.to);
+                }}
+                numberOfMonths={2}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
+
       {type === "program" && (
         <div className="grid gap-3">
           <div className="grid gap-2">
@@ -260,6 +336,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
           )}
         </div>
       )}
+      {formError && <p className="text-sm text-destructive">{formError}</p>}
 
       <div className="flex items-center justify-end gap-3">
         {showCancel && (

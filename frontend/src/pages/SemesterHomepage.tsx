@@ -384,7 +384,10 @@ const SemesterHomepageContent: React.FC = () => {
         },
         settings: {
             initialName: semester?.name || '',
-            initialSettings: {}, // Semester might not have extra settings yet
+            initialSettings: {
+                start_date: semester?.start_date,
+                end_date: semester?.end_date,
+            },
             onSave: handleUpdateSemester,
             type: 'semester' as const,
             extraSections: (

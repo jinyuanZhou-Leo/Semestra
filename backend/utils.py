@@ -233,6 +233,7 @@ def parse_ics_schedule(file_content: bytes) -> dict[str, Any]:
     """
     calendar = Calendar.from_ical(file_content)
     raw_meetings: list[dict[str, Any]] = []
+    date_range_candidates: list[tuple[date, date]] = []
 
     for component in calendar.walk():
         if component.name != "VEVENT":
@@ -243,6 +244,24 @@ def parse_ics_schedule(file_content: bytes) -> dict[str, Any]:
             decoded_end = component.decoded("dtend")
         except Exception:
             continue
+
+        start_date_value: date | None = None
+        end_date_value: date | None = None
+        if isinstance(decoded_start, datetime):
+            start_date_value = decoded_start.date()
+        elif isinstance(decoded_start, date):
+            start_date_value = decoded_start
+
+        if isinstance(decoded_end, datetime):
+            end_date_value = decoded_end.date()
+        elif isinstance(decoded_end, date):
+            # In ICS, date-only DTEND is exclusive. Convert to inclusive end date.
+            end_date_value = decoded_end - timedelta(days=1)
+
+        if start_date_value and end_date_value:
+            if end_date_value < start_date_value:
+                end_date_value = start_date_value
+            date_range_candidates.append((start_date_value, end_date_value))
 
         if not isinstance(decoded_start, datetime) or not isinstance(decoded_end, datetime):
             continue
@@ -293,10 +312,17 @@ def parse_ics_schedule(file_content: bytes) -> dict[str, Any]:
             )
 
     if not raw_meetings:
-        return {"semesterStartDate": None, "semesterEndDate": None, "courses": []}
+        if not date_range_candidates:
+            return {"semesterStartDate": None, "semesterEndDate": None, "courses": []}
+        semester_start = min(item[0] for item in date_range_candidates)
+        semester_end = max(item[1] for item in date_range_candidates)
+        return {"semesterStartDate": semester_start, "semesterEndDate": semester_end, "courses": []}
 
     semester_start = min(item["startDate"] for item in raw_meetings)
     semester_end = max(item["endDate"] for item in raw_meetings)
+    if date_range_candidates:
+        semester_start = min(semester_start, min(item[0] for item in date_range_candidates))
+        semester_end = max(semester_end, max(item[1] for item in date_range_candidates))
 
     grouped_by_course: dict[str, dict[tuple[Any, ...], dict[str, Any]]] = {}
     for item in raw_meetings:

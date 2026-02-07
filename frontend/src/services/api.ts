@@ -16,6 +16,8 @@ export interface Semester {
     name: string;
     average_scaled: number;
     average_percentage: number;
+    start_date?: string;
+    end_date?: string;
     program_id?: string;
     courses?: Course[];
 }

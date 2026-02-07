@@ -381,6 +381,41 @@ const CourseHomepageContent: React.FC = () => {
             );
         }).filter(Boolean);
 
+        const builtinScheduleDefinition = TabRegistry.get(scheduleTabId);
+        const BuiltinScheduleSettingsComponent = builtinScheduleDefinition?.settingsComponent;
+        if (BuiltinScheduleSettingsComponent) {
+            sections.push(
+                <div key={`builtin-${scheduleTabId}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        paddingLeft: '0.25rem'
+                    }}>
+                        <Badge variant="secondary" className="uppercase tracking-[0.05em]">
+                            Plugin
+                        </Badge>
+                        <h3 style={{
+                            margin: 0,
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            color: 'var(--color-text-secondary)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                        }}>
+                            {builtinScheduleDefinition?.name ?? 'Timetable'}
+                        </h3>
+                    </div>
+                    <BuiltinScheduleSettingsComponent
+                        tabId={scheduleTabId}
+                        settings={{}}
+                        courseId={course?.id}
+                        updateSettings={() => { }}
+                    />
+                </div>
+            );
+        }
+
         if (sections.length === 0) return null;
 
         return (
@@ -388,7 +423,7 @@ const CourseHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [tabs, course?.id, handleUpdateTabSettings]);
+    }, [tabs, course?.id, handleUpdateTabSettings, scheduleTabId]);
 
     // Widget plugin global settings sections
     const widgetDefinitions = useWidgetRegistry();
