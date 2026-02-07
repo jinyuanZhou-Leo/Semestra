@@ -6,7 +6,7 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { RequireAuth } from './components/RequireAuth';
 import { PageSkeleton } from './components/PageSkeleton';
 import { DialogProvider } from './contexts/DialogContext';
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster } from "sonner"
 
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));

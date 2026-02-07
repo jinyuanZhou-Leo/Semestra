@@ -1,26 +1,16 @@
 /// <reference types="vitest" />
-import { fileURLToPath, URL } from 'node:url'
+import path from "path"
+import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
-    alias: [
-      {
-        find: '@/components/ui/sonner',
-        replacement: fileURLToPath(new URL('./src/shims/sonner.tsx', import.meta.url)),
-      },
-      {
-        find: '@/components/ui',
-        replacement: fileURLToPath(new URL('./@/components/ui', import.meta.url)),
-      },
-      {
-        find: '@',
-        replacement: fileURLToPath(new URL('./src', import.meta.url)),
-      },
-    ],
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
   },
   server: {
     proxy: {

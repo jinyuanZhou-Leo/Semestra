@@ -18,9 +18,9 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/components/ui/sonner": ["src/shims/sonner.tsx"],
-      "@/components/ui/*": ["./@/components/ui/*"],
-      "@/*": ["src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
 
     /* Linting */

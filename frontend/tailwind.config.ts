@@ -2,49 +2,61 @@ import type { Config } from "tailwindcss";
 import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
-  darkMode: ["class", '[data-theme="dark"]'],
+  darkMode: "class",
   content: [
     "./index.html",
-    "./src/**/*.{ts,tsx}",
-    "./@/**/*.{ts,tsx}",
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
-      colors: {
-        border: "oklch(var(--border) / <alpha-value>)",
-        input: "oklch(var(--input) / <alpha-value>)",
-        ring: "oklch(var(--ring) / <alpha-value>)",
-        background: "oklch(var(--background) / <alpha-value>)",
-        foreground: "oklch(var(--foreground) / <alpha-value>)",
-        card: "oklch(var(--card) / <alpha-value>)",
-        "card-foreground": "oklch(var(--card-foreground) / <alpha-value>)",
-        popover: "oklch(var(--popover) / <alpha-value>)",
-        "popover-foreground": "oklch(var(--popover-foreground) / <alpha-value>)",
-        primary: "oklch(var(--primary) / <alpha-value>)",
-        "primary-foreground": "oklch(var(--primary-foreground) / <alpha-value>)",
-        secondary: "oklch(var(--secondary) / <alpha-value>)",
-        "secondary-foreground": "oklch(var(--secondary-foreground) / <alpha-value>)",
-        muted: "oklch(var(--muted) / <alpha-value>)",
-        "muted-foreground": "oklch(var(--muted-foreground) / <alpha-value>)",
-        accent: "oklch(var(--accent) / <alpha-value>)",
-        "accent-foreground": "oklch(var(--accent-foreground) / <alpha-value>)",
-        destructive: "oklch(var(--destructive) / <alpha-value>)",
-        "destructive-foreground": "oklch(var(--destructive-foreground) / <alpha-value>)",
-
-      },
-      borderColor: {
-        DEFAULT: "oklch(var(--border) / <alpha-value>)",
-      },
       borderRadius: {
-        lg: "var(--radius-lg)",
-        md: "var(--radius-md)",
-        sm: "var(--radius-sm)",
-        "4xl": "2rem",
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)'
       },
-      fontFamily: {
-        sans: ["var(--font-family)"],
-      },
-    },
+      colors: {
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))'
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))'
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))'
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))'
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))'
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))'
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))'
+        },
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        chart: {
+          '1': 'hsl(var(--chart-1))',
+          '2': 'hsl(var(--chart-2))',
+          '3': 'hsl(var(--chart-3))',
+          '4': 'hsl(var(--chart-4))',
+          '5': 'hsl(var(--chart-5))'
+        }
+      }
+    }
   },
   plugins: [tailwindcssAnimate],
 } satisfies Config;
