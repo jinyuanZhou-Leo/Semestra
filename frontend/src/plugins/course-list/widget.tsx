@@ -136,7 +136,7 @@ const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semeste
     };
 
     if (!semesterId) {
-        return <div style={{ color: 'var(--color-text-tertiary)' }}>Semester context required.</div>;
+        return <div className="text-muted-foreground">Semester context required.</div>;
     }
 
     const courses = semester?.courses || [];
@@ -170,11 +170,6 @@ const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semeste
                                                 <div className="flex flex-col">
                                                     <span>{course.name}</span>
                                                     <div className="flex items-center gap-2 mt-0.5">
-                                                        {course.category && (
-                                                            <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
-                                                                {course.category}
-                                                            </Badge>
-                                                        )}
                                                         {course.alias && (
                                                             <span className="text-xs text-muted-foreground">
                                                                 {course.alias}
