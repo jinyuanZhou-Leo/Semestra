@@ -432,7 +432,7 @@ const SemesterHomepageContent: React.FC = () => {
                                     <Skeleton className="h-12 w-3/5" />
                                 ) : (
                                         <h1
-                                            className="noselect text-truncate font-bold tracking-tight origin-left"
+                                            className="select-none truncate font-bold tracking-tight origin-left"
                                             style={{
                                                 fontSize: '2.25rem',
                                                 lineHeight: '2.5rem',
@@ -446,7 +446,7 @@ const SemesterHomepageContent: React.FC = () => {
                                 )}
 
                                 <div
-                                    className="noselect flex flex-wrap gap-6 overflow-hidden"
+                                    className="select-none flex flex-wrap gap-6 overflow-hidden"
                                     style={{
                                         maxHeight: isShrunk ? '0px' : '140px',
                                         opacity: isShrunk ? 0 : 1,

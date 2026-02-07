@@ -7,7 +7,7 @@ const BuiltinSettingsTabComponent: React.FC<TabProps> = () => {
     const { isLoading, settings } = useBuiltinTabContext();
 
     if (isLoading) {
-        return <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>Loading…</div>;
+        return <div className="p-8 text-muted-foreground">Loading…</div>;
     }
 
     return (

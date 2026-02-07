@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -38,11 +38,10 @@ interface EventTypeFormDialogProps {
    * Returns an array of field errors, or null to fall back to generic toast
    */
   parseError?: (error: any) => FieldError[] | null;
+  description?: string;
 }
 
-const asChecked = (value: unknown): boolean => {
-  return value === true || value === 'indeterminate';
-};
+
 
 const deriveAbbreviationFromCode = (code: string): string => {
   if (!code) return '';
@@ -84,6 +83,7 @@ export const EventTypeFormDialog: React.FC<EventTypeFormDialogProps> = ({
   initialData,
   onSubmit,
   parseError = defaultErrorParser,
+  description,
 }) => {
   const [formData, setFormData] = React.useState<EventTypeFormData>({
     code: '',
@@ -167,10 +167,10 @@ export const EventTypeFormDialog: React.FC<EventTypeFormDialogProps> = ({
         <DialogHeader>
           <DialogTitle>{title || (initialData ? 'Edit Event Type' : 'Create Event Type')}</DialogTitle>
           <DialogDescription>
-            {initialData ? 'Update the details of this event type.' : 'Define a new event type for your course sections.'}
+            {description || (initialData ? 'Update the details of this event type.' : 'Define a new event type for your course sections.')}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 pt-4 pb-0">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="et-form-code" className={errors.code ? 'text-destructive' : ''}>
@@ -199,17 +199,20 @@ export const EventTypeFormDialog: React.FC<EventTypeFormDialogProps> = ({
               {errors.abbreviation && <p className="text-sm text-destructive">{errors.abbreviation}</p>}
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-            <Checkbox
+          <div className="flex items-center space-x-2 rounded-md border px-3 py-2 select-none">
+            <Switch
               id="et-form-track"
               checked={formData.track_attendance}
-              onCheckedChange={(c) => handleFieldChange('track_attendance', asChecked(c))}
+              onCheckedChange={(checked: boolean) => handleFieldChange('track_attendance', checked)}
             />
-            <Label htmlFor="et-form-track" className="text-sm font-normal text-muted-foreground">
+            <Label htmlFor="et-form-track" className="text-sm font-normal text-muted-foreground cursor-pointer">
               Track attendance (forces `skip=false`)
             </Label>
           </div>
         </div>
+
+
+
         <div className="flex justify-end gap-2">
           <Button variant="ghost" type="button" onClick={() => onOpenChange(false)}>
             Cancel

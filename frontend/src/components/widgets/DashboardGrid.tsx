@@ -116,10 +116,10 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                 textAlign: 'center',
                 padding: '3rem',
                 marginTop: '2rem',
-                border: '2px dashed var(--color-border)',
+                border: '2px dashed hsl(var(--border))',
                 borderRadius: 'var(--radius-widget)',
-                color: 'var(--color-text-secondary)',
-                backgroundColor: 'var(--color-bg-secondary)'
+                color: 'hsl(var(--muted-foreground))',
+                backgroundColor: 'hsl(var(--background))'
             }}>
                 <h3>No Widgets</h3>
                 <p>Click "Add Widget" to customize your dashboard.</p>

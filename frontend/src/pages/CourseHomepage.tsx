@@ -364,7 +364,7 @@ const CourseHomepageContent: React.FC = () => {
                             margin: 0,
                             fontSize: '0.85rem',
                             fontWeight: 600,
-                            color: 'var(--color-text-secondary)',
+                            color: 'hsl(var(--muted-foreground))',
                             textTransform: 'uppercase',
                             letterSpacing: '0.05em'
                         }}>
@@ -400,7 +400,7 @@ const CourseHomepageContent: React.FC = () => {
                             margin: 0,
                             fontSize: '0.85rem',
                             fontWeight: 600,
-                            color: 'var(--color-text-secondary)',
+                            color: 'hsl(var(--muted-foreground))',
                             textTransform: 'uppercase',
                             letterSpacing: '0.05em'
                         }}>
@@ -452,7 +452,7 @@ const CourseHomepageContent: React.FC = () => {
                                 margin: 0,
                                 fontSize: '0.85rem',
                                 fontWeight: 600,
-                                color: 'var(--color-text-secondary)',
+                                color: 'hsl(var(--muted-foreground))',
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.05em'
                             }}>
@@ -584,7 +584,7 @@ const CourseHomepageContent: React.FC = () => {
                                 ) : (
                                     <>
                                             <h1
-                                                className="noselect text-truncate font-bold tracking-tight origin-left"
+                                                className="select-none truncate font-bold tracking-tight origin-left"
                                                 style={{
                                                     fontSize: '2.25rem',
                                                     lineHeight: '2.5rem',
@@ -613,7 +613,7 @@ const CourseHomepageContent: React.FC = () => {
                                 )}
 
                                 <div
-                                    className="noselect flex flex-wrap gap-6 overflow-hidden"
+                                    className="select-none flex flex-wrap gap-6 overflow-hidden"
                                     style={{
                                         maxHeight: isShrunk ? '0px' : '140px',
                                         opacity: isShrunk ? 0 : 1,

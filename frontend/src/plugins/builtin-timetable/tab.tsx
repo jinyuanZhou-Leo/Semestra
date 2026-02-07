@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -34,70 +35,27 @@ import scheduleService, {
 import type { TabDefinition, TabProps, TabSettingsProps } from '../../services/tabRegistry';
 import { CrudPanel, TableShell, EmptyTableRow, PanelHeader } from './CrudPanel';
 import { EventTypeFormDialog } from './EventTypeFormDialog';
+import {
+  SectionFormDialog,
+  type SectionFormData,
+  type SectionSlotDraft,
+  createSectionSlot,
+  toMinutes,
+  formatHour,
+  slotId,
+  DAY_OF_WEEK_OPTIONS,
+  SLOT_LOCATION_NOTE_PREFIX
+} from './SectionFormDialog';
 
-const WEEK_PATTERNS: WeekPattern[] = ['EVERY', 'ODD', 'EVEN'];
-const DAY_OF_WEEK_OPTIONS = [
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
-  { value: 7, label: 'Sun' },
-];
 const BUILTIN_TIMETABLE_TAB_TYPE = 'builtin-academic-timetable';
 
 const CALENDAR_DEFAULT_START_MINUTES = 8 * 60;
 const CALENDAR_DEFAULT_END_MINUTES = 20 * 60;
 const CALENDAR_MIN_EVENT_HEIGHT = 28;
 const CALENDAR_PIXEL_PER_MINUTE = 1.05;
-const SLOT_PLANNER_STEP_MINUTES = 30;
 
 const asChecked = (value: boolean | 'indeterminate') => value === true;
 const dayLabel = (value: number) => DAY_OF_WEEK_OPTIONS.find((item) => item.value === value)?.label ?? String(value);
-const toMinutes = (value: string) => {
-  const [hour, minute] = value.split(':').map(Number);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
-  return (hour * 60) + minute;
-};
-const formatHour = (minutes: number) => {
-  const hour = Math.floor(minutes / 60);
-  const minute = minutes % 60;
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-};
-const toSafeTime = (value: string) => formatHour(Math.max(0, Math.min(23 * 60 + 59, toMinutes(value))));
-const timeRangeIsValid = (startTime: string, endTime: string) => toMinutes(endTime) > toMinutes(startTime);
-const clampMinute = (minute: number, min: number, max: number) => Math.min(max, Math.max(min, minute));
-const slotId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-type SectionSlotDraft = {
-  id: string;
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  location: string;
-};
-
-const SLOT_LOCATION_NOTE_PREFIX = '[loc] ';
-
-const createSectionSlot = (
-  dayOfWeek = 1,
-  startTime = '09:00',
-  endTime = '10:00',
-  location = ''
-): SectionSlotDraft => ({
-  id: slotId(),
-  dayOfWeek,
-  startTime,
-  endTime,
-  location,
-});
-
-const buildEventNoteWithLocation = (location: string, note?: string | null) => {
-  const trimmedLocation = location.trim();
-  const trimmedNote = note?.trim();
-  return trimmedNote ? `${SLOT_LOCATION_NOTE_PREFIX}${trimmedLocation}\n${trimmedNote}` : `${SLOT_LOCATION_NOTE_PREFIX}${trimmedLocation}`;
-};
 
 const extractLocationFromNote = (note?: string | null) => {
   if (!note || !note.startsWith(SLOT_LOCATION_NOTE_PREFIX)) return null;
@@ -159,7 +117,7 @@ const WeeklyCalendarView: React.FC<{ items: ScheduleItem[]; emptyMessage: string
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[880px] rounded-md border border-border/70 bg-background">
+      <div className="min-w-[880px] rounded-md border border-border/70 bg-background select-none">
         <div className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))]">
           <div className="border-b border-r border-border/70 bg-muted/35 px-2 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             Time
@@ -230,85 +188,7 @@ const WeeklyCalendarView: React.FC<{ items: ScheduleItem[]; emptyMessage: string
   );
 };
 
-const SectionSlotPlanner: React.FC<{
-  slots: SectionSlotDraft[];
-  onAddSlot: () => void;
-  onUpdateSlot: (
-    slotIdValue: string,
-    patch: Partial<Pick<SectionSlotDraft, 'dayOfWeek' | 'startTime' | 'endTime' | 'location'>>
-  ) => void;
-  onRemoveSlot: (slotIdValue: string) => void;
-}> = ({ slots, onAddSlot, onUpdateSlot, onRemoveSlot }) => {
-  return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        {slots.length === 0 && (
-          <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
-            No slots yet. Use the button below to add one.
-          </div>
-        )}
 
-        {slots.map((slot, index) => (
-          <div key={slot.id} className="grid items-end gap-2 rounded-md border border-border/60 p-2 sm:grid-cols-[1fr_1fr_1fr_1.4fr_auto]">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Slot {index + 1}</Label>
-              <Select
-                value={String(slot.dayOfWeek)}
-                onValueChange={(value) => onUpdateSlot(slot.id, { dayOfWeek: Number(value) })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DAY_OF_WEEK_OPTIONS.map((dayOption) => (
-                    <SelectItem key={`slot-day-option-${slot.id}-${dayOption.value}`} value={String(dayOption.value)}>
-                      {dayOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Start</Label>
-              <Input
-                type="time"
-                step={SLOT_PLANNER_STEP_MINUTES * 60}
-                value={slot.startTime}
-                onChange={(event) => onUpdateSlot(slot.id, { startTime: toSafeTime(event.target.value) })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">End</Label>
-              <Input
-                type="time"
-                step={SLOT_PLANNER_STEP_MINUTES * 60}
-                value={slot.endTime}
-                onChange={(event) => onUpdateSlot(slot.id, { endTime: toSafeTime(event.target.value) })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Location</Label>
-              <Input
-                autoComplete="off"
-                placeholder="e.g. BA1130"
-                value={slot.location}
-                onChange={(event) => onUpdateSlot(slot.id, { location: event.target.value })}
-              />
-            </div>
-            <Button type="button" variant="ghost" size="icon" aria-label="Remove slot" onClick={() => onRemoveSlot(slot.id)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
-
-        <Button type="button" variant="outline" className="w-full" onClick={onAddSlot}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Slot Row
-        </Button>
-      </div>
-    </div>
-  );
-};
 
 const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId }) => {
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
@@ -443,31 +323,7 @@ const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId
   );
 };
 
-const QuickAddTypeDialog: React.FC<{
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  courseId: string;
-  onTypeAdded: (newType: CourseEventType) => void;
-}> = ({ open, onOpenChange, courseId, onTypeAdded }) => {
-  // State removed, managed by EventTypeFormDialog now
 
-
-  // handleCreate handled in render now
-
-
-  return (
-    <EventTypeFormDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Quick Add Event Type"
-      confirmLabel="Create Type"
-      onSubmit={async (data) => {
-        const created = await scheduleService.createCourseEventType(courseId, data);
-        onTypeAdded(created);
-      }}
-    />
-  );
-};
 
 const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
@@ -479,7 +335,7 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
   const [editingSectionId, setEditingSectionId] = React.useState<string | null>(null);
   const [expandedSectionIds, setExpandedSectionIds] = React.useState<Set<string>>(new Set());
 
-  const [formSection, setFormSection] = React.useState({
+  const [formSection, setFormSection] = React.useState<SectionFormData>({
     sectionId: '',
     eventTypeCode: 'LECTURE',
     instructor: '',
@@ -490,7 +346,7 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
     createSectionSlot(1, '09:00', '10:00'),
   ]);
 
-  const termEndWeek = 1; // In a real app this might come from semester context
+
 
   const loadBaseData = React.useCallback(async () => {
     const [typeData, sectionData, eventData] = await Promise.all([
@@ -594,121 +450,7 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
     setIsSectionFormOpen(true);
   };
 
-  const currentNormalizedSlots = React.useMemo(() => {
-    const normalized = formSlots.map((slot) => ({
-      ...slot,
-      startTime: toSafeTime(slot.startTime),
-      endTime: toSafeTime(slot.endTime),
-      dayOfWeek: clampMinute(Math.round(slot.dayOfWeek), 1, 7),
-      location: slot.location.trim(),
-    }));
-    normalized.sort((a, b) => a.dayOfWeek - b.dayOfWeek || toMinutes(a.startTime) - toMinutes(b.startTime));
-    return normalized;
-  }, [formSlots]);
 
-  const handleSaveSection = async () => {
-    if (currentNormalizedSlots.length === 0) {
-      toast.error('Add at least one slot.');
-      return;
-    }
-    if (!formSection.sectionId) {
-      toast.error('Section ID is required.');
-      return;
-    }
-    const invalidSlot = currentNormalizedSlots.find((slot) => !timeRangeIsValid(slot.startTime, slot.endTime));
-    if (invalidSlot) {
-      toast.error(`Invalid time range.`);
-      return;
-    }
-
-    const uniqueSlots = currentNormalizedSlots.filter((slot, index, array) =>
-      array.findIndex(
-        (c) =>
-          c.dayOfWeek === slot.dayOfWeek &&
-          c.startTime === slot.startTime &&
-          c.endTime === slot.endTime &&
-          c.location === slot.location
-      ) === index
-    );
-
-    try {
-      const canonical = uniqueSlots[0];
-      const commonData = {
-        eventTypeCode: formSection.eventTypeCode,
-        instructor: formSection.instructor || null,
-        weekPattern: formSection.weekPattern,
-        dayOfWeek: canonical.dayOfWeek,
-        startTime: canonical.startTime,
-        endTime: canonical.endTime,
-        location: uniqueSlots.length === 1 ? canonical.location : 'Multiple locations',
-        startWeek: 1,
-        endWeek: termEndWeek,
-      };
-
-      const createEventsOps = uniqueSlots.map((slot) => ({
-        op: 'create' as const,
-        data: {
-          eventTypeCode: formSection.eventTypeCode,
-          sectionId: formSection.sectionId,
-          title: null,
-          dayOfWeek: slot.dayOfWeek,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          weekPattern: formSection.weekPattern,
-          startWeek: 1,
-          endWeek: termEndWeek,
-          enable: true,
-          skip: false,
-          note: buildEventNoteWithLocation(slot.location),
-        },
-      }));
-
-      if (editingSectionId) {
-        if (editingSectionId !== formSection.sectionId) {
-          // RENAME SCENARIO: Delete old section -> Create new section -> Create new events
-          await scheduleService.deleteCourseSection(courseId, editingSectionId);
-
-          await scheduleService.createCourseSection(courseId, {
-            sectionId: formSection.sectionId,
-            ...commonData,
-          });
-
-          await scheduleService.batchCourseEvents(courseId, {
-            atomic: true,
-            items: createEventsOps,
-          });
-        } else {
-          // UPDATE SCENARIO: Update metadata -> Replace events
-          await scheduleService.updateCourseSection(courseId, editingSectionId, commonData);
-
-          const existingEvents = eventsBySectionId.get(editingSectionId) ?? [];
-          const deleteOps = existingEvents.map(e => ({ op: 'delete' as const, eventId: e.id }));
-
-          await scheduleService.batchCourseEvents(courseId, {
-            atomic: true,
-            items: [...deleteOps, ...createEventsOps],
-          });
-        }
-      } else {
-        // CREATE SCENARIO
-        await scheduleService.createCourseSection(courseId, {
-          sectionId: formSection.sectionId,
-          ...commonData,
-        });
-
-        await scheduleService.batchCourseEvents(courseId, {
-          atomic: true,
-          items: createEventsOps,
-        });
-      }
-
-      setIsSectionFormOpen(false);
-      await reloadAll();
-      // No success toast
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to save section.');
-    }
-  };
 
   const handleDeleteSection = async (secId: string) => {
     try {
@@ -746,7 +488,7 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
 
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 select-none">
       <div className="px-1">
         <PanelHeader
           title="Section List"
@@ -766,16 +508,16 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
-                <TableHead className="w-[40px]"></TableHead>
-                <TableHead>Section</TableHead>
+                <TableHead className="w-[40px]">Status</TableHead>
+                <TableHead>Section ID</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Instructor</TableHead>
                 <TableHead>Recurrence</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sections.length === 0 && <EmptyTableRow colSpan={6} message="No sections yet." />}
+              {sections.length === 0 && <EmptyTableRow colSpan={7} message="No sections yet." />}
               {sections.map((section) => {
                 const isExpanded = expandedSectionIds.has(section.sectionId);
                 const sectionEvents = eventsBySectionId.get(section.sectionId) ?? [];
@@ -841,40 +583,29 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
                         <TableCell colSpan={7} className="p-0">
                           <Collapsible open={true}>
-                            <CollapsibleContent className="p-4 pt-1">
-                              <div className="rounded-md border bg-background">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow className="border-b-0 hover:bg-background">
-                                      <TableHead className="w-[40px]"></TableHead>
-                                      <TableHead className="h-9">Type</TableHead>
-                                      <TableHead className="h-9">Time</TableHead>
-                                      <TableHead className="h-9">Location</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {sectionEvents.map(event => (
-                                      <TableRow key={event.id} className="border-b-0 hover:bg-muted/50">
-                                        <TableCell className="py-2">
-                                          <Checkbox
-                                            id={`event-enable-${event.id}`}
-                                            checked={event.enable}
-                                            onCheckedChange={(c) => handleToggleEventEnable(event, asChecked(c))}
-                                          />
-                                        </TableCell>
-                                        <TableCell className="py-2 font-medium">
-                                          {event.eventTypeCode}
-                                        </TableCell>
-                                        <TableCell className="py-2">
-                                          {dayLabel(event.dayOfWeek)} {event.startTime}-{event.endTime}
-                                        </TableCell>
-                                        <TableCell className="py-2 text-muted-foreground">
-                                          {extractLocationFromNote(event.note) || '-'}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
+                            <CollapsibleContent className="p-4">
+                              <div className="rounded-md border bg-background py-1">
+                                {sectionEvents.map((event) => (
+                                  <div
+                                    key={event.id}
+                                    className="flex items-center gap-3 px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+                                  >
+                                    <Checkbox
+                                      id={`event-enable-${event.id}`}
+                                      checked={event.enable}
+                                      onCheckedChange={(c) => handleToggleEventEnable(event, asChecked(c))}
+                                    />
+                                    <div className="grid flex-1 grid-cols-[100px_180px_1fr] items-center gap-2">
+                                      <span className="font-medium">{event.eventTypeCode}</span>
+                                      <span>
+                                        {dayLabel(event.dayOfWeek)} {event.startTime}-{event.endTime}
+                                      </span>
+                                      <span className="truncate text-muted-foreground">
+                                        {extractLocationFromNote(event.note) || '-'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>
@@ -889,151 +620,27 @@ const CourseSchedulePanel: React.FC<{ courseId: string }> = ({ courseId }) => {
         </TableShell>
       </div>
 
-      <Dialog open={isSectionFormOpen} onOpenChange={setIsSectionFormOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[840px]">
-          <DialogHeader>
-            <DialogTitle>{editingSectionId ? 'Edit Section' : 'Create Section'}</DialogTitle>
-            <DialogDescription>
-              {editingSectionId ? 'Update section details and slots. This will regenerate all events for this section.' : 'Configure a new section and its weekly slots.'}
-            </DialogDescription>
-          </DialogHeader>
+      <SectionFormDialog
+        open={isSectionFormOpen}
+        onOpenChange={setIsSectionFormOpen}
+        courseId={courseId}
+        editingSectionId={editingSectionId}
+        initialData={formSection}
+        initialSlots={formSlots} // These are raw drafts, the dialog handles normalization
+        eventTypes={eventTypes}
+        existingEvents={events} // Pass all events, dialog filters by sectionId if needed
+        onOpenQuickAddType={() => setIsQuickAddTypeOpen(true)}
+        onSuccess={reloadAll}
+      />
 
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Event Type</Label>
-                  <button
-                    type="button"
-                    onClick={() => setIsQuickAddTypeOpen(true)}
-                    className="text-xs text-primary hover:underline hover:text-primary/80"
-                  >
-                    + Add Type
-                  </button>
-                </div>
-                <Select
-                  value={formSection.eventTypeCode}
-                  onValueChange={(value) => setFormSection((prev) => ({ ...prev, eventTypeCode: value }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eventTypes.map((item) => (
-                      <SelectItem key={item.code} value={item.code}>
-                        {item.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-section-id">Section Number</Label>
-                <Input
-                  id="new-section-id"
-                  autoComplete="off"
-                  placeholder="101"
-                  inputMode="numeric"
-                  // pattern="[0-9]*" // Removed strict pattern to allow alpha-numeric section codes if needed
-                  value={formSection.sectionId}
-                  onChange={(event) => setFormSection((prev) => ({ ...prev, sectionId: event.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="new-section-instructor">Instructor</Label>
-                <Input
-                  id="new-section-instructor"
-                  autoComplete="off"
-                  placeholder="Optional"
-                  value={formSection.instructor}
-                  onChange={(event) => setFormSection((prev) => ({ ...prev, instructor: event.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Pattern</Label>
-                <Select
-                  value={formSection.weekPattern}
-                  onValueChange={(value) => setFormSection((prev) => ({ ...prev, weekPattern: value as WeekPattern }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WEEK_PATTERNS.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Section Slots</Label>
-              <SectionSlotPlanner
-                slots={currentNormalizedSlots}
-                onAddSlot={() => setFormSlots((prev) => {
-                  const last = prev[prev.length - 1];
-                  let nextStart = '09:00';
-                  let nextDay = 1;
-                  let nextLoc = '';
-
-                  if (last) {
-                    nextDay = last.dayOfWeek;
-                    nextLoc = last.location;
-                    // Try to be smart about next slot start
-                    const lastEndMin = toMinutes(last.endTime);
-                    nextStart = toSafeTime(formatHour(lastEndMin));
-                    // If it wraps around midnight, just keep it, or reset? 
-                    // toSafeTime clamps to 23:59.
-                  }
-
-                  // Default duration 1 hour
-                  const startMin = toMinutes(nextStart);
-                  const endMin = startMin + 60;
-                  const nextEnd = toSafeTime(formatHour(endMin));
-
-                  return [...prev, createSectionSlot(nextDay, nextStart, nextEnd, nextLoc)];
-                })}
-                onUpdateSlot={(id, patch) => setFormSlots((prev) => prev.map(s => {
-                  if (s.id !== id) return s;
-                  const updated = { ...s, ...patch };
-                  // Auto-update end time if start time changed
-                  if (patch.startTime && !patch.endTime) {
-                    const startMin = toMinutes(patch.startTime);
-                    const endMin = startMin + 60;
-                    updated.endTime = toSafeTime(formatHour(endMin));
-                  }
-                  return updated;
-                }))}
-                onRemoveSlot={(id) => setFormSlots((prev) => prev.filter(s => s.id !== id))}
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <Button type="button" onClick={handleSaveSection} disabled={!formSection.sectionId}>
-                {editingSectionId ? 'Save Changes' : 'Create Section'}
-              </Button>
-            </div>
-
-            <div className="text-xs text-muted-foreground text-center">
-              Need to manage Event Types? Go to Settings tab.
-            </div>
-
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <QuickAddTypeDialog
+      <EventTypeFormDialog
         open={isQuickAddTypeOpen}
         onOpenChange={setIsQuickAddTypeOpen}
-        courseId={courseId}
-        onTypeAdded={(created) => {
-          // Refresh list and auto-select
+        title="Quick Add Event Type"
+        confirmLabel="Create Type"
+        description="Define a new event type. Manage all types in Settings."
+        onSubmit={async (data) => {
+          const created = await scheduleService.createCourseEventType(courseId, data);
           reloadAll();
           setFormSection(prev => ({ ...prev, eventTypeCode: created.code }));
         }}
@@ -1114,7 +721,7 @@ const SemesterSchedulePanel: React.FC<{ semesterId: string }> = ({ semesterId })
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 select-none">
       <div className="px-1">
         <PanelHeader
           title="Semester Schedule"
@@ -1185,13 +792,13 @@ const SemesterSchedulePanel: React.FC<{ semesterId: string }> = ({ semesterId })
               </div>
               <div className="space-y-2">
                 <Label>Display</Label>
-                <div className="flex h-9 items-center gap-2 rounded-md border px-3">
-                  <Checkbox
+                <div className="flex h-9 items-center space-x-2 rounded-md border px-3">
+                  <Switch
                     id="semester-show-skipped"
                     checked={showSkipped}
-                    onCheckedChange={(checked) => setShowSkipped(asChecked(checked))}
+                    onCheckedChange={(checked) => setShowSkipped(checked)}
                   />
-                  <Label htmlFor="semester-show-skipped" className="text-sm font-normal text-muted-foreground">
+                  <Label htmlFor="semester-show-skipped" className="text-sm font-normal text-muted-foreground cursor-pointer">
                     Show skipped
                   </Label>
                 </div>

@@ -9,7 +9,7 @@ import { Lock, LockOpen, Plus } from 'lucide-react';
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinTabContext();
     const glassButtonClassName =
-        "border border-border bg-[color:var(--color-bg-glass)] text-foreground backdrop-blur-md shadow-none hover:bg-[color:var(--color-bg-glass)] hover:text-foreground hover:shadow-md";
+        "border border-border bg-background/60 text-foreground backdrop-blur-md shadow-none hover:bg-background/80 hover:text-foreground hover:shadow-md";
 
     // Use a unique key for each dashboard (semester or course)
     const storageKey = `dashboard-locked-${dashboard.semesterId || dashboard.courseId || 'default'}`;
