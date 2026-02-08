@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
-@plugin "tailwindcss-animate";
+@import "tw-animate-css";
+
+/* Custom variants for shadcn/ui animations */
+@custom-variant data-open (&[data-state="open"]);
+@custom-variant data-closed (&[data-state="closed"]);
 
 /* Ensure Radix Dialog overlay/content sit above fixed headers */
 body>div>div[style*="pointer-events: auto"][data-state] {
