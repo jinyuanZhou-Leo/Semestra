@@ -19,7 +19,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({
 function App() {
   return (
     <Router>
-      <ThemeProvider>
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <AuthProvider>
           <DialogProvider>
             <Routes>
