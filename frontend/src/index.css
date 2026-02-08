@@ -252,6 +252,9 @@ body>div>div[role="dialog"][data-state] {
 }
 
 @layer base {
+  html {
+      scrollbar-gutter: stable;
+    }
   * {
     @apply border-border outline-ring/50;
   }
