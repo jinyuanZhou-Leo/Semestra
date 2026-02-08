@@ -199,16 +199,17 @@ export const EventTypeFormDialog: React.FC<EventTypeFormDialogProps> = ({
               {errors.abbreviation && <p className="text-sm text-destructive">{errors.abbreviation}</p>}
             </div>
           </div>
-          <div className="flex items-center space-x-2 rounded-md border px-3 py-2 select-none">
+          <div className="flex items-center space-x-2 pt-2 select-none">
             <Switch
               id="et-form-track"
               checked={formData.track_attendance}
               onCheckedChange={(checked: boolean) => handleFieldChange('track_attendance', checked)}
             />
-            <Label htmlFor="et-form-track" className="text-sm font-normal text-muted-foreground cursor-pointer">
-              Track attendance (forces `skip=false`)
+            <Label htmlFor="et-form-track" className="text-sm font-medium leading-none cursor-pointer">
+              Track attendance <span className="text-muted-foreground font-normal ml-1">(forces `skip=false`)</span>
             </Label>
           </div>
+
         </div>
 
 

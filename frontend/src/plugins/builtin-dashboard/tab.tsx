@@ -9,7 +9,7 @@ import { Lock, LockOpen, Plus } from 'lucide-react';
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinTabContext();
     const glassButtonClassName =
-        "border border-border bg-background/60 text-foreground backdrop-blur-md shadow-none hover:bg-background/80 hover:text-foreground hover:shadow-md";
+        "border border-border/50 bg-background/70 text-foreground backdrop-blur-md backdrop-saturate-150 shadow-lg hover:bg-background/90 hover:border-border hover:shadow-xl transition-all duration-200";
 
     // Use a unique key for each dashboard (semester or course)
     const storageKey = `dashboard-locked-${dashboard.semesterId || dashboard.courseId || 'default'}`;
@@ -63,7 +63,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
             <Button
                 onClick={toggleLock}
                 variant="outline"
-                className={`${glassButtonClassName} fixed right-8 bottom-24 size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center z-20 transition-opacity duration-200 ${isLocked ? 'opacity-100' : 'opacity-70'}`}
+                className={`${glassButtonClassName} fixed right-8 bottom-24 size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center z-20 ${isLocked ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
                 aria-label={isLocked ? "Unlock widgets" : "Lock widgets"}
                 title={isLocked ? "Unlock widgets" : "Lock widgets"}
             >

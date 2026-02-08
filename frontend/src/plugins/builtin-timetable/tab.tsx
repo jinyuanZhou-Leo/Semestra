@@ -281,7 +281,7 @@ const CourseEventTypeSettingsPanel: React.FC<{ courseId: string }> = ({ courseId
             <TableCell>{item.abbreviation}</TableCell>
             <TableCell>
               <Badge variant={item.track_attendance ? 'default' : 'secondary'}>
-                {item.track_attendance ? 'Enabled' : 'Off'}
+                {item.track_attendance ? 'Yes' : 'No'}
               </Badge>
             </TableCell>
             <TableCell className="text-right">

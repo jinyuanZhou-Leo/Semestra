@@ -1,10 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
 import { IconCircle } from './IconCircle';
 import type { WidgetItem } from './widgets/DashboardGrid';
 import { cn } from '@/lib/utils';
+import { Search } from 'lucide-react';
 
 interface AddWidgetModalProps {
     isOpen: boolean;
@@ -16,6 +26,7 @@ interface AddWidgetModalProps {
 
 export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose, onAdd, context, widgets }) => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Use reactive hook - automatically updates when plugins are registered
     const allWidgets = useWidgetRegistry();
@@ -32,6 +43,18 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
         });
     }, [context, widgets, allWidgets]);
 
+    // Filter widgets based on search query
+    const filteredWidgets = useMemo(() => {
+        if (!searchQuery.trim()) {
+            return availableWidgets;
+        }
+        const query = searchQuery.toLowerCase();
+        return availableWidgets.filter((widget) =>
+            widget.name.toLowerCase().includes(query) ||
+            (widget.description || "").toLowerCase().includes(query)
+        );
+    }, [availableWidgets, searchQuery]);
+
     useEffect(() => {
         if (selectedType && !availableWidgets.some((widget) => widget.type === selectedType)) {
             setSelectedType(null);
@@ -43,49 +66,95 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
             onAdd(selectedType);
             onClose();
             setSelectedType(null);
+            setSearchQuery('');
+        }
+    };
+
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            onClose();
+            setSelectedType(null);
+            setSearchQuery('');
         }
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="p-0 sm:max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden">
-                <DialogHeader className="border-b px-6 py-4 flex-none">
-                    <DialogTitle className="text-base font-semibold">Add Widget</DialogTitle>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+            <DialogContent className="gap-0 p-0 sm:max-w-xl h-[600px] flex flex-col">
+                <DialogHeader className="px-6 pt-6 pb-4 flex-none">
+                    <DialogTitle>Add Widget</DialogTitle>
+                    <DialogDescription>
+                        Search and select a widget to add to your dashboard.
+                    </DialogDescription>
                 </DialogHeader>
-                <div className="flex-1 overflow-y-auto p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                        {availableWidgets.length === 0 && (
-                            <div className="col-span-full text-center text-muted-foreground py-4">
-                                No widgets available for this dashboard.
-                            </div>
-                        )}
-                        {availableWidgets.map((widget) => (
-                            <div
-                                key={widget.type}
-                                onClick={() => setSelectedType(widget.type)}
-                                className={cn(
-                                    "cursor-pointer rounded-lg border-2 p-4 transition-all duration-200",
-                                    "hover:border-primary/50 hover:bg-accent/50",
-                                    selectedType === widget.type
-                                        ? "border-primary bg-accent"
-                                        : "border-border bg-card"
-                                )}
-                            >
-                                <div className="mb-2 flex items-center gap-2">
-                                    <IconCircle icon={widget.icon} label={widget.name} size={32} />
-                                </div>
-                                <div className="font-semibold mb-1 truncate">{widget.name}</div>
-                                <div className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                                    {widget.description}
-                                </div>
-                            </div>
-                        ))}
+
+                {/* Search Input */}
+                <div className="px-6 pb-3 flex-none">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            type="text"
+                            placeholder="Search widgets..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9"
+                        />
                     </div>
                 </div>
-                <div className="flex-none p-6 pt-0 flex justify-end gap-2">
-                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
-                    <Button disabled={!selectedType} onClick={handleAdd}>Add to Dashboard</Button>
+
+                {/* Widget List - Fixed Height */}
+                <div className="flex-1 px-6 pb-4 min-h-0">
+                    {availableWidgets.length === 0 ? (
+                        <div className="flex items-center justify-center h-full text-center text-muted-foreground">
+                            No widgets available for this dashboard.
+                        </div>
+                    ) : filteredWidgets.length === 0 ? (
+                        <div className="flex items-center justify-center h-full text-center text-muted-foreground">
+                            No widgets match your search.
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-full pr-3">
+                            <div className="space-y-2">
+                                {filteredWidgets.map((widget) => (
+                                    <button
+                                        key={widget.type}
+                                        type="button"
+                                        onClick={() => setSelectedType(widget.type)}
+                                        className={cn(
+                                            "w-full text-left rounded-lg border-2 p-3 transition-all duration-200",
+                                            "hover:border-primary/50 hover:bg-accent/50",
+                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                            selectedType === widget.type
+                                                ? "border-primary bg-accent shadow-sm"
+                                                : "border-border bg-card"
+                                        )}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className="flex-shrink-0 mt-0.5">
+                                                <IconCircle icon={widget.icon} label={widget.name} size={36} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-semibold mb-0.5">{widget.name}</div>
+                                                <div className="text-sm text-muted-foreground leading-relaxed">
+                                                    {widget.description}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                                    </div>
+                        </ScrollArea>
+                    )}
                 </div>
+
+                <DialogFooter className="px-6 pb-6 pt-4 flex-none border-t">
+                    <Button variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button disabled={!selectedType} onClick={handleAdd}>
+                        Add Widget
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
