@@ -188,11 +188,11 @@ const api = {
     },
 
     // Tabs
-    createTab: async (semesterId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number }) => {
+    createTab: async (semesterId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number; is_removable?: boolean }) => {
         const response = await axios.post<Tab>(`/api/semesters/${semesterId}/tabs/`, data);
         return response.data;
     },
-    createTabForCourse: async (courseId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number }) => {
+    createTabForCourse: async (courseId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number; is_removable?: boolean }) => {
         const response = await axios.post<Tab>(`/api/courses/${courseId}/tabs/`, data);
         return response.data;
     },

@@ -46,6 +46,9 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
         });
 
         return tabCatalog.filter((item) => {
+            if (item.type === 'builtin-academic-timetable') {
+                return false;
+            }
             const currentCount = counts.get(item.type) ?? 0;
             return canAddTabCatalogItem(item, context, currentCount);
         });

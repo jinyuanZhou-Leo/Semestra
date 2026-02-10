@@ -27,44 +27,44 @@
 
 ## Phase 1 - Builtin Timetable Structure Refactor
 
-- [ ] Reorganize timetable plugin into target structure:
+- [x] Reorganize timetable plugin into target structure:
   - `frontend/src/plugins/builtin-timetable/shared/*`
   - `frontend/src/plugins/builtin-timetable/shared/hooks/*`
   - `frontend/src/plugins/builtin-timetable/tabs/calendar/*`
   - `frontend/src/plugins/builtin-timetable/tabs/semester-schedule/*`
   - `frontend/src/plugins/builtin-timetable/tabs/course-schedule/*`
   - `frontend/src/plugins/builtin-timetable/tabs/todo/*`
-- [ ] Keep compatibility exports in `frontend/src/plugins/builtin-timetable/index.ts`.
-- [ ] Add migration notes for old import paths inside plugin folder.
+- [x] Keep compatibility exports in `frontend/src/plugins/builtin-timetable/index.ts`.
+- [x] Add migration notes for old import paths inside plugin folder.
 
 ## Phase 2 - Data Layer and Performance Core
 
-- [ ] Implement `useScheduleData` (parallel week loading + cache strategy) in:
+- [x] Implement `useScheduleData` (parallel week loading + cache strategy) in:
   - `frontend/src/plugins/builtin-timetable/shared/hooks/useScheduleData.ts`
-- [ ] Add optimized event bus with dedupe/debounce in:
+- [x] Add optimized event bus with dedupe/debounce in:
   - `frontend/src/plugins/builtin-timetable/shared/eventBus.ts`
-- [ ] Add shared constants/types/utils:
+- [x] Add shared constants/types/utils:
   - `frontend/src/plugins/builtin-timetable/shared/constants.ts`
   - `frontend/src/plugins/builtin-timetable/shared/types.ts`
   - `frontend/src/plugins/builtin-timetable/shared/utils.ts`
-- [ ] Ensure expensive transforms are memoized and reusable.
-- [ ] Add cancellation guards for async effects to avoid stale updates.
+- [x] Ensure expensive transforms are memoized and reusable.
+- [x] Add cancellation guards for async effects to avoid stale updates.
 
 ## Phase 3 - Calendar Tab (Dynamic + Suspense)
 
-- [ ] Create lazy calendar tab entry:
+- [x] Create lazy calendar tab entry:
   - `frontend/src/plugins/builtin-timetable/tabs/calendar/index.ts`
-- [ ] Build calendar container with `Suspense` boundaries:
+- [x] Build calendar container with `Suspense` boundaries:
   - `frontend/src/plugins/builtin-timetable/tabs/calendar/CalendarTab.tsx`
-- [ ] Split FullCalendar into dynamic chunk:
+- [x] Split FullCalendar into dynamic chunk:
   - `frontend/src/plugins/builtin-timetable/tabs/calendar/FullCalendarView.tsx`
-- [ ] Build calendar toolbar/settings/editor:
+- [x] Build calendar toolbar/settings/editor:
   - `CalendarToolbar.tsx`
   - `CalendarSettings.tsx`
   - `EventEditor.tsx`
-- [ ] Add calendar skeletons in plugin directory:
+- [x] Add calendar skeletons in plugin directory:
   - `tabs/calendar/components/CalendarSkeleton.tsx`
-- [ ] Ensure no UI flicker while switching/initializing tab content.
+- [x] Ensure no UI flicker while switching/initializing tab content.
 
 ## Phase 4 - Semester/Course Schedule Tabs
 
