@@ -10,11 +10,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useWidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
+import { useWidgetRegistry, type WidgetContext } from '../services/widgetRegistry';
 import { IconCircle } from './IconCircle';
 import type { WidgetItem } from './widgets/DashboardGrid';
 import { cn } from '@/lib/utils';
 import { Search } from 'lucide-react';
+import { canAddWidgetCatalogItem, ensureWidgetPluginByTypeLoaded, getWidgetCatalog } from '../plugins/runtime';
+import { reportError } from '../services/appStatus';
 
 interface AddWidgetModalProps {
     isOpen: boolean;
@@ -27,9 +29,15 @@ interface AddWidgetModalProps {
 export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose, onAdd, context, widgets }) => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isAddingPlugin, setIsAddingPlugin] = useState(false);
 
-    // Use reactive hook - automatically updates when plugins are registered
-    const allWidgets = useWidgetRegistry();
+    // Reactive hook updates names/icons when a plugin finishes loading.
+    const registeredWidgets = useWidgetRegistry();
+    const registeredWidgetMap = useMemo(
+        () => new Map(registeredWidgets.map((definition) => [definition.type, definition])),
+        [registeredWidgets]
+    );
+    const widgetCatalog = useMemo(() => getWidgetCatalog(context), [context]);
 
     const availableWidgets = useMemo(() => {
         const counts = new Map<string, number>();
@@ -37,11 +45,11 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
             counts.set(widget.type, (counts.get(widget.type) ?? 0) + 1);
         });
 
-        return allWidgets.filter((definition) => {
-            const currentCount = counts.get(definition.type) ?? 0;
-            return canAddWidget(definition, context, currentCount);
+        return widgetCatalog.filter((item) => {
+            const currentCount = counts.get(item.type) ?? 0;
+            return canAddWidgetCatalogItem(item, context, currentCount);
         });
-    }, [context, widgets, allWidgets]);
+    }, [context, widgets, widgetCatalog]);
 
     // Filter widgets based on search query
     const filteredWidgets = useMemo(() => {
@@ -61,12 +69,21 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
         }
     }, [availableWidgets, selectedType]);
 
-    const handleAdd = () => {
-        if (selectedType) {
+    const handleAdd = async () => {
+        if (!selectedType || isAddingPlugin) return;
+
+        setIsAddingPlugin(true);
+        try {
+            await ensureWidgetPluginByTypeLoaded(selectedType);
             onAdd(selectedType);
             onClose();
             setSelectedType(null);
             setSearchQuery('');
+        } catch (error) {
+            console.error(`Failed to load widget plugin for type: ${selectedType}`, error);
+            reportError('Failed to load widget plugin. Please try again.');
+        } finally {
+            setIsAddingPlugin(false);
         }
     };
 
@@ -115,7 +132,13 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
                     ) : (
                         <ScrollArea className="h-full pr-3">
                             <div className="space-y-2">
-                                {filteredWidgets.map((widget) => (
+                                {filteredWidgets.map((widget) => {
+                                    const registeredDefinition = registeredWidgetMap.get(widget.type);
+                                    const displayName = registeredDefinition?.name ?? widget.name;
+                                    const displayDescription = registeredDefinition?.description ?? widget.description;
+                                    const displayIcon = registeredDefinition?.icon ?? widget.icon;
+
+                                    return (
                                     <button
                                         key={widget.type}
                                         type="button"
@@ -131,17 +154,18 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
                                     >
                                         <div className="flex items-start gap-3">
                                             <div className="flex-shrink-0 mt-0.5">
-                                                <IconCircle icon={widget.icon} label={widget.name} size={36} />
+                                                <IconCircle icon={displayIcon} label={displayName} size={36} />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="font-semibold mb-0.5">{widget.name}</div>
+                                                <div className="font-semibold mb-0.5">{displayName}</div>
                                                 <div className="text-sm text-muted-foreground leading-relaxed">
-                                                    {widget.description}
+                                                    {displayDescription}
                                                 </div>
                                             </div>
                                         </div>
                                     </button>
-                                ))}
+                                    );
+                                })}
                                     </div>
                         </ScrollArea>
                     )}
@@ -151,8 +175,8 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
                     <Button variant="outline" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button disabled={!selectedType} onClick={handleAdd}>
-                        Add Widget
+                    <Button disabled={!selectedType || isAddingPlugin} onClick={handleAdd}>
+                        {isAddingPlugin ? 'Loading Plugin...' : 'Add Widget'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

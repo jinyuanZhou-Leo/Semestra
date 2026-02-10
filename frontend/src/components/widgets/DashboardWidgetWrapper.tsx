@@ -1,9 +1,11 @@
 import React, { useCallback } from 'react';
 import { WidgetContainer } from './WidgetContainer';
-import { WidgetRegistry } from '../../services/widgetRegistry';
+import { WidgetRegistry, useWidgetRegistry } from '../../services/widgetRegistry';
 import type { WidgetItem } from './DashboardGrid';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ensureWidgetPluginByTypeLoaded, hasWidgetPluginForType } from '../../plugins/runtime';
+import { PluginWidgetSkeleton } from '../../plugins/runtime/PluginLoadSkeleton';
 
 interface DashboardWidgetWrapperProps {
     widget: WidgetItem;
@@ -41,8 +43,39 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     updateCourse,
     isLocked = false
 }) => {
+    // Re-render automatically when widget plugins are registered.
+    useWidgetRegistry();
+
+    const [isPluginLoading, setIsPluginLoading] = React.useState(false);
     const WidgetComponent = WidgetRegistry.getComponent(widget.type);
     const widgetDefinition = WidgetRegistry.get(widget.type);
+    const isKnownPluginType = hasWidgetPluginForType(widget.type);
+
+    React.useEffect(() => {
+        let isActive = true;
+
+        if (WidgetComponent || !isKnownPluginType) {
+            setIsPluginLoading(false);
+            return () => {
+                isActive = false;
+            };
+        }
+
+        setIsPluginLoading(true);
+        void ensureWidgetPluginByTypeLoaded(widget.type)
+            .catch((error) => {
+                console.error(`Failed to load widget plugin for type: ${widget.type}`, error);
+            })
+            .finally(() => {
+                if (isActive) {
+                    setIsPluginLoading(false);
+                }
+            });
+
+        return () => {
+            isActive = false;
+        };
+    }, [WidgetComponent, widget.type, isKnownPluginType]);
 
     /**
      * updateSettings for plugins - uses debounced update by default
@@ -113,6 +146,9 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     }, [widgetDefinition, widget.id, widget.settings, semesterId, courseId, handleUpdateSettings]);
 
     if (!WidgetComponent) {
+        if (isPluginLoading) {
+            return <PluginWidgetSkeleton />;
+        }
         return <div>Unknown Widget Type: {widget.type}</div>;
     }
 

@@ -10,11 +10,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useTabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
+import { useTabRegistry, type TabContext } from '../services/tabRegistry';
 import { IconCircle } from './IconCircle';
 import type { TabItem } from '../hooks/useDashboardTabs';
 import { cn } from '@/lib/utils';
 import { Search } from 'lucide-react';
+import { canAddTabCatalogItem, ensureTabPluginByTypeLoaded, getTabCatalog } from '../plugins/runtime';
+import { reportError } from '../services/appStatus';
 
 interface AddTabModalProps {
     isOpen: boolean;
@@ -27,20 +29,27 @@ interface AddTabModalProps {
 export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd, context, tabs }) => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isAddingPlugin, setIsAddingPlugin] = useState(false);
 
-    // Use reactive hook - automatically updates when plugins are registered
-    const allTabs = useTabRegistry();
+    // Reactive hook updates names/icons when a plugin finishes loading.
+    const registeredTabs = useTabRegistry();
+    const registeredTabMap = useMemo(
+        () => new Map(registeredTabs.map((definition) => [definition.type, definition])),
+        [registeredTabs]
+    );
+    const tabCatalog = useMemo(() => getTabCatalog(context), [context]);
 
     const availableTabs = useMemo(() => {
         const counts = new Map<string, number>();
         tabs.forEach(tab => {
             counts.set(tab.type, (counts.get(tab.type) ?? 0) + 1);
         });
-        return allTabs.filter(definition => {
-            const currentCount = counts.get(definition.type) ?? 0;
-            return canAddTab(definition, context, currentCount);
+
+        return tabCatalog.filter((item) => {
+            const currentCount = counts.get(item.type) ?? 0;
+            return canAddTabCatalogItem(item, context, currentCount);
         });
-    }, [context, tabs, allTabs]);
+    }, [context, tabs, tabCatalog]);
 
     // Filter tabs based on search query
     const filteredTabs = useMemo(() => {
@@ -60,12 +69,21 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
         }
     }, [availableTabs, selectedType]);
 
-    const handleAdd = () => {
-        if (selectedType) {
+    const handleAdd = async () => {
+        if (!selectedType || isAddingPlugin) return;
+
+        setIsAddingPlugin(true);
+        try {
+            await ensureTabPluginByTypeLoaded(selectedType);
             onAdd(selectedType);
             onClose();
             setSelectedType(null);
             setSearchQuery('');
+        } catch (error) {
+            console.error(`Failed to load tab plugin for type: ${selectedType}`, error);
+            reportError('Failed to load tab plugin. Please try again.');
+        } finally {
+            setIsAddingPlugin(false);
         }
     };
 
@@ -114,7 +132,13 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
                     ) : (
                         <ScrollArea className="h-full pr-3">
                             <div className="space-y-2">
-                                {filteredTabs.map(tab => (
+                                {filteredTabs.map((tab) => {
+                                    const registeredDefinition = registeredTabMap.get(tab.type);
+                                    const displayName = registeredDefinition?.name ?? tab.name;
+                                    const displayDescription = registeredDefinition?.description ?? tab.description;
+                                    const displayIcon = registeredDefinition?.icon ?? tab.icon;
+
+                                    return (
                                     <button
                                         key={tab.type}
                                         type="button"
@@ -130,17 +154,18 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
                                     >
                                         <div className="flex items-start gap-3">
                                             <div className="flex-shrink-0 mt-0.5">
-                                                <IconCircle icon={tab.icon} label={tab.name} size={36} />
+                                                <IconCircle icon={displayIcon} label={displayName} size={36} />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="font-semibold mb-0.5">{tab.name}</div>
+                                                <div className="font-semibold mb-0.5">{displayName}</div>
                                                 <div className="text-sm text-muted-foreground leading-relaxed">
-                                                    {tab.description}
+                                                    {displayDescription}
                                                 </div>
                                             </div>
                                         </div>
                                     </button>
-                                ))}
+                                    );
+                                })}
                                     </div>
                         </ScrollArea>
                     )}
@@ -150,8 +175,8 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
                     <Button variant="outline" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button disabled={!selectedType} onClick={handleAdd}>
-                        Add Tab
+                    <Button disabled={!selectedType || isAddingPlugin} onClick={handleAdd}>
+                        {isAddingPlugin ? 'Loading Plugin...' : 'Add Tab'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

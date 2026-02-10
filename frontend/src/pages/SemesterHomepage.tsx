@@ -22,6 +22,8 @@ import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
+import { PluginTabSkeleton } from '../plugins/runtime/PluginLoadSkeleton';
+import { ensureBuiltinTabPluginsLoaded, ensureTabPluginByTypeLoaded, hasTabPluginForType } from '../plugins/runtime';
 
 
 import {
@@ -128,10 +130,90 @@ const SemesterHomepageContent: React.FC = () => {
         () => (registeredTabTypes.has(BUILTIN_TIMETABLE_TAB_ID) ? BUILTIN_TIMETABLE_TAB_ID : LEGACY_SCHEDULE_TAB_ID),
         [registeredTabTypes]
     );
+    const isBuiltinTabId = useCallback((tabId: string) => {
+        return (
+            tabId === 'dashboard' ||
+            tabId === 'settings' ||
+            tabId === BUILTIN_TIMETABLE_TAB_ID ||
+            tabId === LEGACY_SCHEDULE_TAB_ID ||
+            tabId === scheduleTabId
+        );
+    }, [scheduleTabId]);
+    const [isActiveTabPluginLoading, setIsActiveTabPluginLoading] = useState(false);
+
+    const activeTabType = useMemo(() => {
+        if (isBuiltinTabId(activeTabId)) {
+            return activeTabId;
+        }
+        const currentTab = customTabs.find((tab) => tab.id === activeTabId);
+        return currentTab?.type;
+    }, [activeTabId, customTabs, isBuiltinTabId]);
+
+    useEffect(() => {
+        void ensureBuiltinTabPluginsLoaded().catch((error) => {
+            console.error('Failed to preload builtin tab plugins', error);
+        });
+    }, []);
+
+    useEffect(() => {
+        const knownTypes = new Set(
+            customTabs
+                .map((tab) => tab.type)
+                .filter((type) => hasTabPluginForType(type))
+        );
+        knownTypes.add('dashboard');
+        knownTypes.add('settings');
+        knownTypes.add(LEGACY_SCHEDULE_TAB_ID);
+        knownTypes.add(BUILTIN_TIMETABLE_TAB_ID);
+
+        const missingTypes = Array.from(knownTypes).filter((type) => !TabRegistry.get(type));
+        if (missingTypes.length === 0) return;
+
+        void Promise.all(
+            missingTypes.map((type) =>
+                ensureTabPluginByTypeLoaded(type).catch((error) => {
+                    console.error(`Failed to preload tab plugin for type: ${type}`, error);
+                    return false;
+                })
+            )
+        );
+    }, [customTabs]);
+
+    useEffect(() => {
+        let isActive = true;
+        if (!activeTabType || !hasTabPluginForType(activeTabType)) {
+            setIsActiveTabPluginLoading(false);
+            return () => {
+                isActive = false;
+            };
+        }
+
+        if (TabRegistry.getComponent(activeTabType)) {
+            setIsActiveTabPluginLoading(false);
+            return () => {
+                isActive = false;
+            };
+        }
+
+        setIsActiveTabPluginLoading(true);
+        void ensureTabPluginByTypeLoaded(activeTabType)
+            .catch((error) => {
+                console.error(`Failed to load active tab plugin for type: ${activeTabType}`, error);
+            })
+            .finally(() => {
+                if (isActive) {
+                    setIsActiveTabPluginLoading(false);
+                }
+            });
+
+        return () => {
+            isActive = false;
+        };
+    }, [activeTabType, registeredTabTypes]);
 
     const pluginTabItems = useMemo(() => {
         return customTabs.map(tab => {
-            const definition = TabRegistry.get(tab.type);
+            const definition = registeredTabTypes.has(tab.type) ? TabRegistry.get(tab.type) : undefined;
             return {
                 id: tab.id,
                 label: definition?.name ?? tab.title ?? tab.type,
@@ -140,12 +222,12 @@ const SemesterHomepageContent: React.FC = () => {
                 draggable: tab.is_removable !== false
             };
         });
-    }, [customTabs]);
+    }, [customTabs, registeredTabTypes]);
 
     const tabBarItems = useMemo(() => {
-        const dashboardDef = TabRegistry.get('dashboard');
-        const scheduleDef = TabRegistry.get(scheduleTabId);
-        const settingsDef = TabRegistry.get('settings');
+        const dashboardDef = registeredTabTypes.has('dashboard') ? TabRegistry.get('dashboard') : undefined;
+        const scheduleDef = registeredTabTypes.has(scheduleTabId) ? TabRegistry.get(scheduleTabId) : undefined;
+        const settingsDef = registeredTabTypes.has('settings') ? TabRegistry.get('settings') : undefined;
         return [
             {
                 id: 'dashboard',
@@ -170,7 +252,7 @@ const SemesterHomepageContent: React.FC = () => {
                 removable: false
             }
         ];
-    }, [pluginTabItems, scheduleTabId]);
+    }, [pluginTabItems, registeredTabTypes, scheduleTabId]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         const pluginIdSet = new Set(customTabs.map(tab => tab.id));
@@ -211,9 +293,12 @@ const SemesterHomepageContent: React.FC = () => {
 
     const dashboardContent = useMemo(() => {
         if (!semester) return null;
-        if (activeTabId === 'dashboard' || activeTabId === 'settings' || activeTabId === scheduleTabId) {
+        if (isBuiltinTabId(activeTabId)) {
             const BuiltinComponent = TabRegistry.getComponent(activeTabId);
             if (!BuiltinComponent) {
+                if (isActiveTabPluginLoading) {
+                    return <PluginTabSkeleton />;
+                }
                 return (
                     <Empty className="bg-muted/40">
                         <EmptyHeader>
@@ -249,6 +334,9 @@ const SemesterHomepageContent: React.FC = () => {
             );
         }
         if (!TabComponent) {
+            if (isActiveTabPluginLoading && hasTabPluginForType(activeTab.type)) {
+                return <PluginTabSkeleton />;
+            }
             return (
                 <Empty className="bg-muted/40">
                     <EmptyHeader>
@@ -270,7 +358,7 @@ const SemesterHomepageContent: React.FC = () => {
                 />
             </React.Suspense>
         );
-    }, [activeTabId, semester, customTabs, handleUpdateTabSettings, registeredTabTypes, scheduleTabId]);
+    }, [activeTabId, semester, customTabs, handleUpdateTabSettings, isActiveTabPluginLoading, isBuiltinTabId]);
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
@@ -290,7 +378,7 @@ const SemesterHomepageContent: React.FC = () => {
 
     const tabSettingsSections = useMemo(() => {
         const sections = customTabs.map(tab => {
-            const definition = TabRegistry.get(tab.type);
+            const definition = registeredTabTypes.has(tab.type) ? TabRegistry.get(tab.type) : undefined;
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
@@ -321,7 +409,7 @@ const SemesterHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [customTabs, semester?.id, handleUpdateTabSettings]);
+    }, [customTabs, semester?.id, handleUpdateTabSettings, registeredTabTypes]);
 
     // Widget plugin global settings sections
     const widgetDefinitions = useWidgetRegistry();

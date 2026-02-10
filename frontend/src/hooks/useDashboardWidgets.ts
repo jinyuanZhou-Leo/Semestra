@@ -6,6 +6,7 @@ import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/wi
 import { reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
 import { useDialog } from '../contexts/DialogContext';
+import { ensureWidgetPluginByTypeLoaded } from '../plugins/runtime';
 
 const toWidgetItem = (widget: Widget): WidgetItem => {
     let parsedSettings = {};
@@ -54,9 +55,38 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         }
     }, [initialWidgets]);
 
+    useEffect(() => {
+        const missingTypes = Array.from(new Set(widgets.map((widget) => widget.type))).filter(
+            (type) => !WidgetRegistry.get(type)
+        );
+        if (missingTypes.length === 0) return;
+
+        void Promise.all(
+            missingTypes.map((type) =>
+                ensureWidgetPluginByTypeLoaded(type).catch((error) => {
+                    console.error(`Failed to preload widget plugin for type: ${type}`, error);
+                    return false;
+                })
+            )
+        );
+    }, [widgets]);
+
     const addWidget = useCallback(async (type: string) => {
         const context: WidgetContext | null = courseId ? 'course' : (semesterId ? 'semester' : null);
         if (!context) return;
+
+        let pluginLoaded = false;
+        try {
+            pluginLoaded = await ensureWidgetPluginByTypeLoaded(type);
+        } catch (error) {
+            console.error(`Failed to load widget plugin for type: ${type}`, error);
+            reportError('Failed to load widget plugin. Please try again.');
+            return;
+        }
+        if (!pluginLoaded) {
+            console.warn(`No plugin loader found for widget type: ${type}`);
+            return;
+        }
 
         const definition = WidgetRegistry.get(type);
         if (!definition) {

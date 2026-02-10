@@ -5,6 +5,7 @@ import { TabRegistry, type TabContext, canAddTab } from '../services/tabRegistry
 import { reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
 import { useDialog } from '../contexts/DialogContext';
+import { ensureTabPluginByTypeLoaded } from '../plugins/runtime';
 
 export interface TabItem {
     id: string;
@@ -55,9 +56,38 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
         }
     }, [initialTabs]);
 
+    useEffect(() => {
+        const missingTypes = Array.from(new Set(tabs.map((tab) => tab.type))).filter(
+            (type) => !TabRegistry.get(type)
+        );
+        if (missingTypes.length === 0) return;
+
+        void Promise.all(
+            missingTypes.map((type) =>
+                ensureTabPluginByTypeLoaded(type).catch((error) => {
+                    console.error(`Failed to preload tab plugin for type: ${type}`, error);
+                    return false;
+                })
+            )
+        );
+    }, [tabs]);
+
     const addTab = useCallback(async (type: string) => {
         const context: TabContext | null = courseId ? 'course' : (semesterId ? 'semester' : null);
         if (!context) return;
+
+        let pluginLoaded = false;
+        try {
+            pluginLoaded = await ensureTabPluginByTypeLoaded(type);
+        } catch (error) {
+            console.error(`Failed to load tab plugin for type: ${type}`, error);
+            reportError('Failed to load tab plugin. Please try again.');
+            return;
+        }
+        if (!pluginLoaded) {
+            console.warn(`No plugin loader found for tab type: ${type}`);
+            return;
+        }
 
         const definition = TabRegistry.get(type);
         if (!definition) {
