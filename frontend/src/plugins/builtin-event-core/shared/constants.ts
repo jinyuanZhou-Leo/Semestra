@@ -1,4 +1,7 @@
-export const BUILTIN_TIMETABLE_TAB_TYPE = 'builtin-academic-timetable';
+export const BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE = 'builtin-academic-calendar';
+export const BUILTIN_TIMETABLE_SEMESTER_SCHEDULE_TAB_TYPE = 'builtin-semester-schedule';
+export const BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE = 'builtin-course-schedule';
+export const BUILTIN_TIMETABLE_TODO_TAB_TYPE = 'builtin-todo';
 
 export const DEFAULT_WEEK = 1;
 export const ALL_FILTER_VALUE = 'ALL';

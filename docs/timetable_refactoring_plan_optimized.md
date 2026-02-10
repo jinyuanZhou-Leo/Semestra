@@ -481,7 +481,7 @@ const CalendarSkeleton = () => (
 ### 1. 插件结构（增强性能）
 
 ```
-frontend/src/plugins/builtin-timetable/
+frontend/src/plugins/builtin-event-core/
 ├── index.ts                          # 插件入口，使用动态导入
 ├── shared/                           # 共享模块
 │   ├── eventBus.ts                  # 发布-订阅事件总线（去重优化）

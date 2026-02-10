@@ -19,12 +19,17 @@ import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
-import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
+import { TabRegistry } from '../services/tabRegistry';
 import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
-import { PluginTabSkeleton } from '../plugins/runtime/PluginLoadSkeleton';
-import { ensureBuiltinTabPluginsLoaded, ensureTabPluginByTypeLoaded, hasTabPluginForType } from '../plugins/runtime';
+import { PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
+import { getResolvedTabMetadataByType, hasTabPluginForType } from '../plugin-system';
+import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
+import {
+    COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
+    HOMEPAGE_DASHBOARD_TAB_ID,
+} from '../utils/homepageBuiltinTabs';
 
 import {
     Breadcrumb,
@@ -44,8 +49,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-const BUILTIN_TIMETABLE_TAB_ID = 'builtin-academic-timetable';
-
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
     const { course, updateCourse, refreshCourse, isLoading } = useCourseData();
@@ -53,10 +56,7 @@ const CourseHomepageContent: React.FC = () => {
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
-    const [activeTabId, setActiveTabId] = useState('dashboard');
-
-    // Subscribe to tab registry changes so we re-render when builtin tabs are loaded
-    const registeredTabs = useTabRegistry();
+    const [activeTabId, setActiveTabId] = useState(HOMEPAGE_DASHBOARD_TAB_ID);
     const [programName, setProgramName] = useState<string | null>(null);
     const [semesterName, setSemesterName] = useState<string | null>(null);
 
@@ -220,119 +220,25 @@ const CourseHomepageContent: React.FC = () => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
 
-    const builtinTimetableSettingsCarrier = useMemo(
-        () => tabs.find((tab) => tab.type === BUILTIN_TIMETABLE_TAB_ID),
-        [tabs]
-    );
-
-    const handleUpdateBuiltinTimetableSettings = useCallback(async (newSettings: any) => {
-        if (!course?.id) return;
-
-        if (builtinTimetableSettingsCarrier) {
-            handleUpdateTabSettings(builtinTimetableSettingsCarrier.id, newSettings);
-            return;
-        }
-
-        try {
-            const nextOrder = tabs.reduce((max, tab) => Math.max(max, tab.order_index), -1) + 1;
-            await api.createTabForCourse(course.id, {
-                tab_type: BUILTIN_TIMETABLE_TAB_ID,
-                title: 'Timetable Settings',
-                settings: JSON.stringify(newSettings),
-                order_index: nextOrder,
-                is_removable: false,
-            });
-            await refreshCourse();
-        } catch (error) {
-            console.error('Failed to create timetable settings carrier tab', error);
-        }
-    }, [builtinTimetableSettingsCarrier, course?.id, handleUpdateTabSettings, refreshCourse, tabs]);
-
-    // Create a lookup for registered tab types to trigger re-render when tabs load
-    const registeredTabTypes = useMemo(() => new Set(registeredTabs.map(t => t.type)), [registeredTabs]);
-    const isBuiltinTabId = useCallback((tabId: string) => {
-        return (
-            tabId === 'dashboard' ||
-            tabId === 'settings' ||
-            tabId === BUILTIN_TIMETABLE_TAB_ID
-        );
-    }, []);
-    const [isActiveTabPluginLoading, setIsActiveTabPluginLoading] = useState(false);
-
-    const activeTabType = useMemo(() => {
-        if (isBuiltinTabId(activeTabId)) {
-            return activeTabId;
-        }
-        const currentTab = tabs.find((tab) => tab.id === activeTabId);
-        return currentTab?.type;
-    }, [activeTabId, isBuiltinTabId, tabs]);
-
-    useEffect(() => {
-        void ensureBuiltinTabPluginsLoaded().catch((error) => {
-            console.error('Failed to preload builtin tab plugins', error);
-        });
-    }, []);
-
-    useEffect(() => {
-        const knownTypes = new Set(
-            tabs
-                .map((tab) => tab.type)
-                .filter((type) => hasTabPluginForType(type))
-        );
-        knownTypes.add('dashboard');
-        knownTypes.add('settings');
-        knownTypes.add(BUILTIN_TIMETABLE_TAB_ID);
-
-        const missingTypes = Array.from(knownTypes).filter((type) => !TabRegistry.get(type));
-        if (missingTypes.length === 0) return;
-
-        void Promise.all(
-            missingTypes.map((type) =>
-                ensureTabPluginByTypeLoaded(type).catch((error) => {
-                    console.error(`Failed to preload tab plugin for type: ${type}`, error);
-                    return false;
-                })
-            )
-        );
-    }, [tabs]);
-
-    useEffect(() => {
-        let isActive = true;
-        if (!activeTabType || !hasTabPluginForType(activeTabType)) {
-            setIsActiveTabPluginLoading(false);
-            return () => {
-                isActive = false;
-            };
-        }
-
-        if (TabRegistry.getComponent(activeTabType)) {
-            setIsActiveTabPluginLoading(false);
-            return () => {
-                isActive = false;
-            };
-        }
-
-        setIsActiveTabPluginLoading(true);
-        void ensureTabPluginByTypeLoaded(activeTabType)
-            .catch((error) => {
-                console.error(`Failed to load active tab plugin for type: ${activeTabType}`, error);
-            })
-            .finally(() => {
-                if (isActive) {
-                    setIsActiveTabPluginLoading(false);
-                }
-            });
-
-        return () => {
-            isActive = false;
-        };
-    }, [activeTabType, registeredTabTypes]);
+    // Centralize builtin-tab visibility/loading/order rules for homepage tabs.
+    const {
+        registeredTabTypes,
+        isActiveTabPluginLoading,
+        tabBarItems,
+        visibleCustomTabs,
+        isBuiltinTabId,
+        filterReorderableTabIds,
+    } = useHomepageBuiltinTabs({
+        tabs,
+        activeTabId,
+        config: COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
+    });
 
     const dashboardContent = useMemo(() => {
         if (!course) return null;
         if (isBuiltinTabId(activeTabId)) {
-            const BuiltinComponent = TabRegistry.getComponent(activeTabId);
-            if (!BuiltinComponent) {
+            const StaticComponent = TabRegistry.getComponent(activeTabId);
+            if (!StaticComponent) {
                 if (isActiveTabPluginLoading) {
                     return <PluginTabSkeleton />;
                 }
@@ -348,14 +254,15 @@ const CourseHomepageContent: React.FC = () => {
                 );
             }
             return (
-                <BuiltinComponent
+                <StaticComponent
                     tabId={activeTabId}
-                    settings={builtinTimetableSettingsCarrier?.settings || {}}
+                    settings={{}}
                     courseId={course.id}
-                    updateSettings={handleUpdateBuiltinTimetableSettings}
+                    updateSettings={() => undefined}
                 />
             );
         }
+
         const activeTab = tabs.find(tab => tab.id === activeTabId);
         const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
         if (!activeTab) {
@@ -395,70 +302,24 @@ const CourseHomepageContent: React.FC = () => {
                 />
             </React.Suspense>
         );
-    }, [activeTabId, course, tabs, handleUpdateBuiltinTimetableSettings, handleUpdateTabSettings, isActiveTabPluginLoading, isBuiltinTabId, builtinTimetableSettingsCarrier?.settings]);
-
-    const pluginTabItems = useMemo(() => {
-        return tabs
-            .filter((tab) => tab.type !== BUILTIN_TIMETABLE_TAB_ID)
-            .map(tab => {
-            const definition = registeredTabTypes.has(tab.type) ? TabRegistry.get(tab.type) : undefined;
-            return {
-                id: tab.id,
-                label: definition?.name ?? tab.title ?? tab.type,
-                icon: definition?.icon,
-                removable: tab.is_removable !== false,
-                draggable: tab.is_removable !== false
-            };
-        });
-    }, [tabs, registeredTabTypes]);
-
-    const tabBarItems = useMemo(() => {
-        const dashboardDef = registeredTabTypes.has('dashboard') ? TabRegistry.get('dashboard') : undefined;
-        const scheduleDef = registeredTabTypes.has(BUILTIN_TIMETABLE_TAB_ID) ? TabRegistry.get(BUILTIN_TIMETABLE_TAB_ID) : undefined;
-        const settingsDef = registeredTabTypes.has('settings') ? TabRegistry.get('settings') : undefined;
-        return [
-            {
-                id: 'dashboard',
-                label: dashboardDef?.name ?? 'Dashboard',
-                icon: dashboardDef?.icon,
-                removable: false,
-                draggable: false
-            },
-            {
-                id: BUILTIN_TIMETABLE_TAB_ID,
-                label: scheduleDef?.name ?? 'Schedule',
-                icon: scheduleDef?.icon,
-                removable: false,
-                draggable: false
-            },
-            ...pluginTabItems,
-            {
-                id: 'settings',
-                label: settingsDef?.name ?? 'Settings',
-                icon: settingsDef?.icon,
-                removable: false,
-                draggable: false
-            }
-        ];
-    }, [pluginTabItems, registeredTabTypes]);
+    }, [activeTabId, course, tabs, handleUpdateTabSettings, isActiveTabPluginLoading, isBuiltinTabId]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
-        const pluginIdSet = new Set(tabs.map(tab => tab.id));
-        reorderTabs(orderedIds.filter(id => pluginIdSet.has(id)));
-    }, [reorderTabs, tabs]);
+        reorderTabs(filterReorderableTabIds(orderedIds));
+    }, [filterReorderableTabIds, reorderTabs]);
 
     useEffect(() => {
         if (isBuiltinTabId(activeTabId)) return;
         if (!tabs.some(tab => tab.id === activeTabId)) {
-            setActiveTabId('dashboard');
+            setActiveTabId(HOMEPAGE_DASHBOARD_TAB_ID);
         }
-    }, [activeTabId, isBuiltinTabId, tabs]);
+    }, [activeTabId, isBuiltinTabId, tabs, setActiveTabId]);
 
     const tabSettingsSections = useMemo(() => {
-        const sections = tabs
-            .filter((tab) => tab.type !== BUILTIN_TIMETABLE_TAB_ID)
+        const sections = visibleCustomTabs
             .map(tab => {
             const definition = registeredTabTypes.has(tab.type) ? TabRegistry.get(tab.type) : undefined;
+            const metadata = getResolvedTabMetadataByType(tab.type);
             const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
@@ -468,7 +329,7 @@ const CourseHomepageContent: React.FC = () => {
                             Plugin
                         </Badge>
                         <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
-                            {definition?.name ?? tab.title ?? tab.type}
+                            {metadata.name ?? tab.title ?? tab.type}
                         </h3>
                     </div>
 
@@ -482,29 +343,6 @@ const CourseHomepageContent: React.FC = () => {
             );
         }).filter(Boolean);
 
-        const builtinScheduleDefinition = TabRegistry.get(BUILTIN_TIMETABLE_TAB_ID);
-        const BuiltinScheduleSettingsComponent = builtinScheduleDefinition?.settingsComponent;
-        if (BuiltinScheduleSettingsComponent) {
-            sections.push(
-                <div key={`builtin-${BUILTIN_TIMETABLE_TAB_ID}`} className="flex flex-col gap-4">
-                    <div className="flex items-center gap-2 pl-1">
-                        <Badge variant="secondary" className="uppercase tracking-wider">
-                            Plugin
-                        </Badge>
-                        <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
-                            {builtinScheduleDefinition?.name ?? 'Timetable'}
-                        </h3>
-                    </div>
-                    <BuiltinScheduleSettingsComponent
-                        tabId={builtinTimetableSettingsCarrier?.id ?? BUILTIN_TIMETABLE_TAB_ID}
-                        settings={builtinTimetableSettingsCarrier?.settings || {}}
-                        courseId={course?.id}
-                        updateSettings={handleUpdateBuiltinTimetableSettings}
-                    />
-                </div>
-            );
-        }
-
         if (sections.length === 0) return null;
 
         return (
@@ -513,11 +351,8 @@ const CourseHomepageContent: React.FC = () => {
             </div>
         );
     }, [
-        builtinTimetableSettingsCarrier?.id,
-        builtinTimetableSettingsCarrier?.settings,
-        tabs,
+        visibleCustomTabs,
         course?.id,
-        handleUpdateBuiltinTimetableSettings,
         handleUpdateTabSettings,
         registeredTabTypes
     ]);

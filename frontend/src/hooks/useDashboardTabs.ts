@@ -5,7 +5,7 @@ import { TabRegistry, type TabContext, canAddTab } from '../services/tabRegistry
 import { reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
 import { useDialog } from '../contexts/DialogContext';
-import { ensureTabPluginByTypeLoaded } from '../plugins/runtime';
+import { ensureTabPluginByTypeLoaded } from '../plugin-system';
 
 export interface TabItem {
     id: string;
@@ -21,6 +21,10 @@ interface UseDashboardTabsProps {
     semesterId?: string;
     initialTabs?: Tab[];
     onRefresh?: () => void;
+}
+
+interface AddTabOptions {
+    isRemovable?: boolean;
 }
 
 const toTabItem = (tab: Tab): TabItem => {
@@ -42,37 +46,33 @@ const toTabItem = (tab: Tab): TabItem => {
 
 export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh }: UseDashboardTabsProps) => {
     const [tabs, setTabs] = useState<TabItem[]>([]);
+    const [isInitialized, setIsInitialized] = useState(false);
     const initialSyncDoneRef = useRef(false);
     const tabUpdateSeqRef = useRef<Map<string, number>>(new Map());
     const settingsRetryCountsRef = useRef<Map<string, number>>(new Map());
     const orderRetryCountsRef = useRef<Map<string, number>>(new Map());
     const { confirm } = useDialog();
+    const contextKey = courseId ? `course:${courseId}` : (semesterId ? `semester:${semesterId}` : 'none');
+    const currentContextKeyRef = useRef(contextKey);
+
+    useEffect(() => {
+        if (currentContextKeyRef.current === contextKey) return;
+        currentContextKeyRef.current = contextKey;
+        initialSyncDoneRef.current = false;
+        setTabs([]);
+        setIsInitialized(false);
+    }, [contextKey]);
 
     useEffect(() => {
         if (initialTabs && !initialSyncDoneRef.current) {
             const mappedTabs: TabItem[] = initialTabs.map(toTabItem).sort((a, b) => a.order_index - b.order_index);
             setTabs(mappedTabs);
             initialSyncDoneRef.current = true;
+            setIsInitialized(true);
         }
     }, [initialTabs]);
 
-    useEffect(() => {
-        const missingTypes = Array.from(new Set(tabs.map((tab) => tab.type))).filter(
-            (type) => !TabRegistry.get(type)
-        );
-        if (missingTypes.length === 0) return;
-
-        void Promise.all(
-            missingTypes.map((type) =>
-                ensureTabPluginByTypeLoaded(type).catch((error) => {
-                    console.error(`Failed to preload tab plugin for type: ${type}`, error);
-                    return false;
-                })
-            )
-        );
-    }, [tabs]);
-
-    const addTab = useCallback(async (type: string) => {
+    const addTab = useCallback(async (type: string, options?: AddTabOptions) => {
         const context: TabContext | null = courseId ? 'course' : (semesterId ? 'semester' : null);
         if (!context) return;
 
@@ -112,14 +112,16 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                     tab_type: type,
                     title,
                     settings,
-                    order_index: nextOrder
+                    order_index: nextOrder,
+                    is_removable: options?.isRemovable
                 });
             } else {
                 newTab = await api.createTab(semesterId!, {
                     tab_type: type,
                     title,
                     settings,
-                    order_index: nextOrder
+                    order_index: nextOrder,
+                    is_removable: options?.isRemovable
                 });
             }
 
@@ -402,6 +404,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
 
     return {
         tabs,
+        isInitialized,
         addTab,
         removeTab,
         updateTab,

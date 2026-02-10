@@ -6,7 +6,6 @@ import type { TabProps } from '@/services/tabRegistry';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ALL_FILTER_VALUE,
-  CALENDAR_DEFAULT_SKIPPED_DISPLAY,
   CALENDAR_DEFAULT_VIEW_MODE,
   CALENDAR_EVENT_DEFAULT_COLORS,
   DEFAULT_WEEK,
@@ -22,11 +21,8 @@ import type {
 } from '../../shared/types';
 import {
   buildCalendarEvents,
-  buildCourseOptions,
-  buildTypeOptions,
   resolveSemesterDateRange,
 } from '../../shared/utils';
-import { CalendarSettings } from './CalendarSettings';
 import { CalendarToolbar } from './CalendarToolbar';
 import { CalendarSkeleton } from './components/CalendarSkeleton';
 
@@ -39,20 +35,6 @@ const EventEditor = React.lazy(async () => {
   const module = await import('./EventEditor');
   return { default: module.EventEditor };
 });
-
-const DEFAULT_SETTINGS: CalendarSettingsState = {
-  skippedDisplay: CALENDAR_DEFAULT_SKIPPED_DISPLAY as CalendarSettingsState['skippedDisplay'],
-  eventColors: {
-    schedule: CALENDAR_EVENT_DEFAULT_COLORS.schedule,
-    todo: CALENDAR_EVENT_DEFAULT_COLORS.todo,
-    custom: CALENDAR_EVENT_DEFAULT_COLORS.custom,
-  },
-  filters: {
-    courseFilter: ALL_FILTER_VALUE,
-    typeFilter: ALL_FILTER_VALUE,
-    showConflictsOnly: false,
-  },
-};
 
 const FALLBACK_RANGE: SemesterDateRange = resolveSemesterDateRange(undefined, undefined, 16);
 
@@ -76,11 +58,10 @@ const normalizeCalendarSettings = (value: any): CalendarSettingsState => {
   };
 };
 
-export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings, updateSettings }) => {
+export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings }) => {
   const [week, setWeek] = React.useState(DEFAULT_WEEK);
   const [viewMode, setViewMode] = React.useState<CalendarViewMode>(CALENDAR_DEFAULT_VIEW_MODE as CalendarViewMode);
   const [settings, setSettings] = React.useState<CalendarSettingsState>(() => normalizeCalendarSettings(inputSettings));
-  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [selectedEvent, setSelectedEvent] = React.useState<CalendarEventData | null>(null);
   const [isEventEditorOpen, setIsEventEditorOpen] = React.useState(false);
   const [semesterRange, setSemesterRange] = React.useState<SemesterDateRange>(FALLBACK_RANGE);
@@ -180,22 +161,12 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     return calendarEvents.filter((event) => event.week === week);
   }, [calendarEvents, week]);
 
-  const courseOptions = React.useMemo(() => buildCourseOptions(items), [items]);
-  const typeOptions = React.useMemo(() => buildTypeOptions(items), [items]);
-
   const handleWeekChange = React.useCallback((targetWeek: number) => {
     const boundedWeek = Math.max(1, Math.min(Math.max(1, maxWeek), targetWeek));
     startTransition(() => {
       setWeek(boundedWeek);
     });
   }, [maxWeek]);
-
-  const handleSettingsChange = React.useCallback((nextSettings: CalendarSettingsState) => {
-    startTransition(() => {
-      setSettings(nextSettings);
-    });
-    void Promise.resolve(updateSettings(nextSettings));
-  }, [updateSettings]);
 
   const handleSaveEvent = React.useCallback(async (eventId: string, patch: CalendarEventPatch) => {
     const targetEvent = eventsById.get(eventId);
@@ -260,7 +231,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4 sm:p-6">
+    <div className="flex h-full flex-col gap-4 py-4 sm:py-6">
       <div className="rounded-lg border bg-card p-4">
         <CalendarToolbar
           week={week}
@@ -271,7 +242,6 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           isRefreshing={isRefreshing}
           isPending={isPending}
           onViewModeChange={setViewMode}
-          onOpenSettings={() => setIsSettingsOpen(true)}
           onReload={() => void reload()}
         />
       </div>
@@ -293,19 +263,6 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           />
         </React.Suspense>
       </div>
-
-      <CalendarSettings
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-        settings={settings}
-        courseOptions={courseOptions}
-        typeOptions={typeOptions}
-        onChange={handleSettingsChange}
-        onReset={() => {
-          setSettings(DEFAULT_SETTINGS);
-          void Promise.resolve(updateSettings(DEFAULT_SETTINGS));
-        }}
-      />
 
       <React.Suspense fallback={null}>
         <EventEditor

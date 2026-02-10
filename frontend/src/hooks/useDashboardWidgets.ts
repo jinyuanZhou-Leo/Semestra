@@ -6,7 +6,11 @@ import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/wi
 import { reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
 import { useDialog } from '../contexts/DialogContext';
-import { ensureWidgetPluginByTypeLoaded } from '../plugins/runtime';
+import {
+    ensureWidgetPluginByTypeLoaded,
+    getResolvedWidgetLayoutByType,
+    getResolvedWidgetMetadataByType,
+} from '../plugin-system';
 
 const toWidgetItem = (widget: Widget): WidgetItem => {
     let parsedSettings = {};
@@ -55,22 +59,6 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         }
     }, [initialWidgets]);
 
-    useEffect(() => {
-        const missingTypes = Array.from(new Set(widgets.map((widget) => widget.type))).filter(
-            (type) => !WidgetRegistry.get(type)
-        );
-        if (missingTypes.length === 0) return;
-
-        void Promise.all(
-            missingTypes.map((type) =>
-                ensureWidgetPluginByTypeLoaded(type).catch((error) => {
-                    console.error(`Failed to preload widget plugin for type: ${type}`, error);
-                    return false;
-                })
-            )
-        );
-    }, [widgets]);
-
     const addWidget = useCallback(async (type: string) => {
         const context: WidgetContext | null = courseId ? 'course' : (semesterId ? 'semester' : null);
         if (!context) return;
@@ -101,7 +89,8 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         }
 
         try {
-            const title = type === 'course-list' ? 'Courses' : (type === 'counter' ? 'Counter' : 'Widget');
+            const metadata = getResolvedWidgetMetadataByType(type);
+            const title = metadata.name ?? 'Widget';
 
             // Call API first to get real ID
             let newWidget: Widget;
@@ -461,8 +450,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         setWidgets(prev => prev.map(w => {
             const layout = layoutById.get(w.id);
             if (layout) {
-                const def = WidgetRegistry.get(w.type);
-                const layoutDef = def?.layout || { minW: 2, minH: 2 };
+                const layoutDef = getResolvedWidgetLayoutByType(w.type) || { minW: 2, minH: 2 };
                 const minW = layoutDef.minW || 2;
                 const minH = layoutDef.minH || 2;
                 const safeW = Math.max(layout.w, minW);
@@ -476,8 +464,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         // Queue layout changes for debounced API sync
         layouts.forEach(layout => {
             const widget = widgetById.get(layout.i);
-            const def = widget ? WidgetRegistry.get(widget.type) : undefined;
-            const layoutDef = def?.layout || { minW: 2, minH: 2 };
+            const layoutDef = widget ? (getResolvedWidgetLayoutByType(widget.type) || { minW: 2, minH: 2 }) : { minW: 2, minH: 2 };
             const minW = layoutDef.minW || 2;
             const minH = layoutDef.minH || 2;
             const safeW = Math.max(layout.w, minW);

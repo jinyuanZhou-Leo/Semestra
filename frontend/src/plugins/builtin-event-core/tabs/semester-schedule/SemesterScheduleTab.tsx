@@ -129,7 +129,7 @@ export const SemesterScheduleTab: React.FC<{ semesterId: string }> = ({ semester
 
   return (
     <div className="space-y-4 select-none">
-      <div className="px-1">
+      <div>
         <PanelHeader
           title="Semester Schedule"
           description="Filter by course and type, inspect conflicts, and export weekly schedule."
@@ -146,7 +146,7 @@ export const SemesterScheduleTab: React.FC<{ semesterId: string }> = ({ semester
         </div>
       </div>
 
-      <div className="space-y-4 p-6 pt-0">
+      <div className="space-y-4 py-6 pt-0">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Filters & Export</CardTitle>

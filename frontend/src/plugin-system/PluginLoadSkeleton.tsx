@@ -3,7 +3,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export const PluginTabSkeleton: React.FC = () => {
     return (
-        <div className="space-y-4 p-4 md:p-6">
+        // Keep horizontal alignment with page content; outer layout already controls side spacing.
+        <div className="space-y-4 py-4">
             <Skeleton className="h-9 w-52" />
             <Skeleton className="h-[420px] w-full rounded-xl" />
         </div>

@@ -3,6 +3,7 @@ import { WidgetRegistry } from "../services/widgetRegistry";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SaveSettingButton } from "./SaveSettingButton";
+import { getResolvedWidgetMetadataByType } from "../plugin-system";
 
 interface WidgetSettingsModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
   onSave,
 }) => {
   const widgetDefinition = WidgetRegistry.get(widget?.type);
+  const widgetMetadata = getResolvedWidgetMetadataByType(widget?.type || "");
+  const displayWidgetName = widgetDefinition?.name ?? widgetMetadata.name ?? widget?.type ?? "Widget";
   const SettingsComponent = widgetDefinition?.SettingsComponent;
   const [draftSettings, setDraftSettings] = useState<any>(widget?.settings || {});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
@@ -48,7 +51,7 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="p-0 sm:max-w-[520px]">
           <DialogHeader className="border-b px-6 py-4">
-            <DialogTitle className="text-base font-semibold">Widget Settings</DialogTitle>
+            <DialogTitle className="text-base font-semibold">{displayWidgetName} Settings</DialogTitle>
           </DialogHeader>
           <div className="p-6">
             <div
@@ -78,7 +81,7 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
       <DialogContent className="p-0 sm:max-w-[520px]">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">
-            {widgetDefinition?.name} Settings
+            {displayWidgetName} Settings
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave} className="p-6">

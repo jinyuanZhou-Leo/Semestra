@@ -4,7 +4,7 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 import { DashboardWidgetWrapper } from './DashboardWidgetWrapper';
-import { WidgetRegistry } from '../../services/widgetRegistry';
+import { getResolvedWidgetLayoutByType } from '../../plugin-system';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
 
 import { Responsive } from 'react-grid-layout';
@@ -86,8 +86,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     const layouts = useMemo(() => {
         return {
             lg: widgets.map((w, i) => {
-                const def = WidgetRegistry.get(w.type);
-                const layout = def?.layout || { w: 4, h: 4, minW: 2, minH: 2 };
+                const layout = getResolvedWidgetLayoutByType(w.type) || { w: 4, h: 4, minW: 2, minH: 2 };
                 const minW = layout.minW || 2;
                 const minH = layout.minH || 2;
                 const rawW = w.layout?.w ?? layout.w;

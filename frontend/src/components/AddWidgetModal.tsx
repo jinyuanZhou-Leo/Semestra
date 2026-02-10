@@ -15,13 +15,13 @@ import { IconCircle } from './IconCircle';
 import type { WidgetItem } from './widgets/DashboardGrid';
 import { cn } from '@/lib/utils';
 import { Search } from 'lucide-react';
-import { canAddWidgetCatalogItem, ensureWidgetPluginByTypeLoaded, getWidgetCatalog } from '../plugins/runtime';
+import { canAddWidgetCatalogItem, getResolvedWidgetMetadataByType, getWidgetCatalog } from '../plugin-system';
 import { reportError } from '../services/appStatus';
 
 interface AddWidgetModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAdd: (type: string, title?: string) => void;
+    onAdd: (type: string, title?: string) => void | Promise<void>;
     context: WidgetContext;
     widgets: WidgetItem[];
 }
@@ -32,11 +32,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
     const [isAddingPlugin, setIsAddingPlugin] = useState(false);
 
     // Reactive hook updates names/icons when a plugin finishes loading.
-    const registeredWidgets = useWidgetRegistry();
-    const registeredWidgetMap = useMemo(
-        () => new Map(registeredWidgets.map((definition) => [definition.type, definition])),
-        [registeredWidgets]
-    );
+    useWidgetRegistry();
     const widgetCatalog = useMemo(() => getWidgetCatalog(context), [context]);
 
     const availableWidgets = useMemo(() => {
@@ -74,14 +70,13 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
 
         setIsAddingPlugin(true);
         try {
-            await ensureWidgetPluginByTypeLoaded(selectedType);
-            onAdd(selectedType);
+            await onAdd(selectedType);
             onClose();
             setSelectedType(null);
             setSearchQuery('');
         } catch (error) {
-            console.error(`Failed to load widget plugin for type: ${selectedType}`, error);
-            reportError('Failed to load widget plugin. Please try again.');
+            console.error(`Failed to add widget for type: ${selectedType}`, error);
+            reportError('Failed to add widget. Please try again.');
         } finally {
             setIsAddingPlugin(false);
         }
@@ -133,10 +128,10 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
                         <ScrollArea className="h-full pr-3">
                             <div className="space-y-2">
                                 {filteredWidgets.map((widget) => {
-                                    const registeredDefinition = registeredWidgetMap.get(widget.type);
-                                    const displayName = registeredDefinition?.name ?? widget.name;
-                                    const displayDescription = registeredDefinition?.description ?? widget.description;
-                                    const displayIcon = registeredDefinition?.icon ?? widget.icon;
+                                    const metadata = getResolvedWidgetMetadataByType(widget.type);
+                                    const displayName = metadata.name ?? widget.name;
+                                    const displayDescription = metadata.description ?? widget.description;
+                                    const displayIcon = metadata.icon ?? widget.icon;
 
                                     return (
                                     <button
@@ -176,7 +171,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
                         Cancel
                     </Button>
                     <Button disabled={!selectedType || isAddingPlugin} onClick={handleAdd}>
-                        {isAddingPlugin ? 'Loading Plugin...' : 'Add Widget'}
+                        {isAddingPlugin ? 'Adding Widget...' : 'Add Widget'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

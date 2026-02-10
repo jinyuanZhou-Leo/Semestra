@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, RefreshCw, Settings2 } from 'lucide-react';
+import { CalendarDays, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,7 +20,6 @@ interface CalendarToolbarProps {
   isRefreshing: boolean;
   isPending: boolean;
   onViewModeChange: (viewMode: CalendarViewMode) => void;
-  onOpenSettings: () => void;
   onReload: () => void;
 }
 
@@ -33,7 +32,6 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
   isRefreshing,
   isPending,
   onViewModeChange,
-  onOpenSettings,
   onReload,
 }) => {
   const safeMaxWeek = Math.max(1, maxWeek);
@@ -63,16 +61,6 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-[36px] min-w-[44px]"
-            onClick={onOpenSettings}
-          >
-            <Settings2 className="mr-2 h-4 w-4" />
-            Settings
           </Button>
         </div>
       </div>

@@ -358,7 +358,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
 
   return (
     <div className="space-y-4 select-none">
-      <div className="px-1">
+      <div>
         <PanelHeader
           title="Section List"
           description="Manage sections and their slots. Click on a section row to view and manage its individual events."

@@ -3,14 +3,14 @@
 ## Ground Rules
 
 - [ ] Use `shadcn/ui` + Tailwind CSS v4 for all new UI.
-- [ ] Keep all timetable-related component implementations under `frontend/src/plugins/builtin-timetable/**`.
+- [ ] Keep all timetable-related component implementations under `frontend/src/plugins/builtin-event-core/**`.
 - [ ] Do not place new timetable components in `frontend/src/components/**`.
 - [ ] Keep code comments in English.
 
 ## Phase 0 - Plugin Runtime (First Step)
 
 - [x] Replace eager plugin registration with on-demand runtime loading.
-  - Implemented `frontend/src/plugins/runtime/index.ts`.
+  - Implemented `frontend/src/plugin-system/index.ts`.
   - Added type-based lazy loaders:
     - `ensureTabPluginByTypeLoaded`
     - `ensureWidgetPluginByTypeLoaded`
@@ -22,42 +22,42 @@
   - `frontend/src/hooks/useDashboardTabs.ts`
   - `frontend/src/hooks/useDashboardWidgets.ts`
 - [x] Add plugin load skeletons to reduce visual flicker:
-  - `frontend/src/plugins/runtime/PluginLoadSkeleton.tsx`
+  - `frontend/src/plugin-system/PluginLoadSkeleton.tsx`
   - Integrated in tab/widget render paths.
 
 ## Phase 1 - Builtin Timetable Structure Refactor
 
 - [x] Reorganize timetable plugin into target structure:
-  - `frontend/src/plugins/builtin-timetable/shared/*`
-  - `frontend/src/plugins/builtin-timetable/shared/hooks/*`
-  - `frontend/src/plugins/builtin-timetable/tabs/calendar/*`
-  - `frontend/src/plugins/builtin-timetable/tabs/semester-schedule/*`
-  - `frontend/src/plugins/builtin-timetable/tabs/course-schedule/*`
-  - `frontend/src/plugins/builtin-timetable/tabs/todo/*`
-- [x] Keep compatibility exports in `frontend/src/plugins/builtin-timetable/index.ts`.
+  - `frontend/src/plugins/builtin-event-core/shared/*`
+  - `frontend/src/plugins/builtin-event-core/shared/hooks/*`
+  - `frontend/src/plugins/builtin-event-core/tabs/calendar/*`
+  - `frontend/src/plugins/builtin-event-core/tabs/semester-schedule/*`
+  - `frontend/src/plugins/builtin-event-core/tabs/course-schedule/*`
+  - `frontend/src/plugins/builtin-event-core/tabs/todo/*`
+- [x] Keep compatibility exports in `frontend/src/plugins/builtin-event-core/index.ts`.
 - [x] Add migration notes for old import paths inside plugin folder.
 
 ## Phase 2 - Data Layer and Performance Core
 
 - [x] Implement `useScheduleData` (parallel week loading + cache strategy) in:
-  - `frontend/src/plugins/builtin-timetable/shared/hooks/useScheduleData.ts`
+  - `frontend/src/plugins/builtin-event-core/shared/hooks/useScheduleData.ts`
 - [x] Add optimized event bus with dedupe/debounce in:
-  - `frontend/src/plugins/builtin-timetable/shared/eventBus.ts`
+  - `frontend/src/plugins/builtin-event-core/shared/eventBus.ts`
 - [x] Add shared constants/types/utils:
-  - `frontend/src/plugins/builtin-timetable/shared/constants.ts`
-  - `frontend/src/plugins/builtin-timetable/shared/types.ts`
-  - `frontend/src/plugins/builtin-timetable/shared/utils.ts`
+  - `frontend/src/plugins/builtin-event-core/shared/constants.ts`
+  - `frontend/src/plugins/builtin-event-core/shared/types.ts`
+  - `frontend/src/plugins/builtin-event-core/shared/utils.ts`
 - [x] Ensure expensive transforms are memoized and reusable.
 - [x] Add cancellation guards for async effects to avoid stale updates.
 
 ## Phase 3 - Calendar Tab (Dynamic + Suspense)
 
 - [x] Create lazy calendar tab entry:
-  - `frontend/src/plugins/builtin-timetable/tabs/calendar/index.ts`
+  - `frontend/src/plugins/builtin-event-core/tabs/calendar/index.ts`
 - [x] Build calendar container with `Suspense` boundaries:
-  - `frontend/src/plugins/builtin-timetable/tabs/calendar/CalendarTab.tsx`
+  - `frontend/src/plugins/builtin-event-core/tabs/calendar/CalendarTab.tsx`
 - [x] Split FullCalendar into dynamic chunk:
-  - `frontend/src/plugins/builtin-timetable/tabs/calendar/FullCalendarView.tsx`
+  - `frontend/src/plugins/builtin-event-core/tabs/calendar/FullCalendarView.tsx`
 - [x] Build calendar toolbar/settings/editor:
   - `CalendarToolbar.tsx`
   - `CalendarSettings.tsx`

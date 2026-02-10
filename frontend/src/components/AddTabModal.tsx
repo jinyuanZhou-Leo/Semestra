@@ -15,13 +15,13 @@ import { IconCircle } from './IconCircle';
 import type { TabItem } from '../hooks/useDashboardTabs';
 import { cn } from '@/lib/utils';
 import { Search } from 'lucide-react';
-import { canAddTabCatalogItem, ensureTabPluginByTypeLoaded, getTabCatalog } from '../plugins/runtime';
+import { canAddTabCatalogItem, getResolvedTabMetadataByType, getTabCatalog } from '../plugin-system';
 import { reportError } from '../services/appStatus';
 
 interface AddTabModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAdd: (type: string) => void;
+    onAdd: (type: string) => void | Promise<void>;
     context: TabContext;
     tabs: TabItem[];
 }
@@ -32,11 +32,7 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
     const [isAddingPlugin, setIsAddingPlugin] = useState(false);
 
     // Reactive hook updates names/icons when a plugin finishes loading.
-    const registeredTabs = useTabRegistry();
-    const registeredTabMap = useMemo(
-        () => new Map(registeredTabs.map((definition) => [definition.type, definition])),
-        [registeredTabs]
-    );
+    useTabRegistry();
     const tabCatalog = useMemo(() => getTabCatalog(context), [context]);
 
     const availableTabs = useMemo(() => {
@@ -46,9 +42,6 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
         });
 
         return tabCatalog.filter((item) => {
-            if (item.type === 'builtin-academic-timetable') {
-                return false;
-            }
             const currentCount = counts.get(item.type) ?? 0;
             return canAddTabCatalogItem(item, context, currentCount);
         });
@@ -77,14 +70,13 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
 
         setIsAddingPlugin(true);
         try {
-            await ensureTabPluginByTypeLoaded(selectedType);
-            onAdd(selectedType);
+            await onAdd(selectedType);
             onClose();
             setSelectedType(null);
             setSearchQuery('');
         } catch (error) {
-            console.error(`Failed to load tab plugin for type: ${selectedType}`, error);
-            reportError('Failed to load tab plugin. Please try again.');
+            console.error(`Failed to add tab for type: ${selectedType}`, error);
+            reportError('Failed to add tab. Please try again.');
         } finally {
             setIsAddingPlugin(false);
         }
@@ -136,10 +128,10 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
                         <ScrollArea className="h-full pr-3">
                             <div className="space-y-2">
                                 {filteredTabs.map((tab) => {
-                                    const registeredDefinition = registeredTabMap.get(tab.type);
-                                    const displayName = registeredDefinition?.name ?? tab.name;
-                                    const displayDescription = registeredDefinition?.description ?? tab.description;
-                                    const displayIcon = registeredDefinition?.icon ?? tab.icon;
+                                    const metadata = getResolvedTabMetadataByType(tab.type);
+                                    const displayName = metadata.name ?? tab.name;
+                                    const displayDescription = metadata.description ?? tab.description;
+                                    const displayIcon = metadata.icon ?? tab.icon;
 
                                     return (
                                     <button
@@ -179,7 +171,7 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
                         Cancel
                     </Button>
                     <Button disabled={!selectedType || isAddingPlugin} onClick={handleAdd}>
-                        {isAddingPlugin ? 'Loading Plugin...' : 'Add Tab'}
+                        {isAddingPlugin ? 'Adding Tab...' : 'Add Tab'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export const CalendarSkeleton: React.FC = () => {
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <div className="space-y-4 py-4 sm:py-6">
       <div className="rounded-lg border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-2">

@@ -4,8 +4,8 @@ import { WidgetRegistry, useWidgetRegistry } from '../../services/widgetRegistry
 import type { WidgetItem } from './DashboardGrid';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { ensureWidgetPluginByTypeLoaded, hasWidgetPluginForType } from '../../plugins/runtime';
-import { PluginWidgetSkeleton } from '../../plugins/runtime/PluginLoadSkeleton';
+import { ensureWidgetPluginByTypeLoaded, hasWidgetPluginForType } from '../../plugin-system';
+import { PluginWidgetSkeleton } from '../../plugin-system/PluginLoadSkeleton';
 
 interface DashboardWidgetWrapperProps {
     widget: WidgetItem;
