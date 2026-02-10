@@ -17,6 +17,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, ev
   const [isSkipped, setIsSkipped] = React.useState(false);
   const [isEnabled, setIsEnabled] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
+  const showEnableSwitch = event?.source !== 'schedule';
 
   React.useEffect(() => {
     if (!event || !open) return;
@@ -29,10 +30,14 @@ export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, ev
 
     setIsSaving(true);
     try {
-      await onSave(event.eventId, {
+      const patch: CalendarEventPatch = {
         skip: isSkipped,
-        enable: isEnabled,
-      });
+      };
+      if (showEnableSwitch) {
+        patch.enable = isEnabled;
+      }
+
+      await onSave(event.eventId, patch);
       onOpenChange(false);
     } finally {
       setIsSaving(false);
@@ -48,7 +53,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, ev
             <Badge variant="secondary">{event?.source ?? 'schedule'}</Badge>
           </DialogTitle>
           <DialogDescription>
-            Update visibility and active state for this event.
+            {showEnableSwitch ? 'Update visibility and active state for this event.' : 'Update visibility for this event.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -56,26 +61,25 @@ export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, ev
           <div className="space-y-4">
             <div className="rounded-md border p-3">
               <p className="font-medium">{event.title}</p>
-              <p className="text-sm text-muted-foreground">
-                {event.courseName} · {event.eventTypeCode}
-              </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Week {event.week}, {event.start.toLocaleDateString()} {event.startTime}-{event.endTime}
               </p>
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="event-editor-enable" className="cursor-pointer">Enabled</Label>
-                  <p className="text-xs text-muted-foreground">Disabled events are not active for attendance flow.</p>
+              {showEnableSwitch ? (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="event-editor-enable" className="cursor-pointer">Enabled</Label>
+                    <p className="text-xs text-muted-foreground">Disabled events are not active for attendance flow.</p>
+                  </div>
+                  <Switch
+                    id="event-editor-enable"
+                    checked={isEnabled}
+                    onCheckedChange={setIsEnabled}
+                  />
                 </div>
-                <Switch
-                  id="event-editor-enable"
-                  checked={isEnabled}
-                  onCheckedChange={setIsEnabled}
-                />
-              </div>
+              ) : null}
 
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div className="space-y-0.5">

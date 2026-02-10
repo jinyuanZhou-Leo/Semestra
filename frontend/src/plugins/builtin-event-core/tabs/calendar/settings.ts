@@ -48,13 +48,13 @@ export const parseTimeInputValue = (value: string): number | null => {
 };
 
 export const DEFAULT_CALENDAR_SETTINGS: CalendarSettingsState = {
-  skippedDisplay: 'grayed',
   eventColors: {
     schedule: CALENDAR_EVENT_DEFAULT_COLORS.schedule,
     todo: CALENDAR_EVENT_DEFAULT_COLORS.todo,
     custom: CALENDAR_EVENT_DEFAULT_COLORS.custom,
   },
   highlightConflicts: true,
+  showWeekends: true,
   dayStartMinutes: CALENDAR_DEFAULT_START_MINUTES,
   dayEndMinutes: CALENDAR_DEFAULT_END_MINUTES,
 };
@@ -71,13 +71,13 @@ export const normalizeCalendarSettings = (value: unknown): CalendarSettingsState
   );
 
   return {
-    skippedDisplay: source.skippedDisplay === 'hidden' ? 'hidden' : 'grayed',
     eventColors: {
       schedule: typeof sourceColors.schedule === 'string' ? sourceColors.schedule : CALENDAR_EVENT_DEFAULT_COLORS.schedule,
       todo: typeof sourceColors.todo === 'string' ? sourceColors.todo : CALENDAR_EVENT_DEFAULT_COLORS.todo,
       custom: typeof sourceColors.custom === 'string' ? sourceColors.custom : CALENDAR_EVENT_DEFAULT_COLORS.custom,
     },
     highlightConflicts: typeof source.highlightConflicts === 'boolean' ? source.highlightConflicts : true,
+    showWeekends: typeof source.showWeekends === 'boolean' ? source.showWeekends : true,
     dayStartMinutes,
     dayEndMinutes,
   };

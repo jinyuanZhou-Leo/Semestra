@@ -8,6 +8,16 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program } from '../services/api';
@@ -24,10 +34,13 @@ import { Plus, Trash2 } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
 
-    const { alert: showAlert, confirm } = useDialog();
+    const { alert: showAlert } = useDialog();
     const [programs, setPrograms] = useState<Program[]>([]);
+    const [programEarnedCredits, setProgramEarnedCredits] = useState<Record<string, number>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [deletingProgramId, setDeletingProgramId] = useState<string | null>(null);
+    const [isDeletingProgram, setIsDeletingProgram] = useState(false);
 
     // New Program State
     const [newProgramName, setNewProgramName] = useState('');
@@ -54,10 +67,43 @@ export const HomePage: React.FC = () => {
         try {
             const data = await api.getPrograms();
             setPrograms(data);
+            const creditEntries = await Promise.all(
+                data.map(async (program) => {
+                    try {
+                        const details = await api.getProgram(program.id);
+                        const earnedCredits = details.semesters.reduce((semesterSum, semester) => {
+                            const semesterCredits = (semester.courses || []).reduce((courseSum, course) => courseSum + course.credits, 0);
+                            return semesterSum + semesterCredits;
+                        }, 0);
+                        return [program.id, earnedCredits] as const;
+                    } catch {
+                        return [program.id, 0] as const;
+                    }
+                })
+            );
+            setProgramEarnedCredits(Object.fromEntries(creditEntries));
         } catch (error) {
             console.error("Failed to fetch programs", error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleDeleteProgram = async () => {
+        if (!deletingProgramId) return;
+        setIsDeletingProgram(true);
+        try {
+            await api.deleteProgram(deletingProgramId);
+            setDeletingProgramId(null);
+            await fetchPrograms();
+        } catch (error) {
+            console.error("Failed to delete program", error);
+            await showAlert({
+                title: "Delete failed",
+                description: "Failed to delete program."
+            });
+        } finally {
+            setIsDeletingProgram(false);
         }
     };
 
@@ -126,20 +172,10 @@ export const HomePage: React.FC = () => {
                                             {program.name}
                                         </CardTitle>
                                         <Button
-                                            onClick={async (e) => {
+                                            onClick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
-                                                const shouldDelete = await confirm({
-                                                    title: "Delete program?",
-                                                    description: "Are you sure you want to delete this program? This action cannot be undone.",
-                                                    confirmText: "Delete",
-                                                    cancelText: "Cancel",
-                                                    tone: "destructive"
-                                                });
-                                                if (!shouldDelete) return;
-                                                api.deleteProgram(program.id)
-                                                    .then(fetchPrograms)
-                                                    .catch(err => console.error("Failed to delete", err));
+                                                setDeletingProgramId(program.id);
                                             }}
                                             type="button"
                                             variant="ghost"
@@ -160,7 +196,7 @@ export const HomePage: React.FC = () => {
                                             <div className="text-right">
                                                 <span className="block text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">Credits</span>
                                                 <span className="text-sm font-medium">
-                                                    <span className="text-foreground text-base">?</span> {/* We don't have current credits in the list api potentially, checking type */}
+                                                    <span className="text-foreground text-base">{(programEarnedCredits[program.id] || 0).toFixed(1)}</span>
                                                     <span className="text-muted-foreground"> / {program.grad_requirement_credits}</span>
                                                 </span>
                                             </div>
@@ -230,6 +266,23 @@ export const HomePage: React.FC = () => {
                     </form>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={Boolean(deletingProgramId)} onOpenChange={(open) => !open && !isDeletingProgram && setDeletingProgramId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete program?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete this program? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingProgram}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={handleDeleteProgram} disabled={isDeletingProgram}>
+                            {isDeletingProgram ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Layout>
     );
 };

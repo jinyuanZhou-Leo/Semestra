@@ -1,84 +1,71 @@
 import React from 'react';
-import { CalendarDays, RefreshCw } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { CalendarViewMode } from '../../shared/types';
 
 interface CalendarToolbarProps {
   week: number;
   maxWeek: number;
-  visibleCount: number;
-  totalCount: number;
   viewMode: CalendarViewMode;
-  isRefreshing: boolean;
-  isPending: boolean;
+  dateRangeLabel: string;
+  onWeekChange: (week: number) => void;
   onViewModeChange: (viewMode: CalendarViewMode) => void;
-  onReload: () => void;
 }
 
 export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
   week,
   maxWeek,
-  visibleCount,
-  totalCount,
   viewMode,
-  isRefreshing,
-  isPending,
+  dateRangeLabel,
+  onWeekChange,
   onViewModeChange,
-  onReload,
 }) => {
   const safeMaxWeek = Math.max(1, maxWeek);
+  const safeWeek = Math.max(1, Math.min(safeMaxWeek, week));
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1">
-            <CalendarDays className="h-3.5 w-3.5" />
-            Week {week}/{safeMaxWeek}
-          </Badge>
-          <Badge variant="outline">
-            {visibleCount} / {totalCount} events
-          </Badge>
-          {isPending && <Badge variant="secondary">Updating...</Badge>}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-[36px] min-w-[44px]"
-            onClick={onReload}
-            disabled={isRefreshing}
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <ToggleGroup type="multiple" variant="outline" size="sm" value={[]} aria-label="Switch week">
+          <ToggleGroupItem
+            value="prev-week"
+            className="min-w-[44px]"
+            aria-label="Previous week"
+            disabled={safeWeek <= 1}
+            onClick={() => onWeekChange(safeWeek - 1)}
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
+            <ChevronLeft className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="next-week"
+            className="min-w-[44px]"
+            aria-label="Next week"
+            disabled={safeWeek >= safeMaxWeek}
+            onClick={() => onWeekChange(safeWeek + 1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          value={viewMode}
+          onValueChange={(value) => {
+            if (!value) return;
+            onViewModeChange(value as CalendarViewMode);
+          }}
+          aria-label="Calendar view mode"
+        >
+          <ToggleGroupItem value="week" aria-label="Switch to week view">Week</ToggleGroupItem>
+          <ToggleGroupItem value="month" aria-label="Switch to month view">Month</ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
-      <div className="max-w-[220px] space-y-1.5">
-        <span className="text-sm font-medium">View</span>
-        <div>
-          <Select modal={false} value={viewMode} onValueChange={(value) => onViewModeChange(value as CalendarViewMode)}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper">
-              <SelectItem value="week">Week</SelectItem>
-              <SelectItem value="month">Month</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Week {safeWeek}/{safeMaxWeek} · {dateRangeLabel}
+      </p>
     </div>
   );
 };

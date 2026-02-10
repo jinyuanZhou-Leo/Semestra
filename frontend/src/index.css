@@ -86,34 +86,6 @@ body>div>div[role="dialog"][data-state] {
   border-color: var(--color-primary);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
-/* Dark mode scrollbar */
-.dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
 .animated-number {
   display: inline-block;
   font-variant-numeric: tabular-nums;
@@ -253,9 +225,8 @@ body>div>div[role="dialog"][data-state] {
 
 @layer base {
   html {
-    /* Keep layout width stable when vertical scrollbar toggles */
-    overflow-y: scroll;
-    scrollbar-gutter: stable both-edges;
+    overflow-y: auto;
+    scrollbar-gutter: auto;
   }
   * {
     @apply border-border outline-ring/50;

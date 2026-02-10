@@ -10,6 +10,16 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
 import { Progress } from '@/components/ui/progress';
@@ -54,7 +64,7 @@ const extractCourseLevel = (courseName: string): number | null => {
 
 const ProgramDashboardContent: React.FC = () => {
     const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
-    const { alert: showAlert, confirm } = useDialog();
+    const { alert: showAlert } = useDialog();
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,6 +81,8 @@ const ProgramDashboardContent: React.FC = () => {
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const semesterNameId = useId();
+    const [deletingSemesterId, setDeletingSemesterId] = useState<string | null>(null);
+    const [isDeletingSemester, setIsDeletingSemester] = useState(false);
 
     // Ref to track the latest newSemesterName, avoiding stale closure
     const newSemesterNameRef = useRef(newSemesterName);
@@ -415,6 +427,29 @@ const ProgramDashboardContent: React.FC = () => {
         }
     };
 
+    const deletingSemester = useMemo(
+        () => program?.semesters.find(semester => semester.id === deletingSemesterId) || null,
+        [deletingSemesterId, program?.semesters]
+    );
+
+    const handleDeleteSemester = async () => {
+        if (!deletingSemesterId) return;
+        setIsDeletingSemester(true);
+        try {
+            await api.deleteSemester(deletingSemesterId);
+            setDeletingSemesterId(null);
+            await refreshProgram();
+        } catch (error) {
+            console.error("Failed to delete semester", error);
+            await showAlert({
+                title: "Delete failed",
+                description: "Failed to delete semester."
+            });
+        } finally {
+            setIsDeletingSemester(false);
+        }
+    };
+
 
 
     const creditsProgressPercent = useMemo(() => {
@@ -642,20 +677,10 @@ const ProgramDashboardContent: React.FC = () => {
                                                         {semester.name}
                                                     </CardTitle>
                                                     <Button
-                                                        onClick={async (e) => {
+                                                        onClick={(e) => {
                                                             e.preventDefault();
                                                             e.stopPropagation();
-                                                            const shouldDelete = await confirm({
-                                                                title: "Delete semester?",
-                                                            description: "Are you sure you want to delete this semester? This action cannot be undone.",
-                                                            confirmText: "Delete",
-                                                            cancelText: "Cancel",
-                                                            tone: "destructive"
-                                                        });
-                                                            if (!shouldDelete) return;
-                                                            api.deleteSemester(semester.id)
-                                                                .then(() => refreshProgram())
-                                                                .catch(err => console.error("Failed to delete", err));
+                                                            setDeletingSemesterId(semester.id);
                                                         }}
                                                         type="button"
                                                         variant="ghost"
@@ -990,6 +1015,23 @@ const ProgramDashboardContent: React.FC = () => {
                     </form>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={Boolean(deletingSemesterId)} onOpenChange={(open) => !open && !isDeletingSemester && setDeletingSemesterId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete semester?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {`Are you sure you want to delete ${deletingSemester?.name || 'this semester'}? This action cannot be undone.`}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingSemester}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={handleDeleteSemester} disabled={isDeletingSemester}>
+                            {isDeletingSemester ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {program && (
                 <SettingsModal

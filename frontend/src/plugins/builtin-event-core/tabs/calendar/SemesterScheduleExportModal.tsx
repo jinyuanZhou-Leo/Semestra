@@ -15,7 +15,9 @@ import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -139,17 +141,20 @@ export const SemesterScheduleExportModal: React.FC<SemesterScheduleExportModalPr
         <div className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="export-course-filter">Course filter</Label>
-            <Select modal={false} value={courseFilter} onValueChange={setCourseFilter}>
+            <Select value={courseFilter} onValueChange={setCourseFilter}>
               <SelectTrigger id="export-course-filter" className="w-full">
-                <SelectValue />
+                <SelectValue placeholder="Select course filter" />
               </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectItem value={ALL_FILTER_VALUE}>All courses</SelectItem>
-                {courseOptions.map((course) => (
-                  <SelectItem key={course.id} value={course.id}>
-                    {course.name}
-                  </SelectItem>
-                ))}
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Courses</SelectLabel>
+                  <SelectItem value={ALL_FILTER_VALUE}>All courses</SelectItem>
+                  {courseOptions.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
@@ -157,28 +162,34 @@ export const SemesterScheduleExportModal: React.FC<SemesterScheduleExportModalPr
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="export-range">Range</Label>
-              <Select modal={false} value={range} onValueChange={(value) => setRange(value as ExportRange)}>
+              <Select value={range} onValueChange={(value) => setRange(value as ExportRange)}>
                 <SelectTrigger id="export-range" className="w-full">
-                  <SelectValue />
+                  <SelectValue placeholder="Select range" />
                 </SelectTrigger>
-                <SelectContent position="popper">
-                  <SelectItem value="week">Single week</SelectItem>
-                  <SelectItem value="weeks">Week range</SelectItem>
-                  <SelectItem value="term">Full term</SelectItem>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Ranges</SelectLabel>
+                    <SelectItem value="week">Single week</SelectItem>
+                    <SelectItem value="weeks">Week range</SelectItem>
+                    <SelectItem value="term">Full term</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="export-format">Format</Label>
-              <Select modal={false} value={format} onValueChange={(value) => setFormat(value as ExportFormat)}>
+              <Select value={format} onValueChange={(value) => setFormat(value as ExportFormat)}>
                 <SelectTrigger id="export-format" className="w-full">
-                  <SelectValue />
+                  <SelectValue placeholder="Select format" />
                 </SelectTrigger>
-                <SelectContent position="popper">
-                  <SelectItem value="ics">ICS</SelectItem>
-                  <SelectItem value="png">PNG</SelectItem>
-                  <SelectItem value="pdf">PDF</SelectItem>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Formats</SelectLabel>
+                    <SelectItem value="ics">ICS</SelectItem>
+                    <SelectItem value="png">PNG</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -227,17 +238,16 @@ export const SemesterScheduleExportModal: React.FC<SemesterScheduleExportModalPr
 
           <div className="space-y-2">
             <Label htmlFor="export-skipped-mode">Skipped events</Label>
-            <Select
-              modal={false}
-              value={skipRenderMode}
-              onValueChange={(value) => setSkipRenderMode(value as SkipRenderMode)}
-            >
+            <Select value={skipRenderMode} onValueChange={(value) => setSkipRenderMode(value as SkipRenderMode)}>
               <SelectTrigger id="export-skipped-mode" className="w-full">
-                <SelectValue />
+                <SelectValue placeholder="Select skipped mode" />
               </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectItem value="GRAY_SKIPPED">Render as grayed</SelectItem>
-                <SelectItem value="HIDE_SKIPPED">Hide skipped</SelectItem>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Skipped Events</SelectLabel>
+                  <SelectItem value="GRAY_SKIPPED">Render as grayed</SelectItem>
+                  <SelectItem value="HIDE_SKIPPED">Hide skipped</SelectItem>
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>

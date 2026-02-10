@@ -3,13 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import type { CalendarSettingsState } from '../../shared/types';
 import { normalizeDayMinuteWindow, parseTimeInputValue, toTimeInputValue } from './settings';
@@ -71,21 +64,6 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
         </DialogHeader>
 
         <div className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="calendar-skipped-display">Skipped events</Label>
-            <Select modal={false} value={settings.skippedDisplay}
-              onValueChange={(value) => patchSettings({ skippedDisplay: value as CalendarSettingsState['skippedDisplay'] })}
-            >
-              <SelectTrigger id="calendar-skipped-display" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectItem value="grayed">Show as grayed</SelectItem>
-                <SelectItem value="hidden">Hide skipped</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="calendar-day-start">Day start time</Label>
@@ -119,6 +97,18 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
               id="calendar-highlight-conflicts"
               checked={settings.highlightConflicts}
               onCheckedChange={(checked) => patchSettings({ highlightConflicts: checked })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="calendar-show-weekends" className="cursor-pointer">Show weekends</Label>
+              <p className="text-xs text-muted-foreground">Display Saturday and Sunday columns in calendar views.</p>
+            </div>
+            <Switch
+              id="calendar-show-weekends"
+              checked={settings.showWeekends}
+              onCheckedChange={(checked) => patchSettings({ showWeekends: checked })}
             />
           </div>
 

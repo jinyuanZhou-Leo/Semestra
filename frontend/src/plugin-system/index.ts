@@ -83,6 +83,7 @@ const pluginEntries: PluginEntry[] = Object.entries(metadataModules)
 
 const DEFAULT_TAB_ALLOWED_CONTEXTS: TabContext[] = ['semester', 'course'];
 const DEFAULT_WIDGET_ALLOWED_CONTEXTS: WidgetContext[] = ['semester', 'course'];
+const LEGACY_HIDDEN_TAB_TYPES = new Set<string>(['builtin-semester-schedule']);
 
 const pluginsById = new Map(pluginEntries.map((entry) => [entry.id, entry]));
 const tabTypeToPluginId = new Map<string, string>();
@@ -92,6 +93,7 @@ const widgetCatalogByType = new Map<string, WidgetCatalogItem>();
 
 pluginEntries.forEach((entry) => {
     entry.tabCatalog.forEach((item) => {
+        if (LEGACY_HIDDEN_TAB_TYPES.has(item.type)) return;
         tabTypeToPluginId.set(item.type, entry.id);
         tabCatalogByType.set(item.type, item);
     });
@@ -165,7 +167,9 @@ export const ensureWidgetPluginByTypeLoaded = async (type: string): Promise<bool
 };
 
 export const getTabCatalog = (context?: TabContext): TabCatalogItem[] => {
-    const items = pluginEntries.flatMap((entry) => entry.tabCatalog);
+    const items = pluginEntries
+        .flatMap((entry) => entry.tabCatalog)
+        .filter((item) => !LEGACY_HIDDEN_TAB_TYPES.has(item.type));
     if (!context) return items;
     return items.filter((item) => (item.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS).includes(context));
 };
@@ -176,7 +180,10 @@ export const getWidgetCatalog = (context?: WidgetContext): WidgetCatalogItem[] =
     return items.filter((item) => (item.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS).includes(context));
 };
 
-export const getTabCatalogItemByType = (type: string) => tabCatalogByType.get(type);
+export const getTabCatalogItemByType = (type: string) => {
+    if (LEGACY_HIDDEN_TAB_TYPES.has(type)) return undefined;
+    return tabCatalogByType.get(type);
+};
 
 export const getWidgetCatalogItemByType = (type: string) => widgetCatalogByType.get(type);
 

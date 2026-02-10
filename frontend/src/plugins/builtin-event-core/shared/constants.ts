@@ -30,7 +30,6 @@ export const CALENDAR_EVENT_DEFAULT_COLORS = {
   custom: '#8b5cf6',
 } as const;
 
-export const CALENDAR_DEFAULT_SKIPPED_DISPLAY = 'grayed';
 export const CALENDAR_DEFAULT_VIEW_MODE = 'week';
 
 export const SCHEDULE_CACHE_TTL_MS = 30_000;

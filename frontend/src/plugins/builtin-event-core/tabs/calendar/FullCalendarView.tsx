@@ -1,7 +1,4 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   CALENDAR_MIN_EVENT_HEIGHT,
   CALENDAR_PIXEL_PER_MINUTE,
@@ -20,15 +17,16 @@ interface FullCalendarViewProps {
   dayStartMinutes: number;
   dayEndMinutes: number;
   highlightConflicts: boolean;
+  showWeekends: boolean;
   isPending: boolean;
   onWeekChange: (week: number) => void;
   onEventClick: (event: CalendarEventData) => void;
 }
 
-const monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'short' });
-const dayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric' });
-const fullDateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEKDAY_OPTIONS = DAY_OF_WEEK_OPTIONS.filter((day) => day.value <= 5);
+const HIDE_SCROLLBAR_CLASS = '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
 
 const keyForDate = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 const normalizeToDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -74,9 +72,14 @@ const WeekView: React.FC<{
   dayStartMinutes: number;
   dayEndMinutes: number;
   highlightConflicts: boolean;
+  showWeekends: boolean;
   onEventClick: (event: CalendarEventData) => void;
-}> = ({ events, weekStartDate, dayStartMinutes, dayEndMinutes, highlightConflicts, onEventClick }) => {
+}> = ({ events, weekStartDate, dayStartMinutes, dayEndMinutes, highlightConflicts, showWeekends, onEventClick }) => {
   const eventsMap = React.useMemo(() => eventsByDay(events), [events]);
+  const dayColumns = React.useMemo(
+    () => (showWeekends ? DAY_OF_WEEK_OPTIONS : WEEKDAY_OPTIONS),
+    [showWeekends],
+  );
   const minuteWindow = React.useMemo(() => {
     let start = Math.max(0, Math.min(23 * 60 + 59, Math.floor(dayStartMinutes)));
     let end = Math.max(0, Math.min(23 * 60 + 59, Math.floor(dayEndMinutes)));
@@ -101,6 +104,7 @@ const WeekView: React.FC<{
 
     marks.push(minuteWindow.start);
     for (let minute = firstHour; minute < minuteWindow.end; minute += 60) {
+      if (marks[marks.length - 1] === minute) continue;
       marks.push(minute);
     }
     if (marks[marks.length - 1] !== minuteWindow.end) {
@@ -111,23 +115,23 @@ const WeekView: React.FC<{
   }, [minuteWindow.end, minuteWindow.start]);
 
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[960px] rounded-md border border-border/70 bg-background">
-        <div className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))]">
-          <div className="border-r border-b border-border/70 bg-muted/35 px-2 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className={`relative isolate z-0 w-full max-w-full max-h-[72vh] overflow-y-auto overflow-x-auto rounded-md border border-border/70 bg-background ${HIDE_SCROLLBAR_CLASS}`}>
+      <div className="w-[max(100%,840px)]">
+        <div className="grid" style={{ gridTemplateColumns: `72px repeat(${dayColumns.length}, minmax(0, 1fr))` }}>
+          <div className="sticky top-0 left-0 z-20 border-r border-b border-border/70 bg-muted/65 px-2 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground backdrop-blur-md">
             Time
           </div>
-          {DAY_OF_WEEK_OPTIONS.map((day, dayIndex) => {
+          {dayColumns.map((day, dayIndex) => {
             const date = addDays(weekStartDate, dayIndex);
             return (
-              <div key={day.value} className="last:border-r-0 border-r border-b border-border/70 bg-muted/25 px-3 py-2">
+              <div key={day.value} className="sticky top-0 z-10 last:border-r-0 border-r border-b border-border/70 bg-muted/65 px-3 py-2 backdrop-blur-md">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{day.label}</p>
                 <p className="text-sm font-semibold">{dayFormatter.format(date)}</p>
               </div>
             );
           })}
 
-          <div className="relative border-r border-border/70 bg-muted/20" style={{ height: `${calendarHeight}px` }}>
+          <div className="sticky left-0 z-10 relative border-r border-border/70 bg-muted/45 backdrop-blur-md" style={{ height: `${calendarHeight}px` }}>
             {hourMarks.map((minute) => {
               const top = ((minute - minuteWindow.start) / totalMinutes) * calendarHeight;
               return (
@@ -142,7 +146,7 @@ const WeekView: React.FC<{
             })}
           </div>
 
-          {DAY_OF_WEEK_OPTIONS.map((day, dayIndex) => {
+          {dayColumns.map((day, dayIndex) => {
             const date = addDays(weekStartDate, dayIndex);
             const dayKey = keyForDate(date);
             const dayEvents = eventsMap.get(dayKey) ?? [];
@@ -210,32 +214,47 @@ const MonthView: React.FC<{
   monthAnchorDate: Date;
   semesterRange: SemesterDateRange;
   highlightConflicts: boolean;
+  showWeekends: boolean;
   onNavigateDate: (date: Date) => void;
   onEventClick: (event: CalendarEventData) => void;
-}> = ({ events, monthAnchorDate, semesterRange, highlightConflicts, onNavigateDate, onEventClick }) => {
+}> = ({ events, monthAnchorDate, semesterRange, highlightConflicts, showWeekends, onNavigateDate, onEventClick }) => {
   const monthStart = React.useMemo(() => new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth(), 1), [monthAnchorDate]);
   const monthGridStart = React.useMemo(() => startOfWeekMonday(monthStart), [monthStart]);
   const monthGridDates = React.useMemo(() => {
     return Array.from({ length: 42 }, (_, index) => addDays(monthGridStart, index));
   }, [monthGridStart]);
+  const dayColumns = React.useMemo(
+    () => (showWeekends ? DAY_OF_WEEK_OPTIONS : WEEKDAY_OPTIONS),
+    [showWeekends],
+  );
+  const visibleMonthGridDates = React.useMemo(() => {
+    if (showWeekends) return monthGridDates;
+    return monthGridDates.filter((date) => {
+      const day = date.getDay();
+      return day !== 0 && day !== 6;
+    });
+  }, [monthGridDates, showWeekends]);
 
   const eventsMap = React.useMemo(() => eventsByDay(events), [events]);
   const semesterStart = normalizeToDay(semesterRange.startDate).getTime();
   const semesterEnd = normalizeToDay(semesterRange.endDate).getTime();
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-md border border-border/70 bg-background">
-        <div className="grid grid-cols-7 border-b border-border/70 bg-muted/25">
-          {DAY_OF_WEEK_OPTIONS.map((day) => (
+    <div className={`w-full max-w-full overflow-x-auto ${HIDE_SCROLLBAR_CLASS}`}>
+      <div className="w-[max(100%,720px)] rounded-md border border-border/70 bg-background">
+        <div
+          className="sticky top-0 z-10 grid border-b border-border/70 bg-muted/65 backdrop-blur-md"
+          style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(0, 1fr))` }}
+        >
+          {dayColumns.map((day) => (
             <div key={day.value} className="px-2 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {day.label}
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7">
-          {monthGridDates.map((date, index) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(0, 1fr))` }}>
+          {visibleMonthGridDates.map((date, index) => {
             const dayKey = keyForDate(date);
             const dayEvents = eventsMap.get(dayKey) ?? [];
             const isCurrentMonth = date.getMonth() === monthAnchorDate.getMonth();
@@ -259,7 +278,6 @@ const MonthView: React.FC<{
                   >
                     {date.getDate()}
                   </button>
-                  {dayEvents.length > 0 ? <Badge variant="outline">{dayEvents.length}</Badge> : null}
                 </div>
 
                 <div className="space-y-1">
@@ -279,11 +297,9 @@ const MonthView: React.FC<{
                       {formatHour(event.start.getHours() * 60 + event.start.getMinutes())} {event.courseName}
                     </button>
                   ))}
-                  {dayEvents.length > CALENDAR_MAX_EVENT_LINES_PER_DAY && (
-                    <p className="text-[11px] text-muted-foreground">
-                      +{dayEvents.length - CALENDAR_MAX_EVENT_LINES_PER_DAY} more
-                    </p>
-                  )}
+                  {dayEvents.length > CALENDAR_MAX_EVENT_LINES_PER_DAY ? (
+                    <p className="text-[11px] text-muted-foreground">More events</p>
+                  ) : null}
                 </div>
               </div>
             );
@@ -302,6 +318,7 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   dayStartMinutes,
   dayEndMinutes,
   highlightConflicts,
+  showWeekends,
   isPending,
   maxWeek,
   onWeekChange,
@@ -319,30 +336,12 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
 
   React.useEffect(() => {
     const targetDate = weekStartFromSemester(semesterRange.startDate, safeWeek);
-    if (viewMode === 'week') {
-      setCalendarAnchorDate(targetDate);
-    }
-  }, [safeWeek, semesterRange.startDate, viewMode]);
+    setCalendarAnchorDate(targetDate);
+  }, [safeWeek, semesterRange.startDate]);
 
   const weekStartDate = viewMode === 'month'
     ? startOfWeekMonday(calendarAnchorDate)
     : weekStartFromSemester(semesterRange.startDate, safeWeek);
-  const weekEndDate = addDays(weekStartDate, 6);
-  const title = viewMode === 'month'
-    ? `${monthFormatter.format(calendarAnchorDate)} ${calendarAnchorDate.getFullYear()}`
-    : `${fullDateFormatter.format(weekStartDate)} - ${fullDateFormatter.format(weekEndDate)}`;
-
-  const handleStep = (direction: 'prev' | 'next') => {
-    const delta = direction === 'prev' ? -1 : 1;
-    if (viewMode === 'week') {
-      onWeekChange(Math.max(1, Math.min(maxWeek, safeWeek + delta)));
-      return;
-    }
-
-    const nextMonthAnchor = new Date(calendarAnchorDate.getFullYear(), calendarAnchorDate.getMonth() + delta, 1);
-    setCalendarAnchorDate(nextMonthAnchor);
-    syncWeekFromDate(nextMonthAnchor);
-  };
 
   const handleNavigateDate = (date: Date) => {
     setCalendarAnchorDate(date);
@@ -350,39 +349,14 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   };
 
   return (
-    <div className={isPending ? 'pointer-events-none opacity-75 transition-opacity duration-200 motion-reduce:transition-none' : 'transition-opacity duration-200 motion-reduce:transition-none'}>
-      <div className="mb-3 flex items-center justify-between rounded-md border bg-muted/20 px-2 py-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9"
-          onClick={() => handleStep('prev')}
-          disabled={safeWeek <= 1 && viewMode === 'week'}
-          aria-label="Previous"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <p className="text-sm font-semibold">{title}</p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9"
-          onClick={() => handleStep('next')}
-          disabled={safeWeek >= maxWeek && viewMode === 'week'}
-          aria-label="Next"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-
+    <div className={isPending ? 'min-w-0 pointer-events-none opacity-75 transition-opacity duration-200 motion-reduce:transition-none' : 'min-w-0 transition-opacity duration-200 motion-reduce:transition-none'}>
       {viewMode === 'month' ? (
         <MonthView
           events={events}
           monthAnchorDate={calendarAnchorDate}
           semesterRange={semesterRange}
           highlightConflicts={highlightConflicts}
+          showWeekends={showWeekends}
           onNavigateDate={handleNavigateDate}
           onEventClick={onEventClick}
         />
@@ -393,6 +367,7 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
           dayStartMinutes={dayStartMinutes}
           dayEndMinutes={dayEndMinutes}
           highlightConflicts={highlightConflicts}
+          showWeekends={showWeekends}
           onEventClick={onEventClick}
         />
       )}

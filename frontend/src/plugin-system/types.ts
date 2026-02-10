@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import type { MaxInstances as TabMaxInstances, TabContext } from '../../services/tabRegistry';
-import type { MaxInstances as WidgetMaxInstances, WidgetContext, WidgetDefinition } from '../../services/widgetRegistry';
+import type { MaxInstances as TabMaxInstances, TabContext } from '../services/tabRegistry';
+import type { MaxInstances as WidgetMaxInstances, WidgetContext, WidgetDefinition } from '../services/widgetRegistry';
 
 export interface TabCatalogItem {
     pluginId: string;

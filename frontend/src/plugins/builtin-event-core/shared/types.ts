@@ -48,7 +48,6 @@ export type PublishEventOptions = {
 export type WeekPatternOption = WeekPattern;
 
 export type EventSource = 'schedule' | 'todo' | 'custom';
-export type SkippedDisplayMode = 'grayed' | 'hidden';
 export type CalendarViewMode = 'week' | 'month';
 
 export interface CalendarEventColorConfig {
@@ -58,9 +57,9 @@ export interface CalendarEventColorConfig {
 }
 
 export interface CalendarSettingsState {
-  skippedDisplay: SkippedDisplayMode;
   eventColors: CalendarEventColorConfig;
   highlightConflicts: boolean;
+  showWeekends: boolean;
   dayStartMinutes: number;
   dayEndMinutes: number;
 }

@@ -11,7 +11,6 @@ import type {
   CalendarEventColorConfig,
   ScheduleFilterState,
   SemesterDateRange,
-  SkippedDisplayMode,
 } from './types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -191,12 +190,7 @@ export const toCalendarEvent = (
   item: ScheduleItem,
   semesterStartDate: Date,
   eventColors: CalendarEventColorConfig = CALENDAR_EVENT_DEFAULT_COLORS,
-  skippedDisplayMode: SkippedDisplayMode = 'grayed',
 ): CalendarEventData | null => {
-  if (item.skip && skippedDisplayMode === 'hidden') {
-    return null;
-  }
-
   const targetDate = getDateForScheduleItem(semesterStartDate, item.week, item.dayOfWeek);
   const start = parseTimeOnDate(targetDate, item.startTime);
   let end = parseTimeOnDate(targetDate, item.endTime);
@@ -238,12 +232,11 @@ export const buildCalendarEvents = (
   items: ScheduleItem[],
   semesterStartDate: Date,
   eventColors: CalendarEventColorConfig,
-  skippedDisplayMode: SkippedDisplayMode,
 ) => {
   const events: CalendarEventData[] = [];
 
   for (const item of items) {
-    const event = toCalendarEvent(item, semesterStartDate, eventColors, skippedDisplayMode);
+    const event = toCalendarEvent(item, semesterStartDate, eventColors);
     if (!event) continue;
 
     events.push(event);

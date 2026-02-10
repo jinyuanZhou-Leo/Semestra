@@ -18,8 +18,10 @@ import type {
   SemesterDateRange,
 } from '../../shared/types';
 import {
+  addDays,
   buildCalendarEvents,
   resolveSemesterDateRange,
+  startOfWeekMonday,
 } from '../../shared/utils';
 import { CalendarToolbar } from './CalendarToolbar';
 import { CalendarSkeleton } from './components/CalendarSkeleton';
@@ -36,6 +38,7 @@ const EventEditor = React.lazy(async () => {
 });
 
 const FALLBACK_RANGE: SemesterDateRange = resolveSemesterDateRange(undefined, undefined, 16);
+const rangeDateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
 export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings }) => {
   const [week, setWeek] = React.useState(DEFAULT_WEEK);
@@ -51,7 +54,6 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     items,
     maxWeek,
     isLoading,
-    isRefreshing,
     error,
     reload,
   } = useScheduleData({
@@ -117,7 +119,6 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
       itemsWithPatches,
       semesterRange.startDate,
       settings.eventColors,
-      settings.skippedDisplay,
     );
   }, [itemsWithPatches, semesterRange.startDate, settings]);
 
@@ -131,16 +132,19 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     return map;
   }, [calendarEvents]);
 
-  const eventsForWeek = React.useMemo(() => {
-    return calendarEvents.filter((event) => event.week === week);
-  }, [calendarEvents, week]);
-
   const handleWeekChange = React.useCallback((targetWeek: number) => {
     const boundedWeek = Math.max(1, Math.min(Math.max(1, maxWeek), targetWeek));
     startTransition(() => {
       setWeek(boundedWeek);
     });
   }, [maxWeek]);
+
+  const weekRangeLabel = React.useMemo(() => {
+    const safeWeek = Math.max(1, week);
+    const weekStart = addDays(startOfWeekMonday(semesterRange.startDate), (safeWeek - 1) * 7);
+    const weekEnd = addDays(weekStart, 6);
+    return `${rangeDateFormatter.format(weekStart)} - ${rangeDateFormatter.format(weekEnd)}`;
+  }, [semesterRange.startDate, week]);
 
   const handleSaveEvent = React.useCallback(async (eventId: string, patch: CalendarEventPatch) => {
     const targetEvent = eventsById.get(eventId);
@@ -205,40 +209,38 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 py-4 sm:py-6">
-      <div className="rounded-lg border bg-card p-4">
+    <div className="flex h-full min-w-0 flex-col gap-3 py-4 sm:py-6">
+      <div className="min-h-[460px] min-w-0 overflow-hidden rounded-lg bg-card p-3 sm:p-4">
         <CalendarToolbar
           week={week}
           maxWeek={maxWeek}
-          visibleCount={viewMode === 'week' ? eventsForWeek.length : calendarEvents.length}
-          totalCount={calendarEvents.length}
           viewMode={viewMode}
-          isRefreshing={isRefreshing}
-          isPending={isPending}
+          dateRangeLabel={weekRangeLabel}
+          onWeekChange={handleWeekChange}
           onViewModeChange={setViewMode}
-          onReload={() => void reload()}
         />
-      </div>
 
-      <div className="min-h-[460px] rounded-lg border bg-card p-3 sm:p-4">
-        <React.Suspense fallback={<CalendarSkeleton />}>
-          <FullCalendarView
-            events={calendarEvents}
-            week={week}
-            maxWeek={maxWeek}
-            viewMode={viewMode}
-            semesterRange={semesterRange}
-            dayStartMinutes={settings.dayStartMinutes}
-            dayEndMinutes={settings.dayEndMinutes}
-            highlightConflicts={settings.highlightConflicts}
-            isPending={isPending}
-            onWeekChange={handleWeekChange}
-            onEventClick={(event) => {
-              setSelectedEvent(event);
-              setIsEventEditorOpen(true);
-            }}
-          />
-        </React.Suspense>
+        <div className="mt-3 min-h-[400px] min-w-0">
+          <React.Suspense fallback={<CalendarSkeleton />}>
+            <FullCalendarView
+              events={calendarEvents}
+              week={week}
+              maxWeek={maxWeek}
+              viewMode={viewMode}
+              semesterRange={semesterRange}
+              dayStartMinutes={settings.dayStartMinutes}
+              dayEndMinutes={settings.dayEndMinutes}
+              highlightConflicts={settings.highlightConflicts}
+              showWeekends={settings.showWeekends}
+              isPending={isPending}
+              onWeekChange={handleWeekChange}
+              onEventClick={(event) => {
+                setSelectedEvent(event);
+                setIsEventEditorOpen(true);
+              }}
+            />
+          </React.Suspense>
+        </div>
       </div>
 
       <React.Suspense fallback={null}>

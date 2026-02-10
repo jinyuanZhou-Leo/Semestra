@@ -1,10 +1,20 @@
 import React from 'react';
 import { Download } from 'lucide-react';
 import { SettingsSection } from '@/components/SettingsSection';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useScheduleData } from '../../shared/hooks/useScheduleData';
 import type { CalendarSettingsState } from '../../shared/types';
@@ -75,32 +85,8 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
       <SettingsSection
         title="Calendar"
         description="Configure visibility and source colors for the calendar tab."
-        headerAction={(
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void Promise.resolve(updateSettings(DEFAULT_CALENDAR_SETTINGS))}
-          >
-            Reset Calendar Settings
-          </Button>
-        )}
       >
         <div className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="calendar-settings-skipped-mode">Skipped events</Label>
-            <Select modal={false} value={normalizedSettings.skippedDisplay}
-              onValueChange={(value) => patchSettings({ skippedDisplay: value as CalendarSettingsState['skippedDisplay'] })}
-            >
-              <SelectTrigger id="calendar-settings-skipped-mode" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectItem value="grayed">Show as grayed</SelectItem>
-                <SelectItem value="hidden">Hide skipped</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="calendar-settings-day-start">Day start time</Label>
@@ -136,6 +122,18 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             />
           </div>
 
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="calendar-settings-show-weekends" className="cursor-pointer">Show weekends</Label>
+              <p className="text-xs text-muted-foreground">Display Saturday and Sunday columns in calendar views.</p>
+            </div>
+            <Switch
+              id="calendar-settings-show-weekends"
+              checked={normalizedSettings.showWeekends}
+              onCheckedChange={(checked) => patchSettings({ showWeekends: checked })}
+            />
+          </div>
+
           <div className="space-y-2">
             <Label>Event source colors</Label>
             <div className="grid gap-3 lg:grid-cols-3">
@@ -161,9 +159,12 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
 
       <SettingsSection
         title="Schedule Export"
-        description="Export semester or course schedule with filters and format options."
+        description=""
       >
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <p className="text-sm text-muted-foreground">
+            Export your semester schedule
+          </p>
           <Button
             type="button"
             variant="outline"
@@ -171,8 +172,45 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             disabled={!semesterId}
           >
             <Download className="mr-2 h-4 w-4" />
-            Open Export
+            Export
           </Button>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Reset Calendar Settings"
+        description="This will restore all calendar settings to defaults."
+      >
+        <div className="rounded-md border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Restore event colors, time window, weekend visibility, and conflict highlighting to defaults.
+            </p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive">
+                  Reset Calendar Settings
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent size="sm">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset calendar settings?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will reset calendar colors, time window, weekend visibility, and conflict highlighting to defaults.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() => void Promise.resolve(updateSettings(DEFAULT_CALENDAR_SETTINGS))}
+                  >
+                    Reset
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </SettingsSection>
 

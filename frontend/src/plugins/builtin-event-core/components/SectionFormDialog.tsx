@@ -4,7 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import api from '@/services/api';
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import scheduleService, { type WeekPattern, type CourseEventType, type CourseEvent } from '@/services/schedule';
 
@@ -23,6 +32,7 @@ export const DAY_OF_WEEK_OPTIONS = [
 
 const SLOT_PLANNER_STEP_MINUTES = 30;
 export const SLOT_LOCATION_NOTE_PREFIX = '[loc] ';
+const SEMESTER_SETTINGS_REQUIRED_MESSAGE = 'Semester dates are missing. Please complete them in Semester Settings first.';
 
 export type SectionSlotDraft = {
     id: string;
@@ -98,18 +108,21 @@ const SectionSlotPlanner: React.FC<{
                     <div key={slot.id} className="grid items-end gap-2 rounded-md border border-border/60 p-2 sm:grid-cols-[1fr_1fr_1fr_1.4fr_auto]">
                         <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Slot {index + 1}</Label>
-                            <Select modal={false} value={String(slot.dayOfWeek)}
+                            <Select value={String(slot.dayOfWeek)}
                                 onValueChange={(value) => onUpdateSlot(slot.id, { dayOfWeek: Number(value) })}
                             >
                                 <SelectTrigger className="w-full">
-                                    <SelectValue />
+                                    <SelectValue placeholder="Select day" />
                                 </SelectTrigger>
-                                <SelectContent position="popper">
-                                    {DAY_OF_WEEK_OPTIONS.map((dayOption) => (
-                                        <SelectItem key={`slot-day-option-${slot.id}-${dayOption.value}`} value={String(dayOption.value)}>
-                                            {dayOption.label}
-                                        </SelectItem>
-                                    ))}
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <SelectLabel>Days</SelectLabel>
+                                        {DAY_OF_WEEK_OPTIONS.map((dayOption) => (
+                                            <SelectItem key={`slot-day-option-${slot.id}-${dayOption.value}`} value={String(dayOption.value)}>
+                                                {dayOption.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -199,7 +212,30 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
         }
     }, [open, initialData, initialSlots]);
 
-    const termEndWeek = 1; // Default or context-aware
+    const resolveTermEndWeek = React.useCallback(async () => {
+        const course = await api.getCourse(courseId);
+        const semesterId = course.semester_id;
+        if (!semesterId) {
+            throw new Error('Course is not linked to a semester. Please link it and complete Semester Settings.');
+        }
+
+        const semester = await api.getSemester(semesterId);
+        if (!semester.start_date || !semester.end_date) {
+            throw new Error(SEMESTER_SETTINGS_REQUIRED_MESSAGE);
+        }
+
+        const scheduleSnapshot = await scheduleService.getCourseSchedule(courseId, {
+            week: 1,
+            withConflicts: false,
+        });
+
+        const resolvedMaxWeek = Math.floor(Number(scheduleSnapshot.maxWeek));
+        if (!Number.isFinite(resolvedMaxWeek) || resolvedMaxWeek < 1) {
+            throw new Error(SEMESTER_SETTINGS_REQUIRED_MESSAGE);
+        }
+
+        return resolvedMaxWeek;
+    }, [courseId]);
 
     const currentNormalizedSlots = React.useMemo(() => {
         const normalized = formSlots.map((slot) => ({
@@ -240,6 +276,7 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
 
         setIsSubmitting(true);
         try {
+            const termEndWeek = await resolveTermEndWeek();
             const canonical = uniqueSlots[0];
             const commonData = {
                 eventTypeCode: formSection.eventTypeCode,
@@ -350,18 +387,21 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
                                     + Add Type
                                 </button>
                             </div>
-                            <Select modal={false} value={formSection.eventTypeCode}
+                            <Select value={formSection.eventTypeCode}
                                 onValueChange={(value) => setFormSection((prev) => ({ ...prev, eventTypeCode: value }))}
                             >
                                 <SelectTrigger className="w-full">
-                                    <SelectValue />
+                                    <SelectValue placeholder="Select event type" />
                                 </SelectTrigger>
-                                <SelectContent position="popper">
-                                    {eventTypes.map((item) => (
-                                        <SelectItem key={item.code} value={item.code}>
-                                            {item.code}
-                                        </SelectItem>
-                                    ))}
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <SelectLabel>Event Types</SelectLabel>
+                                        {eventTypes.map((item) => (
+                                            <SelectItem key={item.code} value={item.code}>
+                                                {item.code}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -391,18 +431,21 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
                         </div>
                         <div className="space-y-2">
                             <Label>Pattern</Label>
-                            <Select modal={false} value={formSection.weekPattern}
+                            <Select value={formSection.weekPattern}
                                 onValueChange={(value) => setFormSection((prev) => ({ ...prev, weekPattern: value as WeekPattern }))}
                             >
                                 <SelectTrigger className="w-full">
-                                    <SelectValue />
+                                    <SelectValue placeholder="Select pattern" />
                                 </SelectTrigger>
-                                <SelectContent position="popper">
-                                    {WEEK_PATTERNS.map((item) => (
-                                        <SelectItem key={item} value={item}>
-                                            {item}
-                                        </SelectItem>
-                                    ))}
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <SelectLabel>Patterns</SelectLabel>
+                                        {WEEK_PATTERNS.map((item) => (
+                                            <SelectItem key={item} value={item}>
+                                                {item}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -416,7 +459,7 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
                                 const last = prev[prev.length - 1];
                                 let nextStart = '09:00';
                                 let nextDay = 1;
-                                let nextLoc = '';
+                                const nextLoc = '';
 
                                 if (last) {
                                     nextDay = last.dayOfWeek;
