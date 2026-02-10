@@ -9,7 +9,6 @@ import type {
   CalendarEventData,
   CalendarEventPatch,
   CalendarEventColorConfig,
-  CalendarFilterState,
   ScheduleFilterState,
   SemesterDateRange,
   SkippedDisplayMode,
@@ -235,36 +234,17 @@ export const sortCalendarEvents = (events: CalendarEventData[]) => {
   });
 };
 
-export const filterCalendarEvents = (
-  events: CalendarEventData[],
-  filters: CalendarFilterState,
-  skippedDisplayMode: SkippedDisplayMode,
-) => {
-  return events.filter((event) => {
-    if (skippedDisplayMode === 'hidden' && event.isSkipped) return false;
-    if (filters.showConflictsOnly && !event.isConflict) return false;
-    if (filters.courseFilter !== ALL_FILTER_VALUE && event.courseId !== filters.courseFilter) return false;
-    if (filters.typeFilter !== ALL_FILTER_VALUE && event.eventTypeCode !== filters.typeFilter) return false;
-    return true;
-  });
-};
-
 export const buildCalendarEvents = (
   items: ScheduleItem[],
   semesterStartDate: Date,
   eventColors: CalendarEventColorConfig,
   skippedDisplayMode: SkippedDisplayMode,
-  filters: CalendarFilterState,
 ) => {
   const events: CalendarEventData[] = [];
 
   for (const item of items) {
     const event = toCalendarEvent(item, semesterStartDate, eventColors, skippedDisplayMode);
     if (!event) continue;
-
-    if (filters.showConflictsOnly && !event.isConflict) continue;
-    if (filters.courseFilter !== ALL_FILTER_VALUE && event.courseId !== filters.courseFilter) continue;
-    if (filters.typeFilter !== ALL_FILTER_VALUE && event.eventTypeCode !== filters.typeFilter) continue;
 
     events.push(event);
   }

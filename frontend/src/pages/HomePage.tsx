@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program } from '../services/api';
@@ -191,6 +191,9 @@ export const HomePage: React.FC = () => {
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>Create Program</DialogTitle>
+                        <DialogDescription>
+                            Enter a program name and graduation requirement credits.
+                        </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleCreateProgram} className="space-y-4 py-4">
                         <div className="grid gap-2">

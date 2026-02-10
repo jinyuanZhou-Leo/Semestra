@@ -74,6 +74,7 @@ class TabBase(BaseModel):
     settings: str = "{}"
     order_index: int = 0
     is_removable: bool = True
+    is_draggable: bool = True
 
 class TabCreate(TabBase):
     order_index: Optional[int] = None
@@ -88,6 +89,7 @@ class Tab(TabBase):
 class TabUpdate(BaseModel):
     settings: Optional[str] = None
     order_index: Optional[int] = None
+    is_draggable: Optional[bool] = None
 
 # --- Course Schemas ---
 class CourseBase(BaseModel):
@@ -418,6 +420,7 @@ class TabExport(BaseModel):
     settings: str = "{}"
     order_index: int = 0
     is_removable: bool = True
+    is_draggable: bool = True
 
 class CourseExport(BaseModel):
     name: str

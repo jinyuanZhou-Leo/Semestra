@@ -253,13 +253,21 @@ body>div>div[role="dialog"][data-state] {
 
 @layer base {
   html {
-      scrollbar-gutter: stable;
-    }
+    /* Keep layout width stable when vertical scrollbar toggles */
+    overflow-y: scroll;
+    scrollbar-gutter: stable both-edges;
+  }
   * {
     @apply border-border outline-ring/50;
   }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+
+  /* Some overlay libraries add scrollbar compensation on scroll lock.
+     Disable it to avoid horizontal layout jumps. */
+  body[data-scroll-locked] {
+    padding-right: 0 !important;
   }
 }

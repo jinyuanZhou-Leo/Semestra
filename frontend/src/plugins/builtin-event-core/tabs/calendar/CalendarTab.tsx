@@ -5,9 +5,7 @@ import scheduleService from '@/services/schedule';
 import type { TabProps } from '@/services/tabRegistry';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  ALL_FILTER_VALUE,
   CALENDAR_DEFAULT_VIEW_MODE,
-  CALENDAR_EVENT_DEFAULT_COLORS,
   DEFAULT_WEEK,
 } from '../../shared/constants';
 import { timetableEventBus, useEventBus } from '../../shared/eventBus';
@@ -25,6 +23,7 @@ import {
 } from '../../shared/utils';
 import { CalendarToolbar } from './CalendarToolbar';
 import { CalendarSkeleton } from './components/CalendarSkeleton';
+import { normalizeCalendarSettings } from './settings';
 
 const FullCalendarView = React.lazy(async () => {
   const module = await import('./FullCalendarView');
@@ -38,39 +37,15 @@ const EventEditor = React.lazy(async () => {
 
 const FALLBACK_RANGE: SemesterDateRange = resolveSemesterDateRange(undefined, undefined, 16);
 
-const normalizeCalendarSettings = (value: any): CalendarSettingsState => {
-  const source = value && typeof value === 'object' ? value : {};
-  const sourceFilters = source.filters && typeof source.filters === 'object' ? source.filters : {};
-  const sourceColors = source.eventColors && typeof source.eventColors === 'object' ? source.eventColors : {};
-
-  return {
-    skippedDisplay: source.skippedDisplay === 'hidden' ? 'hidden' : 'grayed',
-    eventColors: {
-      schedule: typeof sourceColors.schedule === 'string' ? sourceColors.schedule : CALENDAR_EVENT_DEFAULT_COLORS.schedule,
-      todo: typeof sourceColors.todo === 'string' ? sourceColors.todo : CALENDAR_EVENT_DEFAULT_COLORS.todo,
-      custom: typeof sourceColors.custom === 'string' ? sourceColors.custom : CALENDAR_EVENT_DEFAULT_COLORS.custom,
-    },
-    filters: {
-      courseFilter: typeof sourceFilters.courseFilter === 'string' ? sourceFilters.courseFilter : ALL_FILTER_VALUE,
-      typeFilter: typeof sourceFilters.typeFilter === 'string' ? sourceFilters.typeFilter : ALL_FILTER_VALUE,
-      showConflictsOnly: Boolean(sourceFilters.showConflictsOnly),
-    },
-  };
-};
-
 export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings }) => {
   const [week, setWeek] = React.useState(DEFAULT_WEEK);
   const [viewMode, setViewMode] = React.useState<CalendarViewMode>(CALENDAR_DEFAULT_VIEW_MODE as CalendarViewMode);
-  const [settings, setSettings] = React.useState<CalendarSettingsState>(() => normalizeCalendarSettings(inputSettings));
+  const settings = React.useMemo<CalendarSettingsState>(() => normalizeCalendarSettings(inputSettings), [inputSettings]);
   const [selectedEvent, setSelectedEvent] = React.useState<CalendarEventData | null>(null);
   const [isEventEditorOpen, setIsEventEditorOpen] = React.useState(false);
   const [semesterRange, setSemesterRange] = React.useState<SemesterDateRange>(FALLBACK_RANGE);
   const [optimisticPatches, setOptimisticPatches] = React.useState<Map<string, CalendarEventPatch>>(new Map());
   const [isPending, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    setSettings(normalizeCalendarSettings(inputSettings));
-  }, [inputSettings]);
 
   const {
     items,
@@ -143,7 +118,6 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
       semesterRange.startDate,
       settings.eventColors,
       settings.skippedDisplay,
-      settings.filters,
     );
   }, [itemsWithPatches, semesterRange.startDate, settings]);
 
@@ -254,6 +228,9 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
             maxWeek={maxWeek}
             viewMode={viewMode}
             semesterRange={semesterRange}
+            dayStartMinutes={settings.dayStartMinutes}
+            dayEndMinutes={settings.dayEndMinutes}
+            highlightConflicts={settings.highlightConflicts}
             isPending={isPending}
             onWeekChange={handleWeekChange}
             onEventClick={(event) => {

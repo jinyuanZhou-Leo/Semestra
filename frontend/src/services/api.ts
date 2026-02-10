@@ -54,6 +54,7 @@ export interface Tab {
     settings: string;
     order_index: number;
     is_removable?: boolean;
+    is_draggable?: boolean;
 }
 
 const inFlightRequests = new Map<string, Promise<unknown>>();
@@ -188,11 +189,11 @@ const api = {
     },
 
     // Tabs
-    createTab: async (semesterId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number; is_removable?: boolean }) => {
+    createTab: async (semesterId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number; is_removable?: boolean; is_draggable?: boolean }) => {
         const response = await axios.post<Tab>(`/api/semesters/${semesterId}/tabs/`, data);
         return response.data;
     },
-    createTabForCourse: async (courseId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number; is_removable?: boolean }) => {
+    createTabForCourse: async (courseId: string, data: { tab_type: string; title: string; settings?: string; order_index?: number; is_removable?: boolean; is_draggable?: boolean }) => {
         const response = await axios.post<Tab>(`/api/courses/${courseId}/tabs/`, data);
         return response.data;
     },

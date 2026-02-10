@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { WidgetRegistry } from "../services/widgetRegistry";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SaveSettingButton } from "./SaveSettingButton";
 import { getResolvedWidgetMetadataByType } from "../plugin-system";
@@ -52,6 +52,9 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
         <DialogContent className="p-0 sm:max-w-[520px]">
           <DialogHeader className="border-b px-6 py-4">
             <DialogTitle className="text-base font-semibold">{displayWidgetName} Settings</DialogTitle>
+            <DialogDescription className="sr-only">
+              Configure settings for {displayWidgetName}.
+            </DialogDescription>
           </DialogHeader>
           <div className="p-6">
             <div
@@ -83,6 +86,9 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
           <DialogTitle className="text-base font-semibold">
             {displayWidgetName} Settings
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Configure settings for {displayWidgetName}.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSave} className="p-6">
           <div className="space-y-4">

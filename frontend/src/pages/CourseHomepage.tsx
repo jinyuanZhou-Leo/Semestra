@@ -28,7 +28,8 @@ import { getResolvedTabMetadataByType, hasTabPluginForType } from '../plugin-sys
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
 import {
     COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
-    HOMEPAGE_DASHBOARD_TAB_ID,
+    HOMEPAGE_DASHBOARD_TAB_TYPE,
+    HOMEPAGE_SETTINGS_TAB_TYPE,
 } from '../utils/homepageBuiltinTabs';
 
 import {
@@ -56,7 +57,7 @@ const CourseHomepageContent: React.FC = () => {
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
-    const [activeTabId, setActiveTabId] = useState(HOMEPAGE_DASHBOARD_TAB_ID);
+    const [activeTabId, setActiveTabId] = useState('');
     const [programName, setProgramName] = useState<string | null>(null);
     const [semesterName, setSemesterName] = useState<string | null>(null);
 
@@ -132,6 +133,7 @@ const CourseHomepageContent: React.FC = () => {
 
     const {
         tabs,
+        isInitialized: isTabsInitialized,
         addTab: handleAddTab,
         removeTab: handleRemoveTab,
         updateTabSettingsDebounced,
@@ -220,50 +222,31 @@ const CourseHomepageContent: React.FC = () => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
 
+    const ensureBuiltinTabInstance = useCallback((type: string) => {
+        const isShellTab = type === HOMEPAGE_DASHBOARD_TAB_TYPE || type === HOMEPAGE_SETTINGS_TAB_TYPE;
+        return handleAddTab(type, { isRemovable: false, isDraggable: !isShellTab });
+    }, [handleAddTab]);
+
     // Centralize builtin-tab visibility/loading/order rules for homepage tabs.
     const {
         registeredTabTypes,
         isActiveTabPluginLoading,
         tabBarItems,
-        visibleCustomTabs,
-        isBuiltinTabId,
+        visibleTabs,
+        areBuiltinTabsReady,
         filterReorderableTabIds,
     } = useHomepageBuiltinTabs({
         tabs,
         activeTabId,
         config: COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
+        isTabsInitialized,
+        ensureBuiltinTabInstance,
     });
 
     const dashboardContent = useMemo(() => {
         if (!course) return null;
-        if (isBuiltinTabId(activeTabId)) {
-            const StaticComponent = TabRegistry.getComponent(activeTabId);
-            if (!StaticComponent) {
-                if (isActiveTabPluginLoading) {
-                    return <PluginTabSkeleton />;
-                }
-                return (
-                    <Empty className="bg-muted/40">
-                        <EmptyHeader>
-                            <EmptyTitle>Builtin tab not found</EmptyTitle>
-                            <EmptyDescription>
-                                The requested tab is unavailable.
-                            </EmptyDescription>
-                        </EmptyHeader>
-                    </Empty>
-                );
-            }
-            return (
-                <StaticComponent
-                    tabId={activeTabId}
-                    settings={{}}
-                    courseId={course.id}
-                    updateSettings={() => undefined}
-                />
-            );
-        }
-
-        const activeTab = tabs.find(tab => tab.id === activeTabId);
+        if (!activeTabId) return <PluginTabSkeleton />;
+        const activeTab = visibleTabs.find(tab => tab.id === activeTabId);
         const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
         if (!activeTab) {
             return (
@@ -302,21 +285,25 @@ const CourseHomepageContent: React.FC = () => {
                 />
             </React.Suspense>
         );
-    }, [activeTabId, course, tabs, handleUpdateTabSettings, isActiveTabPluginLoading, isBuiltinTabId]);
+    }, [activeTabId, course, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         reorderTabs(filterReorderableTabIds(orderedIds));
     }, [filterReorderableTabIds, reorderTabs]);
 
     useEffect(() => {
-        if (isBuiltinTabId(activeTabId)) return;
-        if (!tabs.some(tab => tab.id === activeTabId)) {
-            setActiveTabId(HOMEPAGE_DASHBOARD_TAB_ID);
+        if (tabBarItems.length === 0) {
+            if (activeTabId) setActiveTabId('');
+            return;
         }
-    }, [activeTabId, isBuiltinTabId, tabs, setActiveTabId]);
+        if (!activeTabId && !areBuiltinTabsReady) return;
+        if (!activeTabId || !tabBarItems.some(tab => tab.id === activeTabId)) {
+            setActiveTabId(tabBarItems[0].id);
+        }
+    }, [activeTabId, areBuiltinTabsReady, tabBarItems]);
 
     const tabSettingsSections = useMemo(() => {
-        const sections = visibleCustomTabs
+        const sections = visibleTabs
             .map(tab => {
             const definition = registeredTabTypes.has(tab.type) ? TabRegistry.get(tab.type) : undefined;
             const metadata = getResolvedTabMetadataByType(tab.type);
@@ -351,7 +338,7 @@ const CourseHomepageContent: React.FC = () => {
             </div>
         );
     }, [
-        visibleCustomTabs,
+        visibleTabs,
         course?.id,
         handleUpdateTabSettings,
         registeredTabTypes

@@ -1,1 +1,0 @@
-export { SemesterScheduleTab } from './SemesterScheduleTab';

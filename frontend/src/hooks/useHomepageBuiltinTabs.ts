@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TabItem as TabsBarItem } from '../components/Tabs';
 import type { TabItem as DashboardTabItem } from './useDashboardTabs';
 import {
@@ -8,20 +8,21 @@ import {
 } from '../plugin-system';
 import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
 import type { HomepageBuiltinTabConfig } from '../utils/homepageBuiltinTabs';
-import { HOMEPAGE_DASHBOARD_TAB_ID, HOMEPAGE_SETTINGS_TAB_ID } from '../utils/homepageBuiltinTabs';
 
 interface UseHomepageBuiltinTabsOptions {
     tabs: DashboardTabItem[];
     activeTabId: string;
     config: HomepageBuiltinTabConfig;
+    isTabsInitialized: boolean;
+    ensureBuiltinTabInstance: (type: string) => void | Promise<void>;
 }
 
 interface UseHomepageBuiltinTabsResult {
     registeredTabTypes: Set<string>;
     isActiveTabPluginLoading: boolean;
     tabBarItems: TabsBarItem[];
-    visibleCustomTabs: DashboardTabItem[];
-    isBuiltinTabId: (tabId: string) => boolean;
+    visibleTabs: DashboardTabItem[];
+    areBuiltinTabsReady: boolean;
     filterReorderableTabIds: (orderedIds: string[]) => string[];
 }
 
@@ -29,9 +30,12 @@ export const useHomepageBuiltinTabs = ({
     tabs,
     activeTabId,
     config,
+    isTabsInitialized,
+    ensureBuiltinTabInstance,
 }: UseHomepageBuiltinTabsOptions): UseHomepageBuiltinTabsResult => {
     const registeredTabs = useTabRegistry();
     const [isActiveTabPluginLoading, setIsActiveTabPluginLoading] = useState(false);
+    const pendingBuiltinTabTypesRef = useRef<Set<string>>(new Set());
 
     // Registry updates tell us when lazy-loaded tab plugins are finally ready to render.
     const registeredTabTypes = useMemo(
@@ -39,21 +43,34 @@ export const useHomepageBuiltinTabs = ({
         [registeredTabs]
     );
 
-    const isBuiltinTabId = useCallback(
-        (tabId: string) =>
-            tabId === HOMEPAGE_DASHBOARD_TAB_ID ||
-            tabId === HOMEPAGE_SETTINGS_TAB_ID ||
-            config.builtinTabIds.includes(tabId),
-        [config.builtinTabIds]
+    useEffect(() => {
+        if (!isTabsInitialized) return;
+
+        const nextMissingType = config.builtinTabTypes.find((type) => {
+            if (pendingBuiltinTabTypesRef.current.has(type)) return false;
+            return !tabs.some((tab) => tab.type === type);
+        });
+        if (!nextMissingType) return;
+
+        pendingBuiltinTabTypesRef.current.add(nextMissingType);
+        void Promise.resolve(ensureBuiltinTabInstance(nextMissingType))
+            .catch((error) => {
+                console.error(`Failed to ensure builtin tab instance for type: ${nextMissingType}`, error);
+            })
+            .finally(() => {
+                pendingBuiltinTabTypesRef.current.delete(nextMissingType);
+            });
+    }, [config.builtinTabTypes, ensureBuiltinTabInstance, isTabsInitialized, tabs]);
+
+    const areBuiltinTabsReady = useMemo(
+        () => config.builtinTabTypes.every((type) => tabs.some((tab) => tab.type === type)),
+        [config.builtinTabTypes, tabs]
     );
 
     const activeTabType = useMemo(() => {
-        if (isBuiltinTabId(activeTabId)) {
-            return activeTabId;
-        }
         const currentTab = tabs.find((tab) => tab.id === activeTabId);
         return currentTab?.type;
-    }, [activeTabId, isBuiltinTabId, tabs]);
+    }, [activeTabId, tabs]);
 
     useEffect(() => {
         let isActive = true;
@@ -88,12 +105,52 @@ export const useHomepageBuiltinTabs = ({
         };
     }, [activeTabType]);
 
-    const visibleCustomTabs = useMemo(
-        () => tabs.filter((tab) => !config.hiddenTabTypes.has(tab.type)),
-        [config.hiddenTabTypes, tabs]
-    );
+    const visibleTabs = useMemo(() => {
+        const tabsByType = new Map<string, DashboardTabItem[]>();
+        const trailingBuiltinTabTypes = config.trailingBuiltinTabTypes ?? [];
+        const trailingBuiltinTypeSet = new Set(trailingBuiltinTabTypes);
+        tabs.forEach((tab) => {
+            const group = tabsByType.get(tab.type);
+            if (group) {
+                group.push(tab);
+                return;
+            }
+            tabsByType.set(tab.type, [tab]);
+        });
 
-    const pluginTabItems: TabsBarItem[] = visibleCustomTabs.map((tab) => {
+        const ordered: DashboardTabItem[] = [];
+        const consumedTabIds = new Set<string>();
+
+        config.builtinTabTypes.forEach((type) => {
+            if (trailingBuiltinTypeSet.has(type)) return;
+            const matchingTabs = tabsByType.get(type);
+            if (!matchingTabs?.length) return;
+            matchingTabs.forEach((tab) => {
+                ordered.push(tab);
+                consumedTabIds.add(tab.id);
+            });
+        });
+
+        tabs.forEach((tab) => {
+            if (consumedTabIds.has(tab.id)) return;
+            if (trailingBuiltinTypeSet.has(tab.type)) return;
+            ordered.push(tab);
+        });
+
+        trailingBuiltinTabTypes.forEach((type) => {
+            const matchingTabs = tabsByType.get(type);
+            if (!matchingTabs?.length) return;
+            matchingTabs.forEach((tab) => {
+                if (consumedTabIds.has(tab.id)) return;
+                ordered.push(tab);
+                consumedTabIds.add(tab.id);
+            });
+        });
+
+        return ordered;
+    }, [config.builtinTabTypes, config.trailingBuiltinTabTypes, tabs]);
+
+    const tabBarItems: TabsBarItem[] = visibleTabs.map((tab) => {
         // Resolve basic display fields from metadata even when runtime component is still lazy.
         const metadata = getResolvedTabMetadataByType(tab.type);
         return {
@@ -101,46 +158,35 @@ export const useHomepageBuiltinTabs = ({
             label: metadata.name ?? tab.title ?? tab.type,
             icon: metadata.icon,
             removable: tab.is_removable !== false,
-            draggable: tab.is_removable !== false,
+            draggable: tab.is_draggable !== false,
         };
     });
 
-    const buildFixedTabItem = (id: string, fallbackLabel: string): TabsBarItem => {
-        const metadata = getResolvedTabMetadataByType(id);
-        return {
-            id,
-            label: metadata.name ?? fallbackLabel,
-            icon: metadata.icon,
-            draggable: false,
-            removable: false,
-        };
-    };
-
-    const tabBarItems: TabsBarItem[] = [
-        buildFixedTabItem(HOMEPAGE_DASHBOARD_TAB_ID, 'Dashboard'),
-        ...config.builtinTabDescriptors.map(({ id, fallbackLabel }) =>
-            buildFixedTabItem(id, fallbackLabel)
-        ),
-        ...pluginTabItems,
-        buildFixedTabItem(HOMEPAGE_SETTINGS_TAB_ID, 'Settings'),
-    ];
-
-    const reorderableTabIds = useMemo(
-        () => new Set(visibleCustomTabs.map((tab) => tab.id)),
-        [visibleCustomTabs]
+    const visibleTabIds = useMemo(
+        () => new Set(visibleTabs.map((tab) => tab.id)),
+        [visibleTabs]
     );
 
+    const nonReorderableTabIds = useMemo(() => {
+        const trailingBuiltinTypeSet = new Set(config.trailingBuiltinTabTypes ?? []);
+        return new Set(
+            visibleTabs
+                .filter((tab) => trailingBuiltinTypeSet.has(tab.type))
+                .map((tab) => tab.id)
+        );
+    }, [config.trailingBuiltinTabTypes, visibleTabs]);
+
     const filterReorderableTabIds = useCallback(
-        (orderedIds: string[]) => orderedIds.filter((id) => reorderableTabIds.has(id)),
-        [reorderableTabIds]
+        (orderedIds: string[]) => orderedIds.filter((id) => visibleTabIds.has(id) && !nonReorderableTabIds.has(id)),
+        [nonReorderableTabIds, visibleTabIds]
     );
 
     return {
         registeredTabTypes,
         isActiveTabPluginLoading,
         tabBarItems,
-        visibleCustomTabs,
-        isBuiltinTabId,
+        visibleTabs,
+        areBuiltinTabsReady,
         filterReorderableTabIds,
     };
 };

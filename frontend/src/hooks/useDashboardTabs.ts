@@ -14,6 +14,7 @@ export interface TabItem {
     settings?: any;
     order_index: number;
     is_removable?: boolean;
+    is_draggable?: boolean;
 }
 
 interface UseDashboardTabsProps {
@@ -25,6 +26,7 @@ interface UseDashboardTabsProps {
 
 interface AddTabOptions {
     isRemovable?: boolean;
+    isDraggable?: boolean;
 }
 
 const toTabItem = (tab: Tab): TabItem => {
@@ -40,7 +42,8 @@ const toTabItem = (tab: Tab): TabItem => {
         title: tab.title,
         settings: parsedSettings,
         order_index: tab.order_index ?? 0,
-        is_removable: tab.is_removable
+        is_removable: tab.is_removable,
+        is_draggable: tab.is_draggable
     };
 };
 
@@ -113,7 +116,8 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                     title,
                     settings,
                     order_index: nextOrder,
-                    is_removable: options?.isRemovable
+                    is_removable: options?.isRemovable,
+                    is_draggable: options?.isDraggable
                 });
             } else {
                 newTab = await api.createTab(semesterId!, {
@@ -121,7 +125,8 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                     title,
                     settings,
                     order_index: nextOrder,
-                    is_removable: options?.isRemovable
+                    is_removable: options?.isRemovable,
+                    is_draggable: options?.isDraggable
                 });
             }
 

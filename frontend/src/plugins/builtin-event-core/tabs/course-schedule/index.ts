@@ -1,1 +1,2 @@
-export { CourseScheduleTab, CourseScheduleSettings } from './CourseScheduleTab';
+export { CourseScheduleTab } from './CourseScheduleTab';
+export { CourseScheduleSettings } from './CourseScheduleSettings';

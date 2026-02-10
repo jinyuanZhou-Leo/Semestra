@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type DialogTone = "default" | "destructive";
 
@@ -63,6 +63,9 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           {state?.title && (
             <DialogHeader className="border-b px-6 py-4">
               <DialogTitle className="text-base font-semibold">{state.title}</DialogTitle>
+              <DialogDescription className="sr-only">
+                {state?.description ?? (state?.type === "confirm" ? "Please confirm this action." : "Please review this message.")}
+              </DialogDescription>
             </DialogHeader>
           )}
           <div className="p-6">

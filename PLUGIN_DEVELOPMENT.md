@@ -30,6 +30,12 @@ The application provides built-in tab plugins:
 These are registered from `frontend/src/plugins/builtin-dashboard/` and `frontend/src/plugins/builtin-settings/`.
 Do not reuse these `type` values in custom plugins.
 
+These two tabs are regular tab instances (stored in the `tabs` table), not hardcoded shell-only tabs.
+Framework behavior:
+- Auto-ensures one instance per homepage context (semester/course).
+- Marks them as `is_removable = false` and `is_draggable = false`.
+- Other built-in tab instances are non-removable by policy, but draggable by default.
+
 ### Auto Registration
 
 `widget-setup.ts` and `tab-setup.ts` automatically scan all plugin `index.ts` files using `import.meta.glob`.
@@ -266,6 +272,17 @@ export interface TabDefinition {
     onDelete?: (ctx: TabLifecycleContext) => Promise<void> | void;
 }
 ```
+
+### Tab Instance Flags (Persistence Layer)
+
+`TabDefinition` describes plugin behavior, while tab instance mutability/reorderability is stored per record:
+
+- `is_removable: boolean` controls whether the tab can be deleted.
+- `is_draggable: boolean` controls whether the tab can be reordered.
+
+The homepage tab bar uses `is_draggable` (not `is_removable`) to decide drag/reorder eligibility.
+
+Context visibility is determined by plugin `allowedContexts`; no additional type-based hide list is required.
 
 ```typescript
 export interface TabProps {

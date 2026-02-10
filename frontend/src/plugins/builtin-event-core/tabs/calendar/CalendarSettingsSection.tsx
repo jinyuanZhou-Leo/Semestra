@@ -1,63 +1,34 @@
 import React from 'react';
+import { Download } from 'lucide-react';
+import { SettingsSection } from '@/components/SettingsSection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ALL_FILTER_VALUE, CALENDAR_EVENT_DEFAULT_COLORS } from '../../shared/constants';
 import { useScheduleData } from '../../shared/hooks/useScheduleData';
 import type { CalendarSettingsState } from '../../shared/types';
-import { buildCourseOptions, buildTypeOptions } from '../../shared/utils';
+import { buildCourseOptions } from '../../shared/utils';
+import { EventColorPicker } from './components/EventColorPicker';
+import {
+  DEFAULT_CALENDAR_SETTINGS,
+  normalizeDayMinuteWindow,
+  normalizeCalendarSettings,
+  parseTimeInputValue,
+  toTimeInputValue,
+} from './settings';
+import { SemesterScheduleExportModal } from './SemesterScheduleExportModal';
 
 interface CalendarSettingsSectionProps {
   semesterId?: string;
-  settings: any;
-  updateSettings: (newSettings: any) => void | Promise<void>;
+  settings: unknown;
+  updateSettings: (newSettings: CalendarSettingsState) => void | Promise<void>;
 }
-
-const DEFAULT_SETTINGS: CalendarSettingsState = {
-  skippedDisplay: 'grayed',
-  eventColors: {
-    schedule: CALENDAR_EVENT_DEFAULT_COLORS.schedule,
-    todo: CALENDAR_EVENT_DEFAULT_COLORS.todo,
-    custom: CALENDAR_EVENT_DEFAULT_COLORS.custom,
-  },
-  filters: {
-    courseFilter: ALL_FILTER_VALUE,
-    typeFilter: ALL_FILTER_VALUE,
-    showConflictsOnly: false,
-  },
-};
-
-const normalizeCalendarSettings = (value: any): CalendarSettingsState => {
-  const source = value && typeof value === 'object' ? value : {};
-  const sourceFilters = source.filters && typeof source.filters === 'object' ? source.filters : {};
-  const sourceColors = source.eventColors && typeof source.eventColors === 'object' ? source.eventColors : {};
-
-  return {
-    skippedDisplay: source.skippedDisplay === 'hidden' ? 'hidden' : 'grayed',
-    eventColors: {
-      schedule: typeof sourceColors.schedule === 'string' ? sourceColors.schedule : CALENDAR_EVENT_DEFAULT_COLORS.schedule,
-      todo: typeof sourceColors.todo === 'string' ? sourceColors.todo : CALENDAR_EVENT_DEFAULT_COLORS.todo,
-      custom: typeof sourceColors.custom === 'string' ? sourceColors.custom : CALENDAR_EVENT_DEFAULT_COLORS.custom,
-    },
-    filters: {
-      courseFilter: typeof sourceFilters.courseFilter === 'string' ? sourceFilters.courseFilter : ALL_FILTER_VALUE,
-      typeFilter: typeof sourceFilters.typeFilter === 'string' ? sourceFilters.typeFilter : ALL_FILTER_VALUE,
-      showConflictsOnly: Boolean(sourceFilters.showConflictsOnly),
-    },
-  };
-};
 
 export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({ semesterId, settings, updateSettings }) => {
   const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
-  const { items } = useScheduleData({
+  const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
+  const { items, maxWeek } = useScheduleData({
     semesterId,
     mode: 'all-weeks',
     enabled: Boolean(semesterId),
@@ -65,16 +36,11 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
   });
 
   const courseOptions = React.useMemo(() => buildCourseOptions(items), [items]);
-  const typeOptions = React.useMemo(() => buildTypeOptions(items), [items]);
 
   const patchSettings = (patch: Partial<CalendarSettingsState>) => {
     const nextSettings: CalendarSettingsState = {
       ...normalizedSettings,
       ...patch,
-      filters: {
-        ...normalizedSettings.filters,
-        ...(patch.filters ?? {}),
-      },
       eventColors: {
         ...normalizedSettings.eventColors,
         ...(patch.eventColors ?? {}),
@@ -84,118 +50,141 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
     void Promise.resolve(updateSettings(nextSettings));
   };
 
+  const updateDayStartTime = (value: string) => {
+    const parsed = parseTimeInputValue(value);
+    if (parsed === null) return;
+    const minuteWindow = normalizeDayMinuteWindow(parsed, normalizedSettings.dayEndMinutes);
+    patchSettings({
+      dayStartMinutes: minuteWindow.dayStartMinutes,
+      dayEndMinutes: minuteWindow.dayEndMinutes,
+    });
+  };
+
+  const updateDayEndTime = (value: string) => {
+    const parsed = parseTimeInputValue(value);
+    if (parsed === null) return;
+    const minuteWindow = normalizeDayMinuteWindow(normalizedSettings.dayStartMinutes, parsed);
+    patchSettings({
+      dayStartMinutes: minuteWindow.dayStartMinutes,
+      dayEndMinutes: minuteWindow.dayEndMinutes,
+    });
+  };
+
   return (
-    <div className="space-y-5 rounded-lg border p-4">
-      <div className="space-y-2">
-        <Label htmlFor="calendar-settings-skipped-mode">Skipped events</Label>
-        <Select
-          value={normalizedSettings.skippedDisplay}
-          onValueChange={(value) => patchSettings({ skippedDisplay: value as CalendarSettingsState['skippedDisplay'] })}
-        >
-          <SelectTrigger id="calendar-settings-skipped-mode" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="grayed">Show as grayed</SelectItem>
-            <SelectItem value="hidden">Hide skipped</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="calendar-settings-course-filter">Course filter</Label>
-          <Select
-            value={normalizedSettings.filters.courseFilter}
-            onValueChange={(value) => patchSettings({ filters: { ...normalizedSettings.filters, courseFilter: value } })}
+    <>
+      <SettingsSection
+        title="Calendar"
+        description="Configure visibility and source colors for the calendar tab."
+        headerAction={(
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void Promise.resolve(updateSettings(DEFAULT_CALENDAR_SETTINGS))}
           >
-            <SelectTrigger id="calendar-settings-course-filter" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>All courses</SelectItem>
-              {courseOptions.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+            Reset Calendar Settings
+          </Button>
+        )}
+      >
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="calendar-settings-skipped-mode">Skipped events</Label>
+            <Select modal={false} value={normalizedSettings.skippedDisplay}
+              onValueChange={(value) => patchSettings({ skippedDisplay: value as CalendarSettingsState['skippedDisplay'] })}
+            >
+              <SelectTrigger id="calendar-settings-skipped-mode" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectItem value="grayed">Show as grayed</SelectItem>
+                <SelectItem value="hidden">Hide skipped</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="calendar-settings-type-filter">Type filter</Label>
-          <Select
-            value={normalizedSettings.filters.typeFilter}
-            onValueChange={(value) => patchSettings({ filters: { ...normalizedSettings.filters, typeFilter: value } })}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="calendar-settings-day-start">Day start time</Label>
+              <Input
+                id="calendar-settings-day-start"
+                type="time"
+                step={1800}
+                value={toTimeInputValue(normalizedSettings.dayStartMinutes)}
+                onChange={(event) => updateDayStartTime(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="calendar-settings-day-end">Day end time</Label>
+              <Input
+                id="calendar-settings-day-end"
+                type="time"
+                step={1800}
+                value={toTimeInputValue(normalizedSettings.dayEndMinutes)}
+                onChange={(event) => updateDayEndTime(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="calendar-settings-highlight-conflicts" className="cursor-pointer">Highlight conflicts</Label>
+              <p className="text-xs text-muted-foreground">Use stronger visual emphasis for conflict events.</p>
+            </div>
+            <Switch
+              id="calendar-settings-highlight-conflicts"
+              checked={normalizedSettings.highlightConflicts}
+              onCheckedChange={(checked) => patchSettings({ highlightConflicts: checked })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Event source colors</Label>
+            <div className="grid gap-3 lg:grid-cols-3">
+              <EventColorPicker
+                source="schedule"
+                value={normalizedSettings.eventColors.schedule}
+                onChange={(color) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, schedule: color } })}
+              />
+              <EventColorPicker
+                source="todo"
+                value={normalizedSettings.eventColors.todo}
+                onChange={(color) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, todo: color } })}
+              />
+              <EventColorPicker
+                source="custom"
+                value={normalizedSettings.eventColors.custom}
+                onChange={(color) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, custom: color } })}
+              />
+            </div>
+          </div>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Schedule Export"
+        description="Export semester or course schedule with filters and format options."
+      >
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsExportModalOpen(true)}
+            disabled={!semesterId}
           >
-            <SelectTrigger id="calendar-settings-type-filter" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>All types</SelectItem>
-              {typeOptions.map((item) => (
-                <SelectItem key={item} value={item}>{item}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Download className="mr-2 h-4 w-4" />
+            Open Export
+          </Button>
         </div>
-      </div>
+      </SettingsSection>
 
-      <div className="flex items-center justify-between rounded-md border p-3">
-        <div className="space-y-0.5">
-          <Label htmlFor="calendar-settings-conflict" className="cursor-pointer">Conflict only</Label>
-          <p className="text-xs text-muted-foreground">Show only events in conflict groups.</p>
-        </div>
-        <Switch
-          id="calendar-settings-conflict"
-          checked={normalizedSettings.filters.showConflictsOnly}
-          onCheckedChange={(checked) => patchSettings({ filters: { ...normalizedSettings.filters, showConflictsOnly: checked } })}
+      {semesterId ? (
+        <SemesterScheduleExportModal
+          open={isExportModalOpen}
+          onOpenChange={setIsExportModalOpen}
+          semesterId={semesterId}
+          maxWeek={maxWeek}
+          courseOptions={courseOptions}
         />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="calendar-settings-color-schedule">Schedule</Label>
-          <Input
-            id="calendar-settings-color-schedule"
-            type="color"
-            value={normalizedSettings.eventColors.schedule}
-            onChange={(event) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, schedule: event.target.value } })}
-            className="h-10 w-full cursor-pointer"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="calendar-settings-color-todo">Todo</Label>
-          <Input
-            id="calendar-settings-color-todo"
-            type="color"
-            value={normalizedSettings.eventColors.todo}
-            onChange={(event) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, todo: event.target.value } })}
-            className="h-10 w-full cursor-pointer"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="calendar-settings-color-custom">Custom</Label>
-          <Input
-            id="calendar-settings-color-custom"
-            type="color"
-            value={normalizedSettings.eventColors.custom}
-            onChange={(event) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, custom: event.target.value } })}
-            className="h-10 w-full cursor-pointer"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void Promise.resolve(updateSettings(DEFAULT_SETTINGS))}
-        >
-          Reset Calendar Settings
-        </Button>
-      </div>
-    </div>
+      ) : null}
+    </>
   );
 };

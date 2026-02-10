@@ -68,11 +68,11 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
       <div className="max-w-[220px] space-y-1.5">
         <span className="text-sm font-medium">View</span>
         <div>
-          <Select value={viewMode} onValueChange={(value) => onViewModeChange(value as CalendarViewMode)}>
+          <Select modal={false} value={viewMode} onValueChange={(value) => onViewModeChange(value as CalendarViewMode)}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper">
               <SelectItem value="week">Week</SelectItem>
               <SelectItem value="month">Month</SelectItem>
             </SelectContent>

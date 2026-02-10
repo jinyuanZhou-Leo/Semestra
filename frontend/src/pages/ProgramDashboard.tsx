@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
 import { Progress } from '@/components/ui/progress';
@@ -916,6 +916,9 @@ const ProgramDashboardContent: React.FC = () => {
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>Create New Semester</DialogTitle>
+                        <DialogDescription>
+                            Enter a semester name and optionally import a calendar file.
+                        </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleCreateSemester} className="space-y-4 py-4">
                         <div className="grid gap-2">

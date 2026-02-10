@@ -1,5 +1,4 @@
 export const BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE = 'builtin-academic-calendar';
-export const BUILTIN_TIMETABLE_SEMESTER_SCHEDULE_TAB_TYPE = 'builtin-semester-schedule';
 export const BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE = 'builtin-course-schedule';
 export const BUILTIN_TIMETABLE_TODO_TAB_TYPE = 'builtin-todo';
 

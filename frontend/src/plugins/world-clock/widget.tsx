@@ -31,14 +31,13 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
         <div className="grid gap-4">
             <div className="grid gap-2">
                 <Label htmlFor="world-clock-timezone">Timezone</Label>
-                <Select
-                    value={settings?.timezone || 'UTC'}
+                <Select modal={false} value={settings?.timezone || 'UTC'}
                     onValueChange={(timezone) => onSettingsChange({ ...settings, timezone })}
                 >
                     <SelectTrigger id="world-clock-timezone" className="h-10 pr-8">
                         <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper">
                         {AVAILABLE_TIMEZONES.map(tz => (
                             <SelectItem key={tz.value} value={tz.value}>
                                 {tz.label}

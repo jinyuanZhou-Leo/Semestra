@@ -68,15 +68,15 @@
 
 ## Phase 4 - Semester/Course Schedule Tabs
 
-- [ ] Implement semester schedule tab:
+- [x] Implement semester schedule tab:
   - `tabs/semester-schedule/SemesterScheduleTab.tsx`
   - `tabs/semester-schedule/SemesterScheduleSettings.tsx`
-- [ ] Implement course schedule tab:
+- [x] Implement course schedule tab:
   - `tabs/course-schedule/CourseScheduleTab.tsx`
   - `tabs/course-schedule/CourseScheduleSettings.tsx`
-- [ ] Implement virtualized schedule list:
+- [x] Implement virtualized schedule list:
   - `tabs/semester-schedule/components/VirtualizedScheduleList.tsx`
-- [ ] Add schedule skeletons in plugin folder:
+- [x] Add schedule skeletons in plugin folder:
   - `tabs/semester-schedule/components/ScheduleSkeleton.tsx`
 
 ## Phase 5 - UX Enhancements from Plan

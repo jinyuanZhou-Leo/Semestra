@@ -11,15 +11,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ALL_FILTER_VALUE } from '../../shared/constants';
 import type { CalendarSettingsState } from '../../shared/types';
+import { normalizeDayMinuteWindow, parseTimeInputValue, toTimeInputValue } from './settings';
 
 interface CalendarSettingsProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   settings: CalendarSettingsState;
-  courseOptions: Array<{ id: string; name: string }>;
-  typeOptions: string[];
   onChange: (nextSettings: CalendarSettingsState) => void;
   onReset: () => void;
 }
@@ -28,8 +26,6 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
   open,
   onOpenChange,
   settings,
-  courseOptions,
-  typeOptions,
   onChange,
   onReset,
 }) => {
@@ -37,14 +33,30 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
     onChange({
       ...settings,
       ...patch,
-      filters: {
-        ...settings.filters,
-        ...(patch.filters ?? {}),
-      },
       eventColors: {
         ...settings.eventColors,
         ...(patch.eventColors ?? {}),
       },
+    });
+  };
+
+  const updateDayStartTime = (value: string) => {
+    const parsed = parseTimeInputValue(value);
+    if (parsed === null) return;
+    const minuteWindow = normalizeDayMinuteWindow(parsed, settings.dayEndMinutes);
+    patchSettings({
+      dayStartMinutes: minuteWindow.dayStartMinutes,
+      dayEndMinutes: minuteWindow.dayEndMinutes,
+    });
+  };
+
+  const updateDayEndTime = (value: string) => {
+    const parsed = parseTimeInputValue(value);
+    if (parsed === null) return;
+    const minuteWindow = normalizeDayMinuteWindow(settings.dayStartMinutes, parsed);
+    patchSettings({
+      dayStartMinutes: minuteWindow.dayStartMinutes,
+      dayEndMinutes: minuteWindow.dayEndMinutes,
     });
   };
 
@@ -54,21 +66,20 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
         <DialogHeader>
           <DialogTitle>Calendar Settings</DialogTitle>
           <DialogDescription>
-            Configure visibility, filters, and event colors for the calendar view.
+            Configure visibility and event colors for the calendar view.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="calendar-skipped-display">Skipped events</Label>
-            <Select
-              value={settings.skippedDisplay}
+            <Select modal={false} value={settings.skippedDisplay}
               onValueChange={(value) => patchSettings({ skippedDisplay: value as CalendarSettingsState['skippedDisplay'] })}
             >
               <SelectTrigger id="calendar-skipped-display" className="w-full">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper">
                 <SelectItem value="grayed">Show as grayed</SelectItem>
                 <SelectItem value="hidden">Hide skipped</SelectItem>
               </SelectContent>
@@ -77,55 +88,37 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="calendar-course-filter">Course filter</Label>
-              <Select
-                value={settings.filters.courseFilter}
-                onValueChange={(value) => patchSettings({ filters: { ...settings.filters, courseFilter: value } })}
-              >
-                <SelectTrigger id="calendar-course-filter" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>All courses</SelectItem>
-                  {courseOptions.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="calendar-day-start">Day start time</Label>
+              <Input
+                id="calendar-day-start"
+                type="time"
+                step={1800}
+                value={toTimeInputValue(settings.dayStartMinutes)}
+                onChange={(event) => updateDayStartTime(event.target.value)}
+              />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="calendar-type-filter">Type filter</Label>
-              <Select
-                value={settings.filters.typeFilter}
-                onValueChange={(value) => patchSettings({ filters: { ...settings.filters, typeFilter: value } })}
-              >
-                <SelectTrigger id="calendar-type-filter" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>All types</SelectItem>
-                  {typeOptions.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="calendar-day-end">Day end time</Label>
+              <Input
+                id="calendar-day-end"
+                type="time"
+                step={1800}
+                value={toTimeInputValue(settings.dayEndMinutes)}
+                onChange={(event) => updateDayEndTime(event.target.value)}
+              />
             </div>
           </div>
 
           <div className="flex items-center justify-between rounded-md border p-3">
             <div className="space-y-0.5">
-              <Label htmlFor="calendar-conflict-only" className="cursor-pointer">Conflict only</Label>
-              <p className="text-xs text-muted-foreground">Show only events in conflict groups.</p>
+              <Label htmlFor="calendar-highlight-conflicts" className="cursor-pointer">Highlight conflicts</Label>
+              <p className="text-xs text-muted-foreground">Use stronger visual emphasis for conflict events.</p>
             </div>
             <Switch
-              id="calendar-conflict-only"
-              checked={settings.filters.showConflictsOnly}
-              onCheckedChange={(checked) => patchSettings({ filters: { ...settings.filters, showConflictsOnly: checked } })}
+              id="calendar-highlight-conflicts"
+              checked={settings.highlightConflicts}
+              onCheckedChange={(checked) => patchSettings({ highlightConflicts: checked })}
             />
           </div>
 

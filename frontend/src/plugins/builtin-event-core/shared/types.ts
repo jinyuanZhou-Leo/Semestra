@@ -57,16 +57,12 @@ export interface CalendarEventColorConfig {
   custom: string;
 }
 
-export interface CalendarFilterState {
-  courseFilter: string;
-  typeFilter: string;
-  showConflictsOnly: boolean;
-}
-
 export interface CalendarSettingsState {
   skippedDisplay: SkippedDisplayMode;
   eventColors: CalendarEventColorConfig;
-  filters: CalendarFilterState;
+  highlightConflicts: boolean;
+  dayStartMinutes: number;
+  dayEndMinutes: number;
 }
 
 export interface SemesterDateRange {

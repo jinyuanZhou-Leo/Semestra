@@ -62,6 +62,16 @@ def ensure_schema_compatibility():
             with engine.begin() as connection:
                 connection.execute(text("UPDATE semesters SET end_date = DATE(start_date, '+111 day') WHERE end_date IS NULL"))
 
+    if inspector.has_table("tabs"):
+        tab_columns = {column["name"] for column in inspector.get_columns("tabs")}
+        if "is_draggable" not in tab_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE tabs ADD COLUMN is_draggable BOOLEAN DEFAULT 1"))
+                connection.execute(text("UPDATE tabs SET is_draggable = 1 WHERE is_draggable IS NULL"))
+        else:
+            with engine.begin() as connection:
+                connection.execute(text("UPDATE tabs SET is_draggable = 1 WHERE is_draggable IS NULL"))
+
 ensure_schema_compatibility()
 
 from fastapi import UploadFile, File
@@ -784,7 +794,8 @@ async def export_user_data(
                         tab_type=t.tab_type,
                         settings=t.settings,
                         order_index=t.order_index,
-                        is_removable=t.is_removable
+                        is_removable=t.is_removable,
+                        is_draggable=t.is_draggable
                     ) for t in course.tabs
                 ]
                 courses_export.append(schemas.CourseExport(
@@ -813,7 +824,8 @@ async def export_user_data(
                     tab_type=t.tab_type,
                     settings=t.settings,
                     order_index=t.order_index,
-                    is_removable=t.is_removable
+                    is_removable=t.is_removable,
+                    is_draggable=t.is_draggable
                 ) for t in semester.tabs
             ]
             
@@ -943,7 +955,8 @@ async def import_user_data(
                         tab_type=tab_data.tab_type,
                         settings=tab_data.settings,
                         order_index=tab_data.order_index,
-                        is_removable=tab_data.is_removable
+                        is_removable=tab_data.is_removable,
+                        is_draggable=tab_data.is_draggable
                     ),
                     semester_id=semester.id
                 )
@@ -987,7 +1000,8 @@ async def import_user_data(
                             tab_type=tab_data.tab_type,
                             settings=tab_data.settings,
                             order_index=tab_data.order_index,
-                            is_removable=tab_data.is_removable
+                            is_removable=tab_data.is_removable,
+                            is_draggable=tab_data.is_draggable
                         ),
                         course_id=course.id
                     )

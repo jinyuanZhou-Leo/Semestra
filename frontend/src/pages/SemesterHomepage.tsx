@@ -26,7 +26,8 @@ import { PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import { getResolvedTabMetadataByType, hasTabPluginForType } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
 import {
-    HOMEPAGE_DASHBOARD_TAB_ID,
+    HOMEPAGE_DASHBOARD_TAB_TYPE,
+    HOMEPAGE_SETTINGS_TAB_TYPE,
     SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
 } from '../utils/homepageBuiltinTabs';
 
@@ -45,7 +46,7 @@ const SemesterHomepageContent: React.FC = () => {
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
-    const [activeTabId, setActiveTabId] = useState(HOMEPAGE_DASHBOARD_TAB_ID);
+    const [activeTabId, setActiveTabId] = useState('');
 
     const [programName, setProgramName] = useState<string | null>(null);
 
@@ -91,6 +92,7 @@ const SemesterHomepageContent: React.FC = () => {
 
     const {
         tabs: customTabs,
+        isInitialized: isTabsInitialized,
         addTab: handleAddTab,
         removeTab: handleRemoveTab,
         updateTabSettingsDebounced,
@@ -112,18 +114,25 @@ const SemesterHomepageContent: React.FC = () => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
 
+    const ensureBuiltinTabInstance = useCallback((type: string) => {
+        const isShellTab = type === HOMEPAGE_DASHBOARD_TAB_TYPE || type === HOMEPAGE_SETTINGS_TAB_TYPE;
+        return handleAddTab(type, { isRemovable: false, isDraggable: !isShellTab });
+    }, [handleAddTab]);
+
     // Centralize builtin-tab visibility/loading/order rules for homepage tabs.
     const {
         registeredTabTypes,
         isActiveTabPluginLoading,
         tabBarItems,
-        visibleCustomTabs,
-        isBuiltinTabId,
+        visibleTabs,
+        areBuiltinTabsReady,
         filterReorderableTabIds,
     } = useHomepageBuiltinTabs({
         tabs: customTabs,
         activeTabId,
         config: SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
+        isTabsInitialized,
+        ensureBuiltinTabInstance,
     });
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
@@ -131,11 +140,15 @@ const SemesterHomepageContent: React.FC = () => {
     }, [filterReorderableTabIds, reorderTabs]);
 
     useEffect(() => {
-        if (isBuiltinTabId(activeTabId)) return;
-        if (!customTabs.some(tab => tab.id === activeTabId)) {
-            setActiveTabId(HOMEPAGE_DASHBOARD_TAB_ID);
+        if (tabBarItems.length === 0) {
+            if (activeTabId) setActiveTabId('');
+            return;
         }
-    }, [activeTabId, customTabs, isBuiltinTabId, setActiveTabId]);
+        if (!activeTabId && !areBuiltinTabsReady) return;
+        if (!activeTabId || !tabBarItems.some(tab => tab.id === activeTabId)) {
+            setActiveTabId(tabBarItems[0].id);
+        }
+    }, [activeTabId, areBuiltinTabsReady, tabBarItems]);
 
 
 
@@ -171,34 +184,8 @@ const SemesterHomepageContent: React.FC = () => {
 
     const dashboardContent = useMemo(() => {
         if (!semester) return null;
-        if (isBuiltinTabId(activeTabId)) {
-            const StaticComponent = TabRegistry.getComponent(activeTabId);
-            if (!StaticComponent) {
-                if (isActiveTabPluginLoading) {
-                    return <PluginTabSkeleton />;
-                }
-                return (
-                    <Empty className="bg-muted/40">
-                        <EmptyHeader>
-                            <EmptyTitle>Builtin tab not found</EmptyTitle>
-                            <EmptyDescription>
-                                The requested tab is unavailable.
-                            </EmptyDescription>
-                        </EmptyHeader>
-                    </Empty>
-                );
-            }
-            return (
-                <StaticComponent
-                    tabId={activeTabId}
-                    settings={{}}
-                    semesterId={semester.id}
-                    updateSettings={() => undefined}
-                />
-            );
-        }
-
-        const activeTab = customTabs.find(tab => tab.id === activeTabId);
+        if (!activeTabId) return <PluginTabSkeleton />;
+        const activeTab = visibleTabs.find(tab => tab.id === activeTabId);
         const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
         if (!activeTab) {
             return (
@@ -237,7 +224,7 @@ const SemesterHomepageContent: React.FC = () => {
                 />
             </React.Suspense>
         );
-    }, [activeTabId, semester, customTabs, handleUpdateTabSettings, isActiveTabPluginLoading, isBuiltinTabId]);
+    }, [activeTabId, semester, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading]);
 
     const handleUpdateSemester = async (data: any) => {
         if (!semester) return;
@@ -250,7 +237,7 @@ const SemesterHomepageContent: React.FC = () => {
     };
 
     const tabSettingsSections = useMemo(() => {
-        const sections = visibleCustomTabs
+        const sections = visibleTabs
             .map(tab => {
             const definition = registeredTabTypes.has(tab.type) ? TabRegistry.get(tab.type) : undefined;
             const metadata = getResolvedTabMetadataByType(tab.type);
@@ -285,7 +272,7 @@ const SemesterHomepageContent: React.FC = () => {
             </div>
         );
     }, [
-        visibleCustomTabs,
+        visibleTabs,
         semester?.id,
         handleUpdateTabSettings,
         registeredTabTypes

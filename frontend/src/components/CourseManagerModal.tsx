@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api, { type Course } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus } from 'lucide-react';
@@ -124,6 +124,9 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
             >
                 <DialogHeader className="border-b px-6 py-4 flex-none">
                     <DialogTitle className="text-base font-semibold">Manage Courses</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Add an existing course to the semester or create a new course.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className={cn(
                     "flex flex-col p-4",
@@ -220,11 +223,12 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                             </div>
                         </div>
                     ) : (
-                            <div className="flex flex-col overflow-y-auto">
-                                <form onSubmit={handleCreateNew} className={cn(
-                                    "flex flex-col gap-4",
-                                    semesterId && "flex-1"
-                                )}>
+                        <div className={cn("flex min-h-0 flex-col", semesterId ? "flex-1" : "overflow-y-auto")}>
+                            <form
+                                onSubmit={handleCreateNew}
+                                className={cn("flex flex-col gap-4", semesterId && "flex-1 min-h-0")}
+                            >
+                                <div className={cn("flex flex-col gap-4", semesterId && "flex-1 overflow-y-auto pr-1")}>
                                     <div className="grid gap-2">
                                         <Label htmlFor="course-name">Course Name</Label>
                                         <Input
@@ -285,15 +289,16 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                                 onChange={e => setNewGrade(e.target.value)}
                                                 required
                                             />
+                                        </div>
                                     </div>
                                 </div>
 
-                                    <div className={cn("pt-2", semesterId && "mt-auto pt-6")}>
-                                        <Button type="submit" className="w-full">
-                                            <Plus className="mr-2 h-4 w-4" />
+                                <div className={cn("pt-2", semesterId && "mt-auto border-t pt-4")}>
+                                    <Button type="submit" className="w-full">
+                                        <Plus className="mr-2 h-4 w-4" />
                                         Create Course
-                                        </Button>
-                                    </div>
+                                    </Button>
+                                </div>
                             </form>
                         </div>
                     )}

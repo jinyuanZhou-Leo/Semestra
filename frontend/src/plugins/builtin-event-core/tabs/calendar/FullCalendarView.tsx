@@ -1,15 +1,11 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import type { DatesSetArg, EventInput } from '@fullcalendar/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  CALENDAR_MIN_EVENT_HEIGHT,
+  CALENDAR_PIXEL_PER_MINUTE,
   CALENDAR_MAX_EVENT_LINES_PER_DAY,
-  CALENDAR_ROW_MIN_HEIGHT,
   DAY_OF_WEEK_OPTIONS,
 } from '../../shared/constants';
 import type { CalendarEventData, CalendarViewMode, SemesterDateRange } from '../../shared/types';
@@ -21,6 +17,9 @@ interface FullCalendarViewProps {
   maxWeek: number;
   viewMode: CalendarViewMode;
   semesterRange: SemesterDateRange;
+  dayStartMinutes: number;
+  dayEndMinutes: number;
+  highlightConflicts: boolean;
   isPending: boolean;
   onWeekChange: (week: number) => void;
   onEventClick: (event: CalendarEventData) => void;
@@ -69,59 +68,134 @@ const eventsByDay = (events: CalendarEventData[]) => {
   return map;
 };
 
-const renderEventButton = (event: CalendarEventData, onEventClick: (event: CalendarEventData) => void) => {
-  return (
-    <button
-      key={event.id}
-      type="button"
-      onClick={() => onEventClick(event)}
-      className={[
-        'w-full rounded-md border border-l-[3px] px-2 py-1 text-left text-xs transition-colors',
-        'focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none',
-        'hover:bg-accent/40',
-        event.isSkipped ? 'opacity-55 grayscale' : '',
-        event.isConflict ? 'border-destructive/50' : 'border-border/70',
-      ].join(' ')}
-      style={{ borderLeftColor: event.color, backgroundColor: addAlpha(event.color, '18') }}
-      aria-label={`Open event ${event.title}`}
-    >
-      <div className="truncate font-medium text-foreground">{event.title}</div>
-      <div className="truncate text-[11px] text-foreground/80">
-        {event.startTime} - {event.endTime}
-      </div>
-    </button>
-  );
-};
-
 const WeekView: React.FC<{
   events: CalendarEventData[];
   weekStartDate: Date;
+  dayStartMinutes: number;
+  dayEndMinutes: number;
+  highlightConflicts: boolean;
   onEventClick: (event: CalendarEventData) => void;
-}> = ({ events, weekStartDate, onEventClick }) => {
+}> = ({ events, weekStartDate, dayStartMinutes, dayEndMinutes, highlightConflicts, onEventClick }) => {
   const eventsMap = React.useMemo(() => eventsByDay(events), [events]);
+  const minuteWindow = React.useMemo(() => {
+    let start = Math.max(0, Math.min(23 * 60 + 59, Math.floor(dayStartMinutes)));
+    let end = Math.max(0, Math.min(23 * 60 + 59, Math.floor(dayEndMinutes)));
+
+    if (end <= start) {
+      end = Math.min(23 * 60 + 59, start + 60);
+    }
+
+    if (end - start < 60) {
+      start = Math.max(0, end - 60);
+    }
+
+    return { start, end };
+  }, [dayEndMinutes, dayStartMinutes]);
+
+  const totalMinutes = Math.max(60, minuteWindow.end - minuteWindow.start);
+  const calendarHeight = Math.max(totalMinutes * CALENDAR_PIXEL_PER_MINUTE, 320);
+
+  const hourMarks = React.useMemo(() => {
+    const marks: number[] = [];
+    const firstHour = Math.ceil(minuteWindow.start / 60) * 60;
+
+    marks.push(minuteWindow.start);
+    for (let minute = firstHour; minute < minuteWindow.end; minute += 60) {
+      marks.push(minute);
+    }
+    if (marks[marks.length - 1] !== minuteWindow.end) {
+      marks.push(minuteWindow.end);
+    }
+
+    return marks;
+  }, [minuteWindow.end, minuteWindow.start]);
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[920px] rounded-md border border-border/70 bg-background">
-        <div className="grid grid-cols-7">
+      <div className="min-w-[960px] rounded-md border border-border/70 bg-background">
+        <div className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))]">
+          <div className="border-r border-b border-border/70 bg-muted/35 px-2 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Time
+          </div>
+          {DAY_OF_WEEK_OPTIONS.map((day, dayIndex) => {
+            const date = addDays(weekStartDate, dayIndex);
+            return (
+              <div key={day.value} className="last:border-r-0 border-r border-b border-border/70 bg-muted/25 px-3 py-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{day.label}</p>
+                <p className="text-sm font-semibold">{dayFormatter.format(date)}</p>
+              </div>
+            );
+          })}
+
+          <div className="relative border-r border-border/70 bg-muted/20" style={{ height: `${calendarHeight}px` }}>
+            {hourMarks.map((minute) => {
+              const top = ((minute - minuteWindow.start) / totalMinutes) * calendarHeight;
+              return (
+                <div
+                  key={minute}
+                  className="absolute inset-x-0 border-t border-border/40 px-1 text-[10px] text-muted-foreground"
+                  style={{ top: `${top}px` }}
+                >
+                  {formatHour(minute)}
+                </div>
+              );
+            })}
+          </div>
+
           {DAY_OF_WEEK_OPTIONS.map((day, dayIndex) => {
             const date = addDays(weekStartDate, dayIndex);
             const dayKey = keyForDate(date);
             const dayEvents = eventsMap.get(dayKey) ?? [];
 
             return (
-              <div key={day.value} className="border-r border-border/70 last:border-r-0">
-                <div className="border-b border-border/70 bg-muted/25 px-3 py-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{day.label}</p>
-                  <p className="text-sm font-semibold">{dayFormatter.format(date)}</p>
-                </div>
-                <div className="space-y-2 p-2" style={{ minHeight: `${CALENDAR_ROW_MIN_HEIGHT}px` }}>
-                  {dayEvents.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-border/60 p-2 text-xs text-muted-foreground">
-                      No events
-                    </div>
-                  ) : dayEvents.map((event) => renderEventButton(event, onEventClick))}
-                </div>
+              <div key={day.value} className="relative last:border-r-0 border-r border-border/70 bg-background" style={{ height: `${calendarHeight}px` }}>
+                {hourMarks.map((minute) => {
+                  const top = ((minute - minuteWindow.start) / totalMinutes) * calendarHeight;
+                  return <div key={minute} className="absolute inset-x-0 border-t border-border/35" style={{ top: `${top}px` }} />;
+                })}
+
+                {dayEvents.map((event) => {
+                  const startMinutes = (event.start.getHours() * 60) + event.start.getMinutes();
+                  const endMinutes = Math.max((event.end.getHours() * 60) + event.end.getMinutes(), startMinutes + 30);
+                  const visibleStart = Math.max(startMinutes, minuteWindow.start);
+                  const visibleEnd = Math.min(endMinutes, minuteWindow.end);
+
+                  if (visibleEnd <= visibleStart) return null;
+
+                  const top = ((visibleStart - minuteWindow.start) / totalMinutes) * calendarHeight;
+                  const rawHeight = ((visibleEnd - visibleStart) / totalMinutes) * calendarHeight;
+                  const height = Math.max(rawHeight, CALENDAR_MIN_EVENT_HEIGHT);
+                  const boundedTop = Math.max(0, Math.min(top, calendarHeight - CALENDAR_MIN_EVENT_HEIGHT));
+                  const boundedHeight = Math.min(height, calendarHeight - boundedTop);
+
+                  if (boundedHeight <= 0) return null;
+
+                  return (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => onEventClick(event)}
+                      className={[
+                        'absolute right-1 left-1 z-10 overflow-hidden rounded-md border border-l-[3px] px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition-colors',
+                        'focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none',
+                        'hover:bg-accent/30',
+                        event.isSkipped ? 'opacity-55 grayscale' : '',
+                        highlightConflicts && event.isConflict ? 'border-destructive/50' : 'border-border/70',
+                      ].join(' ')}
+                      style={{
+                        top: `${boundedTop}px`,
+                        height: `${boundedHeight}px`,
+                        borderLeftColor: event.color,
+                        backgroundColor: addAlpha(event.color, '1f'),
+                      }}
+                      aria-label={`Open event ${event.title}`}
+                    >
+                      <div className="truncate font-medium text-foreground">{event.courseName}</div>
+                      <div className="truncate text-foreground/80">{event.eventTypeCode}</div>
+                      <div className="truncate text-foreground/70">{event.startTime} - {event.endTime}</div>
+                    </button>
+                  );
+                })}
               </div>
             );
           })}
@@ -135,9 +209,10 @@ const MonthView: React.FC<{
   events: CalendarEventData[];
   monthAnchorDate: Date;
   semesterRange: SemesterDateRange;
+  highlightConflicts: boolean;
   onNavigateDate: (date: Date) => void;
   onEventClick: (event: CalendarEventData) => void;
-}> = ({ events, monthAnchorDate, semesterRange, onNavigateDate, onEventClick }) => {
+}> = ({ events, monthAnchorDate, semesterRange, highlightConflicts, onNavigateDate, onEventClick }) => {
   const monthStart = React.useMemo(() => new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth(), 1), [monthAnchorDate]);
   const monthGridStart = React.useMemo(() => startOfWeekMonday(monthStart), [monthStart]);
   const monthGridDates = React.useMemo(() => {
@@ -197,6 +272,7 @@ const MonthView: React.FC<{
                         'w-full truncate rounded px-1.5 py-1 text-left text-[11px] transition-colors',
                         'hover:bg-accent/50 focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none',
                         event.isSkipped ? 'opacity-55 grayscale' : '',
+                        highlightConflicts && event.isConflict ? 'ring-1 ring-destructive/60' : '',
                       ].join(' ')}
                       style={{ backgroundColor: addAlpha(event.color, '1f'), borderLeft: `2px solid ${event.color}` }}
                     >
@@ -223,26 +299,16 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   week,
   viewMode,
   semesterRange,
+  dayStartMinutes,
+  dayEndMinutes,
+  highlightConflicts,
   isPending,
   maxWeek,
   onWeekChange,
   onEventClick,
 }) => {
   const safeWeek = Math.max(1, Math.min(maxWeek, week));
-  const calendarRef = React.useRef<FullCalendar | null>(null);
   const [calendarAnchorDate, setCalendarAnchorDate] = React.useState<Date>(weekStartFromSemester(semesterRange.startDate, safeWeek));
-
-  const fcEvents = React.useMemo<EventInput[]>(() => {
-    return events.map((event) => ({
-      id: event.id,
-      title: event.title,
-      start: event.start,
-      end: event.end,
-      backgroundColor: event.color,
-      borderColor: event.color,
-      extendedProps: event,
-    }));
-  }, [events]);
 
   const syncWeekFromDate = React.useCallback((date: Date) => {
     const nextWeek = Math.max(1, Math.min(maxWeek, weekFromDate(semesterRange.startDate, date)));
@@ -251,35 +317,12 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
     }
   }, [maxWeek, onWeekChange, semesterRange.startDate, week]);
 
-  const syncFromCalendarApi = React.useCallback(() => {
-    const api = calendarRef.current?.getApi();
-    if (!api) return;
-    const currentDate = api.getDate();
-    setCalendarAnchorDate(currentDate);
-    syncWeekFromDate(currentDate);
-  }, [syncWeekFromDate]);
-
   React.useEffect(() => {
-    const api = calendarRef.current?.getApi();
-    if (!api) return;
-
-    const targetView = viewMode === 'month' ? 'dayGridMonth' : 'timeGridWeek';
-    if (api.view.type !== targetView) {
-      api.changeView(targetView);
-    }
-  }, [viewMode]);
-
-  React.useEffect(() => {
-    const api = calendarRef.current?.getApi();
-    if (!api) return;
-
     const targetDate = weekStartFromSemester(semesterRange.startDate, safeWeek);
-    const currentDate = api.getDate();
-    if (Math.abs(currentDate.getTime() - targetDate.getTime()) >= DAY_MS) {
-      api.gotoDate(targetDate);
+    if (viewMode === 'week') {
       setCalendarAnchorDate(targetDate);
     }
-  }, [safeWeek, semesterRange.startDate]);
+  }, [safeWeek, semesterRange.startDate, viewMode]);
 
   const weekStartDate = viewMode === 'month'
     ? startOfWeekMonday(calendarAnchorDate)
@@ -290,53 +333,24 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
     : `${fullDateFormatter.format(weekStartDate)} - ${fullDateFormatter.format(weekEndDate)}`;
 
   const handleStep = (direction: 'prev' | 'next') => {
-    const api = calendarRef.current?.getApi();
-    if (!api) {
-      const delta = direction === 'prev' ? -1 : 1;
+    const delta = direction === 'prev' ? -1 : 1;
+    if (viewMode === 'week') {
       onWeekChange(Math.max(1, Math.min(maxWeek, safeWeek + delta)));
       return;
     }
 
-    if (direction === 'prev') {
-      api.prev();
-    } else {
-      api.next();
-    }
-
-    syncFromCalendarApi();
+    const nextMonthAnchor = new Date(calendarAnchorDate.getFullYear(), calendarAnchorDate.getMonth() + delta, 1);
+    setCalendarAnchorDate(nextMonthAnchor);
+    syncWeekFromDate(nextMonthAnchor);
   };
 
   const handleNavigateDate = (date: Date) => {
-    const api = calendarRef.current?.getApi();
-    if (api) {
-      api.gotoDate(date);
-      syncFromCalendarApi();
-      return;
-    }
-
     setCalendarAnchorDate(date);
     syncWeekFromDate(date);
   };
 
   return (
     <div className={isPending ? 'pointer-events-none opacity-75 transition-opacity duration-200 motion-reduce:transition-none' : 'transition-opacity duration-200 motion-reduce:transition-none'}>
-      <div className="sr-only" aria-hidden="true">
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView={viewMode === 'month' ? 'dayGridMonth' : 'timeGridWeek'}
-          initialDate={weekStartFromSemester(semesterRange.startDate, safeWeek)}
-          events={fcEvents}
-          headerToolbar={false}
-          height={1}
-          contentHeight={1}
-          dayMaxEvents
-          datesSet={(arg: DatesSetArg) => {
-            setCalendarAnchorDate(arg.start);
-          }}
-        />
-      </div>
-
       <div className="mb-3 flex items-center justify-between rounded-md border bg-muted/20 px-2 py-2">
         <Button
           type="button"
@@ -368,6 +382,7 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
           events={events}
           monthAnchorDate={calendarAnchorDate}
           semesterRange={semesterRange}
+          highlightConflicts={highlightConflicts}
           onNavigateDate={handleNavigateDate}
           onEventClick={onEventClick}
         />
@@ -375,6 +390,9 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
         <WeekView
           events={events}
           weekStartDate={weekStartDate}
+          dayStartMinutes={dayStartMinutes}
+          dayEndMinutes={dayEndMinutes}
+          highlightConflicts={highlightConflicts}
           onEventClick={onEventClick}
         />
       )}

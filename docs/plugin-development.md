@@ -58,6 +58,14 @@ Builtin and third-party plugins follow the same loading model:
 - Both are lazy-loaded through `index.ts`.
 - Product policy differences (for example, builtin cannot be removed by users) should be handled at business/UI layer, not plugin loading layer.
 
+Homepage shell tabs (`dashboard`, `settings`) are also normal tab instances now:
+
+- They are auto-created per context (semester/course).
+- They are persisted in `tabs` like other plugin tabs.
+- They are constrained by instance flags: `is_removable = false`, `is_draggable = false`.
+
+Reorder behavior is controlled by `is_draggable`, while visibility/addability should be determined from `allowedContexts` and catalog constraints (`maxInstances`).
+
 ## Compatibility Notes
 
 - Existing runtime APIs (catalog queries, metadata resolution, lazy ensure methods) remain unchanged.

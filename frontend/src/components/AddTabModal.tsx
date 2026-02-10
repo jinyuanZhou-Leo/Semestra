@@ -125,7 +125,7 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
                             No tabs match your search.
                         </div>
                     ) : (
-                        <ScrollArea className="h-full pr-3">
+                        <ScrollArea className="h-full pr-3 bg-background after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-2.5 after:rounded-md after:bg-muted/40 after:content-[''] [&>[data-slot=scroll-area-scrollbar]]:rounded-md [&>[data-slot=scroll-area-scrollbar]]:bg-muted/40">
                             <div className="space-y-2">
                                 {filteredTabs.map((tab) => {
                                     const metadata = getResolvedTabMetadataByType(tab.type);

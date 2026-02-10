@@ -98,14 +98,13 @@ const SectionSlotPlanner: React.FC<{
                     <div key={slot.id} className="grid items-end gap-2 rounded-md border border-border/60 p-2 sm:grid-cols-[1fr_1fr_1fr_1.4fr_auto]">
                         <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Slot {index + 1}</Label>
-                            <Select
-                                value={String(slot.dayOfWeek)}
+                            <Select modal={false} value={String(slot.dayOfWeek)}
                                 onValueChange={(value) => onUpdateSlot(slot.id, { dayOfWeek: Number(value) })}
                             >
                                 <SelectTrigger className="w-full">
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper">
                                     {DAY_OF_WEEK_OPTIONS.map((dayOption) => (
                                         <SelectItem key={`slot-day-option-${slot.id}-${dayOption.value}`} value={String(dayOption.value)}>
                                             {dayOption.label}
@@ -351,14 +350,13 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
                                     + Add Type
                                 </button>
                             </div>
-                            <Select
-                                value={formSection.eventTypeCode}
+                            <Select modal={false} value={formSection.eventTypeCode}
                                 onValueChange={(value) => setFormSection((prev) => ({ ...prev, eventTypeCode: value }))}
                             >
                                 <SelectTrigger className="w-full">
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper">
                                     {eventTypes.map((item) => (
                                         <SelectItem key={item.code} value={item.code}>
                                             {item.code}
@@ -393,14 +391,13 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
                         </div>
                         <div className="space-y-2">
                             <Label>Pattern</Label>
-                            <Select
-                                value={formSection.weekPattern}
+                            <Select modal={false} value={formSection.weekPattern}
                                 onValueChange={(value) => setFormSection((prev) => ({ ...prev, weekPattern: value as WeekPattern }))}
                             >
                                 <SelectTrigger className="w-full">
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper">
                                     {WEEK_PATTERNS.map((item) => (
                                         <SelectItem key={item} value={item}>
                                             {item}

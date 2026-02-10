@@ -248,6 +248,7 @@ class Tab(Base):
     settings = Column(Text, default="{}")
     order_index = Column(Integer, default=0)
     is_removable = Column(Boolean, default=True)
+    is_draggable = Column(Boolean, default=True)
 
     semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
     course_id = Column(String, ForeignKey("courses.id"), nullable=True)
