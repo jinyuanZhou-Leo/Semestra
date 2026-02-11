@@ -2,6 +2,17 @@ import React from 'react';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { GripVertical, Settings, X } from 'lucide-react';
 
@@ -174,25 +185,45 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                         </Button>
                     )}
                     {onRemove && (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            title="Remove Widget"
-                            data-widget-control
-                            className={cn(
-                                'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
-                                'hover:border-destructive hover:bg-destructive hover:text-destructive-foreground',
-                                controlSizeClass
-                            )}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onRemove();
-                            }}
-                        >
-                            <X className={isTouchDevice ? "h-4.5 w-4.5" : "h-4 w-4"} />
-                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    title="Remove Widget"
+                                    data-widget-control
+                                    className={cn(
+                                        'rounded-full shadow-sm transition hover:opacity-90',
+                                        controlSizeClass
+                                    )}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    <X className={isTouchDevice ? "h-4.5 w-4.5" : "h-4 w-4"} />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent size="sm">
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove this widget?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        variant="destructive"
+                                        onClick={() => {
+                                            onRemove();
+                                        }}
+                                    >
+                                        Remove
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     )}
                 </div>
             </div>

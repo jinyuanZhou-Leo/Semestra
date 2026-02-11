@@ -226,7 +226,8 @@ body>div>div[role="dialog"][data-state] {
 @layer base {
   html {
     overflow-y: auto;
-    scrollbar-gutter: auto;
+    /* Reserve scrollbar space to prevent layout shift on page switches. */
+    scrollbar-gutter: stable;
   }
   * {
     @apply border-border outline-ring/50;
@@ -240,5 +241,15 @@ body>div>div[role="dialog"][data-state] {
      Disable it to avoid horizontal layout jumps. */
   body[data-scroll-locked] {
     padding-right: 0 !important;
+    margin-right: 0 !important;
+    --removed-body-scroll-bar-size: 0px !important;
+  }
+
+  body[data-scroll-locked] .right-scroll-bar-position {
+    right: 0 !important;
+  }
+
+  body[data-scroll-locked] .width-before-scroll-bar {
+    margin-right: 0 !important;
   }
 }
