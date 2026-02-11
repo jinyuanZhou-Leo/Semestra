@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
 
 import GradientBlinds from '../components/GradientBlinds';
+import { useTheme } from '../components/ThemeProvider';
 import { getPasswordRuleError } from '../utils/passwordRules';
 import { loadGoogleIdentityScriptWhenIdle } from '../utils/googleIdentity';
 
@@ -34,39 +35,19 @@ export const LoginPage: React.FC = () => {
     const emailId = useId();
     const passwordId = useId();
     const rememberMeId = useId();
+    const { theme } = useTheme();
+    const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() =>
+        window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    );
+    const currentTheme: 'light' | 'dark' = theme === 'system' ? systemTheme : theme;
 
-    // Theme detection
-    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
-        const themePreference = localStorage.getItem('themePreference');
-        if (themePreference === 'system' || !themePreference) {
-            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
-        return themePreference === 'dark' ? 'dark' : 'light';
-    });
-
-    // Listen to theme changes
     useEffect(() => {
-        const applyTheme = () => {
-            const themePreference = localStorage.getItem('themePreference');
-            if (themePreference === 'system' || !themePreference) {
-                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                setCurrentTheme(systemTheme);
-            } else {
-                setCurrentTheme(themePreference === 'dark' ? 'dark' : 'light');
-            }
-        };
-
-        applyTheme();
-
-        // Listen to storage changes (when user changes theme in another tab)
-        window.addEventListener('storage', applyTheme);
-        // Listen to system theme changes
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        const handleChange = () => applyTheme();
+        const handleChange = () => setSystemTheme(mediaQuery.matches ? 'dark' : 'light');
+        handleChange();
         mediaQuery.addEventListener('change', handleChange);
 
         return () => {
-            window.removeEventListener('storage', applyTheme);
             mediaQuery.removeEventListener('change', handleChange);
         };
     }, []);
@@ -87,7 +68,7 @@ export const LoginPage: React.FC = () => {
         const initGoogle = async () => {
             try {
                 await loadGoogleIdentityScriptWhenIdle();
-            } catch (err) {
+            } catch {
                 if (!cancelled) {
                     toast.error('Google sign-in is unavailable right now. Please try again later.');
                 }
@@ -196,8 +177,8 @@ export const LoginPage: React.FC = () => {
             </div>
 
             {/* Background Logo */}
-            <div className="absolute top-8 left-8 font-bold text-xl flex items-center gap-2 text-foreground z-10 select-none drop-shadow-md">
-                <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+            <div className={`absolute top-8 left-8 font-bold text-xl flex items-center gap-2 z-10 select-none drop-shadow-md ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${currentTheme === 'light' ? 'bg-slate-900' : 'bg-white'}`} />
                 Semestra
             </div>
 
@@ -210,25 +191,25 @@ export const LoginPage: React.FC = () => {
             >
                 <Card 
                     className={`border-none shadow-2xl transition-all duration-300 rounded-xl overflow-hidden ${isGlassReady
-                        ? 'bg-background/60 backdrop-blur-3xl'
-                            : 'bg-background'
-                        }`}
+                        ? (currentTheme === 'light' ? 'bg-white/80 backdrop-blur-3xl' : 'bg-zinc-900/65 backdrop-blur-3xl')
+                            : (currentTheme === 'light' ? 'bg-white' : 'bg-zinc-900')
+                        } ${currentTheme === 'light' ? 'text-slate-900' : 'text-zinc-100'}`}
                 >
                     <CardHeader className="pb-6">
-                        <CardTitle className="text-4xl tracking-tight bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent pb-1">
+                        <CardTitle className={`text-4xl tracking-tight pb-1 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                             Welcome
                         </CardTitle>
-                        <CardDescription className="text-base font-medium">
+                        <CardDescription className={`text-base font-medium ${currentTheme === 'light' ? 'text-slate-600' : 'text-zinc-300'}`}>
                             Back to your workspace
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="min-h-[3rem] relative flex items-center justify-center">
+                        <div className="h-10 relative flex items-center justify-center">
                             {googleClientId ? (
                                 <>
-                                    <div ref={googleButtonRef} className="w-full" />
+                                    <div ref={googleButtonRef} className="w-full h-10" />
                                     {!isGoogleReady && (
-                                        <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                                        <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground pointer-events-none">
                                             Loading Google sign-in...
                                         </div>
                                     )}
@@ -238,17 +219,6 @@ export const LoginPage: React.FC = () => {
                                     Google sign-in is not configured.
                                 </div>
                             )}
-                        </div>
-
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t border-border" />
-                            </div>
-                            <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-background px-2 text-muted-foreground">
-                                    or
-                                </span>
-                            </div>
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
@@ -290,19 +260,21 @@ export const LoginPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id={rememberMeId}
-                                    checked={rememberMe}
-                                    onCheckedChange={(checked) => {
-                                        if (checked === "indeterminate") return;
-                                        setRememberMe(checked);
-                                    }}
-                                    className="bg-secondary/50 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                                />
-                                <Label htmlFor={rememberMeId} className="text-sm text-muted-foreground font-normal cursor-pointer">
-                                    Remember me
-                                </Label>
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id={rememberMeId}
+                                        checked={rememberMe}
+                                        onCheckedChange={(checked) => {
+                                            if (checked === "indeterminate") return;
+                                            setRememberMe(checked);
+                                        }}
+                                        className="bg-secondary/50 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                    />
+                                    <Label htmlFor={rememberMeId} className="text-sm text-muted-foreground font-normal cursor-pointer">
+                                        Remember me
+                                    </Label>
+                                </div>
                             </div>
 
                             {error && (
@@ -318,17 +290,14 @@ export const LoginPage: React.FC = () => {
                             >
                                 {isLoading ? 'Signing in...' : 'Sign In'}
                             </Button>
+
+                            <Button asChild variant="outline" className="w-full h-11 text-base font-semibold">
+                                <Link to="/register">
+                                    Sign Up
+                                </Link>
+                            </Button>
                         </form>
 
-                        <div className="pt-4 mt-2 border-t text-sm text-muted-foreground flex items-center gap-1">
-                            New here?
-                            <Link
-                                to="/register"
-                                className="font-semibold text-foreground hover:underline underline-offset-4 decoration-2"
-                            >
-                                Sign Up
-                            </Link>
-                        </div>
                     </CardContent>
                 </Card>
             </motion.div>

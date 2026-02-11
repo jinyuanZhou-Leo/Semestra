@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +18,7 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
 
 import GradientBlinds from '../components/GradientBlinds';
+import { useTheme } from '../components/ThemeProvider';
 import { getPasswordRuleError, passwordRuleHint } from '../utils/passwordRules';
 import { loadGoogleIdentityScriptWhenIdle } from '../utils/googleIdentity';
 
@@ -28,7 +30,6 @@ export const RegisterPage: React.FC = () => {
     const [isPasswordFocused, setIsPasswordFocused] = useState(false);
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
-    const [googleError, setGoogleError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [isGoogleReady, setIsGoogleReady] = useState(false);
@@ -41,39 +42,19 @@ export const RegisterPage: React.FC = () => {
     const emailId = useId();
     const passwordId = useId();
     const confirmPasswordId = useId();
+    const { theme } = useTheme();
+    const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() =>
+        window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    );
+    const currentTheme: 'light' | 'dark' = theme === 'system' ? systemTheme : theme;
 
-    // Theme detection
-    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
-        const themePreference = localStorage.getItem('themePreference');
-        if (themePreference === 'system' || !themePreference) {
-            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
-        return themePreference === 'dark' ? 'dark' : 'light';
-    });
-
-    // Listen to theme changes
     useEffect(() => {
-        const applyTheme = () => {
-            const themePreference = localStorage.getItem('themePreference');
-            if (themePreference === 'system' || !themePreference) {
-                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                setCurrentTheme(systemTheme);
-            } else {
-                setCurrentTheme(themePreference === 'dark' ? 'dark' : 'light');
-            }
-        };
-
-        applyTheme();
-
-        // Listen to storage changes (when user changes theme in another tab)
-        window.addEventListener('storage', applyTheme);
-        // Listen to system theme changes
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        const handleChange = () => applyTheme();
+        const handleChange = () => setSystemTheme(mediaQuery.matches ? 'dark' : 'light');
+        handleChange();
         mediaQuery.addEventListener('change', handleChange);
 
         return () => {
-            window.removeEventListener('storage', applyTheme);
             mediaQuery.removeEventListener('change', handleChange);
         };
     }, []);
@@ -94,9 +75,9 @@ export const RegisterPage: React.FC = () => {
         const initGoogle = async () => {
             try {
                 await loadGoogleIdentityScriptWhenIdle();
-            } catch (err) {
+            } catch {
                 if (!cancelled) {
-                    setGoogleError('Google sign-in is unavailable right now. Please try again later.');
+                    toast.error('Google sign-in is unavailable right now. Please try again later.');
                 }
                 return;
             }
@@ -114,10 +95,9 @@ export const RegisterPage: React.FC = () => {
                 client_id: googleClientId,
                 callback: async (response: { credential: string }) => {
                     if (!response?.credential) {
-                        setGoogleError('Google sign-in failed. Please try again.');
+                        toast.error('Google sign-in failed. Please try again.');
                         return;
                     }
-                    setGoogleError('');
                     setIsGoogleLoading(true);
                     try {
                         const loginResponse = await axios.post('/api/auth/google', {
@@ -126,7 +106,7 @@ export const RegisterPage: React.FC = () => {
                         login(loginResponse.data.access_token);
                         navigate('/');
                     } catch (err: any) {
-                        setGoogleError(err.response?.data?.detail || 'Google sign-in failed.');
+                        toast.error(err.response?.data?.detail || 'Google sign-in failed.');
                     } finally {
                         setIsGoogleLoading(false);
                     }
@@ -212,8 +192,8 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             {/* Background Logo */}
-            <div className="absolute top-8 left-8 font-bold text-xl flex items-center gap-2 text-foreground z-10 select-none drop-shadow-md">
-                <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+            <div className={`absolute top-8 left-8 font-bold text-xl flex items-center gap-2 z-10 select-none drop-shadow-md ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${currentTheme === 'light' ? 'bg-slate-900' : 'bg-white'}`} />
                 Semestra
             </div>
 
@@ -226,25 +206,25 @@ export const RegisterPage: React.FC = () => {
             >
                 <Card 
                     className={`border-none shadow-2xl transition-all duration-300 rounded-xl overflow-hidden ${isGlassReady
-                        ? 'bg-background/60 backdrop-blur-3xl'
-                        : 'bg-background'
-                        }`}
+                        ? (currentTheme === 'light' ? 'bg-white/80 backdrop-blur-3xl' : 'bg-zinc-900/65 backdrop-blur-3xl')
+                        : (currentTheme === 'light' ? 'bg-white' : 'bg-zinc-900')
+                        } ${currentTheme === 'light' ? 'text-slate-900' : 'text-zinc-100'}`}
                 >
                     <CardHeader className="pb-6">
-                        <CardTitle className="text-4xl tracking-tight bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent pb-1">
+                        <CardTitle className={`text-4xl tracking-tight pb-1 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                             Sign Up
                         </CardTitle>
-                        <CardDescription className="text-base font-medium">
+                        <CardDescription className={`text-base font-medium ${currentTheme === 'light' ? 'text-slate-600' : 'text-zinc-300'}`}>
                             Get Started
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="min-h-[3rem] relative flex items-center justify-center">
+                        <div className="h-10 relative flex items-center justify-center">
                             {googleClientId ? (
                                 <>
-                                    <div ref={googleButtonRef} className="w-full" />
+                                    <div ref={googleButtonRef} className="w-full h-10" />
                                     {!isGoogleReady && (
-                                        <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                                        <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground pointer-events-none">
                                             Loading Google sign-in...
                                         </div>
                                     )}
@@ -254,17 +234,6 @@ export const RegisterPage: React.FC = () => {
                                     Google sign-in is not configured.
                                 </div>
                             )}
-                        </div>
-
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t border-border" />
-                            </div>
-                            <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-background px-2 text-muted-foreground">
-                                    or
-                                </span>
-                            </div>
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
@@ -351,12 +320,6 @@ export const RegisterPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {googleError && (
-                                <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                                    {googleError}
-                                </div>
-                            )}
-
                             <Button
                                 type="submit"
                                 className="w-full h-11 text-base font-semibold shadow-lg hover:shadow-xl transition-all"
@@ -364,17 +327,14 @@ export const RegisterPage: React.FC = () => {
                             >
                                 {isLoading ? 'Creating account...' : 'Register'}
                             </Button>
+
+                            <Button asChild variant="outline" className="w-full h-11 text-base font-semibold">
+                                <Link to="/login">
+                                    Sign In
+                                </Link>
+                            </Button>
                         </form>
 
-                        <div className="pt-4 mt-2 border-t text-sm text-muted-foreground flex items-center gap-1">
-                            Already have an account?
-                            <Link
-                                to="/login"
-                                className="font-semibold text-foreground hover:underline underline-offset-4 decoration-2"
-                            >
-                                Sign In
-                            </Link>
-                        </div>
                     </CardContent>
                 </Card>
             </motion.div>

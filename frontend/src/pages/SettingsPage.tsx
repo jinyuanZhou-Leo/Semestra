@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
 import { SaveSettingButton } from "../components/SaveSettingButton";
+import { useTheme } from "../components/ThemeProvider";
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
@@ -30,16 +31,7 @@ export const SettingsPage: React.FC = () => {
     const { user, logout, refreshUser } = useAuth();
     const navigate = useNavigate();
     const { alert: showAlert, confirm } = useDialog();
-
-    // Theme state
-    const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">(
-        () => {
-            const saved = localStorage.getItem("themePreference");
-            return saved === "light" || saved === "dark" || saved === "system"
-                ? saved
-                : "system";
-        }
-    );
+    const { theme: themeMode, setTheme } = useTheme();
 
     const themeOptions: Array<{ value: "light" | "dark" | "system"; label: string }> = [
         { value: "light", label: "Light" },
@@ -47,22 +39,8 @@ export const SettingsPage: React.FC = () => {
         { value: "system", label: "System" }
     ];
 
-    const applyTheme = (mode: "light" | "dark" | "system") => {
-        if (mode === "system") {
-            const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-                .matches
-                ? "dark"
-                : "light";
-            document.documentElement.setAttribute("data-theme", systemTheme);
-        } else {
-            document.documentElement.setAttribute("data-theme", mode);
-        }
-    };
-
     const handleThemeChange = (mode: "light" | "dark" | "system") => {
-        setThemeMode(mode);
-        localStorage.setItem("themePreference", mode);
-        applyTheme(mode);
+        setTheme(mode);
     };
 
     // Global Defaults State
@@ -122,7 +100,7 @@ export const SettingsPage: React.FC = () => {
         const initGoogle = async () => {
             try {
                 await loadGoogleIdentityScriptWhenIdle();
-            } catch (err) {
+            } catch {
                 if (!cancelled) {
                     setGoogleLinkError('Google link is unavailable right now. Please try again later.');
                 }
