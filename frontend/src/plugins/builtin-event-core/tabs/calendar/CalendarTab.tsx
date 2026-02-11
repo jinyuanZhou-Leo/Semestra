@@ -39,6 +39,7 @@ const EventEditor = React.lazy(async () => {
 
 const FALLBACK_RANGE: SemesterDateRange = resolveSemesterDateRange(undefined, undefined, 16);
 const rangeDateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings }) => {
   const [week, setWeek] = React.useState(DEFAULT_WEEK);
@@ -48,7 +49,10 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   const [isEventEditorOpen, setIsEventEditorOpen] = React.useState(false);
   const [semesterRange, setSemesterRange] = React.useState<SemesterDateRange>(FALLBACK_RANGE);
   const [optimisticPatches, setOptimisticPatches] = React.useState<Map<string, CalendarEventPatch>>(new Map());
+  const [viewportBoundHeight, setViewportBoundHeight] = React.useState<number | null>(null);
   const [isPending, startTransition] = React.useTransition();
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
+  const hasInitializedWeekRef = React.useRef(false);
 
   const {
     items,
@@ -69,6 +73,10 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
       return Math.max(1, Math.min(upperBound, currentWeek));
     });
   }, [maxWeek]);
+
+  React.useEffect(() => {
+    hasInitializedWeekRef.current = false;
+  }, [semesterId]);
 
   React.useEffect(() => {
     if (!semesterId) return;
@@ -94,6 +102,37 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     if (!error) return;
     toast.error(error.message || 'Failed to load calendar schedule.');
   }, [error]);
+
+  const currentWeek = React.useMemo(() => {
+    const semesterStart = startOfWeekMonday(semesterRange.startDate).getTime();
+    const todayStart = startOfWeekMonday(new Date()).getTime();
+    const rawWeek = Math.floor((todayStart - semesterStart) / WEEK_MS) + 1;
+    const upperBound = Math.max(1, maxWeek);
+    return Math.max(1, Math.min(upperBound, rawWeek));
+  }, [maxWeek, semesterRange.startDate]);
+
+  React.useEffect(() => {
+    if (hasInitializedWeekRef.current) return;
+    hasInitializedWeekRef.current = true;
+    setWeek(currentWeek);
+  }, [currentWeek]);
+
+  React.useEffect(() => {
+    const updateViewportBoundHeight = () => {
+      const card = cardRef.current;
+      if (!card) return;
+      const rect = card.getBoundingClientRect();
+      const available = Math.floor(window.innerHeight - rect.top - 12);
+      setViewportBoundHeight(Math.max(360, available));
+    };
+
+    updateViewportBoundHeight();
+    window.addEventListener('resize', updateViewportBoundHeight);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportBoundHeight);
+    };
+  }, []);
 
   useEventBus('timetable:schedule-data-changed', (payload) => {
     if (payload.source !== 'course' && payload.source !== 'semester') return;
@@ -138,6 +177,12 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
       setWeek(boundedWeek);
     });
   }, [maxWeek]);
+
+  const handleToday = React.useCallback(() => {
+    startTransition(() => {
+      setWeek(currentWeek);
+    });
+  }, [currentWeek]);
 
   const weekRangeLabel = React.useMemo(() => {
     const safeWeek = Math.max(1, week);
@@ -209,18 +254,24 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col gap-3 py-4 sm:py-6">
-      <div className="min-h-[460px] min-w-0 overflow-hidden rounded-lg bg-card p-3 sm:p-4">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <div
+        ref={cardRef}
+        className="grid h-[100%] min-h-0 min-w-0 grid-rows-[auto_1fr] gap-3 overflow-hidden rounded-lg bg-card p-3 sm:p-4"
+        style={viewportBoundHeight ? { height: `${viewportBoundHeight}px` } : undefined}
+      >
         <CalendarToolbar
           week={week}
           maxWeek={maxWeek}
           viewMode={viewMode}
           dateRangeLabel={weekRangeLabel}
+          isTodayWeek={week === currentWeek}
           onWeekChange={handleWeekChange}
+          onToday={handleToday}
           onViewModeChange={setViewMode}
         />
 
-        <div className="mt-3 min-h-[400px] min-w-0">
+        <div className="min-h-0 min-w-0 overflow-hidden">
           <React.Suspense fallback={<CalendarSkeleton />}>
             <FullCalendarView
               events={calendarEvents}

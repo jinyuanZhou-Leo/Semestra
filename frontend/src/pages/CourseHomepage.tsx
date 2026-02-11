@@ -474,7 +474,7 @@ const CourseHomepageContent: React.FC = () => {
                 <div
                     ref={heroRef}
                     className={cn(
-                        "sticky left-0 right-0 z-40 top-[60px] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding,box-shadow] duration-300 ease-out",
+                        "sticky-page-header sticky left-0 right-0 z-40 top-[60px] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding,box-shadow] duration-300 ease-out",
                         isShrunk ? "shadow-sm" : "shadow-none"
                     )}
                     style={{

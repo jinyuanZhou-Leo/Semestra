@@ -78,7 +78,7 @@ const ProgramDashboardContent: React.FC = () => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
     const [activeFilters, setActiveFilters] = useState<Array<{ type: string; value: string; label: string }>>([]);
     const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
-    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const semesterNameId = useId();
     const [deletingSemesterId, setDeletingSemesterId] = useState<string | null>(null);
@@ -277,15 +277,17 @@ const ProgramDashboardContent: React.FC = () => {
                             return course.semesterName === filter.value;
                         case 'credits':
                             return String(course.credits) === filter.value;
-                        case 'level':
+                        case 'level': {
                             const courseLevel = extractCourseLevel(course.name);
                             return courseLevel !== null && String(courseLevel) === filter.value;
-                        case 'gpa':
+                        }
+                        case 'gpa': {
                             const threshold = parseFloat(filter.value);
                             if (threshold === 4.0) {
                                 return course.grade_scaled === 4.0;
                             }
                             return course.grade_scaled >= threshold;
+                        }
                         default:
                             return true;
                     }
@@ -385,7 +387,7 @@ const ProgramDashboardContent: React.FC = () => {
         }
         setCourseSearchQuery('');
         setIsSuggestionsOpen(false);
-        setSelectedSuggestionIndex(0);
+        setSelectedSuggestionIndex(-1);
     };
 
     const handleRemoveFilter = (index: number) => {
@@ -396,6 +398,7 @@ const ProgramDashboardContent: React.FC = () => {
         if (!isSuggestionsOpen || filteredSuggestions.length === 0) {
             if (e.key === 'ArrowDown' && !isSuggestionsOpen) {
                 setIsSuggestionsOpen(true);
+                setSelectedSuggestionIndex(0);
                 e.preventDefault();
             }
             return;
@@ -415,14 +418,14 @@ const ProgramDashboardContent: React.FC = () => {
             case 'Enter':
             case 'Tab':
                 e.preventDefault();
-                if (filteredSuggestions[selectedSuggestionIndex]) {
+                if (selectedSuggestionIndex >= 0 && filteredSuggestions[selectedSuggestionIndex]) {
                     handleAddFilter(filteredSuggestions[selectedSuggestionIndex]);
                 }
                 break;
             case 'Escape':
                 e.preventDefault();
                 setIsSuggestionsOpen(false);
-                setSelectedSuggestionIndex(0);
+                setSelectedSuggestionIndex(-1);
                 break;
         }
     };
@@ -501,7 +504,7 @@ const ProgramDashboardContent: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <div className="border-b bg-background sticky top-[60px] z-20">
+            <div className="sticky-page-header border-b bg-background sticky top-[60px] z-20">
                 <Container className="py-4 md:py-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-1">
@@ -653,7 +656,7 @@ const ProgramDashboardContent: React.FC = () => {
 
                             {/* Semesters Section */}
                             <section className="space-y-6">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                                     <h2 className="text-lg font-semibold tracking-tight">
                                         Semesters
                                     </h2>
@@ -725,30 +728,32 @@ const ProgramDashboardContent: React.FC = () => {
                             {/* All Courses Section */}
                             <section className="space-y-6">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <h2 className="text-lg font-semibold tracking-tight">
+                                    <h2 className="text-lg font-semibold tracking-tight md:mt-auto">
                                         All Courses
                                     </h2>
-                                    <div className="flex-1 max-w-sm space-y-3">
+                                    <div className="flex-1 max-w-sm space-y-1.5">
                                         {/* Active Filters */}
-                                        {activeFilters.length > 0 && (
-                                            <div className="flex flex-wrap gap-2">
-                                                {activeFilters.map((filter, index) => (
-                                                    <Badge
-                                                        key={index}
-                                                        variant="secondary"
-                                                        className="pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5"
-                                                    >
-                                                        {filter.label}
-                                                        <button
-                                                            onClick={() => handleRemoveFilter(index)}
-                                                            className="hover:bg-muted/80 rounded-sm p-0.5 transition-colors"
+                                        <div className="min-h-6">
+                                            {activeFilters.length > 0 && (
+                                                <div className="flex gap-2 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                                                    {activeFilters.map((filter, index) => (
+                                                        <Badge
+                                                            key={`${filter.type}-${filter.value}`}
+                                                            variant="secondary"
+                                                            className="shrink-0 pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5"
                                                         >
-                                                            <X className="h-3 w-3" />
-                                                        </button>
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        )}
+                                                            {filter.label}
+                                                            <button
+                                                                onClick={() => handleRemoveFilter(index)}
+                                                                className="hover:bg-muted/80 rounded-sm p-0.5 transition-colors"
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                            </button>
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                         {/* Search with Suggestions */}
                                         <Popover open={isSuggestionsOpen}>
                                             <PopoverTrigger asChild>
@@ -761,7 +766,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                         onChange={(e) => {
                                                             setCourseSearchQuery(e.target.value);
                                                             setIsSuggestionsOpen(true);
-                                                            setSelectedSuggestionIndex(0);
+                                                            setSelectedSuggestionIndex(-1);
                                                         }}
                                                         onFocus={() => setIsSuggestionsOpen(true)}
                                                         onBlur={(e) => {
@@ -771,7 +776,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                                 return;
                                                             }
                                                             setIsSuggestionsOpen(false);
-                                                            setSelectedSuggestionIndex(0);
+                                                            setSelectedSuggestionIndex(-1);
                                                         }}
                                                         onKeyDown={handleKeyDown}
                                                         className="pl-9 h-10"
@@ -790,7 +795,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                         return;
                                                     }
                                                     setIsSuggestionsOpen(false);
-                                                    setSelectedSuggestionIndex(0);
+                                                    setSelectedSuggestionIndex(-1);
                                                 }}
                                             >
                                                 <Command className="rounded-lg">
@@ -805,10 +810,9 @@ const ProgramDashboardContent: React.FC = () => {
                                                                         <CommandItem
                                                                             key={`${suggestion.type}-${suggestion.value}`}
                                                                             onSelect={() => handleAddFilter(suggestion)}
-                                                                            className={`cursor-pointer ${index === selectedSuggestionIndex
-                                                                                ? 'bg-accent'
-                                                                                : ''
-                                                                                }`}
+                                                                            className={`cursor-pointer hover:bg-accent/60 data-selected:bg-transparent ${
+                                                                                index === selectedSuggestionIndex ? 'bg-accent' : ''
+                                                                            }`}
                                                                         >
                                                                             <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
                                                                             <span>{suggestion.label}</span>

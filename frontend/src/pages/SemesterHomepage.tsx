@@ -364,7 +364,7 @@ const SemesterHomepageContent: React.FC = () => {
             <BuiltinTabProvider value={builtinTabContext}>
                 <div
                     ref={heroRef}
-                    className={`sticky left-0 right-0 z-40 top-[60px] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding,box-shadow] duration-300 ease-out ${isShrunk ? 'shadow-sm' : 'shadow-none'}`}
+                    className={`sticky-page-header sticky left-0 right-0 z-40 top-[60px] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding,box-shadow] duration-300 ease-out ${isShrunk ? 'shadow-sm' : 'shadow-none'}`}
                     style={{
                         paddingTop: isShrunk ? '8px' : '16px',
                         paddingBottom: isShrunk ? '8px' : '16px'

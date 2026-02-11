@@ -27,6 +27,85 @@ const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: '
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAY_OPTIONS = DAY_OF_WEEK_OPTIONS.filter((day) => day.value <= 5);
 const HIDE_SCROLLBAR_CLASS = '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
+const OVERFLOW_SHADOW_COLOR = 'color-mix(in oklab, var(--color-foreground) 14%, transparent)';
+
+type OverflowShadowState = {
+  top: boolean;
+  right: boolean;
+  bottom: boolean;
+  left: boolean;
+};
+
+const useOverflowShadows = () => {
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const [state, setState] = React.useState<OverflowShadowState>({
+    top: false,
+    right: false,
+    bottom: false,
+    left: false,
+  });
+
+  const updateState = React.useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const hasOverflowX = el.scrollWidth - el.clientWidth > 1;
+    const hasOverflowY = el.scrollHeight - el.clientHeight > 1;
+
+    const next: OverflowShadowState = {
+      top: hasOverflowY && el.scrollTop > 1,
+      right: hasOverflowX && el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
+      bottom: hasOverflowY && el.scrollTop + el.clientHeight < el.scrollHeight - 1,
+      left: hasOverflowX && el.scrollLeft > 1,
+    };
+
+    setState((prev) => (
+      prev.top === next.top
+      && prev.right === next.right
+      && prev.bottom === next.bottom
+      && prev.left === next.left
+        ? prev
+        : next
+    ));
+  }, []);
+
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    updateState();
+
+    const handleScroll = () => updateState();
+    el.addEventListener('scroll', handleScroll, { passive: true });
+
+    const observer = new ResizeObserver(() => updateState());
+    observer.observe(el);
+    if (el.firstElementChild instanceof HTMLElement) {
+      observer.observe(el.firstElementChild);
+    }
+
+    window.addEventListener('resize', updateState);
+
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+      window.removeEventListener('resize', updateState);
+    };
+  }, [updateState]);
+
+  const shadowStyle = React.useMemo<React.CSSProperties | undefined>(() => {
+    const shadows: string[] = [];
+    if (state.top) shadows.push(`inset 0 12px 12px -12px ${OVERFLOW_SHADOW_COLOR}`);
+    if (state.right) shadows.push(`inset -12px 0 12px -12px ${OVERFLOW_SHADOW_COLOR}`);
+    if (state.bottom) shadows.push(`inset 0 -12px 12px -12px ${OVERFLOW_SHADOW_COLOR}`);
+    if (state.left) shadows.push(`inset 12px 0 12px -12px ${OVERFLOW_SHADOW_COLOR}`);
+
+    if (shadows.length === 0) return undefined;
+    return { boxShadow: shadows.join(', ') };
+  }, [state.bottom, state.left, state.right, state.top]);
+
+  return { containerRef, shadowStyle };
+};
 
 const keyForDate = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 const normalizeToDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -75,6 +154,7 @@ const WeekView: React.FC<{
   showWeekends: boolean;
   onEventClick: (event: CalendarEventData) => void;
 }> = ({ events, weekStartDate, dayStartMinutes, dayEndMinutes, highlightConflicts, showWeekends, onEventClick }) => {
+  const { containerRef, shadowStyle } = useOverflowShadows();
   const eventsMap = React.useMemo(() => eventsByDay(events), [events]);
   const dayColumns = React.useMemo(
     () => (showWeekends ? DAY_OF_WEEK_OPTIONS : WEEKDAY_OPTIONS),
@@ -115,23 +195,32 @@ const WeekView: React.FC<{
   }, [minuteWindow.end, minuteWindow.start]);
 
   return (
-    <div className={`relative isolate z-0 w-full max-w-full max-h-[72vh] overflow-y-auto overflow-x-auto rounded-md border border-border/70 bg-background ${HIDE_SCROLLBAR_CLASS}`}>
-      <div className="w-[max(100%,840px)]">
-        <div className="grid" style={{ gridTemplateColumns: `72px repeat(${dayColumns.length}, minmax(0, 1fr))` }}>
-          <div className="sticky top-0 left-0 z-20 border-r border-b border-border/70 bg-muted/65 px-2 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground backdrop-blur-md">
+    <div className="relative h-full min-h-0">
+      <div
+        ref={containerRef}
+        className={`relative isolate z-0 h-full min-h-0 w-full max-w-full overflow-y-auto overflow-x-auto rounded-md border border-border/70 bg-background dark:bg-transparent ${HIDE_SCROLLBAR_CLASS}`}
+      >
+        <div className="w-[max(100%,840px)]">
+          <div className="grid" style={{ gridTemplateColumns: `72px repeat(${dayColumns.length}, minmax(0, 1fr))` }}>
+          <div className="sticky top-0 left-0 z-40 rounded-tl-md border-r border-b border-border/70 bg-muted/65 px-2 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground backdrop-blur-md dark:bg-transparent">
             Time
           </div>
           {dayColumns.map((day, dayIndex) => {
             const date = addDays(weekStartDate, dayIndex);
             return (
-              <div key={day.value} className="sticky top-0 z-10 last:border-r-0 border-r border-b border-border/70 bg-muted/65 px-3 py-2 backdrop-blur-md">
+              <div
+                key={day.value}
+                className={`sticky top-0 z-30 border-r border-b border-border/70 bg-muted/65 px-3 py-2 backdrop-blur-md dark:bg-transparent ${
+                  dayIndex === dayColumns.length - 1 ? 'rounded-tr-md border-r-0' : ''
+                }`}
+              >
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{day.label}</p>
                 <p className="text-sm font-semibold">{dayFormatter.format(date)}</p>
               </div>
             );
           })}
 
-          <div className="sticky left-0 z-10 relative border-r border-border/70 bg-muted/45 backdrop-blur-md" style={{ height: `${calendarHeight}px` }}>
+          <div className="sticky left-0 z-20 relative border-r border-border/70 bg-muted/45 backdrop-blur-md dark:bg-transparent" style={{ height: `${calendarHeight}px` }}>
             {hourMarks.map((minute) => {
               const top = ((minute - minuteWindow.start) / totalMinutes) * calendarHeight;
               return (
@@ -152,7 +241,7 @@ const WeekView: React.FC<{
             const dayEvents = eventsMap.get(dayKey) ?? [];
 
             return (
-              <div key={day.value} className="relative last:border-r-0 border-r border-border/70 bg-background" style={{ height: `${calendarHeight}px` }}>
+              <div key={day.value} className="relative border-r border-border/70 bg-background dark:bg-transparent last:border-r-0" style={{ height: `${calendarHeight}px` }}>
                 {hourMarks.map((minute) => {
                   const top = ((minute - minuteWindow.start) / totalMinutes) * calendarHeight;
                   return <div key={minute} className="absolute inset-x-0 border-t border-border/35" style={{ top: `${top}px` }} />;
@@ -180,7 +269,7 @@ const WeekView: React.FC<{
                       type="button"
                       onClick={() => onEventClick(event)}
                       className={[
-                        'absolute right-1 left-1 z-10 overflow-hidden rounded-md border border-l-[3px] px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition-colors',
+                        'absolute right-1 left-1 z-[1] overflow-hidden rounded-md border border-l-[3px] px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition-colors',
                         'focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none',
                         'hover:bg-accent/30',
                         event.isSkipped ? 'opacity-55 grayscale' : '',
@@ -203,8 +292,10 @@ const WeekView: React.FC<{
               </div>
             );
           })}
+          </div>
         </div>
       </div>
+      <div className="pointer-events-none absolute inset-0 rounded-md" style={shadowStyle} />
     </div>
   );
 };
@@ -218,6 +309,7 @@ const MonthView: React.FC<{
   onNavigateDate: (date: Date) => void;
   onEventClick: (event: CalendarEventData) => void;
 }> = ({ events, monthAnchorDate, semesterRange, highlightConflicts, showWeekends, onNavigateDate, onEventClick }) => {
+  const { containerRef, shadowStyle } = useOverflowShadows();
   const monthStart = React.useMemo(() => new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth(), 1), [monthAnchorDate]);
   const monthGridStart = React.useMemo(() => startOfWeekMonday(monthStart), [monthStart]);
   const monthGridDates = React.useMemo(() => {
@@ -240,20 +332,26 @@ const MonthView: React.FC<{
   const semesterEnd = normalizeToDay(semesterRange.endDate).getTime();
 
   return (
-    <div className={`w-full max-w-full overflow-x-auto ${HIDE_SCROLLBAR_CLASS}`}>
-      <div className="w-[max(100%,720px)] rounded-md border border-border/70 bg-background">
+    <div className="relative h-full min-h-0">
+      <div ref={containerRef} className={`h-full min-h-0 w-full max-w-full overflow-y-auto overflow-x-auto ${HIDE_SCROLLBAR_CLASS}`}>
+        <div className="w-[max(100%,720px)] rounded-md border border-border/70 bg-background dark:bg-transparent">
         <div
-          className="sticky top-0 z-10 grid border-b border-border/70 bg-muted/65 backdrop-blur-md"
+          className="sticky top-0 z-30 grid border-b border-border/70 bg-muted/65 backdrop-blur-md dark:bg-transparent"
           style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(0, 1fr))` }}
         >
-          {dayColumns.map((day) => (
-            <div key={day.value} className="px-2 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {dayColumns.map((day, index) => (
+            <div
+              key={day.value}
+              className={`px-2 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground ${
+                index === 0 ? 'rounded-tl-md' : ''
+              } ${index === dayColumns.length - 1 ? 'rounded-tr-md' : ''}`}
+            >
               {day.label}
             </div>
           ))}
         </div>
 
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(0, 1fr))` }}>
+          <div className="grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(0, 1fr))` }}>
           {visibleMonthGridDates.map((date, index) => {
             const dayKey = keyForDate(date);
             const dayEvents = eventsMap.get(dayKey) ?? [];
@@ -266,7 +364,7 @@ const MonthView: React.FC<{
                 key={`${dayKey}-${index}`}
                 className={[
                   'min-h-[132px] border-r border-b border-border/70 p-2 last:border-r-0',
-                  isCurrentMonth ? 'bg-background' : 'bg-muted/20',
+                  isCurrentMonth ? 'bg-background dark:bg-transparent' : 'bg-muted/20 dark:bg-transparent',
                   isOutOfSemester ? 'opacity-50' : '',
                 ].join(' ')}
               >
@@ -304,8 +402,10 @@ const MonthView: React.FC<{
               </div>
             );
           })}
+          </div>
         </div>
       </div>
+      <div className="pointer-events-none absolute inset-0 rounded-md" style={shadowStyle} />
     </div>
   );
 };
@@ -349,7 +449,13 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   };
 
   return (
-    <div className={isPending ? 'min-w-0 pointer-events-none opacity-75 transition-opacity duration-200 motion-reduce:transition-none' : 'min-w-0 transition-opacity duration-200 motion-reduce:transition-none'}>
+    <div
+      className={
+        isPending
+          ? 'h-full min-h-0 min-w-0 pointer-events-none opacity-75 transition-opacity duration-200 motion-reduce:transition-none'
+          : 'h-full min-h-0 min-w-0 transition-opacity duration-200 motion-reduce:transition-none'
+      }
+    >
       {viewMode === 'month' ? (
         <MonthView
           events={events}

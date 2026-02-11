@@ -63,7 +63,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
             <Button
                 onClick={toggleLock}
                 variant="outline"
-                className={`${glassButtonClassName} fixed right-8 bottom-24 size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center z-20 ${isLocked ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+                className={`${glassButtonClassName} fixed right-8 bottom-24 size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center z-20`}
                 aria-label={isLocked ? "Unlock widgets" : "Lock widgets"}
                 title={isLocked ? "Unlock widgets" : "Lock widgets"}
             >

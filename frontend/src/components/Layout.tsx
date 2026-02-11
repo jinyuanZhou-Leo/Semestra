@@ -54,6 +54,87 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
         }
     }, [clearStatus, isSyncRetrying, isSyncStatus, status]);
 
+    useEffect(() => {
+        const body = document.body;
+        if (!body) return;
+
+        let rafId: number | null = null;
+        let observedHeader: HTMLElement | null = null;
+        let resizeObserver: ResizeObserver | null = null;
+
+        const isBodyScrollLocked = () =>
+            body.hasAttribute('data-scroll-locked') || /overflow:\s*hidden/.test(body.getAttribute('style') ?? '');
+
+        const clearStickyHeaderLock = () => {
+            body.removeAttribute('data-sticky-header-lock');
+            body.style.removeProperty('--sticky-page-header-height');
+        };
+
+        const attachHeaderObserver = (header: HTMLElement | null) => {
+            if (observedHeader === header) return;
+            resizeObserver?.disconnect();
+            resizeObserver = null;
+            observedHeader = header;
+            if (!header || typeof ResizeObserver === 'undefined') return;
+            resizeObserver = new ResizeObserver(() => {
+                scheduleUpdate();
+            });
+            resizeObserver.observe(header);
+        };
+
+        const updateStickyHeaderLock = () => {
+            const header = document.querySelector<HTMLElement>('.sticky-page-header');
+            attachHeaderObserver(header);
+
+            if (!header || !isBodyScrollLocked()) {
+                clearStickyHeaderLock();
+                return;
+            }
+
+            const headerHeight = Math.ceil(header.getBoundingClientRect().height);
+            body.setAttribute('data-sticky-header-lock', 'true');
+            body.style.setProperty('--sticky-page-header-height', `${headerHeight}px`);
+        };
+
+        const scheduleUpdate = () => {
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+            }
+            rafId = window.requestAnimationFrame(() => {
+                rafId = null;
+                updateStickyHeaderLock();
+            });
+        };
+
+        const bodyObserver = new MutationObserver(scheduleUpdate);
+        bodyObserver.observe(body, {
+            attributes: true,
+            attributeFilter: ['data-scroll-locked', 'style'],
+        });
+
+        const pageObserver = new MutationObserver(scheduleUpdate);
+        pageObserver.observe(body, {
+            childList: true,
+            subtree: true,
+        });
+
+        window.addEventListener('resize', scheduleUpdate);
+        window.addEventListener('scroll', scheduleUpdate, { passive: true });
+        scheduleUpdate();
+
+        return () => {
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+            }
+            window.removeEventListener('resize', scheduleUpdate);
+            window.removeEventListener('scroll', scheduleUpdate);
+            bodyObserver.disconnect();
+            pageObserver.disconnect();
+            resizeObserver?.disconnect();
+            clearStickyHeaderLock();
+        };
+    }, []);
+
 
     // Page Blur Logic
     const [isPageBlurred, setIsPageBlurred] = useState(false);

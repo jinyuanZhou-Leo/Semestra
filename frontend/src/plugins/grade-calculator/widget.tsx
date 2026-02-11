@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Trash2 } from 'lucide-react';
 
 interface Assessment {
     id: string;
@@ -116,40 +117,59 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
         updateSettings({ ...settings, assessments: newAssessments });
     }, [settings, assessments, updateSettings]);
 
+    const formatWeightSum = (weight: number): string => {
+        if (weight > 100) return 'INV';
+        if (weight >= 100) return '100';
+        if (weight >= 10) return weight.toFixed(1);
+        return weight.toFixed(2);
+    };
+
 
     return (
-        <div className="flex h-full flex-col gap-2 select-none text-xs">
-            <div className="flex-1 overflow-auto rounded-md bg-card/50">
-                <Table className="relative w-full text-xs">
-                    <TableHeader className="sticky top-0 bg-secondary/80 backdrop-blur-sm z-10">
-                        <TableRow className="h-8 hover:bg-transparent">
-                            <TableHead className="h-8 pl-3 font-semibold text-foreground/80">Assessment</TableHead>
-                            <TableHead className="h-8 text-right font-semibold text-foreground/80 w-[60px]">Wt(%)</TableHead>
-                            <TableHead className="h-8 text-right font-semibold text-foreground/80 w-[60px]">Score</TableHead>
-                            <TableHead className="h-8 w-8"></TableHead>
+        <div className="flex h-full select-none flex-col p-2">
+            <div className="no-scrollbar flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <Table className="w-full border-collapse text-sm">
+                    <TableHeader>
+                        <TableRow className="h-auto border-b border-border hover:bg-transparent">
+                            <TableHead className="p-2 text-left font-medium text-muted-foreground">Name</TableHead>
+                            <TableHead
+                                className={`w-[108px] p-2 text-right font-medium ${
+                                    totalPercentage !== 100 ? 'text-destructive' : 'text-muted-foreground'
+                                }`}
+                            >
+                                <span className="inline-flex items-center justify-end">
+                                    Weight(
+                                    <span className="inline-block w-[3.4ch] text-center tabular-nums">
+                                        {formatWeightSum(totalPercentage)}
+                                    </span>
+                                    %)
+                                </span>
+                            </TableHead>
+                            <TableHead className="w-[96px] p-2 text-right font-medium text-muted-foreground">Grade</TableHead>
+                            <TableHead className="w-[40px] p-2" />
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {assessments.map(a => (
-                            <TableRow key={a.id} className="h-9 hover:bg-muted/30">
-                                <TableCell className="p-0 pl-1">
+                            <TableRow key={a.id} className="border-b border-border hover:bg-transparent">
+                                <TableCell className="p-2 align-middle">
                                     <Input
                                         value={a.name}
                                         onChange={e => handleUpdateRow(a.id, 'name', e.target.value)}
                                         placeholder="Name"
-                                        className="h-7 border-0 bg-transparent px-2 text-xs focus-visible:ring-1 focus-visible:ring-ring/20 placeholder:text-muted-foreground/50"
+                                        className="h-8 text-sm"
                                     />
                                 </TableCell>
-                                <TableCell className="p-0">
+                                <TableCell className="p-2 align-middle">
                                     <Input
                                         value={a.percentage}
                                         onChange={e => handleUpdateRow(a.id, 'percentage', e.target.value)}
                                         inputMode="decimal"
                                         placeholder="0"
-                                        className="h-7 border-0 bg-transparent text-right text-xs tabular-nums focus-visible:ring-1 focus-visible:ring-ring/20 pr-3 placeholder:text-muted-foreground/50"
+                                        className="h-8 text-right text-sm tabular-nums"
                                     />
                                 </TableCell>
-                                <TableCell className="p-0">
+                                <TableCell className="p-2 align-middle">
                                     <Input
                                         value={a.grade}
                                         onChange={e => {
@@ -160,25 +180,25 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
                                         }}
                                         inputMode="decimal"
                                         placeholder="0"
-                                        className="h-7 border-0 bg-transparent text-right text-xs tabular-nums focus-visible:ring-1 focus-visible:ring-ring/20 pr-3 placeholder:text-muted-foreground/50"
+                                        className="h-8 text-right text-sm tabular-nums"
                                     />
                                 </TableCell>
-                                <TableCell className="p-0 text-center">
+                                <TableCell className="p-2 text-center align-middle">
                                     <Button
                                         variant="ghost"
-                                        size="icon"
+                                        size="icon-sm"
                                         onClick={() => handleRemoveRow(a.id)}
-                                        className="h-6 w-6 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
+                                        className="text-muted-foreground/70 hover:bg-destructive/10 hover:text-destructive"
                                         aria-label="Remove"
                                     >
-                                        &times;
+                                        <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </TableCell>
                             </TableRow>
                         ))}
                         {assessments.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={4} className="h-20 text-center text-muted-foreground/50 italic">
+                            <TableRow className="hover:bg-transparent">
+                                <TableCell colSpan={4} className="h-20 text-center text-muted-foreground/70 italic">
                                     No assessments added
                                 </TableCell>
                             </TableRow>
@@ -187,14 +207,16 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
                 </Table>
             </div>
 
-            <Button
-                onClick={handleAddRow}
-                size="sm"
-                variant="outline"
-                className="h-7 w-full border-dashed text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border"
-            >
-                + Add Assessment
-            </Button>
+            <div className="mt-2 overflow-hidden">
+                <Button
+                    onClick={handleAddRow}
+                    size="sm"
+                    variant="secondary"
+                    className="h-8 w-full"
+                >
+                    + Add Assessment
+                </Button>
+            </div>
         </div>
     );
 };

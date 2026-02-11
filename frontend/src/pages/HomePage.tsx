@@ -134,7 +134,7 @@ export const HomePage: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <div className="border-b bg-background sticky top-[60px] z-20">
+            <div className="sticky-page-header border-b bg-background sticky top-[60px] z-20">
                 <Container className="py-4 md:py-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-1">

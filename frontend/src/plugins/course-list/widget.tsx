@@ -43,7 +43,7 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
 
     return (
         <div className="flex h-full flex-col select-none">
-            <div className="course-list-scroll flex-1 overflow-y-auto pr-1">
+            <div className="course-list-scroll no-scrollbar flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {courses.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No courses</div>
                 ) : (

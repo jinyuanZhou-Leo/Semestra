@@ -239,17 +239,34 @@ body>div>div[role="dialog"][data-state] {
 
   /* Some overlay libraries add scrollbar compensation on scroll lock.
      Disable it to avoid horizontal layout jumps. */
-  body[data-scroll-locked] {
+  body[data-scroll-locked],
+  body[style*="overflow: hidden"] {
     padding-right: 0 !important;
     margin-right: 0 !important;
     --removed-body-scroll-bar-size: 0px !important;
   }
 
-  body[data-scroll-locked] .right-scroll-bar-position {
+  body[data-scroll-locked] .right-scroll-bar-position,
+  body[style*="overflow: hidden"] .right-scroll-bar-position {
     right: 0 !important;
   }
 
-  body[data-scroll-locked] .width-before-scroll-bar {
+  body[data-scroll-locked] .width-before-scroll-bar,
+  body[style*="overflow: hidden"] .width-before-scroll-bar {
     margin-right: 0 !important;
+  }
+
+  /* Keep page sticky headers visible under overlay while body scroll is locked. */
+  body[data-sticky-header-lock="true"] .sticky-page-header {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 49 !important;
+  }
+
+  /* Preserve layout flow when sticky header is promoted to fixed. */
+  body[data-sticky-header-lock="true"] .sticky-page-header + * {
+    margin-top: var(--sticky-page-header-height, 0px) !important;
   }
 }

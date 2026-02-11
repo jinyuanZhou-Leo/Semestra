@@ -13,8 +13,8 @@ const EVENT_PLACEHOLDER_MAP: Record<number, number[]> = {
 
 export const CalendarSkeleton: React.FC = () => {
   return (
-    <div className="flex h-full min-w-0 flex-col gap-3 py-4 sm:py-6">
-      <div className="min-h-[460px] min-w-0 overflow-hidden rounded-lg bg-card p-3 sm:p-4">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <div className="grid h-[100%] min-h-0 min-w-0 grid-rows-[auto_1fr] gap-3 overflow-hidden rounded-lg bg-card p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-md border border-border/70 p-1">
@@ -29,7 +29,7 @@ export const CalendarSkeleton: React.FC = () => {
           <Skeleton className="h-5 w-44" />
         </div>
 
-        <div className="mt-3 min-h-[400px] min-w-0">
+        <div className="min-h-0 min-w-0 overflow-hidden">
           <div className="w-full max-w-full overflow-x-auto rounded-md border border-border/70 bg-background [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <div className="w-[max(100%,840px)]">
               <div
