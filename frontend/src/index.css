@@ -256,6 +256,25 @@ body>div>div[role="dialog"][data-state] {
     margin-right: 0 !important;
   }
 
+  /* Lock app-level scroll containers whenever any dialog overlay is open. */
+  body[data-scroll-locked] #root,
+  body[style*="overflow: hidden"] #root,
+  body:has([data-slot="dialog-overlay"][data-state="open"]) #root {
+    overflow: hidden !important;
+  }
+
+  body[data-scroll-locked] main,
+  body[style*="overflow: hidden"] main,
+  body:has([data-slot="dialog-overlay"][data-state="open"]) main {
+    overflow: hidden !important;
+  }
+
+  html:has(body [data-slot="dialog-overlay"][data-state="open"]),
+  body:has([data-slot="dialog-overlay"][data-state="open"]) {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
   /* Keep page sticky headers visible under overlay while body scroll is locked. */
   body[data-sticky-header-lock="true"] .sticky-page-header {
     position: fixed !important;

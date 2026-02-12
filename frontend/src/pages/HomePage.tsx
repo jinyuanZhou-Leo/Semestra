@@ -17,7 +17,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
@@ -170,21 +169,23 @@ const DeleteProgramButton: React.FC<DeleteProgramButtonProps> = ({ programId, on
     }, [onDeleted, programId, showAlert]);
 
     return (
-        <AlertDialog open={open} onOpenChange={(nextOpen) => !isDeleting && setOpen(nextOpen)}>
-            <AlertDialogTrigger asChild>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 absolute right-4 top-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </Button>
-            </AlertDialogTrigger>
+        <>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!isDeleting) {
+                        setOpen(true);
+                    }
+                }}
+            >
+                <Trash2 className="h-4 w-4" />
+            </Button>
+            <AlertDialog open={open} onOpenChange={(nextOpen) => !isDeleting && setOpen(nextOpen)}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Delete program?</AlertDialogTitle>
@@ -199,7 +200,8 @@ const DeleteProgramButton: React.FC<DeleteProgramButtonProps> = ({ programId, on
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
-        </AlertDialog>
+            </AlertDialog>
+        </>
     );
 };
 
@@ -283,37 +285,41 @@ export const HomePage: React.FC = () => {
                 ) : (
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {programs.map(program => (
-                            <Link key={program.id} to={`/programs/${program.id}`}>
-                                <Card className="group h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md relative">
-                                    <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
-                                        <CardTitle className="text-lg font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors pr-8">
-                                            {program.name}
-                                        </CardTitle>
+                            <div key={program.id} className="group relative">
+                                <Link to={`/programs/${program.id}`} className="block h-full">
+                                    <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-lg font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors pr-8">
+                                                {program.name}
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <span className="block text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">CGPA</span>
+                                                    <span className="text-xl font-bold tracking-tight">
+                                                        {program.cgpa_scaled.toFixed(2)}
+                                                    </span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="block text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">Credits</span>
+                                                    <span className="text-sm font-medium">
+                                                        <span className="text-foreground text-base">{(programEarnedCredits[program.id] || 0).toFixed(1)}</span>
+                                                        <span className="text-muted-foreground"> / {program.grad_requirement_credits}</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </Link>
+                                <div className="absolute right-4 top-4 z-20">
                                         <DeleteProgramButton
                                             programId={program.id}
                                             onDeleted={fetchPrograms}
                                             showAlert={showAlert}
                                         />
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <span className="block text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">CGPA</span>
-                                                <span className="text-xl font-bold tracking-tight">
-                                                    {program.cgpa_scaled.toFixed(2)}
-                                                </span>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="block text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">Credits</span>
-                                                <span className="text-sm font-medium">
-                                                    <span className="text-foreground text-base">{(programEarnedCredits[program.id] || 0).toFixed(1)}</span>
-                                                    <span className="text-muted-foreground"> / {program.grad_requirement_credits}</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </Link>
+                                </div>
+                            </div>
                         ))}
 
                         {programs.length === 0 && (

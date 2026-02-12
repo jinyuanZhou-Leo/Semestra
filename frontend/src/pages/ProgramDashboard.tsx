@@ -19,7 +19,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
@@ -266,21 +265,23 @@ const DeleteSemesterButton: React.FC<DeleteSemesterButtonProps> = ({
     }, [onDeleted, semesterId, showAlert]);
 
     return (
-        <AlertDialog open={open} onOpenChange={(nextOpen) => !isDeleting && setOpen(nextOpen)}>
-            <AlertDialogTrigger asChild>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </Button>
-            </AlertDialogTrigger>
+        <>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!isDeleting) {
+                        setOpen(true);
+                    }
+                }}
+            >
+                <Trash2 className="h-4 w-4" />
+            </Button>
+            <AlertDialog open={open} onOpenChange={(nextOpen) => !isDeleting && setOpen(nextOpen)}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Delete semester?</AlertDialogTitle>
@@ -295,7 +296,8 @@ const DeleteSemesterButton: React.FC<DeleteSemesterButtonProps> = ({
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
-        </AlertDialog>
+            </AlertDialog>
+        </>
     );
 };
 
@@ -817,25 +819,20 @@ const ProgramDashboardContent: React.FC = () => {
 
                                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                                     {filteredSemesters.map(semester => (
-                                    <Link key={semester.id} to={`/semesters/${semester.id}`}>
-                                            <Card className="group h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
-                                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                                    <CardTitle className="text-lg font-semibold truncate pr-4">
+                                    <div key={semester.id} className="group relative">
+                                        <Link to={`/semesters/${semester.id}`} className="block h-full">
+                                            <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
+                                                <CardHeader className="pb-2">
+                                                    <CardTitle className="text-lg font-semibold truncate pr-8">
                                                         {semester.name}
                                                     </CardTitle>
-                                                    <DeleteSemesterButton
-                                                        semesterId={semester.id}
-                                                        semesterName={semester.name}
-                                                        onDeleted={refreshProgram}
-                                                        showAlert={showAlert}
-                                                    />
-                                            </CardHeader>
+                                                </CardHeader>
                                                 <CardContent>
                                                     <div className="grid grid-cols-2 gap-4 mt-2">
-                                                    <div>
+                                                        <div>
                                                             <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">GPA</p>
                                                             <p className="text-lg font-semibold">{semester.average_scaled.toFixed(2)}</p>
-                                                    </div>
+                                                        </div>
                                                         <div className="text-right">
                                                             <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Average</p>
                                                             <p className="text-lg font-semibold">{semester.average_percentage.toFixed(1)}%</p>
@@ -846,10 +843,19 @@ const ProgramDashboardContent: React.FC = () => {
                                                         <div
                                                             className={`h-2 w-2 rounded-full ${semester.average_scaled >= 3.0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
                                                         />
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    </Link>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </Link>
+                                        <div className="absolute right-4 top-4 z-20">
+                                            <DeleteSemesterButton
+                                                semesterId={semester.id}
+                                                semesterName={semester.name}
+                                                onDeleted={refreshProgram}
+                                                showAlert={showAlert}
+                                            />
+                                        </div>
+                                    </div>
                                 ))}
                                     {filteredSemesters.length === 0 && (
                                         <div className="col-span-full border rounded-lg border-dashed p-8 text-center">

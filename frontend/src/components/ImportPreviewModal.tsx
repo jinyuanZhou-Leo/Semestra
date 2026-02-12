@@ -16,7 +16,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, Check, FileDown, ArrowRight, Settings2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ArrowRight, ChevronRight, FileDown, Loader2, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface ProgramExport {
@@ -71,6 +72,12 @@ interface ImportPreviewModalProps {
     onConfirm: (mode: ConflictMode, includeSettings: boolean) => Promise<void>;
 }
 
+const conflictOptions: { value: ConflictMode; label: string; description: string }[] = [
+    { value: 'skip', label: 'Skip', description: 'Keep existing' },
+    { value: 'overwrite', label: 'Overwrite', description: 'Replace existing' },
+    { value: 'rename', label: 'Rename', description: 'Keep both' }
+];
+
 export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
     isOpen,
     onClose,
@@ -85,7 +92,14 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
     const includeSettingsId = useId();
 
     const analysis = useMemo(() => {
-        if (!importData) return { newPrograms: [], conflictPrograms: [], totalSemesters: 0, totalCourses: 0 };
+        if (!importData) {
+            return {
+                newPrograms: [],
+                conflictPrograms: [],
+                totalSemesters: 0,
+                totalCourses: 0
+            };
+        }
 
         const existingNamesLower = new Set(existingProgramNames.map(n => n.toLowerCase()));
         const newPrograms: string[] = [];
@@ -108,10 +122,27 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
         return { newPrograms, conflictPrograms, totalSemesters, totalCourses };
     }, [importData, existingProgramNames]);
 
+    const conflictNameSet = useMemo(
+        () => new Set(analysis.conflictPrograms.map((name) => name.toLowerCase())),
+        [analysis.conflictPrograms]
+    );
+
+    const programs = importData?.programs ?? [];
+    const programCount = programs.length;
+    const hasImportSettings = Boolean(importData?.settings);
+    const hasPrograms = programCount > 0;
+    const exportedAt = useMemo(() => {
+        if (!importData?.exported_at) return null;
+        const parsed = new Date(importData.exported_at);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return parsed.toLocaleString();
+    }, [importData?.exported_at]);
+
     const handleConfirm = async () => {
+        if (!hasPrograms) return;
         setIsImporting(true);
         try {
-            await onConfirm(conflictMode, includeSettings);
+            await onConfirm(conflictMode, hasImportSettings ? includeSettings : false);
             toast.success('Import successful');
             onClose();
         } catch (error: any) {
@@ -131,174 +162,279 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
     if (!importData) return null;
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[550px] p-0 flex flex-col gap-0 overflow-hidden">
-                <DialogHeader className="px-4 py-3 border-b bg-muted/20">
-                    <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-                        <FileDown className="h-4 w-4 text-primary" />
+        <Dialog
+            open={isOpen}
+            onOpenChange={(open) => {
+                if (!open && !isImporting) {
+                    onClose();
+                }
+            }}
+        >
+            <DialogContent className="select-none flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+                <DialogHeader className="gap-1 border-b bg-muted/20 px-5 py-4">
+                    <DialogTitle className="flex items-center gap-2 text-base font-semibold sm:text-lg">
+                        <FileDown className="size-4 text-primary" />
                         Import Preview
                     </DialogTitle>
-                    <DialogDescription className="hidden">
-                        Preview data to be imported
+                    <DialogDescription className="sr-only">
+                        Review imported data and confirm import.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto">
-                    <div className="p-4 space-y-4">
-                        {/* Compact Summary */}
-                        <div className="bg-muted/40 rounded-md p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-y-2 text-xs border border-muted">
-                            <div className="flex items-center gap-3">
-                                <span className="font-semibold text-foreground">Summary</span>
-                                <div className="h-3 w-px bg-border" />
-                                <div className="flex gap-3 text-muted-foreground">
-                                    <span><span className="font-medium text-foreground">{importData.programs.length}</span> Programs</span>
-                                    <span><span className="font-medium text-foreground">{analysis.totalSemesters}</span> Semesters</span>
-                                    <span><span className="font-medium text-foreground">{analysis.totalCourses}</span> Courses</span>
-                                </div>
-                            </div>
-                            {importData.exported_at && (
-                                <div className="text-muted-foreground text-[10px]">
-                                    {new Date(importData.exported_at).toLocaleDateString()}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Programs List */}
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Programs</h3>
-                                {analysis.conflictPrograms.length > 0 && (
-                                    <Badge variant="outline" className="text-[10px] h-5 gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
-                                        <AlertTriangle className="h-3 w-3" />
-                                        {analysis.conflictPrograms.length} conflicts
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div className="space-y-4 p-5">
+                            <div className="rounded-md border bg-muted/25 px-2 py-1.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <Badge variant="secondary" className="h-5 bg-background px-2 text-[11px] text-foreground/90">
+                                        Programs <span className="ml-1 font-semibold">{programCount}</span>
                                     </Badge>
+                                    <Badge variant="secondary" className="h-5 bg-background px-2 text-[11px] text-foreground/90">
+                                        Semesters <span className="ml-1 font-semibold">{analysis.totalSemesters}</span>
+                                    </Badge>
+                                    <Badge variant="secondary" className="h-5 bg-background px-2 text-[11px] text-foreground/90">
+                                        Courses <span className="ml-1 font-semibold">{analysis.totalCourses}</span>
+                                    </Badge>
+                                    <Badge
+                                        variant="secondary"
+                                        className={cn(
+                                            'h-5 px-2 text-[11px]',
+                                            analysis.conflictPrograms.length > 0
+                                                ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                                                : 'bg-background text-foreground/90'
+                                        )}
+                                    >
+                                        Conflicts <span className="ml-1 font-semibold">{analysis.conflictPrograms.length}</span>
+                                    </Badge>
+                                    {hasImportSettings && (
+                                        <Badge variant="secondary" className="h-5 bg-background px-2 text-[11px] text-foreground/90">
+                                            Account settings <span className="ml-1 font-semibold">1</span>
+                                        </Badge>
+                                    )}
+                                </div>
+                                {(exportedAt || importData.version) && (
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
+                                        {exportedAt && <span>Exported: {exportedAt}</span>}
+                                        {importData.version && <span>Version: {importData.version}</span>}
+                                    </div>
                                 )}
                             </div>
-                            <Card className="overflow-hidden border-muted shadow-sm">
-                                <ScrollArea className="h-[160px]">
-                                    <div className="divide-y divide-muted/50">
-                                        {analysis.newPrograms.map((name, i) => (
-                                            <div key={`new-${i}`} className="flex items-center justify-between py-2 px-3 hover:bg-muted/30 transition-colors text-sm group">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="h-5 w-5 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
-                                                        <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
-                                                    </div>
-                                                    <span className="font-medium text-foreground/90 group-hover:text-foreground transition-colors truncate max-w-[280px]">{name}</span>
-                                                </div>
-                                                <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-normal bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400">
-                                                    New
-                                                </Badge>
-                                            </div>
-                                        ))}
-                                        {analysis.conflictPrograms.map((name, i) => (
-                                            <div key={`conflict-${i}`} className="flex items-center justify-between py-2 px-3 bg-amber-50/40 dark:bg-amber-900/10 hover:bg-amber-100/40 dark:hover:bg-amber-900/20 transition-colors text-sm group">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="h-5 w-5 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
-                                                        <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-                                                    </div>
-                                                    <span className="font-medium text-foreground/90 group-hover:text-foreground transition-colors truncate max-w-[280px]">{name}</span>
-                                                </div>
-                                                <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-normal bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400">
-                                                    Conflict
-                                                </Badge>
-                                            </div>
-                                        ))}
-                                        {analysis.newPrograms.length === 0 && analysis.conflictPrograms.length === 0 && (
-                                            <div className="p-6 text-center text-muted-foreground text-xs">
-                                                No programs of interest found in import data
-                                            </div>
-                                        )}
-                                    </div>
-                                </ScrollArea>
-                            </Card>
-                        </div>
 
-                        {/* Conflict Handling & Settings */}
-                        {(analysis.conflictPrograms.length > 0 || importData.settings) && (
-                            <div className="space-y-3 pt-1">
-                                {/* Conflict Handling */}
-                                {analysis.conflictPrograms.length > 0 && (
-                                    <div className="space-y-2">
-                                        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                            Resolve Conflicts
-                                        </h3>
-
-                                        <RadioGroup
-                                            value={conflictMode}
-                                            onValueChange={(value) => setConflictMode(value as ConflictMode)}
-                                            className="grid grid-cols-1 sm:grid-cols-3 gap-2"
-                                        >
-                                            {([
-                                                { value: 'skip', label: 'Skip', description: 'Ignore incoming' },
-                                                { value: 'overwrite', label: 'Overwrite', description: 'Replace existing' },
-                                                { value: 'rename', label: 'Rename', description: 'Keep both (Copy)' }
-                                            ] as const).map((option, index) => {
-                                                const id = `${radioBaseId}-${index}`;
-                                                const isChecked = conflictMode === option.value;
+                            <div className="space-y-2">
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Programs in this backup
+                                </h3>
+                                <Card className="h-[320px] overflow-hidden border-muted">
+                                    <ScrollArea className="h-full">
+                                        <div className="divide-y divide-muted/40">
+                                            {programs.map((program, programIndex) => {
+                                                const isConflict = conflictNameSet.has(program.name.toLowerCase());
+                                                const programCourseCount = program.semesters.reduce((total, semester) => total + semester.courses.length, 0);
                                                 return (
-                                                    <label
-                                                        key={option.value}
-                                                        htmlFor={id}
-                                                        className={cn(
-                                                            "relative flex flex-col items-start justify-center rounded-lg border p-3 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all",
-                                                            isChecked ? "border-primary bg-primary/5 shadow-sm" : "border-muted bg-transparent",
-                                                        )}
+                                                    <Collapsible
+                                                        key={`${program.name}-${programIndex}`}
+                                                        defaultOpen={programIndex === 0}
+                                                        className="group/program"
                                                     >
-                                                        <div className="flex items-center gap-2 w-full mb-1">
-                                                            <RadioGroupItem value={option.value} id={id} className="h-3.5 w-3.5" />
-                                                            <span className={cn("text-xs font-semibold leading-none", isChecked ? "text-primary" : "text-foreground")}>
-                                                                {option.label}
-                                                            </span>
-                                                        </div>
-                                                        <span className="text-[10px] text-muted-foreground pl-[22px] leading-tight block">
-                                                            {option.description}
-                                                        </span>
-                                                    </label>
+                                                        <CollapsibleTrigger asChild>
+                                                            <button
+                                                                type="button"
+                                                                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                                                            >
+                                                                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/program:rotate-90" />
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="truncate font-medium">{program.name}</span>
+                                                                        <Badge
+                                                                            variant="secondary"
+                                                                            className={cn(
+                                                                                'h-5 px-2 text-[11px]',
+                                                                                isConflict
+                                                                                    ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                                                                                    : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                                                                            )}
+                                                                        >
+                                                                            {isConflict ? 'Conflict' : 'New'}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <p className="truncate text-xs text-muted-foreground">
+                                                                        CGPA {program.cgpa_scaled} ({program.cgpa_percentage}%) · Grad Credits {program.grad_requirement_credits}
+                                                                        {program.gpa_scaling_table ? ` · Scale ${program.gpa_scaling_table}` : ''}
+                                                                        {program.hide_gpa ? ' · GPA hidden' : ''}
+                                                                    </p>
+                                                                </div>
+                                                                <span className="shrink-0 text-xs text-muted-foreground">
+                                                                    {program.semesters.length} sem · {programCourseCount} courses
+                                                                </span>
+                                                            </button>
+                                                        </CollapsibleTrigger>
+                                                        <CollapsibleContent>
+                                                            <div className="ml-6 border-l border-dashed pl-2">
+                                                                {program.semesters.length === 0 && (
+                                                                    <p className="px-2 py-2 text-xs text-muted-foreground">No semesters</p>
+                                                                )}
+                                                                {program.semesters.map((semester, semesterIndex) => (
+                                                                    <Collapsible
+                                                                        key={`${program.name}-${semester.name}-${semesterIndex}`}
+                                                                        className="group/semester"
+                                                                    >
+                                                                        <CollapsibleTrigger asChild>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="flex w-full cursor-pointer items-center gap-2 px-2 py-2 text-left transition-colors hover:bg-muted/30"
+                                                                            >
+                                                                                <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/semester:rotate-90" />
+                                                                                <div className="min-w-0 flex-1">
+                                                                                    <p className="truncate text-sm font-medium">{semester.name}</p>
+                                                                                    <p className="truncate text-xs text-muted-foreground">
+                                                                                        Avg {semester.average_scaled} ({semester.average_percentage}%) · Widgets {semester.widgets.length} · Tabs {semester.tabs.length}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <span className="shrink-0 text-xs text-muted-foreground">
+                                                                                    {semester.courses.length} courses
+                                                                                </span>
+                                                                            </button>
+                                                                        </CollapsibleTrigger>
+                                                                        <CollapsibleContent>
+                                                                            <ul className="ml-5 border-l border-dashed py-1 pl-2">
+                                                                                {semester.courses.length === 0 && (
+                                                                                    <li className="px-2 py-1 text-xs text-muted-foreground">No courses</li>
+                                                                                )}
+                                                                                {semester.courses.map((course, courseIndex) => (
+                                                                                    <li
+                                                                                        key={`${semester.name}-${course.name}-${courseIndex}`}
+                                                                                        className="px-2 py-1.5"
+                                                                                    >
+                                                                                        <p className="truncate text-xs font-medium">{course.name}</p>
+                                                                                        <p className="truncate text-[11px] text-muted-foreground">
+                                                                                            {course.alias ? `${course.alias} · ` : ''}
+                                                                                            {course.credits} credits · {course.grade_percentage}% ({course.grade_scaled}) · Widgets {course.widgets.length} · Tabs {course.tabs.length}
+                                                                                            {course.include_in_gpa ? ' · Include GPA' : ' · Exclude GPA'}
+                                                                                            {course.hide_gpa ? ' · GPA hidden' : ''}
+                                                                                        </p>
+                                                                                    </li>
+                                                                                ))}
+                                                                            </ul>
+                                                                        </CollapsibleContent>
+                                                                    </Collapsible>
+                                                                ))}
+                                                            </div>
+                                                        </CollapsibleContent>
+                                                    </Collapsible>
                                                 );
                                             })}
-                                        </RadioGroup>
-                                    </div>
-                                )}
+                                            {!hasPrograms && (
+                                                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                                                    No programs found.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </ScrollArea>
+                                </Card>
+                            </div>
 
-                                {analysis.conflictPrograms.length > 0 && importData.settings && <Separator className="my-2" />}
+                            {(analysis.conflictPrograms.length > 0 || hasImportSettings) && (
+                                <div className="space-y-3">
+                                    {analysis.conflictPrograms.length > 0 && (
+                                        <div className="space-y-2">
+                                            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                Conflict mode
+                                            </h3>
+                                            <RadioGroup
+                                                value={conflictMode}
+                                                onValueChange={(value) => setConflictMode(value as ConflictMode)}
+                                                className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+                                            >
+                                                {conflictOptions.map((option, index) => {
+                                                    const id = `${radioBaseId}-${index}`;
+                                                    const isChecked = conflictMode === option.value;
+                                                    return (
+                                                        <label
+                                                            key={option.value}
+                                                            htmlFor={id}
+                                                            className={cn(
+                                                                'cursor-pointer rounded-lg border p-3 transition-colors',
+                                                                isChecked
+                                                                    ? 'border-primary bg-primary/5'
+                                                                    : 'border-muted hover:bg-accent/50'
+                                                            )}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <RadioGroupItem value={option.value} id={id} />
+                                                                <span className={cn('text-sm font-medium', isChecked && 'text-primary')}>
+                                                                    {option.label}
+                                                                </span>
+                                                            </div>
+                                                            <p className="pl-6 pt-1 text-xs text-muted-foreground">{option.description}</p>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </RadioGroup>
+                                        </div>
+                                    )}
 
-                                {/* Settings Toggle */}
-                                {importData.settings && (
-                                    <div className="flex items-center space-x-2.5 p-2.5 rounded-lg border border-dashed bg-muted/20">
-                                        <Checkbox
-                                            id={includeSettingsId}
-                                            checked={includeSettings}
-                                            onCheckedChange={(checked) => {
-                                                if (checked === "indeterminate") return;
-                                                setIncludeSettings(checked);
-                                            }}
-                                        />
-                                        <div className="grid gap-0.5 leading-none">
-                                            <Label htmlFor={includeSettingsId} className="text-xs font-medium cursor-pointer flex items-center gap-1.5 hover:text-primary transition-colors">
-                                                <Settings2 className="h-3 w-3" />
-                                                Import User Settings (Nickname, Defaults)
-                                            </Label>
+                                    {analysis.conflictPrograms.length > 0 && <Separator />}
+
+                                    <div className="space-y-2">
+                                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                            Account settings
+                                        </h3>
+                                        <div className="rounded-lg border border-dashed bg-muted/20 p-3">
+                                            <div className="flex items-start gap-2.5">
+                                                <Checkbox
+                                                    id={includeSettingsId}
+                                                    checked={hasImportSettings ? includeSettings : false}
+                                                    disabled={!hasImportSettings}
+                                                    onCheckedChange={(checked) => {
+                                                        if (checked === 'indeterminate') return;
+                                                        setIncludeSettings(checked);
+                                                    }}
+                                                    className="mt-0.5"
+                                                />
+                                                <div className="space-y-1">
+                                                    <Label
+                                                        htmlFor={includeSettingsId}
+                                                        className={cn(
+                                                            'flex items-center gap-1.5 text-sm font-medium',
+                                                            hasImportSettings ? 'cursor-pointer' : 'cursor-not-allowed text-muted-foreground'
+                                                        )}
+                                                    >
+                                                        <Settings2 className="size-3.5" />
+                                                        Import account settings
+                                                    </Label>
+                                                    {!hasImportSettings && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            No account settings found in this backup.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        )}
+                                </div>
+                            )}
                     </div>
                 </div>
 
-                <DialogFooter className="px-4 py-3 border-t bg-muted/20 gap-2 sm:gap-0">
-                    <Button variant="ghost" size="sm" onClick={onClose} disabled={isImporting} className="hidden sm:flex h-8 text-xs hover:bg-transparent text-muted-foreground hover:text-foreground">
-                        Dismiss
+                <DialogFooter className="border-t bg-muted/20 px-5 py-3 sm:justify-end">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onClose}
+                        disabled={isImporting}
+                        className="h-8 px-4 text-xs"
+                    >
+                        Cancel
                     </Button>
-                    <div className="flex gap-2 w-full sm:w-auto">
-                        <Button variant="outline" size="sm" onClick={onClose} disabled={isImporting} className="sm:hidden flex-1 h-8 text-xs">
-                            Cancel
-                        </Button>
-                        <Button size="sm" onClick={handleConfirm} disabled={isImporting} className="flex-1 sm:flex-none h-8 text-xs px-4">
-                            {isImporting ? 'Importing...' : 'Confirm Import'}
-                            {!isImporting && <ArrowRight className="ml-2 h-3.5 w-3.5" />}
-                        </Button>
-                    </div>
+                    <Button
+                        size="sm"
+                        onClick={handleConfirm}
+                        disabled={isImporting || !hasPrograms}
+                        className="h-8 px-4 text-xs"
+                    >
+                        {isImporting && <Loader2 className="mr-2 size-3.5 animate-spin" />}
+                        {isImporting ? 'Importing...' : 'Confirm Import'}
+                        {!isImporting && <ArrowRight className="ml-2 size-3.5" />}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

@@ -1,5 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { SettingsSection } from '@/components/SettingsSection';
 import {
@@ -11,15 +22,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CourseManagerModal } from '@/components/CourseManagerModal';
-import { useDialog } from '@/contexts/DialogContext';
 import api from '@/services/api';
 import type { Course, Semester } from '@/services/api';
 import type { WidgetGlobalSettingsProps } from '@/services/widgetRegistry';
+import { Loader2, Trash2 } from 'lucide-react';
 
 export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semesterId, onRefresh }) => {
   const [semester, setSemester] = useState<Semester | null>(null);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
-  const { confirm } = useDialog();
+  const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
 
   const fetchSemester = useCallback(async () => {
     if (!semesterId) return;
@@ -36,20 +47,16 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
   }, [fetchSemester]);
 
   const handleRemoveCourse = async (courseId: string) => {
-    const shouldRemove = await confirm({
-      title: 'Remove course?',
-      description: 'Are you sure you want to remove this course from the semester? It will remain in the program.',
-      confirmText: 'Remove',
-      cancelText: 'Cancel',
-      tone: 'destructive',
-    });
-    if (!shouldRemove) return;
+    if (removingCourseId) return;
+    setRemovingCourseId(courseId);
     try {
       await api.updateCourse(courseId, { semester_id: null as any });
       void fetchSemester();
       onRefresh();
     } catch (error) {
       console.error('Failed to remove course', error);
+    } finally {
+      setRemovingCourseId(null);
     }
   };
 
@@ -104,14 +111,43 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
                     <TableCell>{course.credits}</TableCell>
                     <TableCell>{course.grade_percentage}%</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void handleRemoveCourse(course.id)}
-                        className="h-8 border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        Remove
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label={`Remove course ${course.name}`}
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent size="sm">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove course from semester?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {course.name} will be removed from this semester but kept in the program.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel disabled={removingCourseId === course.id}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              variant="destructive"
+                              onClick={() => void handleRemoveCourse(course.id)}
+                              disabled={removingCourseId !== null}
+                            >
+                              {removingCourseId === course.id ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Removing...
+                                </>
+                              ) : (
+                                'Remove'
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -135,4 +171,3 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
     </SettingsSection>
   );
 };
-
