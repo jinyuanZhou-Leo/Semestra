@@ -2,6 +2,11 @@ import type { TabContext, TabDefinition } from '../services/tabRegistry';
 import { TabRegistry } from '../services/tabRegistry';
 import type { WidgetContext, WidgetDefinition } from '../services/widgetRegistry';
 import { WidgetRegistry } from '../services/widgetRegistry';
+import {
+    PluginSettingsRegistry,
+    type TabSettingsDefinition,
+    type WidgetGlobalSettingsDefinition,
+} from '../services/pluginSettingsRegistry';
 import type { ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
 
 export type { ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
@@ -28,6 +33,11 @@ interface PluginMetadataModule {
     widgetCatalog?: WidgetCatalogItem[];
 }
 
+interface PluginSettingsModule {
+    tabSettingsDefinitions?: TabSettingsDefinition[];
+    widgetGlobalSettingsDefinitions?: WidgetGlobalSettingsDefinition[];
+}
+
 const createPluginEntry = (entry: Omit<PluginEntry, 'loaded' | 'loadPromise'>): PluginEntry => ({
     ...entry,
     loaded: false,
@@ -36,6 +46,11 @@ const createPluginEntry = (entry: Omit<PluginEntry, 'loaded' | 'loadPromise'>): 
 
 // Eagerly load lightweight metadata so names/icons are available before runtime modules are loaded.
 const metadataModules = import.meta.glob('../plugins/*/metadata.ts', { eager: true }) as Record<string, unknown>;
+// Eagerly load plugin settings modules so settings panels are available without loading runtime UI modules.
+const settingsModules = {
+    ...import.meta.glob('../plugins/*/settings.ts', { eager: true }),
+    ...import.meta.glob('../plugins/*/settings.tsx', { eager: true }),
+} as Record<string, unknown>;
 // Keep plugin runtime code lazy and load it only when a plugin is actually needed.
 const pluginLoaders = import.meta.glob('../plugins/*/index.ts') as Record<string, () => Promise<PluginModule>>;
 
@@ -52,6 +67,17 @@ const asPluginMetadataModule = (value: unknown): PluginMetadataModule | null => 
         pluginId: module.pluginId,
         tabCatalog: Array.isArray(module.tabCatalog) ? module.tabCatalog : [],
         widgetCatalog: Array.isArray(module.widgetCatalog) ? module.widgetCatalog : [],
+    };
+};
+
+const asPluginSettingsModule = (value: unknown): PluginSettingsModule => {
+    if (!value || typeof value !== 'object') return {};
+    const module = value as Partial<PluginSettingsModule>;
+    return {
+        tabSettingsDefinitions: Array.isArray(module.tabSettingsDefinitions) ? module.tabSettingsDefinitions : [],
+        widgetGlobalSettingsDefinitions: Array.isArray(module.widgetGlobalSettingsDefinitions)
+            ? module.widgetGlobalSettingsDefinitions
+            : [],
     };
 };
 
@@ -101,6 +127,16 @@ pluginEntries.forEach((entry) => {
         widgetTypeToPluginId.set(item.type, entry.id);
         widgetCatalogByType.set(item.type, item);
     });
+});
+
+Object.values(settingsModules).forEach((moduleValue) => {
+    const settingsModule = asPluginSettingsModule(moduleValue);
+    if (settingsModule.tabSettingsDefinitions?.length) {
+        PluginSettingsRegistry.registerTabSettingsMany(settingsModule.tabSettingsDefinitions);
+    }
+    if (settingsModule.widgetGlobalSettingsDefinitions?.length) {
+        PluginSettingsRegistry.registerWidgetGlobalSettingsMany(settingsModule.widgetGlobalSettingsDefinitions);
+    }
 });
 
 const registerPluginModule = (module: PluginModule) => {

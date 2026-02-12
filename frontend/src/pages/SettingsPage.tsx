@@ -300,7 +300,7 @@ export const SettingsPage: React.FC = () => {
 
                 <Separator />
 
-                <div className="space-y-10">
+                <div className="space-y-6">
                     <SettingsSection
                         title="Appearance"
                         description="Customize the look and feel of the application."
@@ -322,8 +322,6 @@ export const SettingsPage: React.FC = () => {
                             </div>
                         </div>
                     </SettingsSection>
-
-                    <Separator />
 
                     <SettingsSection
                         title="Account"
@@ -413,8 +411,6 @@ export const SettingsPage: React.FC = () => {
                         </div>
                     </SettingsSection>
 
-                    <Separator />
-
                     <SettingsSection
                         title="Global Defaults"
                         description="Set default values for new programs."
@@ -458,14 +454,12 @@ export const SettingsPage: React.FC = () => {
                         </div>
                     </SettingsSection>
 
-                    <Separator />
-
                     <SettingsSection
                         title="Data Management"
                         description="Export your data for backup or import from a backup file."
                     >
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm hover:bg-accent/50 transition-colors">
+                            <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
                                 <div className="space-y-2 mb-4">
                                     <p className="font-medium">Export Data</p>
                                     <p className="text-sm text-muted-foreground">
@@ -474,7 +468,7 @@ export const SettingsPage: React.FC = () => {
                                 </div>
                                 <Button
                                     variant="secondary"
-                                    className="w-full"
+                                    className="w-full transition-colors duration-200 hover:bg-accent hover:text-accent-foreground"
                                     onClick={async () => {
                                         try {
                                             const data = await api.exportUserData();
@@ -505,7 +499,7 @@ export const SettingsPage: React.FC = () => {
                                 </Button>
                             </div>
 
-                            <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm hover:bg-accent/50 transition-colors">
+                            <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
                                 <div className="space-y-2 mb-4">
                                     <p className="font-medium">Import Data</p>
                                     <p className="text-sm text-muted-foreground">
@@ -514,7 +508,7 @@ export const SettingsPage: React.FC = () => {
                                 </div>
                                 <Button
                                     variant="secondary"
-                                    className="w-full"
+                                    className="w-full transition-colors duration-200 hover:bg-accent hover:text-accent-foreground"
                                     onClick={() => {
                                         const input = document.createElement("input");
                                         input.type = "file";

@@ -1,15 +1,14 @@
 import React from 'react';
 import { CalendarDays, ListTodo, NotebookPen } from 'lucide-react';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { TabDefinition, TabProps, TabSettingsProps } from '@/services/tabRegistry';
+import type { TabDefinition, TabProps } from '@/services/tabRegistry';
 import {
   BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
   BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,
   BUILTIN_TIMETABLE_TODO_TAB_TYPE,
 } from './shared/constants';
-import { CalendarSettingsSection } from './tabs/calendar/CalendarSettingsSection';
 import { CalendarTab } from './tabs/calendar';
-import { CourseScheduleSettings, CourseScheduleTab } from './tabs/course-schedule';
+import { CourseScheduleTab } from './tabs/course-schedule';
 import { TodoTab } from './tabs/todo';
 
 const UnsupportedContextCard: React.FC<{ title: string; description: string }> = ({ title, description }) => (
@@ -41,17 +40,6 @@ const BuiltinAcademicCalendarTab: React.FC<TabProps> = ({ tabId, semesterId, set
   );
 };
 
-const BuiltinAcademicCalendarSettings: React.FC<TabSettingsProps> = ({ semesterId, settings, updateSettings }) => {
-  if (!semesterId) return null;
-  return (
-    <CalendarSettingsSection
-      semesterId={semesterId}
-      settings={settings}
-      updateSettings={updateSettings}
-    />
-  );
-};
-
 const BuiltinCourseScheduleTab: React.FC<TabProps> = ({ courseId }) => {
   if (!courseId) {
     return (
@@ -65,11 +53,6 @@ const BuiltinCourseScheduleTab: React.FC<TabProps> = ({ courseId }) => {
   return <CourseScheduleTab courseId={courseId} />;
 };
 
-const BuiltinCourseScheduleSettings: React.FC<TabSettingsProps> = ({ courseId }) => {
-  if (!courseId) return null;
-  return <CourseScheduleSettings courseId={courseId} />;
-};
-
 const BuiltinTodoTab: React.FC<TabProps> = () => {
   return <TodoTab />;
 };
@@ -80,7 +63,6 @@ export const BuiltinAcademicCalendarTabDefinition: TabDefinition = {
   description: 'Semester calendar with schedule visualization',
   icon: <CalendarDays className="h-4 w-4" />,
   component: BuiltinAcademicCalendarTab,
-  settingsComponent: BuiltinAcademicCalendarSettings,
   maxInstances: 1,
   allowedContexts: ['semester'],
 };
@@ -91,7 +73,6 @@ export const BuiltinCourseScheduleTabDefinition: TabDefinition = {
   description: 'Manage course sections, event types, and recurring slot rules',
   icon: <NotebookPen className="h-4 w-4" />,
   component: BuiltinCourseScheduleTab,
-  settingsComponent: BuiltinCourseScheduleSettings,
   maxInstances: 1,
   allowedContexts: ['course'],
 };

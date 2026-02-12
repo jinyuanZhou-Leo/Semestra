@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { AddWidgetModal } from '../components/AddWidgetModal';
 import { AddTabModal } from '../components/AddTabModal';
@@ -20,12 +19,13 @@ import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { TabRegistry } from '../services/tabRegistry';
-import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
+import { PluginSettingsCard } from '../components/PluginSettingsCard';
 import { PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
-import { getResolvedTabMetadataByType, hasTabPluginForType } from '../plugin-system';
+import { getResolvedTabMetadataByType, getWidgetCatalogItemByType, hasTabPluginForType } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
+import { useTabSettingsRegistry, useWidgetGlobalSettingsRegistry } from '../services/pluginSettingsRegistry';
 import {
     COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
     HOMEPAGE_DASHBOARD_TAB_TYPE,
@@ -229,7 +229,6 @@ const CourseHomepageContent: React.FC = () => {
 
     // Centralize builtin-tab visibility/loading/order rules for homepage tabs.
     const {
-        registeredTabTypes,
         isActiveTabPluginLoading,
         tabBarItems,
         visibleTabs,
@@ -242,6 +241,9 @@ const CourseHomepageContent: React.FC = () => {
         isTabsInitialized,
         ensureBuiltinTabInstance,
     });
+
+    const tabSettingsDefinitions = useTabSettingsRegistry();
+    const widgetGlobalSettingsDefinitions = useWidgetGlobalSettingsRegistry();
 
     const dashboardContent = useMemo(() => {
         if (!course) return null;
@@ -303,37 +305,30 @@ const CourseHomepageContent: React.FC = () => {
     }, [activeTabId, areBuiltinTabsReady, tabBarItems]);
 
     const tabSettingsSections = useMemo(() => {
+        const settingsByType = new Map(
+            tabSettingsDefinitions.map((definition) => [definition.type, definition.component])
+        );
         const sections = visibleTabs
             .map(tab => {
-            const definition = registeredTabTypes.has(tab.type) ? TabRegistry.get(tab.type) : undefined;
+            const SettingsComponent = settingsByType.get(tab.type);
             const metadata = getResolvedTabMetadataByType(tab.type);
-            const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div key={tab.id} className="flex flex-col gap-4">
-                    <div className="flex items-center gap-2 pl-1">
-                        <Badge variant="secondary" className="uppercase tracking-wider">
-                            Plugin
-                        </Badge>
-                        <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
-                            {metadata.name ?? tab.title ?? tab.type}
-                        </h3>
-                    </div>
-
+                <PluginSettingsCard key={tab.id} title={metadata.name ?? tab.title ?? tab.type}>
                     <SettingsComponent
                         tabId={tab.id}
                         settings={tab.settings || {}}
                         courseId={course?.id}
                         updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
                     />
-                </div>
+                </PluginSettingsCard>
             );
         }).filter(Boolean);
 
         if (sections.length === 0) return null;
 
         return (
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
                 {sections}
             </div>
         );
@@ -341,46 +336,39 @@ const CourseHomepageContent: React.FC = () => {
         visibleTabs,
         course?.id,
         handleUpdateTabSettings,
-        registeredTabTypes
+        tabSettingsDefinitions
     ]);
 
-    // Widget plugin global settings sections
-    const widgetDefinitions = useWidgetRegistry();
     const widgetSettingsSections = useMemo(() => {
-        const sections = widgetDefinitions
-            .filter(def => {
-                // Only show settings for widgets allowed in course context
-                const allowedContexts = resolveAllowedContexts(def);
-                return allowedContexts.includes('course') && def.globalSettingsComponent;
+        const sections = widgetGlobalSettingsDefinitions
+            .filter((definition) => {
+                const metadata = getWidgetCatalogItemByType(definition.type);
+                const allowedContexts = metadata?.allowedContexts ?? ['semester', 'course'];
+                return allowedContexts.includes('course');
             })
-            .map(def => {
-                const GlobalSettingsComponent = def.globalSettingsComponent!;
+            .map((definition) => {
+                const GlobalSettingsComponent = definition.component;
+                const metadata = getWidgetCatalogItemByType(definition.type);
                 return (
-                    <div key={def.type} className="flex flex-col gap-4">
-                        <div className="flex items-center gap-2 pl-1">
-                            <Badge variant="secondary" className="uppercase tracking-wider">
-                                Plugin
-                            </Badge>
-                            <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
-                                {def.name}
-                            </h3>
-                        </div>
+                    <PluginSettingsCard key={definition.type} title={metadata?.name ?? definition.type}>
                         <GlobalSettingsComponent
                             courseId={course?.id}
                             onRefresh={refreshCourse}
                         />
-                    </div>
+                    </PluginSettingsCard>
                 );
             });
 
         if (sections.length === 0) return null;
 
         return (
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
                 {sections}
             </div>
         );
-    }, [widgetDefinitions, course?.id, refreshCourse]);
+    }, [widgetGlobalSettingsDefinitions, course?.id, refreshCourse]);
+
+    const hasPluginSettings = Boolean(widgetSettingsSections || tabSettingsSections);
 
     const handleUpdateCourse = async (data: any) => {
         if (!course) return;
@@ -420,12 +408,12 @@ const CourseHomepageContent: React.FC = () => {
                     onSave={handleUpdateCourse}
                 />
             ),
-            extraSections: (
-                <>
+            extraSections: hasPluginSettings ? (
+                <div className="space-y-6">
                     {widgetSettingsSections}
                     {tabSettingsSections}
-                </>
-            )
+                </div>
+            ) : undefined
         }
     }), [
         isLoading,
@@ -442,6 +430,7 @@ const CourseHomepageContent: React.FC = () => {
         course?.hide_gpa,
         updateCourse,
         handleUpdateCourse,
+        hasPluginSettings,
         widgetSettingsSections,
         tabSettingsSections
     ]);

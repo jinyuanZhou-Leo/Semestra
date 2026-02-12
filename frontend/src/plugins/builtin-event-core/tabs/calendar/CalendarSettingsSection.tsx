@@ -158,31 +158,26 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
       </SettingsSection>
 
       <SettingsSection
-        title="Schedule Export"
-        description=""
+        title="Actions"
+        description="Export schedule data or restore calendar defaults."
       >
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <p className="text-sm text-muted-foreground">
-            Export your semester schedule
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setIsExportModalOpen(true)}
-            disabled={!semesterId}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-        </div>
-      </SettingsSection>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <p className="text-sm text-muted-foreground">
+              Export your semester schedule
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsExportModalOpen(true)}
+              disabled={!semesterId}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+          </div>
 
-      <SettingsSection
-        title="Reset Calendar Settings"
-        description="This will restore all calendar settings to defaults."
-      >
-        <div className="rounded-md border p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
             <p className="text-sm text-muted-foreground">
               Restore event colors, time window, weekend visibility, and conflict highlighting to defaults.
             </p>

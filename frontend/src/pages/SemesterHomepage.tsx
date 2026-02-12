@@ -19,12 +19,13 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 import { TabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
-import { useWidgetRegistry, resolveAllowedContexts } from '../services/widgetRegistry';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
+import { PluginSettingsCard } from '../components/PluginSettingsCard';
 import { PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
-import { getResolvedTabMetadataByType, hasTabPluginForType } from '../plugin-system';
+import { getResolvedTabMetadataByType, getWidgetCatalogItemByType, hasTabPluginForType } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
+import { useTabSettingsRegistry, useWidgetGlobalSettingsRegistry } from '../services/pluginSettingsRegistry';
 import {
     HOMEPAGE_DASHBOARD_TAB_TYPE,
     HOMEPAGE_SETTINGS_TAB_TYPE,
@@ -121,7 +122,6 @@ const SemesterHomepageContent: React.FC = () => {
 
     // Centralize builtin-tab visibility/loading/order rules for homepage tabs.
     const {
-        registeredTabTypes,
         isActiveTabPluginLoading,
         tabBarItems,
         visibleTabs,
@@ -134,6 +134,9 @@ const SemesterHomepageContent: React.FC = () => {
         isTabsInitialized,
         ensureBuiltinTabInstance,
     });
+
+    const tabSettingsDefinitions = useTabSettingsRegistry();
+    const widgetGlobalSettingsDefinitions = useWidgetGlobalSettingsRegistry();
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         reorderTabs(filterReorderableTabIds(orderedIds));
@@ -237,37 +240,30 @@ const SemesterHomepageContent: React.FC = () => {
     };
 
     const tabSettingsSections = useMemo(() => {
+        const settingsByType = new Map(
+            tabSettingsDefinitions.map((definition) => [definition.type, definition.component])
+        );
         const sections = visibleTabs
-            .map(tab => {
-            const definition = registeredTabTypes.has(tab.type) ? TabRegistry.get(tab.type) : undefined;
+            .map((tab) => {
+            const SettingsComponent = settingsByType.get(tab.type);
             const metadata = getResolvedTabMetadataByType(tab.type);
-            const SettingsComponent = definition?.settingsComponent;
             if (!SettingsComponent) return null;
             return (
-                <div key={tab.id} className="flex flex-col gap-4">
-                    <div className="flex items-center gap-2 pl-1">
-                        <div className="text-[0.65rem] uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 font-semibold">
-                            Plugin
-                        </div>
-                        <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
-                            {metadata.name ?? tab.title ?? tab.type}
-                        </h3>
-                    </div>
-
+                <PluginSettingsCard key={tab.id} title={metadata.name ?? tab.title ?? tab.type}>
                     <SettingsComponent
                         tabId={tab.id}
                         settings={tab.settings || {}}
                         semesterId={semester?.id}
                         updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
                     />
-                </div>
+                </PluginSettingsCard>
             );
         }).filter(Boolean);
 
         if (sections.length === 0) return null;
 
         return (
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
                 {sections}
             </div>
         );
@@ -275,46 +271,39 @@ const SemesterHomepageContent: React.FC = () => {
         visibleTabs,
         semester?.id,
         handleUpdateTabSettings,
-        registeredTabTypes
+        tabSettingsDefinitions
     ]);
 
-    // Widget plugin global settings sections
-    const widgetDefinitions = useWidgetRegistry();
     const widgetSettingsSections = useMemo(() => {
-        const sections = widgetDefinitions
-            .filter(def => {
-                // Only show settings for widgets allowed in semester context
-                const allowedContexts = resolveAllowedContexts(def);
-                return allowedContexts.includes('semester') && def.globalSettingsComponent;
+        const sections = widgetGlobalSettingsDefinitions
+            .filter((definition) => {
+                const metadata = getWidgetCatalogItemByType(definition.type);
+                const allowedContexts = metadata?.allowedContexts ?? ['semester', 'course'];
+                return allowedContexts.includes('semester');
             })
-            .map(def => {
-                const GlobalSettingsComponent = def.globalSettingsComponent!;
+            .map((definition) => {
+                const GlobalSettingsComponent = definition.component;
+                const metadata = getWidgetCatalogItemByType(definition.type);
                 return (
-                    <div key={def.type} className="flex flex-col gap-4">
-                        <div className="flex items-center gap-2 pl-1">
-                            <div className="text-[0.65rem] uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 font-semibold">
-                                Plugin
-                            </div>
-                            <h3 className="m-0 text-[0.85rem] font-semibold text-muted-foreground uppercase tracking-wider">
-                                {def.name}
-                            </h3>
-                        </div>
+                    <PluginSettingsCard key={definition.type} title={metadata?.name ?? definition.type}>
                         <GlobalSettingsComponent
                             semesterId={semester?.id}
                             onRefresh={refreshSemester}
                         />
-                    </div>
+                    </PluginSettingsCard>
                 );
             });
 
         if (sections.length === 0) return null;
 
         return (
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
                 {sections}
             </div>
         );
-    }, [widgetDefinitions, semester?.id, refreshSemester]);
+    }, [widgetGlobalSettingsDefinitions, semester?.id, refreshSemester]);
+
+    const hasPluginSettings = Boolean(widgetSettingsSections || tabSettingsSections);
 
     const builtinTabContext = useMemo(() => ({
         isLoading: isLoading,
@@ -339,12 +328,12 @@ const SemesterHomepageContent: React.FC = () => {
                     onSave={handleUpdateSemester}
                 />
             ),
-            extraSections: (
-                <>
+            extraSections: hasPluginSettings ? (
+                <div className="space-y-6">
                     {widgetSettingsSections}
                     {tabSettingsSections}
-                </>
-            )
+                </div>
+            ) : undefined
         }
     }), [
         isLoading,
@@ -355,6 +344,7 @@ const SemesterHomepageContent: React.FC = () => {
         handleLayoutChange,
         semester,
         handleUpdateSemester,
+        hasPluginSettings,
         tabSettingsSections,
         widgetSettingsSections
     ]);

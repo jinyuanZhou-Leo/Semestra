@@ -15,7 +15,8 @@ Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement a widget
 
 ```
 frontend/src/plugins/<plugin-name>/
-  index.ts        // Exports widgetDefinition and/or tabDefinition
+  index.ts        // Exports widgetDefinition and/or tabDefinition (lazy runtime UI entry)
+  settings.ts(x)  // Exports tabSettingsDefinitions/widgetGlobalSettingsDefinitions (eager settings entry)
   widget.tsx      // Optional: widget implementation
   tab.tsx         // Optional: tab implementation
   shared.ts       // Optional: shared types/helpers
@@ -38,10 +39,17 @@ Framework behavior:
 
 ### Auto Registration
 
-`widget-setup.ts` and `tab-setup.ts` automatically scan all plugin `index.ts` files using `import.meta.glob`.
-If you export `widgetDefinition` and/or `tabDefinition`, the framework registers them asynchronously.
+The plugin system scans:
+- `index.ts` with `import.meta.glob` for lazy runtime registration (tab/widget UI).
+- `settings.ts` / `settings.tsx` with eager `import.meta.glob` for settings registration.
 
-**Lazy Loading**: Plugins are loaded asynchronously in the background. The UI renders immediately without waiting for plugins to load. When plugins finish loading, components automatically re-render to show the newly available widgets/tabs.
+If you export `widgetDefinition` and/or `tabDefinition` from `index.ts`, runtime UI remains lazy.
+If you export settings definitions from `settings.ts`, settings panels are always available without waiting for runtime UI modules.
+
+**Loading Model**
+- Runtime UI (`tab.tsx` / `widget.tsx`): lazy-loaded.
+- Settings UI (`settings.ts`): eagerly loaded.
+- This prevents missing settings panels when plugin runtime UI has not been loaded yet.
 
 **Reactive Hooks**: Use `useWidgetRegistry()` and `useTabRegistry()` hooks to subscribe to registry changes:
 
@@ -81,7 +89,6 @@ export interface WidgetDefinition {
     allowedContexts?: Array<'semester' | 'course'>; // Where this widget can be added
     headerButtons?: HeaderButton[]; // Optional custom action buttons in widget header
     SettingsComponent?: React.FC<WidgetSettingsProps>; // Optional per-instance settings fields (rendered inside framework modal)
-    globalSettingsComponent?: React.FC<WidgetGlobalSettingsProps>; // Optional plugin-level settings
     // Lifecycle hooks
     onCreate?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
     onDelete?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
@@ -122,6 +129,8 @@ export interface WidgetGlobalSettingsProps {
     onRefresh: () => void; // Call to refresh parent data after mutations
 }
 ```
+
+Plugin-level settings are now registered in `settings.ts`, not on `WidgetDefinition`.
 
 **Header Buttons**: Widgets can define custom action buttons that appear in the widget header (alongside drag handle, edit, and remove buttons). These buttons only appear when the widget controls are visible (on hover for desktop, on tap for touch devices).
 
@@ -192,14 +201,19 @@ const MyWidgetSettings: React.FC<WidgetSettingsProps> = ({ settings, onSettingsC
 
 ### Plugin-Level Global Settings
 
-Widgets can provide a `globalSettingsComponent` that is rendered in the Settings tab. Unlike `SettingsComponent` (which is per-instance and shown in a modal), `globalSettingsComponent` is shown once in the Settings tab regardless of how many widget instances exist. This is useful for:
+Widgets can provide plugin-level settings panels that are rendered in the Settings tab.
+Unlike `SettingsComponent` (which is per-instance and shown in a modal), plugin-level settings are shown once in the Settings tab regardless of how many widget instances exist.
+Register these panels in `settings.ts`.
+
+Use cases:
 
 - Plugin-wide configuration that applies to all instances
 - Management functions (e.g., adding/removing items)
 - Settings that don't belong to any specific widget instance
 
-**Example - Course List Plugin with Global Settings**:
+**Example - Course List Plugin (`settings.ts`)**:
 ```typescript
+import type { WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
 import type { WidgetGlobalSettingsProps } from '../../services/widgetRegistry';
 
 const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
@@ -214,16 +228,15 @@ const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({
     );
 };
 
-export const CourseListDefinition: WidgetDefinition = {
+export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [
+  {
     type: 'course-list',
-    name: 'Course List',
-    component: CourseList,
-    allowedContexts: ['semester'],
-    globalSettingsComponent: CourseListGlobalSettings  // Shown in Settings tab
-};
+    component: CourseListGlobalSettings,
+  },
+];
 ```
 
-**Note**: The `globalSettingsComponent` is only shown for widgets whose `allowedContexts` includes the current page context (semester or course).
+**Note**: The panel is shown only when the widget catalog `allowedContexts` includes the current page context (semester or course).
 
 
 ### WidgetProps
@@ -264,7 +277,6 @@ export interface TabDefinition {
     description?: string;  // Optional description
     icon?: React.ReactNode; // Emoji, React node, or image URL (imported from plugin folder)
     component: React.FC<TabProps>; // The main tab content component
-    settingsComponent?: React.FC<TabSettingsProps>; // Optional settings panel
     defaultSettings?: any; // Default settings for new tabs
     maxInstances?: number | 'unlimited'; // Max instances per dashboard
     allowedContexts?: Array<'semester' | 'course'>; // Where this tab can be added
@@ -272,6 +284,8 @@ export interface TabDefinition {
     onDelete?: (ctx: TabLifecycleContext) => Promise<void> | void;
 }
 ```
+
+Tab settings panels are registered in `settings.ts` using `tabSettingsDefinitions`.
 
 ### Tab Instance Flags (Persistence Layer)
 
@@ -408,7 +422,9 @@ export const NotesTabDefinition: TabDefinition = {
 
 ### 2. Register the Plugin
 
-Plugins are auto-registered via Vite's `import.meta.glob`. You only need to export from `index.ts`.
+Plugins are auto-registered via Vite's `import.meta.glob`.
+- Runtime UI registration reads `index.ts`.
+- Settings registration reads `settings.ts`.
 
 `frontend/src/plugins/my-new-plugin/index.ts`
 
@@ -419,6 +435,24 @@ export { MyNewDefinition as widgetDefinition } from './widget';
 // If you also have a tab:
 export { NotesTabDefinition, NotesTab } from './tab';
 export { NotesTabDefinition as tabDefinition } from './tab';
+```
+
+`frontend/src/plugins/my-new-plugin/settings.ts`
+
+```typescript
+import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
+import type { TabSettingsProps } from '../../services/tabRegistry';
+
+const NotesTabSettings: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
+  // settings fields
+  return null;
+};
+
+export const tabSettingsDefinitions: TabSettingsDefinition[] = [
+  { type: 'notes-tab', component: NotesTabSettings },
+];
+
+export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [];
 ```
 
 ## Framework-Level Performance Optimizations
@@ -832,80 +866,36 @@ Settings Page
 ...
 ```
 
-### globalSettingsComponent (Widget 插件全局设置)
+### settings.ts（插件设置入口）
 
-`globalSettingsComponent` 在 Settings 页面渲染，用于插件级别的配置。
+插件设置必须在 `settings.ts` 中注册，而不是挂在 `TabDefinition` / `WidgetDefinition` 上。
 
-**设计要求：**
-- 必须使用 `SettingsSection` 包装设置内容
-- 可以返回多个 `SettingsSection`，每个代表一个设置分类
-- 框架已经提供了插件标题（Plugin 胶囊 + 插件名），组件内部不需要重复
-
-**示例：**
 ```typescript
-import { SettingsSection } from '../../components/SettingsSection';
-
-const MyPluginGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
-    semesterId, 
-    onRefresh 
-}) => {
-    return (
-        <>
-            {/* Global 设置卡片 */}
-            <SettingsSection
-                title="Courses"
-                description="Manage courses assigned to this semester."
-            >
-                {/* 课程管理 UI */}
-            </SettingsSection>
-            
-            {/* 如果有其他分类，可以添加更多 SettingsSection */}
-            <SettingsSection
-                title="Import/Export"
-                description="Import or export course data."
-            >
-                {/* 导入导出 UI */}
-            </SettingsSection>
-        </>
-    );
-};
-```
-
-### settingsComponent (Tab 插件设置)
-
-`settingsComponent` 在 Settings 页面渲染，用于 Tab 实例的配置。
-
-**设计要求：**
-- 必须使用 `SettingsSection` 包装设置内容
-- 可以返回多个 `SettingsSection`，每个代表一个设置分类
-- 框架已经提供了插件标题（Plugin 胶囊 + 插件名），组件内部不需要重复
-
-**示例：**
-```typescript
-import { SettingsSection } from '../../components/SettingsSection';
+import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
+import type { TabSettingsProps } from '../../services/tabRegistry';
+import type { WidgetGlobalSettingsProps } from '../../services/widgetRegistry';
 
 const MyTabSettings: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
-    return (
-        <SettingsSection
-            title="Display"
-            description="Configure how this tab is displayed."
-        >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <Input
-                    label="Title"
-                    value={settings.title}
-                    onChange={(e) => updateSettings({ ...settings, title: e.target.value })}
-                />
-                <Checkbox
-                    checked={settings.showHeader}
-                    onChange={(checked) => updateSettings({ ...settings, showHeader: checked })}
-                    label="Show header"
-                />
-            </div>
-        </SettingsSection>
-    );
+  return <SettingsSection title="Display">{/* tab settings */}</SettingsSection>;
 };
+
+const MyWidgetGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semesterId, onRefresh }) => {
+  return <SettingsSection title="Courses">{/* global settings */}</SettingsSection>;
+};
+
+export const tabSettingsDefinitions: TabSettingsDefinition[] = [
+  { type: 'my-tab-type', component: MyTabSettings },
+];
+
+export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [
+  { type: 'my-widget-type', component: MyWidgetGlobalSettings },
+];
 ```
+
+**设计要求：**
+- 必须使用 `SettingsSection` 包装设置内容
+- 可以返回多个 `SettingsSection`，每个代表一个设置分类
+- 框架已经提供插件标题，不要在组件内部重复插件名
 
 ### SettingsSection 组件
 
