@@ -1,5 +1,15 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 
@@ -34,6 +44,24 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
     const dragIdRef = React.useRef<string | null>(null);
     const [draggingId, setDraggingId] = React.useState<string | null>(null);
     const [dragOverId, setDragOverId] = React.useState<string | null>(null);
+    const [pendingRemoveId, setPendingRemoveId] = React.useState<string | null>(null);
+    const [isRemoving, setIsRemoving] = React.useState(false);
+
+    const pendingRemoveTab = React.useMemo(
+        () => items.find((item) => item.id === pendingRemoveId) ?? null,
+        [items, pendingRemoveId]
+    );
+
+    const confirmRemoveTab = React.useCallback(async () => {
+        if (!onRemove || !pendingRemoveId || isRemoving) return;
+        setIsRemoving(true);
+        try {
+            await Promise.resolve(onRemove(pendingRemoveId));
+            setPendingRemoveId(null);
+        } finally {
+            setIsRemoving(false);
+        }
+    }, [isRemoving, onRemove, pendingRemoveId]);
 
     const handleDragStart = (id: string) => (event: React.DragEvent) => {
         dragIdRef.current = id;
@@ -72,9 +100,9 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
 
     return (
         <div className="flex items-center gap-2 max-w-full">
-            <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground max-w-full">
+            <div className="inline-flex h-10 items-center justify-center rounded-lg bg-muted px-1 py-1 text-muted-foreground max-w-full">
                 <div
-                    className="dashboard-tabs-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden no-scrollbar"
+                    className="dashboard-tabs-scroll my-[-2px] flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden py-[2px] no-scrollbar"
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                     role="tablist"
                     aria-label="Dashboard Tabs"
@@ -98,7 +126,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                 role="tab"
                                 aria-selected={isActive}
                                 className={cn(
-                                    "group relative inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer",
+                                    "group relative inline-flex min-h-8 items-center justify-center whitespace-nowrap rounded-md px-3.5 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer",
                                     isActive
                                         ? "bg-background text-foreground shadow"
                                         : "hover:bg-background/50 hover:text-foreground",
@@ -155,7 +183,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                         )}
                                         onClick={(event) => {
                                             event.stopPropagation();
-                                            onRemove(item.id);
+                                            setPendingRemoveId(item.id);
                                         }}
                                     >
                                         <X className="h-3 w-3" strokeWidth={3} />
@@ -170,13 +198,44 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 ml-1 rounded-sm p-0 text-muted-foreground hover:bg-background/50 hover:text-foreground"
+                        className="h-8 w-8 ml-1 rounded-sm p-0 text-muted-foreground hover:bg-background/50 hover:text-foreground"
                         onClick={onAdd}
                     >
                         <span className="text-lg leading-none">+</span>
                     </Button>
                 )}
             </div>
+            <AlertDialog
+                open={pendingRemoveId !== null}
+                onOpenChange={(nextOpen) => {
+                    if (!nextOpen && !isRemoving) {
+                        setPendingRemoveId(null);
+                    }
+                }}
+            >
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remove tab?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {pendingRemoveTab
+                                ? `Are you sure you want to remove "${pendingRemoveTab.label}"?`
+                                : 'Are you sure you want to remove this tab?'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isRemoving}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => {
+                                void confirmRemoveTab();
+                            }}
+                            disabled={isRemoving}
+                        >
+                            {isRemoving ? 'Removing...' : 'Remove'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

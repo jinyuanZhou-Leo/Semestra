@@ -4,7 +4,6 @@ import type { Tab } from '../services/api';
 import { TabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
 import { clearSyncRetryAction, registerSyncRetryAction, reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
-import { useDialog } from '../contexts/DialogContext';
 import { ensureTabPluginByTypeLoaded } from '../plugin-system';
 
 export interface TabItem {
@@ -58,7 +57,6 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
     const settingsRetryCountsRef = useRef<Map<string, number>>(new Map());
     const orderRetryCountsRef = useRef<Map<string, number>>(new Map());
     const syncRetryKeysRef = useRef<Set<string>>(new Set());
-    const { confirm } = useDialog();
     const contextKey = courseId ? `course:${courseId}` : (semesterId ? `semester:${semesterId}` : 'none');
     const currentContextKeyRef = useRef(contextKey);
 
@@ -172,14 +170,6 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
     const removeTab = useCallback(async (id: string) => {
         const tabToRemove = tabs.find(tab => tab.id === id);
         if (tabToRemove?.is_removable === false) return;
-        const shouldRemove = await confirm({
-            title: "Remove tab?",
-            description: "Are you sure you want to remove this tab?",
-            confirmText: "Remove",
-            cancelText: "Cancel",
-            tone: "destructive"
-        });
-        if (!shouldRemove) return;
         const previousTabs = [...tabs];
         setTabs(prev => prev.filter(t => t.id !== id));
         settingsRetryCountsRef.current.delete(id);
@@ -213,7 +203,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
             setTabs(previousTabs);
             reportError('Failed to remove tab. Please try again.');
         }
-    }, [confirm, tabs, onRefresh]);
+    }, [courseId, semesterId, tabs, onRefresh]);
 
     const updateTab = useCallback(async (id: string, data: any) => {
         const nextSeq = (tabUpdateSeqRef.current.get(id) ?? 0) + 1;
