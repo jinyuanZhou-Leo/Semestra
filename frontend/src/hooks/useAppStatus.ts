@@ -1,15 +1,17 @@
 import { useSyncExternalStore } from 'react';
-import { appStatusStore, clearStatus } from '../services/appStatus';
+import { appStatusStore, clearStatus, retryFailedSync } from '../services/appStatus';
 
 export const useAppStatus = () => {
-    const status = useSyncExternalStore(
+    const snapshot = useSyncExternalStore(
         appStatusStore.subscribe,
         appStatusStore.getSnapshot,
         appStatusStore.getSnapshot
     );
 
     return {
-        status,
-        clearStatus
+        status: snapshot.status,
+        pendingSyncRetryCount: snapshot.pendingSyncRetryCount,
+        clearStatus,
+        retryFailedSync
     };
 };

@@ -3,7 +3,7 @@ import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import api from '../services/api';
 import type { Widget } from '../services/api';
 import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
-import { reportError } from '../services/appStatus';
+import { clearSyncRetryAction, registerSyncRetryAction, reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
 import { useDialog } from '../contexts/DialogContext';
 import {
@@ -11,6 +11,9 @@ import {
     getResolvedWidgetLayoutByType,
     getResolvedWidgetMetadataByType,
 } from '../plugin-system';
+
+const getWidgetSettingsRetryKey = (widgetId: string) => `widget-settings:${widgetId}`;
+const getWidgetLayoutRetryKey = (widgetId: string) => `widget-layout:${widgetId}`;
 
 const toWidgetItem = (widget: Widget): WidgetItem => {
     let parsedSettings = {};
@@ -42,6 +45,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     const [widgets, setWidgets] = useState<WidgetItem[]>([]);
     const settingsRetryCountsRef = useRef<Map<string, number>>(new Map());
     const layoutRetryCountsRef = useRef<Map<string, number>>(new Map());
+    const syncRetryKeysRef = useRef<Set<string>>(new Set());
     const widgetUpdateSeqRef = useRef<Map<string, number>>(new Map());
     const { confirm } = useDialog();
 
@@ -110,6 +114,12 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             const mappedWidget = toWidgetItem(newWidget);
             settingsRetryCountsRef.current.delete(mappedWidget.id);
             layoutRetryCountsRef.current.delete(mappedWidget.id);
+            const settingsRetryKey = getWidgetSettingsRetryKey(mappedWidget.id);
+            const layoutRetryKey = getWidgetLayoutRetryKey(mappedWidget.id);
+            clearSyncRetryAction(settingsRetryKey);
+            clearSyncRetryAction(layoutRetryKey);
+            syncRetryKeysRef.current.delete(settingsRetryKey);
+            syncRetryKeysRef.current.delete(layoutRetryKey);
 
             // Call onCreate lifecycle hook
             const definition = WidgetRegistry.get(type);
@@ -156,6 +166,12 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         setWidgets(prev => prev.filter(w => w.id !== id));
         settingsRetryCountsRef.current.delete(id);
         layoutRetryCountsRef.current.delete(id);
+        const settingsRetryKey = getWidgetSettingsRetryKey(id);
+        const layoutRetryKey = getWidgetLayoutRetryKey(id);
+        clearSyncRetryAction(settingsRetryKey);
+        clearSyncRetryAction(layoutRetryKey);
+        syncRetryKeysRef.current.delete(settingsRetryKey);
+        syncRetryKeysRef.current.delete(layoutRetryKey);
 
         try {
             await api.deleteWidget(id);
@@ -237,6 +253,12 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             }
             settingsRetryCountsRef.current.delete(id);
             layoutRetryCountsRef.current.delete(id);
+            const settingsRetryKey = getWidgetSettingsRetryKey(id);
+            const layoutRetryKey = getWidgetLayoutRetryKey(id);
+            clearSyncRetryAction(settingsRetryKey);
+            clearSyncRetryAction(layoutRetryKey);
+            syncRetryKeysRef.current.delete(settingsRetryKey);
+            syncRetryKeysRef.current.delete(layoutRetryKey);
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error("Failed to update widget", error);
@@ -265,6 +287,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
      * 3. This would cause UI to flash back to old state
      */
     const flushWidgetSettings = useCallback(async (widgetId: string) => {
+        const retryKey = getWidgetSettingsRetryKey(widgetId);
         const timer = settingsSyncTimersRef.current.get(widgetId);
         if (timer) {
             clearTimeout(timer);
@@ -283,6 +306,8 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                     setWidgets(prev => prev.map(w => (w.id === widgetId ? toWidgetItem(result) : w)));
                 }
                 settingsRetryCountsRef.current.delete(widgetId);
+                clearSyncRetryAction(retryKey);
+                syncRetryKeysRef.current.delete(retryKey);
                 // Do NOT call onRefresh - optimistic UI is already correct
                 // Calling refresh would overwrite local state with potentially stale server data
             } catch (error) {
@@ -294,9 +319,17 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                 const attempt = (settingsRetryCountsRef.current.get(widgetId) ?? 0) + 1;
                 settingsRetryCountsRef.current.set(widgetId, attempt);
                 if (attempt >= MAX_RETRY_ATTEMPTS) {
-                    reportError('Failed after retries. Please retry manually.', 0);
+                    registerSyncRetryAction(retryKey, () => {
+                        settingsRetryCountsRef.current.delete(widgetId);
+                        pendingSettingsRef.current.set(widgetId, pending);
+                        void flushWidgetSettings(widgetId);
+                    });
+                    syncRetryKeysRef.current.add(retryKey);
+                    reportError('Sync failed after retries. Please retry manually.', 0);
                     return;
                 }
+                clearSyncRetryAction(retryKey);
+                syncRetryKeysRef.current.delete(retryKey);
                 reportError('Sync failed. Retrying...');
                 pendingSettingsRef.current.set(widgetId, pending);
                 const retryTimer = setTimeout(() => {
@@ -335,6 +368,9 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         // Queue for debounced API sync
         pendingSettingsRef.current.set(id, data);
         settingsRetryCountsRef.current.delete(id);
+        const retryKey = getWidgetSettingsRetryKey(id);
+        clearSyncRetryAction(retryKey);
+        syncRetryKeysRef.current.delete(retryKey);
 
         // Clear existing timer for this widget
         const existingTimer = settingsSyncTimersRef.current.get(id);
@@ -351,23 +387,31 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
 
     // Cleanup all pending settings on unmount
     useEffect(() => {
+        const settingsSyncTimers = settingsSyncTimersRef.current;
+        const pendingSettings = pendingSettingsRef.current;
+        const settingsRetryCounts = settingsRetryCountsRef.current;
+        const syncRetryKeys = syncRetryKeysRef.current;
+
         return () => {
             // Flush all pending settings
-            settingsSyncTimersRef.current.forEach((timer) => {
+            settingsSyncTimers.forEach((timer) => {
                 clearTimeout(timer);
             });
-            pendingSettingsRef.current.forEach(async (data, widgetId) => {
+            pendingSettings.forEach(async (data, widgetId) => {
                 try {
                     const result = await api.updateWidget(widgetId, data);
                     setWidgets(prev => prev.map(w => (w.id === widgetId ? toWidgetItem(result) : w)));
-                    settingsRetryCountsRef.current.delete(widgetId);
+                    settingsRetryCounts.delete(widgetId);
+                    const retryKey = getWidgetSettingsRetryKey(widgetId);
+                    clearSyncRetryAction(retryKey);
+                    syncRetryKeys.delete(retryKey);
                 } catch (error) {
                     console.error("Failed to flush widget settings on unmount", widgetId, error);
                     reportError('Failed to sync widget settings. Please retry.');
                 }
             });
-            pendingSettingsRef.current.clear();
-            settingsSyncTimersRef.current.clear();
+            pendingSettings.clear();
+            settingsSyncTimers.clear();
         };
     }, []);
 
@@ -390,6 +434,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         pendingLayoutsRef.current.clear();
 
         for (const [widgetId, layout] of layouts) {
+            const retryKey = getWidgetLayoutRetryKey(widgetId);
             try {
                 const nextSeq = (widgetUpdateSeqRef.current.get(widgetId) ?? 0) + 1;
                 widgetUpdateSeqRef.current.set(widgetId, nextSeq);
@@ -399,6 +444,8 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                     setWidgets(prev => prev.map(w => (w.id === widgetId ? toWidgetItem(result) : w)));
                 }
                 layoutRetryCountsRef.current.delete(widgetId);
+                clearSyncRetryAction(retryKey);
+                syncRetryKeysRef.current.delete(retryKey);
             } catch (error) {
                 console.error("Failed to update widget layout", widgetId, error);
                 if (!isRetryableError(error)) {
@@ -408,9 +455,17 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                 const attempt = (layoutRetryCountsRef.current.get(widgetId) ?? 0) + 1;
                 layoutRetryCountsRef.current.set(widgetId, attempt);
                 if (attempt >= MAX_RETRY_ATTEMPTS) {
-                    reportError('Failed after retries. Please retry manually.', 0);
+                    registerSyncRetryAction(retryKey, () => {
+                        layoutRetryCountsRef.current.delete(widgetId);
+                        pendingLayoutsRef.current.set(widgetId, layout);
+                        void syncLayoutsToApi();
+                    });
+                    syncRetryKeysRef.current.add(retryKey);
+                    reportError('Sync failed after retries. Please retry manually.', 0);
                     continue;
                 }
+                clearSyncRetryAction(retryKey);
+                syncRetryKeysRef.current.delete(retryKey);
                 reportError('Sync failed. Retrying...');
                 pendingLayoutsRef.current.set(widgetId, layout);
             }
@@ -472,6 +527,9 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             const newLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
             pendingLayoutsRef.current.set(layout.i, newLayout);
             layoutRetryCountsRef.current.delete(layout.i);
+            const retryKey = getWidgetLayoutRetryKey(layout.i);
+            clearSyncRetryAction(retryKey);
+            syncRetryKeysRef.current.delete(retryKey);
         });
 
         // Debounce API sync (500ms to allow rapid drag/resize without API spam)
@@ -482,6 +540,14 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             syncLayoutsToApi();
         }, 500);
     }, [syncLayoutsToApi, widgets]);
+
+    useEffect(() => {
+        const syncRetryKeys = syncRetryKeysRef.current;
+        return () => {
+            syncRetryKeys.forEach((key) => clearSyncRetryAction(key));
+            syncRetryKeys.clear();
+        };
+    }, []);
 
     return {
         widgets,

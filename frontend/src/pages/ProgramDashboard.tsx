@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useId, useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
 import api from '../services/api';
@@ -62,87 +63,50 @@ const extractCourseLevel = (courseName: string): number | null => {
     return null;
 };
 
-const ProgramDashboardContent: React.FC = () => {
-    const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
-    const { alert: showAlert } = useDialog();
+type ShowAlert = ReturnType<typeof useDialog>['alert'];
 
-    // Modal State
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+type CreateSemesterDialogButtonProps = {
+    programId: string;
+    onCreated: () => Promise<void>;
+    showAlert: ShowAlert;
+    className?: string;
+    size?: React.ComponentProps<typeof Button>['size'];
+    variant?: React.ComponentProps<typeof Button>['variant'];
+    children: React.ReactNode;
+};
+
+const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
+    programId,
+    onCreated,
+    showAlert,
+    className,
+    size,
+    variant,
+    children,
+}) => {
+    const [open, setOpen] = useState(false);
     const [newSemesterName, setNewSemesterName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [courseSearchQuery, setCourseSearchQuery] = useState('');
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
-    const [activeFilters, setActiveFilters] = useState<Array<{ type: string; value: string; label: string }>>([]);
-    const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
-    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
-    const searchInputRef = useRef<HTMLInputElement>(null);
     const semesterNameId = useId();
-    const [deletingSemesterId, setDeletingSemesterId] = useState<string | null>(null);
-    const [isDeletingSemester, setIsDeletingSemester] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Ref to track the latest newSemesterName, avoiding stale closure
-    const newSemesterNameRef = useRef(newSemesterName);
-    useEffect(() => {
-        newSemesterNameRef.current = newSemesterName;
-    }, [newSemesterName]);
-
-    const handleDragOver = (e: React.DragEvent) => {
+    const submitCreateSemester = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-    };
-
-    const handleDrop = async (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-
-        const files = e.dataTransfer.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.name.endsWith('.ics') || file.type === 'text/calendar') {
-                setSelectedFile(file);
-                // Auto-fill name from filename only if name is empty
-                if (!newSemesterNameRef.current) {
-                    const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
-                    setNewSemesterName(name);
-                }
-            } else {
-                await showAlert({
-                    title: "Invalid file",
-                    description: "Please upload a valid .ics file."
-                });
-            }
-        }
-    };
-
-    // Settings Modal State
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-    const handleCreateSemester = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!program) return;
-
         setIsSubmitting(true);
         try {
             if (selectedFile) {
-                await api.uploadSemesterICS(program.id, selectedFile, newSemesterName || undefined);
+                await api.uploadSemesterICS(programId, selectedFile, newSemesterName || undefined);
             } else {
-                await api.createSemester(program.id, {
+                await api.createSemester(programId, {
                     name: newSemesterName
                 });
             }
-            setIsModalOpen(false);
+            setOpen(false);
             setNewSemesterName('');
             setSelectedFile(null);
-            refreshProgram();
+            await onCreated();
         } catch (error) {
             console.error("Failed to create semester", error);
             await showAlert({
@@ -152,7 +116,205 @@ const ProgramDashboardContent: React.FC = () => {
         } finally {
             setIsSubmitting(false);
         }
-    };
+    }, [newSemesterName, onCreated, programId, selectedFile, showAlert]);
+
+    const syncFileSelection = useCallback(async (file: File | null) => {
+        if (!file) return;
+        if (file.name.endsWith('.ics') || file.type === 'text/calendar') {
+            setSelectedFile(file);
+            if (!newSemesterName) {
+                const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
+                setNewSemesterName(name);
+            }
+            return;
+        }
+        await showAlert({
+            title: "Invalid file",
+            description: "Please upload a valid .ics file."
+        });
+    }, [newSemesterName, showAlert]);
+
+    return (
+        <>
+            <Button
+                type="button"
+                size={size}
+                variant={variant}
+                className={className}
+                onClick={() => setOpen(true)}
+            >
+                {children}
+            </Button>
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Create New Semester</DialogTitle>
+                        <DialogDescription>
+                            Enter a semester name and optionally import a calendar file.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={submitCreateSemester} className="space-y-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor={semesterNameId}>Semester Name</Label>
+                            <Input
+                                id={semesterNameId}
+                                placeholder="e.g. Fall 2025"
+                                value={newSemesterName}
+                                onChange={(e) => setNewSemesterName(e.target.value)}
+                                required={!selectedFile}
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Import Schedule (Optional)</Label>
+                            <div
+                                className={`
+                                    border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all
+                                    ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
+                                `}
+                                onClick={() => fileInputRef.current?.click()}
+                                onDragOver={(e) => {
+                                    e.preventDefault();
+                                    setIsDragging(true);
+                                }}
+                                onDragLeave={(e) => {
+                                    e.preventDefault();
+                                    setIsDragging(false);
+                                }}
+                                onDrop={async (e) => {
+                                    e.preventDefault();
+                                    setIsDragging(false);
+                                    const file = e.dataTransfer.files?.[0] ?? null;
+                                    await syncFileSelection(file);
+                                }}
+                            >
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".ics"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0] ?? null;
+                                        await syncFileSelection(file);
+                                    }}
+                                />
+                                <div className="flex flex-col items-center gap-2">
+                                    {selectedFile ? (
+                                        <div className="flex items-center gap-2 text-primary font-medium">
+                                            <Upload className="h-5 w-5" />
+                                            {selectedFile.name}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Upload className="h-8 w-8 text-muted-foreground/50" />
+                                            <div className="text-sm text-muted-foreground">
+                                                Click or drag .ics file to upload
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <DialogFooter className="pt-4">
+                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? 'Creating...' : (selectedFile ? 'Upload & Create' : 'Create Semester')}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+};
+
+type DeleteSemesterButtonProps = {
+    semesterId: string;
+    semesterName: string;
+    onDeleted: () => Promise<void>;
+    showAlert: ShowAlert;
+};
+
+const DeleteSemesterButton: React.FC<DeleteSemesterButtonProps> = ({
+    semesterId,
+    semesterName,
+    onDeleted,
+    showAlert,
+}) => {
+    const [open, setOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const submitDeleteSemester = useCallback(async () => {
+        setIsDeleting(true);
+        try {
+            await api.deleteSemester(semesterId);
+            setOpen(false);
+            await onDeleted();
+        } catch (error) {
+            console.error("Failed to delete semester", error);
+            await showAlert({
+                title: "Delete failed",
+                description: "Failed to delete semester."
+            });
+        } finally {
+            setIsDeleting(false);
+        }
+    }, [onDeleted, semesterId, showAlert]);
+
+    return (
+        <AlertDialog open={open} onOpenChange={(nextOpen) => !isDeleting && setOpen(nextOpen)}>
+            <AlertDialogTrigger asChild>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }}
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete semester?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {`Are you sure you want to delete ${semesterName || 'this semester'}? This action cannot be undone.`}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction variant="destructive" onClick={submitDeleteSemester} disabled={isDeleting}>
+                        {isDeleting ? 'Deleting...' : 'Delete'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+};
+
+const ProgramDashboardContent: React.FC = () => {
+    const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
+    const { alert: showAlert } = useDialog();
+
+    // Modal State
+    const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [courseSearchQuery, setCourseSearchQuery] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
+    const [activeFilters, setActiveFilters] = useState<Array<{ type: string; value: string; label: string }>>([]);
+    const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    // Settings Modal State
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const handleUpdateProgram = async (data: any) => {
         if (!program) return;
@@ -430,31 +592,6 @@ const ProgramDashboardContent: React.FC = () => {
         }
     };
 
-    const deletingSemester = useMemo(
-        () => program?.semesters.find(semester => semester.id === deletingSemesterId) || null,
-        [deletingSemesterId, program?.semesters]
-    );
-
-    const handleDeleteSemester = async () => {
-        if (!deletingSemesterId) return;
-        setIsDeletingSemester(true);
-        try {
-            await api.deleteSemester(deletingSemesterId);
-            setDeletingSemesterId(null);
-            await refreshProgram();
-        } catch (error) {
-            console.error("Failed to delete semester", error);
-            await showAlert({
-                title: "Delete failed",
-                description: "Failed to delete semester."
-            });
-        } finally {
-            setIsDeletingSemester(false);
-        }
-    };
-
-
-
     const creditsProgressPercent = useMemo(() => {
         if (!program) return 0;
         const maxCredits = program.grad_requirement_credits || 0;
@@ -529,10 +666,17 @@ const ProgramDashboardContent: React.FC = () => {
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Course
                             </Button>
-                            <Button onClick={() => setIsModalOpen(true)} size="sm">
+                            {program && (
+                                <CreateSemesterDialogButton
+                                    programId={program.id}
+                                    onCreated={refreshProgram}
+                                    showAlert={showAlert}
+                                    size="sm"
+                                >
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Semester
-                            </Button>
+                                </CreateSemesterDialogButton>
+                            )}
                         </div>
                     </div>
                 </Container>
@@ -679,19 +823,12 @@ const ProgramDashboardContent: React.FC = () => {
                                                     <CardTitle className="text-lg font-semibold truncate pr-4">
                                                         {semester.name}
                                                     </CardTitle>
-                                                    <Button
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            setDeletingSemesterId(semester.id);
-                                                        }}
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
+                                                    <DeleteSemesterButton
+                                                        semesterId={semester.id}
+                                                        semesterName={semester.name}
+                                                        onDeleted={refreshProgram}
+                                                        showAlert={showAlert}
+                                                    />
                                             </CardHeader>
                                                 <CardContent>
                                                     <div className="grid grid-cols-2 gap-4 mt-2">
@@ -717,9 +854,17 @@ const ProgramDashboardContent: React.FC = () => {
                                     {filteredSemesters.length === 0 && (
                                         <div className="col-span-full border rounded-lg border-dashed p-8 text-center">
                                             <p className="text-muted-foreground">No semesters found</p>
-                                            <Button variant="link" onClick={() => setIsModalOpen(true)} className="mt-2 text-primary">
-                                                Create one
-                                            </Button>
+                                            {program && (
+                                                <CreateSemesterDialogButton
+                                                    programId={program.id}
+                                                    onCreated={refreshProgram}
+                                                    showAlert={showAlert}
+                                                    variant="link"
+                                                    className="mt-2 text-primary"
+                                                >
+                                                    Create one
+                                                </CreateSemesterDialogButton>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -940,102 +1085,6 @@ const ProgramDashboardContent: React.FC = () => {
                     </>
                 )}
             </Container>
-
-            <Dialog open={isModalOpen} onOpenChange={(open) => !open && setIsModalOpen(false)}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Create New Semester</DialogTitle>
-                        <DialogDescription>
-                            Enter a semester name and optionally import a calendar file.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleCreateSemester} className="space-y-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor={semesterNameId}>Semester Name</Label>
-                            <Input
-                                id={semesterNameId}
-                                placeholder="e.g. Fall 2025"
-                                value={newSemesterName}
-                                onChange={(e) => setNewSemesterName(e.target.value)}
-                                required={!selectedFile}
-                                autoFocus
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Import Schedule (Optional)</Label>
-                            <div
-                                className={`
-                                    border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all
-                                    ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
-                                `}
-                                onClick={() => document.getElementById('ics-upload')?.click()}
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={handleDrop}
-                            >
-                                <input
-                                    type="file"
-                                    id="ics-upload"
-                                    accept=".ics"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            setSelectedFile(file);
-                                            if (!newSemesterNameRef.current) {
-                                                const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
-                                                setNewSemesterName(name);
-                                            }
-                                        }
-                                    }}
-                                />
-                                <div className="flex flex-col items-center gap-2">
-                                    {selectedFile ? (
-                                        <div className="flex items-center gap-2 text-primary font-medium">
-                                            <Upload className="h-5 w-5" />
-                                            {selectedFile.name}
-                                        </div>
-                                    ) : (
-                                        <>
-                                                <Upload className="h-8 w-8 text-muted-foreground/50" />
-                                                <div className="text-sm text-muted-foreground">
-                                                    Click or drag .ics file to upload
-                                                </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        <DialogFooter className="pt-4">
-                            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting ? 'Creating...' : (selectedFile ? 'Upload & Create' : 'Create Semester')}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            <AlertDialog open={Boolean(deletingSemesterId)} onOpenChange={(open) => !open && !isDeletingSemester && setDeletingSemesterId(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete semester?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {`Are you sure you want to delete ${deletingSemester?.name || 'this semester'}? This action cannot be undone.`}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isDeletingSemester}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction variant="destructive" onClick={handleDeleteSemester} disabled={isDeletingSemester}>
-                            {isDeletingSemester ? 'Deleting...' : 'Delete'}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
 
             {program && (
                 <SettingsModal

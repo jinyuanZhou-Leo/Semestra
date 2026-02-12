@@ -27,10 +27,12 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const { status, clearStatus } = useAppStatus();
+    const { status, clearStatus, pendingSyncRetryCount, retryFailedSync } = useAppStatus();
     const isSyncStatus = status?.type === 'error' && /sync/i.test(status.message);
     const isSyncRetrying = Boolean(isSyncStatus && /retrying/i.test(status?.message ?? ''));
+    const hasFailedSync = pendingSyncRetryCount > 0;
     const lastToastIdRef = useRef<number | null>(null);
+    const [isRetryingSync, setIsRetryingSync] = useState(false);
 
     useEffect(() => {
         if (!status || !isSyncStatus) return;
@@ -40,12 +42,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
             toast.message(status.message, {
                 icon: <Spinner className="size-3 text-destructive" />,
                 duration: 4000,
+                position: 'bottom-left',
             });
         } else {
             toast.error(status.message, {
                 duration: Infinity,
                 onDismiss: clearStatus,
                 icon: <AlertCircle className="h-4 w-4" />,
+                position: 'bottom-left',
                 action: {
                     label: "Dismiss",
                     onClick: clearStatus,
@@ -53,6 +57,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
             });
         }
     }, [clearStatus, isSyncRetrying, isSyncStatus, status]);
+
+    const handleManualSyncRetry = async () => {
+        if (isRetryingSync) return;
+        setIsRetryingSync(true);
+        clearStatus();
+        toast.message('Retrying failed sync tasks...', {
+            icon: <Spinner className="size-3" />,
+            duration: 2500,
+            position: 'bottom-left',
+        });
+        try {
+            await retryFailedSync();
+        } finally {
+            setIsRetryingSync(false);
+        }
+    };
 
     useEffect(() => {
         const body = document.body;
@@ -84,7 +104,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
 
         const updateStickyHeaderLock = () => {
             const header = document.querySelector<HTMLElement>('.sticky-page-header');
-            attachHeaderObserver(header);
+            if (isBodyScrollLocked() && header) {
+                attachHeaderObserver(header);
+            } else {
+                attachHeaderObserver(null);
+            }
 
             if (!header || !isBodyScrollLocked()) {
                 clearStickyHeaderLock();
@@ -112,14 +136,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
             attributeFilter: ['data-scroll-locked', 'style'],
         });
 
-        const pageObserver = new MutationObserver(scheduleUpdate);
-        pageObserver.observe(body, {
-            childList: true,
-            subtree: true,
-        });
-
         window.addEventListener('resize', scheduleUpdate);
-        window.addEventListener('scroll', scheduleUpdate, { passive: true });
         scheduleUpdate();
 
         return () => {
@@ -127,9 +144,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                 cancelAnimationFrame(rafId);
             }
             window.removeEventListener('resize', scheduleUpdate);
-            window.removeEventListener('scroll', scheduleUpdate);
             bodyObserver.disconnect();
-            pageObserver.disconnect();
             resizeObserver?.disconnect();
             clearStickyHeaderLock();
         };
@@ -162,6 +177,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {hasFailedSync && (
+                            <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1">
+                                <AlertCircle className="h-4 w-4 text-destructive" />
+                                <span className="hidden text-xs font-medium text-destructive sm:inline">
+                                    Sync error ({pendingSyncRetryCount})
+                                </span>
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={handleManualSyncRetry}
+                                    disabled={isRetryingSync}
+                                >
+                                    {isRetryingSync ? (
+                                        <Spinner className="size-3" />
+                                    ) : (
+                                        'Retry'
+                                    )}
+                                </Button>
+                            </div>
+                        )}
                         <ThemeToggle />
 
                         <Button
