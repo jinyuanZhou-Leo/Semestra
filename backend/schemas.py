@@ -184,8 +184,7 @@ class ProgramWithSemesters(Program):
 
 class WeekPattern(str, Enum):
     EVERY = "EVERY"
-    ODD = "ODD"
-    EVEN = "EVEN"
+    ALTERNATING = "ALTERNATING"
 
 # --- Course Event Type Schemas ---
 class CourseEventTypeBase(BaseModel):
@@ -350,6 +349,7 @@ class ScheduleEventItem(BaseModel):
     day_of_week: int = Field(alias="dayOfWeek")
     start_time: str = Field(alias="startTime")
     end_time: str = Field(alias="endTime")
+    week_pattern: WeekPattern = Field(default=WeekPattern.EVERY, alias="weekPattern")
     enable: bool
     skip: bool
     is_conflict: bool = Field(alias="isConflict")

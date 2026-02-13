@@ -223,7 +223,7 @@ def _resolve_week_pattern(weeks: list[int]) -> str:
 
     gaps = {weeks[index + 1] - weeks[index] for index in range(len(weeks) - 1)}
     if gaps == {2}:
-        return "ODD" if weeks[0] % 2 == 1 else "EVEN"
+        return "ALTERNATING"
     return DEFAULT_WEEK_PATTERN
 
 

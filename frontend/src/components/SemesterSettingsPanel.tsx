@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useId } from "react";
+import React, { useEffect, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -35,18 +35,13 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   const [formError, setFormError] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
   const fieldId = useId();
-
-  const settingsKey = useMemo(
-    () => JSON.stringify(initialSettings ?? {}),
-    [initialSettings]
-  );
+  const startDateRaw = initialSettings?.start_date;
+  const endDateRaw = initialSettings?.end_date;
 
   useEffect(() => {
     setName(initialName);
     setFormError("");
 
-    const startDateRaw = initialSettings?.start_date;
-    const endDateRaw = initialSettings?.end_date;
     const parsedStart =
       typeof startDateRaw === "string" && startDateRaw.length > 0
         ? parseISO(startDateRaw)
@@ -57,7 +52,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
         : undefined;
     setStartDate(parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart : undefined);
     setEndDate(parsedEnd && !Number.isNaN(parsedEnd.getTime()) ? parsedEnd : undefined);
-  }, [initialName, settingsKey]);
+  }, [initialName, startDateRaw, endDateRaw]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

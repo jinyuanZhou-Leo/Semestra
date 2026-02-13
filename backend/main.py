@@ -166,10 +166,10 @@ def validate_section_id(section_id: str):
 
 def normalize_week_pattern(value: str) -> str:
     normalized = value.upper()
-    if normalized not in {"EVERY", "ODD", "EVEN"}:
+    if normalized not in {"EVERY", "ALTERNATING"}:
         raise HTTPException(
             status_code=422,
-            detail=error_detail("INVALID_WEEK_PATTERN", "weekPattern must be EVERY, ODD, or EVEN."),
+            detail=error_detail("INVALID_WEEK_PATTERN", "weekPattern must be EVERY or ALTERNATING."),
         )
     return normalized
 
@@ -257,13 +257,12 @@ def resolve_week_index(semester: models.Semester, timezone: str, requested_week:
         return ((today - semester.start_date).days // 7) + 1
     return 1
 
-def matches_week_pattern(week_pattern: str, week: int) -> bool:
+def matches_week_pattern(week_pattern: str, week: int, start_week: Optional[int] = 1) -> bool:
     if week_pattern == "EVERY":
         return True
-    if week_pattern == "ODD":
-        return week % 2 == 1
-    if week_pattern == "EVEN":
-        return week % 2 == 0
+    if week_pattern == "ALTERNATING":
+        anchor_week = start_week or 1
+        return (week - anchor_week) % 2 == 0
     return False
 
 def parse_time_value(value: str) -> time:
@@ -330,6 +329,7 @@ def serialize_schedule_item(item: dict, include_render_state: bool = False) -> d
         "dayOfWeek": item["day_of_week"],
         "startTime": item["start_time"],
         "endTime": item["end_time"],
+        "weekPattern": item.get("week_pattern", "EVERY"),
         "enable": item["enable"],
         "skip": item["skip"],
         "isConflict": item.get("is_conflict", False),
@@ -365,7 +365,7 @@ def event_to_week_item(
         return None
     if week < effective_start_week or week > effective_end_week:
         return None
-    if not matches_week_pattern(event.week_pattern, week):
+    if not matches_week_pattern(event.week_pattern, week, effective_start_week):
         return None
     if not event.enable:
         return None
@@ -379,6 +379,7 @@ def event_to_week_item(
         "day_of_week": event.day_of_week,
         "start_time": event.start_time,
         "end_time": event.end_time,
+        "week_pattern": event.week_pattern,
         "enable": event.enable,
         "skip": event.skip,
         "is_conflict": False,

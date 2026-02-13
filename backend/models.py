@@ -19,7 +19,7 @@ import uuid
 def generate_uuid():
     return str(uuid.uuid4())
 
-WEEK_PATTERN_VALUES = ("EVERY", "ODD", "EVEN")
+WEEK_PATTERN_VALUES = ("EVERY", "ALTERNATING")
 
 class User(Base):
     __tablename__ = "users"

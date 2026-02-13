@@ -216,6 +216,9 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
           semesterId={semesterId}
           maxWeek={maxWeek}
           courseOptions={courseOptions}
+          dayStartMinutes={normalizedSettings.dayStartMinutes}
+          dayEndMinutes={normalizedSettings.dayEndMinutes}
+          eventColor={normalizedSettings.eventColors.schedule}
         />
       ) : null}
     </>

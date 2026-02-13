@@ -177,6 +177,13 @@ const WeekView: React.FC<{
 
   const totalMinutes = Math.max(60, minuteWindow.end - minuteWindow.start);
   const calendarHeight = Math.max(totalMinutes * CALENDAR_PIXEL_PER_MINUTE, 320);
+  const resolveHourMarkTop = React.useCallback((minute: number) => {
+    const top = ((minute - minuteWindow.start) / totalMinutes) * calendarHeight;
+    if (minute === minuteWindow.end) {
+      return Math.max(0, calendarHeight - 1);
+    }
+    return top;
+  }, [calendarHeight, minuteWindow.end, minuteWindow.start, totalMinutes]);
 
   const hourMarks = React.useMemo(() => {
     const marks: number[] = [];
@@ -222,14 +229,17 @@ const WeekView: React.FC<{
 
           <div className="sticky left-0 z-20 relative border-r border-border/70 bg-muted/45 backdrop-blur-md dark:bg-transparent" style={{ height: `${calendarHeight}px` }}>
             {hourMarks.map((minute) => {
-              const top = ((minute - minuteWindow.start) / totalMinutes) * calendarHeight;
+              const top = resolveHourMarkTop(minute);
+              const isLastMark = minute === minuteWindow.end;
               return (
                 <div
                   key={minute}
                   className="absolute inset-x-0 border-t border-border/40 px-1 text-[10px] text-muted-foreground"
                   style={{ top: `${top}px` }}
                 >
-                  {formatHour(minute)}
+                  <span className={isLastMark ? '-translate-y-full inline-block' : undefined}>
+                    {formatHour(minute)}
+                  </span>
                 </div>
               );
             })}
@@ -243,7 +253,7 @@ const WeekView: React.FC<{
             return (
               <div key={day.value} className="relative border-r border-border/70 bg-background dark:bg-transparent last:border-r-0" style={{ height: `${calendarHeight}px` }}>
                 {hourMarks.map((minute) => {
-                  const top = ((minute - minuteWindow.start) / totalMinutes) * calendarHeight;
+                  const top = resolveHourMarkTop(minute);
                   return <div key={minute} className="absolute inset-x-0 border-t border-border/35" style={{ top: `${top}px` }} />;
                 })}
 

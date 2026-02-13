@@ -93,7 +93,6 @@ export const timetableEventBus = new TimetableEventBus();
 export const useEventBus = <T extends TimetableEventType>(
   type: T,
   handler: EventHandler<T>,
-  dependencies: React.DependencyList = [],
 ) => {
   const handlerRef = React.useRef(handler);
 
@@ -107,5 +106,5 @@ export const useEventBus = <T extends TimetableEventType>(
     });
 
     return unsubscribe;
-  }, [type, ...dependencies]);
+  }, [type]);
 };

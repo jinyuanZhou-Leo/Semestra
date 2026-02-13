@@ -52,7 +52,15 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   const [viewportBoundHeight, setViewportBoundHeight] = React.useState<number | null>(null);
   const [isPending, startTransition] = React.useTransition();
   const cardRef = React.useRef<HTMLDivElement | null>(null);
-  const hasInitializedWeekRef = React.useRef(false);
+  const hasUserInteractedWithWeekRef = React.useRef(false);
+  const updateViewportBoundHeight = React.useCallback(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const available = Math.floor(window.innerHeight - rect.top - 12);
+    const nextHeight = Math.max(360, available);
+    setViewportBoundHeight((previousHeight) => (previousHeight === nextHeight ? previousHeight : nextHeight));
+  }, []);
 
   const {
     items,
@@ -75,7 +83,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   }, [maxWeek]);
 
   React.useEffect(() => {
-    hasInitializedWeekRef.current = false;
+    hasUserInteractedWithWeekRef.current = false;
   }, [semesterId]);
 
   React.useEffect(() => {
@@ -112,32 +120,44 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   }, [maxWeek, semesterRange.startDate]);
 
   React.useEffect(() => {
-    if (hasInitializedWeekRef.current) return;
-    hasInitializedWeekRef.current = true;
-    setWeek(currentWeek);
+    if (hasUserInteractedWithWeekRef.current) return;
+    setWeek((previousWeek) => (previousWeek === currentWeek ? previousWeek : currentWeek));
   }, [currentWeek]);
 
-  React.useEffect(() => {
-    const updateViewportBoundHeight = () => {
-      const card = cardRef.current;
-      if (!card) return;
-      const rect = card.getBoundingClientRect();
-      const available = Math.floor(window.innerHeight - rect.top - 12);
-      setViewportBoundHeight(Math.max(360, available));
-    };
-
+  React.useLayoutEffect(() => {
     updateViewportBoundHeight();
+  }, [
+    updateViewportBoundHeight,
+    settings.dayStartMinutes,
+    settings.dayEndMinutes,
+    settings.showWeekends,
+    viewMode,
+  ]);
+
+  React.useEffect(() => {
+    const card = cardRef.current;
+    const resizeObserver = new ResizeObserver(() => {
+      updateViewportBoundHeight();
+    });
+
     window.addEventListener('resize', updateViewportBoundHeight);
+    if (card) {
+      resizeObserver.observe(card);
+      if (card.parentElement) {
+        resizeObserver.observe(card.parentElement);
+      }
+    }
 
     return () => {
       window.removeEventListener('resize', updateViewportBoundHeight);
+      resizeObserver.disconnect();
     };
-  }, []);
+  }, [updateViewportBoundHeight]);
 
   useEventBus('timetable:schedule-data-changed', (payload) => {
     if (payload.source !== 'course' && payload.source !== 'semester') return;
     void reload();
-  }, [reload]);
+  });
 
   const itemsWithPatches = React.useMemo(() => {
     if (optimisticPatches.size === 0) return items;
@@ -173,12 +193,14 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
 
   const handleWeekChange = React.useCallback((targetWeek: number) => {
     const boundedWeek = Math.max(1, Math.min(Math.max(1, maxWeek), targetWeek));
+    hasUserInteractedWithWeekRef.current = true;
     startTransition(() => {
       setWeek(boundedWeek);
     });
   }, [maxWeek]);
 
   const handleToday = React.useCallback(() => {
+    hasUserInteractedWithWeekRef.current = true;
     startTransition(() => {
       setWeek(currentWeek);
     });

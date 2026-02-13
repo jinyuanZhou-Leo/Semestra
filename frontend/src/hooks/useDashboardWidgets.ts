@@ -201,7 +201,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             setWidgets(previousWidgets);
             reportError('Failed to remove widget. Please try again.');
         }
-    }, [confirm, widgets, onRefresh]);
+    }, [confirm, widgets, onRefresh, courseId, semesterId]);
 
     const updateWidget = useCallback(async (id: string, data: any) => {
         const nextSeq = (widgetUpdateSeqRef.current.get(id) ?? 0) + 1;

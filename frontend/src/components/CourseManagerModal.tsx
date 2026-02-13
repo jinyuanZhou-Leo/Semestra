@@ -65,7 +65,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 setMode('create');
             }
         }
-    }, [isOpen, semesterId, fetchUnassigned]);
+    }, [isOpen, semesterId, fetchUnassigned, defaultCredit]);
 
     const handleAddExisting = async (courseId: string) => {
         try {

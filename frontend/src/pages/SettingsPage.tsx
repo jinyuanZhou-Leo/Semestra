@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, Suspense, lazy } from "react";
+import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from "react";
 import { Layout } from "../components/Layout";
 import { Button } from "@/components/ui/button";
 import { GPAScalingTable } from "../components/GPAScalingTable";
@@ -174,35 +174,7 @@ export const SettingsPage: React.FC = () => {
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const resetSaveStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Auto-save Effect
-    useEffect(() => {
-        if (!initialState) return;
-
-        // Check if actually changed
-        const hasChanged = nickname !== initialState.nickname ||
-            gpaTableJson !== initialState.gpaTableJson ||
-            defaultCourseCredit !== initialState.defaultCourseCredit;
-
-        if (hasChanged) {
-            // Clear existing timer
-            if (autoSaveTimerRef.current) {
-                clearTimeout(autoSaveTimerRef.current);
-            }
-
-            // Set new timer
-            autoSaveTimerRef.current = setTimeout(() => {
-                saveSettings();
-            }, 1000); // 1s debounce
-        }
-
-        return () => {
-            if (autoSaveTimerRef.current) {
-                clearTimeout(autoSaveTimerRef.current);
-            }
-        };
-    }, [nickname, gpaTableJson, defaultCourseCredit, initialState]);
-
-    const saveSettings = async () => {
+    const saveSettings = useCallback(async () => {
         try {
             JSON.parse(gpaTableJson);
         } catch {
@@ -245,7 +217,35 @@ export const SettingsPage: React.FC = () => {
                 description: "Failed to save settings."
             });
         }
-    };
+    }, [defaultCourseCredit, gpaTableJson, nickname, refreshUser, showAlert]);
+
+    // Auto-save Effect
+    useEffect(() => {
+        if (!initialState) return;
+
+        // Check if actually changed
+        const hasChanged = nickname !== initialState.nickname ||
+            gpaTableJson !== initialState.gpaTableJson ||
+            defaultCourseCredit !== initialState.defaultCourseCredit;
+
+        if (hasChanged) {
+            // Clear existing timer
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+            }
+
+            // Set new timer
+            autoSaveTimerRef.current = setTimeout(() => {
+                void saveSettings();
+            }, 1000); // 1s debounce
+        }
+
+        return () => {
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+            }
+        };
+    }, [nickname, gpaTableJson, defaultCourseCredit, initialState, saveSettings]);
 
     // Manual Back Handler
     const handleBack = async (e: React.MouseEvent) => {

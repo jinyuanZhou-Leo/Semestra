@@ -19,7 +19,10 @@ import scheduleService, { type WeekPattern, type CourseEventType, type CourseEve
 
 // --- Types & Constants ---
 
-export const WEEK_PATTERNS: WeekPattern[] = ['EVERY', 'ODD', 'EVEN'];
+export const SECTION_WEEK_PATTERN_OPTIONS: Array<{ value: WeekPattern; label: string }> = [
+    { value: 'EVERY', label: 'Everyweek' },
+    { value: 'ALTERNATING', label: 'Alternating' },
+];
 export const DAY_OF_WEEK_OPTIONS = [
     { value: 1, label: 'Mon' },
     { value: 2, label: 'Tue' },
@@ -440,9 +443,9 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
                                 <SelectContent>
                                     <SelectGroup>
                                         <SelectLabel>Patterns</SelectLabel>
-                                        {WEEK_PATTERNS.map((item) => (
-                                            <SelectItem key={item} value={item}>
-                                                {item}
+                                        {SECTION_WEEK_PATTERN_OPTIONS.map((item) => (
+                                            <SelectItem key={item.value} value={item.value}>
+                                                {item.label}
                                             </SelectItem>
                                         ))}
                                     </SelectGroup>

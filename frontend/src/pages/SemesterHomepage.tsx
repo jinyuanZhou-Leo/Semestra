@@ -155,7 +155,7 @@ const SemesterHomepageContent: React.FC = () => {
 
 
 
-    const breadcrumb = useMemo(() => (
+    const breadcrumb = (
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
                 <BreadcrumbItem>
@@ -183,7 +183,7 @@ const SemesterHomepageContent: React.FC = () => {
                 </BreadcrumbItem>
             </BreadcrumbList>
         </Breadcrumb>
-    ), [semester?.program_id, semester?.name, programName]);
+    );
 
     const dashboardContent = useMemo(() => {
         if (!semester) return null;
@@ -229,15 +229,15 @@ const SemesterHomepageContent: React.FC = () => {
         );
     }, [activeTabId, semester, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading]);
 
-    const handleUpdateSemester = async (data: any) => {
+    const handleUpdateSemester = useCallback(async (data: any) => {
         if (!semester) return;
         try {
             await updateSemester(data);
-            refreshSemester();
+            await refreshSemester();
         } catch (error) {
             console.error("Failed to update semester", error);
         }
-    };
+    }, [refreshSemester, semester, updateSemester]);
 
     const tabSettingsSections = useMemo(() => {
         const settingsByType = new Map(

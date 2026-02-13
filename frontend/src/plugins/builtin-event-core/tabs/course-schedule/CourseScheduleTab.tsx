@@ -27,7 +27,6 @@ import scheduleService, {
   type CourseEvent,
   type CourseEventType,
   type CourseSection,
-  type WeekPattern,
 } from '@/services/schedule';
 import { EmptyTableRow, PanelHeader, TableShell } from '../../components/CrudPanel';
 import { EventTypeFormDialog } from '../../components/EventTypeFormDialog';
@@ -58,7 +57,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
     sectionId: '',
     eventTypeCode: 'LECTURE',
     instructor: '',
-    weekPattern: 'EVERY' as WeekPattern,
+    weekPattern: 'EVERY',
   });
   const [formSlots, setFormSlots] = React.useState<SectionSlotDraft[]>([
     createSectionSlot(1, '09:00', '10:00'),

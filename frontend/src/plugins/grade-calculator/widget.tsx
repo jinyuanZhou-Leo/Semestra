@@ -26,7 +26,10 @@ interface Assessment {
 const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourse }) => {
     const { user } = useAuth();
     // Use settings directly - framework handles Optimistic UI
-    const assessments: Assessment[] = settings.assessments || [];
+    const assessments: Assessment[] = useMemo(
+        () => (Array.isArray(settings.assessments) ? settings.assessments as Assessment[] : []),
+        [settings.assessments]
+    );
     const fallbackScalingTable = useMemo(
         () => user?.gpa_scaling_table || DEFAULT_GPA_SCALING_TABLE_JSON,
         [user?.gpa_scaling_table]

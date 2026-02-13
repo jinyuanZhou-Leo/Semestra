@@ -388,6 +388,7 @@ void main() {
     blindCount,
     blindMinWidth,
     mouseDampening,
+    followCursor,
     mirrorGradient,
     spotlightRadius,
     spotlightSoftness,

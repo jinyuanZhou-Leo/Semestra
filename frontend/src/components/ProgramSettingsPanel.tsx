@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useId } from "react";
+import React, { useEffect, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -44,19 +44,17 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   const [jsonError, setJsonError] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
   const fieldId = useId();
-
-  const settingsKey = useMemo(
-    () => JSON.stringify(initialSettings ?? {}),
-    [initialSettings]
-  );
+  const initialGradCredits = String(initialSettings?.grad_requirement_credits || "");
+  const initialHideGpa = initialSettings?.hide_gpa ?? false;
+  const initialGpaTableJson = initialSettings?.gpa_scaling_table || "{}";
 
   useEffect(() => {
     setName(initialName);
-    setGradCredits(String(initialSettings?.grad_requirement_credits || ""));
-    setHideGpa(initialSettings?.hide_gpa ?? false);
-    setGpaTableJson(initialSettings?.gpa_scaling_table || "{}");
+    setGradCredits(initialGradCredits);
+    setHideGpa(initialHideGpa);
+    setGpaTableJson(initialGpaTableJson);
     setJsonError("");
-  }, [initialName, settingsKey]);
+  }, [initialName, initialGradCredits, initialHideGpa, initialGpaTableJson]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

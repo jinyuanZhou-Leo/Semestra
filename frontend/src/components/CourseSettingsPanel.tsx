@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useId } from "react";
+import React, { useEffect, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,20 +42,20 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   const [hideGpa, setHideGpa] = useState(initialSettings?.hide_gpa ?? false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
   const fieldId = useId();
-
-  const settingsKey = useMemo(
-    () => JSON.stringify(initialSettings ?? {}),
-    [initialSettings]
-  );
+  const initialAlias = initialSettings?.alias || "";
+  const initialCategory = initialSettings?.category || "";
+  const initialCredits = String(initialSettings?.credits || "");
+  const initialIncludeInGpa = initialSettings?.include_in_gpa ?? true;
+  const initialHideGpa = initialSettings?.hide_gpa ?? false;
 
   useEffect(() => {
     setName(initialName);
-    setAlias(initialSettings?.alias || "");
-    setCategory(initialSettings?.category || "");
-    setCredits(String(initialSettings?.credits || ""));
-    setIncludeInGpa(initialSettings?.include_in_gpa ?? true);
-    setHideGpa(initialSettings?.hide_gpa ?? false);
-  }, [initialName, settingsKey]);
+    setAlias(initialAlias);
+    setCategory(initialCategory);
+    setCredits(initialCredits);
+    setIncludeInGpa(initialIncludeInGpa);
+    setHideGpa(initialHideGpa);
+  }, [initialName, initialAlias, initialCategory, initialCredits, initialIncludeInGpa, initialHideGpa]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

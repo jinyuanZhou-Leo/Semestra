@@ -26,6 +26,7 @@ import { PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import { getResolvedTabMetadataByType, getWidgetCatalogItemByType, hasTabPluginForType } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
 import { useTabSettingsRegistry, useWidgetGlobalSettingsRegistry } from '../services/pluginSettingsRegistry';
+import { timetableEventBus } from '../plugins/builtin-event-core/shared/eventBus';
 import {
     COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
     HOMEPAGE_DASHBOARD_TAB_TYPE,
@@ -144,7 +145,7 @@ const CourseHomepageContent: React.FC = () => {
         onRefresh: refreshCourse
     });
 
-    const breadcrumb = useMemo(() => (
+    const breadcrumb = (
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
                 <BreadcrumbItem>
@@ -214,7 +215,7 @@ const CourseHomepageContent: React.FC = () => {
                 </BreadcrumbItem>
             </BreadcrumbList>
         </Breadcrumb>
-    ), [shouldCollapseProgram, shouldShowProgramDirect, shouldShowSemester, course?.program_id, course?.semester_id, course?.name, programName, semesterName, navigate]);
+    );
 
 
 
@@ -370,16 +371,22 @@ const CourseHomepageContent: React.FC = () => {
 
     const hasPluginSettings = Boolean(widgetSettingsSections || tabSettingsSections);
 
-    const handleUpdateCourse = async (data: any) => {
+    const handleUpdateCourse = useCallback(async (data: any) => {
         if (!course) return;
         try {
             await api.updateCourse(course.id, data);
-            refreshCourse();
+            timetableEventBus.publish('timetable:schedule-data-changed', {
+                source: 'course',
+                reason: 'course-updated',
+                courseId: course.id,
+                semesterId: course.semester_id,
+            });
+            await refreshCourse();
         } catch (error) {
             console.error("Failed to update course", error);
             reportError('Failed to update course. Please retry.');
         }
-    };
+    }, [course, refreshCourse]);
 
     const builtinTabContext = useMemo(() => ({
         isLoading,
@@ -425,6 +432,7 @@ const CourseHomepageContent: React.FC = () => {
         course?.id,
         course?.name,
         course?.alias,
+        course?.category,
         course?.credits,
         course?.include_in_gpa,
         course?.hide_gpa,

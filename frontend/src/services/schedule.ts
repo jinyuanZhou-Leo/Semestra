@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export type WeekPattern = 'EVERY' | 'ODD' | 'EVEN';
+export type WeekPattern = 'EVERY' | 'ALTERNATING';
 export type SkipRenderMode = 'HIDE_SKIPPED' | 'GRAY_SKIPPED';
 export type ExportScope = 'course' | 'semester';
 export type ExportRange = 'week' | 'weeks' | 'term';
@@ -54,6 +54,7 @@ export interface ScheduleItem {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  weekPattern?: WeekPattern;
   enable: boolean;
   skip: boolean;
   isConflict: boolean;

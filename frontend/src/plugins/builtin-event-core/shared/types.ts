@@ -21,6 +21,7 @@ export interface ScheduleDataSnapshot {
 export interface TimetableScheduleChangePayload {
   source: 'course' | 'semester';
   reason:
+    | 'course-updated'
     | 'event-type-created'
     | 'event-type-updated'
     | 'event-type-deleted'
