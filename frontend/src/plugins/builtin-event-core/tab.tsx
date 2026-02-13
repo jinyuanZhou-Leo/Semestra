@@ -53,8 +53,15 @@ const BuiltinCourseScheduleTab: React.FC<TabProps> = ({ courseId }) => {
   return <CourseScheduleTab courseId={courseId} />;
 };
 
-const BuiltinTodoTab: React.FC<TabProps> = () => {
-  return <TodoTab />;
+const BuiltinTodoTab: React.FC<TabProps> = ({ settings, updateSettings, semesterId, courseId }) => {
+  return (
+    <TodoTab
+      settings={settings}
+      updateSettings={updateSettings}
+      semesterId={semesterId}
+      courseId={courseId}
+    />
+  );
 };
 
 export const BuiltinAcademicCalendarTabDefinition: TabDefinition = {
@@ -80,7 +87,7 @@ export const BuiltinCourseScheduleTabDefinition: TabDefinition = {
 export const BuiltinTodoTabDefinition: TabDefinition = {
   type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
   name: 'Todo',
-  description: 'Todo integration surface reserved for the upcoming phase',
+  description: 'Context-aware todo lists with sections, priorities, and due scheduling',
   icon: <ListTodo className="h-4 w-4" />,
   component: BuiltinTodoTab,
   maxInstances: 1,

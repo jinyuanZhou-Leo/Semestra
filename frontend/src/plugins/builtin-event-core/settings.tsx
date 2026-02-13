@@ -6,9 +6,11 @@ import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '@/se
 import {
   BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
   BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,
+  BUILTIN_TIMETABLE_TODO_TAB_TYPE,
 } from './shared/constants';
 import { CalendarSettingsSection } from './tabs/calendar/CalendarSettingsSection';
 import { CourseScheduleSettings } from './tabs/course-schedule';
+import { TodoSettingsSection } from './tabs/todo/TodoSettingsSection';
 
 const BuiltinAcademicCalendarSettings: React.FC<TabSettingsProps> = ({ semesterId, settings, updateSettings }) => {
   if (!semesterId) return null;
@@ -35,7 +37,10 @@ export const tabSettingsDefinitions: TabSettingsDefinition[] = [
     type: BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,
     component: BuiltinCourseScheduleSettings,
   },
+  {
+    type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
+    component: TodoSettingsSection,
+  },
 ];
 
 export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [];
-

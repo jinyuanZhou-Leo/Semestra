@@ -32,7 +32,7 @@ export const tabCatalog: TabCatalogItem[] = [
         pluginId,
         type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
         name: 'Todo',
-        description: 'Todo integration surface reserved for the upcoming phase',
+        description: 'Context-aware todo lists with sections, priorities, and due scheduling',
         icon: createElement(ListTodo, { className: 'h-4 w-4' }),
         maxInstances: 0,
         allowedContexts: ['semester', 'course'],
