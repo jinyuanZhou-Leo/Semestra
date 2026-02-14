@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { SettingsSection } from '@/components/SettingsSection';
 import { Label } from '@/components/ui/label';

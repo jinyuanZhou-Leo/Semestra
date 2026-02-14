@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useCallback, useId, useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';

@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
 import { DEFAULT_GPA_SCALING_TABLE_JSON, calculateGPA } from '../../utils/gpaUtils';

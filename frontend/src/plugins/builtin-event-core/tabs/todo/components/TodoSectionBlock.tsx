@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';

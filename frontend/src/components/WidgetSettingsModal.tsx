@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useEffect, useState } from "react";
 import { WidgetRegistry } from "../services/widgetRegistry";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";

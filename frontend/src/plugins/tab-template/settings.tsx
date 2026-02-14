@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useCallback, useId, useMemo } from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';

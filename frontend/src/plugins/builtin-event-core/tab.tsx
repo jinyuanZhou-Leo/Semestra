@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { CalendarDays, ListTodo, NotebookPen } from 'lucide-react';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

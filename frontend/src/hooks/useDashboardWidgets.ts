@@ -1,3 +1,5 @@
+"use no memo";
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import api from '../services/api';

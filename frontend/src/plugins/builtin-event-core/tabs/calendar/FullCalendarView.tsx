@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import {
   CALENDAR_MIN_EVENT_HEIGHT,

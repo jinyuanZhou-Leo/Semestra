@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';

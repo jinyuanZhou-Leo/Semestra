@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { createContext, useContext } from 'react';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 

@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 

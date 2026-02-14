@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { ArrowDownAZ, ArrowUpAZ, ArrowUpDown, CirclePlus, ListTree, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';

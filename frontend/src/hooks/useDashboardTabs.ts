@@ -1,3 +1,5 @@
+"use no memo";
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import type { Tab } from '../services/api';

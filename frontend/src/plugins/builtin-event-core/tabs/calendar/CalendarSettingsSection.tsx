@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { Download } from 'lucide-react';
 import { SettingsSection } from '@/components/SettingsSection';

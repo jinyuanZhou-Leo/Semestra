@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useCallback, useId, useState } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
 import { Button } from '@/components/ui/button';

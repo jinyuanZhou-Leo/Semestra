@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { toast } from 'sonner';
 import api from '@/services/api';

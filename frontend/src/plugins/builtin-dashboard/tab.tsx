@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { CardSkeleton } from '../../components/skeletons';

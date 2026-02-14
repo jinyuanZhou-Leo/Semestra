@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useCallback } from 'react';
 import { WidgetContainer } from './WidgetContainer';
 import { WidgetRegistry, useWidgetRegistry } from '../../services/widgetRegistry';

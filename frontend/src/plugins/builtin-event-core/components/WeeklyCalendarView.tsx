@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import type { ScheduleItem } from '@/services/schedule';
 import {

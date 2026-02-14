@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useCallback, useEffect, useState } from 'react';
 
 import {

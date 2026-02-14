@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { CirclePlus, Lock, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';

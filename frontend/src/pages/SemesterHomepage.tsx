@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';

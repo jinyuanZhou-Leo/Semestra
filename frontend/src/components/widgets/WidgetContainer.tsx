@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
 import { Button } from '@/components/ui/button';

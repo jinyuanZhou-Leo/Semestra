@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useMemo, useState } from 'react';
 import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';

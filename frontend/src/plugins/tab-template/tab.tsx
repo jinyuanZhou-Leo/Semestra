@@ -1,3 +1,5 @@
+"use no memo";
+
 import React, { useCallback, useMemo } from 'react';
 import type { TabDefinition, TabProps } from '../../services/tabRegistry';
 import { resolveTemplateSettings } from './shared';

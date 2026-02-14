@@ -1,3 +1,5 @@
+"use no memo";
+
 import React from 'react';
 import { SettingsTabContent } from '../../components/SettingsTabContent';
 import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
