@@ -5,7 +5,6 @@ import type { Widget } from '../services/api';
 import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
 import { clearSyncRetryAction, registerSyncRetryAction, reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
-import { useDialog } from '../contexts/DialogContext';
 import {
     ensureWidgetPluginByTypeLoaded,
     getResolvedWidgetLayoutByType,
@@ -47,7 +46,6 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     const layoutRetryCountsRef = useRef<Map<string, number>>(new Map());
     const syncRetryKeysRef = useRef<Set<string>>(new Set());
     const widgetUpdateSeqRef = useRef<Map<string, number>>(new Map());
-    const { confirm } = useDialog();
 
     // Track if initial sync has happened to prevent overwriting optimistic UI
     const initialSyncDoneRef = useRef(false);
@@ -149,15 +147,6 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     }, [courseId, semesterId, onRefresh, widgets]);
 
     const removeWidget = useCallback(async (id: string) => {
-        const shouldRemove = await confirm({
-            title: "Remove widget?",
-            description: "Are you sure you want to remove this widget?",
-            confirmText: "Remove",
-            cancelText: "Cancel",
-            tone: "destructive"
-        });
-        if (!shouldRemove) return;
-
         // Find widget before removing for lifecycle hook
         const widgetToRemove = widgets.find(w => w.id === id);
 
@@ -201,7 +190,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             setWidgets(previousWidgets);
             reportError('Failed to remove widget. Please try again.');
         }
-    }, [confirm, widgets, onRefresh, courseId, semesterId]);
+    }, [widgets, onRefresh, courseId, semesterId]);
 
     const updateWidget = useCallback(async (id: string, data: any) => {
         const nextSeq = (widgetUpdateSeqRef.current.get(id) ?? 0) + 1;
