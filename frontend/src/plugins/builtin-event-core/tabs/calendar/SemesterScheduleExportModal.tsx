@@ -20,7 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import scheduleService, { type ScheduleItem, type SkipRenderMode, type WeekPattern } from '@/services/schedule';
+import scheduleService, {
+  type ExportScope,
+  type ScheduleItem,
+  type SkipRenderMode,
+  type WeekPattern,
+} from '@/services/schedule';
 import { ALL_FILTER_VALUE } from '../../shared/constants';
 import { normalizeDayMinuteWindow, toTimeInputValue } from './settings';
 
@@ -658,7 +663,7 @@ export const SemesterScheduleExportModal: React.FC<SemesterScheduleExportModalPr
   const handleExport = async () => {
     if (!semesterId) return;
 
-    const scope = courseFilter === ALL_FILTER_VALUE ? 'semester' : 'course';
+    const scope: ExportScope = courseFilter === ALL_FILTER_VALUE ? 'semester' : 'course';
     const scopeId = scope === 'semester' ? semesterId : courseFilter;
     const payload = {
       scope,

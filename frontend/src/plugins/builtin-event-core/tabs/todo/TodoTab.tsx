@@ -1,17 +1,30 @@
 import React from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   CalendarClock,
   ChevronDown,
   ChevronRight,
   CirclePlus,
   Flag,
+  ListTree,
   Lock,
+  MoreHorizontal,
   Pencil,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api, { type Course, type Tab as ApiTab } from '@/services/api';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +38,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -44,6 +66,8 @@ const COURSE_LIST_FALLBACK_NAME = 'Course List';
 const DEFAULT_SECTION_NAME = 'General';
 const COMPLETED_SECTION_ID = '__completed__';
 const COMPLETED_SECTION_NAME = 'Completed';
+const UNSECTIONED_TASK_BUCKET_ID = '__unsectioned__';
+const UNSECTIONED_TASK_BUCKET_NAME = 'No Section';
 const COMPLETED_MOVE_TIMEOUT_MS = 1500;
 
 type TodoPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -67,6 +91,7 @@ interface TodoTask {
   dueTime: string;
   priority: TodoPriority;
   completed: boolean;
+  order: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -114,11 +139,20 @@ interface TodoTabProps {
   semesterId?: string;
 }
 
+type TodoSortMode = 'created' | 'due-date' | 'priority' | 'title';
+
 const PRIORITY_OPTIONS: Array<{ value: TodoPriority; label: string; className: string; weight: number }> = [
   { value: 'LOW', label: 'Low', className: 'bg-slate-100 text-slate-700 border-slate-200', weight: 1 },
   { value: 'MEDIUM', label: 'Medium', className: 'bg-blue-100 text-blue-700 border-blue-200', weight: 2 },
   { value: 'HIGH', label: 'High', className: 'bg-amber-100 text-amber-700 border-amber-200', weight: 3 },
   { value: 'URGENT', label: 'Urgent', className: 'bg-rose-100 text-rose-700 border-rose-200', weight: 4 },
+];
+
+const SORT_OPTIONS: Array<{ value: TodoSortMode; label: string }> = [
+  { value: 'created', label: 'Created Order' },
+  { value: 'due-date', label: 'Due Date' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'title', label: 'Title' },
 ];
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -202,10 +236,6 @@ const normalizeSections = (input: unknown): TodoSection[] => {
       dedupedUserSections.push(section);
     });
 
-  if (dedupedUserSections.length === 0) {
-    dedupedUserSections.push({ id: makeId('section'), name: DEFAULT_SECTION_NAME, order: 0 });
-  }
-
   const normalizedUsers = dedupedUserSections.map((section, index) => ({
     ...section,
     order: index,
@@ -219,11 +249,11 @@ const normalizeTasks = (
   input: unknown,
   validSectionIds: Set<string>,
   validUserSectionIds: Set<string>,
-  fallbackUserSectionId: string,
+  fallbackUserSectionId?: string,
 ): TodoTask[] => {
   if (!Array.isArray(input)) return [];
 
-  return input
+  const normalized = input
     .map((item) => {
       if (!isRecord(item)) return null;
 
@@ -236,12 +266,17 @@ const normalizeTasks = (
         ? (priorityValue as TodoPriority)
         : 'MEDIUM';
 
-      const rawSectionId = readString(item.sectionId, fallbackUserSectionId);
-      const safeSectionId = validSectionIds.has(rawSectionId) ? rawSectionId : fallbackUserSectionId;
+      const rawSectionId = readString(item.sectionId, '').trim();
+      const safeSectionId = rawSectionId === COMPLETED_SECTION_ID
+        ? COMPLETED_SECTION_ID
+        : (validSectionIds.has(rawSectionId)
+          ? rawSectionId
+          : (fallbackUserSectionId ?? ''));
       const completed = safeSectionId === COMPLETED_SECTION_ID ? true : readBoolean(item.completed, false);
 
       const originSectionId = readString(item.originSectionId, '').trim();
       const safeOriginSectionId = validUserSectionIds.has(originSectionId) ? originSectionId : undefined;
+      const orderValue = typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : Number.NaN;
 
       return {
         id,
@@ -255,18 +290,30 @@ const normalizeTasks = (
         dueTime: ensureTimeValue(item.dueTime),
         priority,
         completed,
+        order: orderValue,
         createdAt: readString(item.createdAt, nowIso()),
         updatedAt: readString(item.updatedAt, nowIso()),
       } satisfies TodoTask;
     })
     .filter((item): item is TodoTask => item !== null);
+
+  return normalized
+    .sort((a, b) => {
+      const aOrder = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
+      const bOrder = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
+      return aOrder - bOrder || a.createdAt.localeCompare(b.createdAt) || a.title.localeCompare(b.title);
+    })
+    .map((task, index) => ({
+      ...task,
+      order: index,
+    }));
 };
 
 const normalizeListStorage = (input: unknown): TodoListStorage => {
   const source = isRecord(input) ? input : {};
   const sections = normalizeSections(source.sections);
   const users = userSectionsOf(sections);
-  const fallbackUserSectionId = users[0].id;
+  const fallbackUserSectionId = users[0]?.id;
   const sectionIds = new Set(sections.map((section) => section.id));
   const userIds = new Set(users.map((section) => section.id));
   const tasks = normalizeTasks(source.tasks, sectionIds, userIds, fallbackUserSectionId);
@@ -364,8 +411,26 @@ const dueWeight = (task: TodoTask) => {
   return Number.isFinite(date.getTime()) ? date.getTime() : Number.MAX_SAFE_INTEGER;
 };
 
-const sortTasksForDisplay = (tasks: TodoTask[], isCompletedSection: boolean) => {
+const sortTasksForDisplay = (tasks: TodoTask[], isCompletedSection: boolean, sortMode: TodoSortMode) => {
   return [...tasks].sort((a, b) => {
+    if (sortMode === 'created') {
+      return a.order - b.order || a.createdAt.localeCompare(b.createdAt) || a.title.localeCompare(b.title);
+    }
+
+    if (sortMode === 'due-date') {
+      const dueDiff = dueWeight(a) - dueWeight(b);
+      return dueDiff !== 0 ? dueDiff : a.title.localeCompare(b.title);
+    }
+
+    if (sortMode === 'priority') {
+      const priorityDiff = priorityWeightOf(b.priority) - priorityWeightOf(a.priority);
+      return priorityDiff !== 0 ? priorityDiff : a.title.localeCompare(b.title);
+    }
+
+    if (sortMode === 'title') {
+      return a.title.localeCompare(b.title);
+    }
+
     if (isCompletedSection) {
       return b.updatedAt.localeCompare(a.updatedAt) || b.title.localeCompare(a.title);
     }
@@ -431,7 +496,13 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
 
   const [taskDialogOpen, setTaskDialogOpen] = React.useState(false);
   const [taskDialogEditingId, setTaskDialogEditingId] = React.useState<string | null>(null);
-  const [taskDraft, setTaskDraft] = React.useState<TaskDraft>(createTaskDraft(''));
+  const [taskDraft, setTaskDraft] = React.useState<TaskDraft>(createTaskDraft(UNSECTIONED_TASK_BUCKET_ID));
+  const [listManageMode, setListManageMode] = React.useState(false);
+  const [deleteListDialogOpen, setDeleteListDialogOpen] = React.useState(false);
+  const [deleteListTarget, setDeleteListTarget] = React.useState<{ id: string; name: string } | null>(null);
+  const [sortMode, setSortMode] = React.useState<TodoSortMode>('created');
+  const [draggingTaskId, setDraggingTaskId] = React.useState<string | null>(null);
+  const [dragOverSectionId, setDragOverSectionId] = React.useState<string | null>(null);
 
   const [semesterCourseLists, setSemesterCourseLists] = React.useState<Record<string, SemesterCourseListState>>({});
   const [semesterCourseListsLoading, setSemesterCourseListsLoading] = React.useState(false);
@@ -476,6 +547,12 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
       cancelled = true;
     };
   }, [courseId]);
+
+  React.useEffect(() => {
+    if (mode !== 'semester') {
+      setListManageMode(false);
+    }
+  }, [mode]);
 
   const updateCourseListInCurrentTab = React.useCallback(
     (updater: (current: TodoListStorage) => TodoListStorage) => {
@@ -774,6 +851,11 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   }, [allLists, selectedListId]);
 
   React.useEffect(() => {
+    setDraggingTaskId(null);
+    setDragOverSectionId(null);
+  }, [activeList?.id]);
+
+  React.useEffect(() => {
     if (!sectionTitleDialogOpen || !activeList || !sectionTitleTargetId) return;
     const exists = activeList.sections.some((section) => section.id === sectionTitleTargetId);
     if (!exists) {
@@ -835,7 +917,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
             return {
               ...task,
               sectionId: COMPLETED_SECTION_ID,
-              originSectionId: task.originSectionId ?? task.sectionId,
+              originSectionId: task.originSectionId ?? (task.sectionId || undefined),
               updatedAt: nowIso(),
             };
           }),
@@ -849,19 +931,13 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   const handleCreateCustomList = React.useCallback(() => {
     if (mode !== 'semester') return;
 
-    const defaultSection: TodoSection = {
-      id: makeId('section'),
-      name: DEFAULT_SECTION_NAME,
-      order: 0,
-      isSystem: false,
-    };
-    const completed = completedSection(1);
+    const completed = completedSection(0);
 
     const createdAt = nowIso();
     const nextList: SemesterCustomListStorage = {
       id: makeId('custom-list'),
       name: `Custom List ${semesterCustomLists.length + 1}`,
-      sections: [defaultSection, completed],
+      sections: [completed],
       tasks: [],
       createdAt,
       updatedAt: createdAt,
@@ -877,6 +953,19 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
       setSelectedListId('');
     }
   }, [selectedListId, updateSemesterCustomLists]);
+
+  const openDeleteListAlert = React.useCallback((list: TodoListModel) => {
+    if (list.source !== 'semester-custom') return;
+    setDeleteListTarget({ id: list.id, name: list.name });
+    setDeleteListDialogOpen(true);
+  }, []);
+
+  const confirmDeleteCustomList = React.useCallback(() => {
+    if (!deleteListTarget) return;
+    handleDeleteCustomList(deleteListTarget.id);
+    setDeleteListDialogOpen(false);
+    setDeleteListTarget(null);
+  }, [deleteListTarget, handleDeleteCustomList]);
 
   const handleRenameList = React.useCallback((list: TodoListModel, nextName: string) => {
     if (!list.editableName) return;
@@ -962,8 +1051,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
 
     mutateListStorage(list, (current) => {
       const users = userSectionsOf(current.sections);
-      if (users.length <= 1) {
-        toast.message('At least one section is required.');
+      if (users.length === 0) {
         return current;
       }
 
@@ -972,7 +1060,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         order: index,
         isSystem: false,
       }));
-      const fallbackSectionId = nextUsers[0].id;
+      const fallbackSectionId = nextUsers[0]?.id ?? '';
 
       return {
         sections: [...nextUsers, completedSection(nextUsers.length)],
@@ -981,7 +1069,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
           return {
             ...task,
             sectionId: task.completed && shouldAutoMoveCompleted ? COMPLETED_SECTION_ID : fallbackSectionId,
-            originSectionId: task.completed ? fallbackSectionId : undefined,
+            originSectionId: task.completed ? (fallbackSectionId || undefined) : undefined,
             updatedAt: nowIso(),
           };
         }),
@@ -990,13 +1078,15 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   }, [mutateListStorage, shouldAutoMoveCompleted]);
 
   const openCreateTaskDialog = React.useCallback((list: TodoListModel) => {
-    const defaultSectionId = userSectionsOf(list.sections)[0]?.id ?? '';
+    const defaultSectionId = userSectionsOf(list.sections)[0]?.id ?? UNSECTIONED_TASK_BUCKET_ID;
     setTaskDialogEditingId(null);
     setTaskDraft(createTaskDraft(defaultSectionId));
     setTaskDialogOpen(true);
   }, []);
 
   const openEditTaskDialog = React.useCallback((list: TodoListModel, task: TodoTask) => {
+    if (task.sectionId === COMPLETED_SECTION_ID) return;
+
     const userSections = userSectionsOf(list.sections);
     const fallbackSectionId = userSections[0]?.id ?? '';
     const effectiveSection = task.sectionId === COMPLETED_SECTION_ID
@@ -1009,7 +1099,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
     setTaskDraft({
       title: task.title,
       description: task.description,
-      sectionId: effectiveSection,
+      sectionId: effectiveSection || UNSECTIONED_TASK_BUCKET_ID,
       dueDate: task.dueDate,
       dueTime: task.dueTime,
       priority: task.priority,
@@ -1025,15 +1115,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
     }
 
     const userSections = userSectionsOf(list.sections);
-    const fallbackSectionId = userSections[0]?.id;
-    if (!fallbackSectionId) {
-      toast.message('At least one section is required.');
-      return;
-    }
-
     const safeSectionId = userSections.some((section) => section.id === taskDraft.sectionId)
       ? taskDraft.sectionId
-      : fallbackSectionId;
+      : '';
 
     mutateListStorage(list, (current) => {
       if (taskDialogEditingId) {
@@ -1056,14 +1140,14 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
               return {
                 ...common,
                 sectionId: COMPLETED_SECTION_ID,
-                originSectionId: safeSectionId,
+                originSectionId: safeSectionId || undefined,
               };
             }
 
             return {
               ...common,
               sectionId: safeSectionId,
-              originSectionId: task.completed ? safeSectionId : undefined,
+              originSectionId: task.completed ? (safeSectionId || undefined) : undefined,
             };
           }),
         };
@@ -1080,6 +1164,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         dueTime: ensureTimeValue(taskDraft.dueTime),
         priority: taskDraft.priority,
         completed: false,
+        order: current.tasks.length,
         createdAt,
         updatedAt: createdAt,
       };
@@ -1101,7 +1186,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
 
     mutateListStorage(list, (current) => {
       const users = userSectionsOf(current.sections);
-      const fallbackSectionId = users[0]?.id;
+      const fallbackSectionId = users[0]?.id ?? '';
 
       return {
         ...current,
@@ -1112,7 +1197,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
             const restoreSectionId = task.sectionId === COMPLETED_SECTION_ID
               ? (task.originSectionId && users.some((section) => section.id === task.originSectionId)
                 ? task.originSectionId
-                : (fallbackSectionId ?? task.sectionId))
+                : fallbackSectionId)
               : task.sectionId;
 
             return {
@@ -1127,7 +1212,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
           return {
             ...task,
             completed: true,
-            originSectionId: task.sectionId === COMPLETED_SECTION_ID ? task.originSectionId : (task.originSectionId ?? task.sectionId),
+            originSectionId: task.sectionId === COMPLETED_SECTION_ID
+              ? task.originSectionId
+              : (task.originSectionId ?? (task.sectionId || undefined)),
             updatedAt: nowIso(),
           };
         }),
@@ -1147,24 +1234,79 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
     }));
   }, [clearTaskMoveTimer, mutateListStorage]);
 
+  const handleTaskDrop = React.useCallback((
+    list: TodoListModel,
+    sourceTaskId: string,
+    targetSectionId: string,
+    beforeTaskId: string | null,
+  ) => {
+    mutateListStorage(list, (current) => {
+      const ordered = [...current.tasks].sort((a, b) => a.order - b.order);
+      const sourceIndex = ordered.findIndex((task) => task.id === sourceTaskId);
+      if (sourceIndex < 0) return current;
+
+      const sourceTask = ordered[sourceIndex];
+      if (sourceTask.completed) return current;
+
+      const nextTargetSectionId = targetSectionId === UNSECTIONED_TASK_BUCKET_ID ? '' : targetSectionId;
+      if (nextTargetSectionId === COMPLETED_SECTION_ID) return current;
+      const validSectionIds = new Set(current.sections.map((section) => section.id));
+      if (nextTargetSectionId && !validSectionIds.has(nextTargetSectionId)) return current;
+
+      const remaining = ordered.filter((task) => task.id !== sourceTaskId);
+
+      let insertIndex = remaining.length;
+      if (beforeTaskId) {
+        const beforeIndex = remaining.findIndex((task) => task.id === beforeTaskId);
+        insertIndex = beforeIndex >= 0 ? beforeIndex : remaining.length;
+      } else {
+        const lastIndexInTarget = (() => {
+          for (let index = remaining.length - 1; index >= 0; index -= 1) {
+            if (remaining[index].sectionId === nextTargetSectionId) return index;
+          }
+          return -1;
+        })();
+        insertIndex = lastIndexInTarget >= 0 ? lastIndexInTarget + 1 : remaining.length;
+      }
+
+      const movedTask: TodoTask = {
+        ...sourceTask,
+        sectionId: nextTargetSectionId,
+        updatedAt: nowIso(),
+      };
+
+      const merged = [
+        ...remaining.slice(0, insertIndex),
+        movedTask,
+        ...remaining.slice(insertIndex),
+      ];
+
+      return {
+        ...current,
+        tasks: merged.map((task, index) => ({ ...task, order: index })),
+      };
+    });
+  }, [mutateListStorage]);
+
   const sectionTasksMap = React.useMemo(() => {
     if (!activeList) return new Map<string, TodoTask[]>();
 
     const map = new Map<string, TodoTask[]>();
+    map.set(UNSECTIONED_TASK_BUCKET_ID, []);
     activeList.sections.forEach((section) => map.set(section.id, []));
 
     activeList.tasks.forEach((task) => {
-      const bucket = map.get(task.sectionId);
+      const bucket = map.get(task.sectionId) ?? map.get(UNSECTIONED_TASK_BUCKET_ID);
       if (!bucket) return;
       bucket.push(task);
     });
 
     map.forEach((tasks, sectionId) => {
-      map.set(sectionId, sortTasksForDisplay(tasks, sectionId === COMPLETED_SECTION_ID));
+      map.set(sectionId, sortTasksForDisplay(tasks, sectionId === COMPLETED_SECTION_ID, sortMode));
     });
 
     return map;
-  }, [activeList]);
+  }, [activeList, sortMode]);
 
   const sectionOpenKey = React.useCallback((listId: string, sectionId: string) => {
     return `${listId}:${sectionId}`;
@@ -1196,105 +1338,290 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   }
 
   const activeListUserSections = activeList ? userSectionsOf(activeList.sections) : [];
+  const unsectionedTasks = activeList ? (sectionTasksMap.get(UNSECTIONED_TASK_BUCKET_ID) ?? []) : [];
+
+  const handleTaskDragStart = (task: TodoTask) => {
+    if (task.completed) return;
+    setDraggingTaskId(task.id);
+  };
+
+  const handleTaskDragEnd = () => {
+    setDraggingTaskId(null);
+    setDragOverSectionId(null);
+  };
+
+  const handleTaskDragOverSection = (
+    event: React.DragEvent<HTMLElement>,
+    targetSectionId: string,
+  ) => {
+    if (!draggingTaskId) return;
+    event.preventDefault();
+    setDragOverSectionId(targetSectionId);
+  };
+
+  const handleTaskDropToSection = (
+    event: React.DragEvent<HTMLElement>,
+    list: TodoListModel,
+    targetSectionId: string,
+    beforeTaskId: string | null = null,
+  ) => {
+    event.preventDefault();
+    if (!draggingTaskId) return;
+    if (beforeTaskId && beforeTaskId === draggingTaskId) {
+      setDraggingTaskId(null);
+      setDragOverSectionId(null);
+      return;
+    }
+
+    handleTaskDrop(list, draggingTaskId, targetSectionId, beforeTaskId);
+    setDraggingTaskId(null);
+    setDragOverSectionId(null);
+  };
+
+  const renderTaskCard = (list: TodoListModel, task: TodoTask, sectionId: string) => {
+    const priorityMeta = getPriorityMeta(task.priority);
+    const isCompletedSection = sectionId === COMPLETED_SECTION_ID;
+
+    return (
+      <motion.div
+        key={task.id}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        draggable={!task.completed}
+        onDragStart={() => handleTaskDragStart(task)}
+        onDragEnd={handleTaskDragEnd}
+        onDragOver={(event) => handleTaskDragOverSection(event, sectionId)}
+        onDrop={(event) => handleTaskDropToSection(event, list, sectionId, task.id)}
+        className={cn(
+          'rounded-md border px-3 py-2',
+          task.completed ? 'border-border/50 bg-background/80' : 'border-border/70 bg-background',
+          draggingTaskId === task.id && 'opacity-55',
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <Checkbox
+              checked={task.completed}
+              onCheckedChange={(checked) => handleToggleTaskCompleted(list, task.id, checked === true)}
+              aria-label={`Mark ${task.title} as completed`}
+            />
+
+            <div className="min-w-0 space-y-1">
+              <p
+                className={cn(
+                  'truncate text-sm font-medium',
+                  task.completed && 'text-muted-foreground line-through',
+                )}
+              >
+                {task.title}
+              </p>
+
+              {task.description ? (
+                <p
+                  className="overflow-hidden text-xs text-muted-foreground"
+                  title={task.description}
+                  style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                  }}
+                >
+                  {task.description}
+                </p>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-1">
+                <Badge variant="outline" className="text-[11px]">
+                  <CalendarClock className="mr-1 h-3 w-3" />
+                  {formatTaskDue(task)}
+                </Badge>
+                <Badge className={cn('border text-[11px]', priorityMeta.className)}>
+                  <Flag className="mr-1 h-3 w-3" />
+                  {priorityMeta.label}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {!isCompletedSection ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => openEditTaskDialog(list, task)}
+                aria-label={`Edit ${task.title}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => handleDeleteTask(list, task.id)}
+              aria-label={`Delete ${task.title}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 xl:grid-cols-[244px_minmax(0,1fr)]">
-        <Card className="h-fit">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm">Lists</CardTitle>
-              {mode === 'semester' ? (
-                <Button type="button" size="xs" variant="outline" onClick={handleCreateCustomList}>
-                  <CirclePlus className="mr-1 h-3.5 w-3.5" />
-                  New
-                </Button>
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {semesterCourseListsLoading && mode === 'semester' && allLists.length === 0 ? (
-              <p className="mb-2 text-xs text-muted-foreground">Loading lists...</p>
-            ) : null}
-            <ScrollArea className="h-[540px]">
-              <div className="space-y-1.5 pr-1.5">
-                {allLists.map((list) => {
-                  const isActive = activeList?.id === list.id;
-                  const total = list.tasks.length;
-                  const completed = list.tasks.filter((task) => task.completed).length;
-
-                  return (
-                    <button
-                      key={list.id}
-                      type="button"
-                      onClick={() => setSelectedListId(list.id)}
-                      className={cn(
-                        'w-full rounded-md border px-2.5 py-1.5 text-left transition-colors',
-                        isActive
-                          ? 'border-primary/45 bg-primary/5'
-                          : 'border-border/60 hover:border-border hover:bg-muted/35',
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-[13px] font-medium leading-tight">{list.name}</p>
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">
-                            {completed}/{total} completed
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Badge variant={list.source === 'course' ? 'secondary' : 'outline'} className="px-1.5 py-0 text-[10px]">
-                            {list.source === 'course' ? 'Course' : 'Custom'}
-                          </Badge>
-                          {!list.editableName ? <Lock className="h-3 w-3 text-muted-foreground" /> : null}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-                {allLists.length === 0 ? (
-                  <p className="px-1 text-xs text-muted-foreground">No lists yet.</p>
-                ) : null}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            {activeList ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle>{activeList.name}</CardTitle>
-                  {activeList.editableName ? (
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[720px] grid-cols-[208px_minmax(0,1fr)] gap-0 md:grid-cols-[232px_minmax(0,1fr)] xl:min-w-0 xl:grid-cols-[244px_minmax(0,1fr)]">
+            <div className="border-r px-2.5 py-3">
+              <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+                <CardTitle className="text-sm">Lists</CardTitle>
+                {mode === 'semester' ? (
+                  <div className="flex items-center gap-1">
                     <Button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openListTitleEditor(activeList)}
+                      size="icon-xs"
+                      variant={listManageMode ? 'secondary' : 'outline'}
+                      onClick={() => setListManageMode((previous) => !previous)}
+                      aria-label={listManageMode ? 'Done editing lists' : 'Edit lists'}
+                      title={listManageMode ? 'Done' : 'Edit'}
                     >
-                      <Pencil className="mr-1 h-3.5 w-3.5" />
-                      Edit Title
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="outline"
+                      onClick={handleCreateCustomList}
+                      aria-label="Create new list"
+                      title="New"
+                    >
+                      <CirclePlus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+              {semesterCourseListsLoading && mode === 'semester' && allLists.length === 0 ? (
+                <p className="mb-2 px-0.5 text-xs text-muted-foreground">Loading lists...</p>
+              ) : null}
+              <ScrollArea className="h-[560px]">
+                <div className="space-y-1.5 pr-1">
+                  {allLists.map((list) => {
+                    const isActive = activeList?.id === list.id;
+                    const total = list.tasks.length;
+                    const completed = list.tasks.filter((task) => task.completed).length;
+                    const isCustomList = list.source === 'semester-custom';
+                    const canDeleteList = listManageMode && isCustomList;
+
+                    return (
+                      <div key={list.id} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedListId(list.id)}
+                          className={cn(
+                            'w-full rounded-md border px-2 py-1.5 text-left transition-colors',
+                            isCustomList && 'pr-8',
+                            isActive
+                              ? 'border-primary/45 bg-primary/5'
+                              : 'border-border/60 hover:border-border hover:bg-muted/35',
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-[13px] font-medium leading-tight">{list.name}</p>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {completed}/{total} completed
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {list.source === 'course' ? (
+                                <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                                  Course
+                                </Badge>
+                              ) : null}
+                              {!list.editableName ? <Lock className="h-3 w-3 text-muted-foreground" /> : null}
+                            </div>
+                          </div>
+                        </button>
+
+                        {isCustomList ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            className={cn(
+                              'absolute right-1 top-1 text-destructive transition-opacity hover:bg-destructive/10 hover:text-destructive',
+                              canDeleteList ? 'opacity-100' : 'pointer-events-none opacity-0',
+                            )}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDeleteListAlert(list);
+                            }}
+                            aria-label={`Delete list ${list.name}`}
+                            title="Delete list"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  {allLists.length === 0 ? (
+                    <p className="px-1 text-xs text-muted-foreground">No lists yet.</p>
                   ) : null}
                 </div>
-                  <p className="text-sm text-muted-foreground">{activeList.tasks.length} tasks</p>
+              </ScrollArea>
+            </div>
+
+            <div className="px-4 py-3">
+            {activeList ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="truncate text-xl leading-9">{activeList.name}</CardTitle>
+                    {activeList.editableName ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openListTitleEditor(activeList)}
+                        aria-label={`Edit title for ${activeList.name}`}
+                        title="Edit list title"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {activeList.source === 'semester-custom' ? (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => handleDeleteCustomList(activeList.id)}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete List
-                    </Button>
-                  ) : null}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="outline" size="icon" aria-label="Open task options">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuRadioGroup
+                        value={sortMode}
+                        onValueChange={(value) => setSortMode(value as TodoSortMode)}
+                      >
+                        {SORT_OPTIONS.map((option) => (
+                          <DropdownMenuRadioItem key={option.value} value={option.value}>
+                            {option.label}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button type="button" variant="outline" onClick={() => handleAddSection(activeList)}>
-                    <CirclePlus className="mr-2 h-4 w-4" />
+                    <ListTree className="mr-2 h-4 w-4" />
                     Add Section
                   </Button>
                   <Button type="button" onClick={() => openCreateTaskDialog(activeList)}>
@@ -1304,167 +1631,175 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
                 </div>
               </div>
             ) : (
-              <CardTitle>Todo</CardTitle>
+              <div className="border-b pb-4">
+                <CardTitle className="text-xl leading-9">Todo</CardTitle>
+              </div>
             )}
-          </CardHeader>
 
-          <CardContent className="pt-0">
-            {!activeList ? (
-              <p className="text-sm text-muted-foreground">No list available.</p>
-            ) : (
-              <ScrollArea className="h-[560px]">
-                <div className="space-y-2 pr-2">
-                  {activeList.sections.map((section) => {
-                    const tasks = sectionTasksMap.get(section.id) ?? [];
-                    const isCompletedSection = section.id === COMPLETED_SECTION_ID;
-                    const isOpen = isSectionOpen(activeList.id, section.id);
-                    const canDeleteSection = !isCompletedSection && activeListUserSections.length > 1;
+            <div className="pt-4">
+              {!activeList ? (
+                <p className="text-sm text-muted-foreground">No list available.</p>
+              ) : (
+                <ScrollArea className="h-[560px]">
+                  <div className="space-y-3 pr-2">
+                    <motion.div
+                      layout
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      className={cn(
+                        'rounded-md border px-1.5 py-1',
+                        dragOverSectionId === UNSECTIONED_TASK_BUCKET_ID && 'border-primary/60',
+                      )}
+                      onDragOver={(event) => handleTaskDragOverSection(event, UNSECTIONED_TASK_BUCKET_ID)}
+                      onDrop={(event) => handleTaskDropToSection(event, activeList, UNSECTIONED_TASK_BUCKET_ID, null)}
+                    >
+                      <div className="flex items-center gap-1.5 px-1 py-1">
+                        <p className="truncate text-sm font-medium">{UNSECTIONED_TASK_BUCKET_NAME}</p>
+                        <Badge variant="outline" className="shrink-0 text-[11px]">{unsectionedTasks.length}</Badge>
+                      </div>
+                      <div className="space-y-1.5 px-7 pb-2 pt-1">
+                        {unsectionedTasks.length === 0 ? (
+                          <p className="px-2 py-1 text-xs text-muted-foreground">No tasks</p>
+                        ) : (
+                          <AnimatePresence initial={false}>
+                            {unsectionedTasks.map((task) => renderTaskCard(activeList, task, UNSECTIONED_TASK_BUCKET_ID))}
+                          </AnimatePresence>
+                        )}
+                      </div>
+                    </motion.div>
 
-                    return (
-                      <Collapsible
-                        key={section.id}
-                        open={isOpen}
-                        onOpenChange={(open) => setSectionOpen(activeList.id, section.id, open)}
-                      >
-                        <div
-                          className={cn(
-                            'rounded-md px-1.5 py-1',
-                            isCompletedSection ? 'bg-muted/40 opacity-80' : 'bg-muted/20',
-                          )}
+                    {activeList.sections.map((section) => {
+                      const tasks = sectionTasksMap.get(section.id) ?? [];
+                      const isCompletedSection = section.id === COMPLETED_SECTION_ID;
+                      const isOpen = isSectionOpen(activeList.id, section.id);
+                      const canDeleteSection = !isCompletedSection && activeListUserSections.length > 0;
+
+                      return (
+                        <motion.div
+                          key={section.id}
+                          layout
+                          transition={{ duration: 0.2, ease: 'easeInOut' }}
                         >
-                          <div className="flex items-center gap-2 px-1 py-1">
-                            <CollapsibleTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Toggle ${section.name}`}>
-                                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              </Button>
-                            </CollapsibleTrigger>
-
-                            <div className="min-w-0 flex-1">
-                              {isCompletedSection ? (
-                                <p className="text-sm font-medium text-muted-foreground">{section.name}</p>
-                              ) : (
-                                <p className="truncate text-sm font-medium">{section.name}</p>
-                              )}
-                            </div>
-
-                            <Badge variant="outline" className="text-[11px]">{tasks.length}</Badge>
-
-                            {!isCompletedSection ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => openSectionTitleEditor(section)}
-                                aria-label={`Edit section ${section.name}`}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            ) : null}
-
-                            {canDeleteSection ? (
-                              <>
+                          <Collapsible
+                            open={isOpen}
+                            onOpenChange={(open) => setSectionOpen(activeList.id, section.id, open)}
+                          >
+                          <motion.div
+                            layout
+                            transition={{ duration: 0.2, ease: 'easeInOut' }}
+                            onDragOver={(event) => handleTaskDragOverSection(event, section.id)}
+                            onDrop={(event) => handleTaskDropToSection(event, activeList, section.id, null)}
+                            className={cn(
+                              'rounded-md border px-1.5 py-1',
+                              isCompletedSection ? 'border-border/60 opacity-85' : 'border-border/55',
+                              dragOverSectionId === section.id && 'border-primary/60',
+                            )}
+                          >
+                            <div className="flex items-center gap-2 px-1 py-1">
+                              <CollapsibleTrigger asChild>
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="icon-sm"
-                                  onClick={() => handleDeleteSection(activeList, section.id)}
-                                  aria-label={`Delete section ${section.name}`}
+                                  className="hover:bg-transparent dark:hover:bg-transparent aria-expanded:bg-transparent"
+                                  aria-label={`Toggle ${section.name}`}
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 </Button>
-                              </>
-                            ) : null}
-                          </div>
+                              </CollapsibleTrigger>
 
-                          <CollapsibleContent>
-                            <div className="space-y-1.5 px-7 pb-2 pt-1">
-                              {tasks.length === 0 ? (
-                                <p className="px-2 py-1 text-xs text-muted-foreground">No tasks</p>
-                              ) : (
-                                tasks.map((task) => {
-                                  const priorityMeta = getPriorityMeta(task.priority);
-                                  return (
-                                    <div
-                                      key={task.id}
-                                      className={cn(
-                                        'rounded-md px-3 py-2',
-                                        task.completed ? 'bg-background/45' : 'bg-background/75',
-                                      )}
-                                    >
-                                      <div className="flex items-start justify-between gap-2">
-                                        <div className="flex min-w-0 flex-1 items-start gap-2">
-                                          <Checkbox
-                                            checked={task.completed}
-                                            onCheckedChange={(checked) =>
-                                              handleToggleTaskCompleted(activeList, task.id, checked === true)
-                                            }
-                                            aria-label={`Mark ${task.title} as completed`}
-                                          />
+                              <div className="min-w-0 flex flex-1 items-center gap-1.5">
+                                {isCompletedSection ? (
+                                  <p className="truncate text-sm font-medium text-muted-foreground">{section.name}</p>
+                                ) : (
+                                  <p className="truncate text-sm font-medium">{section.name}</p>
+                                )}
+                                <Badge variant="outline" className="shrink-0 text-[11px]">{tasks.length}</Badge>
+                              </div>
 
-                                          <div className="min-w-0 space-y-1">
-                                            <p
-                                              className={cn(
-                                                'truncate text-sm font-medium',
-                                                task.completed && 'text-muted-foreground line-through',
-                                              )}
-                                            >
-                                              {task.title}
-                                            </p>
+                              {!isCompletedSection ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => openSectionTitleEditor(section)}
+                                  aria-label={`Edit section ${section.name}`}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              ) : null}
 
-                                            {task.description ? (
-                                              <p className="text-xs text-muted-foreground">{task.description}</p>
-                                            ) : null}
-
-                                            <div className="flex flex-wrap items-center gap-1">
-                                              <Badge variant="outline" className="text-[11px]">
-                                                <CalendarClock className="mr-1 h-3 w-3" />
-                                                {formatTaskDue(task)}
-                                              </Badge>
-                                              <Badge className={cn('border text-[11px]', priorityMeta.className)}>
-                                                <Flag className="mr-1 h-3 w-3" />
-                                                {priorityMeta.label}
-                                              </Badge>
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-1">
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon-sm"
-                                            onClick={() => openEditTaskDialog(activeList, task)}
-                                            aria-label={`Edit ${task.title}`}
-                                          >
-                                            <Pencil className="h-4 w-4" />
-                                          </Button>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon-sm"
-                                            onClick={() => handleDeleteTask(activeList, task.id)}
-                                            aria-label={`Delete ${task.title}`}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })
-                              )}
+                              {canDeleteSection ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    onClick={() => handleDeleteSection(activeList, section.id)}
+                                    aria-label={`Delete section ${section.name}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              ) : null}
                             </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+
+                            <CollapsibleContent className="overflow-hidden data-open:animate-accordion-down data-closed:animate-accordion-up">
+                              <div
+                                className="space-y-1.5 px-7 pb-2 pt-1"
+                                onDragOver={(event) => handleTaskDragOverSection(event, section.id)}
+                                onDrop={(event) => handleTaskDropToSection(event, activeList, section.id, null)}
+                              >
+                                {tasks.length === 0 ? (
+                                  <p className="px-2 py-1 text-xs text-muted-foreground">No tasks</p>
+                                ) : (
+                                  <AnimatePresence initial={false}>
+                                    {tasks.map((task) => renderTaskCard(activeList, task, section.id))}
+                                  </AnimatePresence>
+                                )}
+                              </div>
+                            </CollapsibleContent>
+                          </motion.div>
+                          </Collapsible>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <AlertDialog
+        open={deleteListDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteListDialogOpen(open);
+          if (!open) {
+            setDeleteListTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete list?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. List{' '}
+              <span className="font-medium text-foreground">
+                {deleteListTarget?.name ?? ''}
+              </span>{' '}
+              and its tasks will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDeleteCustomList}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={listTitleDialogOpen}
@@ -1557,6 +1892,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
                   id="todo-task-description"
                   value={taskDraft.description}
                   onChange={(event) => setTaskDraft((prev) => ({ ...prev, description: event.target.value }))}
+                  className="max-h-32 resize-none overflow-y-auto"
                   rows={3}
                 />
               </div>
@@ -1564,13 +1900,16 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
               <div className="grid gap-2">
                 <Label>Section</Label>
                 <Select
-                  value={taskDraft.sectionId || activeListUserSections[0]?.id || ''}
+                  value={taskDraft.sectionId || UNSECTIONED_TASK_BUCKET_ID}
                   onValueChange={(value) => setTaskDraft((prev) => ({ ...prev, sectionId: value }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select section" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={UNSECTIONED_TASK_BUCKET_ID}>
+                      {UNSECTIONED_TASK_BUCKET_NAME}
+                    </SelectItem>
                     {activeListUserSections.map((section) => (
                       <SelectItem key={section.id} value={section.id}>
                         {section.name}
