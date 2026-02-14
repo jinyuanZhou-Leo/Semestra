@@ -177,10 +177,10 @@ export const LoginPage: React.FC = () => {
             </div>
 
             {/* Background Logo */}
-            <div className={`absolute top-8 left-8 font-bold text-xl flex items-center gap-2 z-10 select-none drop-shadow-md ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+            <Link to="/landing" className={`absolute top-8 left-8 font-bold text-xl flex items-center gap-2 z-10 select-none drop-shadow-md ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                 <div className={`w-2.5 h-2.5 rounded-full ${currentTheme === 'light' ? 'bg-slate-900' : 'bg-white'}`} />
                 Semestra
-            </div>
+            </Link>
 
             <motion.div
                 initial={{ opacity: 0, y: 30, scale: 0.95 }}
@@ -296,6 +296,7 @@ export const LoginPage: React.FC = () => {
                                     Sign Up
                                 </Link>
                             </Button>
+
                         </form>
 
                     </CardContent>

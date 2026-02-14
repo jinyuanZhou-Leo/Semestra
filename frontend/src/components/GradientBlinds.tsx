@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
-import './GradientBlinds.css';
 
 export interface GradientBlindsProps {
   className?: string;
@@ -32,12 +31,15 @@ const hexToRGB = (hex: string): [number, number, number] => {
   const b = parseInt(c.slice(4, 6), 16) / 255;
   return [r, g, b];
 };
+
 const prepStops = (stops?: string[]) => {
   const base = (stops && stops.length ? stops : ['#FF9FFC', '#5227FF']).slice(0, MAX_COLORS);
   if (base.length === 1) base.push(base[0]);
   while (base.length < MAX_COLORS) base.push(base[base.length - 1]);
+
   const arr: [number, number, number][] = [];
   for (let i = 0; i < MAX_COLORS; i++) arr.push(hexToRGB(base[i]));
+
   const count = Math.max(2, Math.min(MAX_COLORS, stops?.length ?? 2));
   return { arr, count };
 };
@@ -47,8 +49,8 @@ const GradientBlinds: React.FC<GradientBlindsProps> = ({
   dpr,
   paused = false,
   gradientColors,
-  angle = 45,
-  noise = 0.15,
+  angle = 0,
+  noise = 0.3,
   blindCount = 16,
   blindMinWidth = 60,
   followCursor = false,
@@ -61,7 +63,7 @@ const GradientBlinds: React.FC<GradientBlindsProps> = ({
   shineDirection = 'left',
   mixBlendMode = 'lighten',
   backgroundColor = 'transparent',
-  filter
+  filter,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -80,7 +82,7 @@ const GradientBlinds: React.FC<GradientBlindsProps> = ({
     const renderer = new Renderer({
       dpr: dpr ?? (typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1),
       alpha: true,
-      antialias: true
+      antialias: true,
     });
     rendererRef.current = renderer;
     const gl = renderer.gl;
@@ -192,13 +194,13 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 base = getGradientColor(t);
 
     vec2 offset = vec2(iMouse.x/iResolution.x, iMouse.y/iResolution.y);
-  float d = length(uv0 - offset);
-  float r = max(uSpotlightRadius, 1e-4);
-  float dn = d / r;
-  float spot = (1.0 - 2.0 * pow(dn, uSpotlightSoftness)) * uSpotlightOpacity;
-  vec3 cir = vec3(spot);
-  float stripe = fract(uvMod.x * max(uBlindCount, 1.0));
-  if (uShineFlip > 0.5) stripe = 1.0 - stripe;
+    float d = length(uv0 - offset);
+    float r = max(uSpotlightRadius, 1e-4);
+    float dn = d / r;
+    float spot = (1.0 - 2.0 * pow(dn, uSpotlightSoftness)) * uSpotlightOpacity;
+    vec3 cir = vec3(spot);
+    float stripe = fract(uvMod.x * max(uBlindCount, 1.0));
+    if (uShineFlip > 0.5) stripe = 1.0 - stripe;
     vec3 ran = vec3(stripe);
 
     vec3 col = cir + base - ran;
@@ -238,9 +240,7 @@ void main() {
       uColor7: { value: [number, number, number] };
       uColorCount: { value: number };
     } = {
-      iResolution: {
-        value: [gl.drawingBufferWidth, gl.drawingBufferHeight, 1]
-      },
+      iResolution: { value: [gl.drawingBufferWidth, gl.drawingBufferHeight, 1] },
       iMouse: { value: [0, 0] },
       iTime: { value: 0 },
       uAngle: { value: (angle * Math.PI) / 180 },
@@ -260,14 +260,10 @@ void main() {
       uColor5: { value: colorArr[5] },
       uColor6: { value: colorArr[6] },
       uColor7: { value: colorArr[7] },
-      uColorCount: { value: colorCount }
+      uColorCount: { value: colorCount },
     };
 
-    const program = new Program(gl, {
-      vertex,
-      fragment,
-      uniforms
-    });
+    const program = new Program(gl, { vertex, fragment, uniforms });
     programRef.current = program;
 
     const geometry = new Triangle(gl);
@@ -282,7 +278,6 @@ void main() {
 
       if (blindMinWidth && blindMinWidth > 0) {
         const maxByMinWidth = Math.max(1, Math.floor(rect.width / blindMinWidth));
-
         const effective = blindCount ? Math.min(blindCount, maxByMinWidth) : maxByMinWidth;
         uniforms.uBlindCount.value = Math.max(1, effective);
       } else {
@@ -302,74 +297,83 @@ void main() {
     const ro = new ResizeObserver(resize);
     ro.observe(container);
 
-    const onPointerMove = (e: PointerEvent) => {
+    const updatePointer = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      const scale = (renderer as unknown as { dpr?: number }).dpr || 1;
-      const x = (e.clientX - rect.left) * scale;
-      const y = (rect.height - (e.clientY - rect.top)) * scale;
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+        return;
+      }
+
+      const scaleX = gl.drawingBufferWidth / rect.width;
+      const scaleY = gl.drawingBufferHeight / rect.height;
+      const x = (clientX - rect.left) * scaleX;
+      const y = (rect.height - (clientY - rect.top)) * scaleY;
       mouseTargetRef.current = [x, y];
       if (mouseDampening <= 0) {
         uniforms.iMouse.value = [x, y];
       }
     };
 
+    const onPointerMove = (event: PointerEvent) => {
+      updatePointer(event.clientX, event.clientY);
+    };
+
     if (followCursor) {
-      canvas.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointermove', onPointerMove);
     }
 
-    const loop = (t: number) => {
+    const loop = (time: number) => {
       rafRef.current = requestAnimationFrame(loop);
-      const timeSec = t * 0.001;
-      uniforms.iTime.value = timeSec;
+      uniforms.iTime.value = time * 0.001;
 
       if (followCursor && mouseDampening > 0) {
-        // Manual cursor following with dampening
-        if (!lastTimeRef.current) lastTimeRef.current = t;
-        const dt = (t - lastTimeRef.current) / 1000;
-        lastTimeRef.current = t;
+        if (!lastTimeRef.current) lastTimeRef.current = time;
+        const dt = (time - lastTimeRef.current) / 1000;
+        lastTimeRef.current = time;
         const tau = Math.max(1e-4, mouseDampening);
         let factor = 1 - Math.exp(-dt / tau);
         if (factor > 1) factor = 1;
+
         const target = mouseTargetRef.current;
-        const cur = uniforms.iMouse.value;
-        cur[0] += (target[0] - cur[0]) * factor;
-        cur[1] += (target[1] - cur[1]) * factor;
-      } else if (!followCursor) {
-        // Automatic spotlight flow animation
-        const w = gl.drawingBufferWidth;
-        const h = gl.drawingBufferHeight;
-
-        // Create a smooth flowing pattern with different frequencies for x and y
-        const x = (0.5 + 0.3 * Math.sin(timeSec * 0.5)) * w;
-        const y = (0.5 + 0.3 * Math.cos(timeSec * 0.3)) * h;
-
-        uniforms.iMouse.value = [x, y];
+        const current = uniforms.iMouse.value;
+        current[0] += (target[0] - current[0]) * factor;
+        current[1] += (target[1] - current[1]) * factor;
+      } else if (followCursor && mouseDampening <= 0) {
+        lastTimeRef.current = time;
       } else {
-        lastTimeRef.current = t;
+        const width = gl.drawingBufferWidth;
+        const height = gl.drawingBufferHeight;
+        const x = (0.5 + 0.3 * Math.sin(time * 0.0005)) * width;
+        const y = (0.5 + 0.3 * Math.cos(time * 0.0003)) * height;
+        uniforms.iMouse.value = [x, y];
       }
 
       if (!paused && programRef.current && meshRef.current) {
         try {
           renderer.render({ scene: meshRef.current });
-        } catch (e) {
-          console.error(e);
+        } catch (error) {
+          console.error(error);
         }
       }
     };
+
     rafRef.current = requestAnimationFrame(loop);
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      canvas.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointermove', onPointerMove);
       ro.disconnect();
       if (canvas.parentElement === container) {
         container.removeChild(canvas);
       }
+
       const callIfFn = <T extends object, K extends keyof T>(obj: T | null, key: K) => {
         if (obj && typeof obj[key] === 'function') {
           (obj[key] as unknown as () => void).call(obj);
         }
       };
+
       callIfFn(programRef.current, 'remove');
       callIfFn(geometryRef.current, 'remove');
       callIfFn(meshRef.current as unknown as { remove?: () => void }, 'remove');
@@ -387,26 +391,26 @@ void main() {
     noise,
     blindCount,
     blindMinWidth,
-    mouseDampening,
     followCursor,
+    mouseDampening,
     mirrorGradient,
     spotlightRadius,
     spotlightSoftness,
     spotlightOpacity,
     distortAmount,
-    shineDirection
+    shineDirection,
   ]);
 
   return (
     <div
       ref={containerRef}
-      className={`gradient-blinds-container ${className}`}
+      className={`w-full h-full overflow-hidden relative ${className ?? ''}`}
       style={{
         backgroundColor,
         filter,
         ...(mixBlendMode && {
-          mixBlendMode: mixBlendMode as React.CSSProperties['mixBlendMode']
-        })
+          mixBlendMode: mixBlendMode as React.CSSProperties['mixBlendMode'],
+        }),
       }}
     />
   );

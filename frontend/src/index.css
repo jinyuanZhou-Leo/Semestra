@@ -288,6 +288,7 @@ body>div>div[role="dialog"][data-state] {
 @layer base {
   html {
     overflow-y: auto;
+    scroll-behavior: smooth;
     /* Reserve scrollbar space to prevent layout shift on page switches. */
     scrollbar-gutter: stable;
   }
@@ -349,5 +350,19 @@ body>div>div[role="dialog"][data-state] {
   /* Preserve layout flow when sticky header is promoted to fixed. */
   body[data-sticky-header-lock="true"] .sticky-page-header + * {
     margin-top: var(--sticky-page-header-height, 0px) !important;
+  }
+}
+
+.landing-font-display {
+  font-family: "Space Grotesk", "DM Sans", "Segoe UI", sans-serif;
+}
+
+.landing-font-body {
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
