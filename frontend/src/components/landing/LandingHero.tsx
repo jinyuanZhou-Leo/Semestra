@@ -30,7 +30,7 @@ export const LandingHero = ({ reducedMotion }: LandingHeroProps) => {
   );
 
   return (
-    <section ref={heroRef} className="relative isolate min-h-screen overflow-hidden pb-12 pt-24 md:pb-20 md:pt-28">
+    <section ref={heroRef} className="relative isolate min-h-screen overflow-hidden pb-8 md:pb-12">
       <motion.div aria-hidden className="absolute inset-0">
         <GradientBlinds
           gradientColors={gradientColors}
@@ -53,7 +53,7 @@ export const LandingHero = ({ reducedMotion }: LandingHeroProps) => {
         className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.38),rgba(255,255,255,0.68))] dark:bg-[linear-gradient(to_bottom,rgba(2,6,23,0.28),rgba(2,6,23,0.62))]"
       />
 
-      <header className="relative z-10">
+      <header className="relative z-10 pt-5 md:pt-6">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/landing" className="landing-font-display inline-flex items-center gap-2 text-xl font-bold tracking-tight text-foreground">
             <span className="h-2.5 w-2.5 rounded-full bg-primary" />
@@ -69,7 +69,7 @@ export const LandingHero = ({ reducedMotion }: LandingHeroProps) => {
         </div>
       </header>
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl gap-8 px-4 sm:px-6 md:min-h-[calc(100vh-9rem)] md:grid-cols-2 md:items-center lg:px-8">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl gap-8 px-4 sm:px-6 min-h-[calc(100svh-7.25rem)] items-center md:min-h-[calc(100svh-8rem)] md:grid-cols-2 lg:px-8">
         <motion.div
           className="space-y-6"
           initial={reducedMotion ? false : { opacity: 0, y: 28 }}
