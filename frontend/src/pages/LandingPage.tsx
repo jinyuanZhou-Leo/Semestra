@@ -4,6 +4,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import { LandingHero } from '@/components/landing/LandingHero';
 import { LandingPillars } from '@/components/landing/LandingPillars';
 import { LandingProof } from '@/components/landing/LandingProof';
+import { SemesterDashboardMock } from '@/components/landing/ProgramDashboardMock';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 
 const buildPlaceholderImage = (label: string, start: string, end: string) =>
@@ -21,7 +22,6 @@ const buildPlaceholderImage = (label: string, start: string, end: string) =>
     </svg>`,
   )}`;
 
-const placeholderLeft = buildPlaceholderImage('Image Placeholder', '#0f172a', '#2563eb');
 const placeholderRight = buildPlaceholderImage('Image Placeholder', '#1f2937', '#f97316');
 
 export const LandingPage = () => {
@@ -38,22 +38,22 @@ export const LandingPage = () => {
   }, []);
 
   return (
-    <main className="landing-font-body relative min-h-screen overflow-x-hidden bg-background text-foreground">
+    <main className="landing-font-body dark relative min-h-screen overflow-x-hidden bg-background text-foreground" style={{ colorScheme: 'dark' }}>
       <motion.div
         aria-hidden
         className="fixed inset-x-0 top-0 z-[70] h-1 origin-left bg-gradient-to-r from-sky-500 via-indigo-500 to-orange-500"
         style={reducedMotion ? undefined : { scaleX: smoothProgress }}
       />
       <LandingHero reducedMotion={reducedMotion} />
-      <motion.img
-        src={placeholderLeft}
-        alt="Landing placeholder"
-        className="mx-auto my-6 h-auto w-[min(100%-2rem,72rem)] rounded-2xl border border-border/60 object-cover shadow-xl md:my-10"
+      <motion.div
+        className="my-6 md:my-10"
         initial={reducedMotion ? false : { opacity: 0, x: -72, y: 84, scale: 0.94, filter: 'blur(10px)' }}
         whileInView={reducedMotion ? {} : { opacity: 1, x: 0, y: 0, scale: 1, filter: 'blur(0px)' }}
         viewport={{ once: false, amount: 0.3, margin: '0px 0px -6% 0px' }}
         transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
-      />
+      >
+        <SemesterDashboardMock />
+      </motion.div>
       <LandingPillars reducedMotion={reducedMotion} />
       <motion.img
         src={placeholderRight}
