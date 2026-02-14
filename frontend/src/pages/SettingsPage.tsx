@@ -467,8 +467,8 @@ export const SettingsPage: React.FC = () => {
                                     </p>
                                 </div>
                                 <Button
-                                    variant="secondary"
-                                    className="w-full transition-colors duration-200 hover:bg-accent hover:text-accent-foreground"
+                                    variant="outline"
+                                    className="w-full"
                                     onClick={async () => {
                                         try {
                                             const data = await api.exportUserData();
@@ -507,8 +507,8 @@ export const SettingsPage: React.FC = () => {
                                     </p>
                                 </div>
                                 <Button
-                                    variant="secondary"
-                                    className="w-full transition-colors duration-200 hover:bg-accent hover:text-accent-foreground"
+                                    variant="outline"
+                                    className="w-full"
                                     onClick={() => {
                                         const input = document.createElement("input");
                                         input.type = "file";

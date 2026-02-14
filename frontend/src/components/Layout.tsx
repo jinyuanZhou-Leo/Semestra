@@ -15,6 +15,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 import { Eye, EyeOff, LogOut, Settings, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
@@ -170,7 +171,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                         </Link>
                         {breadcrumb && (
                             <div className="hidden min-w-0 items-center gap-3 md:flex">
-                                <div className="h-4 w-px bg-border/60" />
+                                <Separator
+                                    orientation="vertical"
+                                    className="h-5 bg-foreground/30 data-[orientation=vertical]:w-[2px]"
+                                />
                                 <div className="min-w-0">{breadcrumb}</div>
                             </div>
                         )}
