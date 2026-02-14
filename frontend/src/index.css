@@ -87,10 +87,56 @@ body>div>div[role="dialog"][data-state] {
 }
 
 .animated-number {
-  display: inline-block;
+  display: inline-grid;
+  grid-template-areas: "stack";
+  position: relative;
   font-variant-numeric: tabular-nums;
   transition: color 1.2s ease;
   will-change: opacity;
+}
+
+.animated-number__base {
+  grid-area: stack;
+}
+
+.animated-number__rainbow {
+  grid-area: stack;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  background-image: repeating-linear-gradient(
+    90deg,
+    #ff3b30 0%,
+    #ff9500 14%,
+    #ffcc00 28%,
+    #34c759 42%,
+    #00c7be 56%,
+    #007aff 70%,
+    #af52de 84%,
+    #ff3b30 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: repeat;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.animated-number__rainbow--running {
+  opacity: 1;
+  animation: animated-number-rainbow-marquee 1.35s linear infinite;
+}
+
+.animated-number__rainbow--hidden {
+  opacity: 0;
+  animation: none;
+}
+
+.animated-number__rainbow--fading {
+  opacity: 0;
+  animation: none;
 }
 
 .animated-number--pulse {
@@ -106,6 +152,22 @@ body>div>div[role="dialog"][data-state] {
   }
   100% {
     opacity: 1;
+  }
+}
+
+@keyframes animated-number-rainbow-marquee {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: -200% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-number__rainbow--running {
+    animation: none;
+    background-size: 100% 100%;
   }
 }
 

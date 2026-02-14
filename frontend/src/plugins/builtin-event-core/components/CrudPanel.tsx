@@ -65,7 +65,7 @@ export function CrudPanel<T>({
     isLoading,
 }: CrudPanelProps<T>) {
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 [&_[data-slot=button][data-variant=destructive][data-size=icon]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]:hover]:bg-destructive/20">
             <div className="px-1">
                 <PanelHeader
                     title={title}

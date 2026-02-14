@@ -426,6 +426,7 @@ const SemesterHomepageContent: React.FC = () => {
                                                 <AnimatedNumber
                                                     value={semester.average_scaled}
                                                     format={(val) => val.toFixed(2)}
+                                                    rainbowThreshold={3.8}
                                                 />
                                             )}
                                         </div>

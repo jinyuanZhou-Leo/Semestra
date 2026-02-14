@@ -732,6 +732,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                         value={program.cgpa_scaled}
                                                         format={(val) => val.toFixed(2)}
                                                         animateOnMount
+                                                        rainbowThreshold={3.8}
                                                     />
                                                 )}
                                                 <Button
@@ -831,7 +832,12 @@ const ProgramDashboardContent: React.FC = () => {
                                                     <div className="grid grid-cols-2 gap-4 mt-2">
                                                         <div>
                                                             <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">GPA</p>
-                                                            <p className="text-lg font-semibold">{semester.average_scaled.toFixed(2)}</p>
+                                                            <p className="text-lg font-semibold">
+                                                                <AnimatedNumber
+                                                                    value={semester.average_scaled}
+                                                                    format={(val) => val.toFixed(2)}
+                                                                />
+                                                            </p>
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Average</p>
@@ -1077,7 +1083,10 @@ const ProgramDashboardContent: React.FC = () => {
                                                         <TableCell className="text-right font-medium">
                                                             {course.hide_gpa ? '****' : (
                                                                 <span className={course.grade_scaled >= 3.0 ? 'text-emerald-600' : 'text-amber-600'}>
-                                                                    {course.grade_scaled.toFixed(2)}
+                                                                    <AnimatedNumber
+                                                                        value={course.grade_scaled}
+                                                                        format={(val) => val.toFixed(2)}
+                                                                    />
                                                                 </span>
                                                             )}
                                                         </TableCell>

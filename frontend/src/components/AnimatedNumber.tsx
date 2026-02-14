@@ -7,6 +7,10 @@ interface AnimatedNumberProps {
     className?: string;
     style?: React.CSSProperties;
     animateOnMount?: boolean;
+    rainbowThreshold?: number;
+    rainbowStartDelayMs?: number;
+    rainbowDurationMs?: number;
+    rainbowFadeOutMs?: number;
 }
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -17,15 +21,23 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     duration = 650,
     className = '',
     style,
-    animateOnMount = true
+    animateOnMount = true,
+    rainbowThreshold,
+    rainbowStartDelayMs = 280,
+    rainbowDurationMs = 5000,
+    rainbowFadeOutMs = 1200
 }) => {
     const [displayValue, setDisplayValue] = useState(() => (animateOnMount ? 0 : value));
     const [isAnimating, setIsAnimating] = useState(false);
+    const [rainbowState, setRainbowState] = useState<'hidden' | 'running' | 'fading'>('hidden');
     const previousValueRef = useRef<number | null>(null);
     const displayValueRef = useRef<number>(animateOnMount ? 0 : value);
     const hasAnimatedOnMountRef = useRef(false);
     const rafRef = useRef<number | null>(null);
-    const timeoutRef = useRef<number | null>(null);
+    const animationGenerationRef = useRef(0);
+    const rainbowStartTimeoutRef = useRef<number | null>(null);
+    const rainbowStopTimeoutRef = useRef<number | null>(null);
+    const rainbowHideTimeoutRef = useRef<number | null>(null);
 
     const prefersReducedMotion = useMemo(() => {
         if (typeof window === 'undefined' || !('matchMedia' in window)) return false;
@@ -33,9 +45,51 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     }, []);
 
     useEffect(() => {
+        const currentGeneration = animationGenerationRef.current + 1;
+        animationGenerationRef.current = currentGeneration;
+
         const previousValue = previousValueRef.current;
         previousValueRef.current = value;
         const isFirstAnimation = animateOnMount && !hasAnimatedOnMountRef.current;
+        if (rainbowStartTimeoutRef.current) {
+            window.clearTimeout(rainbowStartTimeoutRef.current);
+            rainbowStartTimeoutRef.current = null;
+        }
+        if (rainbowStopTimeoutRef.current) {
+            window.clearTimeout(rainbowStopTimeoutRef.current);
+            rainbowStopTimeoutRef.current = null;
+        }
+        if (rainbowHideTimeoutRef.current) {
+            window.clearTimeout(rainbowHideTimeoutRef.current);
+            rainbowHideTimeoutRef.current = null;
+        }
+        setRainbowState('hidden');
+
+        const triggerRainbowMarquee = () => {
+            if (prefersReducedMotion || rainbowDurationMs <= 0) return;
+            const startRunning = () => {
+                if (animationGenerationRef.current !== currentGeneration) return;
+                setRainbowState('running');
+                rainbowStopTimeoutRef.current = window.setTimeout(() => {
+                    setRainbowState('fading');
+                    rainbowHideTimeoutRef.current = window.setTimeout(() => {
+                        setRainbowState('hidden');
+                        rainbowHideTimeoutRef.current = null;
+                    }, rainbowFadeOutMs);
+                    rainbowStopTimeoutRef.current = null;
+                }, rainbowDurationMs);
+            };
+
+            if (rainbowStartDelayMs > 0) {
+                rainbowStartTimeoutRef.current = window.setTimeout(() => {
+                    rainbowStartTimeoutRef.current = null;
+                    startRunning();
+                }, rainbowStartDelayMs);
+                return;
+            }
+
+            startRunning();
+        };
 
         if (!Number.isFinite(value)) {
             setIsAnimating(false);
@@ -49,6 +103,9 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
             setIsAnimating(false);
             displayValueRef.current = value;
             setDisplayValue(value);
+            if (typeof rainbowThreshold === 'number' && value >= rainbowThreshold) {
+                triggerRainbowMarquee();
+            }
             return () => {};
         }
 
@@ -70,38 +127,61 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
 
             if (progress < 1) {
                 rafRef.current = requestAnimationFrame(tick);
+                return;
+            }
+
+            if (animationGenerationRef.current !== currentGeneration) {
+                return;
+            }
+
+            setIsAnimating(false);
+            if (typeof rainbowThreshold === 'number' && value >= rainbowThreshold) {
+                triggerRainbowMarquee();
             }
         };
 
         rafRef.current = requestAnimationFrame(tick);
-
-        if (timeoutRef.current) {
-            window.clearTimeout(timeoutRef.current);
-        }
-        timeoutRef.current = window.setTimeout(() => {
-            setIsAnimating(false);
-        }, duration);
 
         return () => {
             if (rafRef.current) {
                 cancelAnimationFrame(rafRef.current);
                 rafRef.current = null;
             }
-            if (timeoutRef.current) {
-                window.clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
+            if (rainbowStartTimeoutRef.current) {
+                window.clearTimeout(rainbowStartTimeoutRef.current);
+                rainbowStartTimeoutRef.current = null;
+            }
+            if (rainbowStopTimeoutRef.current) {
+                window.clearTimeout(rainbowStopTimeoutRef.current);
+                rainbowStopTimeoutRef.current = null;
+            }
+            if (rainbowHideTimeoutRef.current) {
+                window.clearTimeout(rainbowHideTimeoutRef.current);
+                rainbowHideTimeoutRef.current = null;
             }
         };
-    }, [animateOnMount, duration, prefersReducedMotion, value]);
+    }, [animateOnMount, duration, prefersReducedMotion, rainbowDurationMs, rainbowFadeOutMs, rainbowStartDelayMs, rainbowThreshold, value]);
 
     const renderedValue = format ? format(displayValue) : displayValue.toString();
+    const rainbowLayerClassName =
+        rainbowState === 'running'
+            ? 'animated-number__rainbow--running'
+            : rainbowState === 'fading'
+                ? 'animated-number__rainbow--fading'
+                : 'animated-number__rainbow--hidden';
 
     return (
         <span
             className={`animated-number ${isAnimating ? 'animated-number--pulse' : ''} ${className}`.trim()}
             style={style}
         >
-            {renderedValue}
+            <span className="animated-number__base">{renderedValue}</span>
+            <span
+                aria-hidden="true"
+                className={`animated-number__rainbow ${rainbowLayerClassName}`}
+            >
+                {renderedValue}
+            </span>
         </span>
     );
 };

@@ -24,6 +24,7 @@ import type { Program } from '../services/api';
 import { useDialog } from '../contexts/DialogContext';
 
 import { ProgramCardSkeleton } from '../components/skeletons';
+import { AnimatedNumber } from '../components/AnimatedNumber';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -298,7 +299,10 @@ export const HomePage: React.FC = () => {
                                                 <div>
                                                     <span className="block text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">CGPA</span>
                                                     <span className="text-xl font-bold tracking-tight">
-                                                        {program.cgpa_scaled.toFixed(2)}
+                                                        <AnimatedNumber
+                                                            value={program.cgpa_scaled}
+                                                            format={(val) => val.toFixed(2)}
+                                                        />
                                                     </span>
                                                 </div>
                                                 <div className="text-right">

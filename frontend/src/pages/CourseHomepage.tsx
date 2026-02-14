@@ -570,6 +570,7 @@ const CourseHomepageContent: React.FC = () => {
                                                 <AnimatedNumber
                                                     value={course.grade_scaled}
                                                     format={(val) => val.toFixed(2)}
+                                                    rainbowThreshold={3.8}
                                                 />
                                             )}
                                         </div>
