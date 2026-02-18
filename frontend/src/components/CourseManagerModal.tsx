@@ -27,7 +27,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     onCourseAdded
 }) => {
     const { user } = useAuth();
-    const defaultCredit = (user as any)?.default_course_credit?.toString() || '0.5';
+    const defaultCredit = (user?.default_course_credit ?? 0.5).toString();
 
     const [mode, setMode] = useState<'list' | 'create'>(semesterId ? 'list' : 'create');
     const [unassignedCourses, setUnassignedCourses] = useState<Course[]>([]);

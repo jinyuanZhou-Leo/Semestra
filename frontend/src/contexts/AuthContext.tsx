@@ -1,15 +1,57 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { SessionExpiredModal } from '../components/SessionExpiredModal';
+import { DEFAULT_GPA_SCALING_TABLE_JSON } from '../utils/gpaUtils';
+
+const DEFAULT_COURSE_CREDIT = 0.5;
 
 interface User {
-    id: number;
+    id: string;
     email: string;
     nickname?: string;
+    user_setting?: string | null;
     gpa_scaling_table?: string;
     default_course_credit?: number;
     google_sub?: string | null;
 }
+
+type UserSettings = Pick<User, 'gpa_scaling_table' | 'default_course_credit'>;
+
+const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
+    if (!rawSetting) {
+        return {
+            gpa_scaling_table: DEFAULT_GPA_SCALING_TABLE_JSON,
+            default_course_credit: DEFAULT_COURSE_CREDIT
+        };
+    }
+
+    try {
+        const parsed = JSON.parse(rawSetting) as Record<string, unknown>;
+        const gpaScalingTable =
+            typeof parsed.gpa_scaling_table === 'string' && parsed.gpa_scaling_table
+                ? parsed.gpa_scaling_table
+                : DEFAULT_GPA_SCALING_TABLE_JSON;
+        const defaultCourseCredit =
+            typeof parsed.default_course_credit === 'number' && Number.isFinite(parsed.default_course_credit)
+                ? parsed.default_course_credit
+                : DEFAULT_COURSE_CREDIT;
+
+        return {
+            gpa_scaling_table: gpaScalingTable,
+            default_course_credit: defaultCourseCredit
+        };
+    } catch {
+        return {
+            gpa_scaling_table: DEFAULT_GPA_SCALING_TABLE_JSON,
+            default_course_credit: DEFAULT_COURSE_CREDIT
+        };
+    }
+};
+
+const normalizeUser = (rawUser: User): User => ({
+    ...rawUser,
+    ...resolveUserSettings(rawUser.user_setting)
+});
 
 interface AuthContextType {
     user: User | null;
@@ -35,8 +77,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const fetchUser = useCallback(async () => {
         try {
-            const response = await axios.get('/api/users/me');
-            setUser(response.data);
+            const response = await axios.get<User>('/api/users/me');
+            setUser(normalizeUser(response.data));
         } catch (error) {
             console.error("Failed to fetch user", error);
             // Don't call logout here, the interceptor handles 401

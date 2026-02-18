@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
 import { SaveSettingButton } from "../components/SaveSettingButton";
 import { useTheme } from "../components/ThemeProvider";
+import { DEFAULT_GPA_SCALING_TABLE_JSON } from "../utils/gpaUtils";
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
@@ -65,9 +66,9 @@ export const SettingsPage: React.FC = () => {
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
     useEffect(() => {
         if (user) {
-            const initialGpa = (user as any).gpa_scaling_table || '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}';
+            const initialGpa = user.gpa_scaling_table ?? DEFAULT_GPA_SCALING_TABLE_JSON;
             const initialNick = user.nickname || '';
-            const initialCredit = (user as any).default_course_credit || 0.5;
+            const initialCredit = user.default_course_credit ?? 0.5;
 
             setGpaTableJson(initialGpa);
             setNickname(initialNick);
