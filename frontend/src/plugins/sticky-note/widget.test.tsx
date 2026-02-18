@@ -9,7 +9,14 @@ describe('StickyNoteWidget', () => {
         render(
             <StickyNoteWidget
                 widgetId="sticky-1"
-                settings={{ title: 'Todo', content: 'Initial', accentColor: '#10b981', showTitle: true, showCharCount: true }}
+                settings={{
+                    title: 'Todo',
+                    content: 'Initial',
+                    accentColor: '#10b981',
+                    showTitle: true,
+                    showCharCount: true,
+                    isEditingLocked: false,
+                }}
                 updateSettings={updateSettings}
             />
         );
@@ -24,6 +31,7 @@ describe('StickyNoteWidget', () => {
             accentColor: '#10b981',
             showTitle: true,
             showCharCount: true,
+            isEditingLocked: false,
         });
     });
 
@@ -31,14 +39,21 @@ describe('StickyNoteWidget', () => {
         const { container } = render(
             <StickyNoteWidget
                 widgetId="sticky-2"
-                settings={{ title: '', content: '', accentColor: '#f43f5e', showTitle: false, showCharCount: true }}
+                settings={{
+                    title: '',
+                    content: '',
+                    accentColor: '#f43f5e',
+                    showTitle: false,
+                    showCharCount: true,
+                    isEditingLocked: false,
+                }}
                 updateSettings={vi.fn()}
             />
         );
 
         const surface = container.firstElementChild as HTMLElement | null;
         expect(surface).toBeTruthy();
-        expect(surface).toHaveClass('bg-card/40');
+        expect(surface).not.toHaveClass('bg-card/40');
         expect(surface?.style.backgroundColor).toBe('');
 
         const accent = surface?.querySelector('[data-note-accent]') as HTMLElement | null;
@@ -60,7 +75,14 @@ describe('StickyNoteWidget', () => {
         const confirmNode = clearAction.render(
             {
                 widgetId: 'sticky-1',
-                settings: { title: 'Title', content: 'Body', accentColor: '#f43f5e', showTitle: true, showCharCount: false },
+                settings: {
+                    title: 'Title',
+                    content: 'Body',
+                    accentColor: '#f43f5e',
+                    showTitle: true,
+                    showCharCount: false,
+                    isEditingLocked: false,
+                },
                 updateSettings,
             },
             {
@@ -85,6 +107,7 @@ describe('StickyNoteWidget', () => {
             accentColor: '#f43f5e',
             showTitle: true,
             showCharCount: false,
+            isEditingLocked: false,
         });
     });
 
@@ -92,7 +115,14 @@ describe('StickyNoteWidget', () => {
         render(
             <StickyNoteWidget
                 widgetId="sticky-3"
-                settings={{ title: 'Todo', content: 'Hello', accentColor: '#0ea5e9', showTitle: true, showCharCount: false }}
+                settings={{
+                    title: 'Todo',
+                    content: 'Hello',
+                    accentColor: '#0ea5e9',
+                    showTitle: true,
+                    showCharCount: false,
+                    isEditingLocked: false,
+                }}
                 updateSettings={vi.fn()}
             />
         );
@@ -104,7 +134,14 @@ describe('StickyNoteWidget', () => {
         render(
             <StickyNoteWidget
                 widgetId="sticky-4"
-                settings={{ title: 'Todo', content: 'Hello', accentColor: '#0ea5e9', showTitle: true, showCharCount: true }}
+                settings={{
+                    title: 'Todo',
+                    content: 'Hello',
+                    accentColor: '#0ea5e9',
+                    showTitle: true,
+                    showCharCount: true,
+                    isEditingLocked: false,
+                }}
                 updateSettings={vi.fn()}
             />
         );
@@ -113,5 +150,73 @@ describe('StickyNoteWidget', () => {
         expect(textarea).toHaveClass('overflow-x-hidden');
         expect(textarea).toHaveClass('overflow-y-auto');
         expect(textarea).toHaveClass('[field-sizing:fixed]');
+    });
+
+    it('toggles edit lock through header action', () => {
+        const lockAction = StickyNoteWidgetDefinition.headerButtons?.find((button) => button.id === 'toggle-edit-lock');
+        const updateSettings = vi.fn();
+        let actionCallback: (() => void | Promise<void>) | null = null;
+
+        if (!lockAction) {
+            throw new Error('Missing sticky note toggle-edit-lock action');
+        }
+
+        const actionNode = lockAction.render(
+            {
+                widgetId: 'sticky-5',
+                settings: {
+                    title: 'Locked test',
+                    content: 'Text',
+                    accentColor: '#f43f5e',
+                    showTitle: true,
+                    showCharCount: true,
+                    isEditingLocked: false,
+                },
+                updateSettings,
+            },
+            {
+                ActionButton: (props) => {
+                    actionCallback = props.onClick;
+                    return null;
+                },
+                ConfirmActionButton: () => null,
+            }
+        );
+        render(<>{actionNode}</>);
+
+        if (!actionCallback) {
+            throw new Error('Missing edit lock action callback');
+        }
+        const runAction = actionCallback as (() => void | Promise<void>);
+        void runAction();
+
+        expect(updateSettings).toHaveBeenCalledWith({
+            title: 'Locked test',
+            content: 'Text',
+            accentColor: '#f43f5e',
+            showTitle: true,
+            showCharCount: true,
+            isEditingLocked: true,
+        });
+    });
+
+    it('renders inputs as readonly when editing is locked', () => {
+        render(
+            <StickyNoteWidget
+                widgetId="sticky-6"
+                settings={{
+                    title: 'Readonly',
+                    content: 'Readonly content',
+                    accentColor: '#0ea5e9',
+                    showTitle: true,
+                    showCharCount: true,
+                    isEditingLocked: true,
+                }}
+                updateSettings={vi.fn()}
+            />
+        );
+
+        expect(screen.getByPlaceholderText('Title')).toHaveAttribute('readonly');
+        expect(screen.getByPlaceholderText('Write your note here...')).toHaveAttribute('readonly');
     });
 });

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Eraser, StickyNote } from 'lucide-react';
+import { Eraser, Lock, LockOpen, StickyNote } from 'lucide-react';
 
 type LegacyNoteTone = 'yellow' | 'mint' | 'sky' | 'rose';
 
@@ -17,6 +17,7 @@ interface StickyNoteSettings {
     accentColor: string;
     showTitle: boolean;
     showCharCount: boolean;
+    isEditingLocked: boolean;
 }
 
 const STICKY_NOTE_COLOR_PRESETS: readonly ColorPickerPreset[] = [
@@ -39,6 +40,7 @@ const DEFAULT_STICKY_NOTE_SETTINGS: StickyNoteSettings = {
     accentColor: LEGACY_TONE_COLOR_MAP.yellow,
     showTitle: true,
     showCharCount: true,
+    isEditingLocked: false,
 };
 
 const isHexColor = (value: unknown): value is string => {
@@ -68,6 +70,9 @@ const normalizeStickyNoteSettings = (settings: unknown): StickyNoteSettings => {
         showCharCount: typeof source.showCharCount === 'boolean'
             ? source.showCharCount
             : DEFAULT_STICKY_NOTE_SETTINGS.showCharCount,
+        isEditingLocked: typeof source.isEditingLocked === 'boolean'
+            ? source.isEditingLocked
+            : DEFAULT_STICKY_NOTE_SETTINGS.isEditingLocked,
     };
 };
 
@@ -140,12 +145,12 @@ const StickyNoteWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSett
     }, [noteSettings, updateSettings]);
 
     return (
-        <div className="relative h-full overflow-hidden rounded-md bg-card/40 transition-colors dark:bg-card/20">
+        <div className="relative h-full overflow-hidden rounded-md transition-colors">
             <div className="flex h-full flex-col pt-5 pb-3">
-                <div className="mb-2 flex items-center gap-1 px-3">
+                <div className="relative mb-2 min-h-8 px-3">
                     <span
                         data-note-accent
-                        className="h-5 w-1 shrink-0 rounded-full transition-colors"
+                        className="absolute top-1/2 left-3 h-5 w-1 -translate-y-1/2 rounded-full transition-colors"
                         style={{ backgroundColor: noteSettings.accentColor }}
                     />
                     {noteSettings.showTitle && (
@@ -153,17 +158,21 @@ const StickyNoteWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSett
                             value={noteSettings.title}
                             onChange={(event) => updateNote({ title: event.target.value })}
                             placeholder="Title"
-                            className="h-8 flex-1 border-transparent bg-transparent px-1 text-sm font-semibold shadow-none focus-visible:border-border/80 focus-visible:ring-0"
+                            readOnly={noteSettings.isEditingLocked}
+                            className="h-8 w-full border-transparent !bg-transparent pl-3 text-sm font-semibold shadow-none dark:!bg-transparent focus-visible:border-border/80 focus-visible:bg-muted/40 dark:focus-visible:bg-input/30 focus-visible:ring-0"
                         />
                     )}
                 </div>
 
-                <Textarea
-                    value={noteSettings.content}
-                    onChange={(event) => updateNote({ content: event.target.value })}
-                    placeholder="Write your note here..."
-                    className="min-h-0 flex-1 resize-none overflow-x-hidden overflow-y-auto border-transparent bg-transparent px-4 py-0 text-sm leading-6 shadow-none focus-visible:border-border/80 focus-visible:ring-0 [field-sizing:fixed] [overflow-wrap:anywhere]"
-                />
+                <div className="flex-1 px-3">
+                    <Textarea
+                        value={noteSettings.content}
+                        onChange={(event) => updateNote({ content: event.target.value })}
+                        placeholder="Write your note here..."
+                        readOnly={noteSettings.isEditingLocked}
+                        className="h-full min-h-0 w-full resize-none overflow-x-hidden overflow-y-auto border-transparent !bg-transparent px-3 py-0 text-sm leading-6 shadow-none dark:!bg-transparent focus-visible:border-border/80 focus-visible:bg-muted/40 dark:focus-visible:bg-input/30 focus-visible:ring-0 [field-sizing:fixed] [overflow-wrap:anywhere]"
+                    />
+                </div>
 
                 {noteSettings.showCharCount && (
                     <div className="mt-2 px-3 text-right text-xs text-muted-foreground/80">
@@ -189,6 +198,26 @@ export const StickyNoteWidgetDefinition: WidgetDefinition = {
     maxInstances: 'unlimited',
     allowedContexts: ['semester', 'course'],
     headerButtons: [
+        {
+            id: 'toggle-edit-lock',
+            render: ({ settings: rawSettings, updateSettings: updateWidgetSettings }, { ActionButton }) => {
+                const currentSettings = normalizeStickyNoteSettings(rawSettings);
+                const isEditingLocked = currentSettings.isEditingLocked;
+
+                return (
+                    <ActionButton
+                        title={isEditingLocked ? 'Unlock editing' : 'Lock editing'}
+                        icon={isEditingLocked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+                        onClick={() => {
+                            void updateWidgetSettings({
+                                ...currentSettings,
+                                isEditingLocked: !isEditingLocked,
+                            });
+                        }}
+                    />
+                );
+            },
+        },
         {
             id: 'clear',
             render: ({ settings: rawSettings, updateSettings: updateWidgetSettings }, { ConfirmActionButton }) => (
