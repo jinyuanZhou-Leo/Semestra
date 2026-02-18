@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { WidgetContainer } from '../WidgetContainer';
 
@@ -62,5 +62,33 @@ describe('WidgetContainer', () => {
 
         const pointerRemoves = removeSpy.mock.calls.filter(call => call[0] === 'pointerdown').length;
         expect(pointerRemoves).toBe(1);
+    });
+
+    it('keeps header empty area click-through while controls remain interactive', () => {
+        setupMatchMedia(false);
+        Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
+
+        const { container } = render(
+            <WidgetContainer id="widget-1" onEdit={() => { }}>
+                <div>Widget Content</div>
+            </WidgetContainer>
+        );
+
+        const overlay = container.querySelector('[data-widget-header-overlay]') as HTMLDivElement | null;
+        expect(overlay).toBeTruthy();
+        expect(overlay).toHaveClass('pointer-events-none');
+
+        const card = overlay?.parentElement as HTMLDivElement | null;
+        const actions = overlay?.querySelector('.nodrag') as HTMLDivElement | null;
+        expect(actions).toBeTruthy();
+        expect(actions).toHaveClass('pointer-events-none');
+
+        if (!card || !actions) {
+            throw new Error('Missing widget header elements for interaction test');
+        }
+
+        fireEvent.mouseEnter(card);
+        expect(overlay).toHaveClass('pointer-events-none');
+        expect(actions).toHaveClass('pointer-events-auto');
     });
 });

@@ -121,26 +121,24 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
             )}
             {/* Controls Overlay - Appears on hover */}
             <div
+                data-widget-header-overlay
                 className={cn(
-                    'absolute left-0 right-0 top-0 z-20 flex items-start transition-opacity',
+                    'pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-start transition-opacity',
                     isTouchDevice ? 'justify-end' : 'justify-between',
                     controlsHeightClass,
                     controlsPaddingClass,
-                    controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+                    controlsVisible ? 'opacity-100' : 'opacity-0'
                 )}
-                onMouseDown={(event) => {
-                    const target = event.target as HTMLElement | null;
-                    if (target?.closest('.drag-handle')) return;
-                    event.stopPropagation();
-                }}
-                onPointerDown={(event) => {
-                    const target = event.target as HTMLElement | null;
-                    if (target?.closest('.drag-handle')) return;
-                    event.stopPropagation();
-                }}
             >
                 {!isTouchDevice && (
-                    <div className="flex items-center gap-2">
+                    <div
+                        className={cn(
+                            'flex items-center gap-2',
+                            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+                        )}
+                        onMouseDown={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
+                    >
                         {!isLocked && (
                             <div
                                 className={cn(
@@ -161,7 +159,10 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
 
                 {/* Right side: Action Buttons */}
                 <div
-                    className="nodrag flex items-center gap-1"
+                    className={cn(
+                        'nodrag flex items-center gap-1',
+                        controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+                    )}
                     onMouseDown={e => e.stopPropagation()}
                     onPointerDown={e => e.stopPropagation()}
                 >
