@@ -270,12 +270,16 @@ export const CounterDefinition: WidgetDefinition = {
     headerButtons: [
         {
             id: 'reset',
-            icon: <RotateCcw className="h-4 w-4" />,
-            title: 'Reset to initial value',
-            onClick: ({ settings, updateSettings }) => {
-                const counterSettings = settings as CounterSettings;
-                updateSettings({ ...settings, value: counterSettings.initialValue });
-            }
+            render: ({ settings, updateSettings }, { ActionButton }) => (
+                <ActionButton
+                    title="Reset to initial value"
+                    icon={<RotateCcw className="h-4 w-4" />}
+                    onClick={() => {
+                        const counterSettings = settings as CounterSettings;
+                        void updateSettings({ ...settings, value: counterSettings.initialValue });
+                    }}
+                />
+            )
         }
     ]
 };

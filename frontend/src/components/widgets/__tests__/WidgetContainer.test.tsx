@@ -91,4 +91,35 @@ describe('WidgetContainer', () => {
         expect(overlay).toHaveClass('pointer-events-none');
         expect(actions).toHaveClass('pointer-events-auto');
     });
+
+    it('allows drag handle mousedown to bubble for grid drag start', () => {
+        setupMatchMedia(false);
+        Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
+
+        const documentMouseDownSpy = vi.fn();
+        document.addEventListener('mousedown', documentMouseDownSpy);
+
+        const { container } = render(
+            <WidgetContainer id="widget-1">
+                <div>Widget Content</div>
+            </WidgetContainer>
+        );
+
+        const card = container.firstElementChild as HTMLDivElement | null;
+        if (!card) {
+            document.removeEventListener('mousedown', documentMouseDownSpy);
+            throw new Error('Missing widget card root');
+        }
+
+        fireEvent.mouseEnter(card);
+        const dragHandle = container.querySelector('.drag-handle') as HTMLDivElement | null;
+        if (!dragHandle) {
+            document.removeEventListener('mousedown', documentMouseDownSpy);
+            throw new Error('Missing drag handle');
+        }
+
+        fireEvent.mouseDown(dragHandle);
+        expect(documentMouseDownSpy).toHaveBeenCalled();
+        document.removeEventListener('mousedown', documentMouseDownSpy);
+    });
 });

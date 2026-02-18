@@ -2,9 +2,27 @@
 
 import React, { useCallback } from 'react';
 import { WidgetContainer } from './WidgetContainer';
-import { WidgetRegistry, useWidgetRegistry } from '../../services/widgetRegistry';
+import {
+    WidgetRegistry,
+    useWidgetRegistry,
+    type HeaderActionButtonProps,
+    type HeaderButtonRenderHelpers,
+    type HeaderConfirmActionButtonProps,
+    type HeaderButtonContext
+} from '../../services/widgetRegistry';
 import type { WidgetItem } from './DashboardGrid';
 import { Button } from '@/components/ui/button';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { ensureWidgetPluginByTypeLoaded, hasWidgetPluginForType } from '../../plugin-system';
 import { PluginWidgetSkeleton } from '../../plugin-system/PluginLoadSkeleton';
@@ -110,41 +128,104 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
             return null;
         }
 
-        return widgetDefinition.headerButtons.map((buttonDef) => {
-            const handleClick = (e: React.MouseEvent) => {
-                e.preventDefault();
-                e.stopPropagation();
-                buttonDef.onClick({
-                    widgetId: widget.id,
-                    settings: widget.settings || {},
-                    semesterId,
-                    courseId,
-                    updateSettings: handleUpdateSettings
-                });
-            };
+        const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+        const controlSizeClass = isTouchDevice ? 'h-9 w-9 text-base' : 'h-7 w-7 text-sm';
 
-            const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-            const controlSizeClass = isTouchDevice ? 'h-9 w-9 text-base' : 'h-7 w-7 text-sm';
+        const ActionButton: React.FC<HeaderActionButtonProps> = ({
+            title,
+            icon,
+            onClick,
+            variant = 'outline'
+        }) => (
+            <Button
+                type="button"
+                variant={variant}
+                size="icon"
+                title={title}
+                data-widget-control
+                className={cn(
+                    'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
+                    'hover:bg-muted hover:text-foreground',
+                    controlSizeClass
+                )}
+                onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void onClick();
+                }}
+            >
+                {icon}
+            </Button>
+        );
 
-            return (
-                <Button
-                    key={buttonDef.id}
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={handleClick}
-                    title={buttonDef.title}
-                    data-widget-control
-                    className={cn(
-                        'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
-                        'hover:bg-muted hover:text-foreground',
-                        controlSizeClass
-                    )}
-                >
-                    {buttonDef.icon}
-                </Button>
-            );
-        });
+        const ConfirmActionButton: React.FC<HeaderConfirmActionButtonProps> = ({
+            title,
+            icon,
+            onClick,
+            variant = 'outline',
+            dialogTitle,
+            dialogDescription = 'This action cannot be undone.',
+            confirmText = 'Confirm',
+            cancelText = 'Cancel',
+            confirmVariant = 'destructive'
+        }) => (
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button
+                        type="button"
+                        variant={variant}
+                        size="icon"
+                        title={title}
+                        data-widget-control
+                        className={cn(
+                            'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
+                            'hover:bg-muted hover:text-foreground',
+                            controlSizeClass
+                        )}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                        }}
+                    >
+                        {icon}
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
+                        <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{cancelText}</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant={confirmVariant}
+                            onClick={() => {
+                                void onClick();
+                            }}
+                        >
+                            {confirmText}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        );
+
+        const context: HeaderButtonContext = {
+            widgetId: widget.id,
+            settings: widget.settings || {},
+            semesterId,
+            courseId,
+            updateSettings: handleUpdateSettings
+        };
+        const helpers: HeaderButtonRenderHelpers = {
+            ActionButton,
+            ConfirmActionButton,
+        };
+
+        return widgetDefinition.headerButtons.map((buttonDef) => (
+            <React.Fragment key={buttonDef.id}>
+                {buttonDef.render(context, helpers)}
+            </React.Fragment>
+        ));
     }, [widgetDefinition, widget.id, widget.settings, semesterId, courseId, handleUpdateSettings]);
 
     if (!WidgetComponent) {

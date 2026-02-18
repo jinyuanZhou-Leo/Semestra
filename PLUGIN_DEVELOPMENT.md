@@ -96,9 +96,7 @@ export interface WidgetDefinition {
 
 export interface HeaderButton {
     id: string;            // Unique identifier for this button
-    icon: React.ReactNode; // Icon to display (emoji, SVG, etc.)
-    title: string;         // Tooltip text
-    onClick: (context: HeaderButtonContext) => void; // Click handler with widget context
+    render: (context: HeaderButtonContext, helpers: HeaderButtonRenderHelpers) => React.ReactNode;
 }
 
 export interface HeaderButtonContext {
@@ -107,6 +105,26 @@ export interface HeaderButtonContext {
     semesterId?: string;   // Semester context (if applicable)
     courseId?: string;     // Course context (if applicable)
     updateSettings: (newSettings: any) => void; // Update widget settings
+}
+
+export interface HeaderActionButtonProps {
+    title: string;
+    icon: React.ReactNode;
+    onClick: () => void | Promise<void>;
+    variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
+}
+
+export interface HeaderConfirmActionButtonProps extends HeaderActionButtonProps {
+    dialogTitle: string;
+    dialogDescription?: string;
+    confirmText?: string;
+    cancelText?: string;
+    confirmVariant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
+}
+
+export interface HeaderButtonRenderHelpers {
+    ActionButton: React.FC<HeaderActionButtonProps>;
+    ConfirmActionButton: React.FC<HeaderConfirmActionButtonProps>;
 }
 
 export interface WidgetLifecycleContext {
@@ -143,14 +161,38 @@ export const MyWidgetDefinition: WidgetDefinition = {
     headerButtons: [
         {
             id: 'reset',
-            icon: '↺',
-            title: 'Reset to default',
-            onClick: ({ settings, updateSettings }) => {
-                updateSettings({ ...settings, value: 0 });
-            }
+            render: ({ settings, updateSettings }, { ActionButton }) => (
+                <ActionButton
+                    title="Reset to default"
+                    icon={'↺'}
+                    onClick={() => {
+                        updateSettings({ ...settings, value: 0 });
+                    }}
+                />
+            )
         }
     ]
 };
+```
+
+**Example - Destructive Button With Confirm Dialog**:
+```typescript
+headerButtons: [
+  {
+    id: 'clear',
+    render: ({ settings, updateSettings }, { ConfirmActionButton }) => (
+      <ConfirmActionButton
+        title="Clear note"
+        icon={<Trash2 className="h-4 w-4" />}
+        dialogTitle="Clear this note?"
+        dialogDescription="This will remove all note content."
+        confirmText="Clear"
+        confirmVariant="destructive"
+        onClick={() => updateSettings({ ...settings, content: '' })}
+      />
+    )
+  }
+]
 ```
 
 **Icon rendering:** Icons are displayed inside a circular badge in the UI. If `icon` is omitted, a placeholder badge with the first letter of the plugin name is shown. For image icons, place the asset in the plugin folder and import it (Vite will provide a URL string).
@@ -638,6 +680,7 @@ When custom CSS is needed, use CSS variables:
 - **Widgets**: Container handles border/background, fill available space with `h-full`
 - **Tabs**: Optimize for large layouts, avoid fixed heights
 - **Responsive**: Test on different screen sizes and grid dimensions
+- **Widget Header Safe Area**: Reserve top `48px` for framework controls (desktop `40px` via `h-10`, touch `48px` via `h-12`); avoid placing important UI in this zone
 
 ### Example: GradeCalculator
 
@@ -655,6 +698,7 @@ See `frontend/src/plugins/grade-calculator/widget.tsx` for a complete example de
 3. **Dark Mode Support**: Use Tailwind classes that automatically adapt to theme
 4. **Efficient Space Usage**: Minimize unnecessary whitespace, maximize content density
 5. **No Double Borders**: Widget container provides borders; avoid adding borders on root elements
+6. **Respect Header Safe Area**: Keep actionable UI below the top `48px` to avoid overlap with widget header controls
 
 ### Tailwind CSS Best Practices
 

@@ -10,11 +10,29 @@ export interface HeaderButtonContext {
     updateSettings: (newSettings: any) => void | Promise<void>;
 }
 
+export interface HeaderActionButtonProps {
+    title: string;
+    icon: React.ReactNode;
+    onClick: () => void | Promise<void>;
+    variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
+}
+
+export interface HeaderConfirmActionButtonProps extends HeaderActionButtonProps {
+    dialogTitle: string;
+    dialogDescription?: string;
+    confirmText?: string;
+    cancelText?: string;
+    confirmVariant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
+}
+
+export interface HeaderButtonRenderHelpers {
+    ActionButton: React.FC<HeaderActionButtonProps>;
+    ConfirmActionButton: React.FC<HeaderConfirmActionButtonProps>;
+}
+
 export interface HeaderButton {
     id: string;
-    icon: React.ReactNode;
-    title: string;
-    onClick: (context: HeaderButtonContext) => void;
+    render: (context: HeaderButtonContext, helpers: HeaderButtonRenderHelpers) => React.ReactNode;
 }
 
 export interface WidgetProps {

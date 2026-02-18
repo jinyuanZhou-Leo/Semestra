@@ -89,6 +89,14 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
     const controlsHeightClass = isTouchDevice ? 'h-12' : 'h-10';
     const controlsPaddingClass = isTouchDevice ? 'p-3' : 'p-2';
 
+    const handleLeftControlPointerDown = (event: React.MouseEvent | React.PointerEvent) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('.drag-handle')) {
+            return;
+        }
+        event.stopPropagation();
+    };
+
     return (
         <Card
             ref={containerRef}
@@ -136,8 +144,8 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                             'flex items-center gap-2',
                             controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
                         )}
-                        onMouseDown={e => e.stopPropagation()}
-                        onPointerDown={e => e.stopPropagation()}
+                        onMouseDown={handleLeftControlPointerDown}
+                        onPointerDown={handleLeftControlPointerDown}
                     >
                         {!isLocked && (
                             <div
