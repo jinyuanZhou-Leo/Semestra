@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { WidgetContainer } from '../WidgetContainer';
 
@@ -121,5 +121,30 @@ describe('WidgetContainer', () => {
         fireEvent.mouseDown(dragHandle);
         expect(documentMouseDownSpy).toHaveBeenCalled();
         document.removeEventListener('mousedown', documentMouseDownSpy);
+    });
+
+    it('does not render header controls when widgets are locked', () => {
+        setupMatchMedia(false);
+        Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
+
+        const { container } = render(
+            <WidgetContainer
+                id="widget-locked"
+                isLocked
+                onEdit={() => { }}
+                onRemove={() => { }}
+                headerButtons={<button type="button">Plugin Action</button>}
+            >
+                <div>Widget Content</div>
+            </WidgetContainer>
+        );
+
+        const overlay = container.querySelector('[data-widget-header-overlay]');
+        const dragHandle = container.querySelector('.drag-handle');
+        expect(overlay).toBeNull();
+        expect(dragHandle).toBeNull();
+        expect(screen.queryByTitle('Settings')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('Remove Widget')).not.toBeInTheDocument();
+        expect(screen.queryByText('Plugin Action')).not.toBeInTheDocument();
     });
 });

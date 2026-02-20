@@ -131,7 +131,7 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
 
 
     return (
-        <div className="flex h-full select-none flex-col p-2">
+        <div className="flex h-full select-none flex-col p-3">
             <div className="no-scrollbar flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <Table className="w-full border-collapse text-sm">
                     <TableHeader>

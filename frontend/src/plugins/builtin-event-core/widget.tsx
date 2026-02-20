@@ -155,7 +155,7 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
 
   if (isResolvingSemesterId || isLoadingSemesterRange) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center p-3 text-sm text-muted-foreground">
         Loading today&apos;s events...
       </div>
     );
@@ -163,7 +163,7 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
 
   if (!resolvedSemesterId) {
     return (
-      <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center p-3 text-center text-sm text-muted-foreground">
         Semester context is required to show today&apos;s events.
       </div>
     );
@@ -171,7 +171,7 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
 
   if (isOutOfSemesterRange) {
     return (
-      <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center p-3 text-center text-sm text-muted-foreground">
         Today ({dateFormatter.format(today)}) is outside this semester range.
       </div>
     );
@@ -179,7 +179,7 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
 
   if (error) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-3 text-sm text-muted-foreground">
         <div className="flex items-center gap-2 text-destructive">
           <AlertCircle className="h-4 w-4" />
           Failed to load today&apos;s events.
@@ -193,7 +193,7 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
 
   if (isLoading && items.length === 0) {
     return (
-      <div className="flex h-full flex-col gap-2 py-1">
+      <div className="flex h-full flex-col gap-2 p-3">
         <div className="h-5 w-36 animate-pulse rounded bg-muted" />
         <div className="h-14 animate-pulse rounded-md bg-muted/80" />
         <div className="h-14 animate-pulse rounded-md bg-muted/70" />
@@ -203,7 +203,7 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-xs text-muted-foreground">Today</p>

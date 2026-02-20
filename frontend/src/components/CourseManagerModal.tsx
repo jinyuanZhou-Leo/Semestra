@@ -114,18 +114,23 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
         c.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const dialogTitle = semesterId ? 'Manage Courses' : 'Add Course';
+    const dialogDescription = semesterId
+        ? 'Add an existing course to the semester or create a new course.'
+        : 'Create a new course in this program.';
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
                 className={cn(
-                    "p-0 sm:max-w-[600px] flex flex-col overflow-hidden",
-                    semesterId ? "h-[80vh]" : "max-h-[85vh]"
+                    "p-0 sm:max-w-[600px] flex flex-col",
+                    semesterId ? "h-[80vh] overflow-hidden" : "max-h-[85vh]"
                 )}
             >
                 <DialogHeader className="border-b px-6 py-4 flex-none">
-                    <DialogTitle className="text-base font-semibold">Manage Courses</DialogTitle>
+                    <DialogTitle className="text-base font-semibold">{dialogTitle}</DialogTitle>
                     <DialogDescription className="sr-only">
-                        Add an existing course to the semester or create a new course.
+                        {dialogDescription}
                     </DialogDescription>
                 </DialogHeader>
                 <div className={cn(
@@ -223,7 +228,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                             </div>
                         </div>
                     ) : (
-                        <div className={cn("flex min-h-0 flex-col", semesterId ? "flex-1" : "overflow-y-auto")}>
+                        <div className={cn("flex min-h-0 flex-col", semesterId && "flex-1")}>
                             <form
                                 onSubmit={handleCreateNew}
                                 className={cn("flex flex-col gap-4", semesterId && "flex-1 min-h-0")}

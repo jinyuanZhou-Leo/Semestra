@@ -400,8 +400,8 @@ export const MyNew: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     }, [settings, updateSettings]);
 
     return (
-        <div style={{ padding: '1rem', height: '100%' }}>
-            <input 
+        <div className="h-full p-4">
+            <input
                 value={title}
                 onChange={e => handleTitleChange(e.target.value)}
             />
@@ -440,7 +440,7 @@ const NotesTab: React.FC<TabProps> = ({ settings, updateSettings }) => {
     }, [settings, updateSettings]);
 
     return (
-        <div style={{ padding: '1rem' }}>
+        <div className="p-4">
             <textarea
                 value={value}
                 onChange={(e) => handleChange(e.target.value)}
@@ -677,10 +677,10 @@ When custom CSS is needed, use CSS variables:
 
 #### Layout Guidelines
 
-- **Widgets**: Container handles border/background, fill available space with `h-full`
+- **Widgets**: Framework container provides border and base surface, but does **not** provide content padding. Plugin root should fill available space with `h-full` and define its own spacing (`p-3`, `p-4`, etc.).
 - **Tabs**: Optimize for large layouts, avoid fixed heights
 - **Responsive**: Test on different screen sizes and grid dimensions
-- **Widget Header Safe Area**: Reserve top `48px` for framework controls (desktop `40px` via `h-10`, touch `48px` via `h-12`); avoid placing important UI in this zone
+- **Widget Header Safe Area**: Top `48px` is used by framework controls (desktop `40px` via `h-10`, touch `48px` via `h-12`); do not place interactive actions in this zone, but non-interactive UI (e.g., decorative or status display) is allowed
 
 ### Example: GradeCalculator
 
@@ -696,11 +696,22 @@ See `frontend/src/plugins/grade-calculator/widget.tsx` for a complete example de
 1. **No Duplicate Titles**: Avoid adding titles at the top; the container already provides them
 2. **Responsive Design**: Adapt to all declared sizes using responsive Tailwind utilities
 3. **Dark Mode Support**: Use Tailwind classes that automatically adapt to theme
-4. **Efficient Space Usage**: Minimize unnecessary whitespace, maximize content density
-5. **No Double Borders**: Widget container provides borders; avoid adding borders on root elements
-6. **Respect Header Safe Area**: Keep actionable UI below the top `48px` to avoid overlap with widget header controls
+4. **Plugin Owns Inner Spacing**: Add root spacing inside the widget (`p-3` / `p-4`) based on your design
+5. **Efficient Space Usage**: Minimize unnecessary whitespace, maximize content density
+6. **No Extra Borders (MUST)**: Widget framework already provides the outer border. Do not add root-level borders in plugin UI. Avoid nested border stacks (for example, parent `border` + child `border`/`border-b`) unless there is a clear data-table requirement.
+7. **No Layered Shadows (MUST)**: Avoid stacking multiple shadow layers across nested containers. Use at most one subtle depth cue per visual block.
+8. **Respect Header Safe Area**: Keep actionable UI below the top `48px` to avoid overlap with widget header controls; non-interactive UI can be placed in this area
 
 ### Tailwind CSS Best Practices
+
+**Border Rule (MUST)**:
+- Keep at most one visible border container in normal widget layouts.
+- Prefer spacing, background contrast, and typography hierarchy over stacked borders.
+- If section separation is needed, prefer subtle `bg-*` contrast or divider lines only where strictly necessary.
+
+**Shadow Rule (MUST)**:
+- Do not stack shadows on parent + child + grandchild at the same time.
+- Use one lightweight shadow only when it improves hierarchy, otherwise prefer contrast and spacing.
 
 **Layout & Spacing**:
 ```tsx

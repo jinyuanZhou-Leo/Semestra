@@ -102,13 +102,14 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
             ref={containerRef}
             className={cn(
                 'group relative flex h-full flex-col overflow-hidden rounded-[var(--radius-widget)] border border-border/60 bg-card shadow-sm transition-[box-shadow,border-color]',
-                'p-0 py-4', // Override Card's default padding: remove all padding, add smaller safe zone padding
+                'p-0', // Override Card's default padding so widget content can fully control layout
                 isHovered && !isTouchDevice ? 'shadow-md border-border/80' : ''
             )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             onClick={(event) => {
                 if (!isTouchDevice) return;
+                if (isLocked) return;
                 if (isInteractiveTarget(event.target)) return;
                 setIsTouchControlsVisible(true);
             }}
@@ -127,27 +128,26 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                     )}
                 </div>
             )}
-            {/* Controls Overlay - Appears on hover */}
-            <div
-                data-widget-header-overlay
-                className={cn(
-                    'pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-start transition-opacity',
-                    isTouchDevice ? 'justify-end' : 'justify-between',
-                    controlsHeightClass,
-                    controlsPaddingClass,
-                    controlsVisible ? 'opacity-100' : 'opacity-0'
-                )}
-            >
-                {!isTouchDevice && (
-                    <div
-                        className={cn(
-                            'flex items-center gap-2',
-                            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-                        )}
-                        onMouseDown={handleLeftControlPointerDown}
-                        onPointerDown={handleLeftControlPointerDown}
-                    >
-                        {!isLocked && (
+            {!isLocked && (
+                <div
+                    data-widget-header-overlay
+                    className={cn(
+                        'pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-start transition-opacity',
+                        isTouchDevice ? 'justify-end' : 'justify-between',
+                        controlsHeightClass,
+                        controlsPaddingClass,
+                        controlsVisible ? 'opacity-100' : 'opacity-0'
+                    )}
+                >
+                    {!isTouchDevice && (
+                        <div
+                            className={cn(
+                                'flex items-center gap-2',
+                                controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+                            )}
+                            onMouseDown={handleLeftControlPointerDown}
+                            onPointerDown={handleLeftControlPointerDown}
+                        >
                             <div
                                 className={cn(
                                     'drag-handle flex items-center justify-center rounded-full border border-border/70 bg-card text-muted-foreground shadow-sm transition',
@@ -159,89 +159,89 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                             >
                                 <GripVertical className="h-3.5 w-3.5" />
                             </div>
-                        )}
-                        {/* Custom header buttons from plugin definition */}
-                        {headerButtons}
-                    </div>
-                )}
+                            {/* Custom header buttons from plugin definition */}
+                            {headerButtons}
+                        </div>
+                    )}
 
-                {/* Right side: Action Buttons */}
-                <div
-                    className={cn(
-                        'nodrag flex items-center gap-1',
-                        controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-                    )}
-                    onMouseDown={e => e.stopPropagation()}
-                    onPointerDown={e => e.stopPropagation()}
-                >
-                    {onEdit && (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            title="Settings"
-                            data-widget-control
-                            className={cn(
-                                'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
-                                'hover:bg-muted hover:text-foreground',
-                                controlSizeClass
-                            )}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onEdit();
-                            }}
-                        >
-                            <Settings className={isTouchDevice ? "h-4 w-4" : "h-3.5 w-3.5"} />
-                        </Button>
-                    )}
-                    {onRemove && (
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="icon"
-                                    title="Remove Widget"
-                                    data-widget-control
-                                    className={cn(
-                                        'rounded-full shadow-sm transition hover:opacity-90',
-                                        controlSizeClass
-                                    )}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                    }}
-                                >
-                                    <X className={isTouchDevice ? "h-4.5 w-4.5" : "h-4 w-4"} />
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent size="sm">
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Remove this widget?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This action cannot be undone.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
+                    {/* Right side: Action Buttons */}
+                    <div
+                        className={cn(
+                            'nodrag flex items-center gap-1',
+                            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+                        )}
+                        onMouseDown={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
+                    >
+                        {onEdit && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                title="Settings"
+                                data-widget-control
+                                className={cn(
+                                    'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
+                                    'hover:bg-muted hover:text-foreground',
+                                    controlSizeClass
+                                )}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onEdit();
+                                }}
+                            >
+                                <Settings className={isTouchDevice ? "h-4 w-4" : "h-3.5 w-3.5"} />
+                            </Button>
+                        )}
+                        {onRemove && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button
+                                        type="button"
                                         variant="destructive"
-                                        onClick={() => {
-                                            onRemove();
+                                        size="icon"
+                                        title="Remove Widget"
+                                        data-widget-control
+                                        className={cn(
+                                            'rounded-full shadow-sm transition hover:opacity-90',
+                                            controlSizeClass
+                                        )}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                         }}
                                     >
-                                        Remove
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    )}
+                                        <X className={isTouchDevice ? "h-4.5 w-4.5" : "h-4 w-4"} />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent size="sm">
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Remove this widget?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            variant="destructive"
+                                            onClick={() => {
+                                                onRemove();
+                                            }}
+                                        >
+                                            Remove
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Content Area - No padding top, content fills entire widget */}
             <div
-                className="nodrag relative z-10 flex-1 overflow-auto px-3"
+                className="nodrag relative z-10 flex-1 overflow-auto"
                 onMouseDown={e => e.stopPropagation()}
                 style={{ touchAction: 'manipulation' }}
             >
