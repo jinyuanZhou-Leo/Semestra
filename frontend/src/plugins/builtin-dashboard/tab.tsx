@@ -95,13 +95,10 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                             <Button
                                 onClick={dashboard.onAddWidgetClick}
                                 variant="outline"
-                                className={`${glassButtonClassName.replace("transition-all", "transition-colors")} h-[3.25rem] px-5 rounded-full inline-flex items-center justify-center shrink-0 gap-2 whitespace-nowrap text-foreground hover:text-foreground dark:text-slate-100 dark:hover:text-white`}
+                                className={`${glassButtonClassName.replace("transition-all", "transition-colors")} size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center shrink-0 text-foreground hover:text-foreground dark:text-slate-100 dark:hover:text-white`}
                                 aria-label="Add widget"
                             >
                                 <Plus className="h-5 w-5 shrink-0" aria-hidden="true" />
-                                <span className="text-sm font-semibold leading-none">
-                                    Add Widget
-                                </span>
                             </Button>
                         </motion.div>
                     )}
@@ -110,32 +107,28 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                 <motion.button
                     layout
                     onClick={toggleEditMode}
-                    className={`pointer-events-auto relative flex items-center justify-center shrink-0 shadow-lg cursor-pointer outline-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isEditMode
-                        ? "h-[3.25rem] px-5 gap-2 border border-emerald-500/60 bg-emerald-500/14 text-emerald-900 dark:border-emerald-400/55 dark:bg-slate-900/90 dark:text-white hover:text-emerald-900 dark:hover:text-white shadow-[0_0_0_1px_rgba(16,185,129,0.28),0_10px_24px_rgba(15,23,42,0.18)] dark:shadow-[0_0_0_1px_rgba(74,222,128,0.38),0_16px_34px_rgba(2,6,23,0.72)] backdrop-blur-md backdrop-saturate-150 hover:bg-emerald-500/18 dark:hover:bg-slate-900 transition-colors duration-200"
-                        : `${glassButtonClassName.replace("transition-all", "transition-colors")} size-[3.25rem] p-0 text-foreground hover:text-foreground dark:text-slate-100 dark:hover:text-white`
+                    className={`pointer-events-auto relative flex items-center justify-center shrink-0 shadow-lg cursor-pointer outline-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 size-[3.25rem] rounded-full p-0 ${isEditMode
+                        ? "border border-emerald-500/60 bg-emerald-500/14 text-emerald-900 dark:border-emerald-400/55 dark:bg-slate-900/90 dark:text-white hover:text-emerald-900 dark:hover:text-white shadow-[0_0_0_1px_rgba(16,185,129,0.28),0_10px_24px_rgba(15,23,42,0.18)] dark:shadow-[0_0_0_1px_rgba(74,222,128,0.38),0_16px_34px_rgba(2,6,23,0.72)] backdrop-blur-md backdrop-saturate-150 hover:bg-emerald-500/18 dark:hover:bg-slate-900 transition-colors duration-200"
+                        : `${glassButtonClassName.replace("transition-all", "transition-colors")} text-foreground hover:text-foreground dark:text-slate-100 dark:hover:text-white`
                         }`}
-                    style={{ borderRadius: "2rem" }}
                     aria-label={isEditMode ? "Complete editing" : "Edit dashboard"}
                     aria-pressed={isEditMode}
                     title={isEditMode ? "Complete editing" : "Edit dashboard"}
-                    transition={{ type: "spring", stiffness: 400, damping: 30, mass: 0.8 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 >
                     {/* Inner clip wrapper: clips the icon transition without touching the shadow */}
-                    <span className="relative flex items-center justify-center gap-2 overflow-hidden pointer-events-none">
+                    <span className="relative flex items-center justify-center overflow-hidden pointer-events-none w-full h-full rounded-full">
                         <AnimatePresence mode="popLayout" initial={false}>
                             {isEditMode ? (
                                 <motion.div
                                     key="edit"
-                                    initial={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
-                                    animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                                    exit={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
-                                    transition={{ type: "spring", stiffness: 400, damping: 30, mass: 0.8 }}
-                                    className="flex items-center gap-2"
+                                    initial={{ opacity: 0, scale: 0.5, rotate: -90, filter: "blur(4px)" }}
+                                    animate={{ opacity: 1, scale: 1, rotate: 0, filter: "blur(0px)" }}
+                                    exit={{ opacity: 0, scale: 0.5, rotate: 90, filter: "blur(4px)" }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                    className="flex items-center justify-center w-full h-full"
                                 >
                                     <Check className="h-5 w-5 shrink-0" aria-hidden="true" />
-                                    <span className="text-sm font-semibold leading-none whitespace-nowrap">
-                                        Done
-                                    </span>
                                 </motion.div>
                             ) : (
                                 <motion.div
@@ -143,8 +136,8 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                                     initial={{ opacity: 0, scale: 0.5, rotate: 45, filter: "blur(4px)" }}
                                     animate={{ opacity: 1, scale: 1, rotate: 0, filter: "blur(0px)" }}
                                     exit={{ opacity: 0, scale: 0.5, rotate: -45, filter: "blur(4px)" }}
-                                    transition={{ type: "spring", stiffness: 400, damping: 30, mass: 0.8 }}
-                                    className="flex items-center justify-center shrink-0 w-full h-full"
+                                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                        className="flex items-center justify-center w-full h-full"
                                 >
                                     <Pencil className="h-5 w-5 shrink-0" aria-hidden="true" />
                                 </motion.div>

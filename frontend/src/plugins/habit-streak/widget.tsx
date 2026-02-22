@@ -690,8 +690,6 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.3, ease: 'easeOut' }}
                         >
-                            {/* Gradient backdrop for readability, matching the widget background */}
-                            <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#ffd8bf] via-[#ffd8bf]/80 to-transparent dark:from-[#4a1b10] dark:via-[#4a1b10]/80 dark:to-transparent" />
                             <p className="relative z-10 text-center text-[10.5px] font-medium leading-snug text-foreground/50 dark:text-foreground/45">
                                 {motivationalToast.message}
                             </p>
