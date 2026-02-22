@@ -339,24 +339,25 @@ const getMilestoneTier = (progress: number): 0 | 1 | 2 | 3 | 4 => {
 };
 
 const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount, targetProgress, reactionSignal }) => {
-    const [bursts, setBursts] = useState<{ id: number }[]>([]);
-    const [milestoneBursts, setMilestoneBursts] = useState<{ id: number; color: string }[]>([]);
+    const [bursts, setBursts] = useState<{ id: number; isOverachieve?: boolean }[]>([]);
+    const [milestoneBursts, setMilestoneBursts] = useState<{ id: number; color: string; tier: number }[]>([]);
 
     // Track previous tier to detect boundary crossings
     const prevTierRef = React.useRef(getMilestoneTier(targetProgress));
 
     useEffect(() => {
         if (prefersReducedMotion || reactionSignal === 0) return;
-        setBursts((prev) => [...prev, { id: Date.now() }].slice(-3));
+        setBursts((prev) => [...prev, { id: Date.now(), isOverachieve: targetProgress >= 100 }].slice(-3));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [reactionSignal, prefersReducedMotion]);
 
     useEffect(() => {
         if (prefersReducedMotion) return;
         const currentTier = getMilestoneTier(targetProgress);
-        if (currentTier > prevTierRef.current && currentTier > 0) {
+        if (currentTier > prevTierRef.current && currentTier > 0 && targetProgress > 0) {
             // Reached a new 25% milestone
-            const colors = ['#fde047', '#fcd34d', '#fbbf24', '#f59e0b', '#f97316'];
-            setMilestoneBursts(prev => [...prev, { id: Date.now(), color: colors[currentTier] }].slice(-4));
+            const colors = ['#fde047', '#fcd34d', '#fbbf24', '#f59e0b', '#f43f5e'];
+            setMilestoneBursts(prev => [...prev, { id: Date.now(), color: colors[currentTier], tier: currentTier }].slice(-4));
         }
         prevTierRef.current = currentTier;
     }, [targetProgress, prefersReducedMotion]);
@@ -423,42 +424,83 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
             {/* Reaction Ripple Burst */}
             <AnimatePresence>
                 {bursts.map(burst => (
-                    <motion.div
-                        key={burst.id}
-                        className="absolute inset-0 rounded-full border-2 border-orange-500/50 mix-blend-plus-lighter"
-                        initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '3px' }}
-                        animate={prefersReducedMotion ? { opacity: 0 } : { scale: 1.6, opacity: 0, borderWidth: '0px' }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.8, ease: "easeOut" }}
-                    />
-                ))}
-            </AnimatePresence>
-
-            {/* Milestone Particle Bursts (every 25%) */}
-            <AnimatePresence>
-                {milestoneBursts.map(burst => (
                     <div key={burst.id} className="pointer-events-none absolute inset-0 mix-blend-screen">
-                        {Array.from({ length: 12 }).map((_, i) => {
-                            const angle = (i * 30 + (Math.random() * 10 - 5)) * (Math.PI / 180);
+                        <motion.div
+                            className="absolute inset-0 rounded-full border-2"
+                            style={{ borderColor: burst.isOverachieve ? 'rgba(244, 63, 94, 0.4)' : 'rgba(249, 115, 22, 0.5)' }}
+                            initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '3px' }}
+                            animate={prefersReducedMotion ? { opacity: 0 } : { scale: burst.isOverachieve ? 1.8 : 1.6, opacity: 0, borderWidth: '0px' }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                        />
+                        {burst.isOverachieve && Array.from({ length: 8 }).map((_, i) => {
+                            const angle = (i * 45 + (Math.random() * 15 - 7.5)) * (Math.PI / 180);
                             const distance = 50 + Math.random() * 20;
                             return (
                                 <motion.div
                                     key={i}
-                                    className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                                    style={{ backgroundColor: burst.color, boxShadow: `0 0 6px ${burst.color}` }}
-                                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 1, x: 0, y: 0, scale: 0.8 }}
+                                    className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                                    style={{ backgroundColor: '#f43f5e', boxShadow: '0 0 6px #f43f5e' }}
+                                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 1, x: 0, y: 0, scale: 0.5 }}
                                     animate={prefersReducedMotion ? { opacity: 0 } : {
                                         opacity: [1, 0.8, 0],
                                         x: Math.cos(angle) * distance,
                                         y: Math.sin(angle) * distance,
-                                        scale: [0.8, 1.2, 0]
+                                        scale: [1, 1.5, 0]
                                     }}
-                                    transition={{ duration: 1.2, ease: "easeOut", delay: i * 0.02 }}
+                                    transition={{ duration: 0.6, ease: "easeOut" }}
                                 />
                             );
                         })}
                     </div>
                 ))}
+            </AnimatePresence>
+
+            {/* Milestone Particle Bursts (every 25%) */}
+            <AnimatePresence>
+                {milestoneBursts.map(burst => {
+                    const isMax = burst.tier === 4;
+                    const particleCount = isMax ? 24 : 12;
+
+                    return (
+                        <div key={burst.id} className="pointer-events-none absolute inset-0 mix-blend-screen">
+                            {/* Inner explosion ring for 100% */}
+                            {isMax && (
+                                <motion.div
+                                    className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-4"
+                                    style={{ borderColor: burst.color }}
+                                    initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '6px' }}
+                                    animate={prefersReducedMotion ? { opacity: 0 } : { scale: 2.8, opacity: 0, borderWidth: '0px' }}
+                                    transition={{ duration: 0.8, ease: "easeOut" }}
+                                />
+                            )}
+                            {Array.from({ length: particleCount }).map((_, i) => {
+                                const angle = (i * (360 / particleCount) + (Math.random() * 10 - 5)) * (Math.PI / 180);
+                                const distanceLimit = isMax ? 110 : 80;
+                                const distanceMin = isMax ? 80 : 60;
+                                const distance = distanceMin + Math.random() * (distanceLimit - distanceMin);
+                                const duration = isMax ? 1.0 : 0.7; // Crisp, faster duration for standard bursts
+                                const sizeClass = isMax ? "h-2.5 w-2.5" : "h-2 w-2";
+
+                                return (
+                                    <motion.div
+                                        key={i}
+                                        className={`absolute left-1/2 top-1/2 ${sizeClass} -translate-x-1/2 -translate-y-1/2 rounded-full`}
+                                        style={{ backgroundColor: burst.color, boxShadow: `0 0 ${isMax ? '12px' : '8px'} ${burst.color}` }}
+                                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 1, x: 0, y: 0, scale: 0.6 }}
+                                        animate={prefersReducedMotion ? { opacity: 0 } : {
+                                            opacity: [1, 0.9, 0],
+                                            x: Math.cos(angle) * distance,
+                                            y: Math.sin(angle) * distance,
+                                            scale: [1, isMax ? 1.8 : 1.4, 0]
+                                        }}
+                                        transition={{ duration, ease: "easeOut" }}
+                                    />
+                                );
+                            })}
+                        </div>
+                    );
+                })}
             </AnimatePresence>
 
             {/* Center Content */}
@@ -642,13 +684,15 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     {motivationalToast && (
                         <motion.div
                             key={motivationalToast.id}
-                            className="pointer-events-none absolute inset-x-3 bottom-14 z-20"
+                            className="pointer-events-none absolute inset-x-0 bottom-[52px] z-20 flex items-end justify-center px-4 pb-2 pt-12 xl:bottom-[56px]"
                             initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
                             animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.3, ease: 'easeOut' }}
                         >
-                            <p className="text-center text-[10.5px] font-medium leading-snug text-foreground/40 dark:text-foreground/35">
+                            {/* Gradient backdrop for readability, matching the widget background */}
+                            <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#ffd8bf] via-[#ffd8bf]/80 to-transparent dark:from-[#4a1b10] dark:via-[#4a1b10]/80 dark:to-transparent" />
+                            <p className="relative z-10 text-center text-[10.5px] font-medium leading-snug text-foreground/50 dark:text-foreground/45">
                                 {motivationalToast.message}
                             </p>
                         </motion.div>
