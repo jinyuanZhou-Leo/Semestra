@@ -1,15 +1,16 @@
 "use no memo";
 
-import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { Flame, RotateCcw, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 const HOUR_IN_MS = 60 * 60 * 1000;
 const DAY_IN_MS = 24 * HOUR_IN_MS;
 const INTERVAL_OPTIONS = [
@@ -29,6 +30,7 @@ interface HabitStreakSettings {
     bestStreak: number;
     totalCheckIns: number;
     lastCheckInAt: string | null;
+    showMotivationalMessage: boolean;
 }
 
 interface CheckInWindowState {
@@ -45,6 +47,84 @@ const DEFAULT_HABIT_STREAK_SETTINGS: HabitStreakSettings = {
     bestStreak: 0,
     totalCheckIns: 0,
     lastCheckInAt: null,
+    showMotivationalMessage: true,
+};
+
+// ─── Motivational messages ────────────────────────────────────────────────────
+type MessageTemplate = (n: number) => string;
+
+const MOTIVATIONAL_MESSAGES: { streakMin: number; templates: MessageTemplate[] }[] = [
+    {
+        streakMin: 0,
+        templates: [
+            (n) => `Day ${n}. Every streak starts here.`,
+            (n) => `Check-in ${n} done. You showed up.`,
+            (n) => `Day ${n} — the hardest part is just beginning.`,
+        ],
+    },
+    {
+        streakMin: 3,
+        templates: [
+            (n) => `${n} days in. Momentum is building.`,
+            (n) => `Day ${n}. Consistency adds up.`,
+            (n) => `${n} days straight — keep the chain going.`,
+        ],
+    },
+    {
+        streakMin: 7,
+        templates: [
+            (n) => `${n} days. A week of showing up.`,
+            (n) => `Day ${n} — habits are starting to form.`,
+            (n) => `${n}-day streak. One week strong.`,
+        ],
+    },
+    {
+        streakMin: 14,
+        templates: [
+            (n) => `${n} days. Two weeks of dedication.`,
+            (n) => `Day ${n} — this is becoming a part of you.`,
+            (n) => `${n} days in. You're building something real.`,
+        ],
+    },
+    {
+        streakMin: 21,
+        templates: [
+            (n) => `${n} days. They say it takes 21 to make a habit.`,
+            (n) => `Day ${n} — three weeks of pure follow-through.`,
+            (n) => `${n}-day streak. It's a habit now.`,
+        ],
+    },
+    {
+        streakMin: 30,
+        templates: [
+            (n) => `${n} days. A whole month of showing up.`,
+            (n) => `Day ${n} — one month strong.`,
+            (n) => `${n}-day streak. That's real commitment.`,
+        ],
+    },
+    {
+        streakMin: 60,
+        templates: [
+            (n) => `${n} days. Two months of consistency.`,
+            (n) => `Day ${n} — this is just who you are now.`,
+            (n) => `${n}-day streak. Remarkable.`,
+        ],
+    },
+    {
+        streakMin: 100,
+        templates: [
+            (n) => `${n} days. Triple digits.`,
+            (n) => `Day ${n} — most people only dream of this.`,
+            (n) => `${n}-day streak. Legendary.`,
+        ],
+    },
+];
+
+const getMotivationalMessage = (streakCount: number): string => {
+    const tiers = [...MOTIVATIONAL_MESSAGES].reverse();
+    const tier = tiers.find((t) => streakCount >= t.streakMin) ?? MOTIVATIONAL_MESSAGES[0];
+    const pool = tier.templates;
+    return pool[Math.floor(Math.random() * pool.length)](streakCount);
 };
 
 const clampIntervalHours = (value: unknown): number => {
@@ -85,6 +165,7 @@ const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSettings =>
         bestStreak: Number.isFinite(source.bestStreak) ? Math.max(0, Math.round(source.bestStreak as number)) : 0,
         totalCheckIns: Number.isFinite(source.totalCheckIns) ? Math.max(0, Math.round(source.totalCheckIns as number)) : 0,
         lastCheckInAt: Number.isNaN(parsedLastCheckInAt) ? null : new Date(parsedLastCheckInAt).toISOString(),
+        showMotivationalMessage: typeof source.showMotivationalMessage === 'boolean' ? source.showMotivationalMessage : DEFAULT_HABIT_STREAK_SETTINGS.showMotivationalMessage,
     };
 };
 
@@ -220,6 +301,23 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
                         onChange={(event) => updateSettings({ targetStreak: clampTargetStreak(event.target.value) })}
                     />
                 </div>
+            </div>
+
+            {/* Motivational message toggle */}
+            <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
+                <div className="grid gap-0.5">
+                    <Label htmlFor={`${ids}-motivational-msg`} className="cursor-pointer text-sm font-medium">
+                        Encouragement on check-in
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                        Show a motivational message each time you check in.
+                    </p>
+                </div>
+                <Switch
+                    id={`${ids}-motivational-msg`}
+                    checked={habitSettings.showMotivationalMessage}
+                    onCheckedChange={(checked) => updateSettings({ showMotivationalMessage: checked })}
+                />
             </div>
         </div>
     );
@@ -382,10 +480,17 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
     );
 };
 
+interface MotivationalToast {
+    id: number;
+    message: string;
+}
+
 const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     const habitSettings = normalizeHabitStreakSettings(settings);
     const [nowMs, setNowMs] = useState(() => Date.now());
     const [flameReactionSignal, setFlameReactionSignal] = useState(0);
+    const [motivationalToast, setMotivationalToast] = useState<MotivationalToast | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     const checkInState = useMemo(
@@ -398,6 +503,13 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
         const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
         return () => window.clearInterval(timer);
     }, [checkInState.canCheckIn]);
+
+    // Clean up toast timer on unmount
+    useEffect(() => {
+        return () => {
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        };
+    }, []);
 
     const handleCheckIn = useCallback(() => {
         if (!checkInState.canCheckIn) return;
@@ -419,6 +531,13 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
 
         setNowMs(checkInAtMs);
         setFlameReactionSignal((signal) => signal + 1);
+
+        // Show motivational message if enabled
+        if (habitSettings.showMotivationalMessage) {
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+            setMotivationalToast({ id: checkInAtMs, message: getMotivationalMessage(nextStreakCount) });
+            toastTimerRef.current = setTimeout(() => setMotivationalToast(null), 3800);
+        }
     }, [checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, updateSettings]);
 
     const buttonLabel = checkInState.canCheckIn
@@ -451,6 +570,43 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                             Goal: {habitSettings.targetStreak} streaks
                         </span>
                     </div>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="-mr-1 -mt-0.5 h-7 w-7 shrink-0 text-foreground/40 hover:text-foreground/70"
+                                aria-label="Reset streak"
+                            >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent size="sm">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Reset habit streak?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will clear your streak progress and check-in history.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                    variant="destructive"
+                                    onClick={() => {
+                                        void updateSettings({
+                                            ...habitSettings,
+                                            streakCount: 0,
+                                            bestStreak: 0,
+                                            totalCheckIns: 0,
+                                            lastCheckInAt: null,
+                                        });
+                                    }}
+                                >
+                                    Reset
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
 
                 {/* Ring Visualization */}
@@ -480,6 +636,24 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                         </span>
                     </Button>
                 </div>
+
+                {/* Motivational Message Toast */}
+                <AnimatePresence>
+                    {motivationalToast && (
+                        <motion.div
+                            key={motivationalToast.id}
+                            className="pointer-events-none absolute inset-x-3 bottom-14 z-20"
+                            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
+                            animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.3, ease: 'easeOut' }}
+                        >
+                            <p className="text-center text-[10.5px] font-medium leading-snug text-foreground/40 dark:text-foreground/35">
+                                {motivationalToast.message}
+                            </p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             <style>{`
@@ -498,6 +672,7 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                         radial-gradient(72% 62% at 52% 58%, rgba(247, 151, 43, 0.2) 0%, rgba(247, 151, 43, 0) 66%),
                         linear-gradient(142deg, #2f1208 0%, #3e170b 46%, #4a1b10 100%);
                 }
+
             `}</style>
         </div>
     );
