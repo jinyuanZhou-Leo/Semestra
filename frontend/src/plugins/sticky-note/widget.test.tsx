@@ -147,9 +147,12 @@ describe('StickyNoteWidget', () => {
         );
 
         const textarea = screen.getByPlaceholderText('Write your note here...');
+        expect(textarea).toHaveClass('no-scrollbar');
         expect(textarea).toHaveClass('overflow-x-hidden');
         expect(textarea).toHaveClass('overflow-y-auto');
         expect(textarea).toHaveClass('[field-sizing:fixed]');
+        expect(textarea.parentElement).toHaveClass('min-h-0');
+        expect(textarea.parentElement).toHaveClass('flex-1');
     });
 
     it('toggles edit lock through header action', () => {

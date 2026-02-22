@@ -145,9 +145,9 @@ const StickyNoteWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSett
     }, [noteSettings, updateSettings]);
 
     return (
-        <div className="relative h-full overflow-hidden rounded-md transition-colors">
-            <div className="flex h-full flex-col pt-5 pb-3">
-                <div className="relative mb-2 min-h-8 px-3">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-md transition-colors">
+            <div className="flex min-h-0 flex-1 flex-col pt-5 pb-3">
+                <div className="relative mb-2 min-h-8 shrink-0 px-3">
                     <span
                         data-note-accent
                         className="absolute top-1/2 left-3 h-5 w-1 -translate-y-1/2 rounded-full transition-colors"
@@ -164,18 +164,18 @@ const StickyNoteWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSett
                     )}
                 </div>
 
-                <div className="flex-1 px-3">
+                <div className="flex min-h-0 flex-1 px-3">
                     <Textarea
                         value={noteSettings.content}
                         onChange={(event) => updateNote({ content: event.target.value })}
                         placeholder="Write your note here..."
                         readOnly={noteSettings.isEditingLocked}
-                        className="h-full min-h-0 w-full select-text resize-none overflow-x-hidden overflow-y-auto border-transparent !bg-transparent px-3 py-0 text-sm leading-6 shadow-none dark:!bg-transparent focus-visible:border-border/80 focus-visible:bg-muted/40 dark:focus-visible:bg-input/30 focus-visible:ring-0 [field-sizing:fixed] [overflow-wrap:anywhere]"
+                        className="no-scrollbar h-full min-h-0 w-full select-text resize-none overflow-x-hidden overflow-y-auto border-transparent !bg-transparent px-3 py-0 text-sm leading-6 shadow-none dark:!bg-transparent focus-visible:border-border/80 focus-visible:bg-muted/40 dark:focus-visible:bg-input/30 focus-visible:ring-0 [field-sizing:fixed] [overflow-wrap:anywhere] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                     />
                 </div>
 
                 {noteSettings.showCharCount && (
-                    <div className="mt-2 px-3 text-right text-xs text-muted-foreground/80">
+                    <div className="mt-2 shrink-0 px-3 text-right text-xs text-muted-foreground/80">
                         {noteSettings.content.length} chars
                     </div>
                 )}
