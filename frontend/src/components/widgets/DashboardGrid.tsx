@@ -129,10 +129,9 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                 minH,
                 maxW: layoutDef.maxW ? Math.min(layoutDef.maxW, maxCols) : maxCols,
                 maxH: layoutDef.maxH,
-                static: !isEditMode
             };
         });
-    }, [getWidgetLayoutForDevice, isEditMode, widgets]);
+    }, [getWidgetLayoutForDevice, widgets]);
 
     // Convert widgets to RGL layout format
     const layouts = useMemo(() => {
@@ -156,8 +155,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
 
     return (
         <ResponsiveGridLayout
-            key={`grid-${isEditMode ? 'edit' : 'view'}`}
-            className="layout"
+            className={`layout${isEditMode ? ' layout--editing' : ''}`}
             layouts={layouts}
             breakpoints={GRID_BREAKPOINTS}
             cols={GRID_COLS}

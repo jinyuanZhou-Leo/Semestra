@@ -277,6 +277,9 @@ const arePropsEqual = (
         if (prevSettings !== nextSettings) return false;
     }
 
+    // Re-render when edit mode changes (header buttons, resize handles)
+    if (prevProps.isEditMode !== nextProps.isEditMode) return false;
+
     // Layout changes don't require child re-render (handled by grid)
     return true;
 };

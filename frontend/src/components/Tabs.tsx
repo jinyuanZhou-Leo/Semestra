@@ -11,7 +11,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 
 export interface TabItem {
     id: string;
@@ -201,7 +201,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                         className="h-8 w-8 ml-1 rounded-sm p-0 text-muted-foreground hover:bg-background/50 hover:text-foreground"
                         onClick={onAdd}
                     >
-                        <span className="text-lg leading-none">+</span>
+                        <Plus className="h-4 w-4" />
                     </Button>
                 )}
             </div>

@@ -159,7 +159,7 @@ const StickyNoteWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSett
                             onChange={(event) => updateNote({ title: event.target.value })}
                             placeholder="Title"
                             readOnly={noteSettings.isEditingLocked}
-                            className="h-8 w-full border-transparent !bg-transparent pl-3 text-sm font-semibold shadow-none dark:!bg-transparent focus-visible:border-border/80 focus-visible:bg-muted/40 dark:focus-visible:bg-input/30 focus-visible:ring-0"
+                            className="h-8 w-full select-text border-transparent !bg-transparent pl-3 text-sm font-semibold shadow-none dark:!bg-transparent focus-visible:border-border/80 focus-visible:bg-muted/40 dark:focus-visible:bg-input/30 focus-visible:ring-0"
                         />
                     )}
                 </div>
@@ -170,7 +170,7 @@ const StickyNoteWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSett
                         onChange={(event) => updateNote({ content: event.target.value })}
                         placeholder="Write your note here..."
                         readOnly={noteSettings.isEditingLocked}
-                        className="h-full min-h-0 w-full resize-none overflow-x-hidden overflow-y-auto border-transparent !bg-transparent px-3 py-0 text-sm leading-6 shadow-none dark:!bg-transparent focus-visible:border-border/80 focus-visible:bg-muted/40 dark:focus-visible:bg-input/30 focus-visible:ring-0 [field-sizing:fixed] [overflow-wrap:anywhere]"
+                        className="h-full min-h-0 w-full select-text resize-none overflow-x-hidden overflow-y-auto border-transparent !bg-transparent px-3 py-0 text-sm leading-6 shadow-none dark:!bg-transparent focus-visible:border-border/80 focus-visible:bg-muted/40 dark:focus-visible:bg-input/30 focus-visible:ring-0 [field-sizing:fixed] [overflow-wrap:anywhere]"
                     />
                 </div>
 

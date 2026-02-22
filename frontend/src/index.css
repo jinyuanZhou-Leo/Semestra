@@ -30,21 +30,61 @@ body>div>div[role="dialog"][data-state] {
   opacity: 0.5 !important;
 }
 
-/* Enhanced Widget Resize Handle */
+/* Enhanced Widget Resize Handle
+   ─────────────────────────────────────────────────────────────────────
+   RGL's Responsive component caches layout state per breakpoint,
+   so the `static` flag cannot be toggled dynamically.
+   We hide resize handles completely in view mode (display: none)
+   and fade them in with a one-shot animation on edit-mode entry.
+   All rules are top-level (no CSS nesting) to avoid Tailwind v4 issues. */
+
+/* Hidden by default (view mode) – completely removed from layout */
 .layout .react-grid-item>.react-resizable-handle {
+  display: none;
+  }
+  
+  /* Show & fade in when edit mode is active */
+  .layout.layout--editing .react-grid-item>.react-resizable-handle {
+    display: block;
   width: 24px !important;
   height: 24px !important;
   bottom: 0 !important;
   right: 0 !important;
   background-image: none !important;
-  border-radius: var(--radius-widget-handle);
   background: transparent;
-  opacity: 1;
+  border-radius: var(--radius-widget-handle);
   z-index: 10;
+  pointer-events: auto;
+    animation: resize-handle-fade-in 200ms ease-in forwards;
+  }
+  
+  /* Corner indicator – only rendered in edit mode since parent is display:none otherwise */
+  .layout.layout--editing .react-grid-item>.react-resizable-handle::after {
+    content: '';
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 10px;
+    height: 10px;
+    border-right: 3px solid var(--color-muted-foreground);
+    border-bottom: 3px solid var(--color-muted-foreground);
+    border-bottom-right-radius: var(--radius-widget-handle);
+    transition: border-color 0.2s;
 }
 
-.layout .react-grid-item:hover>.react-resizable-handle {
-  opacity: 1;
+/* Hover highlight – only in edit mode */
+.layout.layout--editing .react-grid-item>.react-resizable-handle:hover::after {
+  border-color: var(--color-primary);
+}
+
+@keyframes resize-handle-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .react-grid-item {
@@ -66,26 +106,6 @@ body>div>div[role="dialog"][data-state] {
     touch-action: manipulation;
   }
 }
-
-.layout .react-grid-item>.react-resizable-handle::after {
-  content: '';
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: 10px;
-  height: 10px;
-  border-right: 3px solid var(--color-muted-foreground);
-    border-bottom: 3px solid var(--color-muted-foreground);
-  border-bottom-right-radius: var(--radius-widget-handle);
-  opacity: 1;
-  transition: opacity 0.2s, border-color 0.2s;
-}
-
-.layout .react-grid-item>.react-resizable-handle:hover::after {
-  opacity: 1;
-  border-color: var(--color-primary);
-}
-
 .animated-number {
   display: inline-grid;
   grid-template-areas: "stack";
@@ -233,6 +253,10 @@ body>div>div[role="dialog"][data-state] {
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-soft-bg: oklch(0.95 0.025 25);
+    --destructive-soft-bg-hover: oklch(0.92 0.04 25);
+    --destructive-soft-border: oklch(0.88 0.06 25);
+    --destructive-soft-border-hover: oklch(0.82 0.09 25);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -267,6 +291,10 @@ body>div>div[role="dialog"][data-state] {
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-soft-bg: oklch(0.25 0.05 25);
+    --destructive-soft-bg-hover: oklch(0.30 0.07 25);
+    --destructive-soft-border: oklch(0.35 0.08 25);
+    --destructive-soft-border-hover: oklch(0.42 0.10 25);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);

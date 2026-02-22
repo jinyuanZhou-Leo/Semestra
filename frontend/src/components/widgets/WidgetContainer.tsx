@@ -114,7 +114,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
         <Card
             ref={containerRef}
             className={cn(
-                'group relative flex h-full flex-col overflow-hidden rounded-[var(--radius-widget)] border border-border/60 bg-card shadow-sm transition-[box-shadow,border-color]',
+                'group relative flex h-full select-none flex-col overflow-hidden rounded-[var(--radius-widget)] border border-border/60 bg-card shadow-sm transition-[box-shadow,border-color]',
                 'p-0', // Override Card's default padding so widget content can fully control layout
                 isHovered && !isTouchDevice ? 'shadow-md border-border/80' : ''
             )}
@@ -226,10 +226,24 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                         title="Remove Widget"
                                         data-widget-control
                                         className={cn(
-                                            'rounded-full border border-destructive/80 bg-destructive text-destructive-foreground shadow-sm transition hover:bg-destructive/92 active:bg-destructive/88',
+                                            'rounded-full text-destructive shadow-sm transition',
                                             controlSizeClass,
                                             controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
                                         )}
+                                        style={{
+                                            backgroundColor: 'var(--destructive-soft-bg)',
+                                            borderWidth: '1px',
+                                            borderStyle: 'solid',
+                                            borderColor: 'var(--destructive-soft-border)',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--destructive-soft-bg-hover)';
+                                            e.currentTarget.style.borderColor = 'var(--destructive-soft-border-hover)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--destructive-soft-bg)';
+                                            e.currentTarget.style.borderColor = 'var(--destructive-soft-border)';
+                                        }}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                         }}
