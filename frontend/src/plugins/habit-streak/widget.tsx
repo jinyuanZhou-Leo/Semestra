@@ -6,14 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { Flame, Gauge, RotateCcw, Sparkles } from 'lucide-react';
+import { Flame, RotateCcw, Sparkles } from 'lucide-react';
 
 const HOUR_IN_MS = 60 * 60 * 1000;
 const DAY_IN_MS = 24 * HOUR_IN_MS;
 const MIN_INTERVAL_HOURS = 0;
 const MAX_INTERVAL_HOURS = 168;
-const CELEBRATION_DURATION_MS = 950;
-
 interface HabitStreakSettings {
     habitName: string;
     checkInIntervalHours: number;
@@ -48,12 +46,6 @@ const clampIntervalHours = (value: unknown): number => {
 const getStartOfLocalDay = (timestampMs: number) => {
     const date = new Date(timestampMs);
     return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-};
-
-const getIntervalLabel = (intervalHours: number) => {
-    if (intervalHours <= 0) return 'No gap';
-    if (intervalHours === 24) return 'Daily';
-    return `${intervalHours}h`;
 };
 
 const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSettings => {
@@ -196,8 +188,6 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
 const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     const habitSettings = normalizeHabitStreakSettings(settings);
     const [nowMs, setNowMs] = useState(() => Date.now());
-    const [isCelebrating, setIsCelebrating] = useState(false);
-    const [particleSeed, setParticleSeed] = useState(0);
     const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     const checkInState = useMemo(
@@ -210,12 +200,6 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
         const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
         return () => window.clearInterval(timer);
     }, [checkInState.canCheckIn]);
-
-    useEffect(() => {
-        if (!isCelebrating) return;
-        const timer = window.setTimeout(() => setIsCelebrating(false), CELEBRATION_DURATION_MS);
-        return () => window.clearTimeout(timer);
-    }, [isCelebrating]);
 
     const updateHabitSettings = useCallback((patch: Partial<HabitStreakSettings>) => {
         updateSettings({
@@ -243,61 +227,28 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
         });
 
         setNowMs(checkInAtMs);
-        if (!prefersReducedMotion) {
-            setIsCelebrating(true);
-            setParticleSeed((seed) => seed + 1);
-        }
-    }, [checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, prefersReducedMotion, updateSettings]);
+    }, [checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, updateSettings]);
 
     const streakHeat = Math.min(1, habitSettings.streakCount / 14);
-    const flameScale = 1 + streakHeat * 0.16 + (isCelebrating ? 0.12 : 0);
-    const intervalLabel = getIntervalLabel(habitSettings.checkInIntervalHours);
+    const flameScale = 1 + streakHeat * 0.14;
     const statusText = checkInState.canCheckIn
         ? (habitSettings.checkInIntervalHours === 0 ? 'No interval lock' : 'Ready to check in')
         : `Next check-in in ${formatRemainingTime(checkInState.remainingMs)}`;
 
     return (
         <div className="habit-streak-widget relative h-full overflow-hidden bg-gradient-to-br from-orange-100/65 via-amber-100/50 to-fuchsia-100/45 p-3 dark:from-orange-950/20 dark:via-amber-950/15 dark:to-fuchsia-950/15">
-            <div className="pointer-events-none absolute -top-10 right-[-36px] h-24 w-24 rounded-full bg-orange-300/30 blur-3xl dark:bg-orange-500/20" />
-
             <div className="relative flex h-full min-h-0 flex-col gap-2">
-                <div className="flex items-center gap-2">
+                <div className="grid gap-1">
                     <Input
                         value={habitSettings.habitName}
                         onChange={(event) => updateHabitSettings({ habitName: event.target.value })}
                         placeholder="Habit task (e.g. Review notes for 30 mins)"
                         className="h-8 border-transparent bg-white/70 text-sm font-medium shadow-none transition-[background-color,border-color,transform] duration-300 ease-out focus-visible:border-white/45 focus-visible:bg-white/90 focus-visible:ring-0 dark:bg-white/10 dark:focus-visible:bg-white/15"
                     />
-                    <div className="inline-flex h-8 shrink-0 items-center rounded-full bg-gradient-to-r from-orange-500/85 via-amber-500/85 to-pink-500/85 px-2 text-xs font-semibold text-white shadow-sm transition-[transform,filter] duration-300 ease-out hover:brightness-110">
-                        {intervalLabel}
-                    </div>
+                    <p className="truncate px-1 text-[11px] text-muted-foreground">{statusText}</p>
                 </div>
 
                 <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-                    <div className="pointer-events-none absolute top-1 left-1/2 z-10 inline-flex max-w-[88%] -translate-x-1/2 items-center gap-1 truncate rounded-full bg-white/68 px-2 py-0.5 text-[11px] font-medium text-slate-700 shadow-sm backdrop-blur-sm dark:bg-black/35 dark:text-slate-100">
-                        <Gauge className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{statusText}</span>
-                    </div>
-                    <div className="pointer-events-none absolute top-1 right-1 z-10 inline-flex items-center rounded-full bg-white/58 px-2 py-0.5 text-[10px] font-medium text-slate-700 backdrop-blur-sm dark:bg-black/30 dark:text-slate-100">
-                        {habitSettings.totalCheckIns} check-ins
-                    </div>
-
-                    {isCelebrating && !prefersReducedMotion && (
-                        <>
-                            {Array.from({ length: 10 }).map((_, index) => (
-                                <span
-                                    key={`${particleSeed}-${index}`}
-                                    className="habit-particle absolute h-2.5 w-2.5 rounded-full"
-                                    style={{
-                                        '--habit-particle-angle': `${index * 36}deg`,
-                                        '--habit-particle-distance': `${32 + (index % 4) * 7}px`,
-                                        '--habit-particle-color': `hsl(${20 + index * 22} 96% 60%)`,
-                                    } as React.CSSProperties}
-                                />
-                            ))}
-                        </>
-                    )}
-
                     <div className="habit-flame-stage relative flex h-[11.5rem] w-[11.5rem] max-w-full items-center justify-center">
                         <div className={cn('habit-flame-aura absolute inset-0 rounded-full', !prefersReducedMotion && 'animate-[habit-aura-pulse_2100ms_ease-in-out_infinite]')} />
                         <div className="habit-flame-shadow absolute bottom-7 h-6 w-20 rounded-full" />
@@ -434,21 +385,6 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                 @keyframes habit-aura-pulse {
                     0%, 100% { opacity: 0.62; transform: scale(0.95); }
                     50% { opacity: 0.94; transform: scale(1.05); }
-                }
-                @keyframes habit-particle-burst {
-                    0% {
-                        opacity: 0;
-                        transform: rotate(var(--habit-particle-angle)) translateY(0) scale(0.55);
-                    }
-                    15% { opacity: 1; }
-                    100% {
-                        opacity: 0;
-                        transform: rotate(var(--habit-particle-angle)) translateY(calc(-1 * var(--habit-particle-distance))) scale(1.1);
-                    }
-                }
-                .habit-particle {
-                    background: var(--habit-particle-color);
-                    animation: habit-particle-burst 860ms cubic-bezier(0.15, 0.8, 0.25, 1) forwards;
                 }
                 @media (prefers-reduced-motion: reduce) {
                     .habit-streak-widget * {

@@ -144,8 +144,8 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                 title={title}
                 data-widget-control
                 className={cn(
-                    'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
-                    'hover:bg-muted hover:text-foreground',
+                    'rounded-full border-border/60 bg-background/65 text-muted-foreground shadow-sm supports-backdrop-filter:backdrop-blur-md transition',
+                    'hover:bg-background/80 hover:text-foreground',
                     controlSizeClass
                 )}
                 onClick={(event) => {
@@ -178,8 +178,8 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                         title={title}
                         data-widget-control
                         className={cn(
-                            'rounded-full border-border/70 bg-card text-muted-foreground shadow-sm transition',
-                            'hover:bg-muted hover:text-foreground',
+                            'rounded-full border-border/60 bg-background/65 text-muted-foreground shadow-sm supports-backdrop-filter:backdrop-blur-md transition',
+                            'hover:bg-background/80 hover:text-foreground',
                             controlSizeClass
                         )}
                         onClick={(event) => {
