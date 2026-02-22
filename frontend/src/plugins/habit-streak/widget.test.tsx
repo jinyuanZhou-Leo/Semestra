@@ -10,13 +10,13 @@ import {
 describe('HabitStreak helpers', () => {
     it('returns locked state when interval has not elapsed', () => {
         const now = Date.parse('2026-02-19T10:00:00.000Z');
-        const lastCheckInAt = '2026-02-19T08:00:00.000Z';
+        const lastCheckInAt = '2026-02-19T09:30:00.000Z';
 
-        const state = getCheckInWindowState(lastCheckInAt, 6, now);
+        const state = getCheckInWindowState(lastCheckInAt, 1, now);
 
         expect(state.canCheckIn).toBe(false);
         expect(state.windowsSinceLast).toBe(0);
-        expect(state.remainingMs).toBe(4 * 60 * 60 * 1000);
+        expect(state.remainingMs).toBe(30 * 60 * 1000);
     });
 
     it('resets streak when multiple windows are missed', () => {
@@ -43,10 +43,21 @@ describe('HabitStreak helpers', () => {
         expect(state.canCheckIn).toBe(true);
         expect(state.remainingMs).toBe(0);
     });
+
+    it('supports weekly interval lock', () => {
+        const now = Date.parse('2026-02-20T00:10:00.000Z');
+        const lastCheckInAt = '2026-02-16T00:10:00.000Z';
+
+        const state = getCheckInWindowState(lastCheckInAt, 168, now);
+
+        expect(state.canCheckIn).toBe(false);
+        expect(state.windowsSinceLast).toBe(0);
+        expect(state.remainingMs).toBe(3 * 24 * 60 * 60 * 1000);
+    });
 });
 
 describe('HabitStreakWidget', () => {
-    it('updates habit task through settings update', () => {
+    it('renders habit task as read-only title', () => {
         const updateSettings = vi.fn();
 
         render(
@@ -64,18 +75,8 @@ describe('HabitStreakWidget', () => {
             />
         );
 
-        fireEvent.change(screen.getByPlaceholderText('Habit task (e.g. Review notes for 30 mins)'), {
-            target: { value: 'Review lecture slides' },
-        });
-
-        expect(updateSettings).toHaveBeenCalledWith({
-            habitName: 'Review lecture slides',
-            checkInIntervalHours: 24,
-            streakCount: 0,
-            bestStreak: 0,
-            totalCheckIns: 0,
-            lastCheckInAt: null,
-        });
+        expect(screen.getByText('Read chapter')).toBeInTheDocument();
+        expect(updateSettings).not.toHaveBeenCalled();
     });
 
     it('increments streak when check-in is available', () => {
@@ -86,7 +87,7 @@ describe('HabitStreakWidget', () => {
                 widgetId="habit-2"
                 settings={{
                     habitName: 'Workout',
-                    checkInIntervalHours: 12,
+                    checkInIntervalHours: 1,
                     streakCount: 0,
                     bestStreak: 0,
                     totalCheckIns: 0,
@@ -101,7 +102,7 @@ describe('HabitStreakWidget', () => {
         expect(updateSettings).toHaveBeenCalledWith(
             expect.objectContaining({
                 habitName: 'Workout',
-                checkInIntervalHours: 12,
+                checkInIntervalHours: 1,
                 streakCount: 1,
                 bestStreak: 1,
                 totalCheckIns: 1,
@@ -128,8 +129,30 @@ describe('HabitStreakWidget', () => {
             />
         );
 
-        const button = screen.getByRole('button', { name: 'Locked for this interval' });
+        const button = screen.getByRole('button', { name: /Wait/ });
         expect(button).toBeDisabled();
+    });
+
+    it('shows target streak progress in capsule', () => {
+        const updateSettings = vi.fn();
+
+        render(
+            <HabitStreakWidget
+                widgetId="habit-target"
+                settings={{
+                    habitName: 'Daily writing',
+                    checkInIntervalHours: 24,
+                    targetStreak: 30,
+                    streakCount: 5,
+                    bestStreak: 7,
+                    totalCheckIns: 12,
+                    lastCheckInAt: null,
+                }}
+                updateSettings={updateSettings}
+            />
+        );
+
+        expect(screen.getByText('5/30 streak')).toBeInTheDocument();
     });
 
     it('resets streak through header confirm action', () => {
@@ -147,6 +170,7 @@ describe('HabitStreakWidget', () => {
                 settings: {
                     habitName: 'Meditate',
                     checkInIntervalHours: 24,
+                    targetStreak: 14,
                     streakCount: 6,
                     bestStreak: 9,
                     totalCheckIns: 22,
@@ -174,6 +198,7 @@ describe('HabitStreakWidget', () => {
         expect(updateSettings).toHaveBeenCalledWith({
             habitName: 'Meditate',
             checkInIntervalHours: 24,
+            targetStreak: 14,
             streakCount: 0,
             bestStreak: 0,
             totalCheckIns: 0,

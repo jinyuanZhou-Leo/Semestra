@@ -16,7 +16,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { GripVertical, Settings, X } from 'lucide-react';
+import { Ellipsis, GripVertical, Settings, X } from 'lucide-react';
 
 interface WidgetContainerProps {
     id: string; // Unique ID
@@ -24,7 +24,7 @@ interface WidgetContainerProps {
     onRemove?: () => void;
     onEdit?: () => void;
     headerButtons?: React.ReactNode; // Custom header buttons from plugin definition
-    isLocked?: boolean; // Lock widgets to prevent dragging
+    isEditMode?: boolean; // Enable edit mode for widget actions
 }
 
 type PointerHandler = (event: PointerEvent) => void;
@@ -56,7 +56,7 @@ const removeGlobalPointerHandler = (handler: PointerHandler) => {
  * WidgetContainer - Memoized for performance
  * Contains the visual wrapper and control buttons for widgets
  */
-const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, headerButtons, isLocked = false }) => {
+const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, headerButtons, isEditMode = false }) => {
     const [isHovered, setIsHovered] = React.useState(false);
     const isTouchDevice = useTouchDevice();
     const [isTouchControlsVisible, setIsTouchControlsVisible] = React.useState(false);
@@ -69,6 +69,12 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
     }, [isTouchDevice]);
 
     React.useEffect(() => {
+        if (!isEditMode) {
+            setIsTouchControlsVisible(false);
+        }
+    }, [isEditMode]);
+
+    React.useEffect(() => {
         if (!isTouchDevice) return;
         const handlePointerDown = (event: PointerEvent) => {
             if (!containerRef.current) return;
@@ -79,6 +85,14 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
         return () => removeGlobalPointerHandler(handlePointerDown);
     }, [isTouchDevice]);
 
+    React.useEffect(() => {
+        if (!isTouchDevice || !isTouchControlsVisible) return;
+        const timer = window.setTimeout(() => {
+            setIsTouchControlsVisible(false);
+        }, 2400);
+        return () => window.clearTimeout(timer);
+    }, [isTouchDevice, isTouchControlsVisible]);
+
     const isInteractiveTarget = (target: EventTarget | null) => {
         if (!(target instanceof HTMLElement)) return false;
         return !!target.closest('button, input, textarea, select, a, [role="button"], [role="link"], [data-widget-control], .drag-surface');
@@ -87,7 +101,6 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
     const controlsVisible = isTouchDevice ? isTouchControlsVisible : isHovered;
     const controlSizeClass = isTouchDevice ? 'h-9 w-9' : 'h-7 w-7';
     const controlsHeightClass = isTouchDevice ? 'h-12' : 'h-10';
-    const controlsPaddingClass = isTouchDevice ? 'p-3' : 'p-2';
 
     const handleLeftControlPointerDown = (event: React.MouseEvent | React.PointerEvent) => {
         const target = event.target as HTMLElement | null;
@@ -109,70 +122,78 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
             onMouseLeave={() => setIsHovered(false)}
             onClick={(event) => {
                 if (!isTouchDevice) return;
-                if (isLocked) return;
+                if (!isEditMode) return;
                 if (isInteractiveTarget(event.target)) return;
-                setIsTouchControlsVisible(true);
+                setIsTouchControlsVisible(false);
             }}
         >
-            {isTouchDevice && !isLocked && (
-                <div
-                    className={cn(
-                        'drag-surface absolute left-0 right-0 top-0 z-10 flex items-center justify-center',
-                        controlsHeightClass
-                    )}
-                    aria-label="Drag handle"
-                    style={{ cursor: 'grab', touchAction: 'none' }}
-                >
-                    {controlsVisible && (
-                        <div className="h-1 w-10 rounded-full bg-muted-foreground/50" />
-                    )}
-                </div>
-            )}
-            {!isLocked && (
-                <div
-                    data-widget-header-overlay
-                    className={cn(
-                        'pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-start transition-opacity',
-                        isTouchDevice ? 'justify-end' : 'justify-between',
-                        controlsHeightClass,
-                        controlsPaddingClass,
-                        controlsVisible ? 'opacity-100' : 'opacity-0'
-                    )}
-                >
-                    {!isTouchDevice && (
+            {isEditMode && (
+                <>
+                    <div
+                        data-widget-corner-left
+                        className={cn(
+                            'pointer-events-none absolute top-2 left-2 z-20 flex items-start gap-2',
+                            controlsHeightClass
+                        )}
+                    >
                         <div
                             className={cn(
-                                'flex items-center gap-2',
-                                controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+                                'flex items-center gap-2 pointer-events-none'
                             )}
                             onMouseDown={handleLeftControlPointerDown}
                             onPointerDown={handleLeftControlPointerDown}
                         >
                             <div
                                 className={cn(
-                                    'drag-handle flex items-center justify-center rounded-full border border-border/60 bg-background/65 text-muted-foreground shadow-sm supports-backdrop-filter:backdrop-blur-md transition',
-                                    'hover:bg-background/80 hover:text-foreground',
-                                    controlSizeClass
+                                    isTouchDevice ? 'drag-surface' : 'drag-handle',
+                                    'flex items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground shadow-sm transition',
+                                    'hover:bg-muted hover:text-foreground',
+                                    controlSizeClass,
+                                    controlsVisible ? 'opacity-100 pointer-events-auto' : (isTouchDevice ? 'opacity-0 pointer-events-none' : 'opacity-55 pointer-events-auto')
                                 )}
                                 title="Drag to move"
                                 style={{ cursor: 'grab', touchAction: 'none' }}
                             >
                                 <GripVertical className="h-3.5 w-3.5" />
                             </div>
-                            {/* Custom header buttons from plugin definition */}
-                            {headerButtons}
+                            {controlsVisible && (
+                                <div className="pointer-events-auto flex items-center gap-1">
+                                    {/* Custom header buttons from plugin definition */}
+                                    {headerButtons}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
 
-                    {/* Right side: Action Buttons */}
                     <div
+                        data-widget-corner-right
                         className={cn(
-                            'nodrag flex items-center gap-1',
-                            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+                            'pointer-events-none absolute top-2 right-2 z-20 flex items-start gap-1',
+                            controlsHeightClass
                         )}
-                        onMouseDown={e => e.stopPropagation()}
-                        onPointerDown={e => e.stopPropagation()}
                     >
+                        {isTouchDevice && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                title="Widget actions"
+                                data-widget-control
+                                className={cn(
+                                    'rounded-full border-border/70 bg-background text-muted-foreground shadow-sm transition',
+                                    'hover:bg-muted hover:text-foreground',
+                                    controlSizeClass,
+                                    'pointer-events-auto'
+                                )}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsTouchControlsVisible((prev) => !prev);
+                                }}
+                            >
+                                <Ellipsis className="h-4 w-4" />
+                            </Button>
+                        )}
                         {onEdit && (
                             <Button
                                 type="button"
@@ -181,9 +202,10 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 title="Settings"
                                 data-widget-control
                                 className={cn(
-                                    'rounded-full border-border/60 bg-background/65 text-muted-foreground shadow-sm supports-backdrop-filter:backdrop-blur-md transition',
-                                    'hover:bg-background/80 hover:text-foreground',
-                                    controlSizeClass
+                                    'rounded-full border-border/70 bg-background text-muted-foreground shadow-sm transition',
+                                    'hover:bg-muted hover:text-foreground',
+                                    controlSizeClass,
+                                    controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
                                 )}
                                 onClick={(e) => {
                                     e.preventDefault();
@@ -204,8 +226,9 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                         title="Remove Widget"
                                         data-widget-control
                                         className={cn(
-                                            'rounded-full shadow-sm transition hover:opacity-90',
-                                            controlSizeClass
+                                            'rounded-full border border-destructive/80 bg-destructive text-destructive-foreground shadow-sm transition hover:bg-destructive/92 active:bg-destructive/88',
+                                            controlSizeClass,
+                                            controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
                                         )}
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -236,7 +259,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                             </AlertDialog>
                         )}
                     </div>
-                </div>
+                </>
             )}
 
             {/* Content Area - No padding top, content fills entire widget */}
@@ -251,13 +274,13 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
     );
 };
 
-// Custom comparison function to ensure isLocked changes trigger re-renders
+// Custom comparison function to ensure edit mode changes trigger re-renders
 const arePropsEqual = (
     prevProps: WidgetContainerProps,
     nextProps: WidgetContainerProps
 ): boolean => {
-    // Always re-render if isLocked changes
-    if (prevProps.isLocked !== nextProps.isLocked) return false;
+    // Always re-render if edit mode changes
+    if (prevProps.isEditMode !== nextProps.isEditMode) return false;
 
     // Re-render if other key props change
     if (prevProps.id !== nextProps.id) return false;

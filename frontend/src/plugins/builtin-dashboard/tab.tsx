@@ -6,48 +6,67 @@ import { CardSkeleton } from '../../components/skeletons';
 import { DashboardGrid } from '../../components/widgets/DashboardGrid';
 import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
 import type { TabDefinition, TabProps } from '../../services/tabRegistry';
-import { Lock, LockOpen, Plus } from 'lucide-react';
+import { Check, Pencil, Plus } from 'lucide-react';
 
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinTabContext();
     const glassButtonClassName =
-        "border border-border/50 bg-background/70 text-foreground backdrop-blur-md backdrop-saturate-150 shadow-lg hover:bg-background/90 hover:border-border hover:shadow-xl transition-all duration-200";
+        "border border-border/50 bg-background/70 text-foreground backdrop-blur-md backdrop-saturate-150 shadow-lg dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:bg-background/90 hover:border-border hover:shadow-xl dark:hover:shadow-[0_14px_36px_rgba(0,0,0,0.62)] transition-all duration-200";
 
     // Use a unique key for each dashboard (semester or course)
-    const storageKey = `dashboard-locked-${dashboard.semesterId || dashboard.courseId || 'default'}`;
+    const dashboardKey = dashboard.semesterId || dashboard.courseId || 'default';
+    const editModeStorageKey = `dashboard-edit-mode-${dashboardKey}`;
+    const legacyLockedStorageKey = `dashboard-locked-${dashboardKey}`;
 
-    // Initialize locked state from localStorage
-    const [isLocked, setIsLocked] = React.useState(() => {
+    // Initialize edit mode state from localStorage.
+    // Falls back to the legacy "locked" key for backward compatibility.
+    const [isEditMode, setIsEditMode] = React.useState(() => {
         try {
-            const stored = localStorage.getItem(storageKey);
-            return stored === 'true';
+            const storedEditMode = localStorage.getItem(editModeStorageKey);
+            if (storedEditMode !== null) {
+                return storedEditMode === 'true';
+            }
+            const storedLocked = localStorage.getItem(legacyLockedStorageKey);
+            if (storedLocked !== null) {
+                return storedLocked !== 'true';
+            }
+            return true;
         } catch {
-            return false;
+            return true;
         }
     });
 
-    // Sync state when storageKey changes (navigating between dashboards)
+    // Sync state when dashboard changes (navigating between dashboards)
     React.useEffect(() => {
         try {
-            const stored = localStorage.getItem(storageKey);
-            setIsLocked(stored === 'true');
+            const storedEditMode = localStorage.getItem(editModeStorageKey);
+            if (storedEditMode !== null) {
+                setIsEditMode(storedEditMode === 'true');
+                return;
+            }
+            const storedLocked = localStorage.getItem(legacyLockedStorageKey);
+            if (storedLocked !== null) {
+                setIsEditMode(storedLocked !== 'true');
+                return;
+            }
+            setIsEditMode(true);
         } catch {
-            setIsLocked(false);
+            setIsEditMode(true);
         }
-    }, [storageKey]);
+    }, [editModeStorageKey, legacyLockedStorageKey]);
 
-    // Persist locked state to localStorage
-    const toggleLock = React.useCallback(() => {
-        setIsLocked(prev => {
+    // Persist edit mode state to localStorage
+    const toggleEditMode = React.useCallback(() => {
+        setIsEditMode(prev => {
             const newValue = !prev;
             try {
-                localStorage.setItem(storageKey, String(newValue));
+                localStorage.setItem(editModeStorageKey, String(newValue));
             } catch {
                 // Ignore storage errors
             }
             return newValue;
         });
-    }, [storageKey]);
+    }, [editModeStorageKey]);
 
     if (isLoading) {
         return (
@@ -60,31 +79,40 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     }
 
     return (
-        <>
-            {/* Lock Button */}
-            <Button
-                onClick={toggleLock}
-                variant="outline"
-                className={`${glassButtonClassName} fixed right-8 bottom-24 size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center z-20`}
-                aria-label={isLocked ? "Unlock widgets" : "Lock widgets"}
-                title={isLocked ? "Unlock widgets" : "Lock widgets"}
-            >
-                {isLocked ? (
-                    <Lock className="h-5 w-5" aria-hidden="true" />
-                ) : (
-                        <LockOpen className="h-5 w-5" aria-hidden="true" />
-                )}
-            </Button>
+        <div className="relative">
+            {/* Bottom-right action dock */}
+            <div className="pointer-events-none fixed right-4 bottom-4 z-30 flex items-center gap-2 md:right-8 md:bottom-8">
+                <Button
+                    onClick={toggleEditMode}
+                    variant="outline"
+                    className={`pointer-events-auto h-[3.25rem] min-w-[8.25rem] rounded-full px-4 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-all duration-200 ${
+                        isEditMode
+                            ? "border-emerald-500/60 bg-emerald-500/14 text-emerald-900 dark:border-emerald-400/55 dark:bg-slate-900/90 dark:text-white hover:text-emerald-900 dark:hover:text-white shadow-[0_0_0_1px_rgba(16,185,129,0.28),0_10px_24px_rgba(15,23,42,0.18)] dark:shadow-[0_0_0_1px_rgba(74,222,128,0.38),0_16px_34px_rgba(2,6,23,0.72)] backdrop-blur-md backdrop-saturate-150 hover:bg-emerald-500/18 dark:hover:bg-slate-900"
+                            : `${glassButtonClassName} text-foreground hover:text-foreground dark:text-slate-100 dark:hover:text-white`
+                    }`}
+                    aria-label={isEditMode ? "Disable edit mode" : "Enable edit mode"}
+                    aria-pressed={isEditMode}
+                    title={isEditMode ? "Disable edit mode" : "Enable edit mode"}
+                >
+                    {isEditMode ? (
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    <span className="text-sm font-medium leading-none">
+                        {isEditMode ? "Editing" : "Edit"}
+                    </span>
+                </Button>
 
-            {/* Add Widget Button */}
-            <Button
-                onClick={dashboard.onAddWidgetClick}
-                variant="outline"
-                className={`${glassButtonClassName} fixed right-8 bottom-8 size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center z-20`}
-                aria-label="Add widget"
-            >
-                <Plus className="h-5 w-5" aria-hidden="true" />
-            </Button>
+                <Button
+                    onClick={dashboard.onAddWidgetClick}
+                    variant="outline"
+                    className={`${glassButtonClassName} pointer-events-auto text-foreground hover:text-foreground size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center shrink-0`}
+                    aria-label="Add widget"
+                >
+                    <Plus className="h-5 w-5" aria-hidden="true" />
+                </Button>
+            </div>
 
             <DashboardGrid
                 widgets={dashboard.widgets}
@@ -96,9 +124,9 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                 semesterId={dashboard.semesterId}
                 courseId={dashboard.courseId}
                 updateCourse={dashboard.updateCourse}
-                isLocked={isLocked}
+                isEditMode={isEditMode}
             />
-        </>
+        </div>
     );
 };
 export const BuiltinDashboardTab = BuiltinDashboardTabComponent;

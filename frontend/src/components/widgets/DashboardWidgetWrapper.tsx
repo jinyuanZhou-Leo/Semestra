@@ -39,8 +39,8 @@ interface DashboardWidgetWrapperProps {
     semesterId?: string;
     courseId?: string;
     updateCourse?: (updates: any) => void;
-    /** Lock widgets to prevent dragging and resizing */
-    isLocked?: boolean;
+    /** Enable widget edit mode for dragging/resizing and header actions */
+    isEditMode?: boolean;
 }
 
 /**
@@ -61,7 +61,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     semesterId,
     courseId,
     updateCourse,
-    isLocked = false
+    isEditMode = false
 }) => {
     // Re-render automatically when widget plugins are registered.
     useWidgetRegistry();
@@ -144,8 +144,8 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                 title={title}
                 data-widget-control
                 className={cn(
-                    'rounded-full border-border/60 bg-background/65 text-muted-foreground shadow-sm supports-backdrop-filter:backdrop-blur-md transition',
-                    'hover:bg-background/80 hover:text-foreground',
+                    'rounded-full border-border/70 bg-background text-muted-foreground shadow-sm transition',
+                    'hover:bg-muted hover:text-foreground',
                     controlSizeClass
                 )}
                 onClick={(event) => {
@@ -178,8 +178,8 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                         title={title}
                         data-widget-control
                         className={cn(
-                            'rounded-full border-border/60 bg-background/65 text-muted-foreground shadow-sm supports-backdrop-filter:backdrop-blur-md transition',
-                            'hover:bg-background/80 hover:text-foreground',
+                            'rounded-full border-border/70 bg-background text-muted-foreground shadow-sm transition',
+                            'hover:bg-muted hover:text-foreground',
                             controlSizeClass
                         )}
                         onClick={(event) => {
@@ -244,7 +244,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
             onRemove={onRemove ? handleRemove : undefined}
             onEdit={onEdit && hasSettings ? handleEdit : undefined}
             headerButtons={headerButtons}
-            isLocked={isLocked}
+            isEditMode={isEditMode}
         >
             <WidgetComponent
                 widgetId={widget.id}

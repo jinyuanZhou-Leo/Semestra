@@ -1,7 +1,12 @@
 "use no memo";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { WidgetItem } from '../components/widgets/DashboardGrid';
+import type {
+    DeviceLayoutMode,
+    WidgetItem,
+    WidgetLayout,
+    WidgetResponsiveLayout
+} from '../components/widgets/DashboardGrid';
 import api from '../services/api';
 import type { Widget } from '../services/api';
 import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
@@ -16,12 +21,54 @@ import {
 const getWidgetSettingsRetryKey = (widgetId: string) => `widget-settings:${widgetId}`;
 const getWidgetLayoutRetryKey = (widgetId: string) => `widget-layout:${widgetId}`;
 
+const isWidgetLayout = (value: unknown): value is WidgetLayout => {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Record<string, unknown>;
+    return (
+        typeof candidate.x === 'number' &&
+        typeof candidate.y === 'number' &&
+        typeof candidate.w === 'number' &&
+        typeof candidate.h === 'number'
+    );
+};
+
+const normalizeResponsiveLayout = (value: unknown): WidgetResponsiveLayout | undefined => {
+    if (!value || typeof value !== 'object') return undefined;
+
+    if (isWidgetLayout(value)) {
+        return {
+            desktop: { ...value },
+            mobile: { ...value }
+        };
+    }
+
+    const record = value as Record<string, unknown>;
+    const desktop = isWidgetLayout(record.desktop) ? { ...record.desktop } : undefined;
+    const mobile = isWidgetLayout(record.mobile) ? { ...record.mobile } : undefined;
+
+    if (!desktop && !mobile) return undefined;
+    return { desktop, mobile };
+};
+
+const mergeLayoutByDevice = (
+    current: WidgetResponsiveLayout | undefined,
+    deviceMode: DeviceLayoutMode,
+    nextLayout: WidgetLayout
+): WidgetResponsiveLayout => {
+    const normalized = current ? { ...current } : {};
+    return {
+        ...normalized,
+        [deviceMode]: nextLayout
+    };
+};
+
 const toWidgetItem = (widget: Widget): WidgetItem => {
     let parsedSettings = {};
-    let parsedLayout = undefined;
+    let parsedLayout: WidgetResponsiveLayout | undefined;
     try {
         parsedSettings = JSON.parse(widget.settings || '{}');
-        parsedLayout = JSON.parse(widget.layout_config || '{}');
+        const layoutRaw = JSON.parse(widget.layout_config || '{}');
+        parsedLayout = normalizeResponsiveLayout(layoutRaw);
     } catch (e) {
         console.warn("Failed to parse widget settings/layout", widget.id, e);
     }
@@ -223,7 +270,8 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                     let newLayout = w.layout;
                     if (typeof data.layout_config === 'string') {
                         try {
-                            newLayout = JSON.parse(data.layout_config);
+                            const parsedLayout = JSON.parse(data.layout_config);
+                            newLayout = normalizeResponsiveLayout(parsedLayout);
                         } catch (e) { console.error("Error parsing layout for optimistic update", e) }
                     }
                     return { ...w, layout: newLayout }
@@ -408,7 +456,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
 
     // Refs for debounced layout sync
     const layoutSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const pendingLayoutsRef = useRef<Map<string, { x: number; y: number; w: number; h: number }>>(new Map());
+    const pendingLayoutsRef = useRef<Map<string, WidgetResponsiveLayout>>(new Map());
 
     /**
      * Sync pending layouts to API immediately
@@ -424,12 +472,12 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         const layouts = Array.from(pendingLayoutsRef.current.entries());
         pendingLayoutsRef.current.clear();
 
-        for (const [widgetId, layout] of layouts) {
+        for (const [widgetId, layoutConfig] of layouts) {
             const retryKey = getWidgetLayoutRetryKey(widgetId);
             try {
                 const nextSeq = (widgetUpdateSeqRef.current.get(widgetId) ?? 0) + 1;
                 widgetUpdateSeqRef.current.set(widgetId, nextSeq);
-                const result = await api.updateWidget(widgetId, { layout_config: JSON.stringify(layout) });
+                const result = await api.updateWidget(widgetId, { layout_config: JSON.stringify(layoutConfig) });
                 const latestSeq = widgetUpdateSeqRef.current.get(widgetId);
                 if (latestSeq === nextSeq && !pendingLayoutsRef.current.has(widgetId)) {
                     setWidgets(prev => prev.map(w => (w.id === widgetId ? toWidgetItem(result) : w)));
@@ -448,7 +496,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                 if (attempt >= MAX_RETRY_ATTEMPTS) {
                     registerSyncRetryAction(retryKey, () => {
                         layoutRetryCountsRef.current.delete(widgetId);
-                        pendingLayoutsRef.current.set(widgetId, layout);
+                        pendingLayoutsRef.current.set(widgetId, layoutConfig);
                         void syncLayoutsToApi();
                     });
                     syncRetryKeysRef.current.add(retryKey);
@@ -458,7 +506,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                 clearSyncRetryAction(retryKey);
                 syncRetryKeysRef.current.delete(retryKey);
                 reportError('Sync failed. Retrying...');
-                pendingLayoutsRef.current.set(widgetId, layout);
+                pendingLayoutsRef.current.set(widgetId, layoutConfig);
             }
         }
 
@@ -489,7 +537,8 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         };
     }, [flushPendingLayouts]);
 
-    const updateLayout = useCallback((layouts: any[]) => {
+    const updateLayout = useCallback((layouts: any[], deviceMode: DeviceLayoutMode, maxCols: number) => {
+        const effectiveMaxCols = Math.max(1, maxCols);
         const widgetById = new Map(widgets.map(w => [w.id, w]));
         const layoutById = new Map(layouts.map(layout => [layout.i, layout]));
         // OPTIMISTIC UI: Update local state immediately for smooth UX
@@ -499,10 +548,11 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
                 const layoutDef = getResolvedWidgetLayoutByType(w.type) || { minW: 2, minH: 2 };
                 const minW = layoutDef.minW || 2;
                 const minH = layoutDef.minH || 2;
-                const safeW = Math.max(layout.w, minW);
+                const safeW = Math.min(Math.max(layout.w, Math.min(minW, effectiveMaxCols)), effectiveMaxCols);
                 const safeH = Math.max(layout.h, minH);
-                const nextLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
-                return { ...w, layout: nextLayout };
+                const nextLayout: WidgetLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
+                const nextResponsiveLayout = mergeLayoutByDevice(w.layout, deviceMode, nextLayout);
+                return { ...w, layout: nextResponsiveLayout };
             }
             return w;
         }));
@@ -513,10 +563,13 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             const layoutDef = widget ? (getResolvedWidgetLayoutByType(widget.type) || { minW: 2, minH: 2 }) : { minW: 2, minH: 2 };
             const minW = layoutDef.minW || 2;
             const minH = layoutDef.minH || 2;
-            const safeW = Math.max(layout.w, minW);
+            const safeW = Math.min(Math.max(layout.w, Math.min(minW, effectiveMaxCols)), effectiveMaxCols);
             const safeH = Math.max(layout.h, minH);
-            const newLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
-            pendingLayoutsRef.current.set(layout.i, newLayout);
+            const newLayout: WidgetLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
+            const currentQueuedLayout = pendingLayoutsRef.current.get(layout.i);
+            const currentWidgetLayout = currentQueuedLayout ?? widget?.layout;
+            const nextResponsiveLayout = mergeLayoutByDevice(currentWidgetLayout, deviceMode, newLayout);
+            pendingLayoutsRef.current.set(layout.i, nextResponsiveLayout);
             layoutRetryCountsRef.current.delete(layout.i);
             const retryKey = getWidgetLayoutRetryKey(layout.i);
             clearSyncRetryAction(retryKey);

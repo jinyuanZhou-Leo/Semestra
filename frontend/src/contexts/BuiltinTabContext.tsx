@@ -1,7 +1,7 @@
 "use no memo";
 
 import React, { createContext, useContext } from 'react';
-import type { WidgetItem } from '../components/widgets/DashboardGrid';
+import type { DeviceLayoutMode, WidgetItem } from '../components/widgets/DashboardGrid';
 
 type DashboardContextValue = {
     widgets: WidgetItem[];
@@ -10,7 +10,7 @@ type DashboardContextValue = {
     onEditWidget: (widget: WidgetItem) => void;
     onUpdateWidget: (id: string, data: any) => Promise<void>;
     onUpdateWidgetDebounced?: (id: string, data: any) => void;
-    onLayoutChange: (layouts: any) => void;
+    onLayoutChange: (layouts: any, deviceMode: DeviceLayoutMode, maxCols: number) => void;
     semesterId?: string;
     courseId?: string;
     updateCourse?: (updates: any) => void;

@@ -64,32 +64,30 @@ describe('WidgetContainer', () => {
         expect(pointerRemoves).toBe(1);
     });
 
-    it('keeps header empty area click-through while controls remain interactive', () => {
+    it('keeps corner docks click-through while controls remain interactive', () => {
         setupMatchMedia(false);
         Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
 
         const { container } = render(
-            <WidgetContainer id="widget-1" onEdit={() => { }}>
+            <WidgetContainer id="widget-1" onEdit={() => { }} isEditMode>
                 <div>Widget Content</div>
             </WidgetContainer>
         );
 
-        const overlay = container.querySelector('[data-widget-header-overlay]') as HTMLDivElement | null;
-        expect(overlay).toBeTruthy();
-        expect(overlay).toHaveClass('pointer-events-none');
+        const leftDock = container.querySelector('[data-widget-corner-left]') as HTMLDivElement | null;
+        const rightDock = container.querySelector('[data-widget-corner-right]') as HTMLDivElement | null;
+        expect(leftDock).toBeTruthy();
+        expect(leftDock).toHaveClass('pointer-events-none');
+        expect(rightDock).toBeTruthy();
+        expect(rightDock).toHaveClass('pointer-events-none');
 
-        const card = overlay?.parentElement as HTMLDivElement | null;
-        const actions = overlay?.querySelector('.nodrag') as HTMLDivElement | null;
-        expect(actions).toBeTruthy();
-        expect(actions).toHaveClass('pointer-events-none');
-
-        if (!card || !actions) {
-            throw new Error('Missing widget header elements for interaction test');
+        const card = container.firstElementChild as HTMLDivElement | null;
+        if (!card) {
+            throw new Error('Missing widget root for interaction test');
         }
 
         fireEvent.mouseEnter(card);
-        expect(overlay).toHaveClass('pointer-events-none');
-        expect(actions).toHaveClass('pointer-events-auto');
+        expect(screen.getByTitle('Settings')).toBeInTheDocument();
     });
 
     it('allows drag handle mousedown to bubble for grid drag start', () => {
@@ -100,7 +98,7 @@ describe('WidgetContainer', () => {
         document.addEventListener('mousedown', documentMouseDownSpy);
 
         const { container } = render(
-            <WidgetContainer id="widget-1">
+            <WidgetContainer id="widget-1" isEditMode>
                 <div>Widget Content</div>
             </WidgetContainer>
         );
@@ -123,14 +121,14 @@ describe('WidgetContainer', () => {
         document.removeEventListener('mousedown', documentMouseDownSpy);
     });
 
-    it('does not render header controls when widgets are locked', () => {
+    it('does not render header controls when edit mode is disabled', () => {
         setupMatchMedia(false);
         Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
 
         const { container } = render(
             <WidgetContainer
                 id="widget-locked"
-                isLocked
+                isEditMode={false}
                 onEdit={() => { }}
                 onRemove={() => { }}
                 headerButtons={<button type="button">Plugin Action</button>}
@@ -139,9 +137,11 @@ describe('WidgetContainer', () => {
             </WidgetContainer>
         );
 
-        const overlay = container.querySelector('[data-widget-header-overlay]');
+        const leftDock = container.querySelector('[data-widget-corner-left]');
+        const rightDock = container.querySelector('[data-widget-corner-right]');
         const dragHandle = container.querySelector('.drag-handle');
-        expect(overlay).toBeNull();
+        expect(leftDock).toBeNull();
+        expect(rightDock).toBeNull();
         expect(dragHandle).toBeNull();
         expect(screen.queryByTitle('Settings')).not.toBeInTheDocument();
         expect(screen.queryByTitle('Remove Widget')).not.toBeInTheDocument();
