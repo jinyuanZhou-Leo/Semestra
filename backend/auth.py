@@ -1,3 +1,11 @@
+# input:  [FastAPI security deps, JWT libs, SQLAlchemy session, crud module]
+# output: [JWT helpers and authenticated user dependency]
+# pos:    [Authentication and authorization utility layer]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import Depends, HTTPException, status

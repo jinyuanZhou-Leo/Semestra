@@ -1,3 +1,11 @@
+# input:  [Environment variables, SQLAlchemy engine/session/base]
+# output: [Database engine, session factory, declarative base, and FK pragma hook]
+# pos:    [Database bootstrap and connection configuration]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker

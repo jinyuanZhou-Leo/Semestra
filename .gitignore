@@ -62,6 +62,8 @@ todo.md
 *.ics
 .vscode
 plan.md
+**/index.md
+**/INDEX.md
 calendar_architecture.md
 docs/todolist.md
 docs/todolist.md

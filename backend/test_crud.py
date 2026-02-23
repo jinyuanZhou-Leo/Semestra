@@ -1,3 +1,11 @@
+# input:  [requests HTTP client, running API server]
+# output: [Integration test flow for auth and CRUD endpoints]
+# pos:    [Manual/integration validation script for CRUD API]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 import requests
 
 BASE_URL = "http://localhost:8000"

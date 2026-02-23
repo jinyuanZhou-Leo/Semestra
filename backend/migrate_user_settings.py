@@ -1,3 +1,11 @@
+# input:  [sqlite3, dotenv, pathlib, JSON defaults]
+# output: [Migration functions for user settings columns and defaults]
+# pos:    [One-off schema/data migration script]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 import json
 import os
 import sqlite3

@@ -1,3 +1,11 @@
+# input:  [datetime/regex/icalendar parsing helpers, models and schemas structures]
+# output: [Utility functions for schedule parsing, ICS conversion, and date handling]
+# pos:    [Shared helper layer reused across API modules]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta

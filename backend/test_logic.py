@@ -1,3 +1,11 @@
+# input:  [requests/json/time, running API server]
+# output: [Integration tests for academic logic endpoints]
+# pos:    [Manual/integration validation script for logic API]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 import requests
 import json
 import time

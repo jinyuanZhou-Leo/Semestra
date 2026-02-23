@@ -1,3 +1,11 @@
+# input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules]
+# output: [FastAPI app instance and all HTTP route handlers]
+# pos:    [Backend entry point and API orchestration layer]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 from fastapi import FastAPI, Depends, HTTPException, status, Form, Query
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware

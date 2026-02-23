@@ -1,3 +1,11 @@
+# input:  [sqlite3, pathlib, local database file]
+# output: [Migration function adding course.program_id and FK constraints]
+# pos:    [One-off schema migration script]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 import sqlite3
 import os
 from pathlib import Path

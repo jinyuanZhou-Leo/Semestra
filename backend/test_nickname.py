@@ -1,3 +1,11 @@
+# input:  [requests/uuid, running API server]
+# output: [Integration test for nickname update and retrieval]
+# pos:    [Manual/integration validation script for profile API]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 import requests
 import uuid
 

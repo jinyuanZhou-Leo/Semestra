@@ -1,3 +1,11 @@
+# input:  [sqlite3, dotenv, pathlib]
+# output: [Migration routine for week_pattern to alternating schema]
+# pos:    [One-off schema migration script]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 import os
 import sqlite3
 from pathlib import Path

@@ -1,3 +1,11 @@
+# input:  [Pydantic BaseModel/Field validators, typing/date enums]
+# output: [Request/response schema classes for API contracts]
+# pos:    [Serialization and validation layer between API and domain]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Any, Literal
 from enum import Enum

@@ -1,3 +1,11 @@
+# input:  [SQLAlchemy session, models, schemas, timezone/date helpers]
+# output: [CRUD functions for users, tasks, courses, widgets, and settings]
+# pos:    [Database access layer for backend services]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import json

@@ -1,3 +1,11 @@
+# input:  [SQLAlchemy session, models, JSON scaling definitions]
+# output: [Business logic helpers for GPA, grades, and week calculations]
+# pos:    [Pure/domain logic layer consumed by API handlers]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
 import json
 from sqlalchemy.orm import Session
 import models
