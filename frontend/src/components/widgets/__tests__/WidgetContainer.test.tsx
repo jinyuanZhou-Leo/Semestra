@@ -1,3 +1,11 @@
+// input:  [WidgetContainer component, mocked pointer-capability media query, listener spies]
+// output: [test suite validating widget control visibility and pointer-listener behavior]
+// pos:    [Interaction regression tests for widget shell touch/hover behavior]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { WidgetContainer } from '../WidgetContainer';

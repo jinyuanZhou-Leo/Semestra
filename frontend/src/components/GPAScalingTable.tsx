@@ -1,3 +1,11 @@
+// input:  [serialized GPA mapping JSON, key-value table editor, parse/coverage validation logic]
+// output: [`GPAScalingTable` component]
+// pos:    [Settings control for authoring percentage-to-GPA conversion rules]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { KeyValueTable, type KeyValueEntry } from './KeyValueTable';
 

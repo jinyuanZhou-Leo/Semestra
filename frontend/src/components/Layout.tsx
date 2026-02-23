@@ -1,3 +1,11 @@
+// input:  [auth state, app-status notifications, header slot props, theme toggle and children]
+// output: [`Layout` component]
+// pos:    [Shared authenticated page chrome (header/status/actions/content container)]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';

@@ -1,3 +1,11 @@
+// input:  [open/close state props, title string, settings form children node]
+// output: [`SettingsModal` component]
+// pos:    [Generic modal container for compact settings editors]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 

@@ -1,3 +1,11 @@
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks]
+// output: [Program/Semester/Course/Widget/Tab types and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, settings, and auth-adjacent data flows]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import axios from 'axios';
 
 // Interfaces matches Pydantic schemas

@@ -1,3 +1,11 @@
+// input:  [raw dashboard tabs, builtin-tab config, plugin metadata resolvers, tab registry updates]
+// output: [`useHomepageBuiltinTabs()` derived tab-bar state and reorder/filter helpers]
+// pos:    [Homepage-specific tab orchestration for builtin insertion, ordering, and lazy readiness]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TabItem as TabsBarItem } from '../components/Tabs';
 import type { TabItem as DashboardTabItem } from './useDashboardTabs';

@@ -1,3 +1,11 @@
+// input:  [widget item data, widget registry lookup, plugin lazy loader, update/remove callbacks]
+// output: [`DashboardWidgetWrapper` component]
+// pos:    [Runtime wrapper that mounts plugin widget content into the dashboard shell]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useCallback } from 'react';

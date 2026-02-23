@@ -1,3 +1,11 @@
+// input:  [program context state, semester/course CRUD APIs, settings/course-manager modal flows]
+// output: [`ProgramDashboard` and local semester create/delete dialog helper components]
+// pos:    [Program-level workspace page for semester management and progress tracking]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useCallback, useId, useState, useRef, useMemo } from 'react';

@@ -1,3 +1,11 @@
+// input:  [widget collection, edit-mode flags, responsive-grid callbacks, layout metadata resolvers]
+// output: [`DashboardGrid` component and dashboard layout type contracts]
+// pos:    [Core responsive dashboard renderer for widget placement and layout persistence]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useMemo, useRef, useState } from 'react';

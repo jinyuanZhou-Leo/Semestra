@@ -1,3 +1,11 @@
+// input:  [widget plugin definitions, header-button render contracts, React subscriptions]
+// output: [widget prop/definition types, singleton `WidgetRegistry`, and helper hooks]
+// pos:    [Runtime registry for widget components, constraints, and lifecycle callbacks]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';

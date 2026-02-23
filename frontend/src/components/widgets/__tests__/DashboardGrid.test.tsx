@@ -1,3 +1,11 @@
+// input:  [DashboardGrid component, mocked RGL runtime, registry fixtures and test callbacks]
+// output: [test suite covering dashboard layout persistence and breakpoint behavior]
+// pos:    [Regression tests for dashboard grid drag/resize/reflow rules]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { act, render, screen } from '@testing-library/react';
 import { DashboardGrid } from '../DashboardGrid';
 import { vi, describe, it, expect, beforeAll, beforeEach } from 'vitest';

@@ -1,3 +1,11 @@
+// input:  [Vite + Vitest APIs, React/Tailwind plugins, manual chunk strategy, dev proxy rules]
+// output: [default exported `defineConfig(...)` result for Vite/Vitest]
+// pos:    [Primary toolchain configuration for dev server, tests, and production bundling]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 /// <reference types="vitest" />
 import path from "path"
 import tailwindcss from "@tailwindcss/vite"

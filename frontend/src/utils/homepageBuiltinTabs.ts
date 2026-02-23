@@ -1,3 +1,11 @@
+// input:  [timetable builtin tab-type constants and homepage shell requirements]
+// output: [homepage builtin tab IDs, config interface, and semester/course config objects]
+// pos:    [Central ordering/placement rules for fixed homepage tabs]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import {

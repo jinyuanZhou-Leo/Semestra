@@ -1,3 +1,11 @@
+// input:  [scroll Y position, transition timing options, hero element ResizeObserver measurements]
+// output: [`useStickyCollapse()` hook with `isShrunk`, `heroRef`, and spacer height result]
+// pos:    [Sticky hero state machine for semester/course header collapse behavior]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface UseStickyCollapseOptions {

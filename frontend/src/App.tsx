@@ -1,3 +1,11 @@
+// input:  [router primitives, global providers, route guards, lazily imported page modules]
+// output: [default `App` component and `RootGate` authenticated/guest entry resolver]
+// pos:    [Root composition module that defines the app route tree and provider stack]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { SpeedInsights } from '@vercel/speed-insights/react';

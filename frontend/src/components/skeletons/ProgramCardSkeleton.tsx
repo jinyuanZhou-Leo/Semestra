@@ -1,3 +1,11 @@
+// input:  [optional className and skeleton primitives]
+// output: [`ProgramCardSkeleton` component]
+// pos:    [Program card loading placeholder for home/program views]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';

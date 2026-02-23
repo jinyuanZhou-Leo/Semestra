@@ -1,3 +1,11 @@
+// input:  [ESLint core config, TypeScript ESLint presets, React hooks/refresh plugin configs]
+// output: [default exported flat ESLint configuration array]
+// pos:    [Code-style and static-analysis policy for frontend TypeScript/React files]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'

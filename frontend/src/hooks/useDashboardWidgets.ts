@@ -1,3 +1,11 @@
+// input:  [widget CRUD APIs, `WidgetRegistry`, plugin metadata/layout resolvers, retry/status helpers]
+// output: [`useDashboardWidgets()` state/actions including layout and debounced settings updates]
+// pos:    [Core widget orchestration hook for dashboard creation, update, remove, and layout sync]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import { useState, useEffect, useCallback, useRef } from 'react';

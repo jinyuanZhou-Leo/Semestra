@@ -1,3 +1,11 @@
+// input:  [reduced-motion flag, pillar copy/icon config, in-view/parallax motion values]
+// output: [`LandingPillars` component]
+// pos:    [Landing section presenting product value pillars]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Layers3, Puzzle, SlidersHorizontal } from 'lucide-react';

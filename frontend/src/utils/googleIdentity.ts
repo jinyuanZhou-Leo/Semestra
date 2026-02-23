@@ -1,3 +1,11 @@
+// input:  [browser `window/document`, GIS global namespace, idle-callback/timeouts]
+// output: [`loadGoogleIdentityScriptWhenIdle()` async loader helper]
+// pos:    [Client-side Google Identity Services script bootstrap utility]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 type GoogleIdentityWindow = Window & {
     google?: {
         accounts?: {

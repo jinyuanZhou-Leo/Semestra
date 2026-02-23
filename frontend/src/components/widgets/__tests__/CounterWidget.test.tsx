@@ -1,3 +1,11 @@
+// input:  [Counter widget component, testing-library render/fireEvent helpers, Vitest mocks]
+// output: [test suite validating counter increment/decrement updateSettings calls]
+// pos:    [Widget unit tests for counter setting update behavior]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Counter } from '../../../plugins/counter';
 import { vi, describe, it, expect } from 'vitest';

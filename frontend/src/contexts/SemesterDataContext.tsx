@@ -1,3 +1,11 @@
+// input:  [semester ID, semester fetch/update API functions, generic `useEntityContext` hook]
+// output: [`SemesterDataProvider`, `useSemesterData()`, and `SemesterWithDetails` type]
+// pos:    [Semester-level data context providing optimistic edit and refresh capabilities]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Semester, Course, Widget, Tab } from '../services/api';

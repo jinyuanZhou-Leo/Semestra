@@ -1,3 +1,11 @@
+// input:  [register/token/google endpoints, auth login action, password policy helpers, theme visuals]
+// output: [`RegisterPage` route component]
+// pos:    [Account creation page for email/password and Google sign-up flows]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';

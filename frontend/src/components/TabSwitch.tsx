@@ -1,3 +1,11 @@
+// input:  [typed option list, selected value, change callback, optional className]
+// output: [`TabSwitch<T>` generic component]
+// pos:    [Segmented control for lightweight mode/view switching in forms]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 
 
 import { cn } from "@/lib/utils";

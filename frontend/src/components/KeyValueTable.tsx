@@ -1,3 +1,11 @@
+// input:  [current key/value rows, add/remove handlers, optional key/value validators]
+// output: [`KeyValueTable` component and `KeyValueEntry` type]
+// pos:    [Reusable key-value editor used by GPA table and similar settings forms]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

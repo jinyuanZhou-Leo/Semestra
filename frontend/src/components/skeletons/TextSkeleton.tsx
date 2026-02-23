@@ -1,3 +1,11 @@
+// input:  [line-count/width tuning props and skeleton primitives]
+// output: [`TextSkeleton` component]
+// pos:    [Text-line loading placeholder for progressive content sections]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';

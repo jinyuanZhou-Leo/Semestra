@@ -1,3 +1,11 @@
+// input:  [`useTouchDevice` hook, mocked `matchMedia`, testing-library render/act utilities]
+// output: [Vitest suite covering touch detection and media-query change behavior]
+// pos:    [Regression tests for global touch-capability detection logic]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { act, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { useTouchDevice } from '../useTouchDevice';

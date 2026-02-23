@@ -1,3 +1,11 @@
+// input:  [tab plugin definitions from runtime modules, React memo/subscription utilities]
+// output: [tab prop/definition types, singleton `TabRegistry`, and tab registry hooks/helpers]
+// pos:    [In-memory registry controlling tab availability, limits, and render components]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 
 export interface TabProps {

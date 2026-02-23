@@ -1,3 +1,11 @@
+// input:  [plugin display metadata, settings component reference, refresh callback and context IDs]
+// output: [`PluginSettingsCard` component]
+// pos:    [Settings page card wrapper for rendering plugin-level settings modules]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from "react";
 
 import { cn } from "@/lib/utils";

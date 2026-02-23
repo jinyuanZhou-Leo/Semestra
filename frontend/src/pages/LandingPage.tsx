@@ -1,3 +1,11 @@
+// input:  [landing section components, framer-motion scroll progress, reduced-motion preference]
+// output: [`LandingPage` route component]
+// pos:    [Public marketing route shown before authentication]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useEffect } from 'react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 

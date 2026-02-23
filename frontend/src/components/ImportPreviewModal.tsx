@@ -1,3 +1,11 @@
+// input:  [raw import payload, conflict strategy options, include-settings flag, confirm callbacks]
+// output: [`ImportPreviewModal` component and import helper types]
+// pos:    [Settings workflow modal for previewing and confirming account data import]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';

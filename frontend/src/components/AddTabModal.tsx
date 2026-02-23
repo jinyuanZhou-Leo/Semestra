@@ -1,3 +1,11 @@
+// input:  [plugin tab catalog, current dashboard tab instances, tab add callback, search state]
+// output: [`AddTabModal` component]
+// pos:    [Modal used in course/semester pages to discover and add tab plugins]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {

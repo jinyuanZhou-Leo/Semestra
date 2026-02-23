@@ -1,3 +1,11 @@
+// input:  [skeleton primitives and static layout placeholder structure]
+// output: [`PageSkeleton` component]
+// pos:    [Route-level loading fallback for suspense and auth bootstrap states]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import { Layout } from './Layout';
 import { Container } from './Container';

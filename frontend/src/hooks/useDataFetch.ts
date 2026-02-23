@@ -1,3 +1,11 @@
+// input:  [typed async `fetchFn`, enable flag, global error reporter]
+// output: [`useDataFetch<T>()` hook plus option/result interfaces]
+// pos:    [Generic fetch primitive used as the base for page-level data contexts]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useState, useCallback, useEffect } from 'react';
 import { reportError } from '../services/appStatus';
 

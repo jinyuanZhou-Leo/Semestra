@@ -1,3 +1,11 @@
+// input:  [stored theme preference, optional default/storage props, system color-scheme listener]
+// output: [`ThemeProvider` component and `useTheme()` hook]
+// pos:    [Global theme context controlling `light/dark/system` document classes]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { createContext, useContext, useEffect, useState } from "react"
 
 type Theme = "dark" | "light" | "system"

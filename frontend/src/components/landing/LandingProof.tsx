@@ -1,3 +1,11 @@
+// input:  [reduced-motion flag, section/page scroll signals, scramble-text helper pipeline]
+// output: [`LandingProof` component]
+// pos:    [Landing proof/CTA section that demonstrates usage outcomes]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useRef, useState } from 'react';
 import { motion, useMotionValueEvent, useScroll, useTransform } from 'framer-motion';
 import { ArrowRight, Check } from 'lucide-react';

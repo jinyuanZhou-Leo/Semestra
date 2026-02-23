@@ -1,3 +1,11 @@
+// input:  [course ID, course fetch/update API functions, generic `useEntityContext` hook]
+// output: [`CourseDataProvider`, `useCourseData()`, and `CourseWithDetails` type]
+// pos:    [Course-level data context with optimistic updates and refresh abstraction]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Course, Widget, Tab } from '../services/api';

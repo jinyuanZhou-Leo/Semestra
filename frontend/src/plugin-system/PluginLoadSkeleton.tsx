@@ -1,3 +1,11 @@
+// input:  [UI skeleton primitive and plugin loading states from tab/widget wrappers]
+// output: [`PluginTabSkeleton` and `PluginWidgetSkeleton` placeholder components]
+// pos:    [Loading fallback visuals while lazy plugin runtime modules are fetched]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';

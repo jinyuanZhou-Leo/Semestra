@@ -1,3 +1,11 @@
+// input:  [tab items, active selection, add/remove/reorder callbacks, drag/confirm UI events]
+// output: [`Tabs` component and `TabItem` interface]
+// pos:    [Dashboard tab bar handling select, drag-sort, add, and delete-confirm actions]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import {

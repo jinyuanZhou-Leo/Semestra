@@ -1,3 +1,11 @@
+// input:  [auth token in localStorage, axios `/api/users/me` + 401 interceptor, session modal]
+// output: [`AuthProvider` and `useAuth()` exposing user/login/logout/refresh/loading state]
+// pos:    [Application-wide authentication context used by route guards and pages]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { SessionExpiredModal } from '../components/SessionExpiredModal';

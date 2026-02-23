@@ -1,3 +1,11 @@
+// input:  [React lifecycle hooks, OGL WebGL primitives, effect-tuning props from callers]
+// output: [`GradientBlinds` component and `GradientBlindsProps` interface]
+// pos:    [GPU-based animated background module used by auth and landing surfaces]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useRef } from 'react';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
 

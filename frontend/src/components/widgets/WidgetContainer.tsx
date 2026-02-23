@@ -1,3 +1,11 @@
+// input:  [widget action callbacks, touch-device signal, shared pointer-listener coordination]
+// output: [`WidgetContainer` component]
+// pos:    [Widget chrome shell controlling drag handle and action-button visibility behavior]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';

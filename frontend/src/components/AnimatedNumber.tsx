@@ -1,3 +1,11 @@
+// input:  [target numeric value, optional formatter/animation props, RAF + motion preference]
+// output: [`AnimatedNumber` component]
+// pos:    [Reusable metric value animator used in cards and progress summaries]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 interface AnimatedNumberProps {

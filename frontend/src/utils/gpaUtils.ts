@@ -1,3 +1,11 @@
+// input:  [percentage score and GPA-rule JSON definitions from user/settings state]
+// output: [`DEFAULT_GPA_SCALING_TABLE_JSON` and `calculateGPA()` conversion helper]
+// pos:    [Shared GPA mapping utility used by settings and grade-related features]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 // 默认的百分制到绩点映射表（JSON 字符串）。
 export const DEFAULT_GPA_SCALING_TABLE_JSON = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}';
 

@@ -1,3 +1,11 @@
+// input:  [save-state prop (`idle/saving/success`), button props, timer-driven visual transitions]
+// output: [`SaveSettingButton` component and `SaveButtonState` type]
+// pos:    [Reusable settings save CTA with animated status transitions]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 

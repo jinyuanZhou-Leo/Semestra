@@ -1,3 +1,11 @@
+// input:  [general settings content and optional plugin-settings sections]
+// output: [`SettingsTabContent` component]
+// pos:    [Compositor separating built-in settings and plugin settings areas]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from "react";
 import { Puzzle, SlidersHorizontal } from "lucide-react";
 

@@ -1,3 +1,11 @@
+// input:  [settings section copy/action props and wrapped content node]
+// output: [`SettingsSection` component]
+// pos:    [Reusable card-based section wrapper for settings screens]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from "react";
 
 import {

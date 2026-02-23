@@ -1,3 +1,11 @@
+// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings registries]
+// output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
+// pos:    [Semester workspace page with tabbed dashboard, widgets, and settings panel]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';

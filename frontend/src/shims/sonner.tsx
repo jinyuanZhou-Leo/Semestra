@@ -1,3 +1,11 @@
+// input:  [theme state from `next-themes` and Sonner toaster prop contracts]
+// output: [project-styled `Toaster` wrapper component export]
+// pos:    [Third-party toast shim aligning Sonner visuals with app theme tokens]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 

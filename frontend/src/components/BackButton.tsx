@@ -1,3 +1,11 @@
+// input:  [router navigation functions and optional custom click/path props]
+// output: [`BackButton` component]
+// pos:    [Shared back navigation control for settings and nested detail screens]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';

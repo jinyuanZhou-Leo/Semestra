@@ -1,3 +1,11 @@
+// input:  [dashboard widget actions and settings section nodes passed from homepage pages]
+// output: [`BuiltinTabProvider`, `useBuiltinTabContext()`, and built-in tab context types]
+// pos:    [Bridge context consumed by builtin dashboard/settings tab implementations]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { createContext, useContext } from 'react';

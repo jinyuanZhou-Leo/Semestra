@@ -1,3 +1,11 @@
+// input:  [program name/credits/GPA defaults, GPA table editor, save/cancel lifecycle callbacks]
+// output: [`ProgramSettingsPanel` component]
+// pos:    [Program-level settings form rendered inside program dashboard modal]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

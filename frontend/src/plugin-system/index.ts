@@ -1,3 +1,11 @@
+// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries]
+// output: [plugin catalog accessors, metadata resolvers, and `ensure*PluginByTypeLoaded` helpers]
+// pos:    [Core plugin orchestration module that registers runtime definitions on demand]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import type { TabContext, TabDefinition } from '../services/tabRegistry';
 import { TabRegistry } from '../services/tabRegistry';
 import type { WidgetContext, WidgetDefinition } from '../services/widgetRegistry';

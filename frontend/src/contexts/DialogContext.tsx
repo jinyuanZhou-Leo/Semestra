@@ -1,3 +1,11 @@
+// input:  [confirm/alert requests from components and dialog primitive UI controls]
+// output: [`DialogProvider` and `useDialog()` promise-based `confirm`/`alert` APIs]
+// pos:    [Global dialog service that centralizes modal confirm/alert interactions]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";

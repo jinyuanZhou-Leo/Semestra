@@ -1,3 +1,11 @@
+// input:  [window scroll position, threshold parameter, animation-frame scheduling]
+// output: [`useScrollProgress(threshold)` hook returning normalized 0..1 progress]
+// pos:    [Scroll signal helper for collapsible/sticky header animation calculations]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useState, useEffect } from 'react';
 
 /**

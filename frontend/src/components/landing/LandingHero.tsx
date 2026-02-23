@@ -1,3 +1,11 @@
+// input:  [reduced-motion flag, framer-motion scroll transforms, CTA navigation links]
+// output: [`LandingHero` component]
+// pos:    [Top hero section of the public marketing landing page]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';

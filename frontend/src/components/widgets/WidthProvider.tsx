@@ -1,3 +1,11 @@
+// input:  [wrapped grid component and ResizeObserver width measurements]
+// output: [`WidthProvider` HOC returning width-aware wrapper components]
+// pos:    [Utility adapter ensuring grid components receive real container width before render]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useEffect, useRef, useState } from 'react';
 
 export const WidthProvider = (ComposedComponent: any) => {

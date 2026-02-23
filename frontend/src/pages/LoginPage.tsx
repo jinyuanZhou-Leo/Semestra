@@ -1,3 +1,11 @@
+// input:  [auth login action, token/google auth endpoints, password rule helper, theme visuals]
+// output: [`LoginPage` route component]
+// pos:    [Authentication entry page for password and Google sign-in flows]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';

@@ -1,3 +1,11 @@
+// input:  [course context, dashboard tab/widget hooks, plugin metadata/settings registries]
+// output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
+// pos:    [Course workspace page with tabbed dashboard, widgets, and course settings]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';

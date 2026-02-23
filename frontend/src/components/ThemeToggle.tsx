@@ -1,3 +1,11 @@
+// input:  [theme context state/actions plus icon and button primitives]
+// output: [`ThemeToggle` component]
+// pos:    [Quick header action for cycling app theme mode]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { Moon, Sun, Monitor } from "lucide-react"
 import { useTheme } from "./ThemeProvider"
 import { Button } from "@/components/ui/button"

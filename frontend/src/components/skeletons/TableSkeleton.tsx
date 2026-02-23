@@ -1,3 +1,11 @@
+// input:  [row/column sizing props and skeleton primitives]
+// output: [`TableSkeleton` component]
+// pos:    [Table-structured loading placeholder for list/detail content]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import {
     Table,

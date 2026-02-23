@@ -1,3 +1,11 @@
+// input:  [`calculateGPA` utility and Vitest assertion/runtime APIs]
+// output: [test suite validating GPA mapping rule handling]
+// pos:    [Utility regression tests for GPA conversion edge cases]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { describe, it, expect } from 'vitest';
 import { calculateGPA } from '../gpaUtils';
 

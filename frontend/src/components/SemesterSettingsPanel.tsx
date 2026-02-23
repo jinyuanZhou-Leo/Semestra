@@ -1,3 +1,11 @@
+// input:  [semester initial fields, date pickers, date-fns parse/format helpers, save callback]
+// output: [`SemesterSettingsPanel` component]
+// pos:    [Semester settings form for term title and date-range management]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useEffect, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

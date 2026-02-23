@@ -1,3 +1,11 @@
+// input:  [axios error shapes and retry attempt index from optimistic sync hooks]
+// output: [retry constants plus `isRetryableError` and `getRetryDelayMs` helpers]
+// pos:    [Shared retry strategy for dashboard tab/widget background synchronization]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import axios from 'axios';
 
 export const MAX_RETRY_ATTEMPTS = 3;

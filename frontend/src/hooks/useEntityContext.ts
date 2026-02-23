@@ -1,3 +1,11 @@
+// input:  [entity ID, typed fetch/update functions, debounce interval, `useDataFetch`]
+// output: [`useEntityContext<T>()` hook with optimistic `updateData` and refresh APIs]
+// pos:    [Reusable optimistic-sync engine behind course and semester data providers]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useCallback, useRef, useEffect } from 'react';
 import { useDataFetch } from './useDataFetch';
 import { reportError } from '../services/appStatus';

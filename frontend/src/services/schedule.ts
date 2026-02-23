@@ -1,3 +1,11 @@
+// input:  [axios client, course/semester schedule endpoint payloads, export options]
+// output: [schedule domain DTO types and default `scheduleService` API wrapper]
+// pos:    [Specialized timetable service for event-type/section/event CRUD and export]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import axios from 'axios';
 
 export type WeekPattern = 'EVERY' | 'ALTERNATING';

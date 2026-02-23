@@ -1,3 +1,11 @@
+// input:  [session-expired open state, close callback, router navigation to login]
+// output: [`SessionExpiredModal` component]
+// pos:    [Auth-expiration dialog forcing a user back into login flow]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';

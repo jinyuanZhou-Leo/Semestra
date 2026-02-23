@@ -1,3 +1,11 @@
+// input:  [section copy props, reduced-motion preference, children section content]
+// output: [`LandingSection` reusable wrapper component]
+// pos:    [Shared section scaffold used by landing sub-sections]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import type { PropsWithChildren } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';

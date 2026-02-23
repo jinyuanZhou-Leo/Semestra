@@ -1,3 +1,11 @@
+// input:  [tab CRUD APIs, `TabRegistry` constraints, plugin loader, retry/status services]
+// output: [`TabItem` type and `useDashboardTabs()` state/actions for dashboard tabs]
+// pos:    [Core tab orchestration hook for optimistic create/update/reorder/delete flows]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import { useCallback, useEffect, useRef, useState } from 'react';

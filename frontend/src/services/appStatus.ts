@@ -1,3 +1,11 @@
+// input:  [status/retry events from hooks, in-memory listeners, timeout scheduling]
+// output: [status mutation APIs, retry registration APIs, and `appStatusStore` snapshot source]
+// pos:    [Global UI status bus for sync errors, retry actions, and transient messages]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 export type AppStatus = {
     id: number;
     type: 'error' | 'info';

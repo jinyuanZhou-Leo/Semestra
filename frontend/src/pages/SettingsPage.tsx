@@ -1,3 +1,11 @@
+// input:  [auth context, user settings/import-export APIs, dialog helpers, theme hooks]
+// output: [`SettingsPage` route component]
+// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from "react";
 import { Layout } from "../components/Layout";
 import { Button } from "@/components/ui/button";

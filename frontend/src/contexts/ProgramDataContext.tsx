@@ -1,3 +1,11 @@
+// input:  [program ID, program fetch/update API calls, `useDataFetch`, debounce/sync refs]
+// output: [`ProgramDataProvider` and `useProgramData()` context APIs]
+// pos:    [Program-level optimistic context with queued backend synchronization]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { createContext, useContext, useCallback, useRef, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import type { Program, Semester } from '../services/api';

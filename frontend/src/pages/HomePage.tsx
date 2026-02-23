@@ -1,3 +1,11 @@
+// input:  [program list/create/delete APIs, dialog context, route links, loading skeletons]
+// output: [`HomePage` plus local create/delete program dialog button components]
+// pos:    [Authenticated root workspace page showing programs and high-level progress]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useCallback, useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';

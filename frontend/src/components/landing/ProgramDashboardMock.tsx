@@ -1,3 +1,11 @@
+// input:  [mock tabs/tasks/layout state, react-grid-layout runtime, demo widget interactions]
+// output: [`SemesterDashboardMock` component]
+// pos:    [Interactive dashboard demo used in the marketing landing page]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useMemo, useState } from 'react';
 import { Responsive } from 'react-grid-layout';
 import { CalendarDays, CheckCircle2, GripVertical, ListTodo, Plus, Settings2 } from 'lucide-react';

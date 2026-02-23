@@ -1,3 +1,11 @@
+// input:  [program/semester identifiers, course CRUD APIs, auth default credit, dialog state]
+// output: [`CourseManagerModal` component]
+// pos:    [Program dashboard modal for adding existing courses or creating new ones]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';

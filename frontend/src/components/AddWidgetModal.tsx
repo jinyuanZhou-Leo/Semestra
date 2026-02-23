@@ -1,3 +1,11 @@
+// input:  [plugin widget catalog, current dashboard widgets, widget add callback, search state]
+// output: [`AddWidgetModal` component]
+// pos:    [Modal used in course/semester pages to discover and add widget plugins]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useEffect, useMemo, useState } from 'react';

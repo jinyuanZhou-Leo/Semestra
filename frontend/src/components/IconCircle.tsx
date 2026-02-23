@@ -1,3 +1,11 @@
+// input:  [icon source (ReactNode or image URL), size/label props, `isImageIcon` guard]
+// output: [`IconCircle` component]
+// pos:    [Unified circular icon/avatar renderer across catalog and dashboard UI]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import { isImageIcon } from '../utils/icon';
 import { cn } from '@/lib/utils';

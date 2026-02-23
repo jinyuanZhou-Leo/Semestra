@@ -1,3 +1,11 @@
+// input:  [active widget payload, widget registry settings component lookup, save callback]
+// output: [`WidgetSettingsModal` component]
+// pos:    [Per-widget settings editor modal rendered from widget definition metadata]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useEffect, useState } from "react";

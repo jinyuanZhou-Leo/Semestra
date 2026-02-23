@@ -1,3 +1,11 @@
+// input:  [pointer-capability media query, `navigator.maxTouchPoints`, shared listener registry]
+// output: [boolean `useTouchDevice()` hook result]
+// pos:    [Central touch-device detector that avoids duplicate component-level listeners]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { useEffect, useState } from 'react';
 
 type Listener = (value: boolean) => void;

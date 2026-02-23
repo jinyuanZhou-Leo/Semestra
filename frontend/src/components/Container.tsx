@@ -1,3 +1,11 @@
+// input:  [children node, optional width/padding/style overrides, class merge helper]
+// output: [`Container` component]
+// pos:    [Common max-width wrapper that normalizes horizontal page spacing]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { cn } from '@/lib/utils';
 import React from 'react';
 
