@@ -1,3 +1,11 @@
+// input:  [builtin tab context state, dashboard widget callbacks, motion + icon dependencies]
+// output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` plugin metadata]
+// pos:    [Built-in dashboard tab UI entry handling edit mode state and floating action controls]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
@@ -13,6 +21,10 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinTabContext();
     const glassButtonClassName =
         "border border-border/50 bg-background/70 text-foreground backdrop-blur-md backdrop-saturate-150 shadow-lg dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:bg-background/90 hover:border-border hover:shadow-xl dark:hover:shadow-[0_14px_36px_rgba(0,0,0,0.62)] transition-all duration-200";
+    const checkIconClassName =
+        "h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300 dark:drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]";
+    const pencilIconClassName =
+        "h-5 w-5 shrink-0 text-foreground dark:text-slate-50 dark:drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]";
 
     // Use a unique key for each dashboard (semester or course)
     const dashboardKey = dashboard.semesterId || dashboard.courseId || 'default';
@@ -108,8 +120,8 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                     layout
                     onClick={toggleEditMode}
                     className={`pointer-events-auto relative flex items-center justify-center shrink-0 shadow-lg cursor-pointer outline-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 size-[3.25rem] rounded-full p-0 ${isEditMode
-                        ? "border border-emerald-500/60 bg-emerald-500/14 text-emerald-900 dark:border-emerald-400/55 dark:bg-slate-900/90 dark:text-white hover:text-emerald-900 dark:hover:text-white shadow-[0_0_0_1px_rgba(16,185,129,0.28),0_10px_24px_rgba(15,23,42,0.18)] dark:shadow-[0_0_0_1px_rgba(74,222,128,0.38),0_16px_34px_rgba(2,6,23,0.72)] backdrop-blur-md backdrop-saturate-150 hover:bg-emerald-500/18 dark:hover:bg-slate-900 transition-colors duration-200"
-                        : `${glassButtonClassName.replace("transition-all", "transition-colors")} text-foreground hover:text-foreground dark:text-slate-100 dark:hover:text-white`
+                        ? "border border-emerald-500/60 bg-emerald-500/14 text-emerald-900 dark:border-emerald-400/55 dark:bg-slate-900/90 dark:text-slate-50 hover:text-emerald-900 dark:hover:text-white shadow-[0_0_0_1px_rgba(16,185,129,0.28),0_10px_24px_rgba(15,23,42,0.18)] dark:shadow-[0_0_0_1px_rgba(74,222,128,0.38),0_16px_34px_rgba(2,6,23,0.72)] backdrop-blur-md backdrop-saturate-150 hover:bg-emerald-500/18 dark:hover:bg-slate-900 transition-colors duration-200"
+                        : `${glassButtonClassName.replace("transition-all", "transition-colors")} text-foreground hover:text-foreground dark:text-slate-50 dark:hover:text-white`
                         }`}
                     aria-label={isEditMode ? "Complete editing" : "Edit dashboard"}
                     aria-pressed={isEditMode}
@@ -128,7 +140,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                                     className="flex items-center justify-center w-full h-full"
                                 >
-                                    <Check className="h-5 w-5 shrink-0" aria-hidden="true" />
+                                    <Check className={checkIconClassName} aria-hidden="true" />
                                 </motion.div>
                             ) : (
                                 <motion.div
@@ -139,7 +151,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                                         transition={{ type: "spring", stiffness: 400, damping: 30 }}
                                         className="flex items-center justify-center w-full h-full"
                                 >
-                                    <Pencil className="h-5 w-5 shrink-0" aria-hidden="true" />
+                                    <Pencil className={pencilIconClassName} aria-hidden="true" />
                                 </motion.div>
                             )}
                         </AnimatePresence>
