@@ -75,10 +75,14 @@ const toWidgetItem = (widget: Widget): WidgetItem => {
     let parsedLayout: WidgetResponsiveLayout | undefined;
     try {
         parsedSettings = JSON.parse(widget.settings || '{}');
+    } catch (error) {
+        console.warn('Failed to parse widget settings', widget.id, error);
+    }
+    try {
         const layoutRaw = JSON.parse(widget.layout_config || '{}');
         parsedLayout = normalizeResponsiveLayout(layoutRaw);
-    } catch (e) {
-        console.warn("Failed to parse widget settings/layout", widget.id, e);
+    } catch (error) {
+        console.warn('Failed to parse widget layout', widget.id, error);
     }
     return {
         id: widget.id.toString(),

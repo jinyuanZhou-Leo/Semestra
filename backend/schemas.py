@@ -1,4 +1,4 @@
-# input:  [Pydantic BaseModel/Field validators, typing/date enums]
+# input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums]
 # output: [Request/response schema classes for API contracts]
 # pos:    [Serialization and validation layer between API and domain]
 #
@@ -6,10 +6,77 @@
 #    1. Update these header comments
 #    2. Update the INDEX.md of the folder this file belongs to
 
+import json
+import math
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Any, Literal
 from enum import Enum
 from datetime import date
+
+def _validate_single_widget_layout(value: Any, scope: str) -> None:
+    if not isinstance(value, dict):
+        raise ValueError(f'{scope} must be a JSON object.')
+
+    required_fields = ("x", "y", "w", "h")
+    missing_fields = [field for field in required_fields if field not in value]
+    if missing_fields:
+        raise ValueError(f'{scope} must include x, y, w, h.')
+
+    unknown_fields = [field for field in value.keys() if field not in required_fields]
+    if unknown_fields:
+        raise ValueError(f'{scope} contains unsupported fields: {", ".join(sorted(unknown_fields))}.')
+
+    for field in required_fields:
+        field_value = value[field]
+        if isinstance(field_value, bool) or not isinstance(field_value, (int, float)):
+            raise ValueError(f'{scope}.{field} must be a number.')
+        if not math.isfinite(float(field_value)):
+            raise ValueError(f'{scope}.{field} must be finite.')
+
+    if value["x"] < 0 or value["y"] < 0:
+        raise ValueError(f'{scope}.x and {scope}.y must be >= 0.')
+    if value["w"] < 1 or value["h"] < 1:
+        raise ValueError(f'{scope}.w and {scope}.h must be >= 1.')
+
+def _validate_widget_layout_config(value: str) -> str:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError('layout_config must be valid JSON.') from error
+
+    if not isinstance(parsed, dict):
+        raise ValueError('layout_config must be a JSON object.')
+
+    if parsed == {}:
+        return value
+
+    has_single_layout = all(key in parsed for key in ("x", "y", "w", "h"))
+    has_responsive_layout = "desktop" in parsed or "mobile" in parsed
+
+    if has_single_layout and has_responsive_layout:
+        raise ValueError('layout_config cannot mix flat layout fields with responsive fields.')
+
+    if has_single_layout:
+        _validate_single_widget_layout(parsed, "layout_config")
+        return value
+
+    if has_responsive_layout:
+        unknown_fields = [field for field in parsed.keys() if field not in ("desktop", "mobile")]
+        if unknown_fields:
+            raise ValueError(f'layout_config contains unsupported fields: {", ".join(sorted(unknown_fields))}.')
+
+        desktop_layout = parsed.get("desktop")
+        mobile_layout = parsed.get("mobile")
+        if desktop_layout is None and mobile_layout is None:
+            raise ValueError('layout_config must include at least one of desktop or mobile.')
+
+        if desktop_layout is not None:
+            _validate_single_widget_layout(desktop_layout, "layout_config.desktop")
+        if mobile_layout is not None:
+            _validate_single_widget_layout(mobile_layout, "layout_config.mobile")
+        return value
+
+    raise ValueError('layout_config must be empty, flat {x,y,w,h}, or responsive {desktop,mobile}.')
 
 # --- Auth Schemas ---
 class Token(BaseModel):
@@ -61,6 +128,10 @@ class WidgetBase(BaseModel):
     settings: str = "{}"
     is_removable: bool = True
 
+    @validator('layout_config')
+    def validate_layout_config(cls, value: str) -> str:
+        return _validate_widget_layout_config(value)
+
 class WidgetCreate(WidgetBase):
     pass
 
@@ -75,6 +146,12 @@ class WidgetUpdate(BaseModel):
     widget_type: Optional[str] = None
     layout_config: Optional[str] = None
     settings: Optional[str] = None
+
+    @validator('layout_config')
+    def validate_layout_config(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        return _validate_widget_layout_config(value)
 
 # --- Tab Schemas ---
 class TabBase(BaseModel):

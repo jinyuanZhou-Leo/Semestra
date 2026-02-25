@@ -115,7 +115,28 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     const buildLayoutForBreakpoint = React.useCallback((breakpoint: keyof typeof GRID_BREAKPOINTS) => {
         const cols = GRID_COLS[breakpoint];
         const deviceMode = getDeviceLayoutModeByBreakpoint(breakpoint);
-        return widgets.map((w, i) => {
+        let maxOccupiedY = 0;
+
+        widgets.forEach((w) => {
+            const sourceLayout = getWidgetLayoutForDevice(w.layout, deviceMode);
+            if (!sourceLayout) return;
+
+            const layoutDef = getResolvedWidgetLayoutByType(w.type) || { w: 4, h: 4, minW: 2, minH: 2 };
+            const minW = layoutDef.minW || 2;
+            const minH = layoutDef.minH || 2;
+            const effectiveMinW = Math.min(minW, cols);
+            const safeW = Math.min(Math.max(sourceLayout.w, effectiveMinW), cols);
+            const safeH = Math.max(sourceLayout.h, minH);
+            const safeY = Math.max(sourceLayout.y, 0);
+            maxOccupiedY = Math.max(maxOccupiedY, safeY + safeH);
+        });
+
+        // Place widgets without persisted layout below existing occupied area.
+        let fallbackCursorX = 0;
+        let fallbackCursorY = maxOccupiedY;
+        let fallbackRowMaxH = 0;
+
+        return widgets.map((w) => {
             const layoutDef = getResolvedWidgetLayoutByType(w.type) || { w: 4, h: 4, minW: 2, minH: 2 };
             const minW = layoutDef.minW || 2;
             const minH = layoutDef.minH || 2;
@@ -126,11 +147,31 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             const rawH = sourceLayout?.h ?? layoutDef.h;
             const safeW = Math.min(Math.max(rawW, effectiveMinW), maxCols);
             const safeH = Math.max(rawH, minH);
+            const maxX = Math.max(0, maxCols - safeW);
+
+            let x: number;
+            let y: number;
+
+            if (sourceLayout) {
+                x = Math.min(Math.max(sourceLayout.x, 0), maxX);
+                y = Math.max(sourceLayout.y, 0);
+            } else {
+                if (fallbackCursorX + safeW > maxCols) {
+                    fallbackCursorX = 0;
+                    fallbackCursorY += fallbackRowMaxH;
+                    fallbackRowMaxH = 0;
+                }
+
+                x = fallbackCursorX;
+                y = fallbackCursorY;
+                fallbackCursorX += safeW;
+                fallbackRowMaxH = Math.max(fallbackRowMaxH, safeH);
+            }
 
             return {
                 i: w.id,
-                x: sourceLayout?.x ?? (i * layoutDef.w) % maxCols,
-                y: sourceLayout?.y ?? Math.floor(i / 3) * layoutDef.h,
+                x,
+                y,
                 w: safeW,
                 h: safeH,
                 minW: effectiveMinW,

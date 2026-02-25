@@ -118,6 +118,43 @@ describe('DashboardGrid', () => {
         expect(latestResponsiveProps.rowHeight).toBeCloseTo((768 - 16 * 5) / 6, 5);
     });
 
+    it('places widgets without persisted layout below occupied area on narrow breakpoints', () => {
+        const widgets = [
+            {
+                id: '1',
+                type: 'counter',
+                title: 'Pinned',
+                layout: {
+                    mobile: { x: 0, y: 0, w: 2, h: 2 }
+                }
+            },
+            { id: '2', type: 'counter', title: 'New 1' },
+            { id: '3', type: 'counter', title: 'New 2' }
+        ];
+
+        render(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        const xxsLayout = latestResponsiveProps.layouts?.xxs ?? [];
+        expect(xxsLayout).toHaveLength(3);
+
+        const pinned = xxsLayout.find((item: any) => item.i === '1');
+        const firstNew = xxsLayout.find((item: any) => item.i === '2');
+        const secondNew = xxsLayout.find((item: any) => item.i === '3');
+
+        expect(pinned).toMatchObject({ x: 0, y: 0, w: 2, h: 2 });
+        expect(firstNew?.x).toBe(0);
+        expect(secondNew?.x).toBe(0);
+        expect(firstNew?.y).toBeGreaterThanOrEqual(2);
+        expect(secondNew?.y).toBeGreaterThan(firstNew?.y ?? 0);
+    });
+
     it('does not persist responsive reflow layouts via onLayoutChange', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
         const onLayoutChange = vi.fn();

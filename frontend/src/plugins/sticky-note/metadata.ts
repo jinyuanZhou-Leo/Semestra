@@ -11,7 +11,7 @@ export const widgetCatalog: WidgetCatalogItem[] = [
         name: 'Sticky Note',
         description: 'Quickly capture short notes directly on your dashboard.',
         icon: createElement(StickyNote, { className: 'h-4 w-4' }),
-        layout: { w: 4, h: 3, minW: 3, minH: 2, maxW: 8, maxH: 8 },
+        layout: { w: 2, h: 2, minW: 1, minH: 1, maxW: 5, maxH: 5 },
         maxInstances: 'unlimited',
         allowedContexts: ['semester', 'course'],
     },
