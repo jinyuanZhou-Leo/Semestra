@@ -50,10 +50,11 @@ beforeAll(() => {
 
 // Mock RGL
 let latestResponsiveProps: any = null;
+let mockContainerWidth = 1200;
 vi.mock('react-grid-layout', () => {
     return {
         useContainerWidth: () => ({
-            width: 1200,
+            width: mockContainerWidth,
             mounted: true,
             containerRef: { current: null }
         }),
@@ -75,6 +76,7 @@ vi.mock('../../../plugins/course-list', () => ({
 describe('DashboardGrid', () => {
     beforeEach(() => {
         latestResponsiveProps = null;
+        mockContainerWidth = 1200;
     });
 
     it('renders empty state when no widgets', () => {
@@ -109,7 +111,7 @@ describe('DashboardGrid', () => {
     it('keeps grid unit width and height ratio at 1:1', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
 
-        render(
+        const { rerender } = render(
             <DashboardGrid
                 widgets={widgets as any}
                 onLayoutChange={() => { }}
@@ -118,21 +120,24 @@ describe('DashboardGrid', () => {
             />
         );
 
-        act(() => {
-            latestResponsiveProps.onWidthChange(1200, [16, 16], 12);
-        });
         expect(latestResponsiveProps.rowHeight).toBeCloseTo((1200 - 16 * 11) / 12, 5);
 
-        act(() => {
-            latestResponsiveProps.onWidthChange(768, [16, 16], 6);
-        });
+        mockContainerWidth = 768;
+        rerender(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
         expect(latestResponsiveProps.rowHeight).toBeCloseTo((768 - 16 * 5) / 6, 5);
     });
 
     it('falls back to a safe grid unit when width is too small', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
 
-        render(
+        const { rerender } = render(
             <DashboardGrid
                 widgets={widgets as any}
                 onLayoutChange={() => { }}
@@ -141,15 +146,27 @@ describe('DashboardGrid', () => {
             />
         );
 
-        act(() => {
-            latestResponsiveProps.onWidthChange(0, [16, 16], 12);
-        });
+        mockContainerWidth = 0;
+        rerender(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
         expect(latestResponsiveProps.rowHeight).toBe(85);
 
-        act(() => {
-            latestResponsiveProps.onWidthChange(100, [16, 16], 12);
-        });
-        expect(latestResponsiveProps.rowHeight).toBe(85);
+        mockContainerWidth = 100;
+        rerender(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+        expect(latestResponsiveProps.rowHeight).toBe(42);
     });
 
     it('places widgets without persisted layout below occupied area on narrow breakpoints', () => {

@@ -74,7 +74,7 @@ const reorderTabsByIds = (items: TabItem[], orderedIds: string[]) => {
 };
 
 export const SemesterDashboardMock = () => {
-  const { width, containerRef, mounted } = useContainerWidth();
+  const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const [layouts, setLayouts] = useState<DashboardLayouts>(initialLayouts);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [newTask, setNewTask] = useState('');

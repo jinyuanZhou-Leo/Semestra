@@ -8,7 +8,7 @@
 
 "use no memo";
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef } from 'react';
 import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -47,6 +47,15 @@ export interface WidgetResponsiveLayout {
 
 const getDeviceLayoutModeByBreakpoint = (breakpoint: keyof typeof GRID_BREAKPOINTS): DeviceLayoutMode => {
     return MOBILE_BREAKPOINTS.has(breakpoint) ? 'mobile' : 'desktop';
+};
+
+const getBreakpointByWidth = (width: number): keyof typeof GRID_BREAKPOINTS => {
+    const sorted = (Object.entries(GRID_BREAKPOINTS) as Array<[keyof typeof GRID_BREAKPOINTS, number]>)
+        .sort((left, right) => right[1] - left[1]);
+    for (const [breakpoint, minWidth] of sorted) {
+        if (width >= minWidth) return breakpoint;
+    }
+    return 'xxs';
 };
 
 const computeGridUnitSize = (
@@ -108,9 +117,12 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     isEditMode = false
 }) => {
     const isTouchDevice = useTouchDevice();
-    const { width, containerRef, mounted } = useContainerWidth();
-    const [rowHeight, setRowHeight] = useState<number>(DEFAULT_GRID_UNIT);
+    const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
     const activeBreakpointRef = useRef<keyof typeof GRID_BREAKPOINTS>('lg');
+    const rowHeight = useMemo(() => {
+        const breakpoint = getBreakpointByWidth(width);
+        return computeGridUnitSize(width, GRID_COLS[breakpoint], GRID_MARGIN, GRID_CONTAINER_PADDING);
+    }, [width]);
 
     const getActiveLayoutContext = React.useCallback(() => {
         const breakpoint = activeBreakpointRef.current;
@@ -242,9 +254,6 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                         if (newBreakpoint in GRID_BREAKPOINTS) {
                             activeBreakpointRef.current = newBreakpoint as keyof typeof GRID_BREAKPOINTS;
                         }
-                    }}
-                    onWidthChange={(nextWidth: number, _margin: readonly [number, number], currentCols: number) => {
-                        setRowHeight(computeGridUnitSize(nextWidth, currentCols, GRID_MARGIN, GRID_CONTAINER_PADDING));
                     }}
                     dragConfig={{
                         enabled: isEditMode,
