@@ -1,17 +1,17 @@
-// input:  [mock tabs/tasks/layout state, react-grid-layout runtime, demo widget interactions]
+// input:  [mock tabs/tasks/layout state, react-grid-layout v2 hooks/runtime, demo widget interactions]
 // output: [`SemesterDashboardMock` component]
-// pos:    [Interactive dashboard demo used in the marketing landing page]
+// pos:    [Interactive dashboard demo used in the marketing landing page with container-width-driven responsive grid]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { useMemo, useState } from 'react';
-import { Responsive } from 'react-grid-layout';
+import { Responsive, useContainerWidth } from 'react-grid-layout';
+import type { Layout, ResponsiveLayouts } from 'react-grid-layout';
 import { CalendarDays, CheckCircle2, GripVertical, ListTodo, Plus, Settings2 } from 'lucide-react';
 
 import { Tabs, type TabItem } from '@/components/Tabs';
-import { WidthProvider } from '@/components/widgets/WidthProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,8 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
-type ResponsiveLayouts = Record<string, Array<Record<string, number | string | boolean | undefined>>>;
+type DashboardLayouts = ResponsiveLayouts;
 
 type Task = {
   id: string;
@@ -29,7 +28,7 @@ type Task = {
   done: boolean;
 };
 
-const initialLayouts: ResponsiveLayouts = {
+const initialLayouts: DashboardLayouts = {
   lg: [
     { i: 'todo', x: 0, y: 0, w: 7, h: 6, minW: 4, minH: 4 },
     { i: 'schedule', x: 7, y: 0, w: 5, h: 3, minW: 4, minH: 3 },
@@ -75,7 +74,8 @@ const reorderTabsByIds = (items: TabItem[], orderedIds: string[]) => {
 };
 
 export const SemesterDashboardMock = () => {
-  const [layouts, setLayouts] = useState<ResponsiveLayouts>(initialLayouts);
+  const { width, containerRef, mounted } = useContainerWidth();
+  const [layouts, setLayouts] = useState<DashboardLayouts>(initialLayouts);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [newTask, setNewTask] = useState('');
   const [notes, setNotes] = useState('Use drag handles to rearrange widgets for this semester workflow.');
@@ -120,99 +120,106 @@ export const SemesterDashboardMock = () => {
   };
 
   const renderDashboardWidgets = () => (
-    <ResponsiveGridLayout
-      className="layout"
-      layouts={layouts}
-      breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-      cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-      rowHeight={44}
-      margin={[10, 10]}
-      containerPadding={[0, 0]}
-      onLayoutChange={(_layout: unknown, nextLayouts: ResponsiveLayouts) => setLayouts(nextLayouts)}
-      draggableHandle=".drag-handle"
-      draggableCancel=".nodrag, input, textarea, button, select, option, a, [contenteditable='true']"
-      isDraggable={true}
-      isResizable={true}
-    >
-      <div key="todo" className="overflow-hidden rounded-lg border border-border/60 bg-card">
-        <div className="drag-handle flex cursor-grab items-center justify-between border-b border-border/60 bg-muted/40 px-2 py-1.5">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <ListTodo className="h-3.5 w-3.5" />
-            Todo
-          </span>
-          <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-        </div>
-        <div className="nodrag space-y-2 p-2">
-          {tasks.map((task) => (
-            <button
-              key={task.id}
-              type="button"
-              onClick={() => handleToggleTask(task.id)}
-              className={`flex w-full items-center justify-between rounded-md border px-2 py-1.5 text-left text-xs transition-colors ${
-                task.done
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-                  : 'border-border/60 bg-background/70 text-foreground/90 hover:border-primary/40'
-              }`}
-            >
-              <span className="truncate">{task.label}</span>
-              <CheckCircle2 className={`h-3.5 w-3.5 ${task.done ? 'text-emerald-400' : 'text-muted-foreground'}`} />
-            </button>
-          ))}
-          <div className="flex gap-1.5">
-            <Input
-              value={newTask}
-              onChange={(event) => setNewTask(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  handleAddTask();
-                }
-              }}
-              placeholder="Quick add task..."
-              className="h-8 text-xs"
-            />
-            <Button type="button" size="sm" className="h-8 px-2" onClick={handleAddTask}>
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div key="schedule" className="overflow-hidden rounded-lg border border-border/60 bg-card">
-        <div className="drag-handle flex cursor-grab items-center justify-between border-b border-border/60 bg-muted/40 px-2 py-1.5">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <CalendarDays className="h-3.5 w-3.5" />
-            Today Schedule
-          </span>
-          <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-        </div>
-        <div className="nodrag space-y-1.5 p-2">
-          {scheduleItems.map((item) => (
-            <div key={item.time} className="rounded-md border border-border/60 bg-background/70 px-2 py-1.5 text-xs">
-              <div className="text-muted-foreground">{item.time}</div>
-              <div className="font-medium text-foreground">{item.label}</div>
+    <div ref={containerRef} style={{ width: '100%' }}>
+      {mounted && (
+        <Responsive
+          className="layout"
+          layouts={layouts}
+          breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+          cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+          width={width}
+          rowHeight={44}
+          margin={[10, 10]}
+          containerPadding={[0, 0]}
+          onLayoutChange={(_layout: Layout, nextLayouts: DashboardLayouts) => setLayouts(nextLayouts)}
+          dragConfig={{
+            enabled: true,
+            handle: '.drag-handle',
+            cancel: ".nodrag, input, textarea, button, select, option, a, [contenteditable='true']"
+          }}
+          resizeConfig={{ enabled: true }}
+        >
+          <div key="todo" className="overflow-hidden rounded-lg border border-border/60 bg-card">
+            <div className="drag-handle flex cursor-grab items-center justify-between border-b border-border/60 bg-muted/40 px-2 py-1.5">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <ListTodo className="h-3.5 w-3.5" />
+                Todo
+              </span>
+              <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="nodrag space-y-2 p-2">
+              {tasks.map((task) => (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={() => handleToggleTask(task.id)}
+                  className={`flex w-full items-center justify-between rounded-md border px-2 py-1.5 text-left text-xs transition-colors ${
+                    task.done
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                      : 'border-border/60 bg-background/70 text-foreground/90 hover:border-primary/40'
+                  }`}
+                >
+                  <span className="truncate">{task.label}</span>
+                  <CheckCircle2 className={`h-3.5 w-3.5 ${task.done ? 'text-emerald-400' : 'text-muted-foreground'}`} />
+                </button>
+              ))}
+              <div className="flex gap-1.5">
+                <Input
+                  value={newTask}
+                  onChange={(event) => setNewTask(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleAddTask();
+                    }
+                  }}
+                  placeholder="Quick add task..."
+                  className="h-8 text-xs"
+                />
+                <Button type="button" size="sm" className="h-8 px-2" onClick={handleAddTask}>
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
 
-      <div key="notes" className="overflow-hidden rounded-lg border border-border/60 bg-card">
-        <div className="drag-handle flex cursor-grab items-center justify-between border-b border-border/60 bg-muted/40 px-2 py-1.5">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Settings2 className="h-3.5 w-3.5" />
-            Notes
-          </span>
-          <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-        </div>
-        <div className="nodrag p-2">
-          <Textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            className="min-h-[108px] resize-none text-xs"
-          />
-        </div>
-      </div>
-    </ResponsiveGridLayout>
+          <div key="schedule" className="overflow-hidden rounded-lg border border-border/60 bg-card">
+            <div className="drag-handle flex cursor-grab items-center justify-between border-b border-border/60 bg-muted/40 px-2 py-1.5">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <CalendarDays className="h-3.5 w-3.5" />
+                Today Schedule
+              </span>
+              <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+            <div className="nodrag space-y-1.5 p-2">
+              {scheduleItems.map((item) => (
+                <div key={item.time} className="rounded-md border border-border/60 bg-background/70 px-2 py-1.5 text-xs">
+                  <div className="text-muted-foreground">{item.time}</div>
+                  <div className="font-medium text-foreground">{item.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div key="notes" className="overflow-hidden rounded-lg border border-border/60 bg-card">
+            <div className="drag-handle flex cursor-grab items-center justify-between border-b border-border/60 bg-muted/40 px-2 py-1.5">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Settings2 className="h-3.5 w-3.5" />
+                Notes
+              </span>
+              <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+            <div className="nodrag p-2">
+              <Textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                className="min-h-[108px] resize-none text-xs"
+              />
+            </div>
+          </div>
+        </Responsive>
+      )}
+    </div>
   );
 
   return (

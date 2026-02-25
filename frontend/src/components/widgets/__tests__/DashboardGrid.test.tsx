@@ -1,6 +1,6 @@
-// input:  [DashboardGrid component, mocked RGL runtime, registry fixtures and test callbacks]
-// output: [test suite covering dashboard layout persistence and breakpoint behavior]
-// pos:    [Regression tests for dashboard grid drag/resize/reflow rules]
+// input:  [DashboardGrid component, mocked RGL v2 runtime hooks, registry fixtures and layout callbacks]
+// output: [test suite covering dashboard local layout sync + commit persistence behavior]
+// pos:    [Regression tests for dashboard grid drag/resize/reflow rules with split sync and commit flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -34,24 +34,35 @@ beforeAll(() => {
         component: CourseList,
         layout: { w: 6, h: 8 }
     });
+    WidgetRegistry.register({
+        type: 'constrained',
+        name: 'Constrained',
+        component: Counter,
+        layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 }
+    });
+    WidgetRegistry.register({
+        type: 'ratio-locked',
+        name: 'Ratio Locked',
+        component: Counter,
+        layout: { w: 4, h: 3, minW: 2, minH: 1, maxW: 6, maxH: 6, aspectRatio: 16 / 9 }
+    });
 });
 
 // Mock RGL
 let latestResponsiveProps: any = null;
 vi.mock('react-grid-layout', () => {
     return {
-        WidthProvider: (Comp: any) => Comp,
+        useContainerWidth: () => ({
+            width: 1200,
+            mounted: true,
+            containerRef: { current: null }
+        }),
         Responsive: (props: any) => {
             latestResponsiveProps = props;
             return <div data-testid="rgl-grid">{props.children}</div>;
         },
     };
 });
-
-// Mock WidthProvider to ensure grid renders with a width
-vi.mock('../WidthProvider', () => ({
-    WidthProvider: (Comp: any) => (props: any) => <Comp {...props} width={1200} />
-}));
 
 // Mock child widgets to avoid complexity
 vi.mock('../../../plugins/counter', () => ({
@@ -118,6 +129,29 @@ describe('DashboardGrid', () => {
         expect(latestResponsiveProps.rowHeight).toBeCloseTo((768 - 16 * 5) / 6, 5);
     });
 
+    it('falls back to a safe grid unit when width is too small', () => {
+        const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
+
+        render(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        act(() => {
+            latestResponsiveProps.onWidthChange(0, [16, 16], 12);
+        });
+        expect(latestResponsiveProps.rowHeight).toBe(85);
+
+        act(() => {
+            latestResponsiveProps.onWidthChange(100, [16, 16], 12);
+        });
+        expect(latestResponsiveProps.rowHeight).toBe(85);
+    });
+
     it('places widgets without persisted layout below occupied area on narrow breakpoints', () => {
         const widgets = [
             {
@@ -155,14 +189,80 @@ describe('DashboardGrid', () => {
         expect(secondNew?.y).toBeGreaterThan(firstNew?.y ?? 0);
     });
 
-    it('does not persist responsive reflow layouts via onLayoutChange', () => {
+    it('sanitizes invalid persisted widget layout values', () => {
+        const widgets = [
+            {
+                id: '1',
+                type: 'constrained',
+                title: 'Constrained',
+                layout: {
+                    mobile: { x: -8, y: -5, w: 99, h: 0 }
+                }
+            }
+        ];
+
+        render(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        const constrained = latestResponsiveProps.layouts?.xxs?.[0];
+        expect(constrained).toMatchObject({
+            x: 0,
+            y: 0,
+            w: 2,
+            h: 2,
+            minW: 2,
+            maxW: 2,
+            minH: 2,
+            maxH: 4
+        });
+    });
+
+    it('normalizes layout to optional aspect ratio when widget defines aspectRatio', () => {
+        const widgets = [
+            {
+                id: '1',
+                type: 'ratio-locked',
+                title: 'Ratio',
+                layout: {
+                    mobile: { x: 0, y: 0, w: 2, h: 6 }
+                }
+            }
+        ];
+
+        render(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        const ratioWidget = latestResponsiveProps.layouts?.xxs?.[0];
+        expect(ratioWidget).toMatchObject({
+            x: 0,
+            y: 0,
+            w: 2,
+            h: 1
+        });
+    });
+
+    it('syncs local layout on responsive reflow without committing persistence', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
         const onLayoutChange = vi.fn();
+        const onLayoutCommit = vi.fn();
 
         render(
             <DashboardGrid
                 widgets={widgets as any}
                 onLayoutChange={onLayoutChange}
+                onLayoutCommit={onLayoutCommit}
                 semesterId={'1'}
                 isEditMode
             />
@@ -172,17 +272,21 @@ describe('DashboardGrid', () => {
             latestResponsiveProps.onLayoutChange?.([{ i: '1', x: 0, y: 0, w: 5, h: 3 }]);
         });
 
-        expect(onLayoutChange).not.toHaveBeenCalled();
+        expect(onLayoutChange).toHaveBeenCalledTimes(1);
+        expect(onLayoutChange).toHaveBeenCalledWith([{ i: '1', x: 0, y: 0, w: 5, h: 3 }], 'desktop', 12);
+        expect(onLayoutCommit).not.toHaveBeenCalled();
     });
 
     it('persists layout changes on drag stop while editing', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
         const onLayoutChange = vi.fn();
+        const onLayoutCommit = vi.fn();
 
         render(
             <DashboardGrid
                 widgets={widgets as any}
                 onLayoutChange={onLayoutChange}
+                onLayoutCommit={onLayoutCommit}
                 semesterId={'1'}
                 isEditMode
             />
@@ -194,18 +298,20 @@ describe('DashboardGrid', () => {
             latestResponsiveProps.onDragStop(layout);
         });
 
-        expect(onLayoutChange).toHaveBeenCalledTimes(1);
-        expect(onLayoutChange).toHaveBeenCalledWith(layout, 'desktop', 12);
+        expect(onLayoutCommit).toHaveBeenCalledTimes(1);
+        expect(onLayoutCommit).toHaveBeenCalledWith(layout, 'desktop', 12);
     });
 
     it('persists layout changes on resize stop while editing', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
         const onLayoutChange = vi.fn();
+        const onLayoutCommit = vi.fn();
 
         render(
             <DashboardGrid
                 widgets={widgets as any}
                 onLayoutChange={onLayoutChange}
+                onLayoutCommit={onLayoutCommit}
                 semesterId={'1'}
                 isEditMode
             />
@@ -217,18 +323,20 @@ describe('DashboardGrid', () => {
             latestResponsiveProps.onResizeStop(layout);
         });
 
-        expect(onLayoutChange).toHaveBeenCalledTimes(1);
-        expect(onLayoutChange).toHaveBeenCalledWith(layout, 'desktop', 12);
+        expect(onLayoutCommit).toHaveBeenCalledTimes(1);
+        expect(onLayoutCommit).toHaveBeenCalledWith(layout, 'desktop', 12);
     });
 
     it('persists layout changes to mobile layout when current breakpoint is mobile', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
         const onLayoutChange = vi.fn();
+        const onLayoutCommit = vi.fn();
 
         render(
             <DashboardGrid
                 widgets={widgets as any}
                 onLayoutChange={onLayoutChange}
+                onLayoutCommit={onLayoutCommit}
                 semesterId={'1'}
                 isEditMode
             />
@@ -241,18 +349,20 @@ describe('DashboardGrid', () => {
             latestResponsiveProps.onDragStop(layout);
         });
 
-        expect(onLayoutChange).toHaveBeenCalledTimes(1);
-        expect(onLayoutChange).toHaveBeenCalledWith(layout, 'mobile', 6);
+        expect(onLayoutCommit).toHaveBeenCalledTimes(1);
+        expect(onLayoutCommit).toHaveBeenCalledWith(layout, 'mobile', 6);
     });
 
     it('does not persist layouts when edit mode is disabled', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
         const onLayoutChange = vi.fn();
+        const onLayoutCommit = vi.fn();
 
         render(
             <DashboardGrid
                 widgets={widgets as any}
                 onLayoutChange={onLayoutChange}
+                onLayoutCommit={onLayoutCommit}
                 semesterId={'1'}
                 isEditMode={false}
             />
@@ -263,6 +373,6 @@ describe('DashboardGrid', () => {
             latestResponsiveProps.onResizeStop([{ i: '1', x: 0, y: 0, w: 3, h: 4 }]);
         });
 
-        expect(onLayoutChange).not.toHaveBeenCalled();
+        expect(onLayoutCommit).not.toHaveBeenCalled();
     });
 });

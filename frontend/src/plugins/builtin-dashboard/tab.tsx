@@ -1,6 +1,6 @@
-// input:  [builtin tab context state, dashboard widget callbacks, motion + icon dependencies]
+// input:  [builtin tab context state, dashboard widget callbacks (local layout sync + commit persistence), motion + icon dependencies]
 // output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` plugin metadata]
-// pos:    [Built-in dashboard tab UI entry handling edit mode state and floating action controls]
+// pos:    [Built-in dashboard tab UI entry handling edit mode state, floating action controls, and split layout callback wiring]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -162,6 +162,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
             <DashboardGrid
                 widgets={dashboard.widgets}
                 onLayoutChange={dashboard.onLayoutChange}
+                onLayoutCommit={dashboard.onLayoutCommit}
                 onRemoveWidget={dashboard.onRemoveWidget}
                 onEditWidget={dashboard.onEditWidget}
                 onUpdateWidget={dashboard.onUpdateWidget}

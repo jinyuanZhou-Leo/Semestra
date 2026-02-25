@@ -90,7 +90,16 @@ export interface WidgetDefinition {
     icon?: React.ReactNode;
     component: React.FC<WidgetProps>;
     defaultSettings?: any;
-    layout?: { w: number, h: number, minW?: number, minH?: number, maxW?: number, maxH?: number };
+    layout?: {
+        w: number,
+        h: number,
+        minW?: number,
+        minH?: number,
+        maxW?: number,
+        maxH?: number,
+        /** Optional target width:height ratio (for example 16 / 9). */
+        aspectRatio?: number
+    };
     /** Limit how many instances can be added. Use a number or 'unlimited' for no limit. */
     maxInstances?: MaxInstances;
     /** Limit where this widget can be added. Defaults to both contexts. */

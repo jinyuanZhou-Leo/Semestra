@@ -1,6 +1,6 @@
-// input:  [widget CRUD APIs, `WidgetRegistry`, plugin metadata/layout resolvers, retry/status helpers]
-// output: [`useDashboardWidgets()` state/actions including layout and debounced settings updates]
-// pos:    [Core widget orchestration hook for dashboard creation, update, remove, and layout sync]
+// input:  [widget CRUD APIs, `WidgetRegistry`, plugin metadata/layout resolvers, layout normalization utilities, retry/status helpers]
+// output: [`useDashboardWidgets()` state/actions with split local layout sync and commit persistence]
+// pos:    [Core widget orchestration hook for dashboard creation, update, remove, and two-phase layout synchronization]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,6 +15,7 @@ import type {
     WidgetLayout,
     WidgetResponsiveLayout
 } from '../components/widgets/DashboardGrid';
+import type { Layout } from 'react-grid-layout';
 import api from '../services/api';
 import type { Widget } from '../services/api';
 import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
@@ -25,6 +26,12 @@ import {
     getResolvedWidgetLayoutByType,
     getResolvedWidgetMetadataByType,
 } from '../plugin-system';
+import {
+    normalizeLayoutX,
+    normalizeLayoutY,
+    normalizeWidgetSize,
+    resolveWidgetLayoutConstraints
+} from '../utils/widgetLayout';
 
 const getWidgetSettingsRetryKey = (widgetId: string) => `widget-settings:${widgetId}`;
 const getWidgetLayoutRetryKey = (widgetId: string) => `widget-layout:${widgetId}`;
@@ -67,6 +74,41 @@ const mergeLayoutByDevice = (
     return {
         ...normalized,
         [deviceMode]: nextLayout
+    };
+};
+
+const pickLayoutByDevice = (
+    layout: WidgetResponsiveLayout | undefined,
+    deviceMode: DeviceLayoutMode
+): WidgetLayout | undefined => {
+    if (!layout) return undefined;
+    if (deviceMode === 'desktop') {
+        return layout.desktop ?? layout.mobile;
+    }
+    return layout.mobile ?? layout.desktop;
+};
+
+const isSameWidgetLayout = (
+    left: WidgetLayout | undefined,
+    right: WidgetLayout | undefined
+): boolean => {
+    if (!left && !right) return true;
+    if (!left || !right) return false;
+    return left.x === right.x && left.y === right.y && left.w === right.w && left.h === right.h;
+};
+
+const sanitizeWidgetLayout = (
+    layout: { x: unknown; y: unknown; w: unknown; h: unknown },
+    widgetType: string,
+    maxCols: number
+): WidgetLayout => {
+    const constraints = resolveWidgetLayoutConstraints(getResolvedWidgetLayoutByType(widgetType), maxCols);
+    const { w: safeW, h: safeH } = normalizeWidgetSize(layout.w, layout.h, constraints);
+    return {
+        x: normalizeLayoutX(layout.x, maxCols, safeW),
+        y: normalizeLayoutY(layout.y),
+        w: safeW,
+        h: safeH
     };
 };
 
@@ -549,46 +591,61 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         };
     }, [flushPendingLayouts]);
 
-    const updateLayout = useCallback((layouts: any[], deviceMode: DeviceLayoutMode, maxCols: number) => {
+    const updateLayout = useCallback((layouts: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => {
         const effectiveMaxCols = Math.max(1, maxCols);
-        const widgetById = new Map(widgets.map(w => [w.id, w]));
-        const layoutById = new Map(layouts.map(layout => [layout.i, layout]));
-        // OPTIMISTIC UI: Update local state immediately for smooth UX
-        setWidgets(prev => prev.map(w => {
-            const layout = layoutById.get(w.id);
-            if (layout) {
-                const layoutDef = getResolvedWidgetLayoutByType(w.type) || { minW: 2, minH: 2 };
-                const minW = layoutDef.minW || 2;
-                const minH = layoutDef.minH || 2;
-                const safeW = Math.min(Math.max(layout.w, Math.min(minW, effectiveMaxCols)), effectiveMaxCols);
-                const safeH = Math.max(layout.h, minH);
-                const nextLayout: WidgetLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
-                const nextResponsiveLayout = mergeLayoutByDevice(w.layout, deviceMode, nextLayout);
-                return { ...w, layout: nextResponsiveLayout };
-            }
-            return w;
-        }));
+        const layoutById = new Map(layouts.map((layout) => [layout.i, layout]));
 
-        // Queue layout changes for debounced API sync
-        layouts.forEach(layout => {
+        // Local in-memory sync for responsive reflow and immediate UI consistency.
+        setWidgets((prev) => {
+            let hasChanges = false;
+            const next = prev.map((widget) => {
+                const rawLayout = layoutById.get(widget.id);
+                if (!rawLayout) return widget;
+
+                const nextLayout = sanitizeWidgetLayout(rawLayout, widget.type, effectiveMaxCols);
+                const previousDeviceLayout = pickLayoutByDevice(widget.layout, deviceMode);
+                if (isSameWidgetLayout(previousDeviceLayout, nextLayout)) {
+                    return widget;
+                }
+
+                hasChanges = true;
+                return {
+                    ...widget,
+                    layout: mergeLayoutByDevice(widget.layout, deviceMode, nextLayout)
+                };
+            });
+            return hasChanges ? next : prev;
+        });
+    }, []);
+
+    const commitLayout = useCallback((layouts: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => {
+        const effectiveMaxCols = Math.max(1, maxCols);
+        const widgetById = new Map(widgets.map((widget) => [widget.id, widget]));
+        let hasQueuedChange = false;
+
+        // Queue only the widgets that actually changed for the active device layout.
+        layouts.forEach((layout) => {
             const widget = widgetById.get(layout.i);
-            const layoutDef = widget ? (getResolvedWidgetLayoutByType(widget.type) || { minW: 2, minH: 2 }) : { minW: 2, minH: 2 };
-            const minW = layoutDef.minW || 2;
-            const minH = layoutDef.minH || 2;
-            const safeW = Math.min(Math.max(layout.w, Math.min(minW, effectiveMaxCols)), effectiveMaxCols);
-            const safeH = Math.max(layout.h, minH);
-            const newLayout: WidgetLayout = { x: layout.x, y: layout.y, w: safeW, h: safeH };
-            const currentQueuedLayout = pendingLayoutsRef.current.get(layout.i);
-            const currentWidgetLayout = currentQueuedLayout ?? widget?.layout;
-            const nextResponsiveLayout = mergeLayoutByDevice(currentWidgetLayout, deviceMode, newLayout);
+            if (!widget) return;
+
+            const newLayout = sanitizeWidgetLayout(layout, widget.type, effectiveMaxCols);
+            const queuedLayout = pendingLayoutsRef.current.get(layout.i);
+            const baseLayout = queuedLayout ?? widget.layout;
+            const previousDeviceLayout = pickLayoutByDevice(baseLayout, deviceMode);
+            if (isSameWidgetLayout(previousDeviceLayout, newLayout)) return;
+
+            const nextResponsiveLayout = mergeLayoutByDevice(baseLayout, deviceMode, newLayout);
             pendingLayoutsRef.current.set(layout.i, nextResponsiveLayout);
             layoutRetryCountsRef.current.delete(layout.i);
             const retryKey = getWidgetLayoutRetryKey(layout.i);
             clearSyncRetryAction(retryKey);
             syncRetryKeysRef.current.delete(retryKey);
+            hasQueuedChange = true;
         });
 
-        // Debounce API sync (500ms to allow rapid drag/resize without API spam)
+        if (!hasQueuedChange) return;
+
+        // Debounce API sync (500ms to allow rapid drag/resize without API spam).
         if (layoutSyncTimerRef.current) {
             clearTimeout(layoutSyncTimerRef.current);
         }
@@ -612,6 +669,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         updateWidget,
         updateWidgetDebounced,  // For frequent updates (typing)
         flushWidgetSettings,     // For plugins to flush on blur
-        updateLayout
+        updateLayout,
+        commitLayout
     };
 };

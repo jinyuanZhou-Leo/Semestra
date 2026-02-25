@@ -1,6 +1,6 @@
-// input:  [dashboard widget actions and settings section nodes passed from homepage pages]
+// input:  [dashboard widget actions (including layout sync/commit callbacks) and settings section nodes passed from homepage pages]
 // output: [`BuiltinTabProvider`, `useBuiltinTabContext()`, and built-in tab context types]
-// pos:    [Bridge context consumed by builtin dashboard/settings tab implementations]
+// pos:    [Bridge context consumed by builtin dashboard/settings tab implementations with split layout sync and persistence actions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,6 +10,7 @@
 
 import React, { createContext, useContext } from 'react';
 import type { DeviceLayoutMode, WidgetItem } from '../components/widgets/DashboardGrid';
+import type { Layout } from 'react-grid-layout';
 
 type DashboardContextValue = {
     widgets: WidgetItem[];
@@ -18,7 +19,8 @@ type DashboardContextValue = {
     onEditWidget: (widget: WidgetItem) => void;
     onUpdateWidget: (id: string, data: any) => Promise<void>;
     onUpdateWidgetDebounced?: (id: string, data: any) => void;
-    onLayoutChange: (layouts: any, deviceMode: DeviceLayoutMode, maxCols: number) => void;
+    onLayoutChange: (layout: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => void;
+    onLayoutCommit?: (layout: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => void;
     semesterId?: string;
     courseId?: string;
     updateCourse?: (updates: any) => void;

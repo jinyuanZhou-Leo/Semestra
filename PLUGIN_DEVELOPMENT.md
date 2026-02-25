@@ -83,7 +83,8 @@ export interface WidgetDefinition {
         minW?: number,     // Minimum width
         minH?: number,     // Minimum height
         maxW?: number,     // Maximum width
-        maxH?: number      // Maximum height
+        maxH?: number,     // Maximum height
+        aspectRatio?: number // Optional width:height target ratio (for example 16 / 9)
     };
     maxInstances?: number | 'unlimited'; // Max instances per dashboard
     allowedContexts?: Array<'semester' | 'course'>; // Where this widget can be added
@@ -307,6 +308,8 @@ For resizable dashboard widgets, prefer a single responsive component over multi
 - Split into internal subviews only when layout structure is fundamentally different (for example `CompactView` vs `FullView`), still under one widget component.
 - Define size tokens for spacing, typography, controls, and visual elements so scaling is consistent.
 - Validate at minimum, medium, and maximum widget sizes to prevent overflow regressions.
+- If your widget needs a stable shape during resize, set `layout.aspectRatio` (for example `1`, `4 / 3`, or `16 / 9`).
+- `aspectRatio` is optional. The framework keeps the closest integer grid size that respects `min/max` constraints.
 
 This keeps behavior consistent, reduces maintenance cost, and avoids state divergence between size variants.
 

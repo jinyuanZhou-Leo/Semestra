@@ -135,7 +135,8 @@ const CourseHomepageContent: React.FC = () => {
         removeWidget: handleRemoveWidget,
         updateWidget: handleUpdateWidget,
         updateWidgetDebounced: handleUpdateWidgetDebounced,
-        updateLayout: handleLayoutChange
+        updateLayout: handleLayoutChange,
+        commitLayout: handleLayoutCommit
     } = useDashboardWidgets({
         courseId: course?.id,
         initialWidgets: course?.widgets,
@@ -408,6 +409,7 @@ const CourseHomepageContent: React.FC = () => {
             onUpdateWidget: handleUpdateWidget,
             onUpdateWidgetDebounced: handleUpdateWidgetDebounced,
             onLayoutChange: handleLayoutChange,
+            onLayoutCommit: handleLayoutCommit,
             courseId: course?.id,
             updateCourse
         },
@@ -439,6 +441,7 @@ const CourseHomepageContent: React.FC = () => {
         handleUpdateWidget,
         handleUpdateWidgetDebounced,
         handleLayoutChange,
+        handleLayoutCommit,
         course?.id,
         course?.name,
         course?.alias,

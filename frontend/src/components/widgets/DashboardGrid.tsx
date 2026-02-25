@@ -1,6 +1,6 @@
-// input:  [widget collection, edit-mode flags, responsive-grid callbacks, layout metadata resolvers]
+// input:  [widget collection, edit-mode flags, v2 RGL width hook, local/commit layout callbacks, layout normalization utilities]
 // output: [`DashboardGrid` component and dashboard layout type contracts]
-// pos:    [Core responsive dashboard renderer for widget placement and layout persistence]
+// pos:    [Core responsive dashboard renderer for widget placement plus split local-sync and commit persistence flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -16,15 +16,19 @@ import 'react-resizable/css/styles.css';
 import { DashboardWidgetWrapper } from './DashboardWidgetWrapper';
 import { getResolvedWidgetLayoutByType } from '../../plugin-system';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
+import {
+    normalizeLayoutX,
+    normalizeLayoutY,
+    normalizeWidgetSize,
+    resolveWidgetLayoutConstraints
+} from '../../utils/widgetLayout';
 
-import { Responsive } from 'react-grid-layout';
-import { WidthProvider } from './WidthProvider';
-
-const ResponsiveGridLayout = WidthProvider(Responsive);
+import { Responsive, useContainerWidth } from 'react-grid-layout';
 const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 } as const;
 const GRID_COLS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 } as const;
 const GRID_MARGIN: [number, number] = [16, 16];
 const GRID_CONTAINER_PADDING: [number, number] = [0, 0];
+const DEFAULT_GRID_UNIT = 85;
 const MOBILE_BREAKPOINTS = new Set<keyof typeof GRID_BREAKPOINTS>(['sm', 'xs', 'xxs']);
 
 export type DeviceLayoutMode = 'desktop' | 'mobile';
@@ -45,6 +49,22 @@ const getDeviceLayoutModeByBreakpoint = (breakpoint: keyof typeof GRID_BREAKPOIN
     return MOBILE_BREAKPOINTS.has(breakpoint) ? 'mobile' : 'desktop';
 };
 
+const computeGridUnitSize = (
+    width: number,
+    cols: number,
+    margin: readonly [number, number],
+    containerPadding: readonly [number, number]
+): number => {
+    const safeCols = Math.max(1, cols);
+    if (!Number.isFinite(width) || width <= 0) return DEFAULT_GRID_UNIT;
+    const totalMargin = margin[0] * (safeCols - 1);
+    const totalPadding = containerPadding[0] * 2;
+    const availableWidth = width - totalMargin - totalPadding;
+    if (availableWidth <= 0) return DEFAULT_GRID_UNIT;
+    // Grid unit is always square: one width unit equals one height unit.
+    return availableWidth / safeCols;
+};
+
 export interface WidgetItem {
     id: string;
     type: string;
@@ -57,7 +77,10 @@ export interface WidgetItem {
 interface DashboardGridProps {
     widgets: WidgetItem[];
     onWidgetsChange?: (newWidgets: WidgetItem[]) => void;
-    onLayoutChange: (layouts: Layout[], deviceMode: DeviceLayoutMode, maxCols: number) => void;
+    /** Local in-memory layout sync (fires on responsive reflow and user interactions). */
+    onLayoutChange: (layout: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => void;
+    /** Persist layout to backend (user commit actions only). */
+    onLayoutCommit?: (layout: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => void;
     onEditWidget?: (widget: WidgetItem) => void;
     onRemoveWidget?: (id: string) => void;
     /** For immediate updates (modals, delete, etc.) */
@@ -74,6 +97,7 @@ interface DashboardGridProps {
 export const DashboardGrid: React.FC<DashboardGridProps> = ({
     widgets,
     onLayoutChange,
+    onLayoutCommit,
     onEditWidget,
     onRemoveWidget,
     onUpdateWidget,
@@ -84,25 +108,28 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     isEditMode = false
 }) => {
     const isTouchDevice = useTouchDevice();
-    const [activeCols, setActiveCols] = useState<number>(GRID_COLS.lg);
-    const [activeWidth, setActiveWidth] = useState<number | null>(null);
+    const { width, containerRef, mounted } = useContainerWidth();
+    const [rowHeight, setRowHeight] = useState<number>(DEFAULT_GRID_UNIT);
     const activeBreakpointRef = useRef<keyof typeof GRID_BREAKPOINTS>('lg');
 
-    const rowHeight = useMemo(() => {
-        if (!activeWidth || activeCols <= 0) return 85;
-        const totalMargin = GRID_MARGIN[0] * (activeCols - 1);
-        const totalPadding = GRID_CONTAINER_PADDING[0] * 2;
-        const availableWidth = activeWidth - totalMargin - totalPadding;
-        if (availableWidth <= 0) return 85;
-        // Keep grid units square so width:height ratio is always 1:1.
-        return availableWidth / activeCols;
-    }, [activeWidth, activeCols]);
-
-    const commitUserLayout = React.useCallback((layout: Layout[]) => {
-        if (!isEditMode) return;
+    const getActiveLayoutContext = React.useCallback(() => {
         const breakpoint = activeBreakpointRef.current;
-        onLayoutChange(layout, getDeviceLayoutModeByBreakpoint(breakpoint), GRID_COLS[breakpoint]);
-    }, [isEditMode, onLayoutChange]);
+        return {
+            deviceMode: getDeviceLayoutModeByBreakpoint(breakpoint),
+            maxCols: GRID_COLS[breakpoint]
+        };
+    }, []);
+
+    const syncLocalLayout = React.useCallback((layout: Layout) => {
+        const context = getActiveLayoutContext();
+        onLayoutChange(layout, context.deviceMode, context.maxCols);
+    }, [getActiveLayoutContext, onLayoutChange]);
+
+    const commitUserLayout = React.useCallback((layout: Layout) => {
+        if (!isEditMode || !onLayoutCommit) return;
+        const context = getActiveLayoutContext();
+        onLayoutCommit(layout, context.deviceMode, context.maxCols);
+    }, [getActiveLayoutContext, isEditMode, onLayoutCommit]);
 
     const getWidgetLayoutForDevice = React.useCallback((layout: WidgetResponsiveLayout | undefined, deviceMode: DeviceLayoutMode) => {
         if (!layout) return undefined;
@@ -121,13 +148,9 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             const sourceLayout = getWidgetLayoutForDevice(w.layout, deviceMode);
             if (!sourceLayout) return;
 
-            const layoutDef = getResolvedWidgetLayoutByType(w.type) || { w: 4, h: 4, minW: 2, minH: 2 };
-            const minW = layoutDef.minW || 2;
-            const minH = layoutDef.minH || 2;
-            const effectiveMinW = Math.min(minW, cols);
-            const safeW = Math.min(Math.max(sourceLayout.w, effectiveMinW), cols);
-            const safeH = Math.max(sourceLayout.h, minH);
-            const safeY = Math.max(sourceLayout.y, 0);
+            const constraints = resolveWidgetLayoutConstraints(getResolvedWidgetLayoutByType(w.type), cols);
+            const { h: safeH } = normalizeWidgetSize(sourceLayout.w, sourceLayout.h, constraints);
+            const safeY = normalizeLayoutY(sourceLayout.y);
             maxOccupiedY = Math.max(maxOccupiedY, safeY + safeH);
         });
 
@@ -137,26 +160,20 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
         let fallbackRowMaxH = 0;
 
         return widgets.map((w) => {
-            const layoutDef = getResolvedWidgetLayoutByType(w.type) || { w: 4, h: 4, minW: 2, minH: 2 };
-            const minW = layoutDef.minW || 2;
-            const minH = layoutDef.minH || 2;
-            const maxCols = cols;
-            const effectiveMinW = Math.min(minW, maxCols);
+            const constraints = resolveWidgetLayoutConstraints(getResolvedWidgetLayoutByType(w.type), cols);
             const sourceLayout = getWidgetLayoutForDevice(w.layout, deviceMode);
-            const rawW = sourceLayout?.w ?? layoutDef.w;
-            const rawH = sourceLayout?.h ?? layoutDef.h;
-            const safeW = Math.min(Math.max(rawW, effectiveMinW), maxCols);
-            const safeH = Math.max(rawH, minH);
-            const maxX = Math.max(0, maxCols - safeW);
+            const { w: safeW, h: safeH } = sourceLayout
+                ? normalizeWidgetSize(sourceLayout.w, sourceLayout.h, constraints)
+                : normalizeWidgetSize(constraints.defaultW, constraints.defaultH, constraints);
 
             let x: number;
             let y: number;
 
             if (sourceLayout) {
-                x = Math.min(Math.max(sourceLayout.x, 0), maxX);
-                y = Math.max(sourceLayout.y, 0);
+                x = normalizeLayoutX(sourceLayout.x, cols, safeW);
+                y = normalizeLayoutY(sourceLayout.y);
             } else {
-                if (fallbackCursorX + safeW > maxCols) {
+                if (fallbackCursorX + safeW > cols) {
                     fallbackCursorX = 0;
                     fallbackCursorY += fallbackRowMaxH;
                     fallbackRowMaxH = 0;
@@ -174,10 +191,10 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                 y,
                 w: safeW,
                 h: safeH,
-                minW: effectiveMinW,
-                minH,
-                maxW: layoutDef.maxW ? Math.min(layoutDef.maxW, maxCols) : maxCols,
-                maxH: layoutDef.maxH,
+                minW: constraints.minW,
+                minH: constraints.minH,
+                maxW: constraints.maxW,
+                maxH: constraints.maxH,
             };
         });
     }, [getWidgetLayoutForDevice, widgets]);
@@ -203,52 +220,63 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     }
 
     return (
-        <ResponsiveGridLayout
-            className={`layout${isEditMode ? ' layout--editing' : ''}`}
-            layouts={layouts}
-            breakpoints={GRID_BREAKPOINTS}
-            cols={GRID_COLS}
-            rowHeight={rowHeight}
-            margin={GRID_MARGIN}
-            containerPadding={GRID_CONTAINER_PADDING}
-            // Do not persist via onLayoutChange because it also fires during responsive reflow.
-            // Persist only on explicit user actions to keep layout stable after resize/restore.
-            onDragStop={(layout: Layout[]) => commitUserLayout(layout)}
-            onResizeStop={(layout: Layout[]) => commitUserLayout(layout)}
-            onBreakpointChange={(newBreakpoint: string) => {
-                if (newBreakpoint in GRID_BREAKPOINTS) {
-                    activeBreakpointRef.current = newBreakpoint as keyof typeof GRID_BREAKPOINTS;
-                }
-            }}
-            onWidthChange={(width: number, _margin: [number, number], currentCols: number) => {
-                setActiveWidth(width);
-                setActiveCols(currentCols);
-            }}
-            draggableHandle={isTouchDevice ? ".drag-surface" : ".drag-handle"}
-            draggableCancel=".nodrag, input, textarea, button, select, option, a, [contenteditable='true'], [data-widget-control]"
-            isDraggable={isEditMode}
-            isResizable={isEditMode && !isTouchDevice}
-        >
-            {widgets.map((widget, index) => {
-                const isRemovable = widget.is_removable !== false;
+        <div ref={containerRef} style={{ width: '100%' }}>
+            {mounted && (
+                <Responsive
+                    className={`layout${isEditMode ? ' layout--editing' : ''}`}
+                    layouts={layouts}
+                    breakpoints={GRID_BREAKPOINTS}
+                    cols={GRID_COLS}
+                    width={width}
+                    rowHeight={rowHeight}
+                    margin={GRID_MARGIN}
+                    containerPadding={GRID_CONTAINER_PADDING}
+                    // Keep local widget state in sync with all RGL layout transitions, including reflow.
+                    onLayoutChange={(layout: Layout) => {
+                        syncLocalLayout(layout);
+                    }}
+                    // Persist only on explicit user actions to avoid reflow-driven backend writes.
+                    onDragStop={(layout: Layout) => commitUserLayout(layout)}
+                    onResizeStop={(layout: Layout) => commitUserLayout(layout)}
+                    onBreakpointChange={(newBreakpoint: string) => {
+                        if (newBreakpoint in GRID_BREAKPOINTS) {
+                            activeBreakpointRef.current = newBreakpoint as keyof typeof GRID_BREAKPOINTS;
+                        }
+                    }}
+                    onWidthChange={(nextWidth: number, _margin: readonly [number, number], currentCols: number) => {
+                        setRowHeight(computeGridUnitSize(nextWidth, currentCols, GRID_MARGIN, GRID_CONTAINER_PADDING));
+                    }}
+                    dragConfig={{
+                        enabled: isEditMode,
+                        handle: isTouchDevice ? '.drag-surface' : '.drag-handle',
+                        cancel: ".nodrag, input, textarea, button, select, option, a, [contenteditable='true'], [data-widget-control]"
+                    }}
+                    resizeConfig={{
+                        enabled: isEditMode && !isTouchDevice
+                    }}
+                >
+                    {widgets.map((widget, index) => {
+                        const isRemovable = widget.is_removable !== false;
 
-                return (
-                    <div key={widget.id} className="border border-transparent">
-                        <DashboardWidgetWrapper
-                            widget={widget}
-                            index={index}
-                            onRemove={onRemoveWidget && isRemovable ? onRemoveWidget : undefined}
-                            onEdit={onEditWidget}
-                            onUpdateWidget={onUpdateWidget || (async () => { })}
-                            onUpdateWidgetDebounced={onUpdateWidgetDebounced}
-                            semesterId={semesterId}
-                            courseId={courseId}
-                            updateCourse={updateCourse}
-                            isEditMode={isEditMode}
-                        />
-                    </div>
-                );
-            })}
-        </ResponsiveGridLayout>
+                        return (
+                            <div key={widget.id} className="border border-transparent">
+                                <DashboardWidgetWrapper
+                                    widget={widget}
+                                    index={index}
+                                    onRemove={onRemoveWidget && isRemovable ? onRemoveWidget : undefined}
+                                    onEdit={onEditWidget}
+                                    onUpdateWidget={onUpdateWidget || (async () => { })}
+                                    onUpdateWidgetDebounced={onUpdateWidgetDebounced}
+                                    semesterId={semesterId}
+                                    courseId={courseId}
+                                    updateCourse={updateCourse}
+                                    isEditMode={isEditMode}
+                                />
+                            </div>
+                        );
+                    })}
+                </Responsive>
+            )}
+        </div>
     );
 };

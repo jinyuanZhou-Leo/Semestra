@@ -94,7 +94,8 @@ const SemesterHomepageContent: React.FC = () => {
         updateWidget: handleUpdateWidget,
         updateWidgetDebounced: handleUpdateWidgetDebounced,
         removeWidget: handleRemoveWidget,
-        updateLayout: handleLayoutChange
+        updateLayout: handleLayoutChange,
+        commitLayout: handleLayoutCommit
     } = useDashboardWidgets({
         semesterId: semester?.id,
         initialWidgets: semester?.widgets,
@@ -325,6 +326,7 @@ const SemesterHomepageContent: React.FC = () => {
             onUpdateWidget: handleUpdateWidget,
             onUpdateWidgetDebounced: handleUpdateWidgetDebounced,
             onLayoutChange: handleLayoutChange,
+            onLayoutCommit: handleLayoutCommit,
             semesterId: semester?.id
         },
         settings: {
@@ -352,6 +354,7 @@ const SemesterHomepageContent: React.FC = () => {
         handleUpdateWidget,
         handleUpdateWidgetDebounced,
         handleLayoutChange,
+        handleLayoutCommit,
         semester,
         handleUpdateSemester,
         hasPluginSettings,
