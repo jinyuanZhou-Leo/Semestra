@@ -1,5 +1,5 @@
-// input:  [entity ID, typed fetch/update functions, debounce interval, `useDataFetch`]
-// output: [`useEntityContext<T>()` hook with optimistic `updateData` and refresh APIs]
+// input:  [entity ID, typed fetch/update functions, debounce interval, `useDataFetch`, stale-context guards]
+// output: [`useEntityContext<T>()` hook with optimistic `updateData`, refresh APIs, and context-safe sync]
 // pos:    [Reusable optimistic-sync engine behind course and semester data providers]
 //
 // ⚠️ When this file is updated:
@@ -48,6 +48,7 @@ export function useEntityContext<T extends object>({
     const pendingUpdates = useRef<Partial<T>>({});
     const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const syncSeqRef = useRef(0);
+    const entityIdRef = useRef(entityId);
 
     const fetchEntityFn = useCallback(() => fetchFn(entityId), [entityId, fetchFn]);
 
@@ -62,14 +63,16 @@ export function useEntityContext<T extends object>({
     });
 
     const syncToBackend = useCallback(async () => {
-        if (!entityId || Object.keys(pendingUpdates.current).length === 0) return;
+        const targetEntityId = entityIdRef.current;
+        if (!targetEntityId || Object.keys(pendingUpdates.current).length === 0) return;
 
         const updates = { ...pendingUpdates.current };
         pendingUpdates.current = {};
         const syncSeq = ++syncSeqRef.current;
 
         try {
-            const result = await updateFn(entityId, updates);
+            const result = await updateFn(targetEntityId, updates);
+            if (entityIdRef.current !== targetEntityId) return;
             // Apply server-authoritative data only if no newer updates are pending.
             if (syncSeq === syncSeqRef.current && Object.keys(pendingUpdates.current).length === 0) {
                 setData(prev => {
@@ -78,12 +81,13 @@ export function useEntityContext<T extends object>({
                 });
             }
         } catch (error) {
-            console.error(`Failed to sync entity ${entityId} to backend`, error);
+            if (entityIdRef.current !== targetEntityId) return;
+            console.error(`Failed to sync entity ${targetEntityId} to backend`, error);
             // On error, merge updates back to pending for retry
             pendingUpdates.current = { ...updates, ...pendingUpdates.current };
             reportError('Failed to sync changes. Will retry.');
         }
-    }, [entityId, updateFn, setData]);
+    }, [updateFn, setData]);
 
     const updateData = useCallback((updates: Partial<T>) => {
         // Optimistic update: apply changes to local state immediately
@@ -102,27 +106,35 @@ export function useEntityContext<T extends object>({
         syncTimerRef.current = setTimeout(syncToBackend, debounceMs);
     }, [syncToBackend, setData, debounceMs]);
 
+    useEffect(() => {
+        entityIdRef.current = entityId;
+        pendingUpdates.current = {};
+        syncSeqRef.current = 0;
+
+        if (syncTimerRef.current) {
+            clearTimeout(syncTimerRef.current);
+            syncTimerRef.current = null;
+        }
+    }, [entityId]);
+
     // Cleanup: ensure pending updates are synced before unmount
     useEffect(() => {
         return () => {
             if (syncTimerRef.current) {
                 clearTimeout(syncTimerRef.current);
             }
-            if (Object.keys(pendingUpdates.current).length > 0 && entityId) {
-                updateFn(entityId, pendingUpdates.current)
-                    .then((result) => {
-                        setData(prev => {
-                            if (!prev) return result as T;
-                            return { ...prev, ...result };
-                        });
-                    })
+            if (Object.keys(pendingUpdates.current).length > 0 && entityIdRef.current) {
+                const targetEntityId = entityIdRef.current;
+                const pending = { ...pendingUpdates.current };
+                pendingUpdates.current = {};
+                void updateFn(targetEntityId, pending)
                     .catch((error) => {
-                        console.error(`Failed to flush entity ${entityId} updates`, error);
+                        console.error(`Failed to flush entity ${targetEntityId} updates`, error);
                         reportError('Failed to sync changes. Please retry.');
                     });
             }
         };
-    }, [entityId, updateFn, setData]);
+    }, [updateFn]);
 
     return {
         data,

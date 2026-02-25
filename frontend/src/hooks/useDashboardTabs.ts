@@ -1,5 +1,5 @@
-// input:  [tab CRUD APIs, `TabRegistry` constraints, plugin loader, retry/status services]
-// output: [`TabItem` type and `useDashboardTabs()` state/actions for dashboard tabs]
+// input:  [tab CRUD APIs, `TabRegistry` constraints, plugin loader, retry/status services, context guards]
+// output: [`TabItem` type and `useDashboardTabs()` state/actions with context-safe optimistic synchronization]
 // pos:    [Core tab orchestration hook for optimistic create/update/reorder/delete flows]
 //
 // ⚠️ When this file is updated:
@@ -67,14 +67,37 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
     const settingsRetryCountsRef = useRef<Map<string, number>>(new Map());
     const orderRetryCountsRef = useRef<Map<string, number>>(new Map());
     const syncRetryKeysRef = useRef<Set<string>>(new Set());
+    const settingsSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const pendingSettingsRef = useRef<Map<string, any>>(new Map());
+    const orderSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingOrderRef = useRef<Map<string, number>>(new Map());
     const contextKey = courseId ? `course:${courseId}` : (semesterId ? `semester:${semesterId}` : 'none');
     const currentContextKeyRef = useRef(contextKey);
+    const contextVersionRef = useRef(0);
 
     useEffect(() => {
         if (currentContextKeyRef.current === contextKey) return;
         currentContextKeyRef.current = contextKey;
+
+        contextVersionRef.current += 1;
+
+        settingsSyncTimersRef.current.forEach((timer) => clearTimeout(timer));
+        settingsSyncTimersRef.current.clear();
+        pendingSettingsRef.current.clear();
+
+        if (orderSyncTimerRef.current) {
+            clearTimeout(orderSyncTimerRef.current);
+            orderSyncTimerRef.current = null;
+        }
+        pendingOrderRef.current.clear();
+
+        tabUpdateSeqRef.current.clear();
+        settingsRetryCountsRef.current.clear();
+        orderRetryCountsRef.current.clear();
+
         syncRetryKeysRef.current.forEach((key) => clearSyncRetryAction(key));
         syncRetryKeysRef.current.clear();
+
         initialSyncDoneRef.current = false;
         setTabs([]);
         setIsInitialized(false);
@@ -90,6 +113,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
     }, [initialTabs]);
 
     const addTab = useCallback(async (type: string, options?: AddTabOptions) => {
+        const contextVersion = contextVersionRef.current;
         const context: TabContext | null = courseId ? 'course' : (semesterId ? 'semester' : null);
         if (!context) return;
 
@@ -144,6 +168,10 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                 });
             }
 
+            if (contextVersionRef.current !== contextVersion) {
+                return;
+            }
+
             const mappedTab: TabItem = toTabItem(newTab);
             settingsRetryCountsRef.current.delete(mappedTab.id);
             orderRetryCountsRef.current.delete(mappedTab.id);
@@ -169,6 +197,10 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                 }
             }
 
+            if (contextVersionRef.current !== contextVersion) {
+                return;
+            }
+
             setTabs(prev => [...prev, mappedTab].sort((a, b) => a.order_index - b.order_index));
             if (onRefresh) onRefresh();
         } catch (error) {
@@ -178,6 +210,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
     }, [courseId, semesterId, onRefresh, tabs]);
 
     const removeTab = useCallback(async (id: string) => {
+        const contextVersion = contextVersionRef.current;
         const tabToRemove = tabs.find(tab => tab.id === id);
         if (tabToRemove?.is_removable === false) return;
         const previousTabs = [...tabs];
@@ -192,6 +225,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
         syncRetryKeysRef.current.delete(orderRetryKey);
         try {
             await api.deleteTab(id);
+            if (contextVersionRef.current !== contextVersion) return;
             if (tabToRemove) {
                 const definition = TabRegistry.get(tabToRemove.type);
                 if (definition?.onDelete) {
@@ -210,12 +244,14 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Failed to delete tab', error);
+            if (contextVersionRef.current !== contextVersion) return;
             setTabs(previousTabs);
             reportError('Failed to remove tab. Please try again.');
         }
     }, [courseId, semesterId, tabs, onRefresh]);
 
     const updateTab = useCallback(async (id: string, data: any) => {
+        const contextVersion = contextVersionRef.current;
         const nextSeq = (tabUpdateSeqRef.current.get(id) ?? 0) + 1;
         tabUpdateSeqRef.current.set(id, nextSeq);
         setTabs(prev => prev.map(t => {
@@ -237,6 +273,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
         }));
         try {
             const result = await api.updateTab(id, data);
+            if (contextVersionRef.current !== contextVersion) return;
             const latestSeq = tabUpdateSeqRef.current.get(id);
             if (latestSeq === nextSeq) {
                 setTabs(prev => prev.map(t => (t.id === id ? toTabItem(result) : t)));
@@ -252,16 +289,14 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Failed to update tab', error);
+            if (contextVersionRef.current !== contextVersion) return;
             if (onRefresh) onRefresh();
             reportError('Failed to save tab changes. Please retry.');
         }
     }, [onRefresh]);
 
-    // Debounced settings sync for tabs
-    const settingsSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-    const pendingSettingsRef = useRef<Map<string, any>>(new Map());
-
     const flushTabSettings = useCallback(async (tabId: string) => {
+        const contextVersion = contextVersionRef.current;
         const retryKey = getTabSettingsRetryKey(tabId);
         const timer = settingsSyncTimersRef.current.get(tabId);
         if (timer) {
@@ -275,6 +310,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
             tabUpdateSeqRef.current.set(tabId, nextSeq);
             try {
                 const result = await api.updateTab(tabId, pending);
+                if (contextVersionRef.current !== contextVersion) return;
                 const latestSeq = tabUpdateSeqRef.current.get(tabId);
                 if (latestSeq === nextSeq && !pendingSettingsRef.current.has(tabId)) {
                     setTabs(prev => prev.map(t => (t.id === tabId ? toTabItem(result) : t)));
@@ -283,6 +319,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                 clearSyncRetryAction(retryKey);
                 syncRetryKeysRef.current.delete(retryKey);
             } catch (error) {
+                if (contextVersionRef.current !== contextVersion) return;
                 console.error('Failed to sync tab settings', tabId, error);
                 if (!isRetryableError(error)) {
                     reportError('Failed to sync tab settings.');
@@ -292,6 +329,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                 settingsRetryCountsRef.current.set(tabId, attempt);
                 if (attempt >= MAX_RETRY_ATTEMPTS) {
                     registerSyncRetryAction(retryKey, () => {
+                        if (contextVersionRef.current !== contextVersion) return;
                         settingsRetryCountsRef.current.delete(tabId);
                         pendingSettingsRef.current.set(tabId, pending);
                         void flushTabSettings(tabId);
@@ -358,8 +396,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
             settingsSyncTimers.forEach(timer => clearTimeout(timer));
             pendingSettings.forEach(async (data, tabId) => {
                 try {
-                    const result = await api.updateTab(tabId, data);
-                    setTabs(prev => prev.map(t => (t.id === tabId ? toTabItem(result) : t)));
+                    await api.updateTab(tabId, data);
                     settingsRetryCounts.delete(tabId);
                     const retryKey = getTabSettingsRetryKey(tabId);
                     clearSyncRetryAction(retryKey);
@@ -374,11 +411,8 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
         };
     }, []);
 
-    // Order sync
-    const orderSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const pendingOrderRef = useRef<Map<string, number>>(new Map());
-
     const flushTabOrder = useCallback(async () => {
+        const contextVersion = contextVersionRef.current;
         if (pendingOrderRef.current.size === 0) return;
         if (orderSyncTimerRef.current) {
             clearTimeout(orderSyncTimerRef.current);
@@ -386,12 +420,14 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
         }
         const entries = Array.from(pendingOrderRef.current.entries());
         pendingOrderRef.current.clear();
-        for (const [id, order_index] of entries) {
+
+        await Promise.all(entries.map(async ([id, order_index]) => {
             const retryKey = getTabOrderRetryKey(id);
             try {
                 const nextSeq = (tabUpdateSeqRef.current.get(id) ?? 0) + 1;
                 tabUpdateSeqRef.current.set(id, nextSeq);
                 const result = await api.updateTab(id, { order_index });
+                if (contextVersionRef.current !== contextVersion) return;
                 const latestSeq = tabUpdateSeqRef.current.get(id);
                 if (latestSeq === nextSeq && !pendingOrderRef.current.has(id)) {
                     setTabs(prev => prev.map(t => (t.id === id ? toTabItem(result) : t)));
@@ -400,29 +436,33 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
                 clearSyncRetryAction(retryKey);
                 syncRetryKeysRef.current.delete(retryKey);
             } catch (error) {
+                if (contextVersionRef.current !== contextVersion) return;
                 console.error('Failed to sync tab order', error);
                 if (!isRetryableError(error)) {
                     reportError('Failed to sync tab order.');
-                    continue;
+                    return;
                 }
                 const attempt = (orderRetryCountsRef.current.get(id) ?? 0) + 1;
                 orderRetryCountsRef.current.set(id, attempt);
                 if (attempt >= MAX_RETRY_ATTEMPTS) {
                     registerSyncRetryAction(retryKey, () => {
+                        if (contextVersionRef.current !== contextVersion) return;
                         orderRetryCountsRef.current.delete(id);
                         pendingOrderRef.current.set(id, order_index);
                         void flushTabOrder();
                     });
                     syncRetryKeysRef.current.add(retryKey);
                     reportError('Sync failed after retries. Please retry manually.', 0);
-                    continue;
+                    return;
                 }
                 clearSyncRetryAction(retryKey);
                 syncRetryKeysRef.current.delete(retryKey);
                 reportError('Sync failed. Retrying...');
                 pendingOrderRef.current.set(id, order_index);
             }
-        }
+        }));
+
+        if (contextVersionRef.current !== contextVersion) return;
 
         if (pendingOrderRef.current.size > 0 && !orderSyncTimerRef.current) {
             const maxAttempt = Math.max(
