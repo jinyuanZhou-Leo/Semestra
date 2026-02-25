@@ -1,3 +1,11 @@
+// input:  [counter widget settings/update callback plus shared button/form controls]
+// output: [counter widget component, settings component, and widget definition metadata]
+// pos:    [interactive numeric widget with bounds, step controls, and optional ring visualization]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useCallback, useId, useState } from 'react';
@@ -213,22 +221,24 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
             <div className="flex shrink-0 items-center" style={{ gap: 'var(--counter-controls-gap)' }}>
                     <Button
                         onClick={handleDecrement}
-                    variant="secondary"
+                        variant="secondary"
                         size="icon"
-                    className="rounded-full transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    style={{ width: 'var(--counter-button)', height: 'var(--counter-button)' }}
-                    disabled={value <= min}
+                        className="rounded-full transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        style={{ width: 'var(--counter-button)', height: 'var(--counter-button)' }}
+                        disabled={value <= min}
+                        aria-label="Decrement"
                     >
-                    <Minus style={{ width: 'var(--counter-icon)', height: 'var(--counter-icon)' }} />
+                        <Minus style={{ width: 'var(--counter-icon)', height: 'var(--counter-icon)' }} />
                     </Button>
                     <Button
                         onClick={handleIncrement}
                         size="icon"
-                    className="rounded-full shadow-sm"
-                    style={{ width: 'var(--counter-button)', height: 'var(--counter-button)' }}
-                    disabled={value >= max}
+                        className="rounded-full shadow-sm"
+                        style={{ width: 'var(--counter-button)', height: 'var(--counter-button)' }}
+                        disabled={value >= max}
+                        aria-label="Increment"
                     >
-                    <Plus style={{ width: 'var(--counter-icon)', height: 'var(--counter-icon)' }} />
+                        <Plus style={{ width: 'var(--counter-icon)', height: 'var(--counter-icon)' }} />
                     </Button>
                 </div>
 

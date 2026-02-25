@@ -1,3 +1,11 @@
+// input:  [widget settings/update callbacks, framer-motion animation runtime, shadcn form controls/dialog actions]
+// output: [habit-streak widget component, settings component, helpers, and widget definition metadata]
+// pos:    [plugin runtime + settings layer for interval-based habit check-ins, streak progression visuals, and interval-agnostic motivational copy]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -15,13 +23,11 @@ const HOUR_IN_MS = 60 * 60 * 1000;
 const DAY_IN_MS = 24 * HOUR_IN_MS;
 const INTERVAL_OPTIONS = [
     { value: 0, label: 'No interval' },
-    { value: 1, label: 'Every hour' },
     { value: 24, label: 'Every day' },
     { value: 168, label: 'Every week' },
 ] as const;
 const ALLOWED_INTERVAL_HOURS = INTERVAL_OPTIONS.map((option) => option.value);
 const MIN_TARGET_STREAK = 1;
-const MAX_TARGET_STREAK = 365;
 interface HabitStreakSettings {
     habitName: string;
     checkInIntervalHours: number;
@@ -57,65 +63,81 @@ const MOTIVATIONAL_MESSAGES: { streakMin: number; templates: MessageTemplate[] }
     {
         streakMin: 0,
         templates: [
-            (n) => `Day ${n}. Every streak starts here.`,
+            (n) => `Streak #${n}. Every streak starts here.`,
             (n) => `Check-in ${n} done. You showed up.`,
-            (n) => `Day ${n} — the hardest part is just beginning.`,
+            (n) => `Streak #${n} - the hardest part is beginning.`,
+            (n) => `Check-in ${n}. Nice start.`,
+            (n) => `Streak #${n}. Keep going.`,
         ],
     },
     {
         streakMin: 3,
         templates: [
-            (n) => `${n} days in. Momentum is building.`,
-            (n) => `Day ${n}. Consistency adds up.`,
-            (n) => `${n} days straight — keep the chain going.`,
+            (n) => `${n} check-ins in a row. Momentum is building.`,
+            (n) => `Streak #${n}. Consistency adds up.`,
+            (n) => `${n} in a row. Keep the chain going.`,
+            (n) => `${n} locked in. Keep showing up.`,
+            (n) => `Streak #${n}. You're on track.`,
         ],
     },
     {
         streakMin: 7,
         templates: [
-            (n) => `${n} days. A week of showing up.`,
-            (n) => `Day ${n} — habits are starting to form.`,
-            (n) => `${n}-day streak. One week strong.`,
+            (n) => `${n} check-ins. You're showing up for yourself.`,
+            (n) => `Streak #${n}. Habits are starting to form.`,
+            (n) => `Streak #${n}. Keep this rhythm alive.`,
+            (n) => `${n} strong. Keep the pace.`,
+            (n) => `Streak #${n}. Solid rhythm.`,
         ],
     },
     {
         streakMin: 14,
         templates: [
-            (n) => `${n} days. Two weeks of dedication.`,
-            (n) => `Day ${n} — this is becoming a part of you.`,
-            (n) => `${n} days in. You're building something real.`,
+            (n) => `${n} check-ins. That's dedication.`,
+            (n) => `Streak #${n}. This is becoming part of you.`,
+            (n) => `${n} in a row. You're building something real.`,
+            (n) => `Streak #${n}. Discipline is visible.`,
+            (n) => `${n} straight. You're leveling up.`,
         ],
     },
     {
         streakMin: 21,
         templates: [
-            (n) => `${n} days. They say it takes 21 to make a habit.`,
-            (n) => `Day ${n} — three weeks of pure follow-through.`,
-            (n) => `${n}-day streak. It's a habit now.`,
+            (n) => `${n} check-ins. This is real consistency.`,
+            (n) => `Streak #${n}. Pure follow-through.`,
+            (n) => `Streak #${n}. It's a habit now.`,
+            (n) => `Streak #${n}. This is your standard.`,
+            (n) => `${n} in a row. Keep it automatic.`,
         ],
     },
     {
         streakMin: 30,
         templates: [
-            (n) => `${n} days. A whole month of showing up.`,
-            (n) => `Day ${n} — one month strong.`,
-            (n) => `${n}-day streak. That's real commitment.`,
+            (n) => `${n} check-ins. You're committed.`,
+            (n) => `Streak #${n}. Strong execution.`,
+            (n) => `Streak #${n}. That's real commitment.`,
+            (n) => `Streak #${n}. Locked and focused.`,
+            (n) => `${n} check-ins. No excuses.`,
         ],
     },
     {
         streakMin: 60,
         templates: [
-            (n) => `${n} days. Two months of consistency.`,
-            (n) => `Day ${n} — this is just who you are now.`,
-            (n) => `${n}-day streak. Remarkable.`,
+            (n) => `${n} check-ins. Incredible consistency.`,
+            (n) => `Streak #${n}. This is who you are now.`,
+            (n) => `Streak #${n}. Remarkable.`,
+            (n) => `Streak #${n}. Elite consistency.`,
+            (n) => `${n} straight. You're relentless.`,
         ],
     },
     {
         streakMin: 100,
         templates: [
-            (n) => `${n} days. Triple digits.`,
-            (n) => `Day ${n} — most people only dream of this.`,
-            (n) => `${n}-day streak. Legendary.`,
+            (n) => `${n} check-ins. Triple digits.`,
+            (n) => `Streak #${n}. Most people only dream of this.`,
+            (n) => `Streak #${n}. Legendary.`,
+            (n) => `Streak #${n}. Top-tier consistency.`,
+            (n) => `${n} in a row. Iconic run.`,
         ],
     },
 ];
@@ -141,7 +163,7 @@ const clampTargetStreak = (value: unknown): number => {
     const numericValue = typeof value === 'string' ? Number.parseInt(value, 10) : Number(value);
     if (!Number.isFinite(numericValue)) return DEFAULT_HABIT_STREAK_SETTINGS.targetStreak;
     const rounded = Math.round(numericValue);
-    return Math.min(MAX_TARGET_STREAK, Math.max(MIN_TARGET_STREAK, rounded));
+    return Math.max(MIN_TARGET_STREAK, rounded);
 };
 
 const getStartOfLocalDay = (timestampMs: number) => {
@@ -296,7 +318,6 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
                         id={`${ids}-target-streak`}
                         type="number"
                         min={MIN_TARGET_STREAK}
-                        max={MAX_TARGET_STREAK}
                         value={habitSettings.targetStreak}
                         onChange={(event) => updateSettings({ targetStreak: clampTargetStreak(event.target.value) })}
                     />
@@ -341,6 +362,7 @@ const getMilestoneTier = (progress: number): 0 | 1 | 2 | 3 | 4 => {
 const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount, targetProgress, reactionSignal }) => {
     const [bursts, setBursts] = useState<{ id: number; isOverachieve?: boolean }[]>([]);
     const [milestoneBursts, setMilestoneBursts] = useState<{ id: number; color: string; tier: number }[]>([]);
+    const gradientId = useId().replace(/:/g, '-');
 
     // Track previous tier to detect boundary crossings
     const prevTierRef = React.useRef(getMilestoneTier(targetProgress));
@@ -403,7 +425,7 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     cx="50"
                     cy="50"
                     r="46"
-                    stroke="url(#streak-gradient)"
+                    stroke={`url(#${gradientId})`}
                     strokeWidth="4.5"
                     strokeLinecap="round"
                     fill="none"
@@ -413,7 +435,7 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     strokeDasharray={circumference}
                 />
                 <defs>
-                    <linearGradient id="streak-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#facc15" />
                         <stop offset="50%" stopColor="#f97316" />
                         <stop offset="100%" stopColor="#f43f5e" />
@@ -608,9 +630,6 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                         )}>
                             {habitTitle}
                         </h3>
-                        <span className="text-[11px] font-medium text-foreground/50">
-                            Goal: {habitSettings.targetStreak} streaks
-                        </span>
                     </div>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -684,13 +703,19 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     {motivationalToast && (
                         <motion.div
                             key={motivationalToast.id}
-                            className="pointer-events-none absolute inset-x-0 bottom-[52px] z-20 flex items-end justify-center px-4 pb-2 pt-12 xl:bottom-[56px]"
-                            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
-                            animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
+                            className="pointer-events-none absolute inset-x-0 bottom-[52px] z-20 flex items-end justify-center px-4 pb-2 xl:bottom-[56px]"
+                            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 4, scale: 0.96 }}
                             transition={{ duration: 0.3, ease: 'easeOut' }}
                         >
-                            <p className="relative z-10 text-center text-[10.5px] font-medium leading-snug text-foreground/50 dark:text-foreground/45">
+                            <p
+                                className="rounded-full px-3 py-1.5 text-center text-[10.5px] font-semibold leading-snug shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                style={{
+                                    backgroundColor: 'color-mix(in srgb, var(--color-background) 88%, transparent)',
+                                    color: 'var(--color-foreground)',
+                                }}
+                            >
                                 {motivationalToast.message}
                             </p>
                         </motion.div>

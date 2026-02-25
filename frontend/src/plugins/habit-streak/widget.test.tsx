@@ -1,3 +1,11 @@
+// input:  [HabitStreak widget/helper exports and testing-library render/event utilities]
+// output: [vitest coverage for habit check-in windows, widget UI behavior, and header reset actions]
+// pos:    [plugin-level regression tests for habit-streak helper logic and runtime contract expectations]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -133,7 +141,7 @@ describe('HabitStreakWidget', () => {
         expect(button).toBeDisabled();
     });
 
-    it('shows target streak progress in capsule', () => {
+    it('shows goal streak label and keeps legacy capsule text removed', () => {
         const updateSettings = vi.fn();
 
         render(
@@ -152,7 +160,8 @@ describe('HabitStreakWidget', () => {
             />
         );
 
-        expect(screen.getByText('5/30 streak')).toBeInTheDocument();
+        expect(screen.getByText('Goal: 30 streaks')).toBeInTheDocument();
+        expect(screen.queryByText('5/30 streak')).not.toBeInTheDocument();
     });
 
     it('resets streak through header confirm action', () => {
@@ -203,6 +212,60 @@ describe('HabitStreakWidget', () => {
             bestStreak: 0,
             totalCheckIns: 0,
             lastCheckInAt: null,
+            showMotivationalMessage: true,
+        });
+    });
+
+    it('preserves motivational message preference when reset from header action', () => {
+        const resetAction = HabitStreakWidgetDefinition.headerButtons?.find((button) => button.id === 'reset-streak');
+        const updateSettings = vi.fn();
+        let confirmAction: (() => void | Promise<void>) | null = null;
+
+        if (!resetAction) {
+            throw new Error('Missing habit-streak reset action');
+        }
+
+        const actionNode = resetAction.render(
+            {
+                widgetId: 'habit-5',
+                settings: {
+                    habitName: 'Read',
+                    checkInIntervalHours: 24,
+                    targetStreak: 21,
+                    streakCount: 10,
+                    bestStreak: 10,
+                    totalCheckIns: 18,
+                    lastCheckInAt: '2026-02-20T09:00:00.000Z',
+                    showMotivationalMessage: false,
+                },
+                updateSettings,
+            },
+            {
+                ActionButton: () => null,
+                ConfirmActionButton: (props) => {
+                    confirmAction = props.onClick;
+                    return null;
+                },
+            }
+        );
+
+        render(<>{actionNode}</>);
+
+        if (!confirmAction) {
+            throw new Error('Missing reset confirm callback');
+        }
+        const runConfirm = confirmAction as (() => void | Promise<void>);
+        void runConfirm();
+
+        expect(updateSettings).toHaveBeenCalledWith({
+            habitName: 'Read',
+            checkInIntervalHours: 24,
+            targetStreak: 21,
+            streakCount: 0,
+            bestStreak: 0,
+            totalCheckIns: 0,
+            lastCheckInAt: null,
+            showMotivationalMessage: false,
         });
     });
 });

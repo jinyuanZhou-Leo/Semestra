@@ -1,3 +1,11 @@
+// input:  [widget settings for timezone/second visibility and shared UI primitives from shadcn]
+// output: [world-clock widget component, settings component, and plugin definition metadata]
+// pos:    [timezone display plugin rendering formatted date/time with configurable refresh cadence]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -82,11 +90,31 @@ const WorldClockComponent: React.FC<WidgetProps> = ({ settings }) => {
     const showSeconds = settings?.showSeconds ?? true;
 
     useEffect(() => {
-        const timer = setInterval(() => {
+        setTime(new Date());
+
+        if (showSeconds) {
+            const secondTimer = window.setInterval(() => {
+                setTime(new Date());
+            }, 1000);
+            return () => window.clearInterval(secondTimer);
+        }
+
+        let minuteTimer: number | null = null;
+        const delayToNextMinute = 60_000 - (Date.now() % 60_000);
+        const alignTimer = window.setTimeout(() => {
             setTime(new Date());
-        }, 1000);
-        return () => clearInterval(timer);
-    }, []);
+            minuteTimer = window.setInterval(() => {
+                setTime(new Date());
+            }, 60_000);
+        }, delayToNextMinute);
+
+        return () => {
+            window.clearTimeout(alignTimer);
+            if (minuteTimer !== null) {
+                window.clearInterval(minuteTimer);
+            }
+        };
+    }, [showSeconds]);
 
     const timeFormatter = useMemo(() => {
         const options: Intl.DateTimeFormatOptions = {

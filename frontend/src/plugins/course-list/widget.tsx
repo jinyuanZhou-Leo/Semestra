@@ -1,6 +1,14 @@
+// input:  [semester context id, semester/course API service, and router link navigation]
+// output: [course-list widget component and plugin definition metadata]
+// pos:    [semester-scoped dashboard widget that fetches and renders course summary cards]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import api from '../../services/api';
@@ -14,17 +22,35 @@ import { Badge } from '@/components/ui/badge';
  */
 const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
     const [courses, setCourses] = useState<Course[]>([]);
-    const fetchCourses = useCallback(async () => {
-        if (!semesterId) return;
-        const data = await api.getSemester(semesterId);
-        if (data.courses) setCourses(data.courses);
-    }, [semesterId]);
+    const latestFetchRef = React.useRef(0);
 
     useEffect(() => {
-        if (semesterId) {
-            fetchCourses();
+        if (!semesterId) {
+            setCourses([]);
+            return;
         }
-    }, [semesterId, fetchCourses]);
+
+        let isActive = true;
+        const fetchId = latestFetchRef.current + 1;
+        latestFetchRef.current = fetchId;
+
+        const fetchCourses = async () => {
+            try {
+                const data = await api.getSemester(semesterId);
+                if (!isActive || fetchId !== latestFetchRef.current) return;
+                setCourses(Array.isArray(data.courses) ? data.courses : []);
+            } catch (error) {
+                if (!isActive || fetchId !== latestFetchRef.current) return;
+                console.error('Failed to load course list widget data', error);
+                setCourses([]);
+            }
+        };
+
+        void fetchCourses();
+        return () => {
+            isActive = false;
+        };
+    }, [semesterId]);
 
     if (!semesterId) {
         return (

@@ -887,7 +887,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
 
   return (
     <div className="space-y-4 select-none">
-      <Card className="overflow-hidden">
+      <div className="overflow-hidden">
         <div className="overflow-x-auto">
           <div className={showListSidebar
             ? 'grid min-w-[720px] grid-cols-[208px_minmax(0,1fr)] gap-0 md:grid-cols-[232px_minmax(0,1fr)] xl:min-w-0 xl:grid-cols-[244px_minmax(0,1fr)]'
@@ -970,7 +970,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
             </div>
           </div>
         </div>
-      </Card>
+      </div>
 
       <TodoDeleteListAlert
         open={deleteListDialogOpen}

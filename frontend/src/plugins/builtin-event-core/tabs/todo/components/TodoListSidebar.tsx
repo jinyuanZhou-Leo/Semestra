@@ -81,14 +81,14 @@ export const TodoListSidebar: React.FC<TodoListSidebarProps> = ({
                   type="button"
                   onClick={() => onSelectList(list.id)}
                   className={cn(
-                    'w-full rounded-md border px-2 py-1.5 text-left transition-colors',
+                    'group relative w-full rounded-md px-2 py-1.5 text-left transition-colors',
                     isCustomList && 'pr-8',
                     isActive
-                      ? 'border-primary/45 bg-primary/5'
-                      : 'border-border/60 hover:border-border hover:bg-muted/35',
+                      ? 'bg-accent/80 text-foreground font-medium'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
                   )}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-1.5">
                     <div className="min-w-0">
                       <p className="truncate text-[13px] font-medium leading-tight">{list.name}</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">

@@ -52,9 +52,9 @@ export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
           onDragOver={(event) => onDragOverSection(event, section.id)}
           onDrop={(event) => onDropToSection(event, section.id, null)}
           className={cn(
-            'rounded-md border px-1.5 py-1',
-            isCompletedSection ? 'border-border/60 opacity-85' : 'border-border/55',
-            dragOverSectionId === section.id && 'border-primary/60',
+            'rounded-md px-1.5 py-1',
+            isCompletedSection && 'opacity-85',
+            dragOverSectionId === section.id && 'bg-primary/5',
           )}
         >
           <div className="flex items-center gap-2 px-1 py-1">

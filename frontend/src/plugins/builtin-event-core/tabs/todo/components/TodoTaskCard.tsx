@@ -108,9 +108,9 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
       onDragOver={(event) => onTaskDragOverSection(event, sectionId)}
       onDrop={(event) => onTaskDropToSection(event, sectionId, task.id)}
       className={cn(
-        'group/task rounded-md border px-3 py-2',
-        task.completed ? 'border-border/50 bg-background/80' : 'border-border/70 bg-background',
-        draggingTaskId === task.id && 'opacity-55',
+        'group/task rounded-md border bg-card px-3 py-2 shadow-sm transition-shadow',
+        task.completed ? 'bg-muted/30' : 'hover:shadow-md',
+        draggingTaskId === task.id && 'opacity-55 blur-[1px]',
       )}
     >
       <div className="flex items-start justify-between gap-2">
