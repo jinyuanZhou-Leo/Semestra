@@ -102,7 +102,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
 
     return (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-            <DialogContent className="gap-0 p-0 sm:max-w-xl h-[600px] flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95">
+            <DialogContent className="gap-0 p-0 sm:max-w-xl h-[600px] flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 flex-none">
                     <DialogTitle>Add Widget</DialogTitle>
                     <DialogDescription>

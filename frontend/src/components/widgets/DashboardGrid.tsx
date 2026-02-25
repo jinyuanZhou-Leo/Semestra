@@ -1,6 +1,6 @@
-// input:  [widget collection, edit-mode flags, v2 RGL width hook, local/commit layout callbacks, layout normalization utilities]
+// input:  [widget collection, edit-mode flags, v2 RGL width hook, resize-frequency guards, interaction-scoped local sync + commit callbacks, layout normalization utilities]
 // output: [`DashboardGrid` component and dashboard layout type contracts]
-// pos:    [Core responsive dashboard renderer for widget placement plus split local-sync and commit persistence flows]
+// pos:    [Core responsive dashboard renderer with resize-stabilized width updates and split local-sync/commit persistence flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -29,6 +29,9 @@ const GRID_COLS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 } as const;
 const GRID_MARGIN: [number, number] = [16, 16];
 const GRID_CONTAINER_PADDING: [number, number] = [0, 0];
 const DEFAULT_GRID_UNIT = 85;
+const RESIZE_WIDTH_DELTA_PX = 16;
+const RESIZE_COMMIT_INTERVAL_MS = 120;
+const RESIZE_SETTLE_DELAY_MS = 180;
 const MOBILE_BREAKPOINTS = new Set<keyof typeof GRID_BREAKPOINTS>(['sm', 'xs', 'xxs']);
 
 export type DeviceLayoutMode = 'desktop' | 'mobile';
@@ -74,6 +77,11 @@ const computeGridUnitSize = (
     return availableWidth / safeCols;
 };
 
+const normalizeMeasuredWidth = (rawWidth: number): number => {
+    if (!Number.isFinite(rawWidth) || rawWidth <= 0) return 0;
+    return Math.round(rawWidth);
+};
+
 export interface WidgetItem {
     id: string;
     type: string;
@@ -86,7 +94,7 @@ export interface WidgetItem {
 interface DashboardGridProps {
     widgets: WidgetItem[];
     onWidgetsChange?: (newWidgets: WidgetItem[]) => void;
-    /** Local in-memory layout sync (fires on responsive reflow and user interactions). */
+    /** Local in-memory layout sync (fires during drag/resize interactions). */
     onLayoutChange: (layout: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => void;
     /** Persist layout to backend (user commit actions only). */
     onLayoutCommit?: (layout: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => void;
@@ -117,12 +125,75 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     isEditMode = false
 }) => {
     const isTouchDevice = useTouchDevice();
-    const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
+    const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true, initialWidth: 0 });
     const activeBreakpointRef = useRef<keyof typeof GRID_BREAKPOINTS>('lg');
+    const isUserInteractingRef = useRef(false);
+    const normalizedMeasuredWidth = React.useMemo(() => normalizeMeasuredWidth(width), [width]);
+    const [stableWidth, setStableWidth] = React.useState<number>(normalizedMeasuredWidth);
+    const stableWidthRef = React.useRef(stableWidth);
+    const latestMeasuredWidthRef = React.useRef(normalizedMeasuredWidth);
+    const settleTimerRef = React.useRef<number | null>(null);
+    const lastWidthCommitAtRef = React.useRef<number>(0);
+    const effectiveGridWidth = stableWidth > 0 ? stableWidth : normalizedMeasuredWidth;
+    const hasRenderableWidth = effectiveGridWidth > 0;
+
+    const commitStableWidth = React.useCallback((nextWidth: number, now: number) => {
+        if (nextWidth === stableWidthRef.current) return;
+        stableWidthRef.current = nextWidth;
+        lastWidthCommitAtRef.current = now;
+        setStableWidth(nextWidth);
+    }, []);
+
+    React.useEffect(() => {
+        latestMeasuredWidthRef.current = normalizedMeasuredWidth;
+        const nextWidth = latestMeasuredWidthRef.current;
+        const prevWidth = stableWidthRef.current;
+        if (nextWidth <= 0) {
+            if (settleTimerRef.current !== null) {
+                window.clearTimeout(settleTimerRef.current);
+                settleTimerRef.current = null;
+            }
+            return;
+        }
+        const now = Date.now();
+        const previousBreakpoint = getBreakpointByWidth(prevWidth > 0 ? prevWidth : GRID_BREAKPOINTS.lg);
+        const nextBreakpoint = getBreakpointByWidth(nextWidth > 0 ? nextWidth : GRID_BREAKPOINTS.lg);
+        const breakpointChanged = previousBreakpoint !== nextBreakpoint;
+        const delta = Math.abs(nextWidth - prevWidth);
+        const throttleWindowPassed = now - lastWidthCommitAtRef.current >= RESIZE_COMMIT_INTERVAL_MS;
+        const shouldCommitNow = breakpointChanged || (delta >= RESIZE_WIDTH_DELTA_PX && throttleWindowPassed);
+
+        if (shouldCommitNow) {
+            if (settleTimerRef.current !== null) {
+                window.clearTimeout(settleTimerRef.current);
+                settleTimerRef.current = null;
+            }
+            commitStableWidth(nextWidth, now);
+            return;
+        }
+
+        if (settleTimerRef.current !== null) {
+            window.clearTimeout(settleTimerRef.current);
+        }
+        settleTimerRef.current = window.setTimeout(() => {
+            settleTimerRef.current = null;
+            commitStableWidth(latestMeasuredWidthRef.current, Date.now());
+        }, RESIZE_SETTLE_DELAY_MS);
+    }, [commitStableWidth, normalizedMeasuredWidth]);
+
+    React.useEffect(() => {
+        return () => {
+            if (settleTimerRef.current !== null) {
+                window.clearTimeout(settleTimerRef.current);
+                settleTimerRef.current = null;
+            }
+        };
+    }, []);
+
     const rowHeight = useMemo(() => {
-        const breakpoint = getBreakpointByWidth(width);
-        return computeGridUnitSize(width, GRID_COLS[breakpoint], GRID_MARGIN, GRID_CONTAINER_PADDING);
-    }, [width]);
+        const breakpoint = getBreakpointByWidth(effectiveGridWidth);
+        return computeGridUnitSize(effectiveGridWidth, GRID_COLS[breakpoint], GRID_MARGIN, GRID_CONTAINER_PADDING);
+    }, [effectiveGridWidth]);
 
     const getActiveLayoutContext = React.useCallback(() => {
         const breakpoint = activeBreakpointRef.current;
@@ -233,23 +304,40 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
 
     return (
         <div ref={containerRef} style={{ width: '100%' }}>
-            {mounted && (
+            {mounted && hasRenderableWidth && (
                 <Responsive
                     className={`layout${isEditMode ? ' layout--editing' : ''}`}
                     layouts={layouts}
                     breakpoints={GRID_BREAKPOINTS}
                     cols={GRID_COLS}
-                    width={width}
+                    width={effectiveGridWidth}
                     rowHeight={rowHeight}
                     margin={GRID_MARGIN}
                     containerPadding={GRID_CONTAINER_PADDING}
-                    // Keep local widget state in sync with all RGL layout transitions, including reflow.
+                    // Skip reflow-driven sync to avoid heavy state churn when overlays lock page scroll.
+                    // Local sync should happen while users are actively dragging/resizing.
                     onLayoutChange={(layout: Layout) => {
-                        syncLocalLayout(layout);
+                        if (isUserInteractingRef.current) {
+                            syncLocalLayout(layout);
+                        }
+                    }}
+                    onDragStart={() => {
+                        isUserInteractingRef.current = true;
                     }}
                     // Persist only on explicit user actions to avoid reflow-driven backend writes.
-                    onDragStop={(layout: Layout) => commitUserLayout(layout)}
-                    onResizeStop={(layout: Layout) => commitUserLayout(layout)}
+                    onDragStop={(layout: Layout) => {
+                        syncLocalLayout(layout);
+                        commitUserLayout(layout);
+                        isUserInteractingRef.current = false;
+                    }}
+                    onResizeStart={() => {
+                        isUserInteractingRef.current = true;
+                    }}
+                    onResizeStop={(layout: Layout) => {
+                        syncLocalLayout(layout);
+                        commitUserLayout(layout);
+                        isUserInteractingRef.current = false;
+                    }}
                     onBreakpointChange={(newBreakpoint: string) => {
                         if (newBreakpoint in GRID_BREAKPOINTS) {
                             activeBreakpointRef.current = newBreakpoint as keyof typeof GRID_BREAKPOINTS;

@@ -238,9 +238,41 @@ describe('PomodoroWidget', () => {
 
         expect(updateSettings).toHaveBeenCalledWith(
             expect.objectContaining({
-                mode: 'shortBreak',
+                mode: 'focus',
                 status: 'idle',
-                remainingSeconds: DEFAULT_POMODORO_SETTINGS.shortBreakMinutes * 60,
+                completedFocusCount: 0,
+                remainingSeconds: DEFAULT_POMODORO_SETTINGS.focusMinutes * 60,
+                sessionEndAt: null,
+            })
+        );
+    });
+
+    it('resets timer from widget reset button to initial focus baseline', () => {
+        const updateSettings = vi.fn();
+
+        render(
+            <PomodoroWidget
+                widgetId="pomodoro-7"
+                settings={{
+                    ...DEFAULT_POMODORO_SETTINGS,
+                    mode: 'longBreak',
+                    status: 'paused',
+                    completedFocusCount: 6,
+                    remainingSeconds: 222,
+                    sessionEndAt: Date.now() + 222_000,
+                }}
+                updateSettings={updateSettings}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Reset timer' }));
+
+        expect(updateSettings).toHaveBeenCalledWith(
+            expect.objectContaining({
+                mode: 'focus',
+                status: 'idle',
+                completedFocusCount: 0,
+                remainingSeconds: DEFAULT_POMODORO_SETTINGS.focusMinutes * 60,
                 sessionEndAt: null,
             })
         );

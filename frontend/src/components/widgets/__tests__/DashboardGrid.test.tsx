@@ -1,6 +1,6 @@
-// input:  [DashboardGrid component, mocked RGL v2 runtime hooks, registry fixtures and layout callbacks]
-// output: [test suite covering dashboard local layout sync + commit persistence behavior]
-// pos:    [Regression tests for dashboard grid drag/resize/reflow rules with split sync and commit flows]
+// input:  [DashboardGrid component, mocked RGL v2 runtime hooks, registry fixtures, resize-frequency guards, and layout callbacks]
+// output: [test suite covering dashboard resize throttling, layout normalization, and split local-sync/commit behavior]
+// pos:    [Regression tests for dashboard grid drag/resize/reflow rules with stabilized width updates]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,7 +8,7 @@
 
 import { act, render, screen } from '@testing-library/react';
 import { DashboardGrid } from '../DashboardGrid';
-import { vi, describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 
 import { WidgetRegistry } from '../../../services/widgetRegistry';
 import { Counter } from '../../../plugins/counter';
@@ -78,6 +78,9 @@ describe('DashboardGrid', () => {
         latestResponsiveProps = null;
         mockContainerWidth = 1200;
     });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
 
     it('renders empty state when no widgets', () => {
         render(
@@ -146,17 +149,6 @@ describe('DashboardGrid', () => {
             />
         );
 
-        mockContainerWidth = 0;
-        rerender(
-            <DashboardGrid
-                widgets={widgets as any}
-                onLayoutChange={() => { }}
-                semesterId={'1'}
-                isEditMode
-            />
-        );
-        expect(latestResponsiveProps.rowHeight).toBe(85);
-
         mockContainerWidth = 100;
         rerender(
             <DashboardGrid
@@ -167,6 +159,35 @@ describe('DashboardGrid', () => {
             />
         );
         expect(latestResponsiveProps.rowHeight).toBe(42);
+    });
+
+    it('does not render the grid until container width is measurable', () => {
+        mockContainerWidth = 0;
+        const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
+
+        const { rerender } = render(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(screen.queryByTestId('rgl-grid')).not.toBeInTheDocument();
+
+        mockContainerWidth = 1200;
+        rerender(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(screen.getByTestId('rgl-grid')).toBeInTheDocument();
+        expect(latestResponsiveProps.width).toBe(1200);
     });
 
     it('places widgets without persisted layout below occupied area on narrow breakpoints', () => {
@@ -270,7 +291,7 @@ describe('DashboardGrid', () => {
         });
     });
 
-    it('syncs local layout on responsive reflow without committing persistence', () => {
+    it('does not sync local layout on responsive reflow when user is not interacting', () => {
         const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
         const onLayoutChange = vi.fn();
         const onLayoutCommit = vi.fn();
@@ -289,9 +310,72 @@ describe('DashboardGrid', () => {
             latestResponsiveProps.onLayoutChange?.([{ i: '1', x: 0, y: 0, w: 5, h: 3 }]);
         });
 
-        expect(onLayoutChange).toHaveBeenCalledTimes(1);
-        expect(onLayoutChange).toHaveBeenCalledWith([{ i: '1', x: 0, y: 0, w: 5, h: 3 }], 'desktop', 12);
+        expect(onLayoutChange).not.toHaveBeenCalled();
         expect(onLayoutCommit).not.toHaveBeenCalled();
+    });
+
+    it('throttles tiny resize deltas and flushes final width after settle delay', () => {
+        vi.useFakeTimers();
+        const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
+        const onLayoutChange = vi.fn();
+
+        const { rerender } = render(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={onLayoutChange}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(latestResponsiveProps.width).toBe(1200);
+
+        mockContainerWidth = 1204;
+        rerender(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={onLayoutChange}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(latestResponsiveProps.width).toBe(1200);
+
+        act(() => {
+            vi.advanceTimersByTime(181);
+        });
+
+        expect(latestResponsiveProps.width).toBe(1204);
+    });
+
+    it('updates width immediately when a resize crosses breakpoint boundary', () => {
+        const widgets = [{ id: '1', type: 'counter', title: 'Counter 1' }];
+        const onLayoutChange = vi.fn();
+        mockContainerWidth = 997;
+
+        const { rerender } = render(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={onLayoutChange}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(latestResponsiveProps.width).toBe(997);
+
+        mockContainerWidth = 995;
+        rerender(
+            <DashboardGrid
+                widgets={widgets as any}
+                onLayoutChange={onLayoutChange}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(latestResponsiveProps.width).toBe(995);
     });
 
     it('persists layout changes on drag stop while editing', () => {

@@ -1,6 +1,6 @@
 // input:  [widget registry contracts, shadcn/ui primitives, lucide icons, browser timer APIs]
 // output: [`PomodoroWidget`, `PomodoroWidgetDefinition`, and pure timer helper exports]
-// pos:    [Pomodoro widget runtime + per-instance settings form for dashboard plugin]
+// pos:    [Pomodoro widget runtime + compact per-instance settings form for dashboard plugin]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,6 @@
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -189,10 +188,12 @@ const buildModeState = (
 };
 
 const buildResetState = (base: PomodoroSettings): PomodoroSettings => {
-    const duration = getDurationSecondsForMode(base.mode, base);
+    const duration = getDurationSecondsForMode('focus', base);
     return {
         ...base,
+        mode: 'focus',
         status: 'idle',
+        completedFocusCount: 0,
         remainingSeconds: duration,
         sessionEndAt: null,
     };
@@ -390,12 +391,6 @@ const PomodoroWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSettin
         return Math.min(100, Math.max(0, (elapsed / currentDurationSeconds) * 100));
     }, [currentDurationSeconds, remainingSeconds]);
 
-    const statusLabel = normalizedSettings.status === 'running'
-        ? 'In progress'
-        : normalizedSettings.status === 'paused'
-            ? 'Paused'
-            : 'Ready';
-
     useEffect(() => {
         if (normalizedSettings.status !== 'running') return;
 
@@ -498,20 +493,21 @@ const PomodoroWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSettin
         };
 
     return (
-        <div className="flex h-full min-h-0 flex-col p-3 pt-12">
-            <div className="flex items-center justify-between gap-2">
-                <Badge variant="secondary">{getModeLabel(normalizedSettings.mode)}</Badge>
-                <span className="text-xs text-muted-foreground">
-                    Focus sessions: {normalizedSettings.completedFocusCount}
+        <div className="flex h-full min-h-0 flex-col p-3">
+            <div className="flex items-center justify-end gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                    Completed Focus Sessions: {normalizedSettings.completedFocusCount}
                 </span>
             </div>
 
             <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2">
+                <p className="inline-flex items-center rounded-full border border-border/60 bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground">
+                    {getModeLabel(normalizedSettings.mode)}
+                </p>
                 <div className="text-center text-[clamp(2rem,12cqw,3rem)] font-semibold tabular-nums leading-none tracking-tight text-foreground">
                     {formatSeconds(remainingSeconds)}
                 </div>
                 <Progress value={progressValue} className="h-2 w-full" />
-                <p className="text-xs text-muted-foreground">{statusLabel}</p>
             </div>
 
             <div className="grid gap-2">
@@ -536,7 +532,6 @@ const PomodoroWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSettin
                         <span>Reset</span>
                     </Button>
                 </div>
-
                 <Button
                     type="button"
                     onClick={skipSession}

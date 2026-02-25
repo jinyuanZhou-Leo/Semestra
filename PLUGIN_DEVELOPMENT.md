@@ -683,7 +683,6 @@ When custom CSS is needed, use CSS variables:
 - **Widgets**: Framework container provides border and base surface, but does **not** provide content padding. Plugin root should fill available space with `h-full` and define its own spacing (`p-3`, `p-4`, etc.).
 - **Tabs**: Optimize for large layouts, avoid fixed heights
 - **Responsive**: Test on different screen sizes and grid dimensions
-- **Widget Header Safe Area**: Top `48px` is used by framework controls (desktop `40px` via `h-10`, touch `48px` via `h-12`); do not place interactive actions in this zone, but non-interactive UI (e.g., decorative or status display) is allowed
 
 ### Example: GradeCalculator
 
@@ -703,7 +702,6 @@ See `frontend/src/plugins/grade-calculator/widget.tsx` for a complete example de
 5. **Efficient Space Usage**: Minimize unnecessary whitespace, maximize content density
 6. **No Extra Borders (MUST)**: Widget framework already provides the outer border. Do not add root-level borders in plugin UI. Avoid nested border stacks (for example, parent `border` + child `border`/`border-b`) unless there is a clear data-table requirement.
 7. **No Layered Shadows (MUST)**: Avoid stacking multiple shadow layers across nested containers. Use at most one subtle depth cue per visual block.
-8. **Respect Header Safe Area**: Keep actionable UI below the top `48px` to avoid overlap with widget header controls; non-interactive UI can be placed in this area
 
 ### Tailwind CSS Best Practices
 
