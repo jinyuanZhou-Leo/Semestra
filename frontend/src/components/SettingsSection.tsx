@@ -11,9 +11,6 @@ import React from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -37,31 +34,31 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   contentClassName,
 }) => {
   return (
-    <section className={cn("space-y-4", className)}>
-      <Card className="shadow-none">
-        {(title || description || headerAction) && (
-          <CardHeader className="border-b border-border/60 pb-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                {title && (
-                  <CardTitle className="text-base font-semibold leading-6 sm:text-lg">
-                    {title}
-                  </CardTitle>
-                )}
-                {description && (
-                  <CardDescription className="text-sm">
-                    {description}
-                  </CardDescription>
-                )}
-              </div>
-              {headerAction && <div>{headerAction}</div>}
-            </div>
-          </CardHeader>
-        )}
-        <CardContent className={contentClassName}>
-          <div className={cn(center && "flex justify-center")}>{children}</div>
-        </CardContent>
-      </Card>
+    <section className={cn("grid gap-x-12 gap-y-6 md:grid-cols-3 lg:grid-cols-4 py-2", className)}>
+      {(title || description || headerAction) && (
+        <div className="md:col-span-1 lg:col-span-1 space-y-4">
+          <div className="space-y-1.5 pt-1.5">
+            {title && (
+              <h3 className="text-base font-semibold leading-tight sm:text-lg">
+                {title}
+              </h3>
+            )}
+            {description && (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {description}
+              </p>
+            )}
+          </div>
+          {headerAction && <div>{headerAction}</div>}
+        </div>
+      )}
+      <div className={cn("md:col-span-2 lg:col-span-3", !(title || description || headerAction) && "md:col-start-2 lg:col-start-2")}>
+        <Card className="shadow-none">
+          <CardContent className={cn("p-6", center && "flex justify-center", contentClassName)}>
+            {children}
+          </CardContent>
+        </Card>
+      </div>
     </section>
   );
 };

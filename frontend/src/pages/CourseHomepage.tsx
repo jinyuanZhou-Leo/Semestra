@@ -31,9 +31,9 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { TabRegistry } from '../services/tabRegistry';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
-import { PluginSettingsCard } from '../components/PluginSettingsCard';
+
 import { PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
-import { getResolvedTabMetadataByType, getWidgetCatalogItemByType, hasTabPluginForType } from '../plugin-system';
+import { getWidgetCatalogItemByType, hasTabPluginForType } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
 import { useTabSettingsRegistry, useWidgetGlobalSettingsRegistry } from '../services/pluginSettingsRegistry';
 import { timetableEventBus } from '../plugins/builtin-event-core/shared/eventBus';
@@ -322,18 +322,17 @@ const CourseHomepageContent: React.FC = () => {
         );
         const sections = visibleTabs
             .map(tab => {
-            const SettingsComponent = settingsByType.get(tab.type);
-            const metadata = getResolvedTabMetadataByType(tab.type);
-            if (!SettingsComponent) return null;
+                const SettingsComponent = settingsByType.get(tab.type);
+                if (!SettingsComponent) return null;
             return (
-                <PluginSettingsCard key={tab.id} title={metadata.name ?? tab.title ?? tab.type}>
+                <React.Fragment key={tab.id}>
                     <SettingsComponent
                         tabId={tab.id}
                         settings={tab.settings || {}}
                         courseId={course?.id}
                         updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
                     />
-                </PluginSettingsCard>
+                </React.Fragment>
             );
         }).filter(Boolean);
 
@@ -360,14 +359,13 @@ const CourseHomepageContent: React.FC = () => {
             })
             .map((definition) => {
                 const GlobalSettingsComponent = definition.component;
-                const metadata = getWidgetCatalogItemByType(definition.type);
                 return (
-                    <PluginSettingsCard key={definition.type} title={metadata?.name ?? definition.type}>
+                    <React.Fragment key={definition.type}>
                         <GlobalSettingsComponent
                             courseId={course?.id}
                             onRefresh={refreshCourse}
                         />
-                    </PluginSettingsCard>
+                    </React.Fragment>
                 );
             });
 

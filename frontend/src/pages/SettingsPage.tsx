@@ -313,7 +313,7 @@ export const SettingsPage: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <Container padding="2rem" className="max-w-2xl space-y-8 select-none">
+            <Container padding="2rem" className="max-w-5xl space-y-8 select-none">
                 <BackButton label="Back to Home" onClick={handleBack} />
 
                 <div className="space-y-2">

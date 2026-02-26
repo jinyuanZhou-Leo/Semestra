@@ -31,9 +31,9 @@ import { TabRegistry } from '../services/tabRegistry';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
-import { PluginSettingsCard } from '../components/PluginSettingsCard';
+
 import { PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
-import { getResolvedTabMetadataByType, getWidgetCatalogItemByType, hasTabPluginForType } from '../plugin-system';
+import { getWidgetCatalogItemByType, hasTabPluginForType } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
 import { useTabSettingsRegistry, useWidgetGlobalSettingsRegistry } from '../services/pluginSettingsRegistry';
 import {
@@ -256,18 +256,17 @@ const SemesterHomepageContent: React.FC = () => {
         );
         const sections = visibleTabs
             .map((tab) => {
-            const SettingsComponent = settingsByType.get(tab.type);
-            const metadata = getResolvedTabMetadataByType(tab.type);
-            if (!SettingsComponent) return null;
+                const SettingsComponent = settingsByType.get(tab.type);
+                if (!SettingsComponent) return null;
             return (
-                <PluginSettingsCard key={tab.id} title={metadata.name ?? tab.title ?? tab.type}>
+                <React.Fragment key={tab.id}>
                     <SettingsComponent
                         tabId={tab.id}
                         settings={tab.settings || {}}
                         semesterId={semester?.id}
                         updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
                     />
-                </PluginSettingsCard>
+                </React.Fragment>
             );
         }).filter(Boolean);
 
@@ -294,14 +293,13 @@ const SemesterHomepageContent: React.FC = () => {
             })
             .map((definition) => {
                 const GlobalSettingsComponent = definition.component;
-                const metadata = getWidgetCatalogItemByType(definition.type);
                 return (
-                    <PluginSettingsCard key={definition.type} title={metadata?.name ?? definition.type}>
+                    <React.Fragment key={definition.type}>
                         <GlobalSettingsComponent
                             semesterId={semester?.id}
                             onRefresh={refreshSemester}
                         />
-                    </PluginSettingsCard>
+                    </React.Fragment>
                 );
             });
 
