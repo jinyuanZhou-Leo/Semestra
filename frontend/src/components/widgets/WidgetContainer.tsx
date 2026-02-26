@@ -1,6 +1,6 @@
-// input:  [widget action callbacks, touch-device signal, shared pointer-listener coordination]
+// input:  [widget action callbacks, touch-device signal, shared pointer-listener coordination, widget-header glass control styles]
 // output: [`WidgetContainer` component]
-// pos:    [Widget chrome shell controlling drag handle and action-button visibility behavior]
+// pos:    [Widget chrome shell controlling drag handle and action-button visibility with glassmorphism header controls]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -109,6 +109,10 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
     const controlsVisible = isTouchDevice ? isTouchControlsVisible : isHovered;
     const controlSizeClass = isTouchDevice ? 'h-9 w-9' : 'h-7 w-7';
     const controlsHeightClass = isTouchDevice ? 'h-12' : 'h-10';
+    const glassControlClass =
+        'rounded-full border border-border/70 bg-background/90 text-muted-foreground shadow-sm backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/75 transition';
+    const glassControlHoverClass =
+        'hover:bg-background supports-[backdrop-filter]:hover:bg-background/90 hover:text-foreground';
 
     const handleLeftControlPointerDown = (event: React.MouseEvent | React.PointerEvent) => {
         const target = event.target as HTMLElement | null;
@@ -154,8 +158,9 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                             <div
                                 className={cn(
                                     isTouchDevice ? 'drag-surface' : 'drag-handle',
-                                    'flex items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground shadow-sm transition',
-                                    'hover:bg-muted hover:text-foreground',
+                                    'flex items-center justify-center',
+                                    glassControlClass,
+                                    glassControlHoverClass,
                                     controlSizeClass,
                                     controlsVisible ? 'opacity-100 pointer-events-auto' : (isTouchDevice ? 'opacity-0 pointer-events-none' : 'opacity-55 pointer-events-auto')
                                 )}
@@ -188,8 +193,8 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 title="Widget actions"
                                 data-widget-control
                                 className={cn(
-                                    'rounded-full border-border/70 bg-background text-muted-foreground shadow-sm transition',
-                                    'hover:bg-muted hover:text-foreground',
+                                    glassControlClass,
+                                    glassControlHoverClass,
                                     controlSizeClass,
                                     'pointer-events-auto'
                                 )}
@@ -210,8 +215,8 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                 title="Settings"
                                 data-widget-control
                                 className={cn(
-                                    'rounded-full border-border/70 bg-background text-muted-foreground shadow-sm transition',
-                                    'hover:bg-muted hover:text-foreground',
+                                    glassControlClass,
+                                    glassControlHoverClass,
                                     controlSizeClass,
                                     controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
                                 )}
@@ -234,7 +239,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                         title="Remove Widget"
                                         data-widget-control
                                         className={cn(
-                                            'rounded-full text-destructive shadow-sm transition',
+                                            'rounded-full text-destructive shadow-sm transition backdrop-blur-md backdrop-saturate-150',
                                             controlSizeClass,
                                             controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
                                         )}

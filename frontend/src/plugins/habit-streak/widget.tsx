@@ -396,7 +396,7 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
     };
 
     return (
-        <div className="relative flex aspect-square h-full max-h-[160px] min-h-[120px] items-center justify-center">
+        <div className="relative flex aspect-square h-full max-h-[160px] min-h-[70px] items-center justify-center">
             {/* Animated Glowing Core */}
             <motion.div
                 className="absolute inset-[18%] rounded-full opacity-60 mix-blend-screen blur-xl dark:opacity-40"
@@ -532,11 +532,13 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     initial={prefersReducedMotion ? false : { scale: 1.15, opacity: 0.5 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    className="text-4xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/60 drop-shadow-sm dark:from-white dark:to-white/60"
+                    className="font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/60 drop-shadow-sm dark:from-white dark:to-white/60"
+                    style={{ fontSize: 'clamp(1rem, 18cqmin, 2.5rem)', lineHeight: 1 }}
                 >
                     {streakCount}
                 </motion.span>
-                <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/50">
+                <span className="mt-0 font-bold uppercase tracking-widest text-foreground/50"
+                    style={{ fontSize: 'clamp(0.45rem, 6cqmin, 0.6rem)' }}>
                     Streak
                 </span>
             </div>
@@ -689,10 +691,10 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     >
                         <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.22)_50%,transparent_75%)] opacity-0 transition-opacity duration-300 group-hover/habit-checkin:opacity-100" />
                         <Sparkles className={cn(
-                            'relative mr-1.5 h-4 w-4 transition-transform duration-300 ease-out',
+                            'relative mr-1.5 h-4 w-4 shrink-0 transition-transform duration-300 ease-out',
                             checkInState.canCheckIn && 'group-hover/habit-checkin:rotate-12 group-hover/habit-checkin:scale-110'
                         )} />
-                        <span className="relative">
+                        <span className="relative truncate">
                             {buttonLabel}
                         </span>
                     </Button>
@@ -703,14 +705,14 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     {motivationalToast && (
                         <motion.div
                             key={motivationalToast.id}
-                            className="pointer-events-none absolute inset-x-0 bottom-[52px] z-20 flex items-end justify-center px-4 pb-2 xl:bottom-[56px]"
+                            className="pointer-events-none absolute inset-x-0 bottom-11 z-20 flex items-end justify-center px-1 pb-1"
                             initial={{ opacity: 0, y: 6, scale: 0.96 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 4, scale: 0.96 }}
                             transition={{ duration: 0.3, ease: 'easeOut' }}
                         >
                             <p
-                                className="rounded-full px-3 py-1.5 text-center text-[10.5px] font-semibold leading-snug shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                className="max-w-[95%] rounded-full px-3 py-1.5 text-center text-[10.5px] font-semibold leading-snug shadow-sm ring-1 ring-black/5 dark:ring-white/10"
                                 style={{
                                     backgroundColor: 'color-mix(in srgb, var(--color-background) 88%, transparent)',
                                     color: 'var(--color-foreground)',
@@ -755,7 +757,7 @@ export const HabitStreakWidgetDefinition: WidgetDefinition = {
     component: HabitStreakWidget,
     SettingsComponent: HabitStreakSettingsComponent,
     defaultSettings: DEFAULT_HABIT_STREAK_SETTINGS,
-    layout: { w: 4, h: 4, minW: 3, minH: 3, maxW: 7, maxH: 8 },
+    layout: { w: 4, h: 4, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     maxInstances: 'unlimited',
     allowedContexts: ['semester', 'course'],
     headerButtons: [

@@ -1,6 +1,6 @@
-// input:  [widget item data, widget registry lookup, plugin lazy loader, update/remove callbacks]
+// input:  [widget item data, widget registry lookup, plugin lazy loader, update/remove callbacks, widget-header glass control styles]
 // output: [`DashboardWidgetWrapper` component]
-// pos:    [Runtime wrapper that mounts plugin widget content into the dashboard shell]
+// pos:    [Runtime wrapper that mounts plugin widget content and glassmorphism header controls into the dashboard shell]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -138,6 +138,10 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
 
         const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
         const controlSizeClass = isTouchDevice ? 'h-9 w-9 text-base' : 'h-7 w-7 text-sm';
+        const glassControlClass =
+            'rounded-full border border-border/70 bg-background/90 text-muted-foreground shadow-sm backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/75 transition';
+        const glassControlHoverClass =
+            'hover:bg-background supports-[backdrop-filter]:hover:bg-background/90 hover:text-foreground';
 
         const ActionButton: React.FC<HeaderActionButtonProps> = ({
             title,
@@ -152,8 +156,8 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                 title={title}
                 data-widget-control
                 className={cn(
-                    'rounded-full border-border/70 bg-background text-muted-foreground shadow-sm transition',
-                    'hover:bg-muted hover:text-foreground',
+                    glassControlClass,
+                    glassControlHoverClass,
                     controlSizeClass
                 )}
                 onClick={(event) => {
@@ -186,8 +190,8 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                         title={title}
                         data-widget-control
                         className={cn(
-                            'rounded-full border-border/70 bg-background text-muted-foreground shadow-sm transition',
-                            'hover:bg-muted hover:text-foreground',
+                            glassControlClass,
+                            glassControlHoverClass,
                             controlSizeClass
                         )}
                         onClick={(event) => {
