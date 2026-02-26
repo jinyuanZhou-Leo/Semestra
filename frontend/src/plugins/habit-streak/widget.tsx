@@ -16,9 +16,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Flame, RotateCcw, Sparkles } from 'lucide-react';
+import { RotateCcw, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 const HOUR_IN_MS = 60 * 60 * 1000;
 const DAY_IN_MS = 24 * HOUR_IN_MS;
 const INTERVAL_OPTIONS = [
@@ -633,43 +633,6 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                             {habitTitle}
                         </h3>
                     </div>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="-mr-1 -mt-0.5 h-7 w-7 shrink-0 text-foreground/40 hover:text-foreground/70"
-                                aria-label="Reset streak"
-                            >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent size="sm">
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Reset habit streak?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will clear your streak progress and check-in history.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                    variant="destructive"
-                                    onClick={() => {
-                                        void updateSettings({
-                                            ...habitSettings,
-                                            streakCount: 0,
-                                            bestStreak: 0,
-                                            totalCheckIns: 0,
-                                            lastCheckInAt: null,
-                                        });
-                                    }}
-                                >
-                                    Reset
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
                 </div>
 
                 {/* Ring Visualization */}
@@ -751,15 +714,9 @@ export const HabitStreakWidget = HabitStreakWidgetComponent;
 
 export const HabitStreakWidgetDefinition: WidgetDefinition = {
     type: 'habit-streak',
-    name: 'Habit Streak',
-    description: 'Build momentum with interval-based check-ins and streak tracking.',
-    icon: <Flame className="h-4 w-4" />,
     component: HabitStreakWidget,
     SettingsComponent: HabitStreakSettingsComponent,
     defaultSettings: DEFAULT_HABIT_STREAK_SETTINGS,
-    layout: { w: 4, h: 4, minW: 2, minH: 2, maxW: 6, maxH: 6 },
-    maxInstances: 'unlimited',
-    allowedContexts: ['semester', 'course'],
     headerButtons: [
         {
             id: 'reset-streak',

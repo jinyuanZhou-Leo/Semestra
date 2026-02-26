@@ -16,6 +16,11 @@ import {
     type WidgetGlobalSettingsDefinition,
 } from '../services/pluginSettingsRegistry';
 import type { ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
+import {
+    isUnlimitedInstances,
+    DEFAULT_TAB_ALLOWED_CONTEXTS,
+    DEFAULT_WIDGET_ALLOWED_CONTEXTS,
+} from './utils';
 
 export type { ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
 
@@ -33,6 +38,7 @@ interface PluginEntry {
     widgetCatalog: WidgetCatalogItem[];
     loaded: boolean;
     loadPromise: Promise<void> | null;
+    error: Error | null;
 }
 
 interface PluginMetadataModule {
@@ -46,10 +52,11 @@ interface PluginSettingsModule {
     widgetGlobalSettingsDefinitions?: WidgetGlobalSettingsDefinition[];
 }
 
-const createPluginEntry = (entry: Omit<PluginEntry, 'loaded' | 'loadPromise'>): PluginEntry => ({
+const createPluginEntry = (entry: Omit<PluginEntry, 'loaded' | 'loadPromise' | 'error'>): PluginEntry => ({
     ...entry,
     loaded: false,
     loadPromise: null,
+    error: null,
 });
 
 // Eagerly load lightweight metadata so names/icons are available before runtime modules are loaded.
@@ -115,8 +122,6 @@ const pluginEntries: PluginEntry[] = Object.entries(metadataModules)
     .filter((entry): entry is PluginEntry => entry !== null)
     .sort((a, b) => a.id.localeCompare(b.id));
 
-const DEFAULT_TAB_ALLOWED_CONTEXTS: TabContext[] = ['semester', 'course'];
-const DEFAULT_WIDGET_ALLOWED_CONTEXTS: WidgetContext[] = ['semester', 'course'];
 const LEGACY_HIDDEN_TAB_TYPES = new Set<string>(['builtin-semester-schedule']);
 
 const pluginsById = new Map(pluginEntries.map((entry) => [entry.id, entry]));
@@ -173,6 +178,11 @@ const loadPluginEntry = async (entry: PluginEntry): Promise<void> => {
         .then((module) => {
             registerPluginModule(module);
             entry.loaded = true;
+            entry.error = null;
+        })
+        .catch((error) => {
+            console.error(`[plugin-system] Failed to load plugin: ${entry.id}`, error);
+            entry.error = error instanceof Error ? error : new Error(String(error));
         })
         .finally(() => {
             entry.loadPromise = null;
@@ -188,11 +198,6 @@ const ensurePluginByIdLoaded = async (pluginId: string): Promise<boolean> => {
     return true;
 };
 
-const isUnlimitedInstances = (maxInstances?: number | 'unlimited') => {
-    if (maxInstances === undefined || maxInstances === 'unlimited') return true;
-    if (typeof maxInstances === 'number' && !Number.isFinite(maxInstances)) return true;
-    return false;
-};
 
 export const hasTabPluginForType = (type: string) => tabTypeToPluginId.has(type);
 

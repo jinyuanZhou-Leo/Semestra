@@ -1,7 +1,7 @@
 "use no memo";
 
 import React from 'react';
-import { AlertCircle, CalendarDays, Clock3 } from 'lucide-react';
+import { AlertCircle, Clock3 } from 'lucide-react';
 import api from '@/services/api';
 import type { WidgetDefinition, WidgetProps } from '@/services/widgetRegistry';
 import { Badge } from '@/components/ui/badge';
@@ -264,11 +264,5 @@ export const BuiltinTodayEventsWidget = TodayEventsWidgetComponent;
 
 export const BuiltinTodayEventsWidgetDefinition: WidgetDefinition = {
   type: BUILTIN_TIMETABLE_TODAY_EVENTS_WIDGET_TYPE,
-  name: 'Today Events',
-  description: 'Shows your active schedule events for today.',
-  icon: <CalendarDays className="h-4 w-4" />,
   component: BuiltinTodayEventsWidget,
-  layout: { w: 4, h: 3, minW: 3, minH: 2, maxW: 8, maxH: 6 },
-  maxInstances: 1,
-  allowedContexts: ['semester', 'course'],
 };

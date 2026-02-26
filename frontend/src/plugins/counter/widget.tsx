@@ -26,11 +26,27 @@ interface CounterSettings {
     showRing?: boolean;
 }
 
+const normalizeCounterSettings = (settings: unknown): CounterSettings => {
+    if (!settings || typeof settings !== 'object') {
+        return { value: 0, min: 0, max: 100, step: 1, initialValue: 0, displayText: '', showRing: true };
+    }
+    const s = settings as Partial<CounterSettings>;
+    return {
+        value: Number.isFinite(s.value) ? s.value as number : 0,
+        min: Number.isFinite(s.min) ? s.min as number : 0,
+        max: Number.isFinite(s.max) ? s.max as number : 100,
+        step: Number.isFinite(s.step) ? Math.max(1, s.step as number) : 1,
+        initialValue: Number.isFinite(s.initialValue) ? s.initialValue as number : 0,
+        displayText: typeof s.displayText === 'string' ? s.displayText : '',
+        showRing: typeof s.showRing === 'boolean' ? s.showRing : true,
+    };
+};
+
 /**
  * Counter Settings Component
  */
 const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSettingsChange }) => {
-    const counterSettings = settings as CounterSettings;
+    const counterSettings = normalizeCounterSettings(settings);
     const formId = useId();
 
     return (
@@ -40,7 +56,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                 <Input
                     id={`${formId}-display`}
                     value={counterSettings.displayText || ''}
-                    onChange={e => onSettingsChange({ ...settings, displayText: e.target.value })}
+                    onChange={e => onSettingsChange({ ...counterSettings, displayText: e.target.value })}
                     placeholder="Enter custom text to display below counter"
                 />
             </div>
@@ -53,7 +69,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                     id={`${formId}-show-ring`}
                     checked={counterSettings.showRing ?? true}
                     onCheckedChange={(checked) =>
-                        onSettingsChange({ ...settings, showRing: checked === true })
+                        onSettingsChange({ ...counterSettings, showRing: checked === true })
                     }
                 />
             </div>
@@ -65,7 +81,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         id={`${formId}-min`}
                         type="number"
                         value={counterSettings.min ?? 0}
-                        onChange={e => onSettingsChange({ ...settings, min: Number(e.target.value) })}
+                        onChange={e => onSettingsChange({ ...counterSettings, min: Number(e.target.value) })}
                     />
                 </div>
                 <div className="grid gap-2">
@@ -74,7 +90,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         id={`${formId}-max`}
                         type="number"
                         value={counterSettings.max ?? 100}
-                        onChange={e => onSettingsChange({ ...settings, max: Number(e.target.value) })}
+                        onChange={e => onSettingsChange({ ...counterSettings, max: Number(e.target.value) })}
                     />
                 </div>
                 <div className="grid gap-2">
@@ -83,7 +99,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         id={`${formId}-step`}
                         type="number"
                         value={counterSettings.step ?? 1}
-                        onChange={e => onSettingsChange({ ...settings, step: Number(e.target.value) })}
+                        onChange={e => onSettingsChange({ ...counterSettings, step: Number(e.target.value) })}
                         min="1"
                     />
                 </div>
@@ -93,7 +109,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         id={`${formId}-initial`}
                         type="number"
                         value={counterSettings.initialValue ?? 0}
-                        onChange={e => onSettingsChange({ ...settings, initialValue: Number(e.target.value) })}
+                        onChange={e => onSettingsChange({ ...counterSettings, initialValue: Number(e.target.value) })}
                     />
                 </div>
             </div>
@@ -113,7 +129,7 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
         step = 1,
         displayText = '',
         showRing = true
-    } = (settings as CounterSettings) || {};
+    } = normalizeCounterSettings(settings);
 
     const [jitter, setJitter] = useState(false);
 
@@ -123,7 +139,7 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
     const updateCount = useCallback(async (newCount: number) => {
-        await updateSettings({ ...settings, value: newCount });
+        await updateSettings({ ...normalizeCounterSettings(settings), value: newCount });
     }, [settings, updateSettings]);
 
     const handleIncrement = useCallback(() => {
@@ -262,9 +278,6 @@ export const Counter = CounterComponent;
 
 export const CounterDefinition: WidgetDefinition = {
     type: 'counter',
-    name: 'Counter',
-    description: 'A premium counter with circular progress and limits.',
-    icon: '🔢',
     component: Counter,
     SettingsComponent: CounterSettingsComponent,
     defaultSettings: {
@@ -276,7 +289,6 @@ export const CounterDefinition: WidgetDefinition = {
         displayText: '',
         showRing: true
     },
-    layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 6 },
     headerButtons: [
         {
             id: 'reset',
@@ -285,8 +297,8 @@ export const CounterDefinition: WidgetDefinition = {
                     title="Reset to initial value"
                     icon={<RotateCcw className="h-4 w-4" />}
                     onClick={() => {
-                        const counterSettings = settings as CounterSettings;
-                        void updateSettings({ ...settings, value: counterSettings.initialValue });
+                        const counterSettings = normalizeCounterSettings(settings);
+                        void updateSettings({ ...counterSettings, value: counterSettings.initialValue });
                     }}
                 />
             )

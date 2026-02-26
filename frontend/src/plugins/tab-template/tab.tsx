@@ -67,15 +67,10 @@ export const TemplateTab = TemplateTabComponent;
 
 export const TemplateTabDefinition: TabDefinition = {
     type: 'tab-template',
-    name: 'Tab Template',
-    description: 'Starter tab with editable settings and layout scaffolding.',
-    icon: '',
     component: TemplateTab,
     defaultSettings: {
         title: 'Tab Template',
         note: '',
         showChecklist: true
     },
-    maxInstances: 'unlimited',
-    allowedContexts: ['semester', 'course']
 };

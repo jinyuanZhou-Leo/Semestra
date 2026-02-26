@@ -230,12 +230,6 @@ export const GradeCalculator = GradeCalculatorComponent;
 
 export const GradeCalculatorDefinition: WidgetDefinition = {
     type: 'grade-calculator',
-    name: 'Grade Calculator',
-    description: 'Calculate course grade based on assessment weights.',
-    icon: '🧮',
     component: GradeCalculator,
-    maxInstances: 1,
-    allowedContexts: ['course'],
     defaultSettings: { assessments: [] },
-    layout: { w: 4, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 }
 };

@@ -144,7 +144,7 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
 
         try {
             const nextOrder = tabs.reduce((max, t) => Math.max(max, t.order_index), -1) + 1;
-            const title = definition.name;
+            const title = definition.name ?? type;
             const settings = JSON.stringify(definition.defaultSettings ?? {});
 
             let newTab: Tab;

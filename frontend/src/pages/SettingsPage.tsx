@@ -32,6 +32,12 @@ import { useDialog } from '../contexts/DialogContext';
 import { SaveSettingButton } from "../components/SaveSettingButton";
 import { useTheme } from "../components/ThemeProvider";
 import { DEFAULT_GPA_SCALING_TABLE_JSON } from "../utils/gpaUtils";
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbList,
+    BreadcrumbPage,
+} from '@/components/ui/breadcrumb';
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
@@ -295,8 +301,18 @@ export const SettingsPage: React.FC = () => {
         };
     }, []);
 
+    const breadcrumb = (
+        <Breadcrumb>
+            <BreadcrumbList className="text-xs font-medium text-muted-foreground">
+                <BreadcrumbItem>
+                    <BreadcrumbPage className="text-foreground">Settings</BreadcrumbPage>
+                </BreadcrumbItem>
+            </BreadcrumbList>
+        </Breadcrumb>
+    );
+
     return (
-        <Layout>
+        <Layout breadcrumb={breadcrumb}>
             <Container padding="2rem" className="max-w-2xl space-y-8 select-none">
                 <BackButton label="Back to Home" onClick={handleBack} />
 

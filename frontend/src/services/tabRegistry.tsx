@@ -7,23 +7,24 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React from 'react';
+import { isUnlimitedInstances, jsonDeepEqual, DEFAULT_TAB_ALLOWED_CONTEXTS, type MaxInstances } from '../plugin-system/utils';
 
-export interface TabProps {
+export interface TabProps<S = any> {
     tabId: string;
-    settings: any;
+    settings: S;
     semesterId?: string;
     courseId?: string;
-    updateSettings: (newSettings: any) => void | Promise<void>;
+    updateSettings: (newSettings: S) => void | Promise<void>;
     title?: string;
     pluginName?: string;
 }
 
-export interface TabSettingsProps {
+export interface TabSettingsProps<S = any> {
     tabId: string;
-    settings: any;
+    settings: S;
     semesterId?: string;
     courseId?: string;
-    updateSettings: (newSettings: any) => void | Promise<void>;
+    updateSettings: (newSettings: S) => void | Promise<void>;
 }
 
 export interface TabLifecycleContext {
@@ -34,11 +35,11 @@ export interface TabLifecycleContext {
 }
 
 export type TabContext = 'semester' | 'course';
-export type MaxInstances = number | 'unlimited';
+export type { MaxInstances } from '../plugin-system/utils';
 
 export interface TabDefinition {
     type: string;
-    name: string;
+    name?: string;
     description?: string;
     icon?: React.ReactNode;
     component: React.FC<TabProps>;
@@ -103,7 +104,7 @@ class TabRegistryClass {
                 prevProps.tabId === nextProps.tabId &&
                 prevProps.semesterId === nextProps.semesterId &&
                 prevProps.courseId === nextProps.courseId &&
-                JSON.stringify(prevProps.settings) === JSON.stringify(nextProps.settings)
+                jsonDeepEqual(prevProps.settings, nextProps.settings)
             );
         });
 
@@ -127,7 +128,7 @@ class TabRegistryClass {
                 prevProps.tabId === nextProps.tabId &&
                 prevProps.semesterId === nextProps.semesterId &&
                 prevProps.courseId === nextProps.courseId &&
-                JSON.stringify(prevProps.settings) === JSON.stringify(nextProps.settings)
+                jsonDeepEqual(prevProps.settings, nextProps.settings)
             );
         });
 
@@ -139,16 +140,10 @@ class TabRegistryClass {
 
 export const TabRegistry = new TabRegistryClass();
 
-const DEFAULT_ALLOWED_CONTEXTS: TabContext[] = ['semester', 'course'];
+export { isUnlimitedInstances, DEFAULT_TAB_ALLOWED_CONTEXTS } from '../plugin-system/utils';
 
 export const resolveAllowedContexts = (definition: TabDefinition) => {
-    return definition.allowedContexts ?? DEFAULT_ALLOWED_CONTEXTS;
-};
-
-export const isUnlimitedInstances = (maxInstances?: MaxInstances) => {
-    if (maxInstances === undefined || maxInstances === 'unlimited') return true;
-    if (typeof maxInstances === 'number' && !Number.isFinite(maxInstances)) return true;
-    return false;
+    return definition.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS;
 };
 
 export const canAddTab = (definition: TabDefinition, context: TabContext, currentCount: number) => {

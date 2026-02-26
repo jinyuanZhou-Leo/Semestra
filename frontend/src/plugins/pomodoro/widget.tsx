@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { Pause, Play, RotateCcw, SkipForward, Timer } from 'lucide-react';
+import { Pause, Play, RotateCcw, SkipForward } from 'lucide-react';
 
 export type PomodoroMode = 'focus' | 'shortBreak' | 'longBreak';
 export type PomodoroStatus = 'idle' | 'running' | 'paused';
@@ -551,14 +551,8 @@ export const PomodoroWidget = PomodoroWidgetComponent;
 
 export const PomodoroWidgetDefinition: WidgetDefinition = {
     type: 'pomodoro',
-    name: 'Pomodoro Timer',
-    description: 'Focus timer with auto-switch between focus and break sessions.',
-    icon: <Timer className="h-4 w-4" />,
     component: PomodoroWidget,
     defaultSettings: DEFAULT_POMODORO_SETTINGS,
-    layout: { w: 4, h: 4, minW: 3, minH: 3, maxW: 6, maxH: 8 },
-    maxInstances: 'unlimited',
-    allowedContexts: ['semester', 'course'],
     SettingsComponent: PomodoroSettingsComponent,
     headerButtons: [
         {

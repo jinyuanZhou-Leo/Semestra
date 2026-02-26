@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Eraser, Lock, LockOpen, StickyNote } from 'lucide-react';
+import { Eraser, Lock, LockOpen } from 'lucide-react';
 
 type LegacyNoteTone = 'yellow' | 'mint' | 'sky' | 'rose';
 
@@ -188,15 +188,9 @@ export const StickyNoteWidget = StickyNoteWidgetComponent;
 
 export const StickyNoteWidgetDefinition: WidgetDefinition = {
     type: 'sticky-note',
-    name: 'Sticky Note',
-    description: 'Quickly capture short notes directly on your dashboard.',
-    icon: <StickyNote className="h-4 w-4" />,
     component: StickyNoteWidget,
     SettingsComponent: StickyNoteSettingsComponent,
     defaultSettings: DEFAULT_STICKY_NOTE_SETTINGS,
-    layout: { w: 2, h: 2, minW: 1, minH: 1, maxW: 5, maxH: 5 },
-    maxInstances: 'unlimited',
-    allowedContexts: ['semester', 'course'],
     headerButtons: [
         {
             id: 'toggle-edit-lock',

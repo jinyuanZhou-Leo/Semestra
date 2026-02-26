@@ -179,8 +179,5 @@ export const BuiltinDashboardTab = BuiltinDashboardTabComponent;
 
 export const BuiltinDashboardTabDefinition: TabDefinition = {
     type: 'dashboard',
-    name: 'Dashboard',
     component: BuiltinDashboardTab,
-    maxInstances: 1,
-    allowedContexts: ['semester', 'course']
 };

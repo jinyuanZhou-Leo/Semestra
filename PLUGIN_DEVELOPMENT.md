@@ -15,12 +15,15 @@ Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement a widget
 
 ```
 frontend/src/plugins/<plugin-name>/
-  index.ts        // Exports widgetDefinition and/or tabDefinition (lazy runtime UI entry)
-  settings.ts(x)  // Exports tabSettingsDefinitions/widgetGlobalSettingsDefinitions (eager settings entry)
+  metadata.ts     // REQUIRED: Plugin id, widget/tab catalog entries (name, icon, layout, etc.)
+  index.ts        // REQUIRED: Exports widgetDefinition and/or tabDefinition (lazy runtime UI entry)
+  settings.ts(x)  // OPTIONAL: Only needed if plugin has tab or widget global settings definitions
   widget.tsx      // Optional: widget implementation
   tab.tsx         // Optional: tab implementation
   shared.ts       // Optional: shared types/helpers
 ```
+
+> **Metadata-First Architecture**: `metadata.ts` is the **single source of truth** for display metadata (`name`, `description`, `icon`, `layout`, `maxInstances`, `allowedContexts`). Runtime definitions in `widget.tsx`/`tab.tsx` should only declare runtime-specific fields (`type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, `onCreate`, `onDelete`). Do not duplicate metadata fields in runtime definitions.
 
 ### Built-in Tabs
 
@@ -40,16 +43,20 @@ Framework behavior:
 ### Auto Registration
 
 The plugin system scans:
+- `metadata.ts` with eager `import.meta.glob` for catalog display (name, icon, layout).
 - `index.ts` with `import.meta.glob` for lazy runtime registration (tab/widget UI).
-- `settings.ts` / `settings.tsx` with eager `import.meta.glob` for settings registration.
+- `settings.ts` / `settings.tsx` with eager `import.meta.glob` for settings registration (only if the file exists).
 
 If you export `widgetDefinition` and/or `tabDefinition` from `index.ts`, runtime UI remains lazy.
 If you export settings definitions from `settings.ts`, settings panels are always available without waiting for runtime UI modules.
 
 **Loading Model**
+- Metadata (`metadata.ts`): eagerly loaded — names and icons are available before runtime modules.
 - Runtime UI (`tab.tsx` / `widget.tsx`): lazy-loaded.
-- Settings UI (`settings.ts`): eagerly loaded.
+- Settings UI (`settings.ts`): eagerly loaded (optional — only needed for global settings panels).
 - This prevents missing settings panels when plugin runtime UI has not been loaded yet.
+
+> **Note**: `settings.ts` is optional. Plugins without tab settings or widget global settings do not need this file.
 
 **Reactive Hooks**: Use `useWidgetRegistry()` and `useTabRegistry()` hooks to subscribe to registry changes:
 
@@ -72,12 +79,12 @@ Every plugin must export a `WidgetDefinition` object:
 ```typescript
 export interface WidgetDefinition {
     type: string;          // Unique identifier for the widget type
-    name: string;          // Display name
-    description?: string;  // Optional description
-    icon?: React.ReactNode; // Emoji, React node, or image URL (imported from plugin folder)
+    name?: string;         // Display name (optional — prefer defining in metadata.ts)
+    description?: string;  // Optional description (prefer defining in metadata.ts)
+    icon?: React.ReactNode; // Optional icon (prefer defining in metadata.ts)
     component: React.FC<WidgetProps>; // The React component
     defaultSettings?: any; // Default values for settings
-    layout?: { 
+    layout?: {             // Optional layout (prefer defining in metadata.ts)
         w: number,         // Default width (grid units)
         h: number,         // Default height (grid units)
         minW?: number,     // Minimum width
@@ -86,14 +93,17 @@ export interface WidgetDefinition {
         maxH?: number,     // Maximum height
         aspectRatio?: number // Optional width:height target ratio (for example 16 / 9)
     };
-    maxInstances?: number | 'unlimited'; // Max instances per dashboard
-    allowedContexts?: Array<'semester' | 'course'>; // Where this widget can be added
+    maxInstances?: number | 'unlimited'; // Max instances (prefer defining in metadata.ts)
+    allowedContexts?: Array<'semester' | 'course'>; // Where added (prefer defining in metadata.ts)
     headerButtons?: HeaderButton[]; // Optional custom action buttons in widget header
     SettingsComponent?: React.FC<WidgetSettingsProps>; // Optional per-instance settings fields (rendered inside framework modal)
     // Lifecycle hooks
     onCreate?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
     onDelete?: (ctx: WidgetLifecycleContext) => Promise<void> | void;
 }
+```
+
+> **Convention**: Fields like `name`, `description`, `icon`, `layout`, `maxInstances`, and `allowedContexts` should be defined in `metadata.ts` only. The runtime definition should focus on `type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, and lifecycle hooks.
 
 export interface HeaderButton {
     id: string;            // Unique identifier for this button
@@ -136,9 +146,10 @@ export interface WidgetLifecycleContext {
 }
 
 // Per-instance settings (shown in modal when clicking gear icon on widget)
-export interface WidgetSettingsProps {
-    settings: any;
-    onSettingsChange: (newSettings: any) => void;
+// Generic type S allows type-safe settings access (defaults to any)
+export interface WidgetSettingsProps<S = any> {
+    settings: S;
+    onSettingsChange: (newSettings: S) => void;
 }
 
 // Plugin-level global settings (shown in Settings tab)
@@ -157,7 +168,6 @@ Plugin-level settings are now registered in `settings.ts`, not on `WidgetDefinit
 ```typescript
 export const MyWidgetDefinition: WidgetDefinition = {
     type: 'my-widget',
-    name: 'My Widget',
     component: MyWidget,
     headerButtons: [
         {
@@ -165,9 +175,10 @@ export const MyWidgetDefinition: WidgetDefinition = {
             render: ({ settings, updateSettings }, { ActionButton }) => (
                 <ActionButton
                     title="Reset to default"
-                    icon={'↺'}
+                    icon={<RotateCcw className="h-4 w-4" />}
                     onClick={() => {
-                        updateSettings({ ...settings, value: 0 });
+                        const normalized = normalizeSettings(settings);
+                        updateSettings({ ...normalized, value: 0 });
                     }}
                 />
             )
@@ -287,14 +298,15 @@ export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] =
 Your widget component will receive the following props:
 
 ```typescript
-export interface WidgetProps {
+// Generic type S allows type-safe settings access (defaults to any)
+export interface WidgetProps<S = any> {
     widgetId: string;      // The unique ID of this widget instance
-    settings: any;         // The current settings for this widget (already parsed)
+    settings: S;           // The current settings for this widget (already parsed)
     semesterId?: string;   // Context: Semester ID (if applicable)
     courseId?: string;     // Context: Course ID (if applicable)
     
     // Framework-provided functions
-    updateSettings: (newSettings: any) => void;  // Update settings (auto-debounced)
+    updateSettings: (newSettings: S) => void;  // Update settings (auto-debounced)
     updateCourse?: (updates: any) => void; // Update course data (if applicable)
 }
 ```
@@ -318,17 +330,19 @@ This keeps behavior consistent, reduces maintenance cost, and avoids state diver
 ```typescript
 export interface TabDefinition {
     type: string;          // Unique identifier for the tab type
-    name: string;          // Display name (used as tab title)
-    description?: string;  // Optional description
-    icon?: React.ReactNode; // Emoji, React node, or image URL (imported from plugin folder)
+    name?: string;         // Display name (optional — prefer defining in metadata.ts)
+    description?: string;  // Optional description (prefer defining in metadata.ts)
+    icon?: React.ReactNode; // Optional icon (prefer defining in metadata.ts)
     component: React.FC<TabProps>; // The main tab content component
     defaultSettings?: any; // Default settings for new tabs
-    maxInstances?: number | 'unlimited'; // Max instances per dashboard
-    allowedContexts?: Array<'semester' | 'course'>; // Where this tab can be added
+    maxInstances?: number | 'unlimited'; // Max instances (prefer defining in metadata.ts)
+    allowedContexts?: Array<'semester' | 'course'>; // Where added (prefer defining in metadata.ts)
     onCreate?: (ctx: TabLifecycleContext) => Promise<void> | void;
     onDelete?: (ctx: TabLifecycleContext) => Promise<void> | void;
 }
 ```
+
+> **Convention**: Same as WidgetDefinition — metadata fields belong in `metadata.ts`.
 
 Tab settings panels are registered in `settings.ts` using `tabSettingsDefinitions`.
 
@@ -344,24 +358,26 @@ The homepage tab bar uses `is_draggable` (not `is_removable`) to decide drag/reo
 Context visibility is determined by plugin `allowedContexts`; no additional type-based hide list is required.
 
 ```typescript
-export interface TabProps {
+// Generic type S allows type-safe settings access (defaults to any)
+export interface TabProps<S = any> {
     tabId: string;
-    settings: any;
+    settings: S;
     semesterId?: string;
     courseId?: string;
-    updateSettings: (newSettings: any) => void; // Debounced by framework
+    updateSettings: (newSettings: S) => void; // Debounced by framework
     title?: string;         // Tab title (provided by framework)
     pluginName?: string;    // Plugin name (provided by framework)
 }
 ```
 
 ```typescript
-export interface TabSettingsProps {
+// Generic type S allows type-safe settings access (defaults to any)
+export interface TabSettingsProps<S = any> {
     tabId: string;
-    settings: any;
+    settings: S;
     semesterId?: string;
     courseId?: string;
-    updateSettings: (newSettings: any) => void; // Debounced by framework
+    updateSettings: (newSettings: S) => void; // Debounced by framework
 }
 ```
 
@@ -387,7 +403,6 @@ Create a new folder in `frontend/src/plugins/`, for example `my-new-plugin/`.
 ```typescript
 import React, { useCallback } from 'react';
 import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
-import myIconUrl from './icon.svg';
 
 export const MyNew: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     // 1. Access settings directly - framework handles parsing
@@ -412,17 +427,12 @@ export const MyNew: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     );
 };
 
-// 3. Define the widget metadata
+// 3. Define the widget — only runtime-specific fields
+//    (name, icon, layout, etc. are defined in metadata.ts)
 export const MyNewDefinition: WidgetDefinition = {
     type: 'my-new-widget',
-    name: 'My New Widget',
-    description: 'A description of what this widget does.',
-    icon: myIconUrl,
     component: MyNew,
     defaultSettings: { title: 'Default Title' },
-    layout: { w: 3, h: 2, minW: 2, minH: 2 },
-    maxInstances: 'unlimited',
-    allowedContexts: ['semester', 'course']
 };
 ```
 
@@ -433,7 +443,6 @@ export const MyNewDefinition: WidgetDefinition = {
 ```typescript
 import React, { useCallback } from 'react';
 import type { TabDefinition, TabProps } from '../../services/tabRegistry';
-import myIconUrl from './icon.svg';
 
 const NotesTab: React.FC<TabProps> = ({ settings, updateSettings }) => {
     const value = settings?.value || '';
@@ -453,36 +462,57 @@ const NotesTab: React.FC<TabProps> = ({ settings, updateSettings }) => {
     );
 };
 
+// Only runtime-specific fields — metadata is in metadata.ts
 export const NotesTabDefinition: TabDefinition = {
     type: 'notes-tab',
-    name: 'Notes',
-    description: 'Large scratchpad for planning.',
-    icon: myIconUrl,
     component: NotesTab,
     defaultSettings: { value: '' },
-    maxInstances: 1,
-    allowedContexts: ['semester', 'course']
 };
 ```
 
 ### 2. Register the Plugin
 
 Plugins are auto-registered via Vite's `import.meta.glob`.
-- Runtime UI registration reads `index.ts`.
-- Settings registration reads `settings.ts`.
+- Metadata registration reads `metadata.ts` (eagerly).
+- Runtime UI registration reads `index.ts` (lazily).
+- Settings registration reads `settings.ts` (eagerly, optional).
+
+`frontend/src/plugins/my-new-plugin/metadata.ts`
+
+```typescript
+import type { ResolvedPluginMetadata } from '../../plugin-system/types';
+import { Calculator } from 'lucide-react';
+
+export const metadata: ResolvedPluginMetadata = {
+    id: 'my-new-plugin',
+    widgetCatalog: [
+        {
+            type: 'my-new-widget',
+            name: 'My New Widget',
+            description: 'A description of what this widget does.',
+            icon: <Calculator className="h-4 w-4" />,
+            layout: { w: 3, h: 2, minW: 2, minH: 2 },
+            maxInstances: 'unlimited',
+            allowedContexts: ['semester', 'course'],
+        },
+    ],
+    tabCatalog: [],  // or add tab catalog entries here
+};
+```
 
 `frontend/src/plugins/my-new-plugin/index.ts`
 
 ```typescript
 export { MyNewDefinition, MyNew } from './widget';
 export { MyNewDefinition as widgetDefinition } from './widget';
+export { metadata } from './metadata';
 
 // If you also have a tab:
 export { NotesTabDefinition, NotesTab } from './tab';
 export { NotesTabDefinition as tabDefinition } from './tab';
 ```
 
-`frontend/src/plugins/my-new-plugin/settings.ts`
+`frontend/src/plugins/my-new-plugin/settings.ts` **(optional — only needed if you have global settings)**
 
 ```typescript
 import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
@@ -529,10 +559,10 @@ const handleChange = async (value: string) => {
 Both Widget and Tab components are automatically wrapped with `React.memo` at the framework level. The framework uses custom comparison functions that only trigger re-renders when:
 - Widget/Tab ID changes
 - Widget/Tab type changes
-- Settings object changes (deep comparison via JSON.stringify)
+- Settings object changes (deep comparison via `jsonDeepEqual` — a robust recursive comparator from `plugin-system/utils`)
 - Context (semesterId/courseId) changes
 
-**Important**: Do NOT manually wrap your widget or tab component with `React.memo` - the framework already handles this optimization via `DashboardWidgetWrapper` (for widgets) and `TabRegistry` (for tabs).
+**Important**: Do NOT manually wrap your widget or tab component with `React.memo` - the framework already handles this optimization via `DashboardWidgetWrapper` (for widgets), `WidgetRegistry` (for widget components), and `TabRegistry` (for tabs).
 
 ## Lifecycle Hooks
 
@@ -585,11 +615,51 @@ export const MyDefinition: WidgetDefinition = {
 
 ## Best Practices
 
+### Settings Normalization
+
+Always implement a **normalize function** for your settings to handle missing, corrupted, or legacy data defensively:
+
+```typescript
+interface MyWidgetSettings {
+    title: string;
+    count: number;
+    showBorder: boolean;
+}
+
+const normalizeSettings = (settings: unknown): MyWidgetSettings => {
+    if (!settings || typeof settings !== 'object') {
+        return { title: '', count: 0, showBorder: true };
+    }
+    const s = settings as Partial<MyWidgetSettings>;
+    return {
+        title: typeof s.title === 'string' ? s.title : '',
+        count: Number.isFinite(s.count) ? s.count as number : 0,
+        showBorder: typeof s.showBorder === 'boolean' ? s.showBorder : true,
+    };
+};
+
+// Use in component:
+const MyWidget: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
+    const { title, count, showBorder } = normalizeSettings(settings);
+    // ...
+};
+
+// Use in settings component:
+const MySettings: React.FC<WidgetSettingsProps> = ({ settings, onSettingsChange }) => {
+    const normalized = normalizeSettings(settings);
+    // Always spread from normalized, not raw settings:
+    onSettingsChange({ ...normalized, title: 'new' });
+};
+```
+
+**Why**: Avoid unsafe `as` casts. Settings come from the database and may be missing fields (schema evolution), have wrong types (data corruption), or contain legacy fields (migration). A normalizer ensures runtime safety.
+
 ### State Management
 
 - **Use `settings` prop directly**: The framework handles parsing and provides an object
 - **Use `updateSettings` for persistence**: Don't call `api.updateWidget` directly for settings
 - **Trust the Optimistic UI**: UI updates are immediate, no need for local state in most cases
+- **Use normalizer functions**: Never cast `settings as MySettings` — use a normalizer instead
 
 ### Shared Settings (Tab + Widget)
 

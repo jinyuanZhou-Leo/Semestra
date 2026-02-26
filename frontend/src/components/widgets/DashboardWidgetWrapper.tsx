@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { ensureWidgetPluginByTypeLoaded, hasWidgetPluginForType } from '../../plugin-system';
+import { jsonDeepEqual } from '../../plugin-system/utils';
 import { PluginWidgetSkeleton } from '../../plugin-system/PluginLoadSkeleton';
 
 interface DashboardWidgetWrapperProps {
@@ -284,9 +285,7 @@ const arePropsEqual = (
 
     // Deep compare settings (most frequent change)
     if (prevProps.widget.settings !== nextProps.widget.settings) {
-        const prevSettings = JSON.stringify(prevProps.widget.settings);
-        const nextSettings = JSON.stringify(nextProps.widget.settings);
-        if (prevSettings !== nextSettings) return false;
+        if (!jsonDeepEqual(prevProps.widget.settings, nextProps.widget.settings)) return false;
     }
 
     // Re-render when edit mode changes (header buttons, resize handles)

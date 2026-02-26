@@ -22,7 +22,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Calendar, Globe } from 'lucide-react';
+import { Calendar, Globe } from 'lucide-react';
 
 const AVAILABLE_TIMEZONES = [
     { value: 'UTC', label: 'UTC' },
@@ -171,11 +171,7 @@ export const WorldClock = WorldClockComponent;
 
 export const WorldClockDefinition: WidgetDefinition = {
     type: 'world-clock',
-    name: 'World Clock',
-    description: 'Displays current time in a specific timezone.',
-    icon: <Clock className="h-4 w-4" />,
     component: WorldClock,
     SettingsComponent: WorldClockSettingsComponent,
     defaultSettings: { timezone: 'UTC', showSeconds: true },
-    layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 }
 };

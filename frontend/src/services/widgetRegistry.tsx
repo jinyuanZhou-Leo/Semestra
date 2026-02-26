@@ -9,6 +9,7 @@
 "use no memo";
 
 import React from 'react';
+import { isUnlimitedInstances, jsonDeepEqual, DEFAULT_WIDGET_ALLOWED_CONTEXTS, type MaxInstances } from '../plugin-system/utils';
 
 export interface HeaderButtonContext {
     widgetId: string;
@@ -43,9 +44,9 @@ export interface HeaderButton {
     render: (context: HeaderButtonContext, helpers: HeaderButtonRenderHelpers) => React.ReactNode;
 }
 
-export interface WidgetProps {
+export interface WidgetProps<S = any> {
     widgetId: string;
-    settings: any;
+    settings: S;
     semesterId?: string;
     courseId?: string;
     /**
@@ -53,7 +54,7 @@ export interface WidgetProps {
      * Plugin developers just call this function, no need to implement debouncing
      * Returns void since framework debounces API calls (Optimistic UI pattern)
      */
-    updateSettings: (newSettings: any) => void | Promise<void>;
+    updateSettings: (newSettings: S) => void | Promise<void>;
     updateCourse?: (updates: any) => void;
 }
 
@@ -65,11 +66,11 @@ export interface WidgetLifecycleContext {
 }
 
 export type WidgetContext = 'semester' | 'course';
-export type MaxInstances = number | 'unlimited';
+export type { MaxInstances } from '../plugin-system/utils';
 
-export interface WidgetSettingsProps {
-    settings: any;
-    onSettingsChange: (newSettings: any) => void;
+export interface WidgetSettingsProps<S = any> {
+    settings: S;
+    onSettingsChange: (newSettings: S) => void;
 }
 
 /**
@@ -85,7 +86,7 @@ export interface WidgetGlobalSettingsProps {
 
 export interface WidgetDefinition {
     type: string;
-    name: string;
+    name?: string;
     description?: string;
     icon?: React.ReactNode;
     component: React.FC<WidgetProps>;
@@ -124,11 +125,13 @@ type Listener = () => void;
 
 class WidgetRegistryClass {
     private widgets: Map<string, WidgetDefinition> = new Map();
+    private memoizedComponents: Map<string, React.FC<WidgetProps>> = new Map();
     private listeners: Set<Listener> = new Set();
 
     register(definition: WidgetDefinition) {
         if (this.widgets.has(definition.type)) {
             console.warn(`Widget type ${definition.type} is already registered. Overwriting.`);
+            this.memoizedComponents.delete(definition.type);
         }
         this.widgets.set(definition.type, definition);
         // Notify all subscribers when a new widget is registered
@@ -153,22 +156,36 @@ class WidgetRegistryClass {
     }
 
     getComponent(type: string): React.FC<WidgetProps> | undefined {
-        return this.widgets.get(type)?.component;
+        const definition = this.widgets.get(type);
+        if (!definition) return undefined;
+
+        // Return cached memoized component if available
+        if (this.memoizedComponents.has(type)) {
+            return this.memoizedComponents.get(type);
+        }
+
+        // Create memoized version with custom comparison
+        const MemoizedComponent = React.memo(definition.component, (prevProps, nextProps) => {
+            return (
+                prevProps.widgetId === nextProps.widgetId &&
+                prevProps.semesterId === nextProps.semesterId &&
+                prevProps.courseId === nextProps.courseId &&
+                jsonDeepEqual(prevProps.settings, nextProps.settings)
+            );
+        });
+
+        // Cache and return
+        this.memoizedComponents.set(type, MemoizedComponent);
+        return MemoizedComponent;
     }
 }
 
 export const WidgetRegistry = new WidgetRegistryClass();
 
-const DEFAULT_ALLOWED_CONTEXTS: WidgetContext[] = ['semester', 'course'];
+export { isUnlimitedInstances, DEFAULT_WIDGET_ALLOWED_CONTEXTS } from '../plugin-system/utils';
 
 export const resolveAllowedContexts = (definition: WidgetDefinition) => {
-    return definition.allowedContexts ?? DEFAULT_ALLOWED_CONTEXTS;
-};
-
-export const isUnlimitedInstances = (maxInstances?: MaxInstances) => {
-    if (maxInstances === undefined || maxInstances === 'unlimited') return true;
-    if (typeof maxInstances === 'number' && !Number.isFinite(maxInstances)) return true;
-    return false;
+    return definition.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS;
 };
 
 export const canAddWidget = (definition: WidgetDefinition, context: WidgetContext, currentCount: number) => {
