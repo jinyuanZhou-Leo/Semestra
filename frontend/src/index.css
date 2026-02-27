@@ -12,6 +12,9 @@ pos:    [Root stylesheet shared by every frontend route/component]
 
 @import "tw-animate-css";
 
+/* Keep dark variants aligned with ThemeProvider's `.dark` class. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Custom variants for shadcn/ui animations */
 @custom-variant data-open (&[data-state="open"]);
 @custom-variant data-closed (&[data-state="closed"]);

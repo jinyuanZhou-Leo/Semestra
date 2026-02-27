@@ -1,6 +1,6 @@
 // input:  [builtin tab context state, dashboard widget callbacks (local layout sync + commit persistence), motion + icon dependencies, shared button variant classes]
 // output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` plugin metadata]
-// pos:    [Built-in dashboard tab UI entry handling edit mode state, theme-adaptive floating action controls with emerald active edit state and mode-aware shadows, and split layout callback wiring]
+// pos:    [Built-in dashboard tab UI entry handling edit mode state, theme-adaptive floating action controls with light-mode light-green glass active edit surface + dark-green dark mode, and split layout callback wiring]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -20,9 +20,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinTabContext();
     const fabBaseButtonClassName =
-        "border border-border/80 bg-background/95 text-foreground shadow-[0_10px_24px_color-mix(in_srgb,var(--color-foreground)_14%,transparent)] backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/88 hover:bg-background hover:text-foreground hover:border-border transition-colors duration-200";
+        "border border-border/80 bg-background/95 text-foreground shadow-[0_10px_24px_color-mix(in_srgb,var(--color-foreground)_12%,transparent)] dark:shadow-none backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/88 hover:bg-background hover:text-foreground hover:border-border transition-colors duration-200";
     const fabActiveButtonClassName =
-        "border border-emerald-500/62 bg-emerald-500/14 text-emerald-900 hover:bg-emerald-500/20 hover:text-emerald-950 shadow-[0_0_0_1px_rgba(16,185,129,0.28),0_10px_22px_rgba(16,185,129,0.22)] dark:border-emerald-300/55 dark:bg-emerald-950/42 dark:text-emerald-200 dark:hover:bg-emerald-950/56 dark:hover:text-emerald-100 dark:shadow-[0_0_0_1px_rgba(110,231,183,0.38),0_14px_28px_rgba(6,78,59,0.44)] backdrop-blur-md backdrop-saturate-150 transition-colors duration-200";
+        "border border-emerald-500/56 bg-emerald-200/58 supports-[backdrop-filter]:bg-emerald-200/42 text-emerald-900 hover:bg-emerald-200/68 hover:text-emerald-950 shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_10px_20px_rgba(16,185,129,0.2)] dark:border-emerald-300/44 dark:bg-emerald-900/72 dark:supports-[backdrop-filter]:bg-emerald-900/62 dark:text-emerald-100 dark:hover:bg-emerald-900/80 dark:hover:text-emerald-50 dark:shadow-none backdrop-blur-md backdrop-saturate-150 transition-colors duration-200";
     const checkIconClassName =
         "h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-200";
     const pencilIconClassName =
@@ -121,7 +121,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                 <motion.button
                     layout
                     onClick={toggleEditMode}
-                    className={`pointer-events-auto relative flex items-center justify-center shrink-0 shadow-lg cursor-pointer outline-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 size-[3.25rem] rounded-full p-0 ${isEditMode
+                    className={`pointer-events-auto relative flex items-center justify-center shrink-0 cursor-pointer outline-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 size-[3.25rem] rounded-full p-0 ${isEditMode
                         ? `${fabActiveButtonClassName}`
                         : `${fabBaseButtonClassName}`
                         }`}

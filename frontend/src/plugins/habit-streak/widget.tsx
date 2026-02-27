@@ -1,6 +1,6 @@
 // input:  [widget settings/update callbacks, framer-motion animation runtime, shadcn form controls/dialog actions]
 // output: [habit-streak widget component, settings component, helpers, and widget definition metadata]
-// pos:    [plugin runtime + settings layer for interval-based habit check-ins, light-friendly theme-adaptive streak ring visuals with mode-specific center typography, and interval-agnostic motivational copy]
+// pos:    [plugin runtime + settings layer for interval-based habit check-ins, light-friendly theme-adaptive streak ring visuals with subtle orbital animation, stronger center typography contrast, and reusable precomputed burst animations with restored glow particles]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -351,6 +351,42 @@ interface HabitRingProps {
     reactionSignal: number;
 }
 
+interface MilestoneBurstState {
+    id: number;
+    color: string;
+    tier: number;
+}
+
+interface ParticleSpec {
+    id: number;
+    x: number;
+    y: number;
+    duration: number;
+    delay: number;
+    sizeClass: string;
+    scalePeak: number;
+    glowBlur: number;
+}
+
+interface BurstState {
+    id: number;
+    isOverachieve?: boolean;
+    overachieveParticles?: ParticleSpec[];
+}
+
+interface ParticlePlan {
+    count: number;
+    angleJitterDeg: number;
+    distanceMin: number;
+    distanceMax: number;
+    durationMin: number;
+    durationMax: number;
+    delayMax: number;
+    sizeClass: string;
+    scalePeak: number;
+    glowBlur: number;
+}
+
 const getMilestoneTier = (progress: number): 0 | 1 | 2 | 3 | 4 => {
     if (progress >= 100) return 4;
     if (progress >= 75) return 3;
@@ -359,9 +395,115 @@ const getMilestoneTier = (progress: number): 0 | 1 | 2 | 3 | 4 => {
     return 0;
 };
 
+const createSeededRandom = (seed: number) => {
+    let state = Math.abs(seed % 2147483647) || 1;
+    return () => {
+        state = (state * 16807) % 2147483647;
+        return (state - 1) / 2147483646;
+    };
+};
+
+const buildParticleSpecs = (seed: number, plan: ParticlePlan): ParticleSpec[] => {
+    const random = createSeededRandom(seed);
+    return Array.from({ length: plan.count }, (_, index) => {
+        const angle = (index * (360 / plan.count) + (random() * plan.angleJitterDeg - plan.angleJitterDeg / 2)) * (Math.PI / 180);
+        const distance = plan.distanceMin + random() * (plan.distanceMax - plan.distanceMin);
+        return {
+            id: index,
+            x: Math.cos(angle) * distance,
+            y: Math.sin(angle) * distance,
+            duration: plan.durationMin + random() * (plan.durationMax - plan.durationMin),
+            delay: random() * plan.delayMax,
+            sizeClass: plan.sizeClass,
+            scalePeak: plan.scalePeak,
+            glowBlur: plan.glowBlur,
+        };
+    });
+};
+
+const buildMilestoneParticleSpecs = (seed: number, isMax: boolean): ParticleSpec[] => {
+    return buildParticleSpecs(seed, {
+        count: isMax ? 24 : 12,
+        angleJitterDeg: 10,
+        distanceMin: isMax ? 74 : 54,
+        distanceMax: isMax ? 98 : 74,
+        durationMin: isMax ? 0.82 : 0.58,
+        durationMax: isMax ? 0.98 : 0.70,
+        delayMax: 0.06,
+        sizeClass: isMax ? "h-2 w-2" : "h-1.5 w-1.5",
+        scalePeak: isMax ? 1.6 : 1.3,
+        glowBlur: isMax ? 9 : 6,
+    });
+};
+
+const buildOverachieveParticleSpecs = (seed: number): ParticleSpec[] => {
+    return buildParticleSpecs(seed, {
+        count: 8,
+        angleJitterDeg: 14,
+        distanceMin: 42,
+        distanceMax: 58,
+        durationMin: 0.5,
+        durationMax: 0.64,
+        delayMax: 0.05,
+        sizeClass: "h-1 w-1",
+        scalePeak: 1.4,
+        glowBlur: 7,
+    });
+};
+
+const BurstParticles: React.FC<{
+    particles: ParticleSpec[];
+    color: string;
+    prefersReducedMotion: boolean;
+}> = ({ particles, color, prefersReducedMotion }) => (
+    <>
+        {particles.map((particle) => (
+            <motion.div
+                key={particle.id}
+                className={`absolute left-1/2 top-1/2 ${particle.sizeClass} -translate-x-1/2 -translate-y-1/2 rounded-full will-change-transform`}
+                style={{ backgroundColor: color, boxShadow: `0 0 ${particle.glowBlur}px ${color}` }}
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 1, x: 0, y: 0, scale: 0.6 }}
+                animate={prefersReducedMotion ? { opacity: 0 } : {
+                    opacity: [1, 0.85, 0],
+                    x: particle.x,
+                    y: particle.y,
+                    scale: [1, particle.scalePeak, 0],
+                }}
+                transition={{ duration: particle.duration, delay: particle.delay, ease: "easeOut" }}
+            />
+        ))}
+    </>
+);
+
+const MilestoneBurstLayer: React.FC<{
+    burst: MilestoneBurstState;
+    prefersReducedMotion: boolean;
+}> = ({ burst, prefersReducedMotion }) => {
+    const isMax = burst.tier === 4;
+    const particleSpecs = useMemo(
+        () => buildMilestoneParticleSpecs(burst.id, isMax),
+        [burst.id, isMax]
+    );
+
+    return (
+        <div className="pointer-events-none absolute inset-0 mix-blend-screen">
+            {isMax && (
+                <motion.div
+                    className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px]"
+                    style={{ borderColor: burst.color }}
+                    initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.9, opacity: 0.95, borderWidth: '4px' }}
+                    animate={prefersReducedMotion ? { opacity: 0 } : { scale: 2.4, opacity: 0, borderWidth: '0px' }}
+                    transition={{ duration: 0.66, ease: "easeOut" }}
+                />
+            )}
+            <BurstParticles particles={particleSpecs} color={burst.color} prefersReducedMotion={prefersReducedMotion} />
+        </div>
+    );
+};
+
 const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount, targetProgress, reactionSignal }) => {
-    const [bursts, setBursts] = useState<{ id: number; isOverachieve?: boolean }[]>([]);
-    const [milestoneBursts, setMilestoneBursts] = useState<{ id: number; color: string; tier: number }[]>([]);
+    const [bursts, setBursts] = useState<BurstState[]>([]);
+    const [milestoneBursts, setMilestoneBursts] = useState<MilestoneBurstState[]>([]);
     const gradientId = useId().replace(/:/g, '-');
 
     // Track previous tier to detect boundary crossings
@@ -369,7 +511,14 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
 
     useEffect(() => {
         if (prefersReducedMotion || reactionSignal === 0) return;
-        setBursts((prev) => [...prev, { id: Date.now(), isOverachieve: targetProgress >= 100 }].slice(-3));
+        const burstId = Date.now();
+        const isOverachieve = targetProgress >= 100;
+        const nextBurst: BurstState = {
+            id: burstId,
+            isOverachieve,
+            overachieveParticles: isOverachieve ? buildOverachieveParticleSpecs(burstId) : undefined,
+        };
+        setBursts((prev) => [...prev, nextBurst].slice(-3));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [reactionSignal, prefersReducedMotion]);
 
@@ -409,7 +558,17 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
             />
 
             {/* Progress SVG Ring */}
-            <svg className="absolute inset-0 h-full w-full -rotate-90 transform drop-shadow-[0_4px_12px_rgba(249,115,22,0.3)]" viewBox="0 0 100 100">
+            <motion.svg
+                className="absolute inset-0 h-full w-full transform drop-shadow-[0_4px_10px_rgba(249,115,22,0.22)] dark:drop-shadow-[0_7px_18px_rgba(249,115,22,0.18)]"
+                viewBox="0 0 100 100"
+                initial={{ rotate: -90, scale: 1 }}
+                animate={prefersReducedMotion
+                    ? { rotate: -90, scale: 1 }
+                    : { rotate: [-90, -88.8, -90.8, -90], scale: [1, 1.012, 1] }}
+                transition={prefersReducedMotion
+                    ? { duration: 0 }
+                    : { duration: 6.6, repeat: Infinity, ease: "easeInOut" }}
+            >
                 {/* Track background */}
                 <circle
                     cx="50"
@@ -417,7 +576,7 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     r="46"
                     strokeWidth="4.5"
                     fill="none"
-                    className="stroke-foreground/12 dark:stroke-foreground/24"
+                    style={{ stroke: 'var(--habit-ring-track)' }}
                 />
                 {/* Animated progress */}
                 <motion.circle
@@ -429,10 +588,36 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     strokeLinecap="round"
                     fill="none"
                     initial={prefersReducedMotion ? { strokeDashoffset } : { strokeDashoffset: circumference }}
-                    animate={{ strokeDashoffset }}
-                    transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+                    animate={prefersReducedMotion
+                        ? { strokeDashoffset }
+                        : { strokeDashoffset, opacity: [0.9, 1, 0.9] }}
+                    transition={prefersReducedMotion
+                        ? { duration: 1.2, ease: [0.16, 1, 0.3, 1] }
+                        : {
+                            strokeDashoffset: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
+                            opacity: { duration: 2.3, repeat: Infinity, ease: "easeInOut" },
+                        }}
                     strokeDasharray={circumference}
                 />
+
+                {/* Subtle orbital shimmer ring */}
+                <motion.g
+                    animate={prefersReducedMotion ? { rotate: 0 } : { rotate: 360 }}
+                    transition={prefersReducedMotion ? { duration: 0 } : { duration: 9, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: '50% 50%' }}
+                >
+                    <circle
+                        cx="50"
+                        cy="50"
+                        r="46"
+                        strokeWidth="1.15"
+                        fill="none"
+                        stroke="rgba(255,255,255,0.4)"
+                        strokeDasharray="6 26"
+                        strokeLinecap="round"
+                        opacity={0.28}
+                    />
+                </motion.g>
                 <defs>
                     <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#facc15" />
@@ -440,7 +625,7 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                         <stop offset="100%" stopColor="#f43f5e" />
                     </linearGradient>
                 </defs>
-            </svg>
+            </motion.svg>
 
             {/* Reaction Ripple Burst */}
             <AnimatePresence>
@@ -454,74 +639,22 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.8, ease: "easeOut" }}
                         />
-                        {burst.isOverachieve && Array.from({ length: 8 }).map((_, i) => {
-                            const angle = (i * 45 + (Math.random() * 15 - 7.5)) * (Math.PI / 180);
-                            const distance = 50 + Math.random() * 20;
-                            return (
-                                <motion.div
-                                    key={i}
-                                    className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                                    style={{ backgroundColor: '#f43f5e', boxShadow: '0 0 6px #f43f5e' }}
-                                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 1, x: 0, y: 0, scale: 0.5 }}
-                                    animate={prefersReducedMotion ? { opacity: 0 } : {
-                                        opacity: [1, 0.8, 0],
-                                        x: Math.cos(angle) * distance,
-                                        y: Math.sin(angle) * distance,
-                                        scale: [1, 1.5, 0]
-                                    }}
-                                    transition={{ duration: 0.6, ease: "easeOut" }}
-                                />
-                            );
-                        })}
+                        {burst.isOverachieve && burst.overachieveParticles && (
+                            <BurstParticles
+                                particles={burst.overachieveParticles}
+                                color="#f43f5e"
+                                prefersReducedMotion={prefersReducedMotion}
+                            />
+                        )}
                     </div>
                 ))}
             </AnimatePresence>
 
             {/* Milestone Particle Bursts (every 25%) */}
             <AnimatePresence>
-                {milestoneBursts.map(burst => {
-                    const isMax = burst.tier === 4;
-                    const particleCount = isMax ? 24 : 12;
-
-                    return (
-                        <div key={burst.id} className="pointer-events-none absolute inset-0 mix-blend-screen">
-                            {/* Inner explosion ring for 100% */}
-                            {isMax && (
-                                <motion.div
-                                    className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-4"
-                                    style={{ borderColor: burst.color }}
-                                    initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '6px' }}
-                                    animate={prefersReducedMotion ? { opacity: 0 } : { scale: 2.8, opacity: 0, borderWidth: '0px' }}
-                                    transition={{ duration: 0.8, ease: "easeOut" }}
-                                />
-                            )}
-                            {Array.from({ length: particleCount }).map((_, i) => {
-                                const angle = (i * (360 / particleCount) + (Math.random() * 10 - 5)) * (Math.PI / 180);
-                                const distanceLimit = isMax ? 110 : 80;
-                                const distanceMin = isMax ? 80 : 60;
-                                const distance = distanceMin + Math.random() * (distanceLimit - distanceMin);
-                                const duration = isMax ? 1.0 : 0.7; // Crisp, faster duration for standard bursts
-                                const sizeClass = isMax ? "h-2.5 w-2.5" : "h-2 w-2";
-
-                                return (
-                                    <motion.div
-                                        key={i}
-                                        className={`absolute left-1/2 top-1/2 ${sizeClass} -translate-x-1/2 -translate-y-1/2 rounded-full`}
-                                        style={{ backgroundColor: burst.color, boxShadow: `0 0 ${isMax ? '12px' : '8px'} ${burst.color}` }}
-                                        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 1, x: 0, y: 0, scale: 0.6 }}
-                                        animate={prefersReducedMotion ? { opacity: 0 } : {
-                                            opacity: [1, 0.9, 0],
-                                            x: Math.cos(angle) * distance,
-                                            y: Math.sin(angle) * distance,
-                                            scale: [1, isMax ? 1.8 : 1.4, 0]
-                                        }}
-                                        transition={{ duration, ease: "easeOut" }}
-                                    />
-                                );
-                            })}
-                        </div>
-                    );
-                })}
+                {milestoneBursts.map((burst) => (
+                    <MilestoneBurstLayer key={burst.id} burst={burst} prefersReducedMotion={prefersReducedMotion} />
+                ))}
             </AnimatePresence>
 
             {/* Center Content */}
@@ -531,13 +664,22 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     initial={prefersReducedMotion ? false : { scale: 1.15, opacity: 0.5 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    className="font-extrabold tracking-tighter text-foreground drop-shadow-sm dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-br dark:from-white dark:to-white/60"
-                    style={{ fontSize: 'clamp(1rem, 18cqmin, 2.5rem)', lineHeight: 1 }}
+                    className="font-extrabold tracking-tighter drop-shadow-[0_1px_0_rgba(255,255,255,0.45)] dark:drop-shadow-none"
+                    style={{
+                        fontSize: 'clamp(1rem, 18cqmin, 2.5rem)',
+                        lineHeight: 1,
+                        color: 'var(--habit-ring-center-number)',
+                    }}
                 >
                     {streakCount}
                 </motion.span>
-                <span className="mt-0 font-bold uppercase tracking-widest text-foreground/65 dark:text-white/50"
-                    style={{ fontSize: 'clamp(0.45rem, 6cqmin, 0.6rem)' }}>
+                <span
+                    className="mt-0 font-bold uppercase tracking-widest"
+                    style={{
+                        fontSize: 'clamp(0.45rem, 6cqmin, 0.6rem)',
+                        color: 'var(--habit-ring-center-label)',
+                    }}
+                >
                     Streak
                 </span>
             </div>
@@ -689,6 +831,9 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
 
             <style>{`
                 .habit-streak-widget {
+                    --habit-ring-track: color-mix(in srgb, var(--color-foreground) 16%, var(--color-background) 84%);
+                    --habit-ring-center-number: color-mix(in srgb, var(--color-foreground) 96%, black 4%);
+                    --habit-ring-center-label: color-mix(in srgb, var(--color-foreground) 70%, var(--color-background) 30%);
                     container-type: size;
                     background:
                         radial-gradient(120% 96% at 14% 10%, rgba(254, 243, 199, 0.4) 0%, rgba(254, 243, 199, 0) 52%),
@@ -697,6 +842,9 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                         linear-gradient(138deg, #ffffff 0%, #fafafa 44%, #f5f5f4 100%);
                 }
                 .dark .habit-streak-widget {
+                    --habit-ring-track: color-mix(in srgb, var(--color-foreground) 24%, transparent);
+                    --habit-ring-center-number: color-mix(in srgb, white 92%, var(--color-foreground) 8%);
+                    --habit-ring-center-label: color-mix(in srgb, white 56%, transparent);
                     background:
                         radial-gradient(128% 100% at 14% 10%, rgba(255, 172, 80, 0.32) 0%, rgba(255, 172, 80, 0) 52%),
                         radial-gradient(108% 86% at 88% 88%, rgba(255, 98, 64, 0.34) 0%, rgba(255, 98, 64, 0) 58%),
