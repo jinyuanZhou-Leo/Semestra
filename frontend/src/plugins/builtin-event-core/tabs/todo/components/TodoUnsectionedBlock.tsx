@@ -1,3 +1,10 @@
+// input:  [Unsectioned task collection, drag state, drop handlers, and task renderer]
+// output: [TodoUnsectionedBlock React component]
+// pos:    [Top-level task bucket shown before explicit section groups]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
@@ -31,13 +38,13 @@ export const TodoUnsectionedBlock: React.FC<TodoUnsectionedBlockProps> = ({
       layout
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className={cn(
-        'rounded-md px-1.5 py-1',
+        'rounded-md px-0.5 py-1 sm:px-1.5',
         dragOverSectionId === sectionId && 'bg-primary/5',
       )}
       onDragOver={(event) => onDragOverSection(event, sectionId)}
       onDrop={(event) => onDropToSection(event, sectionId, null)}
     >
-      <div className="space-y-1.5 pb-1">
+      <div className="space-y-1.5 pb-1 pr-0.5 sm:pr-1">
         {tasks.length === 0 ? (
           <p className="py-1 text-xs text-muted-foreground">No tasks</p>
         ) : (

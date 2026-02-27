@@ -1,3 +1,10 @@
+// input:  [Todo list collection state and list-level callbacks from TodoTab]
+// output: [TodoListSidebar React component]
+// pos:    [List navigation panel for selecting and managing todo lists in semester mode]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
@@ -33,30 +40,32 @@ export const TodoListSidebar: React.FC<TodoListSidebarProps> = ({
   onOpenDeleteListAlert,
 }) => {
   return (
-    <div className="border-r px-2.5 py-3">
+    <div className="border-b px-2.5 py-3 md:border-b-0 md:border-r">
       <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
         <CardTitle className="text-sm">Lists</CardTitle>
         {mode === 'semester' ? (
           <div className="flex items-center gap-1">
             <Button
               type="button"
-              size="icon-xs"
+              size="icon-sm"
+              className="md:size-6"
               variant={listManageMode ? 'secondary' : 'outline'}
               onClick={onToggleListManageMode}
               aria-label={listManageMode ? 'Done editing lists' : 'Edit lists'}
               title={listManageMode ? 'Done' : 'Edit'}
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil className="h-4 w-4 md:h-3.5 md:w-3.5" />
             </Button>
             <Button
               type="button"
-              size="icon-xs"
+              size="icon-sm"
+              className="md:size-6"
               variant="outline"
               onClick={onCreateCustomList}
               aria-label="Create new list"
               title="New"
             >
-              <CirclePlus className="h-3.5 w-3.5" />
+              <CirclePlus className="h-4 w-4 md:h-3.5 md:w-3.5" />
             </Button>
           </div>
         ) : null}
@@ -66,7 +75,7 @@ export const TodoListSidebar: React.FC<TodoListSidebarProps> = ({
         <p className="mb-2 px-0.5 text-xs text-muted-foreground">Loading lists...</p>
       ) : null}
 
-      <ScrollArea className="h-[560px]">
+      <ScrollArea className="h-[220px] sm:h-[260px] md:h-[560px]">
         <div className="space-y-1.5 pr-1">
           {allLists.map((list) => {
             const isActive = activeListId === list.id;
@@ -81,7 +90,7 @@ export const TodoListSidebar: React.FC<TodoListSidebarProps> = ({
                   type="button"
                   onClick={() => onSelectList(list.id)}
                   className={cn(
-                    'group relative w-full rounded-md px-2 py-1.5 text-left transition-colors',
+                    'group relative min-h-11 w-full rounded-md px-2 py-1.5 text-left transition-colors',
                     isCustomList && 'pr-8',
                     isActive
                       ? 'bg-accent/80 text-foreground font-medium'
@@ -110,9 +119,9 @@ export const TodoListSidebar: React.FC<TodoListSidebarProps> = ({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon-xs"
+                    size="icon-sm"
                     className={cn(
-                      'absolute right-1 top-1 text-destructive transition-opacity hover:bg-destructive/10 hover:text-destructive',
+                      'absolute right-1 top-1 text-destructive transition-opacity hover:bg-destructive/10 hover:text-destructive md:size-6',
                       canDeleteList ? 'opacity-100' : 'pointer-events-none opacity-0',
                     )}
                     onClick={(event) => {
@@ -122,7 +131,7 @@ export const TodoListSidebar: React.FC<TodoListSidebarProps> = ({
                     aria-label={`Delete list ${list.name}`}
                     title="Delete list"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4 md:h-3.5 md:w-3.5" />
                   </Button>
                 ) : null}
               </div>

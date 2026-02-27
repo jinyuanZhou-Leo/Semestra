@@ -1,3 +1,10 @@
+// input:  [Active todo list metadata, sort state, and list action callbacks]
+// output: [TodoMainHeader React component]
+// pos:    [Top action bar for list title, sorting, section creation, and task creation]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
@@ -48,8 +55,8 @@ export const TodoMainHeader: React.FC<TodoMainHeaderProps> = ({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
-      <div className="min-w-0">
+    <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0 sm:flex-1">
         <div className="flex items-center gap-2">
           <CardTitle className="truncate text-xl leading-9">{activeList.name}</CardTitle>
           {activeList.editableName ? (
@@ -68,10 +75,10 @@ export const TodoMainHeader: React.FC<TodoMainHeaderProps> = ({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="icon" aria-label="Open sorting options">
+            <Button type="button" variant="outline" size="icon" className="h-9 w-9" aria-label="Open sorting options">
               <ArrowUpDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -108,11 +115,11 @@ export const TodoMainHeader: React.FC<TodoMainHeaderProps> = ({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button type="button" variant="outline" onClick={() => onAddSection(activeList)}>
+        <Button type="button" variant="outline" className="flex-1 sm:flex-none" onClick={() => onAddSection(activeList)}>
           <ListTree className="mr-2 h-4 w-4" />
           Add Section
         </Button>
-        <Button type="button" onClick={() => onOpenCreateTaskDialog(activeList)}>
+        <Button type="button" className="flex-1 sm:flex-none" onClick={() => onOpenCreateTaskDialog(activeList)}>
           <CirclePlus className="mr-2 h-4 w-4" />
           Add Task
         </Button>

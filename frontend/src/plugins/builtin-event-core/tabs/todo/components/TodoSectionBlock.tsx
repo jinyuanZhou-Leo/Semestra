@@ -1,3 +1,10 @@
+// input:  [Todo section/task data plus drag-and-drop and section action callbacks]
+// output: [TodoSectionBlock React component]
+// pos:    [Collapsible section wrapper that lays out section header and nested task cards]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
@@ -52,12 +59,12 @@ export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
           onDragOver={(event) => onDragOverSection(event, section.id)}
           onDrop={(event) => onDropToSection(event, section.id, null)}
           className={cn(
-            'rounded-md px-1.5 py-1',
+            'rounded-md px-0 py-1 sm:px-1.5',
             isCompletedSection && 'opacity-85',
             dragOverSectionId === section.id && 'bg-primary/5',
           )}
         >
-          <div className="flex items-center gap-2 px-1 py-1">
+          <div className="flex items-center gap-1.5 px-0 py-1 sm:gap-2 sm:px-1">
             <CollapsibleTrigger asChild>
               <Button
                 type="button"
@@ -106,7 +113,7 @@ export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
 
           <CollapsibleContent className="overflow-hidden data-open:animate-accordion-down data-closed:animate-accordion-up">
             <div
-              className="space-y-1.5 px-7 pb-2 pt-1"
+              className="space-y-1.5 pb-2 pl-0 pr-0.5 pt-1 sm:pl-7 sm:pr-1"
               onDragOver={(event) => onDragOverSection(event, section.id)}
               onDrop={(event) => onDropToSection(event, section.id, null)}
             >

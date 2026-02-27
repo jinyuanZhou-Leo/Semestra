@@ -1,3 +1,10 @@
+// input:  [Tab settings payload, Todo state hooks, todoData helpers, shared UI primitives]
+// output: [TodoTab React component for course/semester todo management]
+// pos:    [Todo tab orchestration layer that wires list selection, task mutations, and responsive layout]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
@@ -887,87 +894,83 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
 
   return (
     <div className="space-y-4 select-none">
-      <div className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <div className={showListSidebar
-            ? 'grid min-w-[720px] grid-cols-[208px_minmax(0,1fr)] gap-0 md:grid-cols-[232px_minmax(0,1fr)] xl:min-w-0 xl:grid-cols-[244px_minmax(0,1fr)]'
-            : ''
-          }>
-            {showListSidebar ? (
-              <TodoListSidebar
-                mode={mode}
-                listManageMode={listManageMode}
-                semesterCourseListsLoading={semesterCourseListsLoading}
-                allLists={allLists}
-                activeListId={activeList?.id}
-                onToggleListManageMode={() => setListManageMode((previous) => !previous)}
-                onCreateCustomList={handleCreateCustomList}
-                onSelectList={setSelectedListId}
-                onOpenDeleteListAlert={openDeleteListAlert}
-              />
-            ) : null}
+      <div className={showListSidebar
+        ? 'grid grid-cols-1 gap-0 md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[244px_minmax(0,1fr)]'
+        : ''
+      }>
+        {showListSidebar ? (
+          <TodoListSidebar
+            mode={mode}
+            listManageMode={listManageMode}
+            semesterCourseListsLoading={semesterCourseListsLoading}
+            allLists={allLists}
+            activeListId={activeList?.id}
+            onToggleListManageMode={() => setListManageMode((previous) => !previous)}
+            onCreateCustomList={handleCreateCustomList}
+            onSelectList={setSelectedListId}
+            onOpenDeleteListAlert={openDeleteListAlert}
+          />
+        ) : null}
 
-            <div className="px-4 py-3">
-              <TodoMainHeader
-                activeList={activeList}
-                sortMode={sortMode}
-                sortDirection={sortDirection}
-                sortOptions={SORT_OPTIONS}
-                onSortModeChange={setSortMode}
-                onSortDirectionChange={setSortDirection}
-                onOpenListTitleEditor={openListTitleEditor}
-                onAddSection={handleAddSection}
-                onOpenCreateTaskDialog={openCreateTaskDialog}
-              />
+        <div className="min-w-0 px-2 py-3 sm:px-4">
+          <TodoMainHeader
+            activeList={activeList}
+            sortMode={sortMode}
+            sortDirection={sortDirection}
+            sortOptions={SORT_OPTIONS}
+            onSortModeChange={setSortMode}
+            onSortDirectionChange={setSortDirection}
+            onOpenListTitleEditor={openListTitleEditor}
+            onAddSection={handleAddSection}
+            onOpenCreateTaskDialog={openCreateTaskDialog}
+          />
 
-              <div className="pt-4">
-                {!activeList ? (
-                  <p className="text-sm text-muted-foreground">No list available.</p>
-                ) : (
-                  <ScrollArea className="h-[560px]">
-                    <div className="space-y-3 pr-2">
-                      <TodoUnsectionedBlock
-                        sectionId={UNSECTIONED_TASK_BUCKET_ID}
-                        tasks={unsectionedTasks}
+          <div className="pt-4">
+            {!activeList ? (
+              <p className="text-sm text-muted-foreground">No list available.</p>
+            ) : (
+              <ScrollArea className="h-[420px] sm:h-[500px] lg:h-[560px]">
+                <div className="space-y-3 pr-0 sm:pr-2">
+                  <TodoUnsectionedBlock
+                    sectionId={UNSECTIONED_TASK_BUCKET_ID}
+                    tasks={unsectionedTasks}
+                    dragOverSectionId={dragOverSectionId}
+                    onDragOverSection={handleTaskDragOverSection}
+                    onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(
+                      event,
+                      activeList,
+                      targetSectionId,
+                      beforeTaskId,
+                    )}
+                    renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
+                  />
+
+                  {activeList.sections.map((section) => {
+                    const tasks = sectionTasksMap.get(section.id) ?? [];
+                    const isOpen = isSectionOpen(activeList.id, section.id);
+                    const canDeleteSection = section.id !== COMPLETED_SECTION_ID && activeListUserSections.length > 0;
+
+                    return (
+                      <TodoSectionBlock
+                        key={section.id}
+                        section={section}
+                        tasks={tasks}
+                        completedSectionId={COMPLETED_SECTION_ID}
+                        isOpen={isOpen}
+                        canDeleteSection={canDeleteSection}
                         dragOverSectionId={dragOverSectionId}
+                        onOpenChange={(open) => setSectionOpen(activeList.id, section.id, open)}
                         onDragOverSection={handleTaskDragOverSection}
-                        onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(
-                          event,
-                          activeList,
-                          targetSectionId,
-                          beforeTaskId,
-                        )}
+                        onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(event, activeList, targetSectionId, beforeTaskId)}
+                        onOpenSectionTitleEditor={openSectionTitleEditor}
+                        onDeleteSection={(sectionId) => handleDeleteSection(activeList, sectionId)}
                         renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
                       />
-
-                      {activeList.sections.map((section) => {
-                        const tasks = sectionTasksMap.get(section.id) ?? [];
-                        const isOpen = isSectionOpen(activeList.id, section.id);
-                        const canDeleteSection = section.id !== COMPLETED_SECTION_ID && activeListUserSections.length > 0;
-
-                        return (
-                          <TodoSectionBlock
-                            key={section.id}
-                            section={section}
-                            tasks={tasks}
-                            completedSectionId={COMPLETED_SECTION_ID}
-                            isOpen={isOpen}
-                            canDeleteSection={canDeleteSection}
-                            dragOverSectionId={dragOverSectionId}
-                            onOpenChange={(open) => setSectionOpen(activeList.id, section.id, open)}
-                            onDragOverSection={handleTaskDragOverSection}
-                            onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(event, activeList, targetSectionId, beforeTaskId)}
-                            onOpenSectionTitleEditor={openSectionTitleEditor}
-                            onDeleteSection={(sectionId) => handleDeleteSection(activeList, sectionId)}
-                            renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
-                          />
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
-            </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
           </div>
         </div>
       </div>

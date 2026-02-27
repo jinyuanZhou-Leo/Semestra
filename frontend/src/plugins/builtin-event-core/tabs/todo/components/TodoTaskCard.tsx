@@ -1,3 +1,10 @@
+// input:  [Todo task item data, drag handlers, mutation callbacks, and display formatters]
+// output: [TodoTaskCard React component]
+// pos:    [Interactive task row card used inside todo section and unsectioned buckets]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
@@ -108,18 +115,18 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
       onDragOver={(event) => onTaskDragOverSection(event, sectionId)}
       onDrop={(event) => onTaskDropToSection(event, sectionId, task.id)}
       className={cn(
-        'group/task rounded-md border bg-card px-3 py-2 shadow-sm transition-shadow',
+        'group/task rounded-md border bg-card px-2.5 py-2 shadow-sm transition-shadow sm:px-3',
         task.completed ? 'bg-muted/30' : 'hover:shadow-md',
         draggingTaskId === task.id && 'opacity-55 blur-[1px]',
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex items-start justify-between gap-1.5 sm:gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
           <motion.div
             animate={celebrateChecked ? { scale: [1, 1.2, 1.2, 0.9, 1] } : { scale: 1 }}
             whileTap={{ scale: 0.84 }}
             transition={{ duration: 0.44, ease: ['easeOut', 'linear', 'easeIn', 'easeOut'], times: [0, 0.3, 0.66, 0.86, 1] }}
-            className="relative mr-3"
+            className="relative mr-2.5 sm:mr-3"
           >
             <AnimatePresence>
               {celebrateChecked ? (
@@ -238,13 +245,13 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
           </div>
         </div>
 
-        <div className="pointer-events-none flex items-center gap-1 opacity-0 transition-opacity group-hover/task:pointer-events-auto group-hover/task:opacity-100 group-focus-within/task:pointer-events-auto group-focus-within/task:opacity-100">
+        <div className="flex items-center gap-1 opacity-100 md:pointer-events-none md:opacity-0 md:transition-opacity md:group-hover/task:pointer-events-auto md:group-hover/task:opacity-100 md:group-focus-within/task:pointer-events-auto md:group-focus-within/task:opacity-100">
           {!isCompletedSection ? (
             <Button
               type="button"
               variant="ghost"
               size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground md:h-7 md:w-7"
               onClick={() => onOpenEditTaskDialog(task)}
               aria-label={`Edit ${task.title}`}
             >
@@ -255,6 +262,7 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
             type="button"
             variant="destructive"
             size="icon-xs"
+            className="h-7 w-7 md:h-7 md:w-7"
             onClick={() => onDeleteTask(task.id)}
             aria-label={`Delete ${task.title}`}
           >

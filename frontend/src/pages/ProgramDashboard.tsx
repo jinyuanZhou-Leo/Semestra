@@ -1,6 +1,6 @@
 // input:  [program context state, semester/course CRUD APIs, settings/course-manager modal flows, responsive viewport breakpoints]
 // output: [`ProgramDashboard` and local semester create/delete dialog helper components]
-// pos:    [Program-level workspace page for semester management and progress tracking with compact mobile overview metrics]
+// pos:    [Program-level workspace page for semester management and progress tracking with compact mobile overview stat-strip]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -729,17 +729,81 @@ const ProgramDashboardContent: React.FC = () => {
                             <h2 className="text-lg font-semibold tracking-tight mb-4 flex items-center gap-2">
                                 Overview
                             </h2>
-                                <div className="grid grid-cols-3 gap-2 md:gap-4">
+                                <div className="md:hidden relative rounded-xl border border-border/60 bg-muted/15 px-4 py-3">
+                                    <Button
+                                        onClick={() => handleUpdateProgram({ hide_gpa: !program.hide_gpa })}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="absolute right-3 top-3 h-5 w-5 p-0"
+                                        aria-label={program.hide_gpa ? 'Show GPA' : 'Hide GPA'}
+                                    >
+                                        {program.hide_gpa ? (
+                                            <EyeOff className="h-3 w-3" />
+                                        ) : (
+                                            <Eye className="h-3 w-3" />
+                                        )}
+                                    </Button>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="min-w-0">
+                                            <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
+                                                <GraduationCap className="h-3 w-3" />
+                                                <span>GPA</span>
+                                            </div>
+                                            <div className="text-lg font-semibold leading-none">
+                                                {program.hide_gpa ? '****' : (
+                                                    <AnimatedNumber
+                                                        value={program.cgpa_scaled}
+                                                        format={(val) => val.toFixed(2)}
+                                                        animateOnMount
+                                                        rainbowThreshold={3.8}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
+                                                <Percent className="h-3 w-3" />
+                                                <span>Avg</span>
+                                            </div>
+                                            <div className="text-lg font-semibold leading-none">
+                                                {program.hide_gpa ? '****' : (
+                                                    <>
+                                                        <AnimatedNumber
+                                                            value={program.cgpa_percentage}
+                                                            format={(val) => val.toFixed(1)}
+                                                            animateOnMount
+                                                        />
+                                                        <span className="ml-0.5 text-xs font-normal text-muted-foreground">%</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
+                                                <BookOpen className="h-3 w-3" />
+                                                <span>Credits</span>
+                                            </div>
+                                            <div className="text-lg font-semibold leading-none">
+                                                <AnimatedNumber
+                                                    value={totalCredits}
+                                                    format={(val) => val.toFixed(1)} // Format cleaner
+                                                    animateOnMount
+                                                />
+                                                <span className="mx-0.5 text-xs font-normal text-muted-foreground">/</span>
+                                                <span className="text-xs font-normal text-muted-foreground">{program.grad_requirement_credits}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="hidden gap-4 md:grid md:grid-cols-3">
                                     <Card>
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
-                                            <CardTitle className="text-[11px] font-medium leading-tight md:text-sm">
-                                                <span className="md:hidden">CGPA</span>
-                                                <span className="hidden md:inline">CGPA (Scaled)</span>
-                                            </CardTitle>
-                                            <GraduationCap className="h-3.5 w-3.5 text-muted-foreground md:h-4 md:w-4" />
+                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium">CGPA (Scaled)</CardTitle>
+                                            <GraduationCap className="h-4 w-4 text-muted-foreground" />
                                         </CardHeader>
-                                        <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                                            <div className="flex items-center justify-between text-base font-bold leading-none md:text-2xl">
+                                        <CardContent>
+                                            <div className="text-2xl font-bold flex items-center justify-between">
                                                 {program.hide_gpa ? '****' : (
                                                     <AnimatedNumber
                                                         value={program.cgpa_scaled}
@@ -752,66 +816,63 @@ const ProgramDashboardContent: React.FC = () => {
                                                     onClick={() => handleUpdateProgram({ hide_gpa: !program.hide_gpa })}
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-5 w-5 p-0 md:h-6 md:w-6"
+                                                    className="h-6 w-6 p-0"
                                                 >
                                                     {program.hide_gpa ? (
                                                         <EyeOff className="h-3.5 w-3.5" />
                                                     ) : (
-                                                            <Eye className="h-3.5 w-3.5" />
+                                                        <Eye className="h-3.5 w-3.5" />
                                                     )}
                                                 </Button>
-                                        </div>
-                                            <p className="mt-1 hidden text-xs text-muted-foreground md:block">
+                                            </div>
+                                            <p className="text-xs text-muted-foreground mt-1">
                                                 Cumulative Grade Point Average
                                             </p>
-                                    </CardContent>
-                                </Card>
+                                        </CardContent>
+                                    </Card>
 
                                     <Card>
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
-                                            <CardTitle className="text-[11px] font-medium leading-tight md:text-sm">Average</CardTitle>
-                                            <Percent className="h-3.5 w-3.5 text-muted-foreground md:h-4 md:w-4" />
-                                    </CardHeader>
-                                        <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                                            <div className="text-base font-bold leading-none md:text-2xl">
+                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium">Average</CardTitle>
+                                            <Percent className="h-4 w-4 text-muted-foreground" />
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="text-2xl font-bold">
                                                 {program.hide_gpa ? '****' : (
-                                                <>
-                                                    <AnimatedNumber
-                                                        value={program.cgpa_percentage}
-                                                        format={(val) => val.toFixed(1)}
-                                                        animateOnMount
-                                                    />
-                                                        <span className="ml-1 text-xs font-normal text-muted-foreground md:text-base">%</span>
-                                                </>
-                                            )}
-                                        </div>
-                                            <p className="mt-1 hidden text-xs text-muted-foreground md:block">
+                                                    <>
+                                                        <AnimatedNumber
+                                                            value={program.cgpa_percentage}
+                                                            format={(val) => val.toFixed(1)}
+                                                            animateOnMount
+                                                        />
+                                                        <span className="text-base font-normal text-muted-foreground ml-1">%</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-muted-foreground mt-1">
                                                 Overall score percentage
                                             </p>
-                                    </CardContent>
-                                </Card>
+                                        </CardContent>
+                                    </Card>
 
                                     <Card>
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
-                                            <CardTitle className="text-[11px] font-medium leading-tight md:text-sm">
-                                                <span className="md:hidden">Credits</span>
-                                                <span className="hidden md:inline">Credits Progress</span>
-                                            </CardTitle>
-                                            <BookOpen className="h-3.5 w-3.5 text-muted-foreground md:h-4 md:w-4" />
-                                    </CardHeader>
-                                        <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                                            <div className="text-base font-bold leading-none md:text-2xl">
+                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium">Credits Progress</CardTitle>
+                                            <BookOpen className="h-4 w-4 text-muted-foreground" />
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="text-2xl font-bold">
                                                 <AnimatedNumber
                                                     value={totalCredits}
                                                     format={(val) => val.toFixed(1)} // Format cleaner
                                                     animateOnMount
                                                 />
-                                                <span className="mx-1 text-[10px] font-normal text-muted-foreground md:text-base">/</span>
-                                                <span className="text-[10px] font-normal text-muted-foreground md:text-base">{program.grad_requirement_credits}</span>
-                                        </div>
-                                            <Progress value={creditsProgressPercent} className="mt-2 h-1.5 md:h-2" />
-                                    </CardContent>
-                                </Card>
+                                                <span className="text-base font-normal text-muted-foreground mx-1">/</span>
+                                                <span className="text-base font-normal text-muted-foreground">{program.grad_requirement_credits}</span>
+                                            </div>
+                                            <Progress value={creditsProgressPercent} className="mt-2 h-2" />
+                                        </CardContent>
+                                    </Card>
                                 </div>
                             </section>
 

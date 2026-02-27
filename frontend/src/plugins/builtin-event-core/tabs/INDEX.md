@@ -9,4 +9,4 @@ This layer keeps tab concerns isolated (calendar, course schedule, todo) for mai
 | INDEX.md | Architecture index | Local map for event-core tab module folders. |
 | calendar/ | Calendar tab module | Week/month views, toolbar/editor flows, calendar settings, and export actions. |
 | course-schedule/ | Course schedule tab module | Course timetable rendering and schedule-specific settings/actions. |
-| todo/ | Todo tab module | Task board/list management UI, preferences, and task dialog flows. |
+| todo/ | Todo tab module | Responsive task board/list management UI with mobile-first stacking, preferences, and task dialog flows. |
