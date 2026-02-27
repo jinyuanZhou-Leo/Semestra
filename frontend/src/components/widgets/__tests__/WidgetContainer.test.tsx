@@ -1,6 +1,6 @@
-// input:  [WidgetContainer component, mocked pointer-capability media query, listener spies]
-// output: [test suite validating widget control visibility and pointer-listener behavior]
-// pos:    [Interaction regression tests for widget shell touch/hover behavior]
+// input:  [WidgetContainer component, mocked pointer-capability media query]
+// output: [test suite validating widget control visibility across desktop hover and touch edit mode]
+// pos:    [Interaction regression tests for widget shell touch/hover action controls]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -45,31 +45,26 @@ afterEach(() => {
 });
 
 describe('WidgetContainer', () => {
-    it('adds a single pointerdown listener for multiple widgets on touch devices', () => {
+    it('shows header action buttons directly on touch devices in edit mode', () => {
         setupMatchMedia(true);
         Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
 
-        const addSpy = vi.spyOn(document, 'addEventListener');
-        const removeSpy = vi.spyOn(document, 'removeEventListener');
-
-        const { unmount } = render(
-            <>
-                <WidgetContainer id="widget-1">
-                    <div>Widget 1</div>
-                </WidgetContainer>
-                <WidgetContainer id="widget-2">
-                    <div>Widget 2</div>
-                </WidgetContainer>
-            </>
+        render(
+            <WidgetContainer
+                id="widget-touch"
+                isEditMode
+                onEdit={() => { }}
+                onRemove={() => { }}
+                headerButtons={<button type="button">Plugin Action</button>}
+            >
+                <div>Widget Content</div>
+            </WidgetContainer>
         );
 
-        const pointerAdds = addSpy.mock.calls.filter(call => call[0] === 'pointerdown').length;
-        expect(pointerAdds).toBe(1);
-
-        unmount();
-
-        const pointerRemoves = removeSpy.mock.calls.filter(call => call[0] === 'pointerdown').length;
-        expect(pointerRemoves).toBe(1);
+        expect(screen.getByTitle('Settings')).toBeInTheDocument();
+        expect(screen.getByTitle('Remove Widget')).toBeInTheDocument();
+        expect(screen.getByText('Plugin Action')).toBeInTheDocument();
+        expect(screen.queryByTitle('Widget actions')).not.toBeInTheDocument();
     });
 
     it('keeps corner docks click-through while controls remain interactive', () => {

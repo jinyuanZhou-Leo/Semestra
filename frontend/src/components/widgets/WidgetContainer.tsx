@@ -1,6 +1,6 @@
-// input:  [widget action callbacks, touch-device signal, shared pointer-listener coordination, widget-header glass control styles]
+// input:  [widget action callbacks, touch-device signal, desktop-hover + touch-direct action visibility, widget-header glass control styles]
 // output: [`WidgetContainer` component]
-// pos:    [Widget chrome shell controlling drag handle and action-button visibility with glassmorphism header controls]
+// pos:    [Widget chrome shell that renders drag/action controls in edit mode with direct mobile visibility]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -24,7 +24,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { Ellipsis, GripVertical, Settings, X } from 'lucide-react';
+import { GripVertical, Settings, X } from 'lucide-react';
 
 interface WidgetContainerProps {
     id: string; // Unique ID
@@ -35,31 +35,6 @@ interface WidgetContainerProps {
     isEditMode?: boolean; // Enable edit mode for widget actions
 }
 
-type PointerHandler = (event: PointerEvent) => void;
-
-const pointerHandlers = new Set<PointerHandler>();
-let isPointerListenerAttached = false;
-
-const handleGlobalPointerDown = (event: PointerEvent) => {
-    pointerHandlers.forEach(handler => handler(event));
-};
-
-const addGlobalPointerHandler = (handler: PointerHandler) => {
-    if (!isPointerListenerAttached) {
-        document.addEventListener('pointerdown', handleGlobalPointerDown);
-        isPointerListenerAttached = true;
-    }
-    pointerHandlers.add(handler);
-};
-
-const removeGlobalPointerHandler = (handler: PointerHandler) => {
-    pointerHandlers.delete(handler);
-    if (pointerHandlers.size === 0 && isPointerListenerAttached) {
-        document.removeEventListener('pointerdown', handleGlobalPointerDown);
-        isPointerListenerAttached = false;
-    }
-};
-
 /**
  * WidgetContainer - Memoized for performance
  * Contains the visual wrapper and control buttons for widgets
@@ -67,46 +42,7 @@ const removeGlobalPointerHandler = (handler: PointerHandler) => {
 const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, headerButtons, isEditMode = false }) => {
     const [isHovered, setIsHovered] = React.useState(false);
     const isTouchDevice = useTouchDevice();
-    const [isTouchControlsVisible, setIsTouchControlsVisible] = React.useState(false);
-    const containerRef = React.useRef<HTMLDivElement | null>(null);
-
-    React.useEffect(() => {
-        if (!isTouchDevice) {
-            setIsTouchControlsVisible(false);
-        }
-    }, [isTouchDevice]);
-
-    React.useEffect(() => {
-        if (!isEditMode) {
-            setIsTouchControlsVisible(false);
-        }
-    }, [isEditMode]);
-
-    React.useEffect(() => {
-        if (!isTouchDevice) return;
-        const handlePointerDown = (event: PointerEvent) => {
-            if (!containerRef.current) return;
-            if (containerRef.current.contains(event.target as Node)) return;
-            setIsTouchControlsVisible(false);
-        };
-        addGlobalPointerHandler(handlePointerDown);
-        return () => removeGlobalPointerHandler(handlePointerDown);
-    }, [isTouchDevice]);
-
-    React.useEffect(() => {
-        if (!isTouchDevice || !isTouchControlsVisible) return;
-        const timer = window.setTimeout(() => {
-            setIsTouchControlsVisible(false);
-        }, 2400);
-        return () => window.clearTimeout(timer);
-    }, [isTouchDevice, isTouchControlsVisible]);
-
-    const isInteractiveTarget = (target: EventTarget | null) => {
-        if (!(target instanceof HTMLElement)) return false;
-        return !!target.closest('button, input, textarea, select, a, [role="button"], [role="link"], [data-widget-control], .drag-surface');
-    };
-
-    const controlsVisible = isTouchDevice ? isTouchControlsVisible : isHovered;
+    const controlsVisible = isTouchDevice || isHovered;
     const controlSizeClass = isTouchDevice ? 'h-9 w-9' : 'h-7 w-7';
     const controlsHeightClass = isTouchDevice ? 'h-12' : 'h-10';
     const glassControlClass =
@@ -124,7 +60,6 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
 
     return (
         <Card
-            ref={containerRef}
             className={cn(
                 'group relative flex h-full select-none flex-col overflow-hidden rounded-[var(--radius-widget)] border border-border/60 bg-card shadow-sm transition-[box-shadow,border-color]',
                 'p-0', // Override Card's default padding so widget content can fully control layout
@@ -132,12 +67,6 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
             )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            onClick={(event) => {
-                if (!isTouchDevice) return;
-                if (!isEditMode) return;
-                if (isInteractiveTarget(event.target)) return;
-                setIsTouchControlsVisible(false);
-            }}
         >
             {isEditMode && (
                 <>
@@ -185,28 +114,6 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                             controlsHeightClass
                         )}
                     >
-                        {isTouchDevice && (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                title="Widget actions"
-                                data-widget-control
-                                className={cn(
-                                    glassControlClass,
-                                    glassControlHoverClass,
-                                    controlSizeClass,
-                                    'pointer-events-auto'
-                                )}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setIsTouchControlsVisible((prev) => !prev);
-                                }}
-                            >
-                                <Ellipsis className="h-4 w-4" />
-                            </Button>
-                        )}
                         {onEdit && (
                             <Button
                                 type="button"

@@ -1,6 +1,6 @@
 // input:  [auth context, user settings/import-export APIs, dialog helpers, theme hooks]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer]
+// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -313,7 +313,7 @@ export const SettingsPage: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <Container padding="2rem" className="max-w-5xl space-y-8 select-none">
+            <Container className="max-w-5xl space-y-8 select-none py-8">
                 <BackButton label="Back to Home" onClick={handleBack} />
 
                 <div className="space-y-2">
@@ -330,16 +330,16 @@ export const SettingsPage: React.FC = () => {
                         title="Appearance"
                         description="Customize the look and feel of the application."
                     >
-                        <div className="flex items-center justify-between gap-4 rounded-lg border p-4 shadow-sm">
-                            <Label htmlFor="theme-select" className="text-base">Theme</Label>
-                            <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-3 rounded-lg border p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                            <Label htmlFor="theme-select" className="text-base sm:shrink-0">Theme</Label>
+                            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                                 {themeOptions.map((option) => (
                                     <Button
                                         key={option.value}
                                         variant={themeMode === option.value ? "default" : "outline"}
                                         size="sm"
                                         onClick={() => handleThemeChange(option.value)}
-                                        className="min-w-[80px]"
+                                        className="min-w-[80px] flex-1 sm:flex-none"
                                     >
                                         {option.label}
                                     </Button>
@@ -353,15 +353,15 @@ export const SettingsPage: React.FC = () => {
                         description="Manage your profile and sign-in settings."
                     >
                         <div className="space-y-6">
-                            <div className="flex items-center gap-4">
+                            <div className="flex min-w-0 items-center gap-4">
                                 <Avatar className="h-16 w-16 border">
                                     <AvatarFallback className="text-xl">{avatarInitial}</AvatarFallback>
                                 </Avatar>
-                                <div>
+                                <div className="min-w-0">
                                     <p className="text-lg font-semibold leading-none">
                                         {user?.nickname || user?.email}
                                     </p>
-                                    <p className="text-sm text-muted-foreground mt-1">
+                                    <p className="mt-1 break-all text-sm text-muted-foreground">
                                         {user?.email}
                                     </p>
                                 </div>
@@ -608,10 +608,10 @@ export const SettingsPage: React.FC = () => {
                 </div>
 
                 <Separator />
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-4">
+                <div className="flex flex-wrap items-center justify-center gap-2 py-4 text-center text-xs text-muted-foreground">
                     <span>Semestra v{versionInfo.version}</span>
                     <span>•</span>
-                    <span>
+                    <span className="break-all">
                         {versionInfo.branch} ({versionInfo.commit})
                     </span>
                 </div>

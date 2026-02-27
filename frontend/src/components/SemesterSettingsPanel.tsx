@@ -1,6 +1,6 @@
 // input:  [semester initial fields, date pickers, date-fns parse/format helpers, save callback]
 // output: [`SemesterSettingsPanel` component]
-// pos:    [Semester settings form for term title and date-range management]
+// pos:    [Semester settings form for term title and date-range management with mobile-safe date range presentation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,6 +17,7 @@ import { SaveSettingButton } from "./SaveSettingButton";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SemesterSettingsPanelProps {
   initialName: string;
@@ -37,6 +38,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   initialSettings,
   onSave,
 }) => {
+  const isMobile = useIsMobile();
   const [name, setName] = useState(initialName);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -45,6 +47,11 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   const fieldId = useId();
   const startDateRaw = initialSettings?.start_date;
   const endDateRaw = initialSettings?.end_date;
+  const dateRangeLabel = startDate
+    ? endDate
+      ? `${format(startDate, "PP")} - ${format(endDate, "PP")}`
+      : format(startDate, "PP")
+    : "Pick a date range";
 
   useEffect(() => {
     setName(initialName);
@@ -110,22 +117,12 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
                 id={`${fieldId}-date`}
                 variant="outline"
                 className={cn(
-                  "w-full justify-start text-left font-normal",
+                  "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
                   !startDate && "text-muted-foreground"
                 )}
               >
                 <CalendarDays className="mr-2 h-4 w-4" />
-                {startDate ? (
-                  endDate ? (
-                    <>
-                      {format(startDate, "PPP")} - {format(endDate, "PPP")}
-                    </>
-                  ) : (
-                    format(startDate, "PPP")
-                  )
-                ) : (
-                  <span>Pick a date range</span>
-                )}
+                <span className="truncate">{dateRangeLabel}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -141,7 +138,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
                   setStartDate(range?.from);
                   setEndDate(range?.to);
                 }}
-                numberOfMonths={2}
+                numberOfMonths={isMobile ? 1 : 2}
               />
             </PopoverContent>
           </Popover>

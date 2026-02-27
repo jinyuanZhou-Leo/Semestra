@@ -1,7 +1,15 @@
+// input:  [calendar settings state, settings update callback, schedule data hooks, shadcn settings/time-input UI primitives]
+// output: [`CalendarSettingsSection` settings UI for calendar behavior, time window, colors, export, and reset actions]
+// pos:    [Calendar tab settings panel entry that normalizes state and applies granular patches]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
-import { Download } from 'lucide-react';
+import { Clock3, Download } from 'lucide-react';
 import { SettingsSection } from '@/components/SettingsSection';
 import {
   AlertDialog,
@@ -15,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useScheduleData } from '../../shared/hooks/useScheduleData';
@@ -40,6 +48,7 @@ interface CalendarSettingsSectionProps {
 export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({ semesterId, settings, updateSettings }) => {
   const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
+  const timeInputClassName = 'appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none';
   const { items, maxWeek } = useScheduleData({
     semesterId,
     mode: 'all-weeks',
@@ -92,23 +101,35 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="calendar-settings-day-start">Day start time</Label>
-              <Input
-                id="calendar-settings-day-start"
-                type="time"
-                step={1800}
-                value={toTimeInputValue(normalizedSettings.dayStartMinutes)}
-                onChange={(event) => updateDayStartTime(event.target.value)}
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id="calendar-settings-day-start"
+                  type="time"
+                  step={1800}
+                  value={toTimeInputValue(normalizedSettings.dayStartMinutes)}
+                  onChange={(event) => updateDayStartTime(event.target.value)}
+                  className={timeInputClassName}
+                />
+                <InputGroupAddon align="inline-end" className="pr-2">
+                  <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+                </InputGroupAddon>
+              </InputGroup>
             </div>
             <div className="space-y-2">
               <Label htmlFor="calendar-settings-day-end">Day end time</Label>
-              <Input
-                id="calendar-settings-day-end"
-                type="time"
-                step={1800}
-                value={toTimeInputValue(normalizedSettings.dayEndMinutes)}
-                onChange={(event) => updateDayEndTime(event.target.value)}
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id="calendar-settings-day-end"
+                  type="time"
+                  step={1800}
+                  value={toTimeInputValue(normalizedSettings.dayEndMinutes)}
+                  onChange={(event) => updateDayEndTime(event.target.value)}
+                  className={timeInputClassName}
+                />
+                <InputGroupAddon align="inline-end" className="pr-2">
+                  <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+                </InputGroupAddon>
+              </InputGroup>
             </div>
           </div>
 
