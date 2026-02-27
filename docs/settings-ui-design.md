@@ -6,6 +6,7 @@ To maintain visual consistency and reduce interaction hierarchy across Semestra,
 - **Visual Consistency:** All settings pages must look the same. We use a flat list of `SettingsSection` components within a standard container.
 - **Reduced Hierarchy:** Avoid over-nesting. Do not wrap `SettingsSection` in other decorative cards or panels (e.g., do not use extra Card wrappers). Avoid deep nesting of settings modals inside settings panels.
 - **Clear Interaction:** Each setting option should be intuitive, with clear labels, helpful descriptions, and immediate feedback (e.g., using `SaveSettingButton` with animated states).
+- **Low Noise UI:** Avoid non-actionable helper banners and repetitive hints. Keep only labels and guidance that changes user behavior.
 
 ## 2. Page & Container Layout
 Settings pages or tabs should enforce a maximum width to ensure readability.
@@ -144,3 +145,27 @@ Used for specific tasks like Exporting Data, Deleting items, or popping up compl
 - Use `SaveSettingButton` for primary save actions. It provides built-in idle/saving/success states. Don't use standard buttons to save settings unless doing one-off data edits.
 - If a plugin supports it, changes can auto-save, but always ensure an alert or visual indicator handles network failures.
 - For destructive actions (like resetting defaults or deleting), use a `"destructive"` variant button, placed carefully at the bottom or behind an `AlertDialog` for confirmation.
+
+## 6. Wrapping and Layout Stability (Required)
+When designing plugin settings, enforce these rules to prevent layout jitter and visual noise:
+
+- **No extra wrappers:** Do not add decorative bordered containers around single form controls unless they are true standalone action cards.
+- **No redundant tips:** Remove informational blocks that repeat what a label already says. Keep only actionable, contextual guidance.
+- **Stable structure:** For mode switches (e.g., Preset vs Custom), avoid mounting/unmounting whole sections that change page height.
+- **Prefer behavior switch over structure switch:** Keep the same fields visible and switch interaction state (`readOnly`, `disabled`, value source) instead of swapping layouts.
+- **Avoid jumpy helper regions:** Do not add conditional hint banners that appear/disappear and push content up/down.
+
+### Stability Pattern Example
+```tsx
+<div className="grid gap-4">
+  <div className="grid max-w-sm gap-2">
+    <Label htmlFor="mode">Mode</Label>
+    <Select id="mode" />
+  </div>
+
+  <div className="grid max-w-2xl gap-2">
+    <Label htmlFor="url">URL</Label>
+    <Input id="url" readOnly={!isCustom} value={isCustom ? customUrl : presetUrl} />
+  </div>
+</div>
+```
