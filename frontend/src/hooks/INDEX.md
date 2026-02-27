@@ -7,7 +7,7 @@ Includes stale-request-safe fetch primitives plus parallelized order/layout back
 | File | Role | Description |
 |------|------|-------------|
 | __tests__/ | Subdirectory | Test cases for modules in this folder. |
-| use-mobile.ts | Hook module | Custom hook implementing use mobile behavior. |
+| use-mobile.ts | Hook module | Mobile breakpoint hook (640px) with immediate client-side width initialization to avoid first-frame responsive surface mismatches. |
 | useAppStatus.ts | Hook module | Custom hook implementing use app status behavior. |
 | useDashboardTabs.ts | Hook module | Orchestrates tab CRUD with optimistic state, debounced settings sync, context-key reset safeguards, and parallelized order persistence retries. |
 | useDashboardWidgets.ts | Hook module | Orchestrates widget CRUD, resilient settings/layout parsing, context-key reset safeguards, and split local layout sync with parallelized commit persistence. |

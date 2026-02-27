@@ -62,6 +62,20 @@ const SemesterHomepageContent: React.FC = () => {
     const [programName, setProgramName] = useState<string | null>(null);
 
     const { isShrunk, heroRef, heroSpacerHeight } = useStickyCollapse();
+    const openAddWidgetModal = useCallback(() => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement) {
+            activeElement.blur();
+        }
+        setIsAddWidgetOpen(true);
+    }, []);
+    const openAddTabModal = useCallback(() => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement) {
+            activeElement.blur();
+        }
+        setIsAddTabOpen(true);
+    }, []);
 
     useEffect(() => {
         let isActive = true;
@@ -318,7 +332,7 @@ const SemesterHomepageContent: React.FC = () => {
         isLoading: isLoading,
         dashboard: {
             widgets: widgets,
-            onAddWidgetClick: () => setIsAddWidgetOpen(true),
+            onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
             onEditWidget: setEditingWidget,
             onUpdateWidget: handleUpdateWidget,
@@ -357,7 +371,8 @@ const SemesterHomepageContent: React.FC = () => {
         handleUpdateSemester,
         hasPluginSettings,
         tabSettingsSections,
-        widgetSettingsSections
+        widgetSettingsSections,
+        openAddWidgetModal
     ]);
 
     return (
@@ -453,7 +468,7 @@ const SemesterHomepageContent: React.FC = () => {
                                 onSelect={setActiveTabId}
                                 onRemove={handleRemoveTab}
                                 onReorder={handleReorderTabs}
-                                onAdd={() => setIsAddTabOpen(true)}
+                                onAdd={openAddTabModal}
                             />
                         </div>
                     </Container>

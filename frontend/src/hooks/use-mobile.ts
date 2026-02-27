@@ -1,4 +1,4 @@
-// input:  [browser viewport width, `(max-width: 767px)` media-query change events]
+// input:  [browser viewport width, `(max-width: 639px)` media-query change events]
 // output: [boolean `useIsMobile()` hook result]
 // pos:    [Simple responsive helper consumed by landing and adaptive UI branches]
 //
@@ -8,18 +8,21 @@
 
 import * as React from "react"
 
-const MOBILE_BREAKPOINT = 768
+const MOBILE_BREAKPOINT = 640
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(() => {
+    if (typeof window === "undefined") return undefined
+    return window.innerWidth < MOBILE_BREAKPOINT
+  })
 
   React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
     const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+      setIsMobile(mql.matches)
     }
     mql.addEventListener("change", onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    setIsMobile(mql.matches)
     return () => mql.removeEventListener("change", onChange)
   }, [])
 

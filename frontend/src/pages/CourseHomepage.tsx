@@ -73,6 +73,20 @@ const CourseHomepageContent: React.FC = () => {
     const [semesterName, setSemesterName] = useState<string | null>(null);
 
     const { isShrunk, heroRef, heroSpacerHeight } = useStickyCollapse();
+    const openAddWidgetModal = useCallback(() => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement) {
+            activeElement.blur();
+        }
+        setIsAddWidgetOpen(true);
+    }, []);
+    const openAddTabModal = useCallback(() => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement) {
+            activeElement.blur();
+        }
+        setIsAddTabOpen(true);
+    }, []);
 
     const shouldCollapseProgram = Boolean(course?.program_id && course?.semester_id);
     const shouldShowProgramDirect = Boolean(course?.program_id && !shouldCollapseProgram);
@@ -401,7 +415,7 @@ const CourseHomepageContent: React.FC = () => {
         isLoading,
         dashboard: {
             widgets,
-            onAddWidgetClick: () => setIsAddWidgetOpen(true),
+            onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
             onEditWidget: (widget: WidgetItem) => setEditingWidget(widget),
             onUpdateWidget: handleUpdateWidget,
@@ -451,7 +465,8 @@ const CourseHomepageContent: React.FC = () => {
         handleUpdateCourse,
         hasPluginSettings,
         widgetSettingsSections,
-        tabSettingsSections
+        tabSettingsSections,
+        openAddWidgetModal
     ]);
 
     if (!isLoading && !course) {
@@ -597,7 +612,7 @@ const CourseHomepageContent: React.FC = () => {
                                 onSelect={setActiveTabId}
                                 onRemove={handleRemoveTab}
                                 onReorder={handleReorderTabs}
-                                onAdd={() => setIsAddTabOpen(true)}
+                                onAdd={openAddTabModal}
                             />
                         </div>
                     </Container>

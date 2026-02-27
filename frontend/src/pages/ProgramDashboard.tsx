@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, settings/course-manager modal flows, responsive viewport breakpoints]
-// output: [`ProgramDashboard` and local semester create/delete dialog helper components]
-// pos:    [Program-level workspace page for semester management and progress tracking with compact mobile overview stat-strip]
+// input:  [program context state, semester/course CRUD APIs, settings/course-manager modal flows, responsive overlay wrapper]
+// output: [`ProgramDashboard` and local semester create/delete confirmation plus responsive create surface components]
+// pos:    [Program-level workspace page for semester management and progress tracking with compact mobile overview stat-strip and drawer semester creation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -19,7 +19,6 @@ import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -59,6 +58,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, X, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
+import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
 
 // Helper function to extract course level from course name
 const extractCourseLevel = (courseName: string): number | null => {
@@ -98,6 +98,7 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const createSemesterFormId = useId();
     const semesterNameId = useId();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -150,93 +151,102 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
                 size={size}
                 variant={variant}
                 className={className}
-                onClick={() => setOpen(true)}
+                onClick={(e) => {
+                    e.currentTarget.blur();
+                    setOpen(true);
+                }}
             >
                 {children}
             </Button>
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Create New Semester</DialogTitle>
-                        <DialogDescription>
-                            Enter a semester name and optionally import a calendar file.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={submitCreateSemester} className="space-y-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor={semesterNameId}>Semester Name</Label>
-                            <Input
-                                id={semesterNameId}
-                                placeholder="e.g. Fall 2025"
-                                value={newSemesterName}
-                                onChange={(e) => setNewSemesterName(e.target.value)}
-                                required={!selectedFile}
-                                autoFocus
-                            />
-                        </div>
+            <ResponsiveDialogDrawer
+                open={open}
+                onOpenChange={setOpen}
+                title="Create New Semester"
+                description="Enter a semester name and optionally import a calendar file."
+                desktopContentClassName="sm:max-w-[425px]"
+                mobileContentClassName="h-[85vh] max-h-[85vh]"
+                footer={(
+                    <>
+                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" form={createSemesterFormId} disabled={isSubmitting}>
+                            {isSubmitting ? 'Creating...' : (selectedFile ? 'Upload & Create' : 'Create Semester')}
+                        </Button>
+                    </>
+                )}
+                desktopFooterClassName="pt-4"
+                mobileFooterClassName="px-0"
+            >
+                <form
+                    id={createSemesterFormId}
+                    onSubmit={submitCreateSemester}
+                    className="space-y-4 px-4 pb-4 sm:px-0 sm:pb-0 sm:space-y-4 sm:py-4 overflow-y-auto"
+                >
+                    <div className="grid gap-2">
+                        <Label htmlFor={semesterNameId}>Semester Name</Label>
+                        <Input
+                            id={semesterNameId}
+                            placeholder="e.g. Fall 2025"
+                            value={newSemesterName}
+                            onChange={(e) => setNewSemesterName(e.target.value)}
+                            required={!selectedFile}
+                            autoFocus
+                        />
+                    </div>
 
-                        <div className="space-y-2">
-                            <Label>Import Schedule (Optional)</Label>
-                            <div
-                                className={`
-                                    border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all
-                                    ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
-                                `}
-                                onClick={() => fileInputRef.current?.click()}
-                                onDragOver={(e) => {
-                                    e.preventDefault();
-                                    setIsDragging(true);
-                                }}
-                                onDragLeave={(e) => {
-                                    e.preventDefault();
-                                    setIsDragging(false);
-                                }}
-                                onDrop={async (e) => {
-                                    e.preventDefault();
-                                    setIsDragging(false);
-                                    const file = e.dataTransfer.files?.[0] ?? null;
+                    <div className="space-y-2">
+                        <Label>Import Schedule (Optional)</Label>
+                        <div
+                            className={`
+                                border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all
+                                ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
+                            `}
+                            onClick={() => fileInputRef.current?.click()}
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                setIsDragging(true);
+                            }}
+                            onDragLeave={(e) => {
+                                e.preventDefault();
+                                setIsDragging(false);
+                            }}
+                            onDrop={async (e) => {
+                                e.preventDefault();
+                                setIsDragging(false);
+                                const file = e.dataTransfer.files?.[0] ?? null;
+                                await syncFileSelection(file);
+                            }}
+                        >
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".ics"
+                                className="hidden"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0] ?? null;
                                     await syncFileSelection(file);
                                 }}
-                            >
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".ics"
-                                    className="hidden"
-                                    onChange={async (e) => {
-                                        const file = e.target.files?.[0] ?? null;
-                                        await syncFileSelection(file);
-                                    }}
-                                />
-                                <div className="flex flex-col items-center gap-2">
-                                    {selectedFile ? (
-                                        <div className="flex items-center gap-2 text-primary font-medium">
-                                            <Upload className="h-5 w-5" />
-                                            {selectedFile.name}
+                            />
+                            <div className="flex flex-col items-center gap-2">
+                                {selectedFile ? (
+                                    <div className="flex items-center gap-2 text-primary font-medium">
+                                        <Upload className="h-5 w-5" />
+                                        {selectedFile.name}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <Upload className="h-8 w-8 text-muted-foreground/50" />
+                                        <div className="text-sm text-muted-foreground">
+                                            Click or drag .ics file to upload
                                         </div>
-                                    ) : (
-                                        <>
-                                            <Upload className="h-8 w-8 text-muted-foreground/50" />
-                                            <div className="text-sm text-muted-foreground">
-                                                Click or drag .ics file to upload
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
+                                    </>
+                                )}
                             </div>
                         </div>
-
-                        <DialogFooter className="pt-4">
-                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting ? 'Creating...' : (selectedFile ? 'Upload & Create' : 'Create Semester')}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+                    </div>
+                </form>
+            </ResponsiveDialogDrawer>
         </>
     );
 };
@@ -666,7 +676,10 @@ const ProgramDashboardContent: React.FC = () => {
                                             variant="ghost"
                                         size="icon"
                                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                            onClick={() => setIsSettingsOpen(true)}
+                                            onClick={(e) => {
+                                                e.currentTarget.blur();
+                                                setIsSettingsOpen(true);
+                                            }}
                                     >
                                             <Settings className="h-4 w-4" />
                                     </Button>
@@ -674,7 +687,14 @@ const ProgramDashboardContent: React.FC = () => {
                             )}
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button onClick={() => setIsCourseModalOpen(true)} variant="outline" size="sm">
+                            <Button
+                                onClick={(e) => {
+                                    e.currentTarget.blur();
+                                    setIsCourseModalOpen(true);
+                                }}
+                                variant="outline"
+                                size="sm"
+                            >
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Course
                             </Button>

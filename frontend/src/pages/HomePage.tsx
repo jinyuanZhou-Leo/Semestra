@@ -1,6 +1,6 @@
-// input:  [program list/create/delete APIs, dialog context, route links, loading skeletons]
-// output: [`HomePage` plus local create/delete program dialog button components]
-// pos:    [Authenticated root workspace page showing programs and high-level progress]
+// input:  [program list/create/delete APIs, dialog context, route links, loading skeletons, responsive overlay wrapper]
+// output: [`HomePage` plus local create/delete program confirmation and responsive create surface components]
+// pos:    [Authenticated root workspace page showing programs and high-level progress with mobile drawer program creation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -40,6 +39,7 @@ import {
     BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
 import { Plus, Trash2 } from 'lucide-react';
+import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
 
 type ShowAlert = ReturnType<typeof useDialog>['alert'];
 
@@ -64,6 +64,7 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
     const [newProgramName, setNewProgramName] = useState('');
     const [newProgramCredits, setNewProgramCredits] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const createProgramFormId = useId();
     const programNameId = useId();
     const programCreditsId = useId();
 
@@ -99,53 +100,63 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
                 size={size}
                 variant={variant}
                 className={className}
-                onClick={() => setOpen(true)}
+                onClick={(e) => {
+                    e.currentTarget.blur();
+                    setOpen(true);
+                }}
             >
                 {children}
             </Button>
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Create Program</DialogTitle>
-                        <DialogDescription>
-                            Enter a program name and graduation requirement credits.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleCreateProgram} className="space-y-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor={programNameId}>Program Name</Label>
-                            <Input
-                                id={programNameId}
-                                placeholder="e.g. Computer Science"
-                                value={newProgramName}
-                                onChange={(e) => setNewProgramName(e.target.value)}
-                                required
-                                autoFocus
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor={programCreditsId}>Graduation Requirement (Credits)</Label>
-                            <Input
-                                id={programCreditsId}
-                                type="number"
-                                step="0.5"
-                                placeholder="e.g. 120"
-                                value={newProgramCredits}
-                                onChange={(e) => setNewProgramCredits(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <DialogFooter className="pt-4">
-                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting ? 'Creating...' : 'Create Program'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+            <ResponsiveDialogDrawer
+                open={open}
+                onOpenChange={setOpen}
+                title="Create Program"
+                description="Enter a program name and graduation requirement credits."
+                desktopContentClassName="sm:max-w-[425px]"
+                mobileContentClassName="h-[85vh] max-h-[85vh]"
+                footer={(
+                    <>
+                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" form={createProgramFormId} disabled={isSubmitting}>
+                            {isSubmitting ? 'Creating...' : 'Create Program'}
+                        </Button>
+                    </>
+                )}
+                desktopFooterClassName="pt-4"
+                mobileFooterClassName="px-0"
+            >
+                <form
+                    id={createProgramFormId}
+                    onSubmit={handleCreateProgram}
+                    className="space-y-4 px-4 pb-4 sm:px-0 sm:pb-0 sm:space-y-4 sm:py-4 overflow-y-auto"
+                >
+                    <div className="grid gap-2">
+                        <Label htmlFor={programNameId}>Program Name</Label>
+                        <Input
+                            id={programNameId}
+                            placeholder="e.g. Computer Science"
+                            value={newProgramName}
+                            onChange={(e) => setNewProgramName(e.target.value)}
+                            required
+                            autoFocus
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor={programCreditsId}>Graduation Requirement (Credits)</Label>
+                        <Input
+                            id={programCreditsId}
+                            type="number"
+                            step="0.5"
+                            placeholder="e.g. 120"
+                            value={newProgramCredits}
+                            onChange={(e) => setNewProgramCredits(e.target.value)}
+                            required
+                        />
+                    </div>
+                </form>
+            </ResponsiveDialogDrawer>
         </>
     );
 };

@@ -12,12 +12,12 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | skeletons/ | Subdirectory | Loading skeleton component set. |
 | ui/ | Subdirectory | shadcn UI primitives (excluded from this documentation scope per request). |
 | widgets/ | Subdirectory | Dashboard widget layout/container infrastructure. |
-| AddTabModal.tsx | UI component | Reusable add-tab modal relying on shared dialog animation primitives. |
-| AddWidgetModal.tsx | UI component | Reusable add-widget modal relying on shared dialog animation primitives. |
+| AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
+| AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation. |
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
 | BackButton.tsx | UI component | Reusable component for back button UI/interaction flow. |
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
-| CourseManagerModal.tsx | UI component | Reusable component for course manager modal UI/interaction flow. |
+| CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation. |
 | CourseSettingsPanel.tsx | UI component | Reusable component for course settings panel UI/interaction flow. |
 | GPAScalingTable.tsx | UI component | Reusable component for g p a scaling table UI/interaction flow. |
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |
@@ -29,6 +29,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | PageSkeleton.tsx | UI component | Reusable component for page skeleton UI/interaction flow. |
 | PluginSettingsCard.tsx | UI component | Reusable component for plugin settings card UI/interaction flow. |
 | ProgramSettingsPanel.tsx | UI component | Reusable component for program settings panel UI/interaction flow. |
+| ResponsiveDialogDrawer.tsx | UI component | Shared responsive overlay wrapper that renders desktop dialog and mobile drawer, with unified header/footer slots and open-time focus handoff. |
 | RequireAuth.tsx | UI component | Reusable component for require auth UI/interaction flow. |
 | SaveSettingButton.tsx | UI component | Reusable component for save setting button UI/interaction flow. |
 | SemesterSettingsPanel.tsx | UI component | Reusable semester settings panel with mobile-safe date-range trigger text truncation and single-month mobile calendar rendering. |

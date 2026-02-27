@@ -1,6 +1,6 @@
-// input:  [program/semester identifiers, course CRUD APIs, auth default credit, dialog state]
+// input:  [program/semester identifiers, course CRUD APIs, auth default credit, dialog state, responsive overlay wrapper]
 // output: [`CourseManagerModal` component]
-// pos:    [Program dashboard modal for adding existing courses or creating new ones]
+// pos:    [Program dashboard responsive add-course surface (desktop dialog + mobile drawer)]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,11 +13,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api, { type Course } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ResponsiveDialogDrawer } from './ResponsiveDialogDrawer';
 
 interface CourseManagerModalProps {
     isOpen: boolean;
@@ -126,197 +126,209 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     const dialogDescription = semesterId
         ? 'Add an existing course to the semester or create a new course.'
         : 'Create a new course in this program.';
+    const desktopContentClassName = cn(
+        "p-0 flex flex-col sm:max-w-[600px]",
+        semesterId ? "h-[80vh] overflow-hidden" : "max-h-[85vh]"
+    );
+    const mobileContentClassName = cn(
+        "p-0 flex flex-col h-[85vh] max-h-[85vh]",
+        semesterId ? "overflow-hidden" : "max-h-[85vh]"
+    );
+    const surfaceBodyClassName = cn(
+        "flex flex-col p-4",
+        semesterId ? "flex-1 overflow-hidden" : "overflow-y-auto"
+    );
+    const headerTitleClassName = "text-base font-semibold";
 
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent
-                className={cn(
-                    "p-0 sm:max-w-[600px] flex flex-col",
-                    semesterId ? "h-[80vh] overflow-hidden" : "max-h-[85vh]"
-                )}
-            >
-                <DialogHeader className="border-b px-6 py-4 flex-none">
-                    <DialogTitle className="text-base font-semibold">{dialogTitle}</DialogTitle>
-                    <DialogDescription className="sr-only">
-                        {dialogDescription}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className={cn(
-                    "flex flex-col p-4",
-                    semesterId ? "flex-1 overflow-hidden" : "overflow-y-auto"
-                )}>
-                    {/* Mode Switcher (only if semesterId is present) */}
-                    {semesterId && (
-                        <div className="mb-4 flex-none">
-                            <Tabs value={mode} onValueChange={(value) => setMode(value as 'list' | 'create')}>
-                                <TabsList className="w-full grid grid-cols-2">
-                                    <TabsTrigger
-                                        value="list"
-                                        className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-                                    >
-                                        Select Existing
-                                    </TabsTrigger>
-                                    <TabsTrigger
-                                        value="create"
-                                        className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-                                    >
-                                        Create New
-                                    </TabsTrigger>
-                                </TabsList>
-                            </Tabs>
-                        </div>
-                    )}
+    const modalBody = (
+        <div className={surfaceBodyClassName}>
+            {/* Mode Switcher (only if semesterId is present) */}
+            {semesterId && (
+                <div className="mb-4 flex-none">
+                    <Tabs value={mode} onValueChange={(value) => setMode(value as 'list' | 'create')}>
+                        <TabsList className="w-full grid grid-cols-2">
+                            <TabsTrigger
+                                value="list"
+                                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                            >
+                                Select Existing
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="create"
+                                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                            >
+                                Create New
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                </div>
+            )}
 
-                    {mode === 'list' && semesterId ? (
-                        <div className="flex flex-col flex-1 overflow-hidden gap-4">
-                            <div className="relative flex-none">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            {mode === 'list' && semesterId ? (
+                <div className="flex flex-col flex-1 overflow-hidden gap-4">
+                    <div className="relative flex-none">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search unassigned courses..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9"
+                        />
+                    </div>
+
+                    <div className="flex-1 -mr-4 pr-4 overflow-y-auto">
+                        {isLoading ? (
+                            <Empty className="border-border/70 bg-muted/40">
+                                <EmptyHeader>
+                                    <EmptyTitle>Loading...</EmptyTitle>
+                                    <EmptyDescription>Fetching unassigned courses.</EmptyDescription>
+                                </EmptyHeader>
+                                <Spinner className="size-5 text-muted-foreground" />
+                            </Empty>
+                        ) : filteredCourses.length === 0 ? (
+                            <Empty className="border-border/70 bg-muted/40">
+                                <EmptyHeader>
+                                    <EmptyTitle>No courses found</EmptyTitle>
+                                    <EmptyDescription>
+                                        {searchTerm ? 'Try a different search term.' : 'All courses are assigned to semesters.'}
+                                    </EmptyDescription>
+                                </EmptyHeader>
+                            </Empty>
+                        ) : (
+                            <div className="space-y-3">
+                                {filteredCourses.map(course => (
+                                    <div key={course.id} className={cn(
+                                        "flex items-center justify-between p-4",
+                                        "bg-card rounded-lg border shadow-sm transition-all",
+                                        "hover:border-primary/50"
+                                    )}>
+                                        <div className="min-w-0 flex-1 mr-4">
+                                            <div className="font-semibold truncate mb-1">{course.name}</div>
+                                            {course.alias && (
+                                                <div className="text-xs text-muted-foreground truncate mb-1">
+                                                    {course.alias}
+                                                </div>
+                                            )}
+                                            <div className="flex gap-4 text-xs text-muted-foreground">
+                                                <span className="flex items-center gap-1">
+                                                    <span className="opacity-70">Credits:</span> {course.credits}
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <span className="opacity-70">Grade:</span> {course.grade_percentage}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => handleAddExisting(course.id)}
+                                            className="shrink-0"
+                                        >
+                                            Add
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ) : (
+                <div className={cn("flex min-h-0 flex-col", semesterId && "flex-1")}>
+                    <form
+                        onSubmit={handleCreateNew}
+                        className={cn("flex flex-col gap-4", semesterId && "flex-1 min-h-0")}
+                    >
+                        <div className={cn("flex flex-col gap-4", semesterId && "flex-1 overflow-y-auto pr-1")}>
+                            <div className="grid gap-2">
+                                <Label htmlFor="course-name">Course Name</Label>
                                 <Input
-                                    placeholder="Search unassigned courses..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-9"
+                                    id="course-name"
+                                    value={newName}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setNewName(val);
+                                        // Simple auto-detect if category is empty
+                                        if (!newCategory) {
+                                            const match = val.trim().match(/^([A-Za-z]{2,4})\d/);
+                                            if (match) {
+                                                setNewCategory(match[1].toUpperCase());
+                                            }
+                                        }
+                                    }}
+                                    required
+                                    placeholder="e.g. Introduction to Computer Science"
                                 />
                             </div>
-
-                            <div className="flex-1 -mr-4 pr-4 overflow-y-auto">
-                                {isLoading ? (
-                                    <Empty className="border-border/70 bg-muted/40">
-                                        <EmptyHeader>
-                                            <EmptyTitle>Loading...</EmptyTitle>
-                                            <EmptyDescription>Fetching unassigned courses.</EmptyDescription>
-                                        </EmptyHeader>
-                                        <Spinner className="size-5 text-muted-foreground" />
-                                    </Empty>
-                                ) : filteredCourses.length === 0 ? (
-                                    <Empty className="border-border/70 bg-muted/40">
-                                        <EmptyHeader>
-                                            <EmptyTitle>No courses found</EmptyTitle>
-                                            <EmptyDescription>
-                                                {searchTerm ? 'Try a different search term.' : 'All courses are assigned to semesters.'}
-                                            </EmptyDescription>
-                                        </EmptyHeader>
-                                    </Empty>
-                                ) : (
-                                            <div className="space-y-3">
-                                                {filteredCourses.map(course => (
-                                                    <div key={course.id} className={cn(
-                                                        "flex items-center justify-between p-4",
-                                                        "bg-card rounded-lg border shadow-sm transition-all",
-                                                        "hover:border-primary/50"
-                                                    )}>
-                                                        <div className="min-w-0 flex-1 mr-4">
-                                                            <div className="font-semibold truncate mb-1">{course.name}</div>
-                                                            {course.alias && (
-                                                                <div className="text-xs text-muted-foreground truncate mb-1">
-                                                                    {course.alias}
-                                                                </div>
-                                                            )}
-                                                            <div className="flex gap-4 text-xs text-muted-foreground">
-                                                                <span className="flex items-center gap-1">
-                                                                    <span className="opacity-70">Credits:</span> {course.credits}
-                                                                </span>
-                                                                <span className="flex items-center gap-1">
-                                                                    <span className="opacity-70">Grade:</span> {course.grade_percentage}%
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            onClick={() => handleAddExisting(course.id)}
-                                                            className="shrink-0"
-                                                        >
-                                                            Add
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                )}
+                            <div className="grid gap-2">
+                                <Label htmlFor="course-category">Category</Label>
+                                <Input
+                                    id="course-category"
+                                    value={newCategory}
+                                    onChange={e => setNewCategory(e.target.value)}
+                                    placeholder="e.g. CS (Auto-detected from Name)"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="course-alias">Alias (optional)</Label>
+                                <Input
+                                    id="course-alias"
+                                    value={newAlias}
+                                    onChange={e => setNewAlias(e.target.value)}
+                                    placeholder="e.g. CS101 - Prof. Smith"
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="course-credits">Credits</Label>
+                                    <Input
+                                        id="course-credits"
+                                        type="number"
+                                        step="0.5"
+                                        value={newCredits}
+                                        onChange={e => setNewCredits(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="course-grade">Grade (%)</Label>
+                                    <Input
+                                        id="course-grade"
+                                        type="number"
+                                        step="0.1"
+                                        value={newGrade}
+                                        onChange={e => setNewGrade(e.target.value)}
+                                        required
+                                    />
+                                </div>
                             </div>
                         </div>
-                    ) : (
-                        <div className={cn("flex min-h-0 flex-col", semesterId && "flex-1")}>
-                            <form
-                                onSubmit={handleCreateNew}
-                                className={cn("flex flex-col gap-4", semesterId && "flex-1 min-h-0")}
-                            >
-                                <div className={cn("flex flex-col gap-4", semesterId && "flex-1 overflow-y-auto pr-1")}>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="course-name">Course Name</Label>
-                                        <Input
-                                            id="course-name"
-                                            value={newName}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                setNewName(val);
-                                                // Simple auto-detect if category is empty
-                                                if (!newCategory) {
-                                                    const match = val.trim().match(/^([A-Za-z]{2,4})\d/);
-                                                    if (match) {
-                                                        setNewCategory(match[1].toUpperCase());
-                                                    }
-                                                }
-                                            }}
-                                            required
-                                            placeholder="e.g. Introduction to Computer Science"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="course-category">Category</Label>
-                                        <Input
-                                            id="course-category"
-                                            value={newCategory}
-                                            onChange={e => setNewCategory(e.target.value)}
-                                            placeholder="e.g. CS (Auto-detected from Name)"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="course-alias">Alias (optional)</Label>
-                                        <Input
-                                            id="course-alias"
-                                            value={newAlias}
-                                            onChange={e => setNewAlias(e.target.value)}
-                                            placeholder="e.g. CS101 - Prof. Smith"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="course-credits">Credits</Label>
-                                            <Input
-                                                id="course-credits"
-                                                type="number"
-                                                step="0.5"
-                                                value={newCredits}
-                                                onChange={e => setNewCredits(e.target.value)}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="course-grade">Grade (%)</Label>
-                                            <Input
-                                                id="course-grade"
-                                                type="number"
-                                                step="0.1"
-                                                value={newGrade}
-                                                onChange={e => setNewGrade(e.target.value)}
-                                                required
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div className={cn("pt-2", semesterId && "mt-auto border-t pt-4")}>
-                                    <Button type="submit" className="w-full">
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Create Course
-                                    </Button>
-                                </div>
-                            </form>
+                        <div className={cn("pt-2", semesterId && "mt-auto border-t pt-4")}>
+                            <Button type="submit" className="w-full">
+                                <Plus className="mr-2 h-4 w-4" />
+                                Create Course
+                            </Button>
                         </div>
-                    )}
+                    </form>
                 </div>
-            </DialogContent>
-        </Dialog>
+            )}
+        </div>
+    );
+
+    return (
+        <ResponsiveDialogDrawer
+            open={isOpen}
+            onOpenChange={(open) => !open && onClose()}
+            title={dialogTitle}
+            description={dialogDescription}
+            titleClassName={headerTitleClassName}
+            descriptionClassName="sr-only"
+            desktopContentClassName={desktopContentClassName}
+            mobileContentClassName={mobileContentClassName}
+            desktopHeaderClassName="border-b px-6 py-4 flex-none"
+            mobileHeaderClassName="border-b px-6 py-4 flex-none"
+        >
+            {modalBody}
+        </ResponsiveDialogDrawer>
     );
 };
