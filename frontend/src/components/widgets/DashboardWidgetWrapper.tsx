@@ -140,9 +140,9 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
         const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
         const controlSizeClass = isTouchDevice ? 'h-9 w-9 text-base' : 'h-7 w-7 text-sm';
         const glassControlClass =
-            'rounded-full border border-border/70 bg-background/90 text-muted-foreground shadow-sm backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/75 transition';
+            'rounded-full border border-border/60 bg-background/82 text-muted-foreground/90 shadow-sm backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/68 transition-colors';
         const glassControlHoverClass =
-            'hover:bg-background supports-[backdrop-filter]:hover:bg-background/90 hover:text-foreground';
+            'hover:bg-background/92 supports-[backdrop-filter]:hover:bg-background/80 hover:text-foreground';
 
         const ActionButton: React.FC<HeaderActionButtonProps> = ({
             title,

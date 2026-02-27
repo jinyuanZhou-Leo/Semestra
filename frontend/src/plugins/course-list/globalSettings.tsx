@@ -80,7 +80,7 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
       description="Manage courses assigned to this semester."
     >
       <div className="space-y-4">
-        <div className="rounded-md border bg-card">
+        <div className="w-full">
           {courses.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
               No courses assigned.

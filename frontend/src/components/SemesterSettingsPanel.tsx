@@ -92,7 +92,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
       <form onSubmit={handleSave} className="grid gap-6">
-        <div className="grid gap-2">
+        <div className="grid gap-2 max-w-sm">
           <Label htmlFor={`${fieldId}-name`}>Name</Label>
           <Input
             id={`${fieldId}-name`}
@@ -102,7 +102,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
           />
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-2 max-w-sm pt-2">
           <Label>Semester Duration</Label>
           <Popover>
             <PopoverTrigger asChild>

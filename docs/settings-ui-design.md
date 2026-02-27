@@ -4,7 +4,7 @@ To maintain visual consistency and reduce interaction hierarchy across Semestra,
 
 ## 1. Core Principles
 - **Visual Consistency:** All settings pages must look the same. We use a flat list of `SettingsSection` components within a standard container.
-- **Reduced Hierarchy:** Avoid over-nesting. Do not wrap `SettingsSection` in other decorative cards or panels (e.g., do not use extra Card wrappers). 
+- **Reduced Hierarchy:** Avoid over-nesting. Do not wrap `SettingsSection` in other decorative cards or panels (e.g., do not use extra Card wrappers). Avoid deep nesting of settings modals inside settings panels.
 - **Clear Interaction:** Each setting option should be intuitive, with clear labels, helpful descriptions, and immediate feedback (e.g., using `SaveSettingButton` with animated states).
 
 ## 2. Page & Container Layout
@@ -21,7 +21,7 @@ Settings pages or tabs should enforce a maximum width to ensure readability.
 ```
 
 ## 3. The `SettingsSection` Component
-The fundamental building block for any group of settings is the `SettingsSection` component. It automatically provides standard padding, borders, and a well-formatted header section.
+The fundamental building block for any group of settings is the `SettingsSection` component. It automatically provides a two-column split layout on large screens, standard padding, borders, and a well-formatted header section.
 
 ### Usage
 - Every logical group of settings should be wrapped in a `<SettingsSection>`.
@@ -35,7 +35,7 @@ export const MyPluginSettings = () => (
       title="Plugin Settings" 
       description="Customize the behavior of this plugin."
   >
-      {/* Forms, inputs, toggles */}
+      {/* Configuration items go here */}
   </SettingsSection>
 );
 ```
@@ -44,31 +44,103 @@ export const MyPluginSettings = () => (
 - Do **not** use separate standalone text headers outside of the `SettingsSection` to group settings. The `SettingsSection` header is sufficient.
 - Do **not** wrap a `SettingsSection` inside another card. This creates visual clutter, double titles, and duplicate borders.
 
-## 4. UI Elements & Reading Distances (The "Tennis Match" Problem)
-When screens are extremely wide (e.g. desktop), aligning the outer bounds directly without interior structure creates a UX issue for forms. If a row uses `justify-between` across a 1200px container, the user's eyes must jump forcefully from the label on the far left to the toggle on the far right. Leaving a large blank space on the right is equally awkward.
+## 4. Common Setting Types
 
-### The Split Layout Solution
-To solve this, Semestra employs a **Two-Column Split Layout** for settings on desktop:
-- **Left Column:** Displays the `title` and `description` of the setting group.
-- **Right Column:** Contains an elevated `Card` holding all the actual interactive elements and nested fields.
+To ensure visual consistency across all forms of settings (inputs, switches, tables, etc.), follow these unified UI patterns for interactive elements inside the `SettingsSection`.
 
-This automatically happens inside `SettingsSection`. You do not need to implement this yourself. 
+### A. Switch / Toggle (Boolean Settings)
+Used for simple on/off configurations. 
+- **Layout:** Wrap in a `flex items-center justify-between rounded-md border p-3 (or p-4 shadow-sm)`.
+- **Content:** The label and description sit on the left, while the `<Switch>` sits directly on the right.
 
-### Inside the Content Panel
-When designing the interactive elements inside `SettingsSection`:
-- **Grids over Stretched Flex:** Use `grid gap-4 sm:grid-cols-2 lg:grid-cols-3` for a more compact layout when having multiple related configurations rather than letting a single configuration take an entire row.
-- **Contained Row Layouts:** For toggle switches or single-line config items, they safely expand inside the component's card.
 ```tsx
 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-md border p-3">
     <div className="space-y-0.5">
-        <Label htmlFor="feature-toggle" className="cursor-pointer">Enable Feature</Label>
-        <p className="text-xs text-muted-foreground">Detailed explanation of the feature.</p>
+        <Label htmlFor="feature-toggle" className="cursor-pointer text-base">Enable Feature</Label>
+        <p className="text-sm text-muted-foreground">Detailed explanation of the feature.</p>
     </div>
     <Switch id="feature-toggle" />
 </div>
 ```
 
+### B. ToggleGroup / Radio / Select (Single or Multi-choice)
+Used for selecting one among a few options (e.g., Theme: Light/Dark/System).
+- **Layout:** Similar to Switch, wrapped in a bordered generic row. Buttons placed consecutively.
+- **Actions:** Place a group of `<Button>` or `<ToggleGroup>` elements. 
+
+```tsx
+<div className="flex items-center justify-between gap-4 rounded-lg border p-4 shadow-sm">
+    <Label htmlFor="theme-select" className="text-base">Theme</Label>
+    <div className="flex items-center gap-2">
+        <Button variant="default" size="sm" className="min-w-[80px]">Light</Button>
+        <Button variant="outline" size="sm" className="min-w-[80px]">Dark</Button>
+    </div>
+</div>
+```
+
+### C. Forms & Text Inputs
+Used for text/number/date settings. Unlike switches, inputs usually require vertical stacking to accommodate ample typing space.
+- **Spacing:** Use `<div className="grid gap-3 max-w-sm">` to group the label and input.
+- **Labels:** Left-aligned above the input. Keep maximum width constraints so the input doesn't stretch awkwardly across the screen.
+
+```tsx
+<div className="grid gap-3 max-w-sm pt-2">
+    <Label htmlFor="default-credit">Default Course Credit</Label>
+    <Input
+        id="default-credit"
+        type="number"
+        className="max-w-[120px]"
+    />
+</div>
+```
+
+### D. Account & Profile Info
+For user profiles or linked accounts with heavy visual elements.
+- Present avatars on the left, profile names directly beside it. Don't frame basic info in a border. Reserved borders for integration actions like "Linked Accounts."
+
+```tsx
+<div className="flex items-center gap-4">
+    <Avatar className="h-16 w-16 border">
+        <AvatarFallback>U</AvatarFallback>
+    </Avatar>
+    <div>
+        <p className="text-lg font-semibold leading-none">Username</p>
+        <p className="text-sm text-muted-foreground mt-1">user@example.com</p>
+    </div>
+</div>
+```
+
+### E. Complex Content & Tables
+For interactive data grids, GPAScalingTables, or nested lists.
+- Do **not** wrap the table component in an extra outer bordered card, since tables usually have their own outline.
+- Let the table comfortably fit inside the natural background of the `SettingsSection`. 
+
+```tsx
+<div className="grid gap-4">
+    <Label className="text-base">Table Name</Label>
+    <MyTableComponent />
+    <p className="text-xs text-muted-foreground">Description of what this table does.</p>
+</div>
+```
+
+### F. Action Buttons & Modals
+Used for specific tasks like Exporting Data, Deleting items, or popping up complex imports. 
+- **Layout:** If the action stands completely alone (e.g., "Export Data"), place it inside a simple bordered card and map the button full-width at the bottom.
+- **Popups:** Always use inline `Dialog` or `AlertDialog` over navigating users completely away from the settings tab to preserve their flow.
+
+```tsx
+<div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
+    <div className="space-y-2 mb-4">
+        <p className="font-medium">Export Data</p>
+        <p className="text-sm text-muted-foreground">Download a backup file containing your programs.</p>
+    </div>
+    <Button variant="outline" className="w-full">
+        Download Backup
+    </Button>
+</div>
+```
+
 ## 5. Saving and Feedback
-- Use `SaveSettingButton` for primary save actions. It provides built-in idle/saving/success states.
+- Use `SaveSettingButton` for primary save actions. It provides built-in idle/saving/success states. Don't use standard buttons to save settings unless doing one-off data edits.
 - If a plugin supports it, changes can auto-save, but always ensure an alert or visual indicator handles network failures.
-- For destructive actions (like resetting defaults or deleting), use a `"destructive"` variant button, placed carefully at the bottom or separate Actions section, typically requested behind an `AlertDialog` for confirmation.
+- For destructive actions (like resetting defaults or deleting), use a `"destructive"` variant button, placed carefully at the bottom or behind an `AlertDialog` for confirmation.

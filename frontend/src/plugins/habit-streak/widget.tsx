@@ -1,6 +1,6 @@
 // input:  [widget settings/update callbacks, framer-motion animation runtime, shadcn form controls/dialog actions]
 // output: [habit-streak widget component, settings component, helpers, and widget definition metadata]
-// pos:    [plugin runtime + settings layer for interval-based habit check-ins, streak progression visuals, and interval-agnostic motivational copy]
+// pos:    [plugin runtime + settings layer for interval-based habit check-ins, light-friendly theme-adaptive streak ring visuals with mode-specific center typography, and interval-agnostic motivational copy]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -415,10 +415,9 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     cx="50"
                     cy="50"
                     r="46"
-                    stroke="currentColor"
                     strokeWidth="4.5"
                     fill="none"
-                    className="text-black/5 dark:text-white/5"
+                    className="stroke-foreground/12 dark:stroke-foreground/24"
                 />
                 {/* Animated progress */}
                 <motion.circle
@@ -532,12 +531,12 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     initial={prefersReducedMotion ? false : { scale: 1.15, opacity: 0.5 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    className="font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/60 drop-shadow-sm dark:from-white dark:to-white/60"
+                    className="font-extrabold tracking-tighter text-foreground drop-shadow-sm dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-br dark:from-white dark:to-white/60"
                     style={{ fontSize: 'clamp(1rem, 18cqmin, 2.5rem)', lineHeight: 1 }}
                 >
                     {streakCount}
                 </motion.span>
-                <span className="mt-0 font-bold uppercase tracking-widest text-foreground/50"
+                <span className="mt-0 font-bold uppercase tracking-widest text-foreground/65 dark:text-white/50"
                     style={{ fontSize: 'clamp(0.45rem, 6cqmin, 0.6rem)' }}>
                     Streak
                 </span>
@@ -627,8 +626,8 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                 <div className="flex items-start justify-between">
                     <div className="grid gap-0.5">
                         <h3 className={cn(
-                            'line-clamp-2 text-sm font-bold tracking-tight text-foreground sm:text-base md:text-lg',
-                            habitSettings.habitName.trim().length === 0 && 'text-foreground/60'
+                            'line-clamp-2 text-sm font-bold tracking-tight text-stone-800 dark:text-foreground sm:text-base md:text-lg',
+                            habitSettings.habitName.trim().length === 0 && 'text-stone-500 dark:text-foreground/60'
                         )}>
                             {habitTitle}
                         </h3>
@@ -692,10 +691,10 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                 .habit-streak-widget {
                     container-type: size;
                     background:
-                        radial-gradient(120% 96% at 14% 10%, rgba(255, 240, 181, 0.9) 0%, rgba(255, 240, 181, 0) 52%),
-                        radial-gradient(104% 82% at 90% 88%, rgba(255, 170, 128, 0.7) 0%, rgba(255, 170, 128, 0) 60%),
-                        radial-gradient(70% 62% at 50% 56%, rgba(255, 194, 120, 0.38) 0%, rgba(255, 194, 120, 0) 68%),
-                        linear-gradient(138deg, #fff2d9 0%, #ffe4c1 44%, #ffd8bf 100%);
+                        radial-gradient(120% 96% at 14% 10%, rgba(254, 243, 199, 0.4) 0%, rgba(254, 243, 199, 0) 52%),
+                        radial-gradient(104% 82% at 90% 88%, rgba(255, 228, 230, 0.4) 0%, rgba(255, 228, 230, 0) 60%),
+                        radial-gradient(70% 62% at 50% 56%, rgba(255, 237, 213, 0.3) 0%, rgba(255, 237, 213, 0) 68%),
+                        linear-gradient(138deg, #ffffff 0%, #fafafa 44%, #f5f5f4 100%);
                 }
                 .dark .habit-streak-widget {
                     background:

@@ -112,10 +112,10 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-md border p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-md border p-3">
             <div className="space-y-0.5">
-              <Label htmlFor="calendar-settings-highlight-conflicts" className="cursor-pointer">Highlight conflicts</Label>
-              <p className="text-xs text-muted-foreground">Use stronger visual emphasis for conflict events.</p>
+              <Label htmlFor="calendar-settings-highlight-conflicts" className="cursor-pointer text-base">Highlight conflicts</Label>
+              <p className="text-sm text-muted-foreground">Use stronger visual emphasis for conflict events.</p>
             </div>
             <Switch
               id="calendar-settings-highlight-conflicts"
@@ -124,10 +124,10 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-md border p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-md border p-3">
             <div className="space-y-0.5">
-              <Label htmlFor="calendar-settings-show-weekends" className="cursor-pointer">Show weekends</Label>
-              <p className="text-xs text-muted-foreground">Display Saturday and Sunday columns in calendar views.</p>
+              <Label htmlFor="calendar-settings-show-weekends" className="cursor-pointer text-base">Show weekends</Label>
+              <p className="text-sm text-muted-foreground">Display Saturday and Sunday columns in calendar views.</p>
             </div>
             <Switch
               id="calendar-settings-show-weekends"
@@ -136,7 +136,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 pt-2">
             <Label>Event source colors</Label>
             <div className="grid gap-3 lg:grid-cols-3">
               <EventColorPicker
@@ -164,10 +164,13 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
         description="Export schedule data or restore calendar defaults."
       >
         <div className="space-y-3">
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <p className="text-sm text-muted-foreground">
-              Export your semester schedule
-            </p>
+          <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
+            <div className="space-y-2 mb-4">
+              <p className="font-medium text-base">Export Schedule</p>
+              <p className="text-sm text-muted-foreground">
+                Export your semester schedule data.
+              </p>
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -175,14 +178,17 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
               disabled={!semesterId}
             >
               <Download className="mr-2 h-4 w-4" />
-              Export
+              Export Schedule
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-            <p className="text-sm text-muted-foreground">
-              Restore event colors, time window, weekend visibility, and conflict highlighting to defaults.
-            </p>
+          <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
+            <div className="space-y-2 mb-4">
+              <p className="font-medium text-base">Restore defaults</p>
+              <p className="text-sm text-muted-foreground">
+                Restore event colors, time window, weekend visibility, and conflict highlighting to defaults.
+              </p>
+            </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button type="button" variant="destructive">

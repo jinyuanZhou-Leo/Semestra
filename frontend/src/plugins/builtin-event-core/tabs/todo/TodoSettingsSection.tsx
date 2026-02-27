@@ -16,9 +16,9 @@ export const TodoSettingsSection: React.FC<TabSettingsProps> = ({ settings, upda
       description="Task completion behavior"
     >
       <div className="space-y-3">
-        <div className="flex items-center justify-between rounded-md border p-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-md border p-3">
           <div className="space-y-0.5">
-            <Label htmlFor="todo-settings-move-completed" className="cursor-pointer">
+            <Label htmlFor="todo-settings-move-completed" className="cursor-pointer text-base">
               Move completed tasks to Completed section
             </Label>
             <p className="text-xs text-muted-foreground">

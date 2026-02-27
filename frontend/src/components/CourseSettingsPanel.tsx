@@ -92,7 +92,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
       <form onSubmit={handleSave} className="grid gap-6">
-        <div className="grid gap-2">
+        <div className="grid gap-2 max-w-sm">
           <Label htmlFor={`${fieldId}-name`}>Name</Label>
           <Input
             id={`${fieldId}-name`}
@@ -102,7 +102,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
           />
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-2 max-w-sm pt-2">
           <Label htmlFor={`${fieldId}-alias`}>Alias (optional)</Label>
           <Input
             id={`${fieldId}-alias`}
@@ -112,7 +112,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
           />
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-2 max-w-sm pt-2">
           <Label htmlFor={`${fieldId}-category`}>Category (optional)</Label>
           <Input
             id={`${fieldId}-category`}
@@ -122,7 +122,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
           />
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-2 max-w-sm pt-2">
           <Label htmlFor={`${fieldId}-credits`}>Credits</Label>
           <Input
             id={`${fieldId}-credits`}

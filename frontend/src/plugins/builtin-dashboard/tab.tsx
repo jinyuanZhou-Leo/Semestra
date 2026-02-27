@@ -1,6 +1,6 @@
-// input:  [builtin tab context state, dashboard widget callbacks (local layout sync + commit persistence), motion + icon dependencies]
+// input:  [builtin tab context state, dashboard widget callbacks (local layout sync + commit persistence), motion + icon dependencies, shared button variant classes]
 // output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` plugin metadata]
-// pos:    [Built-in dashboard tab UI entry handling edit mode state, floating action controls, and split layout callback wiring]
+// pos:    [Built-in dashboard tab UI entry handling edit mode state, theme-adaptive floating action controls with emerald active edit state and mode-aware shadows, and split layout callback wiring]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -19,12 +19,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const { isLoading, dashboard } = useBuiltinTabContext();
-    const glassButtonClassName =
-        "border border-border/50 bg-background/70 text-foreground backdrop-blur-md backdrop-saturate-150 shadow-lg dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:bg-background/90 hover:border-border hover:shadow-xl dark:hover:shadow-[0_14px_36px_rgba(0,0,0,0.62)] transition-all duration-200";
+    const fabBaseButtonClassName =
+        "border border-border/80 bg-background/95 text-foreground shadow-[0_10px_24px_color-mix(in_srgb,var(--color-foreground)_14%,transparent)] backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/88 hover:bg-background hover:text-foreground hover:border-border transition-colors duration-200";
+    const fabActiveButtonClassName =
+        "border border-emerald-500/62 bg-emerald-500/14 text-emerald-900 hover:bg-emerald-500/20 hover:text-emerald-950 shadow-[0_0_0_1px_rgba(16,185,129,0.28),0_10px_22px_rgba(16,185,129,0.22)] dark:border-emerald-300/55 dark:bg-emerald-950/42 dark:text-emerald-200 dark:hover:bg-emerald-950/56 dark:hover:text-emerald-100 dark:shadow-[0_0_0_1px_rgba(110,231,183,0.38),0_14px_28px_rgba(6,78,59,0.44)] backdrop-blur-md backdrop-saturate-150 transition-colors duration-200";
     const checkIconClassName =
-        "h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300 dark:drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]";
+        "h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-200";
     const pencilIconClassName =
-        "h-5 w-5 shrink-0 text-foreground dark:text-slate-50 dark:drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]";
+        "h-5 w-5 shrink-0 text-foreground/80";
 
     // Use a unique key for each dashboard (semester or course)
     const dashboardKey = dashboard.semesterId || dashboard.courseId || 'default';
@@ -107,10 +109,10 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                             <Button
                                 onClick={dashboard.onAddWidgetClick}
                                 variant="outline"
-                                className={`${glassButtonClassName.replace("transition-all", "transition-colors")} size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center shrink-0 text-foreground hover:text-foreground dark:text-slate-100 dark:hover:text-white`}
+                                className={`${fabBaseButtonClassName} size-[3.25rem] p-0 rounded-full inline-flex items-center justify-center shrink-0`}
                                 aria-label="Add widget"
                             >
-                                <Plus className="h-5 w-5 shrink-0" aria-hidden="true" />
+                                <Plus className="h-5 w-5 shrink-0 text-foreground/75" aria-hidden="true" />
                             </Button>
                         </motion.div>
                     )}
@@ -120,8 +122,8 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                     layout
                     onClick={toggleEditMode}
                     className={`pointer-events-auto relative flex items-center justify-center shrink-0 shadow-lg cursor-pointer outline-none ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 size-[3.25rem] rounded-full p-0 ${isEditMode
-                        ? "border border-emerald-500/60 bg-emerald-500/14 text-emerald-900 dark:border-emerald-400/55 dark:bg-slate-900/90 dark:text-slate-50 hover:text-emerald-900 dark:hover:text-white shadow-[0_0_0_1px_rgba(16,185,129,0.28),0_10px_24px_rgba(15,23,42,0.18)] dark:shadow-[0_0_0_1px_rgba(74,222,128,0.38),0_16px_34px_rgba(2,6,23,0.72)] backdrop-blur-md backdrop-saturate-150 hover:bg-emerald-500/18 dark:hover:bg-slate-900 transition-colors duration-200"
-                        : `${glassButtonClassName.replace("transition-all", "transition-colors")} text-foreground hover:text-foreground dark:text-slate-50 dark:hover:text-white`
+                        ? `${fabActiveButtonClassName}`
+                        : `${fabBaseButtonClassName}`
                         }`}
                     aria-label={isEditMode ? "Complete editing" : "Edit dashboard"}
                     aria-pressed={isEditMode}

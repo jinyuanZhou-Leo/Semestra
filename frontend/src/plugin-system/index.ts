@@ -1,6 +1,6 @@
-// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries]
-// output: [plugin catalog accessors, metadata resolvers, and `ensure*PluginByTypeLoaded` helpers]
-// pos:    [Core plugin orchestration module that registers runtime definitions on demand]
+// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, Vite HMR updates]
+// output: [plugin catalog accessors, metadata resolvers, `ensure*PluginByTypeLoaded` helpers, and dev hot-reload registration]
+// pos:    [Core plugin orchestration module that registers runtime definitions on demand and refreshes plugin definitions during HMR]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -33,6 +33,7 @@ type PluginModule = {
 
 interface PluginEntry {
     id: string;
+    directoryName: string;
     loader: () => Promise<PluginModule>;
     tabCatalog: TabCatalogItem[];
     widgetCatalog: WidgetCatalogItem[];
@@ -114,6 +115,7 @@ const pluginEntries: PluginEntry[] = Object.entries(metadataModules)
 
         return createPluginEntry({
             id: metadata.pluginId,
+            directoryName,
             loader,
             tabCatalog: metadata.tabCatalog ?? [],
             widgetCatalog: metadata.widgetCatalog ?? [],
@@ -123,8 +125,12 @@ const pluginEntries: PluginEntry[] = Object.entries(metadataModules)
     .sort((a, b) => a.id.localeCompare(b.id));
 
 const LEGACY_HIDDEN_TAB_TYPES = new Set<string>(['builtin-semester-schedule']);
+const pluginRuntimeModulePaths = Object.keys(
+    import.meta.glob('../plugins/*/**/*.{ts,tsx}')
+).filter((path) => !path.endsWith('.test.tsx'));
 
 const pluginsById = new Map(pluginEntries.map((entry) => [entry.id, entry]));
+const pluginsByDirectoryName = new Map(pluginEntries.map((entry) => [entry.directoryName, entry]));
 const tabTypeToPluginId = new Map<string, string>();
 const widgetTypeToPluginId = new Map<string, string>();
 const tabCatalogByType = new Map<string, TabCatalogItem>();
@@ -190,6 +196,40 @@ const loadPluginEntry = async (entry: PluginEntry): Promise<void> => {
 
     await entry.loadPromise;
 };
+
+const forceReloadPluginEntry = async (entry: PluginEntry): Promise<void> => {
+    entry.loaded = false;
+    entry.loadPromise = null;
+    await loadPluginEntry(entry);
+};
+
+const getPluginDirectoryFromRuntimePath = (path: string): string | null => {
+    const match = path.match(/^\.\.\/plugins\/([^/]+)\//);
+    return match?.[1] ?? null;
+};
+
+if (import.meta.hot) {
+    import.meta.hot.accept(pluginRuntimeModulePaths, (updatedModules) => {
+        const affectedEntries = new Set<PluginEntry>();
+        pluginRuntimeModulePaths.forEach((path, index) => {
+            if (!updatedModules[index]) return;
+            const directoryName = getPluginDirectoryFromRuntimePath(path);
+            if (!directoryName) return;
+            const entry = pluginsByDirectoryName.get(directoryName);
+            if (!entry) return;
+            affectedEntries.add(entry);
+        });
+
+        if (!affectedEntries.size) return;
+
+        affectedEntries.forEach((entry) => {
+            // Re-register updated plugin runtime so tab/widget style and behavior edits apply immediately in dev.
+            void forceReloadPluginEntry(entry).catch((error) => {
+                console.error(`[plugin-system] Failed to hot-reload plugin: ${entry.id}`, error);
+            });
+        });
+    });
+}
 
 const ensurePluginByIdLoaded = async (pluginId: string): Promise<boolean> => {
     const entry = pluginsById.get(pluginId);

@@ -30,7 +30,7 @@ const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, up
       description="Configure how this tab is displayed."
     >
       <div className="grid gap-4">
-        <div className="grid gap-2">
+        <div className="grid gap-2 max-w-sm">
           <Label htmlFor={titleId}>
             Template Title
           </Label>
