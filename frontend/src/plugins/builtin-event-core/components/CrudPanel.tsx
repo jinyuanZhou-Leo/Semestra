@@ -75,26 +75,24 @@ export function CrudPanel<T>({
                     right={actionButton}
                 />
             </div>
-            <div className="rounded-md border border-border/70 p-0">
-                <TableShell minWidthClassName={minWidthClassName}>
-                    <Table>
-                        <TableHeader>{renderHeader()}</TableHeader>
-                        <TableBody>
-                            {isLoading && (
-                                <TableRow>
-                                    <TableCell colSpan={100} className="py-8 text-center text-sm text-muted-foreground">
-                                        <div className="flex justify-center">
-                                            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground/50" />
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                            {!isLoading && items.length === 0 && <EmptyTableRow colSpan={100} message={emptyMessage} />}
-                            {!isLoading && items.map((item, index) => renderRow(item, index))}
-                        </TableBody>
-                    </Table>
-                </TableShell>
-            </div>
+            <TableShell minWidthClassName={minWidthClassName}>
+                <Table>
+                    <TableHeader>{renderHeader()}</TableHeader>
+                    <TableBody>
+                        {isLoading && (
+                            <TableRow>
+                                <TableCell colSpan={100} className="py-8 text-center text-sm text-muted-foreground">
+                                    <div className="flex justify-center">
+                                        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground/50" />
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        )}
+                        {!isLoading && items.length === 0 && <EmptyTableRow colSpan={100} message={emptyMessage} />}
+                        {!isLoading && items.map((item, index) => renderRow(item, index))}
+                    </TableBody>
+                </Table>
+            </TableShell>
         </div>
     );
 }

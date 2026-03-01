@@ -133,7 +133,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-md border p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-0.5">
               <Label htmlFor="calendar-settings-highlight-conflicts" className="cursor-pointer text-base">Highlight conflicts</Label>
               <p className="text-sm text-muted-foreground">Use stronger visual emphasis for conflict events.</p>
@@ -145,7 +145,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-md border p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-0.5">
               <Label htmlFor="calendar-settings-show-weekends" className="cursor-pointer text-base">Show weekends</Label>
               <p className="text-sm text-muted-foreground">Display Saturday and Sunday columns in calendar views.</p>
@@ -184,9 +184,9 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
         title="Actions"
         description="Export schedule data or restore calendar defaults."
       >
-        <div className="space-y-3">
-          <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
-            <div className="space-y-2 mb-4">
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1 mb-2 sm:mb-0">
               <p className="font-medium text-base">Export Schedule</p>
               <p className="text-sm text-muted-foreground">
                 Export your semester schedule data.
@@ -203,8 +203,8 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             </Button>
           </div>
 
-          <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
-            <div className="space-y-2 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1 mb-2 sm:mb-0">
               <p className="font-medium text-base">Restore defaults</p>
               <p className="text-sm text-muted-foreground">
                 Restore event colors, time window, weekend visibility, and conflict highlighting to defaults.

@@ -89,13 +89,15 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
     };
 
     return (
-        <div className="rounded-md border p-4 bg-muted/40">
-            <h4 className="mb-4 text-sm font-medium text-muted-foreground">
-                {title}
-            </h4>
+        <div className="space-y-4">
+            {title && (
+                <h4 className="text-sm font-medium text-muted-foreground">
+                    {title}
+                </h4>
+            )}
 
             {entries.length > 0 ? (
-                <div className="mb-4 flex flex-col gap-2">
+                <div className="flex flex-col gap-2">
                     {entries.map((entry) => (
                         <div key={entry.key} className="flex items-center justify-between rounded-md border bg-background px-4 py-3 shadow-sm">
                             <div className="flex gap-4 items-center overflow-hidden">
@@ -116,7 +118,7 @@ export const KeyValueTable: React.FC<KeyValueTableProps> = ({
                     ))}
                 </div>
             ) : (
-                    <div className="text-center text-sm text-muted-foreground mb-4">
+                    <div className="text-center text-sm text-muted-foreground">
                     No entries defined.
                 </div>
             )}

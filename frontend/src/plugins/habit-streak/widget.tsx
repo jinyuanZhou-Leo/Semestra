@@ -325,7 +325,7 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
             </div>
 
             {/* Motivational message toggle */}
-            <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-4 pt-2">
                 <div className="grid gap-0.5">
                     <Label htmlFor={`${ids}-motivational-msg`} className="cursor-pointer text-sm font-medium">
                         Encouragement on check-in

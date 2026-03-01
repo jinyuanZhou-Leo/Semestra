@@ -51,13 +51,13 @@ To ensure visual consistency across all forms of settings (inputs, switches, tab
 
 ### A. Switch / Toggle (Boolean Settings)
 Used for simple on/off configurations. 
-- **Layout:** Wrap in a `flex items-center justify-between rounded-md border p-3 (or p-4 shadow-sm)`.
+- **Layout:** Format using a clean `flex` row without ANY borders, padding wrappers, or isolated backgrounds. Maintain a completely flat structure inside the `SettingsSection`.
 - **Content:** The label and description sit on the left, while the `<Switch>` sits directly on the right.
 
 ```tsx
-<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-md border p-3">
+<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
     <div className="space-y-0.5">
-        <Label htmlFor="feature-toggle" className="cursor-pointer text-base">Enable Feature</Label>
+        <Label htmlFor="feature-toggle" className="text-sm font-medium">Enable Feature</Label>
         <p className="text-sm text-muted-foreground">Detailed explanation of the feature.</p>
     </div>
     <Switch id="feature-toggle" />
@@ -66,31 +66,32 @@ Used for simple on/off configurations.
 
 ### B. ToggleGroup / Radio / Select (Single or Multi-choice)
 Used for selecting one among a few options (e.g., Theme: Light/Dark/System).
-- **Layout:** Similar to Switch, wrapped in a bordered generic row. Buttons placed consecutively.
+- **Layout:** Similar to Switch, defined as a standard row with no nesting borders. Buttons placed consecutively.
 - **Actions:** Place a group of `<Button>` or `<ToggleGroup>` elements. 
 
 ```tsx
-<div className="flex items-center justify-between gap-4 rounded-lg border p-4 shadow-sm">
-    <Label htmlFor="theme-select" className="text-base">Theme</Label>
-    <div className="flex items-center gap-2">
-        <Button variant="default" size="sm" className="min-w-[80px]">Light</Button>
-        <Button variant="outline" size="sm" className="min-w-[80px]">Dark</Button>
+<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <Label htmlFor="theme-select" className="text-base sm:shrink-0">Theme</Label>
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+        <Button variant="default" size="sm" className="min-w-[80px] flex-1 sm:flex-none">Light</Button>
+        <Button variant="outline" size="sm" className="min-w-[80px] flex-1 sm:flex-none">Dark</Button>
     </div>
 </div>
 ```
 
 ### C. Forms & Text Inputs
-Used for text/number/date settings. Unlike switches, inputs usually require vertical stacking to accommodate ample typing space.
-- **Spacing:** Use `<div className="grid gap-3 max-w-sm">` to group the label and input.
-- **Labels:** Left-aligned above the input. Keep maximum width constraints so the input doesn't stretch awkwardly across the screen.
+Used for text/number/date settings. For short inputs (like numbers or dates), use a horizontal row layout similar to switches to avoid abrupt vertical spaces and maintain an integrated look. For long text inputs, standard vertical stacking with `max-w-sm` can be used.
 
 ```tsx
-<div className="grid gap-3 max-w-sm pt-2">
-    <Label htmlFor="default-credit">Default Course Credit</Label>
+<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-0.5">
+        <Label htmlFor="default-credit" className="text-sm font-medium">Default Course Credit</Label>
+        <p className="text-sm text-muted-foreground">The default number of credits assigned to new courses.</p>
+    </div>
     <Input
         id="default-credit"
         type="number"
-        className="max-w-[120px]"
+        className="w-full sm:w-[120px] shrink-0"
     />
 </div>
 ```
@@ -126,18 +127,33 @@ For interactive data grids, GPAScalingTables, or nested lists.
 
 ### F. Action Buttons & Modals
 Used for specific tasks like Exporting Data, Deleting items, or popping up complex imports. 
-- **Layout:** If the action stands completely alone (e.g., "Export Data"), place it inside a simple bordered card and map the button full-width at the bottom.
+- **Layout:** Even for standalone actions like exporting data, do **not** enclose the content in bordered cards (no `rounded-lg border p-4 shadow-sm`). Treat the action as a generic `flex flex-col sm:flex-row` row. Maintain a flat list structure using utilities like `space-y-6` for vertical gap.
 - **Popups:** Always use inline `Dialog` or `AlertDialog` over navigating users completely away from the settings tab to preserve their flow.
 
 ```tsx
-<div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
-    <div className="space-y-2 mb-4">
-        <p className="font-medium">Export Data</p>
+<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-1 mb-2 sm:mb-0">
+        <p className="font-medium text-base">Export Data</p>
         <p className="text-sm text-muted-foreground">Download a backup file containing your programs.</p>
     </div>
-    <Button variant="outline" className="w-full">
+    <Button variant="outline" className="shrink-0">
         Download Backup
     </Button>
+</div>
+```
+
+### G. Grouping with Separators
+When you need to visually distinguish semantic groups inside a single `SettingsSection`, do not drop them into multiple `Card`s. Use a clean `<Separator />` to divide semantic blocks. Avoid adding unnecessary sub-titles (like uppercase category headers) within the section, as the setting items themselves should be self-explanatory.
+
+```tsx
+<div className="space-y-4">
+    {/* Setting rows for related group A... */}
+</div>
+
+<Separator />
+
+<div className="space-y-4">
+    {/* Setting rows for related group B... */}
 </div>
 ```
 

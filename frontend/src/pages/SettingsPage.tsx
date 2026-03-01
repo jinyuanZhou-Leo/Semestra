@@ -327,47 +327,27 @@ export const SettingsPage: React.FC = () => {
 
                 <div className="space-y-6">
                     <SettingsSection
-                        title="Appearance"
-                        description="Customize the look and feel of the application."
-                    >
-                        <div className="flex flex-col gap-3 rounded-lg border p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-                            <Label htmlFor="theme-select" className="text-base sm:shrink-0">Theme</Label>
-                            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                                {themeOptions.map((option) => (
-                                    <Button
-                                        key={option.value}
-                                        variant={themeMode === option.value ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => handleThemeChange(option.value)}
-                                        className="min-w-[80px] flex-1 sm:flex-none"
-                                    >
-                                        {option.label}
-                                    </Button>
-                                ))}
-                            </div>
-                        </div>
-                    </SettingsSection>
-
-                    <SettingsSection
                         title="Account"
                         description="Manage your profile and sign-in settings."
                     >
                         <div className="space-y-6">
+                            {/* Profile identity block */}
                             <div className="flex min-w-0 items-center gap-4">
-                                <Avatar className="h-16 w-16 border">
-                                    <AvatarFallback className="text-xl">{avatarInitial}</AvatarFallback>
+                                <Avatar className="h-14 w-14 border">
+                                    <AvatarFallback className="text-lg">{avatarInitial}</AvatarFallback>
                                 </Avatar>
                                 <div className="min-w-0">
-                                    <p className="text-lg font-semibold leading-none">
+                                    <p className="text-base font-semibold leading-snug">
                                         {user?.nickname || user?.email}
                                     </p>
-                                    <p className="mt-1 break-all text-sm text-muted-foreground">
+                                    <p className="break-all text-sm text-muted-foreground">
                                         {user?.email}
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="grid gap-3 max-w-sm">
+                            {/* Display Name */}
+                            <div className="grid gap-2 max-w-sm">
                                 <Label htmlFor="nickname-input">Display Name</Label>
                                 <Input
                                     id="nickname-input"
@@ -375,23 +355,25 @@ export const SettingsPage: React.FC = () => {
                                     value={nickname}
                                     onChange={(e) => setNickname(e.target.value)}
                                     placeholder="Enter a nickname"
-                                    className="max-w-md"
                                 />
                             </div>
 
-                            <div className="rounded-lg border bg-card p-4 shadow-sm">
-                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="space-y-1">
+                            <Separator />
+
+                            {/* Connected Accounts */}
+                            <div className="space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="space-y-0.5">
                                         <div className="flex items-center gap-2">
-                                            <p className="font-medium">Google Account</p>
+                                            <Label className="text-sm font-medium">Google Account</Label>
                                             {googleClientId && user?.google_sub ? (
-                                                <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">Linked</Badge>
+                                                <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-xs">Linked</Badge>
                                             ) : (
-                                                <Badge variant="outline">Not Linked</Badge>
+                                                    <Badge variant="outline" className="text-xs">Not Linked</Badge>
                                             )}
                                         </div>
                                         <p className="text-sm text-muted-foreground">
-                                            Use your Google account to sign in securely.
+                                            Sign in to Semestra using your Google account.
                                         </p>
                                     </div>
 
@@ -404,16 +386,14 @@ export const SettingsPage: React.FC = () => {
                                         >
                                             <div ref={googleLinkRef} />
                                             {!isGoogleLinkReady && (
-                                                <p className="text-xs text-muted-foreground">
-                                                    Loading...
-                                                </p>
+                                                <p className="text-xs text-muted-foreground">Loading...</p>
                                             )}
                                         </div>
                                     )}
                                 </div>
 
                                 {(googleLinkError || googleLinkSuccess) && (
-                                    <div className="mt-4">
+                                    <div>
                                         {googleLinkError && (
                                             <p className="text-sm text-destructive">{googleLinkError}</p>
                                         )}
@@ -424,23 +404,56 @@ export const SettingsPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <div className="pt-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={handleLogout}
-                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
-                                >
-                                    Sign Out
-                                </Button>
+                            <Separator />
+
+                            {/* Session Management */}
+                            <div className="space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="space-y-0.5">
+                                        <p className="text-sm font-medium">Sign Out</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            End your current session on this device.
+                                        </p>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleLogout}
+                                        className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
+                                    >
+                                        Sign Out
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     </SettingsSection>
 
                     <SettingsSection
-                        title="Global Defaults"
-                        description="Set default values for new programs."
+                        title="Preferences"
+                        description="Customize the application appearance and set default behaviors."
                     >
                         <div className="space-y-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="theme-select" className="text-sm font-medium">Theme</Label>
+                                    <p className="text-sm text-muted-foreground">Select your preferred color scheme.</p>
+                                </div>
+                                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                                    {themeOptions.map((option) => (
+                                        <Button
+                                            key={option.value}
+                                            variant={themeMode === option.value ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => handleThemeChange(option.value)}
+                                            className="min-w-[80px] flex-1 sm:flex-none"
+                                        >
+                                            {option.label}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <Separator />
+
                             <div className="grid gap-4">
                                 <Label className="text-base">Default GPA Scaling Table</Label>
                                 <GPAScalingTable
@@ -454,8 +467,15 @@ export const SettingsPage: React.FC = () => {
                                 </p>
                             </div>
 
-                            <div className="grid gap-3 pt-2">
-                                <Label htmlFor="default-credit">Default Course Credit</Label>
+                            <Separator />
+
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="default-credit" className="text-sm font-medium">Default Course Credit</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        The default number of credits assigned to new courses.
+                                    </p>
+                                </div>
                                 <Input
                                     id="default-credit"
                                     type="number"
@@ -464,7 +484,7 @@ export const SettingsPage: React.FC = () => {
                                     onChange={(e) =>
                                         setDefaultCourseCredit(parseFloat(e.target.value) || 0)
                                     }
-                                    className="max-w-[120px]"
+                                    className="w-full sm:w-[120px] shrink-0"
                                 />
                             </div>
 
@@ -483,17 +503,16 @@ export const SettingsPage: React.FC = () => {
                         title="Data Management"
                         description="Export your data for backup or import from a backup file."
                     >
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
-                                <div className="space-y-2 mb-4">
-                                    <p className="font-medium">Export Data</p>
+                        <div className="space-y-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-1 mb-2 sm:mb-0">
+                                    <p className="font-medium text-base">Export Data</p>
                                     <p className="text-sm text-muted-foreground">
                                         Download a JSON file containing all your programs, semesters, and courses.
                                     </p>
                                 </div>
                                 <Button
                                     variant="outline"
-                                    className="w-full"
                                     onClick={async () => {
                                         try {
                                             const data = await api.exportUserData();
@@ -524,16 +543,15 @@ export const SettingsPage: React.FC = () => {
                                 </Button>
                             </div>
 
-                            <div className="flex flex-col justify-between rounded-lg border p-4 shadow-sm">
-                                <div className="space-y-2 mb-4">
-                                    <p className="font-medium">Import Data</p>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-1 mb-2 sm:mb-0">
+                                    <p className="font-medium text-base">Import Data</p>
                                     <p className="text-sm text-muted-foreground">
                                         Restore your data from a valid Semestra backup file.
                                     </p>
                                 </div>
                                 <Button
                                     variant="outline"
-                                    className="w-full"
                                     onClick={() => {
                                         const input = document.createElement("input");
                                         input.type = "file";
