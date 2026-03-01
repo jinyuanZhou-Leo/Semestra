@@ -245,7 +245,45 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
         if (isPluginLoading) {
             return <PluginWidgetSkeleton />;
         }
-        return <div>Unknown Widget Type: {widget.type}</div>;
+        return (
+            <WidgetContainer
+                id={widget.id}
+                onRemove={onRemove ? handleRemove : undefined}
+                isEditMode={isEditMode}
+            >
+                <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center text-muted-foreground bg-muted/20">
+                    <div className="rounded-full bg-destructive/10 p-3 mb-3">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-6 w-6 text-destructive"
+                        >
+                            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                            <path d="M12 9v4" />
+                            <path d="M12 17h.01" />
+                        </svg>
+                    </div>
+                    <h3 className="mb-1 font-semibold text-foreground">Widget Unavailable</h3>
+                    <p className="mb-4 text-xs text-muted-foreground/80 line-clamp-2">
+                        The plugin for <span className="font-mono text-foreground/80">{widget.type}</span> is missing or disabled.
+                    </p>
+                    {onRemove && (
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleRemove}
+                        >
+                            Delete Widget
+                        </Button>
+                    )}
+                </div>
+            </WidgetContainer>
+        );
     }
 
     // Check if widget has a settings component (auto-detect settings availability)
