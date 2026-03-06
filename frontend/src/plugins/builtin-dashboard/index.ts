@@ -1,3 +1,7 @@
-export { BuiltinDashboardTab, BuiltinDashboardTabDefinition } from './tab';
-export { BuiltinDashboardTabDefinition as tabDefinition } from './tab';
-export { pluginId, tabCatalog } from './metadata';
+import { definePluginRuntime } from '../../plugin-system/contracts';
+
+import { BuiltinDashboardTabDefinition } from './tab';
+
+export default definePluginRuntime({
+    tabDefinitions: [BuiltinDashboardTabDefinition],
+});

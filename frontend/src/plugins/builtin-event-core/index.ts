@@ -1,7 +1,9 @@
+import { definePluginRuntime } from '../../plugin-system/contracts';
+
 import { BuiltinTimetableTabDefinitions } from './tab';
 import { BuiltinTodayEventsWidgetDefinition } from './widget';
 
-export const tabDefinitions = BuiltinTimetableTabDefinitions;
-export const widgetDefinitions = [BuiltinTodayEventsWidgetDefinition];
-export { BuiltinTodayEventsWidgetDefinition };
-export { pluginId, tabCatalog, widgetCatalog } from './metadata';
+export default definePluginRuntime({
+    tabDefinitions: BuiltinTimetableTabDefinitions,
+    widgetDefinitions: [BuiltinTodayEventsWidgetDefinition],
+});

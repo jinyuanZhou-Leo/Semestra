@@ -11,10 +11,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import type { Tab } from '../services/api';
-import { TabRegistry, type TabContext, canAddTab } from '../services/tabRegistry';
+import { TabRegistry, type TabContext } from '../services/tabRegistry';
 import { clearSyncRetryAction, registerSyncRetryAction, reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
-import { ensureTabPluginByTypeLoaded } from '../plugin-system';
+import {
+    canAddTabCatalogItem,
+    ensureTabPluginByTypeLoaded,
+    getResolvedTabMetadataByType,
+    getTabCatalogItemByType,
+} from '../plugin-system';
 
 export interface TabItem {
     id: string;
@@ -136,15 +141,22 @@ export const useDashboardTabs = ({ courseId, semesterId, initialTabs, onRefresh 
             return;
         }
 
+        const catalogItem = getTabCatalogItemByType(type);
+        if (!catalogItem) {
+            console.warn(`Missing tab catalog item: ${type}`);
+            return;
+        }
+
         const currentCount = tabs.filter(t => t.type === type).length;
-        if (!canAddTab(definition, context, currentCount)) {
+        if (!canAddTabCatalogItem(catalogItem, context, currentCount)) {
             console.warn(`Tab type ${type} cannot be added to ${context} or max instances reached.`);
             return;
         }
 
         try {
             const nextOrder = tabs.reduce((max, t) => Math.max(max, t.order_index), -1) + 1;
-            const title = definition.name ?? type;
+            const metadata = getResolvedTabMetadataByType(type);
+            const title = metadata.name ?? type;
             const settings = JSON.stringify(definition.defaultSettings ?? {});
 
             let newTab: Tab;

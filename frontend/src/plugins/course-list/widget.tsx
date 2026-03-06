@@ -112,11 +112,5 @@ export const CourseList = CourseListComponent;
 
 export const CourseListDefinition: WidgetDefinition = {
     type: 'course-list',
-    name: 'Course List',
-    description: 'Display a list of courses in this semester.',
-    icon: '📚',
     component: CourseList,
-    maxInstances: 1,
-    allowedContexts: ['semester'],
-    layout: { w: 4, h: 3, minW: 3, minH: 2, maxW: 6, maxH: 6 }
 };

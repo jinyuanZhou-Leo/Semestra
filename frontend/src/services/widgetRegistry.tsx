@@ -8,8 +8,8 @@
 
 "use no memo";
 
-import React from 'react';
-import { isUnlimitedInstances, jsonDeepEqual, DEFAULT_WIDGET_ALLOWED_CONTEXTS, type MaxInstances } from '../plugin-system/utils';
+import React, { useSyncExternalStore } from 'react';
+import { jsonDeepEqual } from '../plugin-system/utils';
 
 export interface HeaderButtonContext {
     widgetId: string;
@@ -86,35 +86,12 @@ export interface WidgetGlobalSettingsProps {
 
 export interface WidgetDefinition {
     type: string;
-    name?: string;
-    description?: string;
-    icon?: React.ReactNode;
     component: React.FC<WidgetProps>;
     defaultSettings?: any;
-    layout?: {
-        w: number,
-        h: number,
-        minW?: number,
-        minH?: number,
-        maxW?: number,
-        maxH?: number,
-        /** Optional target width:height ratio (for example 16 / 9). */
-        aspectRatio?: number
-    };
-    /** Limit how many instances can be added. Use a number or 'unlimited' for no limit. */
-    maxInstances?: MaxInstances;
-    /** Limit where this widget can be added. Defaults to both contexts. */
-    allowedContexts?: WidgetContext[];
     /** Custom buttons to display in the widget header */
     headerButtons?: HeaderButton[];
     /** Optional settings component for individual widget instance. If provided, a settings button will be shown in the widget header. */
     SettingsComponent?: React.FC<WidgetSettingsProps>;
-    /** 
-     * Optional global settings component for the plugin as a whole.
-     * This will be rendered in the Settings tab, regardless of how many widget instances exist.
-     * Use this for settings that affect all instances or for plugin-level management (e.g., course management).
-     */
-    globalSettingsComponent?: React.FC<WidgetGlobalSettingsProps>;
     /** Called after widget is created. If throws, the widget will be rolled back (deleted). */
     onCreate?: (context: WidgetLifecycleContext) => Promise<void> | void;
     /** Called after widget is deleted. Errors are logged but don't affect deletion. */
@@ -127,6 +104,7 @@ class WidgetRegistryClass {
     private widgets: Map<string, WidgetDefinition> = new Map();
     private memoizedComponents: Map<string, React.FC<WidgetProps>> = new Map();
     private listeners: Set<Listener> = new Set();
+    private snapshot: WidgetDefinition[] = [];
 
     register(definition: WidgetDefinition) {
         if (this.widgets.has(definition.type)) {
@@ -134,8 +112,18 @@ class WidgetRegistryClass {
             this.memoizedComponents.delete(definition.type);
         }
         this.widgets.set(definition.type, definition);
+        this.snapshot = Array.from(this.widgets.values());
         // Notify all subscribers when a new widget is registered
         this.notifyListeners();
+    }
+
+    unregister(type: string) {
+        const existed = this.widgets.delete(type);
+        this.memoizedComponents.delete(type);
+        if (existed) {
+            this.snapshot = Array.from(this.widgets.values());
+            this.notifyListeners();
+        }
     }
 
     private notifyListeners() {
@@ -152,7 +140,7 @@ class WidgetRegistryClass {
     }
 
     getAll(): WidgetDefinition[] {
-        return Array.from(this.widgets.values());
+        return this.snapshot;
     }
 
     getComponent(type: string): React.FC<WidgetProps> | undefined {
@@ -182,37 +170,14 @@ class WidgetRegistryClass {
 
 export const WidgetRegistry = new WidgetRegistryClass();
 
-export { isUnlimitedInstances, DEFAULT_WIDGET_ALLOWED_CONTEXTS } from '../plugin-system/utils';
-
-export const resolveAllowedContexts = (definition: WidgetDefinition) => {
-    return definition.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS;
-};
-
-export const canAddWidget = (definition: WidgetDefinition, context: WidgetContext, currentCount: number) => {
-    if (!resolveAllowedContexts(definition).includes(context)) return false;
-    if (isUnlimitedInstances(definition.maxInstances)) return true;
-    if (typeof definition.maxInstances === 'number') return currentCount < definition.maxInstances;
-    return true;
-};
-
 /**
  * React Hook to subscribe to widget registry changes.
  * Automatically re-renders when new widgets are registered.
  */
 export const useWidgetRegistry = (): WidgetDefinition[] => {
-    const [widgets, setWidgets] = React.useState<WidgetDefinition[]>(() => WidgetRegistry.getAll());
-
-    React.useEffect(() => {
-        // Update immediately in case widgets were registered before subscription
-        setWidgets(WidgetRegistry.getAll());
-
-        // Subscribe to future changes
-        const unsubscribe = WidgetRegistry.subscribe(() => {
-            setWidgets(WidgetRegistry.getAll());
-        });
-
-        return unsubscribe;
-    }, []);
-
-    return widgets;
+    return useSyncExternalStore(
+        (listener) => WidgetRegistry.subscribe(listener),
+        () => WidgetRegistry.getAll(),
+        () => WidgetRegistry.getAll()
+    );
 };

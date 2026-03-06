@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import type { WidgetDefinition } from '../services/widgetRegistry';
+import type { WidgetLayoutDefinition } from '../plugin-system/types';
 
 const DEFAULT_WIDGET_LAYOUT = { w: 4, h: 4, minW: 2, minH: 2 } as const;
 
@@ -99,7 +99,7 @@ const chooseBestAspectRatioSize = (
 };
 
 export const resolveWidgetLayoutConstraints = (
-    layoutDef: WidgetDefinition['layout'] | undefined,
+    layoutDef: WidgetLayoutDefinition | undefined,
     maxCols: number
 ): WidgetLayoutConstraints => {
     const safeCols = Math.max(1, maxCols);

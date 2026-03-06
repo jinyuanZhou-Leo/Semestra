@@ -1,10 +1,11 @@
 import { createElement } from 'react';
 import { Calculator } from 'lucide-react';
+import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { WidgetCatalogItem } from '../../plugin-system/types';
 
-export const pluginId = 'grade-calculator';
+const pluginId = 'grade-calculator';
 
-export const widgetCatalog: WidgetCatalogItem[] = [
+const widgetCatalog: WidgetCatalogItem[] = [
     {
         pluginId,
         type: 'grade-calculator',
@@ -16,3 +17,8 @@ export const widgetCatalog: WidgetCatalogItem[] = [
         allowedContexts: ['course'],
     },
 ];
+
+export default definePluginMetadata({
+    pluginId,
+    widgetCatalog,
+});

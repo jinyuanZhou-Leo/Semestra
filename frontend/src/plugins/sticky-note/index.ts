@@ -1,3 +1,7 @@
-export { StickyNoteWidget, StickyNoteWidgetDefinition } from './widget';
-export { StickyNoteWidgetDefinition as widgetDefinition } from './widget';
-export { pluginId, widgetCatalog } from './metadata';
+import { definePluginRuntime } from '../../plugin-system/contracts';
+
+import { StickyNoteWidgetDefinition } from './widget';
+
+export default definePluginRuntime({
+    widgetDefinitions: [StickyNoteWidgetDefinition],
+});

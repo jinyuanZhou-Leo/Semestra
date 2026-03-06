@@ -11,8 +11,6 @@
 import React, { useCallback } from 'react';
 import { WidgetContainer } from './WidgetContainer';
 import {
-    WidgetRegistry,
-    useWidgetRegistry,
     type HeaderActionButtonProps,
     type HeaderButtonRenderHelpers,
     type HeaderConfirmActionButtonProps,
@@ -32,7 +30,14 @@ import {
     AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { ensureWidgetPluginByTypeLoaded, hasWidgetPluginForType } from '../../plugin-system';
+import {
+    PluginContentFadeIn,
+    ensureWidgetPluginByTypeLoaded,
+    getWidgetComponentByType,
+    getWidgetDefinitionByType,
+    hasWidgetPluginForType,
+    useWidgetPluginLoadState,
+} from '../../plugin-system';
 import { jsonDeepEqual } from '../../plugin-system/utils';
 import { PluginWidgetSkeleton } from '../../plugin-system/PluginLoadSkeleton';
 
@@ -72,39 +77,25 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     updateCourse,
     isEditMode = false
 }) => {
-    // Re-render automatically when widget plugins are registered.
-    useWidgetRegistry();
-
-    const [isPluginLoading, setIsPluginLoading] = React.useState(false);
-    const WidgetComponent = WidgetRegistry.getComponent(widget.type);
-    const widgetDefinition = WidgetRegistry.get(widget.type);
+    const loadState = useWidgetPluginLoadState(widget.type);
+    const WidgetComponent = getWidgetComponentByType(widget.type);
+    const widgetDefinition = getWidgetDefinitionByType(widget.type);
     const isKnownPluginType = hasWidgetPluginForType(widget.type);
+    const isWidgetPluginPending =
+        isKnownPluginType &&
+        !WidgetComponent &&
+        (loadState.status === 'idle' || loadState.status === 'loading');
 
     React.useEffect(() => {
-        let isActive = true;
-
-        if (WidgetComponent || !isKnownPluginType) {
-            setIsPluginLoading(false);
-            return () => {
-                isActive = false;
-            };
+        if (WidgetComponent || !isKnownPluginType || loadState.status === 'loading' || loadState.status === 'error') {
+            return;
         }
 
-        setIsPluginLoading(true);
         void ensureWidgetPluginByTypeLoaded(widget.type)
             .catch((error) => {
                 console.error(`Failed to load widget plugin for type: ${widget.type}`, error);
-            })
-            .finally(() => {
-                if (isActive) {
-                    setIsPluginLoading(false);
-                }
             });
-
-        return () => {
-            isActive = false;
-        };
-    }, [WidgetComponent, widget.type, isKnownPluginType]);
+    }, [WidgetComponent, widget.type, isKnownPluginType, loadState.status]);
 
     /**
      * updateSettings for plugins - uses debounced update by default
@@ -242,7 +233,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     }, [widgetDefinition, widget.id, widget.settings, semesterId, courseId, handleUpdateSettings]);
 
     if (!WidgetComponent) {
-        if (isPluginLoading) {
+        if (isWidgetPluginPending) {
             return <PluginWidgetSkeleton />;
         }
         return (
@@ -270,7 +261,9 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                     </div>
                     <h3 className="mb-1 font-semibold text-foreground">Widget Unavailable</h3>
                     <p className="mb-4 text-xs text-muted-foreground/80 line-clamp-2">
-                        The plugin for <span className="font-mono text-foreground/80">{widget.type}</span> is missing or disabled.
+                        {loadState.status === 'error'
+                            ? `The plugin for ${widget.type} failed to load.`
+                            : `The plugin for ${widget.type} is missing or disabled.`}
                     </p>
                     {onRemove && (
                         <Button
@@ -297,14 +290,16 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
             headerButtons={headerButtons}
             isEditMode={isEditMode}
         >
-            <WidgetComponent
-                widgetId={widget.id}
-                settings={widget.settings || {}}
-                semesterId={semesterId}
-                courseId={courseId}
-                updateSettings={handleUpdateSettings}
-                updateCourse={updateCourse}
-            />
+            <PluginContentFadeIn>
+                <WidgetComponent
+                    widgetId={widget.id}
+                    settings={widget.settings || {}}
+                    semesterId={semesterId}
+                    courseId={courseId}
+                    updateSettings={handleUpdateSettings}
+                    updateCourse={updateCourse}
+                />
+            </PluginContentFadeIn>
         </WidgetContainer>
     );
 };

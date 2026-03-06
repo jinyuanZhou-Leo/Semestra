@@ -1,3 +1,7 @@
-export { WorldClock, WorldClockDefinition } from './widget';
-export { WorldClockDefinition as widgetDefinition } from './widget';
-export { pluginId, widgetCatalog } from './metadata';
+import { definePluginRuntime } from '../../plugin-system/contracts';
+
+import { WorldClockDefinition } from './widget';
+
+export default definePluginRuntime({
+    widgetDefinitions: [WorldClockDefinition],
+});

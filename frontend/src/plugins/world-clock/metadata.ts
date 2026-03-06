@@ -1,10 +1,11 @@
 import { createElement } from 'react';
 import { Clock3 } from 'lucide-react';
+import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { WidgetCatalogItem } from '../../plugin-system/types';
 
-export const pluginId = 'world-clock';
+const pluginId = 'world-clock';
 
-export const widgetCatalog: WidgetCatalogItem[] = [
+const widgetCatalog: WidgetCatalogItem[] = [
     {
         pluginId,
         type: 'world-clock',
@@ -16,3 +17,8 @@ export const widgetCatalog: WidgetCatalogItem[] = [
         allowedContexts: ['semester', 'course'],
     },
 ];
+
+export default definePluginMetadata({
+    pluginId,
+    widgetCatalog,
+});

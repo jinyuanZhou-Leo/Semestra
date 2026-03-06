@@ -28,14 +28,19 @@ import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
-import { TabRegistry } from '../services/tabRegistry';
 import { useStickyCollapse } from '../hooks/useStickyCollapse';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
 
-import { PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
-import { getWidgetCatalogItemByType, hasTabPluginForType } from '../plugin-system';
+import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
+import {
+    getTabComponentByType,
+    getWidgetCatalogItemByType,
+    hasTabPluginForType,
+    usePluginTabSettingsRegistry,
+    usePluginWidgetGlobalSettingsRegistry,
+    useTabPluginLoadState,
+} from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
-import { useTabSettingsRegistry, useWidgetGlobalSettingsRegistry } from '../services/pluginSettingsRegistry';
 import { timetableEventBus } from '../plugins/builtin-event-core/shared/eventBus';
 import {
     COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
@@ -268,14 +273,19 @@ const CourseHomepageContent: React.FC = () => {
         ensureBuiltinTabInstance,
     });
 
-    const tabSettingsDefinitions = useTabSettingsRegistry();
-    const widgetGlobalSettingsDefinitions = useWidgetGlobalSettingsRegistry();
+    const tabSettingsDefinitions = usePluginTabSettingsRegistry();
+    const widgetGlobalSettingsDefinitions = usePluginWidgetGlobalSettingsRegistry();
+    const activeTabType = useMemo(
+        () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
+        [activeTabId, visibleTabs]
+    );
+    const activeTabLoadState = useTabPluginLoadState(activeTabType);
 
     const dashboardContent = useMemo(() => {
         if (!course) return null;
         if (!activeTabId) return <PluginTabSkeleton />;
         const activeTab = visibleTabs.find(tab => tab.id === activeTabId);
-        const TabComponent = activeTab ? TabRegistry.getComponent(activeTab.type) : undefined;
+        const TabComponent = activeTab ? getTabComponentByType(activeTab.type) : undefined;
         if (!activeTab) {
             return (
                 <Empty className="bg-muted/40">
@@ -289,8 +299,23 @@ const CourseHomepageContent: React.FC = () => {
             );
         }
         if (!TabComponent) {
-            if (isActiveTabPluginLoading && hasTabPluginForType(activeTab.type)) {
+            if (
+                hasTabPluginForType(activeTab.type) &&
+                (isActiveTabPluginLoading || activeTabLoadState.status === 'idle' || activeTabLoadState.status === 'loading')
+            ) {
                 return <PluginTabSkeleton />;
+            }
+            if (activeTabLoadState.status === 'error') {
+                return (
+                    <Empty className="bg-muted/40">
+                        <EmptyHeader>
+                            <EmptyTitle>Plugin failed to load</EmptyTitle>
+                            <EmptyDescription>
+                                {activeTab.type}
+                            </EmptyDescription>
+                        </EmptyHeader>
+                    </Empty>
+                );
             }
             return (
                 <Empty className="bg-muted/40">
@@ -304,16 +329,18 @@ const CourseHomepageContent: React.FC = () => {
             );
         }
         return (
-            <React.Suspense fallback={<div className="p-8">Loading tab...</div>}>
-                <TabComponent
-                    tabId={activeTab.id}
-                    settings={activeTab.settings || {}}
-                    courseId={course.id}
-                    updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
-                />
+            <React.Suspense fallback={<PluginTabSkeleton />}>
+                <PluginContentFadeIn>
+                    <TabComponent
+                        tabId={activeTab.id}
+                        settings={activeTab.settings || {}}
+                        courseId={course.id}
+                        updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
+                    />
+                </PluginContentFadeIn>
             </React.Suspense>
         );
-    }, [activeTabId, course, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading]);
+    }, [activeTabId, course, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading, activeTabLoadState.status]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         reorderTabs(filterReorderableTabIds(orderedIds));

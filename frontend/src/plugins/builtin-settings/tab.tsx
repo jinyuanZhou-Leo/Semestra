@@ -45,8 +45,5 @@ export const BuiltinSettingsTab = BuiltinSettingsTabComponent;
 
 export const BuiltinSettingsTabDefinition: TabDefinition = {
     type: 'settings',
-    name: 'Settings',
     component: BuiltinSettingsTab,
-    maxInstances: 1,
-    allowedContexts: ['semester', 'course']
 };

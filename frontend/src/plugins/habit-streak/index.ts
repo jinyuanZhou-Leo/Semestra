@@ -1,3 +1,7 @@
-export { HabitStreakWidget, HabitStreakWidgetDefinition } from './widget';
-export { HabitStreakWidgetDefinition as widgetDefinition } from './widget';
-export { pluginId, widgetCatalog } from './metadata';
+import { definePluginRuntime } from '../../plugin-system/contracts';
+
+import { HabitStreakWidgetDefinition } from './widget';
+
+export default definePluginRuntime({
+    widgetDefinitions: [HabitStreakWidgetDefinition],
+});

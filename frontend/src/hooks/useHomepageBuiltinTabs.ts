@@ -11,10 +11,11 @@ import type { TabItem as TabsBarItem } from '../components/Tabs';
 import type { TabItem as DashboardTabItem } from './useDashboardTabs';
 import {
     ensureTabPluginByTypeLoaded,
+    getTabComponentByType,
     getResolvedTabMetadataByType,
     hasTabPluginForType,
 } from '../plugin-system';
-import { TabRegistry, useTabRegistry } from '../services/tabRegistry';
+import { useTabRegistry } from '../services/tabRegistry';
 import type { HomepageBuiltinTabConfig } from '../utils/homepageBuiltinTabs';
 
 interface UseHomepageBuiltinTabsOptions {
@@ -90,7 +91,7 @@ export const useHomepageBuiltinTabs = ({
             };
         }
 
-        if (TabRegistry.getComponent(activeTabType)) {
+        if (getTabComponentByType(activeTabType)) {
             setIsActiveTabPluginLoading(false);
             return () => {
                 isActive = false;

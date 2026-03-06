@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import { CalendarDays, Clock3, ListTodo, NotebookPen } from 'lucide-react';
+import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { TabCatalogItem, WidgetCatalogItem } from '../../plugin-system/types';
 import {
     BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
@@ -8,9 +9,9 @@ import {
     BUILTIN_TIMETABLE_TODO_TAB_TYPE,
 } from './shared/constants';
 
-export const pluginId = 'builtin-event-core';
+const pluginId = 'builtin-event-core';
 
-export const tabCatalog: TabCatalogItem[] = [
+const tabCatalog: TabCatalogItem[] = [
     {
         pluginId,
         type: BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
@@ -40,7 +41,7 @@ export const tabCatalog: TabCatalogItem[] = [
     },
 ];
 
-export const widgetCatalog: WidgetCatalogItem[] = [
+const widgetCatalog: WidgetCatalogItem[] = [
     {
         pluginId,
         type: BUILTIN_TIMETABLE_TODAY_EVENTS_WIDGET_TYPE,
@@ -52,3 +53,9 @@ export const widgetCatalog: WidgetCatalogItem[] = [
         allowedContexts: ['semester', 'course'],
     },
 ];
+
+export default definePluginMetadata({
+    pluginId,
+    tabCatalog,
+    widgetCatalog,
+});

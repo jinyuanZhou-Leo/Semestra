@@ -18,13 +18,15 @@ import type {
 import type { Layout } from 'react-grid-layout';
 import api from '../services/api';
 import type { Widget } from '../services/api';
-import { WidgetRegistry, type WidgetContext, canAddWidget } from '../services/widgetRegistry';
+import { WidgetRegistry, type WidgetContext } from '../services/widgetRegistry';
 import { clearSyncRetryAction, registerSyncRetryAction, reportError } from '../services/appStatus';
 import { MAX_RETRY_ATTEMPTS, getRetryDelayMs, isRetryableError } from '../services/retryPolicy';
 import {
+    canAddWidgetCatalogItem,
     ensureWidgetPluginByTypeLoaded,
     getResolvedWidgetLayoutByType,
     getResolvedWidgetMetadataByType,
+    getWidgetCatalogItemByType,
 } from '../plugin-system';
 import {
     normalizeLayoutX,
@@ -220,15 +222,21 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             return;
         }
 
+        const catalogItem = getWidgetCatalogItemByType(type);
+        if (!catalogItem) {
+            console.warn(`Missing widget catalog item: ${type}`);
+            return;
+        }
+
         const currentCount = widgets.filter(w => w.type === type).length;
-        if (!canAddWidget(definition, context, currentCount)) {
+        if (!canAddWidgetCatalogItem(catalogItem, context, currentCount)) {
             console.warn(`Widget type ${type} cannot be added to ${context} or max instances reached.`);
             return;
         }
 
         try {
             const metadata = getResolvedWidgetMetadataByType(type);
-            const title = metadata.name ?? 'Widget';
+            const title = metadata.name ?? type;
 
             // Call API first to get real ID
             let newWidget: Widget;

@@ -10,7 +10,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useTabRegistry, type TabContext } from '../services/tabRegistry';
+import type { TabContext } from '../services/tabRegistry';
 import { IconCircle } from './IconCircle';
 import type { TabItem } from '../hooks/useDashboardTabs';
 import { cn } from '@/lib/utils';
@@ -32,8 +32,6 @@ export const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAdd
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddingPlugin, setIsAddingPlugin] = useState(false);
 
-    // Reactive hook updates names/icons when a plugin finishes loading.
-    useTabRegistry();
     const tabCatalog = useMemo(() => getTabCatalog(context), [context]);
 
     const availableTabs = useMemo(() => {

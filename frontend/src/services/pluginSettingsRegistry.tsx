@@ -8,7 +8,7 @@
 
 "use no memo";
 
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 
 import type { TabSettingsProps } from './tabRegistry';
 import type { WidgetGlobalSettingsProps } from './widgetRegistry';
@@ -29,9 +29,23 @@ class PluginSettingsRegistryClass {
   private tabSettingsByType = new Map<string, React.FC<TabSettingsProps>>();
   private widgetGlobalSettingsByType = new Map<string, React.FC<WidgetGlobalSettingsProps>>();
   private listeners: Set<Listener> = new Set();
+  private tabSnapshot: TabSettingsDefinition[] = [];
+  private widgetSnapshot: WidgetGlobalSettingsDefinition[] = [];
+
+  private rebuildSnapshots() {
+    this.tabSnapshot = Array.from(this.tabSettingsByType.entries()).map(([type, component]) => ({
+      type,
+      component,
+    }));
+    this.widgetSnapshot = Array.from(this.widgetGlobalSettingsByType.entries()).map(([type, component]) => ({
+      type,
+      component,
+    }));
+  }
 
   registerTabSettings(definition: TabSettingsDefinition) {
     this.tabSettingsByType.set(definition.type, definition.component);
+    this.rebuildSnapshots();
     this.notifyListeners();
   }
 
@@ -40,6 +54,7 @@ class PluginSettingsRegistryClass {
     definitions.forEach((definition) => {
       this.tabSettingsByType.set(definition.type, definition.component);
     });
+    this.rebuildSnapshots();
     this.notifyListeners();
   }
 
@@ -48,14 +63,12 @@ class PluginSettingsRegistryClass {
   }
 
   getAllTabSettingsDefinitions(): TabSettingsDefinition[] {
-    return Array.from(this.tabSettingsByType.entries()).map(([type, component]) => ({
-      type,
-      component,
-    }));
+    return this.tabSnapshot;
   }
 
   registerWidgetGlobalSettings(definition: WidgetGlobalSettingsDefinition) {
     this.widgetGlobalSettingsByType.set(definition.type, definition.component);
+    this.rebuildSnapshots();
     this.notifyListeners();
   }
 
@@ -64,6 +77,7 @@ class PluginSettingsRegistryClass {
     definitions.forEach((definition) => {
       this.widgetGlobalSettingsByType.set(definition.type, definition.component);
     });
+    this.rebuildSnapshots();
     this.notifyListeners();
   }
 
@@ -72,10 +86,7 @@ class PluginSettingsRegistryClass {
   }
 
   getAllWidgetGlobalSettingsDefinitions(): WidgetGlobalSettingsDefinition[] {
-    return Array.from(this.widgetGlobalSettingsByType.entries()).map(([type, component]) => ({
-      type,
-      component,
-    }));
+    return this.widgetSnapshot;
   }
 
   subscribe(listener: Listener): () => void {
@@ -91,31 +102,17 @@ class PluginSettingsRegistryClass {
 export const PluginSettingsRegistry = new PluginSettingsRegistryClass();
 
 export const useTabSettingsRegistry = (): TabSettingsDefinition[] => {
-  const [definitions, setDefinitions] = React.useState<TabSettingsDefinition[]>(
+  return useSyncExternalStore(
+    (listener) => PluginSettingsRegistry.subscribe(listener),
+    () => PluginSettingsRegistry.getAllTabSettingsDefinitions(),
     () => PluginSettingsRegistry.getAllTabSettingsDefinitions()
   );
-
-  React.useEffect(() => {
-    setDefinitions(PluginSettingsRegistry.getAllTabSettingsDefinitions());
-    return PluginSettingsRegistry.subscribe(() => {
-      setDefinitions(PluginSettingsRegistry.getAllTabSettingsDefinitions());
-    });
-  }, []);
-
-  return definitions;
 };
 
 export const useWidgetGlobalSettingsRegistry = (): WidgetGlobalSettingsDefinition[] => {
-  const [definitions, setDefinitions] = React.useState<WidgetGlobalSettingsDefinition[]>(
+  return useSyncExternalStore(
+    (listener) => PluginSettingsRegistry.subscribe(listener),
+    () => PluginSettingsRegistry.getAllWidgetGlobalSettingsDefinitions(),
     () => PluginSettingsRegistry.getAllWidgetGlobalSettingsDefinitions()
   );
-
-  React.useEffect(() => {
-    setDefinitions(PluginSettingsRegistry.getAllWidgetGlobalSettingsDefinitions());
-    return PluginSettingsRegistry.subscribe(() => {
-      setDefinitions(PluginSettingsRegistry.getAllWidgetGlobalSettingsDefinitions());
-    });
-  }, []);
-
-  return definitions;
 };

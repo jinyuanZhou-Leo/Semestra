@@ -11,8 +11,15 @@ import { DashboardGrid } from '../DashboardGrid';
 import { vi, describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 
 import { WidgetRegistry } from '../../../services/widgetRegistry';
-import { Counter } from '../../../plugins/counter';
-import { CourseList } from '../../../plugins/course-list';
+import { Counter } from '../../../plugins/counter/widget';
+import { CourseList } from '../../../plugins/course-list/widget';
+
+const widgetLayouts = new Map([
+    ['counter', { w: 3, h: 4 }],
+    ['course-list', { w: 6, h: 8 }],
+    ['constrained', { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 }],
+    ['ratio-locked', { w: 4, h: 3, minW: 2, minH: 1, maxW: 6, maxH: 6, aspectRatio: 16 / 9 }],
+]);
 
 // Mock ResizeObserver
 beforeAll(() => {
@@ -24,27 +31,19 @@ beforeAll(() => {
 
     WidgetRegistry.register({
         type: 'counter',
-        name: 'Counter',
         component: Counter,
-        layout: { w: 3, h: 4 }
     });
     WidgetRegistry.register({
         type: 'course-list',
-        name: 'Course List',
         component: CourseList,
-        layout: { w: 6, h: 8 }
     });
     WidgetRegistry.register({
         type: 'constrained',
-        name: 'Constrained',
         component: Counter,
-        layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 }
     });
     WidgetRegistry.register({
         type: 'ratio-locked',
-        name: 'Ratio Locked',
         component: Counter,
-        layout: { w: 4, h: 3, minW: 2, minH: 1, maxW: 6, maxH: 6, aspectRatio: 16 / 9 }
     });
 });
 
@@ -65,11 +64,19 @@ vi.mock('react-grid-layout', () => {
     };
 });
 
+vi.mock('../../../plugin-system', async () => {
+    const actual = await vi.importActual<typeof import('../../../plugin-system')>('../../../plugin-system');
+    return {
+        ...actual,
+        getResolvedWidgetLayoutByType: (type: string) => widgetLayouts.get(type),
+    };
+});
+
 // Mock child widgets to avoid complexity
-vi.mock('../../../plugins/counter', () => ({
+vi.mock('../../../plugins/counter/widget', () => ({
     Counter: () => <div data-testid="counter-widget">Counter</div>
 }));
-vi.mock('../../../plugins/course-list', () => ({
+vi.mock('../../../plugins/course-list/widget', () => ({
     CourseList: () => <div data-testid="course-list-widget">Course List</div>
 }));
 

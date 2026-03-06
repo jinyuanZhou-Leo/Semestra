@@ -1,10 +1,11 @@
 import { createElement } from 'react';
 import { StickyNote } from 'lucide-react';
+import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { WidgetCatalogItem } from '../../plugin-system/types';
 
-export const pluginId = 'sticky-note';
+const pluginId = 'sticky-note';
 
-export const widgetCatalog: WidgetCatalogItem[] = [
+const widgetCatalog: WidgetCatalogItem[] = [
     {
         pluginId,
         type: 'sticky-note',
@@ -16,3 +17,8 @@ export const widgetCatalog: WidgetCatalogItem[] = [
         allowedContexts: ['semester', 'course'],
     },
 ];
+
+export default definePluginMetadata({
+    pluginId,
+    widgetCatalog,
+});

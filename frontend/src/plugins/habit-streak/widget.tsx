@@ -1,6 +1,6 @@
 // input:  [widget settings/update callbacks, framer-motion animation runtime, shadcn form controls/dialog actions]
 // output: [habit-streak widget component, settings component, helpers, and widget definition metadata]
-// pos:    [plugin runtime + settings layer for interval-based habit check-ins, clean theme-adaptive streak ring visuals with subtle orbital animation, shadowless check-in CTA styling, stronger center typography contrast, and reusable precomputed burst animations]
+// pos:    [plugin runtime + settings layer for interval-based habit check-ins with preset cadence controls, clean theme-adaptive streak ring visuals with subtle orbital animation, shadowless check-in CTA styling, stronger center typography contrast, and reusable precomputed burst animations]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments

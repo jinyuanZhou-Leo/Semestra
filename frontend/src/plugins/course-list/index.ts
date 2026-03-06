@@ -1,3 +1,7 @@
-export { CourseList, CourseListDefinition } from './widget';
-export { CourseListDefinition as widgetDefinition } from './widget';
-export { pluginId, widgetCatalog } from './metadata';
+import { definePluginRuntime } from '../../plugin-system/contracts';
+
+import { CourseListDefinition } from './widget';
+
+export default definePluginRuntime({
+    widgetDefinitions: [CourseListDefinition],
+});

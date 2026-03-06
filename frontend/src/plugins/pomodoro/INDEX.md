@@ -8,6 +8,6 @@ Pomodoro plugin delivers a compact dashboard timer widget with focus/break trans
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for pomodoro plugin files and responsibilities. |
 | metadata.ts | Plugin metadata | Declares plugin id and widget catalog item for add-widget panel (name, icon, layout, etc.). |
-| index.ts | Runtime entry | Exports `widgetDefinition` and metadata exports for plugin-system loading. |
+| index.ts | Runtime entry | Default-exports `definePluginRuntime(...)` so the plugin-system can lazy-register the widget runtime. |
 | widget.tsx | Widget runtime | Pomodoro widget UI, timer state transitions, mode chip above countdown, clear completed-session summary, compact actions, settings component, and reset-to-initial-focus behavior. |
 | widget.test.tsx | Test suite | Unit tests for timer transitions plus both header and widget reset actions returning to the initial focus baseline. |

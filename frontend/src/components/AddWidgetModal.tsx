@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useWidgetRegistry, type WidgetContext } from '../services/widgetRegistry';
+import type { WidgetContext } from '../services/widgetRegistry';
 import { IconCircle } from './IconCircle';
 import type { WidgetItem } from './widgets/DashboardGrid';
 import { cn } from '@/lib/utils';
@@ -34,8 +34,6 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddingPlugin, setIsAddingPlugin] = useState(false);
 
-    // Reactive hook updates names/icons when a plugin finishes loading.
-    useWidgetRegistry();
     const widgetCatalog = useMemo(() => getWidgetCatalog(context), [context]);
 
     const availableWidgets = useMemo(() => {

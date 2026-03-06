@@ -17,11 +17,11 @@ Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement a widget
 flowchart LR
     subgraph PluginFolder["frontend/src/plugins/<plugin-name>/"]
         Metadata["metadata.ts
-pluginId + tabCatalog/widgetCatalog"]
+default export definePluginMetadata(...)"]
         Runtime["index.ts
-exports tabDefinition/widgetDefinition"]
+default export definePluginRuntime(...)"]
         Settings["settings.ts(x)
-exports tabSettingsDefinitions/widgetGlobalSettingsDefinitions"]
+default export definePluginSettings(...)"]
         Impl["tab.tsx / widget.tsx / shared.ts"]
         Runtime --> Impl
         Settings --> Impl
@@ -43,7 +43,7 @@ exports tabSettingsDefinitions/widgetGlobalSettingsDefinitions"]
 ```
 
 The important split is:
-- `metadata.ts` drives add-modal catalogs and metadata fallback before runtime code is loaded.
+- `metadata.ts` drives add-modal catalogs and display metadata before runtime code is loaded.
 - `index.ts` stays lazy and only registers tab/widget runtime definitions when a type is actually needed.
 - `settings.ts` / `settings.tsx` is eager so Settings-page sections are available without waiting for tab/widget runtime modules.
 
@@ -52,8 +52,8 @@ The important split is:
 ```
 frontend/src/plugins/<plugin-name>/
   metadata.ts     // REQUIRED: Plugin id, widget/tab catalog entries (name, icon, layout, etc.)
-  index.ts        // REQUIRED: Exports widgetDefinition and/or tabDefinition (lazy runtime UI entry)
-  settings.ts(x)  // OPTIONAL: Only needed if plugin exposes tab settings and/or widget global settings
+  index.ts        // REQUIRED: Default-exports definePluginRuntime(...) (lazy runtime UI entry)
+  settings.ts(x)  // OPTIONAL: Default-exports definePluginSettings(...) when plugin exposes settings sections
   widget.tsx      // Optional: widget implementation
   tab.tsx         // Optional: tab implementation
   shared.ts       // Optional: shared types/helpers
@@ -61,31 +61,33 @@ frontend/src/plugins/<plugin-name>/
 
 > **Metadata-First Architecture**: `metadata.ts` is the **single source of truth** for display metadata (`name`, `description`, `icon`, `layout`, `maxInstances`, `allowedContexts`). Runtime definitions in `widget.tsx`/`tab.tsx` should only declare runtime-specific fields (`type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, `onCreate`, `onDelete`). Do not duplicate metadata fields in runtime definitions.
 
-The current loader expects `metadata.ts` to export:
+The current loader expects `metadata.ts` to default-export:
 
 ```typescript
-export const pluginId = 'my-plugin';
-export const widgetCatalog: WidgetCatalogItem[] = [];
-export const tabCatalog: TabCatalogItem[] = [];
+export default definePluginMetadata({
+  pluginId: 'my-plugin',
+  widgetCatalog: [],
+  tabCatalog: [],
+});
 ```
 
-It does **not** read a single `metadata` object export.
+Likewise, `index.ts` and `settings.ts(x)` should default-export `definePluginRuntime(...)` and `definePluginSettings(...)`.
 
 ### Built-in Tabs
 
-The application provides built-in tab plugins:
-- `dashboard`
-- `settings`
+The application ships several built-in tab plugins from:
+- `frontend/src/plugins/builtin-dashboard/`
+- `frontend/src/plugins/builtin-settings/`
+- `frontend/src/plugins/builtin-event-core/`
 
-These are registered from `frontend/src/plugins/builtin-dashboard/` and `frontend/src/plugins/builtin-settings/`.
-Do not reuse these `type` values in custom plugins.
+Examples include `dashboard`, `settings`, `calendar`, `course-schedule`, and `todo`.
+Do not reuse any built-in `type` values in custom plugins.
 
-These two tabs are regular tab instances (stored in the `tabs` table), not hardcoded shell-only tabs.
+These tabs are still normal persisted tab instances, not hardcoded shell-only views.
 Framework behavior:
-- Auto-ensures one instance per homepage context (semester/course).
-- Publishes `maxInstances: 0` in catalog metadata so users cannot add duplicates from the Add Tab modal.
-- Marks them as `is_removable = false` and `is_draggable = false`.
-- Other built-in tab instances are non-removable by policy, but draggable by default.
+- Built-in tabs that should always exist are auto-ensured per homepage context.
+- Built-in catalog items generally publish `maxInstances: 0` so the Add Tab modal cannot create duplicates.
+- Framework policy controls `is_removable` and `is_draggable` per tab instance.
 
 ### Auto Registration
 
@@ -94,54 +96,49 @@ The plugin system scans:
 - `index.ts` with `import.meta.glob` for lazy runtime registration (tab/widget UI).
 - `settings.ts` / `settings.tsx` with eager `import.meta.glob` for settings registration (only if the file exists).
 
-If you export `widgetDefinition` and/or `tabDefinition` from `index.ts`, runtime UI remains lazy.
-If you export settings definitions from `settings.ts` / `settings.tsx`, settings panels are always available without waiting for runtime UI modules.
+If `index.ts` default-exports `definePluginRuntime(...)`, runtime UI remains lazy.
+If `settings.ts` / `settings.tsx` default-exports `definePluginSettings(...)`, settings panels are always available without waiting for runtime UI modules.
 
 **Loading Model**
-- Metadata (`metadata.ts`): eagerly loaded — names and icons are available before runtime modules.
-- Runtime UI (`tab.tsx` / `widget.tsx`): lazy-loaded.
+- Metadata (`metadata.ts`): eagerly loaded — names, descriptions, icons, layout, context limits, and instance limits are available before runtime modules.
+- Runtime UI (`index.ts` -> `tab.tsx` / `widget.tsx`): lazy-loaded.
 - Settings UI (`settings.ts` / `settings.tsx`): eagerly loaded (optional).
-- This prevents missing settings panels when plugin runtime UI has not been loaded yet.
+- This keeps catalogs and Settings-page sections available without loading runtime UI bundles.
 
 > **Note**: `settings.ts` is optional. Plugins without tab settings or widget global settings do not need this file.
 
-**Reactive Hooks**: Use `useWidgetRegistry()` and `useTabRegistry()` hooks to subscribe to registry changes:
+### Plugin Manager Facade
 
-```typescript
-import { useWidgetRegistry } from '../services/widgetRegistry';
-import { useTabRegistry } from '../services/tabRegistry';
+Application code should consume the plugin system through `frontend/src/plugin-system/index.ts`, not by stitching registries together manually.
 
-// These hooks return the current list of registered widgets/tabs
-// and automatically re-render when new plugins are registered
-const widgets = useWidgetRegistry();
-const tabs = useTabRegistry();
-```
+Useful public helpers:
+- `getTabCatalog(context?)`
+- `getWidgetCatalog(context?)`
+- `getResolvedTabMetadataByType(type)`
+- `getResolvedWidgetMetadataByType(type)`
+- `ensureTabPluginByTypeLoaded(type)`
+- `ensureWidgetPluginByTypeLoaded(type)`
+- `useTabPluginLoadState(type)`
+- `useWidgetPluginLoadState(type)`
+- `usePluginTabSettingsRegistry()`
+- `usePluginWidgetGlobalSettingsRegistry()`
+
+Important behavior:
+- `ensure*PluginByTypeLoaded(...)` returns `true` only when runtime registration actually succeeds.
+- Failed runtime imports move the plugin into `error` state; consumers should not treat that as an unknown type.
+- `TabRegistry`, `WidgetRegistry`, and `PluginSettingsRegistry` still exist internally, but page-level integration should prefer the facade above.
 
 ## Structure
 
 ### WidgetDefinition
 
-Every plugin must export a `WidgetDefinition` object:
+Runtime modules expose `WidgetDefinition` values through `definePluginRuntime(...)`:
 
 ```typescript
 export interface WidgetDefinition {
     type: string;          // Unique identifier for the widget type
-    name?: string;         // Display name (optional — prefer defining in metadata.ts)
-    description?: string;  // Optional description (prefer defining in metadata.ts)
-    icon?: React.ReactNode; // Optional icon (prefer defining in metadata.ts)
     component: React.FC<WidgetProps>; // The React component
     defaultSettings?: any; // Default values for settings
-    layout?: {             // Optional layout (prefer defining in metadata.ts)
-        w: number,         // Default width (grid units)
-        h: number,         // Default height (grid units)
-        minW?: number,     // Minimum width
-        minH?: number,     // Minimum height
-        maxW?: number,     // Maximum width
-        maxH?: number,     // Maximum height
-        aspectRatio?: number // Optional width:height target ratio (for example 16 / 9)
-    };
-    maxInstances?: number | 'unlimited'; // Max instances (prefer defining in metadata.ts)
-    allowedContexts?: Array<'semester' | 'course'>; // Where added (prefer defining in metadata.ts)
     headerButtons?: HeaderButton[]; // Optional custom action buttons in widget header
     SettingsComponent?: React.FC<WidgetSettingsProps>; // Optional per-instance settings fields (rendered inside framework modal)
     // Lifecycle hooks
@@ -150,7 +147,7 @@ export interface WidgetDefinition {
 }
 ```
 
-> **Convention**: Fields like `name`, `description`, `icon`, `layout`, `maxInstances`, and `allowedContexts` should be defined in `metadata.ts` only. The runtime definition should focus on `type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, and lifecycle hooks.
+> `name`, `description`, `icon`, `layout`, `maxInstances`, and `allowedContexts` belong in `metadata.ts` only. The runtime definition should focus on `type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, and lifecycle hooks.
 
 export interface HeaderButton {
     id: string;            // Unique identifier for this button
@@ -207,7 +204,9 @@ export interface WidgetGlobalSettingsProps {
 }
 ```
 
-Plugin-level settings are registered in `settings.ts` / `settings.tsx`, not through the runtime loader. `WidgetDefinition.globalSettingsComponent` still exists in the TypeScript interface for legacy compatibility, but the current Settings-page integration is driven by `widgetGlobalSettingsDefinitions`.
+Plugin-level settings are registered in `settings.ts` / `settings.tsx`, not through the runtime definition. The framework-supported global settings path is the `widgetGlobalSettings` array returned from `definePluginSettings(...)`.
+
+`WidgetDefinition.globalSettingsComponent` is not part of the supported API. If you need a Settings-page section, register it through `definePluginSettings(...)`.
 
 **Header Buttons**: Widgets can define custom action buttons that appear in the widget header (alongside drag handle, edit, and remove buttons). These buttons only appear when the widget controls are visible (on hover for desktop, on tap for touch devices).
 
@@ -304,7 +303,7 @@ const MyWidgetSettings: React.FC<WidgetSettingsProps> = ({ settings, onSettingsC
 
 Widgets can provide plugin-level settings panels that are rendered in the Settings tab.
 Unlike `SettingsComponent` (which is per-instance and shown in a modal), plugin-level settings are shown once in the Settings tab regardless of how many widget instances exist.
-Register these panels in `settings.ts`.
+Register these panels in `settings.ts` / `settings.tsx`.
 
 Use cases:
 
@@ -314,6 +313,7 @@ Use cases:
 
 **Example - Course List Plugin (`settings.ts`)**:
 ```typescript
+import { definePluginSettings } from '../../plugin-system/contracts';
 import type { WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
 import type { WidgetGlobalSettingsProps } from '../../services/widgetRegistry';
 
@@ -329,12 +329,14 @@ const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({
     );
 };
 
-export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [
-  {
-    type: 'course-list',
-    component: CourseListGlobalSettings,
-  },
-];
+export default definePluginSettings({
+  widgetGlobalSettings: [
+    {
+      type: 'course-list',
+      component: CourseListGlobalSettings,
+    },
+  ] satisfies WidgetGlobalSettingsDefinition[],
+});
 ```
 
 **Note**: The panel is shown only when the widget catalog `allowedContexts` includes the current page context (semester or course).
@@ -377,22 +379,17 @@ This keeps behavior consistent, reduces maintenance cost, and avoids state diver
 ```typescript
 export interface TabDefinition {
     type: string;          // Unique identifier for the tab type
-    name?: string;         // Display name (optional — prefer defining in metadata.ts)
-    description?: string;  // Optional description (prefer defining in metadata.ts)
-    icon?: React.ReactNode; // Optional icon (prefer defining in metadata.ts)
     component: React.FC<TabProps>; // The main tab content component
-    settingsComponent?: React.FC<TabSettingsProps>; // Optional runtime settings UI
     defaultSettings?: any; // Default settings for new tabs
-    maxInstances?: number | 'unlimited'; // Max instances (prefer defining in metadata.ts)
-    allowedContexts?: Array<'semester' | 'course'>; // Where added (prefer defining in metadata.ts)
     onCreate?: (ctx: TabLifecycleContext) => Promise<void> | void;
     onDelete?: (ctx: TabLifecycleContext) => Promise<void> | void;
 }
 ```
 
-> **Convention**: Same as WidgetDefinition — metadata fields belong in `metadata.ts`.
+> Same as `WidgetDefinition`: metadata fields belong in `metadata.ts` only.
 
-Tab settings panels are registered in `settings.ts` using `tabSettingsDefinitions`.
+`TabDefinition.settingsComponent` is not part of the supported API.
+Tab settings panels are registered in `settings.ts` / `settings.tsx` through the `tabSettings` array returned from `definePluginSettings(...)`.
 
 ### Tab Instance Flags (Persistence Layer)
 
@@ -403,7 +400,7 @@ Tab settings panels are registered in `settings.ts` using `tabSettingsDefinition
 
 The homepage tab bar uses `is_draggable` (not `is_removable`) to decide drag/reorder eligibility.
 
-Context visibility is primarily determined by plugin `allowedContexts`. There is also one framework-owned legacy hide list in `frontend/src/plugin-system/index.ts` (`LEGACY_HIDDEN_TAB_TYPES`) used to suppress deprecated tab types from catalog display.
+Context visibility is determined by plugin `allowedContexts`.
 
 ```typescript
 // Generic type S allows type-safe settings access (defaults to any)
@@ -413,8 +410,6 @@ export interface TabProps<S = any> {
     semesterId?: string;
     courseId?: string;
     updateSettings: (newSettings: S) => void; // Debounced by framework
-    title?: string;         // Tab title (provided by framework)
-    pluginName?: string;    // Plugin name (provided by framework)
 }
 ```
 
@@ -449,7 +444,7 @@ Create a new folder in `frontend/src/plugins/`, for example `my-new-plugin/`.
 `frontend/src/plugins/my-new-plugin/widget.tsx`
 
 ```typescript
-import React, { useCallback } from 'react';
+import React from 'react';
 import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
 
 export const MyNew: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
@@ -523,18 +518,19 @@ export const NotesTabDefinition: TabDefinition = {
 Plugins are auto-registered via Vite's `import.meta.glob`.
 - Metadata registration reads `metadata.ts` (eagerly).
 - Runtime UI registration reads `index.ts` (lazily).
-- Settings registration reads `settings.ts` (eagerly, optional).
+- Settings registration reads `settings.ts` / `settings.tsx` (eagerly, optional).
 
 `frontend/src/plugins/my-new-plugin/metadata.ts`
 
 ```typescript
 import { createElement } from 'react';
 import { Calculator } from 'lucide-react';
+import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { TabCatalogItem, WidgetCatalogItem } from '../../plugin-system/types';
 
-export const pluginId = 'my-new-plugin';
+const pluginId = 'my-new-plugin';
 
-export const widgetCatalog: WidgetCatalogItem[] = [
+const widgetCatalog: WidgetCatalogItem[] = [
     {
         pluginId,
         type: 'my-new-widget',
@@ -547,38 +543,61 @@ export const widgetCatalog: WidgetCatalogItem[] = [
     },
 ];
 
-export const tabCatalog: TabCatalogItem[] = [];
+const tabCatalog: TabCatalogItem[] = [];
+
+export default definePluginMetadata({
+    pluginId,
+    widgetCatalog,
+    tabCatalog,
+});
 ```
 
 `frontend/src/plugins/my-new-plugin/index.ts`
 
 ```typescript
-export { MyNewDefinition, MyNew } from './widget';
-export { MyNewDefinition as widgetDefinition } from './widget';
-export { pluginId, widgetCatalog, tabCatalog } from './metadata';
+import { definePluginRuntime } from '../../plugin-system/contracts';
+import { MyNewDefinition } from './widget';
+import { NotesTabDefinition } from './tab';
 
-// If you also have a tab:
-export { NotesTabDefinition, NotesTab } from './tab';
-export { NotesTabDefinition as tabDefinition } from './tab';
+export default definePluginRuntime({
+    widgetDefinitions: [MyNewDefinition],
+    tabDefinitions: [NotesTabDefinition],
+});
 ```
 
 `frontend/src/plugins/my-new-plugin/settings.ts` **(optional — only needed if you expose tab settings and/or widget global settings)**
 
 ```typescript
-import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
+import { definePluginSettings } from '../../plugin-system/contracts';
 import type { TabSettingsProps } from '../../services/tabRegistry';
+import type { WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
 
 const NotesTabSettings: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
-  // settings fields
-  return null;
+    // settings fields
+    return null;
 };
 
-export const tabSettingsDefinitions: TabSettingsDefinition[] = [
-  { type: 'notes-tab', component: NotesTabSettings },
-];
-
-export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [];
+export default definePluginSettings({
+    tabSettings: [
+        { type: 'notes-tab', component: NotesTabSettings },
+    ],
+    widgetGlobalSettings: [] satisfies WidgetGlobalSettingsDefinition[],
+});
 ```
+
+### Validation Rules
+
+The plugin manager validates declarations at startup and runtime:
+- `pluginId` must be unique.
+- Tab `type` values must be unique across all plugins.
+- Widget `type` values must be unique across all plugins.
+- `settings.ts(x)` definitions must reference only types declared by the same plugin in `metadata.ts`.
+- `index.ts` runtime definitions must exactly match the types declared in `metadata.ts`.
+
+Development behavior:
+- Invalid declarations throw immediately.
+- Metadata/settings edits trigger plugin-system invalidation and a full rebuild of plugin snapshots.
+- Runtime edits hot-reload the affected plugin directory and re-register its runtime definitions.
 
 ## Framework-Level Performance Optimizations
 
@@ -1039,12 +1058,13 @@ Settings Page
 ...
 ```
 
-### settings.ts（插件设置入口）
+### settings.ts(x)（插件设置入口）
 
-插件设置必须在 `settings.ts` 中注册，而不是挂在 `TabDefinition` / `WidgetDefinition` 上。
+插件设置必须在 `settings.ts` / `settings.tsx` 中通过 `definePluginSettings(...)` 注册，而不是挂在 `TabDefinition` / `WidgetDefinition` 上。
 
 ```typescript
-import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
+import { definePluginSettings } from '../../plugin-system/contracts';
+import type { WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
 import type { TabSettingsProps } from '../../services/tabRegistry';
 import type { WidgetGlobalSettingsProps } from '../../services/widgetRegistry';
 
@@ -1056,19 +1076,21 @@ const MyWidgetGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semesterI
   return <SettingsSection title="Courses">{/* global settings */}</SettingsSection>;
 };
 
-export const tabSettingsDefinitions: TabSettingsDefinition[] = [
-  { type: 'my-tab-type', component: MyTabSettings },
-];
-
-export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [
-  { type: 'my-widget-type', component: MyWidgetGlobalSettings },
-];
+export default definePluginSettings({
+  tabSettings: [
+    { type: 'my-tab-type', component: MyTabSettings },
+  ],
+  widgetGlobalSettings: [
+    { type: 'my-widget-type', component: MyWidgetGlobalSettings },
+  ] satisfies WidgetGlobalSettingsDefinition[],
+});
 ```
 
 **设计要求：**
 - 必须使用 `SettingsSection` 包装设置内容
 - 可以返回多个 `SettingsSection`，每个代表一个设置分类
 - 框架已经提供插件标题，不要在组件内部重复插件名
+- `tabSettings` / `widgetGlobalSettings` 里的 `type` 必须属于当前插件在 `metadata.ts` 中声明过的类型，否则启动校验会失败
 
 ### SettingsSection 组件
 

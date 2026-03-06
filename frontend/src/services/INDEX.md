@@ -12,5 +12,5 @@ Central place for retry policy, schedule API calls, and plugin registration rule
 | pluginSettingsRegistry.tsx | Service module | Service abstraction handling plugin settings registry domain logic. |
 | retryPolicy.ts | Service module | Service abstraction handling retry policy domain logic. |
 | schedule.ts | Service module | Service abstraction handling schedule domain logic. |
-| tabRegistry.tsx | Service module | Service abstraction handling tab registry domain logic. |
-| widgetRegistry.tsx | Service module | Widget definition registry including layout constraints and optional aspect-ratio configuration. |
+| tabRegistry.tsx | Service module | Runtime tab registry that stores loaded tab components plus lifecycle hooks after the plugin facade resolves metadata and lazy runtime modules. |
+| widgetRegistry.tsx | Service module | Runtime widget registry that stores loaded widget components, header actions, instance settings UIs, and lifecycle hooks after plugin loading. |

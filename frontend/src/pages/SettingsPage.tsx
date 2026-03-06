@@ -314,7 +314,7 @@ export const SettingsPage: React.FC = () => {
     return (
         <Layout breadcrumb={breadcrumb}>
             <Container className="max-w-5xl space-y-8 select-none py-8">
-                <BackButton label="Back to Home" onClick={handleBack} />
+                <BackButton label="Back" onClick={handleBack} />
 
                 <div className="space-y-2">
                     <h1 className="text-3xl font-bold tracking-tight">Settings</h1>

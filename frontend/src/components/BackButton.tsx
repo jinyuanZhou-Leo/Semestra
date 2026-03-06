@@ -39,7 +39,7 @@ export const BackButton: React.FC<BackButtonProps> = ({ to, label = 'Back', onCl
         <Button
             variant="ghost"
             onClick={handleClick}
-            className={cn("mb-4 pl-0 hover:bg-transparent hover:text-primary", className)}
+            className={cn("mb-4", className)}
         >
             <ArrowLeft className="mr-2 h-4 w-4" />
             {label}

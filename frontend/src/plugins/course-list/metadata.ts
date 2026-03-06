@@ -1,10 +1,11 @@
 import { createElement } from 'react';
 import { BookOpenText } from 'lucide-react';
+import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { WidgetCatalogItem } from '../../plugin-system/types';
 
-export const pluginId = 'course-list';
+const pluginId = 'course-list';
 
-export const widgetCatalog: WidgetCatalogItem[] = [
+const widgetCatalog: WidgetCatalogItem[] = [
     {
         pluginId,
         type: 'course-list',
@@ -16,3 +17,8 @@ export const widgetCatalog: WidgetCatalogItem[] = [
         allowedContexts: ['semester'],
     },
 ];
+
+export default definePluginMetadata({
+    pluginId,
+    widgetCatalog,
+});

@@ -16,15 +16,16 @@ import {
 } from './widget';
 
 describe('HabitStreak helpers', () => {
-    it('returns locked state when interval has not elapsed', () => {
+    it('falls back to the daily cadence when an unsupported interval is provided', () => {
         const now = Date.parse('2026-02-19T10:00:00.000Z');
         const lastCheckInAt = '2026-02-19T09:30:00.000Z';
+        const startOfCurrentDay = new Date(new Date(now).getFullYear(), new Date(now).getMonth(), new Date(now).getDate()).getTime();
 
         const state = getCheckInWindowState(lastCheckInAt, 1, now);
 
         expect(state.canCheckIn).toBe(false);
         expect(state.windowsSinceLast).toBe(0);
-        expect(state.remainingMs).toBe(30 * 60 * 1000);
+        expect(state.remainingMs).toBe(Math.max(0, startOfCurrentDay + 24 * 60 * 60 * 1000 - now));
     });
 
     it('resets streak when multiple windows are missed', () => {
@@ -110,11 +111,13 @@ describe('HabitStreakWidget', () => {
         expect(updateSettings).toHaveBeenCalledWith(
             expect.objectContaining({
                 habitName: 'Workout',
-                checkInIntervalHours: 1,
+                checkInIntervalHours: 24,
                 streakCount: 1,
                 bestStreak: 1,
                 totalCheckIns: 1,
                 lastCheckInAt: expect.any(String),
+                targetStreak: 21,
+                showMotivationalMessage: true,
             })
         );
     });
@@ -141,7 +144,7 @@ describe('HabitStreakWidget', () => {
         expect(button).toBeDisabled();
     });
 
-    it('shows goal streak label and keeps legacy capsule text removed', () => {
+    it('keeps the legacy capsule text removed without rendering a goal label row', () => {
         const updateSettings = vi.fn();
 
         render(
@@ -160,7 +163,7 @@ describe('HabitStreakWidget', () => {
             />
         );
 
-        expect(screen.getByText('Goal: 30 streaks')).toBeInTheDocument();
+        expect(screen.queryByText('Goal: 30 streaks')).not.toBeInTheDocument();
         expect(screen.queryByText('5/30 streak')).not.toBeInTheDocument();
     });
 

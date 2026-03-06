@@ -1,3 +1,7 @@
-export { BuiltinSettingsTab, BuiltinSettingsTabDefinition } from './tab';
-export { BuiltinSettingsTabDefinition as tabDefinition } from './tab';
-export { pluginId, tabCatalog } from './metadata';
+import { definePluginRuntime } from '../../plugin-system/contracts';
+
+import { BuiltinSettingsTabDefinition } from './tab';
+
+export default definePluginRuntime({
+    tabDefinitions: [BuiltinSettingsTabDefinition],
+});

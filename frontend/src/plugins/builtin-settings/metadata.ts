@@ -1,10 +1,11 @@
 import { createElement } from 'react';
 import { Settings2 } from 'lucide-react';
+import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { TabCatalogItem } from '../../plugin-system/types';
 
-export const pluginId = 'builtin-settings';
+const pluginId = 'builtin-settings';
 
-export const tabCatalog: TabCatalogItem[] = [
+const tabCatalog: TabCatalogItem[] = [
     {
         pluginId,
         type: 'settings',
@@ -15,3 +16,8 @@ export const tabCatalog: TabCatalogItem[] = [
         allowedContexts: ['semester', 'course'],
     },
 ];
+
+export default definePluginMetadata({
+    pluginId,
+    tabCatalog,
+});

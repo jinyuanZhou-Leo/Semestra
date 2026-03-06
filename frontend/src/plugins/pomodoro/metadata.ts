@@ -1,5 +1,5 @@
 // input:  [lucide-react icon, plugin catalog typing]
-// output: [`pluginId` and `widgetCatalog` metadata exports for pomodoro widget]
+// output: [default `definePluginMetadata(...)` declaration for the pomodoro widget]
 // pos:    [Plugin metadata entry used by plugin-system eager catalog loading]
 //
 // ⚠️ When this file is updated:
@@ -8,11 +8,12 @@
 
 import { createElement } from 'react';
 import { Timer } from 'lucide-react';
+import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { WidgetCatalogItem } from '../../plugin-system/types';
 
-export const pluginId = 'pomodoro';
+const pluginId = 'pomodoro';
 
-export const widgetCatalog: WidgetCatalogItem[] = [
+const widgetCatalog: WidgetCatalogItem[] = [
     {
         pluginId,
         type: 'pomodoro',
@@ -24,3 +25,8 @@ export const widgetCatalog: WidgetCatalogItem[] = [
         allowedContexts: ['semester', 'course'],
     },
 ];
+
+export default definePluginMetadata({
+    pluginId,
+    widgetCatalog,
+});

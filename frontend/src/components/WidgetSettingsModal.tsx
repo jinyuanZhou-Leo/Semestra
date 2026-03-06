@@ -9,11 +9,13 @@
 "use no memo";
 
 import React, { useEffect, useState } from "react";
-import { WidgetRegistry } from "../services/widgetRegistry";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SaveSettingButton } from "./SaveSettingButton";
-import { getResolvedWidgetMetadataByType } from "../plugin-system";
+import {
+  getResolvedWidgetMetadataByType,
+  getWidgetSettingsComponentByType,
+} from "../plugin-system";
 
 interface WidgetSettingsModalProps {
   isOpen: boolean;
@@ -28,10 +30,9 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
   widget,
   onSave,
 }) => {
-  const widgetDefinition = WidgetRegistry.get(widget?.type);
   const widgetMetadata = getResolvedWidgetMetadataByType(widget?.type || "");
-  const displayWidgetName = widgetDefinition?.name ?? widgetMetadata.name ?? widget?.type ?? "Widget";
-  const SettingsComponent = widgetDefinition?.SettingsComponent;
+  const displayWidgetName = widgetMetadata.name ?? widget?.type ?? "Widget";
+  const SettingsComponent = getWidgetSettingsComponentByType(widget?.type || "");
   const [draftSettings, setDraftSettings] = useState<any>(widget?.settings || {});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
 

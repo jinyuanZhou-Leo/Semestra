@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Counter } from '../../../plugins/counter';
+import { Counter } from '../../../plugins/counter/widget';
 import { vi, describe, it, expect } from 'vitest';
 
 describe('CounterWidget', () => {

@@ -1,13 +1,14 @@
+import { definePluginSettings } from '@/plugin-system/contracts';
 import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '@/services/pluginSettingsRegistry';
 
 import { CourseListGlobalSettings } from './globalSettings';
 
-export const tabSettingsDefinitions: TabSettingsDefinition[] = [];
-
-export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [
-  {
-    type: 'course-list',
-    component: CourseListGlobalSettings,
-  },
-];
-
+export default definePluginSettings({
+  tabSettings: [] satisfies TabSettingsDefinition[],
+  widgetGlobalSettings: [
+    {
+      type: 'course-list',
+      component: CourseListGlobalSettings,
+    },
+  ] satisfies WidgetGlobalSettingsDefinition[],
+});

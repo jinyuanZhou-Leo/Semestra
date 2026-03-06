@@ -1,3 +1,7 @@
-export { GradeCalculator, GradeCalculatorDefinition } from './widget';
-export { GradeCalculatorDefinition as widgetDefinition } from './widget';
-export { pluginId, widgetCatalog } from './metadata';
+import { definePluginRuntime } from '../../plugin-system/contracts';
+
+import { GradeCalculatorDefinition } from './widget';
+
+export default definePluginRuntime({
+    widgetDefinitions: [GradeCalculatorDefinition],
+});

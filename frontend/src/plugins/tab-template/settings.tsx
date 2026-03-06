@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SettingsSection } from '@/components/SettingsSection';
+import { definePluginSettings } from '@/plugin-system/contracts';
 import type { TabSettingsProps } from '@/services/tabRegistry';
 import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '@/services/pluginSettingsRegistry';
 
@@ -58,11 +59,12 @@ const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, up
   );
 };
 
-export const tabSettingsDefinitions: TabSettingsDefinition[] = [
-  {
-    type: 'tab-template',
-    component: TemplateTabSettingsComponent,
-  },
-];
-
-export const widgetGlobalSettingsDefinitions: WidgetGlobalSettingsDefinition[] = [];
+export default definePluginSettings({
+  tabSettings: [
+    {
+      type: 'tab-template',
+      component: TemplateTabSettingsComponent,
+    },
+  ] satisfies TabSettingsDefinition[],
+  widgetGlobalSettings: [] satisfies WidgetGlobalSettingsDefinition[],
+});
