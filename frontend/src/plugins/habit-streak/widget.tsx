@@ -1,6 +1,6 @@
 // input:  [widget settings/update callbacks, framer-motion animation runtime, shadcn form controls/dialog actions]
 // output: [habit-streak widget component, settings component, helpers, and widget definition metadata]
-// pos:    [plugin runtime + settings layer for interval-based habit check-ins, light-friendly theme-adaptive streak ring visuals with subtle orbital animation, stronger center typography contrast, and reusable precomputed burst animations with restored glow particles]
+// pos:    [plugin runtime + settings layer for interval-based habit check-ins, clean theme-adaptive streak ring visuals with subtle orbital animation, shadowless check-in CTA styling, stronger center typography contrast, and reusable precomputed burst animations]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -536,30 +536,11 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
     const circumference = 2 * Math.PI * 46; // r=46
     const strokeDashoffset = circumference - (targetProgress / 100) * circumference;
 
-    // Progress-based vibrant glow
-    const getCoreColor = (progress: number) => {
-        if (progress >= 100) return 'rgba(244, 63, 94, 0.8)'; // Rose
-        if (progress >= 75) return 'rgba(249, 115, 22, 0.8)'; // Orange
-        if (progress >= 50) return 'rgba(245, 158, 11, 0.8)'; // Amber
-        return 'rgba(250, 204, 21, 0.8)'; // Yellow
-    };
-
     return (
         <div className="relative flex aspect-square h-full max-h-[160px] min-h-[70px] items-center justify-center">
-            {/* Animated Glowing Core */}
-            <motion.div
-                className="absolute inset-[18%] rounded-full opacity-60 mix-blend-screen blur-xl dark:opacity-40"
-                animate={prefersReducedMotion ? {} : {
-                    scale: [1, 1.05, 1],
-                    opacity: [0.5, 0.7, 0.5]
-                }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                style={{ background: `radial-gradient(circle, ${getCoreColor(targetProgress)} 0%, transparent 70%)` }}
-            />
-
             {/* Progress SVG Ring */}
             <motion.svg
-                className="absolute inset-0 h-full w-full transform drop-shadow-[0_4px_10px_rgba(249,115,22,0.22)] dark:drop-shadow-[0_7px_18px_rgba(249,115,22,0.18)]"
+                className="absolute inset-0 h-full w-full transform"
                 viewBox="0 0 100 100"
                 initial={{ rotate: -90, scale: 1 }}
                 animate={prefersReducedMotion
@@ -791,7 +772,7 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     <Button
                         onClick={handleCheckIn}
                         disabled={!checkInState.canCheckIn}
-                        className="group/habit-checkin relative h-10 w-full overflow-hidden bg-gradient-to-r from-[#ff9f1c] via-[#ff6b35] to-[#e5383b] text-sm font-semibold text-white shadow-[0_12px_24px_rgba(229,80,40,0.34)] transition-all duration-300 ease-out hover:brightness-110 active:scale-[0.985] enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-[#8e6f53] disabled:text-white/80 disabled:shadow-none disabled:opacity-75 dark:shadow-[0_16px_30px_rgba(234,102,47,0.34)]"
+                        className="group/habit-checkin relative h-10 w-full overflow-hidden border-0 bg-gradient-to-r from-[#ff9f1c] via-[#ff6b35] to-[#e5383b] text-sm font-semibold text-white shadow-none transition-all duration-300 ease-out hover:brightness-110 active:scale-[0.985] enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-[#8e6f53] disabled:text-white/80 disabled:shadow-none disabled:opacity-75"
                     >
                         <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.22)_50%,transparent_75%)] opacity-0 transition-opacity duration-300 group-hover/habit-checkin:opacity-100" />
                         <Sparkles className={cn(

@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Vite + React frontend for Semestra with lazy routes and plugin-driven dashboards.
-Core behavior is split across contexts, hooks, services, and reusable UI components, including context-safe optimistic sync, glassmorphism widget header controls, and state-driven modal animations.
+Core behavior is split across contexts, hooks, services, and reusable UI components, including context-safe optimistic sync, glassmorphism widget header controls, state-driven modal animations, and cleaner shadowless habit-streak widget ring/button styling.
 Build/test configs and scripts support local development, bundling, and release metadata.
 
 | File | Role | Description |

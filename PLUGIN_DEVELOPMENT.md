@@ -11,19 +11,65 @@ Plugins can be one of two shapes:
 Both shapes share a similar definition structure but are registered separately.
 Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement a widget, a tab, or both.
 
+### Runtime Architecture
+
+```mermaid
+flowchart LR
+    subgraph PluginFolder["frontend/src/plugins/<plugin-name>/"]
+        Metadata["metadata.ts
+pluginId + tabCatalog/widgetCatalog"]
+        Runtime["index.ts
+exports tabDefinition/widgetDefinition"]
+        Settings["settings.ts(x)
+exports tabSettingsDefinitions/widgetGlobalSettingsDefinitions"]
+        Impl["tab.tsx / widget.tsx / shared.ts"]
+        Runtime --> Impl
+        Settings --> Impl
+    end
+
+    Metadata -->|"eager import.meta.glob"| PluginSystem["frontend/src/plugin-system/index.ts"]
+    Runtime -->|"lazy import.meta.glob"| PluginSystem
+    Settings -->|"eager import.meta.glob"| PluginSystem
+
+    PluginSystem -->|"register on load"| TabRegistry["TabRegistry"]
+    PluginSystem -->|"register on load"| WidgetRegistry["WidgetRegistry"]
+    PluginSystem -->|"register eagerly"| SettingsRegistry["PluginSettingsRegistry"]
+    PluginSystem -->|"catalog helpers"| AddModals["AddTabModal / AddWidgetModal"]
+    PluginSystem -->|"ensure*PluginByTypeLoaded()"| DashboardHooks["useDashboardTabs / useDashboardWidgets / useHomepageBuiltinTabs"]
+
+    TabRegistry --> Pages["SemesterHomepage / CourseHomepage"]
+    WidgetRegistry --> Pages
+    SettingsRegistry --> Pages
+```
+
+The important split is:
+- `metadata.ts` drives add-modal catalogs and metadata fallback before runtime code is loaded.
+- `index.ts` stays lazy and only registers tab/widget runtime definitions when a type is actually needed.
+- `settings.ts` / `settings.tsx` is eager so Settings-page sections are available without waiting for tab/widget runtime modules.
+
 ### Plugin Folder Structure (Recommended)
 
 ```
 frontend/src/plugins/<plugin-name>/
   metadata.ts     // REQUIRED: Plugin id, widget/tab catalog entries (name, icon, layout, etc.)
   index.ts        // REQUIRED: Exports widgetDefinition and/or tabDefinition (lazy runtime UI entry)
-  settings.ts(x)  // OPTIONAL: Only needed if plugin has tab or widget global settings definitions
+  settings.ts(x)  // OPTIONAL: Only needed if plugin exposes tab settings and/or widget global settings
   widget.tsx      // Optional: widget implementation
   tab.tsx         // Optional: tab implementation
   shared.ts       // Optional: shared types/helpers
 ```
 
 > **Metadata-First Architecture**: `metadata.ts` is the **single source of truth** for display metadata (`name`, `description`, `icon`, `layout`, `maxInstances`, `allowedContexts`). Runtime definitions in `widget.tsx`/`tab.tsx` should only declare runtime-specific fields (`type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, `onCreate`, `onDelete`). Do not duplicate metadata fields in runtime definitions.
+
+The current loader expects `metadata.ts` to export:
+
+```typescript
+export const pluginId = 'my-plugin';
+export const widgetCatalog: WidgetCatalogItem[] = [];
+export const tabCatalog: TabCatalogItem[] = [];
+```
+
+It does **not** read a single `metadata` object export.
 
 ### Built-in Tabs
 
@@ -37,6 +83,7 @@ Do not reuse these `type` values in custom plugins.
 These two tabs are regular tab instances (stored in the `tabs` table), not hardcoded shell-only tabs.
 Framework behavior:
 - Auto-ensures one instance per homepage context (semester/course).
+- Publishes `maxInstances: 0` in catalog metadata so users cannot add duplicates from the Add Tab modal.
 - Marks them as `is_removable = false` and `is_draggable = false`.
 - Other built-in tab instances are non-removable by policy, but draggable by default.
 
@@ -48,12 +95,12 @@ The plugin system scans:
 - `settings.ts` / `settings.tsx` with eager `import.meta.glob` for settings registration (only if the file exists).
 
 If you export `widgetDefinition` and/or `tabDefinition` from `index.ts`, runtime UI remains lazy.
-If you export settings definitions from `settings.ts`, settings panels are always available without waiting for runtime UI modules.
+If you export settings definitions from `settings.ts` / `settings.tsx`, settings panels are always available without waiting for runtime UI modules.
 
 **Loading Model**
 - Metadata (`metadata.ts`): eagerly loaded — names and icons are available before runtime modules.
 - Runtime UI (`tab.tsx` / `widget.tsx`): lazy-loaded.
-- Settings UI (`settings.ts`): eagerly loaded (optional — only needed for global settings panels).
+- Settings UI (`settings.ts` / `settings.tsx`): eagerly loaded (optional).
 - This prevents missing settings panels when plugin runtime UI has not been loaded yet.
 
 > **Note**: `settings.ts` is optional. Plugins without tab settings or widget global settings do not need this file.
@@ -160,7 +207,7 @@ export interface WidgetGlobalSettingsProps {
 }
 ```
 
-Plugin-level settings are now registered in `settings.ts`, not on `WidgetDefinition`.
+Plugin-level settings are registered in `settings.ts` / `settings.tsx`, not through the runtime loader. `WidgetDefinition.globalSettingsComponent` still exists in the TypeScript interface for legacy compatibility, but the current Settings-page integration is driven by `widgetGlobalSettingsDefinitions`.
 
 **Header Buttons**: Widgets can define custom action buttons that appear in the widget header (alongside drag handle, edit, and remove buttons). These buttons only appear when the widget controls are visible (on hover for desktop, on tap for touch devices).
 
@@ -334,6 +381,7 @@ export interface TabDefinition {
     description?: string;  // Optional description (prefer defining in metadata.ts)
     icon?: React.ReactNode; // Optional icon (prefer defining in metadata.ts)
     component: React.FC<TabProps>; // The main tab content component
+    settingsComponent?: React.FC<TabSettingsProps>; // Optional runtime settings UI
     defaultSettings?: any; // Default settings for new tabs
     maxInstances?: number | 'unlimited'; // Max instances (prefer defining in metadata.ts)
     allowedContexts?: Array<'semester' | 'course'>; // Where added (prefer defining in metadata.ts)
@@ -355,7 +403,7 @@ Tab settings panels are registered in `settings.ts` using `tabSettingsDefinition
 
 The homepage tab bar uses `is_draggable` (not `is_removable`) to decide drag/reorder eligibility.
 
-Context visibility is determined by plugin `allowedContexts`; no additional type-based hide list is required.
+Context visibility is primarily determined by plugin `allowedContexts`. There is also one framework-owned legacy hide list in `frontend/src/plugin-system/index.ts` (`LEGACY_HIDDEN_TAB_TYPES`) used to suppress deprecated tab types from catalog display.
 
 ```typescript
 // Generic type S allows type-safe settings access (defaults to any)
@@ -480,24 +528,26 @@ Plugins are auto-registered via Vite's `import.meta.glob`.
 `frontend/src/plugins/my-new-plugin/metadata.ts`
 
 ```typescript
-import type { ResolvedPluginMetadata } from '../../plugin-system/types';
+import { createElement } from 'react';
 import { Calculator } from 'lucide-react';
+import type { TabCatalogItem, WidgetCatalogItem } from '../../plugin-system/types';
 
-export const metadata: ResolvedPluginMetadata = {
-    id: 'my-new-plugin',
-    widgetCatalog: [
-        {
-            type: 'my-new-widget',
-            name: 'My New Widget',
-            description: 'A description of what this widget does.',
-            icon: <Calculator className="h-4 w-4" />,
-            layout: { w: 3, h: 2, minW: 2, minH: 2 },
-            maxInstances: 'unlimited',
-            allowedContexts: ['semester', 'course'],
-        },
-    ],
-    tabCatalog: [],  // or add tab catalog entries here
-};
+export const pluginId = 'my-new-plugin';
+
+export const widgetCatalog: WidgetCatalogItem[] = [
+    {
+        pluginId,
+        type: 'my-new-widget',
+        name: 'My New Widget',
+        description: 'A description of what this widget does.',
+        icon: createElement(Calculator, { className: 'h-4 w-4' }),
+        layout: { w: 3, h: 2, minW: 2, minH: 2 },
+        maxInstances: 'unlimited',
+        allowedContexts: ['semester', 'course'],
+    },
+];
+
+export const tabCatalog: TabCatalogItem[] = [];
 ```
 
 `frontend/src/plugins/my-new-plugin/index.ts`
@@ -505,14 +555,14 @@ export const metadata: ResolvedPluginMetadata = {
 ```typescript
 export { MyNewDefinition, MyNew } from './widget';
 export { MyNewDefinition as widgetDefinition } from './widget';
-export { metadata } from './metadata';
+export { pluginId, widgetCatalog, tabCatalog } from './metadata';
 
 // If you also have a tab:
 export { NotesTabDefinition, NotesTab } from './tab';
 export { NotesTabDefinition as tabDefinition } from './tab';
 ```
 
-`frontend/src/plugins/my-new-plugin/settings.ts` **(optional — only needed if you have global settings)**
+`frontend/src/plugins/my-new-plugin/settings.ts` **(optional — only needed if you expose tab settings and/or widget global settings)**
 
 ```typescript
 import type { TabSettingsDefinition, WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
@@ -557,12 +607,11 @@ const handleChange = async (value: string) => {
 ### React.memo Optimization
 
 Both Widget and Tab components are automatically wrapped with `React.memo` at the framework level. The framework uses custom comparison functions that only trigger re-renders when:
-- Widget/Tab ID changes
-- Widget/Tab type changes
-- Settings object changes (deep comparison via `jsonDeepEqual` — a robust recursive comparator from `plugin-system/utils`)
-- Context (semesterId/courseId) changes
+- Widget/Tab instance ID changes
+- Parsed settings object changes (deep comparison via `jsonDeepEqual` from `plugin-system/utils`)
+- Context (`semesterId` / `courseId`) changes
 
-**Important**: Do NOT manually wrap your widget or tab component with `React.memo` - the framework already handles this optimization via `DashboardWidgetWrapper` (for widgets), `WidgetRegistry` (for widget components), and `TabRegistry` (for tabs).
+**Important**: Do not manually wrap the exported root widget or tab component with `React.memo`; the framework already does that through `WidgetRegistry` and `TabRegistry`. Internal heavy child components can still be memoized if profiling shows they need it.
 
 ## Lifecycle Hooks
 
@@ -596,10 +645,8 @@ onDelete: async (ctx) => {
 ```typescript
 export const MyDefinition: WidgetDefinition = {
     type: 'my-widget',
-    name: 'My Widget',
     component: My,
     defaultSettings: {},
-    layout: { w: 3, h: 2 },
     
     onCreate: async (ctx) => {
         // Example: register with an external service
@@ -861,7 +908,7 @@ import { Progress } from '../../components/ui/progress';
 ### Performance Optimization
 
 1. **Avoid Inline Styles**: Use Tailwind classes for better performance
-2. **Minimize Re-renders**: Use `React.memo` for expensive components
+2. **Minimize Re-renders**: Memoize expensive internal child components only when needed; exported root tab/widget components are already memoized by the framework
 3. **Lazy Load**: Use dynamic imports for large components
 4. **Optimize Images**: Use appropriate formats and sizes
 
