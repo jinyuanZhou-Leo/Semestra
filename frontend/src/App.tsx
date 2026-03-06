@@ -1,5 +1,5 @@
 // input:  [router primitives, global providers, route guards, lazily imported page modules]
-// output: [default `App` component and `RootGate` authenticated/guest entry resolver]
+// output: [default `App` component and `RootGate` product-first root entry resolver]
 // pos:    [Root composition module that defines the app route tree and provider stack]
 //
 // ⚠️ When this file is updated:
@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { useAuth } from './contexts/AuthContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -41,11 +41,7 @@ const RootGate = () => {
     );
   }
 
-  return (
-    <Suspense fallback={null}>
-      <LandingPage />
-    </Suspense>
-  );
+  return <Navigate to="/login" replace />;
 };
 
 function App() {

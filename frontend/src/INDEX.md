@@ -20,7 +20,7 @@ Plugin implementations live under `plugins/` (currently intentionally skipped in
 | test/ | Subdirectory | Test bootstrap files. |
 | types/ | Subdirectory | Shared type declaration space. |
 | utils/ | Subdirectory | Pure utility and helper modules. |
-| App.tsx | App shell | Router + provider composition and lazy route registration. |
+| App.tsx | App shell | Router + provider composition with a product-first root route that sends signed-in users to the workspace and guests to `/login`, while leaving `/landing` as a separate marketing route. |
 | index.css | Global styles | Global styles, Tailwind layer imports, and class-driven dark variant setup aligned with `ThemeProvider`. |
 | main.tsx | Entry point | Bootstraps React root and imports global runtime setup. |
 | tab-setup.ts | Compatibility shim | Legacy-ready promise export for tab plugin compatibility. |

@@ -2,7 +2,7 @@
 
 Vite + React frontend for Semestra with lazy routes and plugin-driven dashboards.
 Core behavior is split across contexts, hooks, services, and reusable UI components, including context-safe optimistic sync, glassmorphism widget header controls, state-driven modal animations, and cleaner shadowless habit-streak widget ring/button styling.
-Build/test configs and scripts support local development, bundling, and release metadata.
+Build/test configs and scripts support local development, bundling, and release metadata, with the root route now prioritizing product entry while `/landing` remains an explicit marketing page.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -16,7 +16,7 @@ Build/test configs and scripts support local development, bundling, and release 
 | eslint.config.js | Lint config | ESLint ruleset for TypeScript + React hooks. |
 | index.html | HTML entry | Root HTML template with pre-React loading fallback. |
 | package-lock.json | Dependency lockfile | Pinned npm dependency tree for reproducible installs. |
-| package.json | Package manifest | Frontend scripts, dependencies, and package metadata. |
+| package.json | Package manifest | Frontend scripts, dependencies, and package metadata, now bumped for the product-first root-entry routing change. |
 | README.md | Guide | Baseline React+Vite README and project notes. |
 | tailwind.config.ts | Style config | Tailwind scanning configuration and theme wiring. |
 | tsconfig.app.json | TypeScript config | Application TypeScript compiler options. |
