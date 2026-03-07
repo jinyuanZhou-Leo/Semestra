@@ -2,7 +2,8 @@
 
 Application source root containing entrypoints, routing shell, and domain modules.
 Feature behavior is composed from components, contexts, hooks, services, and utilities with context-safe optimistic synchronization.
-Plugin implementations live under `plugins/` (currently intentionally skipped in this pass), and global styling uses a class-driven dark variant to stay consistent with `ThemeProvider`.
+Plugin implementations live under `plugins/`, including recent UX hardening for course-list feedback, calendar overflow access, occurrence-scoped conflict details with overlap-safe week layout, todo destructive confirmations, widget validation/localization behavior, and scoped event-core schedule refresh + bounded semester todo loading.
+Global styling uses a class-driven dark variant to stay consistent with `ThemeProvider`.
 
 | File | Role | Description |
 |------|------|-------------|

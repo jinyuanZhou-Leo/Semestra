@@ -1,6 +1,15 @@
+// input:  [schedule items with conflict metadata, calendar constants, and shared time helpers]
+// output: [`WeeklyCalendarView` schedule grid component]
+// pos:    [Shared weekly schedule renderer that surfaces skip and conflict state across days]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
+import { AlertTriangle } from 'lucide-react';
 import type { ScheduleItem } from '@/services/schedule';
 import {
   CALENDAR_DEFAULT_END_MINUTES,
@@ -133,9 +142,14 @@ export const WeeklyCalendarView: React.FC<WeeklyCalendarViewProps> = ({ items, e
                       className={`absolute right-1 left-1 z-10 overflow-hidden rounded-md border px-2 py-1 text-[11px] leading-tight shadow-sm ${toneClass}`}
                       style={{ top: `${top}px`, height: `${height}px` }}
                     >
-                      <div className="truncate font-medium">{item.courseName}</div>
+                      <div className="flex items-center gap-1">
+                        {item.isConflict ? <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" /> : null}
+                        <div className="truncate font-medium">{item.courseName}</div>
+                      </div>
                       <div className="truncate opacity-85">{item.eventTypeCode}</div>
-                      <div className="truncate opacity-75">{item.startTime} - {item.endTime}</div>
+                      <div className="truncate opacity-75">
+                        {item.startTime} - {item.endTime}{item.isConflict ? ' · Conflict' : ''}
+                      </div>
                     </div>
                   );
                 })}

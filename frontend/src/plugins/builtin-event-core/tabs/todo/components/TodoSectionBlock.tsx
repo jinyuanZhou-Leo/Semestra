@@ -1,6 +1,6 @@
-// input:  [Todo section/task data plus drag-and-drop and section action callbacks]
+// input:  [Todo section/task data plus drag-and-drop, confirmation-request, and section action callbacks]
 // output: [TodoSectionBlock React component]
-// pos:    [Collapsible section wrapper that lays out section header and nested task cards]
+// pos:    [Collapsible section wrapper that lays out section header, nested task cards, and guarded destructive actions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -30,7 +30,7 @@ interface TodoSectionBlockProps {
     beforeTaskId: string | null,
   ) => void;
   onOpenSectionTitleEditor: (section: TodoSection) => void;
-  onDeleteSection: (sectionId: string) => void;
+  onRequestDeleteSection: (section: TodoSection) => void;
   renderTaskCard: (task: TodoTask, sectionId: string) => React.ReactNode;
 }
 
@@ -45,7 +45,7 @@ export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
   onDragOverSection,
   onDropToSection,
   onOpenSectionTitleEditor,
-  onDeleteSection,
+  onRequestDeleteSection,
   renderTaskCard,
 }) => {
   const isCompletedSection = section.id === completedSectionId;
@@ -103,7 +103,7 @@ export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
                 type="button"
                 variant="destructive"
                 size="icon-xs"
-                onClick={() => onDeleteSection(section.id)}
+                onClick={() => onRequestDeleteSection(section)}
                 aria-label={`Delete section ${section.name}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />

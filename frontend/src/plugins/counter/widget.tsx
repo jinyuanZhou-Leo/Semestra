@@ -1,6 +1,6 @@
-// input:  [counter widget settings/update callback plus shared button/form controls]
+// input:  [counter widget settings/update callback plus shared button/form/alert controls]
 // output: [counter widget component, settings component, and widget definition metadata]
-// pos:    [interactive numeric widget with bounds, step controls, and optional ring visualization]
+// pos:    [interactive numeric widget with bounded validation, clamped state, and optional ring visualization]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,11 +10,12 @@
 
 import React, { useCallback, useId, useState } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Minus, Plus, RotateCcw } from 'lucide-react';
+import { AlertCircle, Minus, Plus, RotateCcw } from 'lucide-react';
 
 interface CounterSettings {
     value: number;
@@ -42,21 +43,74 @@ const normalizeCounterSettings = (settings: unknown): CounterSettings => {
     };
 };
 
+const clampNumber = (value: number, min: number, max: number) => {
+    return Math.min(max, Math.max(min, value));
+};
+
+const sanitizeCounterSettings = (settings: unknown): CounterSettings => {
+    const normalized = normalizeCounterSettings(settings);
+    const max = normalized.max <= normalized.min ? normalized.min + 1 : normalized.max;
+    const initialValue = clampNumber(normalized.initialValue, normalized.min, max);
+    const value = clampNumber(normalized.value, normalized.min, max);
+
+    return {
+        ...normalized,
+        max,
+        initialValue,
+        value,
+    };
+};
+
+const getCounterValidationMessages = (rawSettings: CounterSettings, safeSettings: CounterSettings) => {
+    const messages: string[] = [];
+
+    if (rawSettings.max <= rawSettings.min) {
+        messages.push(`Max must be greater than min. It was adjusted to ${safeSettings.max}.`);
+    }
+    if (rawSettings.initialValue !== safeSettings.initialValue) {
+        messages.push(`Initial value must stay within ${safeSettings.min} to ${safeSettings.max}. It was clamped automatically.`);
+    }
+    if (rawSettings.value !== safeSettings.value) {
+        messages.push(`Current value was outside the valid range and was clamped to ${safeSettings.value}.`);
+    }
+
+    return messages;
+};
+
 /**
  * Counter Settings Component
  */
 const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSettingsChange }) => {
-    const counterSettings = normalizeCounterSettings(settings);
+    const rawSettings = normalizeCounterSettings(settings);
+    const counterSettings = sanitizeCounterSettings(rawSettings);
     const formId = useId();
+    const validationMessages = getCounterValidationMessages(rawSettings, counterSettings);
+
+    const applySettings = useCallback((patch: Partial<CounterSettings>) => {
+        onSettingsChange(sanitizeCounterSettings({
+            ...counterSettings,
+            ...patch,
+        }));
+    }, [counterSettings, onSettingsChange]);
 
     return (
         <div className="flex flex-col gap-4">
+            {validationMessages.length > 0 ? (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Counter settings were adjusted</AlertTitle>
+                    <AlertDescription>
+                        {validationMessages.join(' ')}
+                    </AlertDescription>
+                </Alert>
+            ) : null}
+
             <div className="grid gap-2">
                 <Label htmlFor={`${formId}-display`}>Display Text</Label>
                 <Input
                     id={`${formId}-display`}
                     value={counterSettings.displayText || ''}
-                    onChange={e => onSettingsChange({ ...counterSettings, displayText: e.target.value })}
+                    onChange={e => applySettings({ displayText: e.target.value })}
                     placeholder="Enter custom text to display below counter"
                 />
             </div>
@@ -69,7 +123,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                     id={`${formId}-show-ring`}
                     checked={counterSettings.showRing ?? true}
                     onCheckedChange={(checked) =>
-                        onSettingsChange({ ...counterSettings, showRing: checked === true })
+                        applySettings({ showRing: checked === true })
                     }
                 />
             </div>
@@ -81,7 +135,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         id={`${formId}-min`}
                         type="number"
                         value={counterSettings.min ?? 0}
-                        onChange={e => onSettingsChange({ ...counterSettings, min: Number(e.target.value) })}
+                        onChange={e => applySettings({ min: Number(e.target.value) })}
                     />
                 </div>
                 <div className="grid gap-2">
@@ -90,7 +144,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         id={`${formId}-max`}
                         type="number"
                         value={counterSettings.max ?? 100}
-                        onChange={e => onSettingsChange({ ...counterSettings, max: Number(e.target.value) })}
+                        onChange={e => applySettings({ max: Number(e.target.value) })}
                     />
                 </div>
                 <div className="grid gap-2">
@@ -99,7 +153,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         id={`${formId}-step`}
                         type="number"
                         value={counterSettings.step ?? 1}
-                        onChange={e => onSettingsChange({ ...counterSettings, step: Number(e.target.value) })}
+                        onChange={e => applySettings({ step: Number(e.target.value) })}
                         min="1"
                     />
                 </div>
@@ -109,7 +163,7 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
                         id={`${formId}-initial`}
                         type="number"
                         value={counterSettings.initialValue ?? 0}
-                        onChange={e => onSettingsChange({ ...counterSettings, initialValue: Number(e.target.value) })}
+                        onChange={e => applySettings({ initialValue: Number(e.target.value) })}
                     />
                 </div>
             </div>
@@ -129,17 +183,17 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
         step = 1,
         displayText = '',
         showRing = true
-    } = normalizeCounterSettings(settings);
+    } = sanitizeCounterSettings(settings);
 
     const [jitter, setJitter] = useState(false);
 
     // Circular progress calculation
-    const percentage = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+    const percentage = Math.min(100, Math.max(0, ((value - min) / Math.max(1, max - min)) * 100));
     const circumference = 2 * Math.PI * 40; // radius 40
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
     const updateCount = useCallback(async (newCount: number) => {
-        await updateSettings({ ...normalizeCounterSettings(settings), value: newCount });
+        await updateSettings(sanitizeCounterSettings({ ...settings, value: newCount }));
     }, [settings, updateSettings]);
 
     const handleIncrement = useCallback(() => {
@@ -298,7 +352,7 @@ export const CounterDefinition: WidgetDefinition = {
                     icon={<RotateCcw className="h-4 w-4" />}
                     onClick={() => {
                         const counterSettings = normalizeCounterSettings(settings);
-                        void updateSettings({ ...counterSettings, value: counterSettings.initialValue });
+                        void updateSettings(sanitizeCounterSettings({ ...counterSettings, value: counterSettings.initialValue }));
                     }}
                 />
             )

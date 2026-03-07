@@ -1,6 +1,14 @@
+// input:  [calendar event list, week/view state, semester range, and calendar navigation callbacks]
+// output: [FullCalendarView React component]
+// pos:    [calendar renderer that switches between week and month layouts with overflow handling]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
+import { AlertTriangle } from 'lucide-react';
 import {
   CALENDAR_MIN_EVENT_HEIGHT,
   CALENDAR_PIXEL_PER_MINUTE,
@@ -22,6 +30,7 @@ interface FullCalendarViewProps {
   showWeekends: boolean;
   isPending: boolean;
   onWeekChange: (week: number) => void;
+  onViewModeChange: (viewMode: CalendarViewMode) => void;
   onEventClick: (event: CalendarEventData) => void;
 }
 
@@ -36,6 +45,12 @@ type OverflowShadowState = {
   right: boolean;
   bottom: boolean;
   left: boolean;
+};
+
+type PositionedDayEvent = {
+  event: CalendarEventData;
+  columnIndex: number;
+  columnCount: number;
 };
 
 const useOverflowShadows = () => {
@@ -147,6 +162,74 @@ const eventsByDay = (events: CalendarEventData[]) => {
   return map;
 };
 
+const layoutOverlappingDayEvents = (dayEvents: CalendarEventData[]): PositionedDayEvent[] => {
+  if (dayEvents.length <= 1) {
+    return dayEvents.map((event) => ({
+      event,
+      columnIndex: 0,
+      columnCount: 1,
+    }));
+  }
+
+  const positionedEvents: PositionedDayEvent[] = [];
+  let cluster: CalendarEventData[] = [];
+  let clusterEndMs = Number.NEGATIVE_INFINITY;
+
+  const flushCluster = () => {
+    if (cluster.length === 0) return;
+
+    const columnEndTimes: number[] = [];
+    const placed = cluster.map((event) => {
+      const startMs = event.start.getTime();
+      const endMs = event.end.getTime();
+      let columnIndex = columnEndTimes.findIndex((columnEndMs) => columnEndMs <= startMs);
+
+      if (columnIndex === -1) {
+        columnIndex = columnEndTimes.length;
+        columnEndTimes.push(endMs);
+      } else {
+        columnEndTimes[columnIndex] = endMs;
+      }
+
+      return { event, columnIndex };
+    });
+
+    const columnCount = Math.max(1, columnEndTimes.length);
+    placed.forEach((item) => {
+      positionedEvents.push({
+        event: item.event,
+        columnIndex: item.columnIndex,
+        columnCount,
+      });
+    });
+  };
+
+  dayEvents.forEach((event) => {
+    const startMs = event.start.getTime();
+    const endMs = event.end.getTime();
+
+    if (cluster.length === 0) {
+      cluster = [event];
+      clusterEndMs = endMs;
+      return;
+    }
+
+    if (startMs < clusterEndMs) {
+      cluster.push(event);
+      clusterEndMs = Math.max(clusterEndMs, endMs);
+      return;
+    }
+
+    flushCluster();
+    cluster = [event];
+    clusterEndMs = endMs;
+  });
+
+  flushCluster();
+
+  return positionedEvents;
+};
+
 const WeekView: React.FC<{
   events: CalendarEventData[];
   weekStartDate: Date;
@@ -158,6 +241,13 @@ const WeekView: React.FC<{
 }> = ({ events, weekStartDate, dayStartMinutes, dayEndMinutes, highlightConflicts, showWeekends, onEventClick }) => {
   const { containerRef, shadowStyle } = useOverflowShadows();
   const eventsMap = React.useMemo(() => eventsByDay(events), [events]);
+  const positionedEventsMap = React.useMemo(() => {
+    const map = new Map<string, PositionedDayEvent[]>();
+    eventsMap.forEach((dayEvents, dayKey) => {
+      map.set(dayKey, layoutOverlappingDayEvents(dayEvents));
+    });
+    return map;
+  }, [eventsMap]);
   const dayColumns = React.useMemo(
     () => (showWeekends ? DAY_OF_WEEK_OPTIONS : WEEKDAY_OPTIONS),
     [showWeekends],
@@ -250,7 +340,7 @@ const WeekView: React.FC<{
           {dayColumns.map((day, dayIndex) => {
             const date = addDays(weekStartDate, dayIndex);
             const dayKey = keyForDate(date);
-            const dayEvents = eventsMap.get(dayKey) ?? [];
+            const dayEvents = positionedEventsMap.get(dayKey) ?? [];
 
             return (
               <div key={day.value} className="relative border-r border-border/70 bg-background dark:bg-transparent last:border-r-0" style={{ height: `${calendarHeight}px` }}>
@@ -259,7 +349,8 @@ const WeekView: React.FC<{
                   return <div key={minute} className="absolute inset-x-0 border-t border-border/35" style={{ top: `${top}px` }} />;
                 })}
 
-                {dayEvents.map((event) => {
+                {dayEvents.map((positionedEvent) => {
+                  const { event, columnCount, columnIndex } = positionedEvent;
                   const startMinutes = (event.start.getHours() * 60) + event.start.getMinutes();
                   const endMinutes = Math.max((event.end.getHours() * 60) + event.end.getMinutes(), startMinutes + 30);
                   const visibleStart = Math.max(startMinutes, minuteWindow.start);
@@ -272,6 +363,8 @@ const WeekView: React.FC<{
                   const height = Math.max(rawHeight, CALENDAR_MIN_EVENT_HEIGHT);
                   const boundedTop = Math.max(0, Math.min(top, calendarHeight - CALENDAR_MIN_EVENT_HEIGHT));
                   const boundedHeight = Math.min(height, calendarHeight - boundedTop);
+                  const columnWidth = 100 / columnCount;
+                  const leftPercent = columnIndex * columnWidth;
 
                   if (boundedHeight <= 0) return null;
 
@@ -281,23 +374,32 @@ const WeekView: React.FC<{
                       type="button"
                       onClick={() => onEventClick(event)}
                       className={[
-                        'absolute right-1 left-1 z-[1] overflow-hidden rounded-md border border-l-[3px] px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition-colors',
+                        'absolute z-[1] overflow-hidden rounded-md border border-l-[3px] px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition-colors',
                         'focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none',
                         'hover:bg-accent/30',
                         event.isSkipped ? 'opacity-55 grayscale' : '',
-                        highlightConflicts && event.isConflict ? 'border-destructive/50' : 'border-border/70',
+                        highlightConflicts && event.isConflict ? 'border-destructive/70' : 'border-border/70',
                       ].join(' ')}
                       style={{
                         top: `${boundedTop}px`,
+                        left: `calc(${leftPercent}% + 4px)`,
+                        width: `calc(${columnWidth}% - 8px)`,
                         height: `${boundedHeight}px`,
-                        borderLeftColor: event.color,
-                        backgroundColor: addAlpha(event.color, '1f'),
+                        borderLeftColor: highlightConflicts && event.isConflict ? '#dc2626' : event.color,
+                        backgroundColor: highlightConflicts && event.isConflict
+                          ? addAlpha('#dc2626', '18')
+                          : addAlpha(event.color, '1f'),
                       }}
-                      aria-label={`Open event ${event.title}`}
+                      aria-label={`Open event ${event.title}${event.isConflict ? ', conflict detected' : ''}`}
                     >
-                      <div className="truncate font-medium text-foreground">{event.courseName}</div>
+                      <div className="flex items-center gap-1">
+                        {event.isConflict ? <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" aria-hidden="true" /> : null}
+                        <div className="truncate font-medium text-foreground">{event.courseName}</div>
+                      </div>
                       <div className="truncate text-foreground/80">{event.eventTypeCode}</div>
-                      <div className="truncate text-foreground/70">{event.startTime} - {event.endTime}</div>
+                      <div className="truncate text-foreground/70">
+                        {event.startTime} - {event.endTime}{event.isConflict ? ' · Conflict' : ''}
+                      </div>
                     </button>
                   );
                 })}
@@ -319,8 +421,9 @@ const MonthView: React.FC<{
   highlightConflicts: boolean;
   showWeekends: boolean;
   onNavigateDate: (date: Date) => void;
+  onShowMoreForDate: (date: Date) => void;
   onEventClick: (event: CalendarEventData) => void;
-}> = ({ events, monthAnchorDate, semesterRange, highlightConflicts, showWeekends, onNavigateDate, onEventClick }) => {
+}> = ({ events, monthAnchorDate, semesterRange, highlightConflicts, showWeekends, onNavigateDate, onShowMoreForDate, onEventClick }) => {
   const { containerRef, shadowStyle } = useOverflowShadows();
   const monthStart = React.useMemo(() => new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth(), 1), [monthAnchorDate]);
   const monthGridStart = React.useMemo(() => startOfWeekMonday(monthStart), [monthStart]);
@@ -367,6 +470,7 @@ const MonthView: React.FC<{
           {visibleMonthGridDates.map((date, index) => {
             const dayKey = keyForDate(date);
             const dayEvents = eventsMap.get(dayKey) ?? [];
+            const hiddenEventCount = Math.max(0, dayEvents.length - CALENDAR_MAX_EVENT_LINES_PER_DAY);
             const isCurrentMonth = date.getMonth() === monthAnchorDate.getMonth();
             const dayTime = normalizeToDay(date).getTime();
             const isOutOfSemester = dayTime < semesterStart || dayTime > semesterEnd;
@@ -403,12 +507,20 @@ const MonthView: React.FC<{
                         highlightConflicts && event.isConflict ? 'ring-1 ring-destructive/60' : '',
                       ].join(' ')}
                       style={{ backgroundColor: addAlpha(event.color, '1f'), borderLeft: `2px solid ${event.color}` }}
+                      aria-label={`Open event ${event.title}${event.isConflict ? ', conflict detected' : ''}`}
                     >
-                      {formatHour(event.start.getHours() * 60 + event.start.getMinutes())} {event.courseName}
+                      {event.isConflict ? 'Conflict · ' : ''}{formatHour(event.start.getHours() * 60 + event.start.getMinutes())} {event.courseName}
                     </button>
                   ))}
-                  {dayEvents.length > CALENDAR_MAX_EVENT_LINES_PER_DAY ? (
-                    <p className="text-[11px] text-muted-foreground">More events</p>
+                  {hiddenEventCount > 0 ? (
+                    <button
+                      type="button"
+                      className="rounded px-1 text-[11px] font-medium text-primary hover:bg-accent/50 focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none"
+                      onClick={() => onShowMoreForDate(date)}
+                      aria-label={`View ${hiddenEventCount} more events on ${dayFormatter.format(date)}`}
+                    >
+                      View all {dayEvents.length}
+                    </button>
                   ) : null}
                 </div>
               </div>
@@ -434,6 +546,7 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   isPending,
   maxWeek,
   onWeekChange,
+  onViewModeChange,
   onEventClick,
 }) => {
   const safeWeek = Math.max(1, Math.min(maxWeek, week));
@@ -460,6 +573,11 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
     syncWeekFromDate(date);
   };
 
+  const handleShowMoreForDate = (date: Date) => {
+    handleNavigateDate(date);
+    onViewModeChange('week');
+  };
+
   return (
     <div
       className={
@@ -476,6 +594,7 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
           highlightConflicts={highlightConflicts}
           showWeekends={showWeekends}
           onNavigateDate={handleNavigateDate}
+          onShowMoreForDate={handleShowMoreForDate}
           onEventClick={onEventClick}
         />
       ) : (

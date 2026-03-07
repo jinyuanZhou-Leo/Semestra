@@ -1,3 +1,11 @@
+// input:  [semester context, schedule/calendar services, shared event bus, and calendar subcomponents]
+// output: [Calendar tab runtime component with optimistic event editing and scoped schedule refresh behavior]
+// pos:    [Built-in event-core calendar orchestrator for semester schedule visualization and event edits]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
@@ -43,6 +51,17 @@ const FALLBACK_RANGE: SemesterDateRange = resolveSemesterDateRange(undefined, un
 const rangeDateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+type ScheduleReloadSkipToken = {
+  courseId: string;
+  semesterId: string;
+  reason: 'event-updated';
+};
+
+const conflictOccurrenceKey = (event: CalendarEventData) => {
+  if (!event.conflictGroupId) return null;
+  return `${event.week}:${event.dayOfWeek}:${event.conflictGroupId}`;
+};
+
 export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings }) => {
   const [week, setWeek] = React.useState(DEFAULT_WEEK);
   const [viewMode, setViewMode] = React.useState<CalendarViewMode>(CALENDAR_DEFAULT_VIEW_MODE as CalendarViewMode);
@@ -55,6 +74,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   const [isPending, startTransition] = React.useTransition();
   const cardRef = React.useRef<HTMLDivElement | null>(null);
   const hasUserInteractedWithWeekRef = React.useRef(false);
+  const skipNextScheduleReloadRef = React.useRef<ScheduleReloadSkipToken | null>(null);
   const updateViewportBoundHeight = React.useCallback(() => {
     const card = cardRef.current;
     if (!card) return;
@@ -158,6 +178,19 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
 
   useEventBus('timetable:schedule-data-changed', (payload) => {
     if (payload.source !== 'course' && payload.source !== 'semester') return;
+    if (!payload.semesterId || payload.semesterId !== semesterId) return;
+
+    const skipToken = skipNextScheduleReloadRef.current;
+    if (
+      skipToken
+      && payload.reason === skipToken.reason
+      && payload.courseId === skipToken.courseId
+      && payload.semesterId === skipToken.semesterId
+    ) {
+      skipNextScheduleReloadRef.current = null;
+      return;
+    }
+
     void reload();
   });
 
@@ -183,6 +216,20 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     );
   }, [itemsWithPatches, semesterRange.startDate, settings]);
 
+  const conflictGroups = React.useMemo(() => {
+    const groups = new Map<string, CalendarEventData[]>();
+
+    for (const event of calendarEvents) {
+      const groupKey = conflictOccurrenceKey(event);
+      if (!groupKey) continue;
+      const groupedEvents = groups.get(groupKey) ?? [];
+      groupedEvents.push(event);
+      groups.set(groupKey, groupedEvents);
+    }
+
+    return groups;
+  }, [calendarEvents]);
+
   const eventsById = React.useMemo(() => {
     const map = new Map<string, CalendarEventData>();
     for (const event of calendarEvents) {
@@ -192,6 +239,23 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     }
     return map;
   }, [calendarEvents]);
+
+  const currentWeekConflictSummary = React.useMemo(() => {
+    const eventsForWeek = calendarEvents.filter((event) => event.week === week && event.isConflict);
+    if (eventsForWeek.length === 0) return null;
+
+    const groupCount = new Set(
+      eventsForWeek
+        .map((event) => event.conflictGroupId)
+        .filter((value): value is string => Boolean(value)),
+    ).size;
+
+    if (groupCount === 0) {
+      return `${eventsForWeek.length} conflicted event${eventsForWeek.length === 1 ? '' : 's'}`;
+    }
+
+    return `${groupCount} conflict group${groupCount === 1 ? '' : 's'}`;
+  }, [calendarEvents, week]);
 
   const handleWeekChange = React.useCallback((targetWeek: number) => {
     const boundedWeek = Math.max(1, Math.min(Math.max(1, maxWeek), targetWeek));
@@ -208,6 +272,12 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     });
   }, [currentWeek]);
 
+  const handleViewModeChange = React.useCallback((nextViewMode: CalendarViewMode) => {
+    startTransition(() => {
+      setViewMode(nextViewMode);
+    });
+  }, []);
+
   const weekRangeLabel = React.useMemo(() => {
     const safeWeek = Math.max(1, week);
     const weekStart = addDays(startOfWeekMonday(semesterRange.startDate), (safeWeek - 1) * 7);
@@ -216,6 +286,11 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   }, [semesterRange.startDate, week]);
 
   const handleSaveEvent = React.useCallback(async (eventId: string, patch: CalendarEventPatch) => {
+    if (!semesterId) {
+      toast.error('Semester context is required to update events.');
+      return;
+    }
+
     const targetEvent = eventsById.get(eventId);
     if (!targetEvent) {
       toast.error('Unable to locate event for update.');
@@ -237,6 +312,11 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
         enable: patch.enable,
       });
 
+      skipNextScheduleReloadRef.current = {
+        courseId: targetEvent.courseId,
+        semesterId,
+        reason: 'event-updated',
+      };
       timetableEventBus.publish('timetable:schedule-data-changed', {
         source: 'course',
         reason: 'event-updated',
@@ -257,6 +337,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
         next.delete(eventId);
         return next;
       });
+      skipNextScheduleReloadRef.current = null;
       toast.error(updateError?.response?.data?.detail?.message ?? updateError?.message ?? 'Failed to update event.');
       throw updateError;
     }
@@ -290,28 +371,30 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           viewMode={viewMode}
           dateRangeLabel={weekRangeLabel}
           isTodayWeek={week === currentWeek}
+          conflictSummary={currentWeekConflictSummary}
           onWeekChange={handleWeekChange}
           onToday={handleToday}
-          onViewModeChange={setViewMode}
+          onViewModeChange={handleViewModeChange}
         />
 
         <div className="min-h-0 min-w-0 overflow-hidden">
           <React.Suspense fallback={<CalendarSkeleton />}>
-            <FullCalendarView
-              events={calendarEvents}
-              week={week}
-              maxWeek={maxWeek}
-              viewMode={viewMode}
+        <FullCalendarView
+          events={calendarEvents}
+          week={week}
+          maxWeek={maxWeek}
+          viewMode={viewMode}
               semesterRange={semesterRange}
               dayStartMinutes={settings.dayStartMinutes}
               dayEndMinutes={settings.dayEndMinutes}
               highlightConflicts={settings.highlightConflicts}
               showWeekends={settings.showWeekends}
-              isPending={isPending}
-              onWeekChange={handleWeekChange}
-              onEventClick={(event) => {
-                setSelectedEvent(event);
-                setIsEventEditorOpen(true);
+          isPending={isPending}
+          onWeekChange={handleWeekChange}
+          onViewModeChange={handleViewModeChange}
+          onEventClick={(event) => {
+            setSelectedEvent(event);
+            setIsEventEditorOpen(true);
               }}
             />
           </React.Suspense>
@@ -323,6 +406,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           open={isEventEditorOpen}
           onOpenChange={setIsEventEditorOpen}
           event={selectedEvent}
+          conflictingEvents={selectedEvent ? (conflictGroups.get(conflictOccurrenceKey(selectedEvent) ?? '') ?? []) : []}
           onSave={handleSaveEvent}
         />
       </React.Suspense>

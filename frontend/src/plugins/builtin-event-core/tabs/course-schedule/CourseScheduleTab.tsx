@@ -1,8 +1,16 @@
+// input:  [course id, schedule service CRUD APIs, event-core shared helpers, and table/dialog UI primitives]
+// output: [CourseScheduleTab React component]
+// pos:    [course-schedule management surface that renders accessible section rows and event toggle workflows]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
 import { ChevronDown, ChevronUp, Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
@@ -49,6 +57,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
   const [sections, setSections] = React.useState<CourseSection[]>([]);
   const [events, setEvents] = React.useState<CourseEvent[]>([]);
+  const [semesterId, setSemesterId] = React.useState<string | undefined>(undefined);
 
   const [isSectionFormOpen, setIsSectionFormOpen] = React.useState(false);
   const [isQuickAddTypeOpen, setIsQuickAddTypeOpen] = React.useState(false);
@@ -105,6 +114,24 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
     };
   }, [reloadAll]);
 
+  React.useEffect(() => {
+    let cancelled = false;
+
+    api.getCourse(courseId)
+      .then((course) => {
+        if (cancelled) return;
+        setSemesterId(course.semester_id ?? undefined);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSemesterId(undefined);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
+
   const eventsBySectionId = React.useMemo(() => groupCourseEventsBySection(events), [events]);
 
   const publishScheduleChange = React.useCallback(
@@ -113,9 +140,10 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
         source: 'course',
         reason,
         courseId,
+        semesterId,
       });
     },
-    [courseId],
+    [courseId, semesterId],
   );
 
   const toggleSectionExpand = React.useCallback((sectionId: string) => {
@@ -202,11 +230,19 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
     if (sectionEvents.length === 0) return;
 
     try {
-      await Promise.all(sectionEvents.map((event) => scheduleService.updateCourseEvent(courseId, event.id, { enable })));
+      await scheduleService.batchCourseEvents(courseId, {
+        atomic: true,
+        items: sectionEvents.map((event) => ({
+          op: 'update' as const,
+          eventId: event.id,
+          data: { enable },
+        })),
+      });
       publishScheduleChange('events-updated');
       await reloadAll();
     } catch (err: any) {
       toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update section events.');
+      await reloadAll();
     }
   }, [courseId, eventsBySectionId, publishScheduleChange, reloadAll]);
 
@@ -266,14 +302,28 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
                       onClick={() => toggleSectionExpand(section.sectionId)}
                     >
                       <TableCell>
-                        {isExpanded
-                          ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                          : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="h-7 w-7"
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} section ${section.sectionId}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleSectionExpand(section.sectionId);
+                          }}
+                        >
+                          {isExpanded
+                            ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                            : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                        </Button>
                       </TableCell>
                       <TableCell onClick={(event) => event.stopPropagation()}>
                         <Checkbox
                           checked={allEnabled ? true : isIndeterminate ? 'indeterminate' : false}
                           onCheckedChange={(checked) => handleToggleSectionEnable(section.sectionId, asChecked(checked))}
+                          aria-label={`Toggle all events in section ${section.sectionId}`}
                         />
                       </TableCell>
                       <TableCell className="font-medium">{section.sectionId}</TableCell>
@@ -340,6 +390,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
                                       id={`event-enable-${event.id}`}
                                       checked={event.enable}
                                       onCheckedChange={(checked) => handleToggleEventEnable(event, asChecked(checked))}
+                                      aria-label={`Toggle ${event.eventTypeCode} on ${getDayLabel(event.dayOfWeek)} ${event.startTime}`}
                                     />
                                     <div className="grid flex-1 grid-cols-[100px_180px_1fr] items-center gap-2">
                                       <span className="font-medium">{event.eventTypeCode}</span>

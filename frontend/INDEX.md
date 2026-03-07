@@ -1,8 +1,8 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Vite + React frontend for Semestra with lazy routes and plugin-driven dashboards.
-Core behavior is split across contexts, hooks, services, and reusable UI components, including context-safe optimistic sync, glassmorphism widget header controls, state-driven modal animations that preserve widget settings content through exit transitions, per-switch tab content fade-ins on semester/course workspaces, and a switchable habit-streak minimal calendar-first Duolingo board/classic-ring presentation with real recent-history tracking plus calendar-locked daily cadence.
-Build/test configs and scripts support local development, bundling, and release metadata, with the root route now prioritizing product entry while `/landing` remains an explicit marketing page.
+Core behavior is split across contexts, hooks, services, and reusable UI components, including context-safe optimistic sync, glassmorphism widget header controls, state-driven modal animations that preserve widget settings content through exit transitions, per-switch tab content fade-ins on semester/course workspaces, and switchable habit-streak calendar-first/classic-ring views with real recent-history tracking and refined ring styling.
+Build/test configs and scripts support local development, bundling, and release metadata, with the root route now prioritizing product entry while `/landing` remains an explicit marketing page and plugin UX/accessibility work adding scoped event-core refreshes, occurrence-scoped conflict details, overlap-safe week layout, and bounded semester todo loading.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -16,7 +16,7 @@ Build/test configs and scripts support local development, bundling, and release 
 | eslint.config.js | Lint config | ESLint ruleset for TypeScript + React hooks. |
 | index.html | HTML entry | Root HTML template with pre-React loading fallback. |
 | package-lock.json | Dependency lockfile | Pinned npm dependency tree for reproducible installs. |
-| package.json | Package manifest | Frontend scripts, dependencies, and package metadata, now bumped for the habit-streak simplified calendar-first refresh. |
+| package.json | Package manifest | Frontend scripts, dependencies, and package metadata, now bumped for the merged habit-streak and plugin UX/accessibility updates. |
 | README.md | Guide | Baseline React+Vite README and project notes. |
 | tailwind.config.ts | Style config | Tailwind scanning configuration and theme wiring. |
 | tsconfig.app.json | TypeScript config | Application TypeScript compiler options. |

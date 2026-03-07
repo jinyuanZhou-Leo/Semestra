@@ -1,8 +1,17 @@
+// input:  [course context, course/event-type APIs, shared timetable event bus, and settings CRUD UI]
+// output: [`CourseScheduleSettings` settings panel for course event-type management]
+// pos:    [Course-schedule settings surface that edits event-type definitions and publishes scoped refresh events]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
 import { Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '@/services/api';
 import { SettingsSection } from '@/components/SettingsSection';
 import {
   AlertDialog,
@@ -36,6 +45,7 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
   const [isLoading, setIsLoading] = React.useState(false);
   const [editingType, setEditingType] = React.useState<CourseEventType | null>(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [semesterId, setSemesterId] = React.useState<string | undefined>(undefined);
   const loadRequestIdRef = React.useRef(0);
 
   const loadEventTypes = React.useCallback(async () => {
@@ -65,6 +75,24 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
     };
   }, [loadEventTypes]);
 
+  React.useEffect(() => {
+    let cancelled = false;
+
+    api.getCourse(courseId)
+      .then((course) => {
+        if (cancelled) return;
+        setSemesterId(course.semester_id ?? undefined);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSemesterId(undefined);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
+
   const publishScheduleChange = React.useCallback((
     reason: 'event-type-created' | 'event-type-updated' | 'event-type-deleted',
   ) => {
@@ -72,8 +100,9 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
       source: 'course',
       reason,
       courseId,
+      semesterId,
     });
-  }, [courseId]);
+  }, [courseId, semesterId]);
 
   const handleCreateOrUpdate = React.useCallback(async (data: { code: string; abbreviation: string; track_attendance: boolean }) => {
     try {
