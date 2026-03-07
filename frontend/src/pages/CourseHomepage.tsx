@@ -1,6 +1,6 @@
-// input:  [course context, dashboard tab/widget hooks, plugin metadata/settings registries]
+// input:  [course context, dashboard tab/widget hooks, plugin metadata/settings registries, active tab selection state]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with tabbed dashboard, widgets, and course settings]
+// pos:    [Course workspace page with tabbed dashboard, widgets, course settings, and per-switch tab fade transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -330,7 +330,7 @@ const CourseHomepageContent: React.FC = () => {
         }
         return (
             <React.Suspense fallback={<PluginTabSkeleton />}>
-                <PluginContentFadeIn>
+                <PluginContentFadeIn key={activeTab.id}>
                     <TabComponent
                         tabId={activeTab.id}
                         settings={activeTab.settings || {}}

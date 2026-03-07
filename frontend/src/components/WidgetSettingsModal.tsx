@@ -1,6 +1,6 @@
-// input:  [active widget payload, widget registry settings component lookup, save callback]
+// input:  [active widget payload, widget registry settings component lookup, save callback, dialog open state]
 // output: [`WidgetSettingsModal` component]
-// pos:    [Per-widget settings editor modal rendered from widget definition metadata]
+// pos:    [Per-widget settings editor modal that preserves the last widget payload through the close animation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -30,26 +30,38 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
   widget,
   onSave,
 }) => {
-  const widgetMetadata = getResolvedWidgetMetadataByType(widget?.type || "");
-  const displayWidgetName = widgetMetadata.name ?? widget?.type ?? "Widget";
-  const SettingsComponent = getWidgetSettingsComponentByType(widget?.type || "");
+  const [renderedWidget, setRenderedWidget] = useState(widget);
+  const activeWidget = widget ?? renderedWidget;
+  const activeWidgetId = activeWidget?.id;
+  const activeWidgetSettings = activeWidget?.settings;
+  const widgetMetadata = getResolvedWidgetMetadataByType(activeWidget?.type || "");
+  const displayWidgetName = widgetMetadata.name ?? activeWidget?.type ?? "Widget";
+  const SettingsComponent = getWidgetSettingsComponentByType(activeWidget?.type || "");
   const [draftSettings, setDraftSettings] = useState<any>(widget?.settings || {});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
 
   useEffect(() => {
-    setDraftSettings(widget?.settings || {});
+    if (widget) {
+      setRenderedWidget(widget);
+    }
+  }, [widget]);
+
+  useEffect(() => {
+    if (!isOpen || !activeWidgetId) return;
+
+    setDraftSettings(activeWidgetSettings || {});
     setSaveState("idle");
-  }, [widget?.id, widget?.settings, isOpen]);
+  }, [activeWidgetId, activeWidgetSettings, isOpen]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!widget || saveState === "saving") return;
+    if (!activeWidget || saveState === "saving") return;
 
     setSaveState("saving");
     try {
-    await onSave(widget.id, {
-      settings: JSON.stringify(draftSettings),
-    });
+      await onSave(activeWidget.id, {
+        settings: JSON.stringify(draftSettings),
+      });
       onClose();
     } catch (error) {
       console.error("Failed to save widget settings", error);

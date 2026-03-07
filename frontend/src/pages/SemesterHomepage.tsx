@@ -1,6 +1,6 @@
-// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings registries]
+// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings registries, active tab selection state]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with tabbed dashboard, widgets, and settings panel]
+// pos:    [Semester workspace page with tabbed dashboard, widgets, settings panel, and per-switch tab fade transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -269,7 +269,7 @@ const SemesterHomepageContent: React.FC = () => {
         }
         return (
             <React.Suspense fallback={<PluginTabSkeleton />}>
-                <PluginContentFadeIn>
+                <PluginContentFadeIn key={activeTab.id}>
                     <TabComponent
                         tabId={activeTab.id}
                         settings={activeTab.settings || {}}

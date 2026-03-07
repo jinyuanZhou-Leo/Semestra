@@ -41,4 +41,4 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | TabSwitch.tsx | UI component | Reusable component for tab switch UI/interaction flow. |
 | ThemeProvider.tsx | UI component | Reusable component for theme provider UI/interaction flow. |
 | ThemeToggle.tsx | UI component | Reusable component for theme toggle UI/interaction flow. |
-| WidgetSettingsModal.tsx | UI component | Reusable widget-settings modal relying on shared dialog animation primitives. |
+| WidgetSettingsModal.tsx | UI component | Reusable widget-settings modal relying on shared dialog animation primitives while preserving the active widget payload through close animations. |

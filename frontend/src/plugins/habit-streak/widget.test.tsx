@@ -1,6 +1,6 @@
 // input:  [HabitStreak widget/helper exports and testing-library render/event utilities]
 // output: [vitest coverage for habit check-in windows, real check-in history normalization, dual display-style widget UI behavior, ring-only encouragement toast behavior, and header reset actions]
-// pos:    [plugin-level regression tests for habit-streak helper logic, 7-day streak calendar rendering, classic ring fallback, toast gating, and runtime contract expectations]
+// pos:    [plugin-level regression tests for habit-streak helper logic, minimal calendar-first 7-day board rendering, classic ring fallback, toast gating, and runtime contract expectations]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -87,6 +87,17 @@ describe('HabitStreak helpers', () => {
 
         expect(settings.displayStyle).toBe('calendar');
     });
+
+    it('locks calendar display style to daily cadence and disabled encouragement', () => {
+        const settings = normalizeHabitStreakSettings({
+            displayStyle: 'calendar',
+            checkInIntervalHours: 168,
+            showMotivationalMessage: true,
+        });
+
+        expect(settings.checkInIntervalHours).toBe(24);
+        expect(settings.showMotivationalMessage).toBe(false);
+    });
 });
 
 describe('HabitStreakWidget', () => {
@@ -145,7 +156,7 @@ describe('HabitStreakWidget', () => {
                 checkInHistory: ['2026-03-06'],
                 displayStyle: 'calendar',
                 targetStreak: 21,
-                showMotivationalMessage: true,
+                showMotivationalMessage: false,
             })
         );
     });
@@ -167,6 +178,7 @@ describe('HabitStreakWidget', () => {
                     totalCheckIns: 11,
                     lastCheckInAt: '2026-03-06T08:00:00.000Z',
                     checkInHistory: ['2026-03-06'],
+                    displayStyle: 'ring',
                 }}
                 updateSettings={updateSettings}
             />
@@ -228,7 +240,12 @@ describe('HabitStreakWidget', () => {
 
         expect(screen.queryByText('Goal: 30 streaks')).not.toBeInTheDocument();
         expect(screen.queryByText('5/30 streak')).not.toBeInTheDocument();
-        expect(screen.getByText('Day Streak')).toBeInTheDocument();
+        expect(screen.queryByText('Day Streak')).not.toBeInTheDocument();
+        expect(screen.getByText('Week')).toBeInTheDocument();
+        expect(screen.getByTestId('habit-calendar-board')).toBeInTheDocument();
+        expect(screen.queryByTestId('habit-calendar-summary')).not.toBeInTheDocument();
+        expect(screen.getByText('5d')).toBeInTheDocument();
+        expect(screen.queryByText('Keep the row alive')).not.toBeInTheDocument();
         expect(screen.getAllByTestId(/habit-day-/)).toHaveLength(7);
         expect(screen.getByTestId('habit-day-2026-03-06')).toHaveAttribute('data-today', 'true');
         expect(screen.getByTestId('habit-day-2026-03-05')).toHaveAttribute('data-completed', 'true');
@@ -289,6 +306,31 @@ describe('HabitStreakWidget', () => {
         expect(screen.queryByTestId('habit-motivational-toast')).not.toBeInTheDocument();
     });
 
+    it('disables cadence and encouragement settings in Duolingo calendar view', () => {
+        const SettingsComponent = HabitStreakWidgetDefinition.SettingsComponent;
+        const onSettingsChange = vi.fn();
+
+        if (!SettingsComponent) {
+            throw new Error('Missing habit-streak settings component');
+        }
+
+        render(
+            <SettingsComponent
+                settings={{
+                    displayStyle: 'calendar',
+                    checkInIntervalHours: 168,
+                    showMotivationalMessage: true,
+                }}
+                onSettingsChange={onSettingsChange}
+            />
+        );
+
+        expect(screen.getByLabelText('Check-in cadence')).toBeDisabled();
+        expect(screen.getByLabelText('Encouragement on check-in')).toBeDisabled();
+        expect(screen.getByText('Hidden in Duolingo calendar view, preserved for classic ring.')).toBeInTheDocument();
+        expect(onSettingsChange).not.toHaveBeenCalled();
+    });
+
     it('resets streak through header confirm action', () => {
         const resetAction = HabitStreakWidgetDefinition.headerButtons?.find((button) => button.id === 'reset-streak');
         const updateSettings = vi.fn();
@@ -340,7 +382,7 @@ describe('HabitStreakWidget', () => {
             lastCheckInAt: null,
             checkInHistory: [],
             displayStyle: 'calendar',
-            showMotivationalMessage: true,
+            showMotivationalMessage: false,
         });
     });
 

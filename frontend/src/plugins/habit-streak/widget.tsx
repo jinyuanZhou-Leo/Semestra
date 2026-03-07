@@ -1,6 +1,6 @@
 // input:  [widget settings/update callbacks, framer-motion animation runtime, shadcn form controls/dialog actions]
 // output: [habit-streak widget component, settings component, helpers, and widget definition metadata]
-// pos:    [plugin runtime + settings layer for interval-based habit check-ins with preset cadence controls, real recent-history tracking, switchable Duolingo-card/classic-ring visuals, ring-only encouragement toast behavior, shadowless check-in CTA styling, and reusable burst animations]
+// pos:    [plugin runtime + settings layer for interval-based habit check-ins with preset cadence controls, real recent-history tracking, switchable Duolingo-card/classic-ring visuals, a minimal calendar-first Duolingo week board, calendar-locked daily cadence plus disabled encouragement, ring-only encouragement toast behavior, shadowless check-in CTA styling, and reusable burst animations]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -185,6 +185,15 @@ const clampDisplayStyle = (value: unknown): HabitStreakDisplayStyle => {
         : DEFAULT_HABIT_STREAK_SETTINGS.displayStyle;
 };
 
+const applyDisplayStyleConstraints = (settings: HabitStreakSettings): HabitStreakSettings => {
+    if (settings.displayStyle !== 'calendar') return settings;
+    return {
+        ...settings,
+        checkInIntervalHours: 24,
+        showMotivationalMessage: false,
+    };
+};
+
 const getStartOfLocalDay = (timestampMs: number) => {
     const date = new Date(timestampMs);
     return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
@@ -252,7 +261,7 @@ export const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSett
     const parsedLastCheckInAt = typeof source.lastCheckInAt === 'string' ? Date.parse(source.lastCheckInAt) : NaN;
     const nowMs = Date.now();
 
-    return {
+    return applyDisplayStyleConstraints({
         habitName: typeof source.habitName === 'string' ? source.habitName : DEFAULT_HABIT_STREAK_SETTINGS.habitName,
         checkInIntervalHours: clampIntervalHours(source.checkInIntervalHours),
         targetStreak: clampTargetStreak(source.targetStreak),
@@ -263,7 +272,7 @@ export const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSett
         checkInHistory: normalizeCheckInHistory(source.checkInHistory, nowMs),
         displayStyle: clampDisplayStyle(source.displayStyle),
         showMotivationalMessage: typeof source.showMotivationalMessage === 'boolean' ? source.showMotivationalMessage : DEFAULT_HABIT_STREAK_SETTINGS.showMotivationalMessage,
-    };
+    });
 };
 
 export const getCheckInWindowState = (
@@ -347,12 +356,13 @@ const formatRemainingTime = (remainingMs: number): string => {
 const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSettingsChange }) => {
     const ids = useId();
     const habitSettings = normalizeHabitStreakSettings(settings);
+    const isCalendarDisplay = habitSettings.displayStyle === 'calendar';
 
     const updateSettings = useCallback((patch: Partial<HabitStreakSettings>) => {
-        onSettingsChange({
+        onSettingsChange(applyDisplayStyleConstraints({
             ...habitSettings,
             ...patch,
-        });
+        }));
     }, [habitSettings, onSettingsChange]);
 
     return (
@@ -373,6 +383,7 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
                     <Select
                         value={String(habitSettings.checkInIntervalHours)}
                         onValueChange={(value) => updateSettings({ checkInIntervalHours: clampIntervalHours(value) })}
+                        disabled={isCalendarDisplay}
                     >
                         <SelectTrigger id={`${ids}-interval-hours`} className="w-full">
                             <SelectValue placeholder="Select cadence" />
@@ -434,6 +445,7 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
                     id={`${ids}-motivational-msg`}
                     checked={habitSettings.showMotivationalMessage}
                     onCheckedChange={(checked) => updateSettings({ showMotivationalMessage: checked })}
+                    disabled={isCalendarDisplay}
                 />
             </div>
         </div>
@@ -676,10 +688,10 @@ const HabitStreakCard: React.FC<HabitStreakCardProps> = ({
     const recentDayCells = useMemo(() => buildRecentDayCells(checkInHistory, nowMs), [checkInHistory, nowMs]);
 
     return (
-        <div className="relative flex w-full max-w-[250px] flex-col items-center justify-center gap-4">
+        <div className="relative flex w-full max-w-[286px] flex-col items-center justify-center gap-2.5">
             <AnimatePresence>
                 {bursts.map(burst => (
-                    <div key={burst.id} className="pointer-events-none absolute left-1/2 top-12 h-28 w-28 -translate-x-1/2 -translate-y-1/2 mix-blend-screen">
+                    <div key={burst.id} className="pointer-events-none absolute left-1/2 top-24 h-36 w-36 -translate-x-1/2 -translate-y-1/2 mix-blend-screen">
                         <motion.div
                             className="absolute inset-0 rounded-full border-2"
                             style={{ borderColor: burst.isOverachieve ? 'rgba(244, 63, 94, 0.4)' : 'rgba(249, 115, 22, 0.5)' }}
@@ -705,79 +717,51 @@ const HabitStreakCard: React.FC<HabitStreakCardProps> = ({
                 ))}
             </AnimatePresence>
 
-            <motion.div
-                className="relative flex w-full max-w-[210px] items-center gap-3 rounded-[26px] px-4 py-3 text-white shadow-[0_18px_40px_rgba(242,109,44,0.26)]"
-                style={{
-                    background:
-                        'linear-gradient(180deg, rgba(255,184,75,0.98) 0%, rgba(255,128,40,0.98) 48%, rgba(232,73,45,0.98) 100%)',
-                }}
-                initial={prefersReducedMotion ? false : { scale: 0.97, opacity: 0.96 }}
-                animate={prefersReducedMotion ? { scale: 1, opacity: 1 } : { scale: [1, 1.02, 1], opacity: 1 }}
-                transition={prefersReducedMotion ? { duration: 0.2 } : { duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-            >
-                <div className="absolute inset-x-5 top-0 h-px bg-white/45" />
-                <div className="absolute -left-3 top-2 h-10 w-10 rounded-full bg-white/18 blur-2xl" />
-                <motion.div
-                    key={streakCount}
-                    className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white/18 ring-1 ring-white/35 backdrop-blur-[2px]"
-                    initial={prefersReducedMotion ? false : { scale: 0.88, rotate: -8 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-                >
-                    <Flame className="h-8 w-8 fill-current text-white drop-shadow-[0_6px_12px_rgba(131,31,2,0.28)]" />
-                </motion.div>
-                <div className="grid min-w-0 gap-0.5">
-                    <motion.span
-                        key={`streak-count-${streakCount}`}
-                        className="text-[clamp(1.8rem,12cqmin,2.6rem)] font-black leading-none tracking-[-0.06em]"
-                        initial={prefersReducedMotion ? false : { scale: 1.1, opacity: 0.7 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: 'spring', stiffness: 260, damping: 18 }}
-                    >
-                        {streakCount}
-                    </motion.span>
-                    <span className="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-white/80">
-                        Day Streak
+            <div className="w-full">
+                <div className="mb-2.5 flex items-center justify-between gap-3 whitespace-nowrap px-1">
+                    <span className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-stone-500 dark:text-white/45">
+                        Week
                     </span>
+                    <div className="flex items-center gap-1.5 text-[0.72rem] font-semibold text-stone-600 dark:text-white/68">
+                        <Flame className="h-3.5 w-3.5 text-[#ef7b2d]" />
+                        <span className="font-black text-stone-900 dark:text-white">{streakCount}d</span>
+                    </div>
                 </div>
-            </motion.div>
 
-            <div className="grid w-full grid-cols-7 gap-1.5">
-                {recentDayCells.map((day) => (
-                    <div
-                        key={day.key}
-                        data-testid={`habit-day-${day.key}`}
-                        data-completed={day.isCompleted ? 'true' : 'false'}
-                        data-today={day.isToday ? 'true' : 'false'}
-                        className={cn(
-                            'relative flex min-h-[72px] flex-col items-center justify-between rounded-[18px] px-1.5 py-2 text-center ring-1 transition-transform duration-300',
-                            day.isCompleted
-                                ? 'bg-[linear-gradient(180deg,#ffb84b_0%,#ff7f3a_52%,#e54a2e_100%)] text-white ring-transparent shadow-[0_10px_24px_rgba(232,73,45,0.22)]'
-                                : 'bg-white/72 text-stone-600 ring-black/6 dark:bg-white/8 dark:text-white/72 dark:ring-white/10',
-                            day.isToday && 'scale-[1.03] ring-2 ring-[#ff8f2c] dark:ring-[#ffb14b]',
-                        )}
-                    >
-                        {day.isToday && (
-                            <div className="pointer-events-none absolute inset-x-2 -top-1 h-3 rounded-full bg-[#ffb55d]/70 blur-md dark:bg-[#ff9f57]/55" />
-                        )}
-                        <span className={cn('text-[0.6rem] font-bold uppercase tracking-[0.18em]', day.isCompleted ? 'text-white/72' : 'text-stone-400 dark:text-white/45')}>
-                            {day.dayLabel}
-                        </span>
-                        <span className="text-base font-black leading-none tracking-tight">
-                            {day.dayNumber}
-                        </span>
-                        <span
+                <div className="grid w-full grid-cols-7 gap-1.5" data-testid="habit-calendar-board">
+                    {recentDayCells.map((day) => (
+                        <div
+                            key={day.key}
+                            data-testid={`habit-day-${day.key}`}
+                            data-completed={day.isCompleted ? 'true' : 'false'}
+                            data-today={day.isToday ? 'true' : 'false'}
                             className={cn(
-                                'flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
+                                'relative flex min-h-[84px] flex-col items-center justify-between rounded-[18px] px-1 py-2.5 text-center ring-1 transition-transform duration-300',
                                 day.isCompleted
-                                    ? 'bg-white/22 text-white'
-                                    : 'bg-stone-200 text-stone-400 dark:bg-white/10 dark:text-white/36',
+                                    ? 'bg-[linear-gradient(180deg,#ffbb52_0%,#ff8c40_50%,#e45433_100%)] text-white ring-transparent shadow-[0_10px_20px_rgba(232,73,45,0.2)]'
+                                    : 'bg-white/84 text-stone-600 ring-black/6 dark:bg-white/6 dark:text-white/72 dark:ring-white/10',
+                                day.isToday && 'scale-[1.02] ring-2 ring-[#ff8f2c] dark:ring-[#ffb14b]',
                             )}
                         >
-                            {day.isCompleted ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-                        </span>
-                    </div>
-                ))}
+                            <span className={cn('text-[0.56rem] font-bold uppercase tracking-[0.18em]', day.isCompleted ? 'text-white/72' : 'text-stone-400 dark:text-white/45')}>
+                                {day.dayLabel}
+                            </span>
+                            <span className="text-[1.08rem] font-black leading-none tracking-tight">
+                                {day.dayNumber}
+                            </span>
+                            <span
+                                className={cn(
+                                    'flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
+                                    day.isCompleted
+                                        ? 'bg-white/22 text-white'
+                                        : 'bg-stone-200 text-stone-400 dark:bg-white/10 dark:text-white/36',
+                                )}
+                            >
+                                {day.isCompleted ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                            </span>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

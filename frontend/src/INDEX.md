@@ -7,12 +7,12 @@ Plugin implementations live under `plugins/` (currently intentionally skipped in
 | File | Role | Description |
 |------|------|-------------|
 | assets/ | Subdirectory | Source-level static assets imported by TS/TSX modules. |
-| components/ | Subdirectory | Reusable application components (excluding `components/ui` in this scope). |
+| components/ | Subdirectory | Reusable application components (excluding `components/ui` in this scope), including widget settings overlays that keep their payload mounted through dialog exit animations. |
 | contexts/ | Subdirectory | React context providers and related hooks. |
 | hooks/ | Subdirectory | Reusable custom React hooks for race-safe data fetching and context-guarded dashboard sync. |
 | layouts/ | Subdirectory | Reserved layout abstractions. |
 | lib/ | Subdirectory | Small shared helper modules. |
-| pages/ | Subdirectory | Route-level page components. |
+| pages/ | Subdirectory | Route-level page components, including semester/course workspaces with tab content fade-in on every active-tab switch. |
 | plugin-system/ | Subdirectory | Plugin catalog/loading runtime layer. |
 | plugins/ | Subdirectory | Plugin implementation modules (skipped for now by request). |
 | services/ | Subdirectory | HTTP, registry, and app-state service layer. |
