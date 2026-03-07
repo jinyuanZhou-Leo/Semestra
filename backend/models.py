@@ -72,6 +72,8 @@ class Semester(Base):
     program_id = Column(String, ForeignKey("programs.id"))
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
+    reading_week_start = Column(Date, nullable=True)
+    reading_week_end = Column(Date, nullable=True)
     
     average_percentage = Column(Float, default=0.0)
     average_scaled = Column(Float, default=0.0)

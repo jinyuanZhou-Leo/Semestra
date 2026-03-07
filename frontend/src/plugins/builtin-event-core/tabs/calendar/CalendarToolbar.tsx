@@ -1,6 +1,6 @@
-// input:  [week/view state, conflict summary text, and calendar navigation callbacks]
-// output: [`CalendarToolbar` control bar for calendar navigation, view switching, and conflict summary]
-// pos:    [Calendar header controls that surface week navigation plus high-level conflict state]
+// input:  [calendar period state, display week metadata, and calendar navigation callbacks]
+// output: [`CalendarToolbar` control bar for calendar navigation and view switching]
+// pos:    [Calendar header controls that surface period navigation and Reading Week-aware labels without top conflict badges]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,6 @@
 
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { CalendarViewMode } from '../../shared/types';
@@ -20,9 +19,13 @@ interface CalendarToolbarProps {
   maxWeek: number;
   viewMode: CalendarViewMode;
   dateRangeLabel: string;
-  isTodayWeek: boolean;
-  conflictSummary?: string | null;
-  onWeekChange: (week: number) => void;
+  periodLabel: string;
+  isCurrentPeriod: boolean;
+  displayWeekNumber: number | null;
+  displayMaxWeek: number;
+  isReadingWeek: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
   onToday: () => void;
   onViewModeChange: (viewMode: CalendarViewMode) => void;
 }
@@ -32,9 +35,13 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
   maxWeek,
   viewMode,
   dateRangeLabel,
-  isTodayWeek,
-  conflictSummary,
-  onWeekChange,
+  periodLabel,
+  isCurrentPeriod,
+  displayWeekNumber,
+  displayMaxWeek,
+  isReadingWeek,
+  onPrevious,
+  onNext,
   onToday,
   onViewModeChange,
 }) => {
@@ -49,9 +56,9 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
           variant="ghost"
           size="sm"
           className="min-w-[44px] border border-border/60 bg-background hover:bg-muted/30"
-          aria-label="Previous week"
-          disabled={safeWeek <= 1}
-          onClick={() => onWeekChange(safeWeek - 1)}
+          aria-label={`Previous ${periodLabel.toLowerCase()}`}
+          disabled={viewMode === 'week' && safeWeek <= 1}
+          onClick={onPrevious}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -60,23 +67,23 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
           variant="outline"
           size="sm"
           className={`min-w-[68px] ${
-            isTodayWeek
+            isCurrentPeriod
               ? 'border-primary/40 bg-background text-primary hover:bg-primary/10'
               : 'bg-background hover:bg-muted/30'
           }`}
           onClick={onToday}
-          disabled={isTodayWeek}
+          disabled={isCurrentPeriod}
         >
-          Today
+          This {periodLabel}
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="min-w-[44px] border border-border/60 bg-background hover:bg-muted/30"
-          aria-label="Next week"
-          disabled={safeWeek >= safeMaxWeek}
-          onClick={() => onWeekChange(safeWeek + 1)}
+          aria-label={`Next ${periodLabel.toLowerCase()}`}
+          disabled={viewMode === 'week' && safeWeek >= safeMaxWeek}
+          onClick={onNext}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -97,14 +104,12 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
         </ToggleGroup>
       </div>
 
-      <div className="flex items-center gap-2">
-        {conflictSummary ? (
-          <Badge variant="destructive" className="shrink-0">
-            {conflictSummary}
-          </Badge>
-        ) : null}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <p className="rounded-md border border-border/70 bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground">
-          Week {safeWeek}/{safeMaxWeek} · {dateRangeLabel}
+          {viewMode === 'week'
+            ? `${isReadingWeek ? 'Reading Week' : `Week ${displayWeekNumber ?? safeWeek}/${Math.max(1, displayMaxWeek)}`} · `
+            : ''}
+          {dateRangeLabel}
         </p>
       </div>
     </div>

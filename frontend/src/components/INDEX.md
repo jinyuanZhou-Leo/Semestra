@@ -25,14 +25,14 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | IconCircle.tsx | UI component | Reusable component for icon circle UI/interaction flow. |
 | ImportPreviewModal.tsx | UI component | Reusable component for import preview modal UI/interaction flow. |
 | KeyValueTable.tsx | UI component | Reusable component for key value table UI/interaction flow. |
-| Layout.tsx | UI component | Shared authenticated layout chrome, including header breadcrumb slot with fixed-height overflow handling to prevent wrapping jumps. |
+| Layout.tsx | UI component | Shared authenticated layout chrome, including header breadcrumb slot, fixed-height overflow handling, and server-backed sign-out actions. |
 | PageSkeleton.tsx | UI component | Reusable component for page skeleton UI/interaction flow. |
 | PluginSettingsCard.tsx | UI component | Reusable component for plugin settings card UI/interaction flow. |
 | ProgramSettingsPanel.tsx | UI component | Reusable component for program settings panel UI/interaction flow. |
 | ResponsiveDialogDrawer.tsx | UI component | Shared responsive overlay wrapper that renders desktop dialog and mobile drawer, with unified header/footer slots and open-time focus handoff. |
 | RequireAuth.tsx | UI component | Reusable component for require auth UI/interaction flow. |
 | SaveSettingButton.tsx | UI component | Reusable component for save setting button UI/interaction flow. |
-| SemesterSettingsPanel.tsx | UI component | Reusable semester settings panel with mobile-safe date-range trigger text truncation and single-month mobile calendar rendering. |
+| SemesterSettingsPanel.tsx | UI component | Reusable semester settings panel with semester-duration editing, optional Monday-to-Sunday Reading Week selection, and mobile-safe calendar trigger text. |
 | SessionExpiredModal.tsx | UI component | Reusable component for session expired modal UI/interaction flow. |
 | SettingsModal.tsx | UI component | Reusable component for settings modal UI/interaction flow. |
 | SettingsSection.tsx | UI component | Reusable component for settings section UI/interaction flow. |

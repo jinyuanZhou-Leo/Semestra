@@ -1,6 +1,6 @@
-// input:  [auth login action, token/google auth endpoints, password rule helper, theme visuals]
+// input:  [cookie-session login action, token/google auth endpoints, password rule helper, theme visuals]
 // output: [`LoginPage` route component]
-// pos:    [Authentication entry page for password and Google sign-in flows]
+// pos:    [Authentication entry page for password and Google sign-in flows with cookie-backed session bootstrap]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -102,10 +102,10 @@ export const LoginPage: React.FC = () => {
                     // setGoogleError(''); // Removed
                     setIsGoogleLoading(true);
                     try {
-                        const loginResponse = await axios.post('/api/auth/google', {
+                        await axios.post('/api/auth/google', {
                             id_token: response.credential
                         });
-                        login(loginResponse.data.access_token);
+                        await login();
                         navigate('/');
                     } catch (err: any) {
                         toast.error(err.response?.data?.detail || 'Google sign-in failed.');
@@ -159,13 +159,13 @@ export const LoginPage: React.FC = () => {
                 formData.append('remember_me', 'true');
             }
 
-            const response = await axios.post('/api/auth/token', formData, {
+            await axios.post('/api/auth/token', formData, {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
             });
 
-            login(response.data.access_token);
+            await login();
             navigate('/');
         } catch (err: any) {
             toast.error(err.response?.data?.detail || 'Failed to login. Please check your credentials.');

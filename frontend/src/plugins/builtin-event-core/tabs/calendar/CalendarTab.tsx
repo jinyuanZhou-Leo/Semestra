@@ -1,6 +1,6 @@
-// input:  [semester context, schedule/calendar services, shared event bus, and calendar subcomponents]
-// output: [Calendar tab runtime component with optimistic event editing and scoped schedule refresh behavior]
-// pos:    [Built-in event-core calendar orchestrator for semester schedule visualization and event edits]
+// input:  [semester context, schedule/calendar services, todo tab storage, shared event bus, and calendar subcomponents]
+// output: [Calendar tab runtime component with Reading Week-aware schedule + todo event rendering and scoped refresh behavior]
+// pos:    [Built-in event-core calendar orchestrator for semester schedule visualization, Reading Week-aware navigation, todo overlays, and event edits]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,11 +10,12 @@
 
 import React from 'react';
 import { toast } from 'sonner';
-import api from '@/services/api';
+import api, { type Course } from '@/services/api';
 import scheduleService from '@/services/schedule';
 import type { TabProps } from '@/services/tabRegistry';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  BUILTIN_TIMETABLE_TODO_TAB_TYPE,
   CALENDAR_DEFAULT_VIEW_MODE,
   DEFAULT_WEEK,
 } from '../../shared/constants';
@@ -30,12 +31,22 @@ import type {
 import {
   addDays,
   buildCalendarEvents,
+  getDisplayMaxWeek,
+  getDisplayWeekNumber,
+  getWeekFromSemesterDate,
+  getWeekStartForSemester,
+  isDateInReadingWeek,
+  isReadingWeek,
+  parseTimeOnDate,
   resolveSemesterDateRange,
   startOfWeekMonday,
+  toMinutes,
 } from '../../shared/utils';
 import { CalendarToolbar } from './CalendarToolbar';
 import { CalendarSkeleton } from './components/CalendarSkeleton';
 import { normalizeCalendarSettings } from './settings';
+import { normalizeCourseListStateFromTab, normalizeSemesterCustomLists, parseJsonObject } from '../todo/utils/todoData';
+import type { SemesterCustomListStorage, TodoTask } from '../todo/types';
 
 const FullCalendarView = React.lazy(async () => {
   const module = await import('./FullCalendarView');
@@ -49,7 +60,10 @@ const EventEditor = React.lazy(async () => {
 
 const FALLBACK_RANGE: SemesterDateRange = resolveSemesterDateRange(undefined, undefined, 16);
 const rangeDateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+const monthLabelFormatter = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const TODO_EVENT_DURATION_MINUTES = 30;
+const TODO_DETAIL_MAX_PARALLEL_REQUESTS = 4;
 
 type ScheduleReloadSkipToken = {
   courseId: string;
@@ -62,6 +76,81 @@ const conflictOccurrenceKey = (event: CalendarEventData) => {
   return `${event.week}:${event.dayOfWeek}:${event.conflictGroupId}`;
 };
 
+const runWithConcurrencyLimit = async <T,>(tasks: Array<() => Promise<T>>, maxParallelRequests: number): Promise<T[]> => {
+  if (tasks.length === 0) return [];
+
+  const results = new Array<T>(tasks.length);
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < tasks.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await tasks[currentIndex]();
+    }
+  };
+
+  const workerCount = Math.min(tasks.length, Math.max(1, Math.floor(maxParallelRequests)));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+  return results;
+};
+
+const buildTodoEvent = (
+  task: TodoTask,
+  semesterStartDate: Date,
+  semesterEndDate: Date,
+  color: string,
+  courseId: string,
+  courseName: string,
+): CalendarEventData | null => {
+  if (task.completed || !task.dueDate) return null;
+
+  const targetDate = new Date(`${task.dueDate}T00:00:00`);
+  if (!Number.isFinite(targetDate.getTime())) return null;
+
+  const normalizedTargetDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+  const semesterStart = startOfWeekMonday(semesterStartDate);
+  const semesterEnd = new Date(semesterEndDate.getFullYear(), semesterEndDate.getMonth(), semesterEndDate.getDate(), 23, 59, 59, 999);
+  if (normalizedTargetDate.getTime() < semesterStart.getTime() || normalizedTargetDate.getTime() > semesterEnd.getTime()) {
+    return null;
+  }
+
+  const week = getWeekFromSemesterDate(semesterStartDate, normalizedTargetDate);
+  const day = normalizedTargetDate.getDay();
+  const dayOfWeek = day === 0 ? 7 : day;
+  const isAllDay = !task.dueTime;
+  const start = isAllDay ? normalizedTargetDate : parseTimeOnDate(normalizedTargetDate, task.dueTime);
+  const end = isAllDay
+    ? addDays(normalizedTargetDate, 1)
+    : new Date(start.getTime() + (TODO_EVENT_DURATION_MINUTES * 60 * 1000));
+
+  return {
+    id: `todo:${courseId}:${task.id}:${task.dueDate}:${task.dueTime || 'all-day'}`,
+    eventId: task.id,
+    source: 'todo',
+    title: task.title.trim() || 'Todo',
+    courseId,
+    courseName,
+    eventTypeCode: 'Todo',
+    start,
+    end,
+    allDay: isAllDay,
+    week,
+    dayOfWeek,
+    weekPattern: null,
+    isRecurring: false,
+    startTime: isAllDay ? 'All day' : task.dueTime,
+    endTime: isAllDay ? 'All day' : `${String(Math.floor((toMinutes(task.dueTime) + TODO_EVENT_DURATION_MINUTES) / 60) % 24).padStart(2, '0')}:${String((toMinutes(task.dueTime) + TODO_EVENT_DURATION_MINUTES) % 60).padStart(2, '0')}`,
+    color,
+    isSkipped: false,
+    isConflict: false,
+    conflictGroupId: null,
+    enable: true,
+    note: task.description || null,
+  };
+};
+
 export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings }) => {
   const [week, setWeek] = React.useState(DEFAULT_WEEK);
   const [viewMode, setViewMode] = React.useState<CalendarViewMode>(CALENDAR_DEFAULT_VIEW_MODE as CalendarViewMode);
@@ -69,9 +158,11 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   const [selectedEvent, setSelectedEvent] = React.useState<CalendarEventData | null>(null);
   const [isEventEditorOpen, setIsEventEditorOpen] = React.useState(false);
   const [semesterRange, setSemesterRange] = React.useState<SemesterDateRange>(FALLBACK_RANGE);
+  const [monthAnchorDate, setMonthAnchorDate] = React.useState<Date>(FALLBACK_RANGE.startDate);
   const [optimisticPatches, setOptimisticPatches] = React.useState<Map<string, CalendarEventPatch>>(new Map());
+  const [todoEvents, setTodoEvents] = React.useState<CalendarEventData[]>([]);
+  const [todoReloadNonce, setTodoReloadNonce] = React.useState(0);
   const [viewportBoundHeight, setViewportBoundHeight] = React.useState<number | null>(null);
-  const [isPending, startTransition] = React.useTransition();
   const cardRef = React.useRef<HTMLDivElement | null>(null);
   const hasUserInteractedWithWeekRef = React.useRef(false);
   const skipNextScheduleReloadRef = React.useRef<ScheduleReloadSkipToken | null>(null);
@@ -109,24 +200,73 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   }, [semesterId]);
 
   React.useEffect(() => {
+    setMonthAnchorDate(semesterRange.startDate);
+  }, [semesterId, semesterRange.startDate]);
+
+  React.useEffect(() => {
     if (!semesterId) return;
 
     let isActive = true;
 
-    api.getSemester(semesterId)
-      .then((semester) => {
-        if (!isActive) return;
-        setSemesterRange(resolveSemesterDateRange(semester.start_date, semester.end_date, Math.max(1, maxWeek)));
-      })
+    const loadTodoCalendarEvents = async () => {
+      const semester = await api.getSemester(semesterId);
+      if (!isActive) return;
+
+      const resolvedRange = resolveSemesterDateRange(
+        semester.start_date,
+        semester.end_date,
+        Math.max(1, maxWeek),
+        semester.reading_week_start,
+        semester.reading_week_end,
+      );
+      setSemesterRange(resolvedRange);
+
+      const courses = (semester.courses ?? []) as Course[];
+      const coursesNeedingDetail = courses.filter((course) => !Array.isArray(course.tabs));
+      const detailResponses = await runWithConcurrencyLimit(
+        coursesNeedingDetail.map((course) => async () => {
+          try {
+            const detail = await api.getCourse(course.id);
+            return { courseId: course.id, detail };
+          } catch {
+            return { courseId: course.id, detail: undefined };
+          }
+        }),
+        TODO_DETAIL_MAX_PARALLEL_REQUESTS,
+      );
+
+      if (!isActive) return;
+
+      const detailsByCourseId = new Map(detailResponses.map((item) => [item.courseId, item.detail]));
+      const semesterTodoTab = semester.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
+      const semesterCustomLists = normalizeSemesterCustomLists(parseJsonObject(semesterTodoTab?.settings));
+      const courseTodoEvents = courses.flatMap((course) => {
+        const detail = Array.isArray(course.tabs) ? course : detailsByCourseId.get(course.id);
+        const todoTab = detail?.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
+        const state = normalizeCourseListStateFromTab(course.id, course.name, todoTab);
+        return state.tasks
+          .map((task) => buildTodoEvent(task, resolvedRange.startDate, resolvedRange.endDate, settings.eventColors.todo, course.id, course.name))
+          .filter((event): event is CalendarEventData => event !== null);
+      });
+      const customTodoEvents = semesterCustomLists.flatMap((list: SemesterCustomListStorage) => {
+        return list.tasks
+          .map((task) => buildTodoEvent(task, resolvedRange.startDate, resolvedRange.endDate, settings.eventColors.todo, list.id, list.name))
+          .filter((event): event is CalendarEventData => event !== null);
+      });
+      setTodoEvents([...courseTodoEvents, ...customTodoEvents]);
+    };
+
+    void loadTodoCalendarEvents()
       .catch(() => {
         if (!isActive) return;
         setSemesterRange(resolveSemesterDateRange(undefined, undefined, Math.max(1, maxWeek)));
+        setTodoEvents([]);
       });
 
     return () => {
       isActive = false;
     };
-  }, [semesterId, maxWeek]);
+  }, [semesterId, maxWeek, settings.eventColors.todo, todoReloadNonce]);
 
   React.useEffect(() => {
     if (!error) return;
@@ -145,6 +285,16 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     if (hasUserInteractedWithWeekRef.current) return;
     setWeek((previousWeek) => (previousWeek === currentWeek ? previousWeek : currentWeek));
   }, [currentWeek]);
+
+  React.useEffect(() => {
+    if (viewMode !== 'week') return;
+    const nextAnchorDate = getWeekStartForSemester(semesterRange.startDate, week);
+    setMonthAnchorDate((previousDate) => (
+      previousDate.getTime() === nextAnchorDate.getTime()
+        ? previousDate
+        : nextAnchorDate
+    ));
+  }, [semesterRange.startDate, viewMode, week]);
 
   React.useLayoutEffect(() => {
     updateViewportBoundHeight();
@@ -180,6 +330,8 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     if (payload.source !== 'course' && payload.source !== 'semester') return;
     if (!payload.semesterId || payload.semesterId !== semesterId) return;
 
+    setTodoReloadNonce((current) => current + 1);
+
     const skipToken = skipNextScheduleReloadRef.current;
     if (
       skipToken
@@ -209,12 +361,17 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   }, [items, optimisticPatches]);
 
   const calendarEvents = React.useMemo(() => {
-    return buildCalendarEvents(
+    const scheduleEvents = buildCalendarEvents(
       itemsWithPatches,
       semesterRange.startDate,
       settings.eventColors,
     );
-  }, [itemsWithPatches, semesterRange.startDate, settings]);
+    return [...scheduleEvents, ...todoEvents]
+      .filter((event) => !isDateInReadingWeek(event.start, semesterRange))
+      .sort((left, right) => {
+      return Number(right.allDay) - Number(left.allDay) || left.start.getTime() - right.start.getTime() || left.title.localeCompare(right.title);
+    });
+  }, [itemsWithPatches, semesterRange, settings, todoEvents]);
 
   const conflictGroups = React.useMemo(() => {
     const groups = new Map<string, CalendarEventData[]>();
@@ -240,50 +397,96 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     return map;
   }, [calendarEvents]);
 
-  const currentWeekConflictSummary = React.useMemo(() => {
-    const eventsForWeek = calendarEvents.filter((event) => event.week === week && event.isConflict);
-    if (eventsForWeek.length === 0) return null;
-
-    const groupCount = new Set(
-      eventsForWeek
-        .map((event) => event.conflictGroupId)
-        .filter((value): value is string => Boolean(value)),
-    ).size;
-
-    if (groupCount === 0) {
-      return `${eventsForWeek.length} conflicted event${eventsForWeek.length === 1 ? '' : 's'}`;
-    }
-
-    return `${groupCount} conflict group${groupCount === 1 ? '' : 's'}`;
-  }, [calendarEvents, week]);
-
   const handleWeekChange = React.useCallback((targetWeek: number) => {
     const boundedWeek = Math.max(1, Math.min(Math.max(1, maxWeek), targetWeek));
     hasUserInteractedWithWeekRef.current = true;
-    startTransition(() => {
-      setWeek(boundedWeek);
-    });
-  }, [maxWeek]);
+    setWeek(boundedWeek);
+    setMonthAnchorDate(getWeekStartForSemester(semesterRange.startDate, boundedWeek));
+  }, [maxWeek, semesterRange.startDate]);
+
+  const handleNavigatePrevious = React.useCallback(() => {
+    hasUserInteractedWithWeekRef.current = true;
+    if (viewMode === 'month') {
+      const targetDate = new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth() - 1, 1);
+      setMonthAnchorDate(targetDate);
+      setWeek(Math.max(1, Math.min(Math.max(1, maxWeek), getWeekFromSemesterDate(semesterRange.startDate, targetDate))));
+      return;
+    }
+
+    setWeek((currentWeekValue) => Math.max(1, Math.min(Math.max(1, maxWeek), currentWeekValue - 1)));
+  }, [maxWeek, monthAnchorDate, semesterRange.startDate, viewMode]);
+
+  const handleNavigateNext = React.useCallback(() => {
+    hasUserInteractedWithWeekRef.current = true;
+    if (viewMode === 'month') {
+      const targetDate = new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth() + 1, 1);
+      setMonthAnchorDate(targetDate);
+      setWeek(Math.max(1, Math.min(Math.max(1, maxWeek), getWeekFromSemesterDate(semesterRange.startDate, targetDate))));
+      return;
+    }
+
+    setWeek((currentWeekValue) => Math.max(1, Math.min(Math.max(1, maxWeek), currentWeekValue + 1)));
+  }, [maxWeek, monthAnchorDate, semesterRange.startDate, viewMode]);
 
   const handleToday = React.useCallback(() => {
     hasUserInteractedWithWeekRef.current = true;
-    startTransition(() => {
-      setWeek(currentWeek);
-    });
+    const today = new Date();
+    setWeek(currentWeek);
+    setMonthAnchorDate(today);
   }, [currentWeek]);
 
   const handleViewModeChange = React.useCallback((nextViewMode: CalendarViewMode) => {
-    startTransition(() => {
-      setViewMode(nextViewMode);
-    });
-  }, []);
+    if (nextViewMode === viewMode) return;
+    if (nextViewMode === 'month') {
+      setMonthAnchorDate(getWeekStartForSemester(semesterRange.startDate, week));
+    }
+    setViewMode(nextViewMode);
+  }, [semesterRange.startDate, viewMode, week]);
 
-  const weekRangeLabel = React.useMemo(() => {
+  const isCurrentMonth = React.useMemo(() => {
+    const today = new Date();
+    return today.getFullYear() === monthAnchorDate.getFullYear() && today.getMonth() === monthAnchorDate.getMonth();
+  }, [monthAnchorDate]);
+
+  const dateRangeLabel = React.useMemo(() => {
+    if (viewMode === 'month') {
+      return monthLabelFormatter.format(monthAnchorDate);
+    }
+
     const safeWeek = Math.max(1, week);
     const weekStart = addDays(startOfWeekMonday(semesterRange.startDate), (safeWeek - 1) * 7);
     const weekEnd = addDays(weekStart, 6);
     return `${rangeDateFormatter.format(weekStart)} - ${rangeDateFormatter.format(weekEnd)}`;
-  }, [semesterRange.startDate, week]);
+  }, [monthAnchorDate, semesterRange.startDate, viewMode, week]);
+
+  const displayWeekNumber = React.useMemo(
+    () => getDisplayWeekNumber(semesterRange, week, settings.countReadingWeekInWeekNumber),
+    [semesterRange, settings.countReadingWeekInWeekNumber, week],
+  );
+  const displayMaxWeek = React.useMemo(
+    () => getDisplayMaxWeek(semesterRange, maxWeek, settings.countReadingWeekInWeekNumber),
+    [maxWeek, semesterRange, settings.countReadingWeekInWeekNumber],
+  );
+  const shouldShowReadingWeekLabel = React.useMemo(
+    () => isReadingWeek(semesterRange, week) && !settings.countReadingWeekInWeekNumber,
+    [semesterRange, settings.countReadingWeekInWeekNumber, week],
+  );
+  const formatWeekLabel = React.useCallback((targetWeek: number) => {
+    if (isReadingWeek(semesterRange, targetWeek) && !settings.countReadingWeekInWeekNumber) {
+      return 'Reading Week';
+    }
+
+    const resolvedWeekNumber = getDisplayWeekNumber(
+      semesterRange,
+      targetWeek,
+      settings.countReadingWeekInWeekNumber,
+    ) ?? Math.max(1, targetWeek);
+
+    return `Week ${resolvedWeekNumber}/${displayMaxWeek}`;
+  }, [displayMaxWeek, semesterRange, settings.countReadingWeekInWeekNumber]);
+
+  const currentPeriodLabel = viewMode === 'month' ? 'Month' : 'Week';
+  const isCurrentPeriod = viewMode === 'month' ? isCurrentMonth : week === currentWeek;
 
   const handleSaveEvent = React.useCallback(async (eventId: string, patch: CalendarEventPatch) => {
     if (!semesterId) {
@@ -369,10 +572,14 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           week={week}
           maxWeek={maxWeek}
           viewMode={viewMode}
-          dateRangeLabel={weekRangeLabel}
-          isTodayWeek={week === currentWeek}
-          conflictSummary={currentWeekConflictSummary}
-          onWeekChange={handleWeekChange}
+          periodLabel={currentPeriodLabel}
+          dateRangeLabel={dateRangeLabel}
+          isCurrentPeriod={isCurrentPeriod}
+          displayWeekNumber={displayWeekNumber}
+          displayMaxWeek={displayMaxWeek}
+          isReadingWeek={shouldShowReadingWeekLabel}
+          onPrevious={handleNavigatePrevious}
+          onNext={handleNavigateNext}
           onToday={handleToday}
           onViewModeChange={handleViewModeChange}
         />
@@ -384,15 +591,20 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           week={week}
           maxWeek={maxWeek}
           viewMode={viewMode}
+          monthAnchorDate={monthAnchorDate}
               semesterRange={semesterRange}
               dayStartMinutes={settings.dayStartMinutes}
               dayEndMinutes={settings.dayEndMinutes}
               highlightConflicts={settings.highlightConflicts}
               showWeekends={settings.showWeekends}
-          isPending={isPending}
+          isPending={false}
           onWeekChange={handleWeekChange}
           onViewModeChange={handleViewModeChange}
           onEventClick={(event) => {
+            if (event.source === 'todo') {
+              toast.message('Todo tasks are read-only in calendar for now.');
+              return;
+            }
             setSelectedEvent(event);
             setIsEventEditorOpen(true);
               }}
@@ -407,6 +619,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           onOpenChange={setIsEventEditorOpen}
           event={selectedEvent}
           conflictingEvents={selectedEvent ? (conflictGroups.get(conflictOccurrenceKey(selectedEvent) ?? '') ?? []) : []}
+          formatWeekLabel={formatWeekLabel}
           onSave={handleSaveEvent}
         />
       </React.Suspense>

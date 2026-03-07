@@ -1,3 +1,11 @@
+// input:  [calendar defaults, stored settings payloads, and raw time/minute values]
+// output: [calendar-settings normalization helpers, time parsing/formatting helpers, and defaults]
+// pos:    [calendar settings utility layer shared by settings UIs, tab runtime, and export flows]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import {
   CALENDAR_DEFAULT_END_MINUTES,
   CALENDAR_DEFAULT_START_MINUTES,
@@ -7,6 +15,7 @@ import type { CalendarSettingsState } from '../../shared/types';
 
 const DAY_MINUTES = 24 * 60;
 const MIN_WINDOW_MINUTES = 60;
+export const CALENDAR_TIME_INPUT_STEP_SECONDS = 60;
 
 const clampMinute = (value: number) => Math.max(0, Math.min(DAY_MINUTES - 1, Math.floor(value)));
 
@@ -55,6 +64,7 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettingsState = {
   },
   highlightConflicts: true,
   showWeekends: true,
+  countReadingWeekInWeekNumber: false,
   dayStartMinutes: CALENDAR_DEFAULT_START_MINUTES,
   dayEndMinutes: CALENDAR_DEFAULT_END_MINUTES,
 };
@@ -78,6 +88,9 @@ export const normalizeCalendarSettings = (value: unknown): CalendarSettingsState
     },
     highlightConflicts: typeof source.highlightConflicts === 'boolean' ? source.highlightConflicts : true,
     showWeekends: typeof source.showWeekends === 'boolean' ? source.showWeekends : true,
+    countReadingWeekInWeekNumber: typeof source.countReadingWeekInWeekNumber === 'boolean'
+      ? source.countReadingWeekInWeekNumber
+      : false,
     dayStartMinutes,
     dayEndMinutes,
   };

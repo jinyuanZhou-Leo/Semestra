@@ -375,6 +375,8 @@ const SemesterHomepageContent: React.FC = () => {
                     initialSettings={{
                         start_date: semester?.start_date,
                         end_date: semester?.end_date,
+                        reading_week_start: semester?.reading_week_start,
+                        reading_week_end: semester?.reading_week_end,
                     }}
                     onSave={handleUpdateSemester}
                 />

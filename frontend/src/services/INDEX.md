@@ -2,13 +2,13 @@
 
 Service and registry layer for HTTP APIs, plugin registries, and app status.
 Defines frontend domain contracts mirroring backend schema responses.
-Central place for retry policy, schedule API calls, and plugin registration rules.
+Central place for retry policy, cookie-auth HTTP defaults, schedule API calls, and plugin registration rules.
 
 | File | Role | Description |
 |------|------|-------------|
-| api.ts | Service module | Service abstraction handling api domain logic. |
+| api.ts | Service module | REST gateway for program/semester/course CRUD, including semester Reading Week payload fields alongside widget/tab contracts. |
 | appStatus.ts | Service module | Service abstraction handling app status domain logic. |
-| http.ts | Service module | Service abstraction handling http domain logic. |
+| http.ts | Service module | Axios bootstrap that applies API base URL overrides and enables credentialed cookie-auth requests. |
 | pluginSettingsRegistry.tsx | Service module | Service abstraction handling plugin settings registry domain logic. |
 | retryPolicy.ts | Service module | Service abstraction handling retry policy domain logic. |
 | schedule.ts | Service module | Service abstraction handling schedule domain logic. |

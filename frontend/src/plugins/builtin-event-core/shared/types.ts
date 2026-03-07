@@ -1,3 +1,11 @@
+// input:  [schedule service DTOs, todo scheduling metadata, and shared calendar/tab state contracts]
+// output: [event-core shared types for schedule snapshots, filters, calendar events, and settings]
+// pos:    [type layer connecting timetable services with builtin-event-core tabs and widgets]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import type { CourseEvent, CourseEventType, CourseSection, ScheduleItem, WeekPattern } from '@/services/schedule';
 
 export type { CourseEvent, CourseEventType, CourseSection, ScheduleItem, WeekPattern };
@@ -61,6 +69,7 @@ export interface CalendarSettingsState {
   eventColors: CalendarEventColorConfig;
   highlightConflicts: boolean;
   showWeekends: boolean;
+  countReadingWeekInWeekNumber: boolean;
   dayStartMinutes: number;
   dayEndMinutes: number;
 }
@@ -68,6 +77,8 @@ export interface CalendarSettingsState {
 export interface SemesterDateRange {
   startDate: Date;
   endDate: Date;
+  readingWeekStart: Date | null;
+  readingWeekEnd: Date | null;
 }
 
 export interface CalendarEventData {
@@ -80,8 +91,11 @@ export interface CalendarEventData {
   eventTypeCode: string;
   start: Date;
   end: Date;
+  allDay: boolean;
   week: number;
   dayOfWeek: number;
+  weekPattern?: WeekPattern | null;
+  isRecurring: boolean;
   startTime: string;
   endTime: string;
   color: string;

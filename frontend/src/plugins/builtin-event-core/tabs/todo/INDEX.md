@@ -1,13 +1,13 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 `todo/` implements the built-in Todo tab for course and semester contexts.
-It orchestrates list selection, task CRUD/reorder, behavior preferences, bounded semester loading, and retrying scoped persistence.
+It orchestrates list selection, task CRUD/reorder, behavior preferences, bounded semester loading, retrying scoped persistence, and calendar refresh notifications for dated todo changes.
 The UI is responsive, with mobile-first stacking, width-balanced spacing, zero section indent on mobile title/task rows, and touch-friendly actions.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for the todo tab module and its main responsibilities. |
-| TodoTab.tsx | Runtime entry | Main container that composes sidebar/header/sections, wires state mutations, retries semester sync, bounds detail fan-out, and guards destructive section deletion with confirmation. |
+| TodoTab.tsx | Runtime entry | Main container that composes sidebar/header/sections, wires state mutations, retries semester sync, bounds detail fan-out, notifies the calendar about dated todo changes, and guards destructive section deletion with confirmation. |
 | TodoSettingsSection.tsx | Settings panel | Todo behavior settings UI exposed in tab settings. |
 | components/ | UI components | Sidebar/header/task/section rendering and dialog composition for todo flows. |
 | hooks/ | State hooks | Local hooks for list modeling, drag/drop behavior, and section open state. |

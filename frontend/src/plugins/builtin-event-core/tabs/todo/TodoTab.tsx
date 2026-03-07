@@ -1,6 +1,6 @@
-// input:  [Tab settings payload, Todo state hooks, todoData helpers, shared UI primitives]
+// input:  [Tab settings payload, Todo state hooks, todoData helpers, shared UI primitives, and event bus]
 // output: [TodoTab React component for course/semester todo management]
-// pos:    [Todo tab orchestration layer that wires list selection, task mutations, and responsive layout]
+// pos:    [Todo tab orchestration layer that wires list selection, task mutations, responsive layout, and calendar refresh notifications]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -23,6 +23,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../shared/constants';
+import { timetableEventBus } from '../../shared/eventBus';
 import { TodoListSidebar } from './components/TodoListSidebar';
 import { TodoMainHeader } from './components/TodoMainHeader';
 import { TodoSectionBlock } from './components/TodoSectionBlock';
@@ -162,6 +163,16 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
     void updateSettings(nextSettings);
   }, [updateSettings]);
 
+  const publishTodoCalendarRefresh = React.useCallback((source: 'course' | 'semester', targetCourseId?: string) => {
+    if (!semesterId) return;
+    timetableEventBus.publish('timetable:schedule-data-changed', {
+      source,
+      reason: 'events-updated',
+      semesterId,
+      courseId: source === 'course' ? targetCourseId : undefined,
+    });
+  }, [semesterId]);
+
   const courseListStorage = React.useMemo<TodoListStorage>(() => {
     return normalizeListStorage(isRecord(safeSettings.courseList) ? safeSettings.courseList : undefined);
   }, [safeSettings]);
@@ -207,8 +218,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         version: TODO_SETTINGS_VERSION,
         courseList: nextStorage,
       });
+      publishTodoCalendarRefresh('course', courseId);
     },
-    [courseListStorage, safeSettings, updateLocalSettings],
+    [courseId, courseListStorage, publishTodoCalendarRefresh, safeSettings, updateLocalSettings],
   );
 
   const updateSemesterCustomLists = React.useCallback(
@@ -219,8 +231,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         version: TODO_SETTINGS_VERSION,
         semesterCustomLists: nextLists,
       });
+      publishTodoCalendarRefresh('semester');
     },
-    [semesterCustomLists, safeSettings, updateLocalSettings],
+    [publishTodoCalendarRefresh, semesterCustomLists, safeSettings, updateLocalSettings],
   );
 
   const flushCourseListSync = React.useCallback(async (targetCourseId: string) => {
@@ -359,6 +372,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         };
 
         queueCourseListSync(nextEntry);
+        publishTodoCalendarRefresh('course', targetCourseId);
 
         return {
           ...previous,
@@ -366,7 +380,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         };
       });
     },
-    [queueCourseListSync],
+    [publishTodoCalendarRefresh, queueCourseListSync],
   );
 
   React.useEffect(() => {

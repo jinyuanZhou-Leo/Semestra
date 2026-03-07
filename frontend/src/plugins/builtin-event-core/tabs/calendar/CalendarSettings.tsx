@@ -1,3 +1,11 @@
+// input:  [dialog open state, calendar settings state, and settings mutation callbacks]
+// output: [`CalendarSettings` legacy dialog UI for time window, week-number toggles, and colors]
+// pos:    [legacy calendar settings surface kept for direct in-tab configuration flows]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
@@ -7,7 +15,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import type { CalendarSettingsState } from '../../shared/types';
-import { normalizeDayMinuteWindow, parseTimeInputValue, toTimeInputValue } from './settings';
+import {
+  CALENDAR_TIME_INPUT_STEP_SECONDS,
+  normalizeDayMinuteWindow,
+  parseTimeInputValue,
+  toTimeInputValue,
+} from './settings';
 
 interface CalendarSettingsProps {
   open: boolean;
@@ -24,6 +37,9 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
   onChange,
   onReset,
 }) => {
+  const [dayStartDraft, setDayStartDraft] = React.useState(() => toTimeInputValue(settings.dayStartMinutes));
+  const [dayEndDraft, setDayEndDraft] = React.useState(() => toTimeInputValue(settings.dayEndMinutes));
+
   const patchSettings = (patch: Partial<CalendarSettingsState>) => {
     onChange({
       ...settings,
@@ -35,25 +51,39 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
     });
   };
 
-  const updateDayStartTime = (value: string) => {
+  React.useEffect(() => {
+    setDayStartDraft(toTimeInputValue(settings.dayStartMinutes));
+  }, [settings.dayStartMinutes]);
+
+  React.useEffect(() => {
+    setDayEndDraft(toTimeInputValue(settings.dayEndMinutes));
+  }, [settings.dayEndMinutes]);
+
+  const commitDayStartTime = React.useCallback((value: string) => {
     const parsed = parseTimeInputValue(value);
-    if (parsed === null) return;
+    if (parsed === null) {
+      setDayStartDraft(toTimeInputValue(settings.dayStartMinutes));
+      return;
+    }
     const minuteWindow = normalizeDayMinuteWindow(parsed, settings.dayEndMinutes);
     patchSettings({
       dayStartMinutes: minuteWindow.dayStartMinutes,
       dayEndMinutes: minuteWindow.dayEndMinutes,
     });
-  };
+  }, [settings.dayEndMinutes, settings.dayStartMinutes]);
 
-  const updateDayEndTime = (value: string) => {
+  const commitDayEndTime = React.useCallback((value: string) => {
     const parsed = parseTimeInputValue(value);
-    if (parsed === null) return;
+    if (parsed === null) {
+      setDayEndDraft(toTimeInputValue(settings.dayEndMinutes));
+      return;
+    }
     const minuteWindow = normalizeDayMinuteWindow(settings.dayStartMinutes, parsed);
     patchSettings({
       dayStartMinutes: minuteWindow.dayStartMinutes,
       dayEndMinutes: minuteWindow.dayEndMinutes,
     });
-  };
+  }, [settings.dayEndMinutes, settings.dayStartMinutes]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -72,9 +102,21 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
               <Input
                 id="calendar-day-start"
                 type="time"
-                step={1800}
-                value={toTimeInputValue(settings.dayStartMinutes)}
-                onChange={(event) => updateDayStartTime(event.target.value)}
+                step={CALENDAR_TIME_INPUT_STEP_SECONDS}
+                value={dayStartDraft}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setDayStartDraft(nextValue);
+                  if (parseTimeInputValue(nextValue) !== null) {
+                    commitDayStartTime(nextValue);
+                  }
+                }}
+                onBlur={(event) => commitDayStartTime(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return;
+                  commitDayStartTime(event.currentTarget.value);
+                  event.currentTarget.blur();
+                }}
               />
             </div>
 
@@ -83,9 +125,21 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
               <Input
                 id="calendar-day-end"
                 type="time"
-                step={1800}
-                value={toTimeInputValue(settings.dayEndMinutes)}
-                onChange={(event) => updateDayEndTime(event.target.value)}
+                step={CALENDAR_TIME_INPUT_STEP_SECONDS}
+                value={dayEndDraft}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setDayEndDraft(nextValue);
+                  if (parseTimeInputValue(nextValue) !== null) {
+                    commitDayEndTime(nextValue);
+                  }
+                }}
+                onBlur={(event) => commitDayEndTime(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return;
+                  commitDayEndTime(event.currentTarget.value);
+                  event.currentTarget.blur();
+                }}
               />
             </div>
           </div>
@@ -111,6 +165,18 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
               id="calendar-show-weekends"
               checked={settings.showWeekends}
               onCheckedChange={(checked) => patchSettings({ showWeekends: checked })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="calendar-count-reading-week" className="cursor-pointer">Count Reading Week in week number</Label>
+              <p className="text-xs text-muted-foreground">When disabled, weeks after Reading Week keep academic numbering without counting the break week.</p>
+            </div>
+            <Switch
+              id="calendar-count-reading-week"
+              checked={settings.countReadingWeekInWeekNumber}
+              onCheckedChange={(checked) => patchSettings({ countReadingWeekInWeekNumber: checked })}
             />
           </div>
 

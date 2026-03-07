@@ -1,5 +1,5 @@
 // input:  [`VITE_API_BASE_URL` build env and axios default configuration surface]
-// output: [startup side effect that sets axios `baseURL` when configured]
+// output: [startup side effect that sets axios `baseURL` and cookie-auth defaults when configured]
 // pos:    [One-time HTTP client bootstrap imported by `src/main.tsx`]
 //
 // ⚠️ When this file is updated:
@@ -14,3 +14,5 @@ const baseUrl = rawBaseUrl ? rawBaseUrl.replace(/\/+$/, '') : '';
 if (baseUrl) {
   axios.defaults.baseURL = baseUrl;
 }
+
+axios.defaults.withCredentials = true;

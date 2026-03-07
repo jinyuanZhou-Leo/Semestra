@@ -26,6 +26,8 @@ export interface Semester {
     average_percentage: number;
     start_date?: string;
     end_date?: string;
+    reading_week_start?: string | null;
+    reading_week_end?: string | null;
     program_id?: string;
     courses?: Course[];
 }

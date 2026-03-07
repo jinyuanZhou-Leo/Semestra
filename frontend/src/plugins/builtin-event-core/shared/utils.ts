@@ -1,3 +1,11 @@
+// input:  [schedule service entities, shared calendar constants, todo scheduling data, and semester date ranges]
+// output: [date/time helpers, schedule grouping utilities, and event-core calendar mappers]
+// pos:    [shared event-core utility layer for transforming backend schedule data into tab-ready state with Reading Week support]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import type { CourseEvent, ScheduleItem } from '@/services/schedule';
 import {
   ALL_FILTER_VALUE,
@@ -129,7 +137,18 @@ const parseDateLike = (value?: string | Date | null) => {
     return new Date(value);
   }
 
-  const parsed = new Date(value);
+  const trimmed = value.trim();
+  const localDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (localDateMatch) {
+    const year = Number(localDateMatch[1]);
+    const month = Number(localDateMatch[2]);
+    const day = Number(localDateMatch[3]);
+    const parsedLocalDate = new Date(year, month - 1, day);
+    if (!Number.isFinite(parsedLocalDate.getTime())) return null;
+    return parsedLocalDate;
+  }
+
+  const parsed = new Date(trimmed);
   if (!Number.isFinite(parsed.getTime())) return null;
   return parsed;
 };
@@ -168,6 +187,8 @@ export const resolveSemesterDateRange = (
   startDateLike?: string | Date | null,
   endDateLike?: string | Date | null,
   maxWeek = 16,
+  readingWeekStartLike?: string | Date | null,
+  readingWeekEndLike?: string | Date | null,
 ): SemesterDateRange => {
   const parsedStart = parseDateLike(startDateLike) ?? new Date();
   const startDate = startOfWeekMonday(parsedStart);
@@ -178,12 +199,81 @@ export const resolveSemesterDateRange = (
     ? startOfDay(parsedEnd)
     : fallbackEndDate;
 
-  return { startDate, endDate };
+  const parsedReadingWeekStart = parseDateLike(readingWeekStartLike);
+  const parsedReadingWeekEnd = parseDateLike(readingWeekEndLike);
+  const normalizedReadingWeekStart = parsedReadingWeekStart ? startOfDay(parsedReadingWeekStart) : null;
+  const normalizedReadingWeekEnd = parsedReadingWeekEnd ? startOfDay(parsedReadingWeekEnd) : null;
+  const isReadingWeekValid = Boolean(
+    normalizedReadingWeekStart
+    && normalizedReadingWeekEnd
+    && normalizedReadingWeekStart.getDay() === 1
+    && normalizedReadingWeekEnd.getDay() === 0
+    && (normalizedReadingWeekEnd.getTime() - normalizedReadingWeekStart.getTime()) === (6 * DAY_MS)
+    && normalizedReadingWeekStart.getTime() >= startDate.getTime()
+    && normalizedReadingWeekEnd.getTime() <= endDate.getTime()
+  );
+
+  return {
+    startDate,
+    endDate,
+    readingWeekStart: isReadingWeekValid ? normalizedReadingWeekStart : null,
+    readingWeekEnd: isReadingWeekValid ? normalizedReadingWeekEnd : null,
+  };
 };
 
 export const getDateForScheduleItem = (semesterStartDate: Date, week: number, dayOfWeek: number) => {
   const offsetDays = (Math.max(1, week) - 1) * 7 + (Math.max(1, dayOfWeek) - 1);
   return addDays(startOfWeekMonday(semesterStartDate), offsetDays);
+};
+
+export const getWeekStartForSemester = (semesterStartDate: Date, week: number) => {
+  return addDays(startOfWeekMonday(semesterStartDate), (Math.max(1, week) - 1) * 7);
+};
+
+export const getWeekFromSemesterDate = (semesterStartDate: Date, date: Date) => {
+  const semesterStart = startOfWeekMonday(semesterStartDate).getTime();
+  const targetStart = startOfWeekMonday(date).getTime();
+  return Math.floor((targetStart - semesterStart) / DAY_MS / 7) + 1;
+};
+
+export const getReadingWeekIndex = (semesterRange: SemesterDateRange) => {
+  if (!semesterRange.readingWeekStart || !semesterRange.readingWeekEnd) return null;
+  return getWeekFromSemesterDate(semesterRange.startDate, semesterRange.readingWeekStart);
+};
+
+export const isReadingWeek = (semesterRange: SemesterDateRange, week: number) => {
+  const readingWeekIndex = getReadingWeekIndex(semesterRange);
+  if (readingWeekIndex === null) return false;
+  return Math.max(1, week) === readingWeekIndex;
+};
+
+export const isDateInReadingWeek = (date: Date, semesterRange: SemesterDateRange) => {
+  if (!semesterRange.readingWeekStart || !semesterRange.readingWeekEnd) return false;
+  const targetTime = startOfDay(date).getTime();
+  return targetTime >= semesterRange.readingWeekStart.getTime() && targetTime <= semesterRange.readingWeekEnd.getTime();
+};
+
+export const getDisplayWeekNumber = (
+  semesterRange: SemesterDateRange,
+  week: number,
+  countReadingWeekInWeekNumber: boolean,
+) => {
+  const safeWeek = Math.max(1, week);
+  const readingWeekIndex = getReadingWeekIndex(semesterRange);
+  if (readingWeekIndex === null || countReadingWeekInWeekNumber) return safeWeek;
+  if (safeWeek === readingWeekIndex) return null;
+  return safeWeek > readingWeekIndex ? safeWeek - 1 : safeWeek;
+};
+
+export const getDisplayMaxWeek = (
+  semesterRange: SemesterDateRange,
+  maxWeek: number,
+  countReadingWeekInWeekNumber: boolean,
+) => {
+  const safeMaxWeek = Math.max(1, maxWeek);
+  const readingWeekIndex = getReadingWeekIndex(semesterRange);
+  if (readingWeekIndex === null || countReadingWeekInWeekNumber) return safeMaxWeek;
+  return Math.max(1, safeMaxWeek - 1);
 };
 
 export const toCalendarEvent = (
@@ -209,8 +299,11 @@ export const toCalendarEvent = (
     eventTypeCode: item.eventTypeCode,
     start,
     end,
+    allDay: false,
     week: item.week,
     dayOfWeek: item.dayOfWeek,
+    weekPattern: item.weekPattern,
+    isRecurring: Boolean(item.weekPattern),
     startTime: item.startTime,
     endTime: item.endTime,
     color: eventColors.schedule,

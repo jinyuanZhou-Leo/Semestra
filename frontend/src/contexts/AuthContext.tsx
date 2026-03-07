@@ -1,6 +1,6 @@
-// input:  [auth token in localStorage, axios `/api/users/me` + 401 interceptor, session modal]
+// input:  [httpOnly-cookie auth session, axios `/api/users/me` + 401 interceptor, session modal]
 // output: [`AuthProvider` and `useAuth()` exposing user/login/logout/refresh/loading state]
-// pos:    [Application-wide authentication context used by route guards and pages]
+// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -63,8 +63,8 @@ const normalizeUser = (rawUser: User): User => ({
 
 interface AuthContextType {
     user: User | null;
-    login: (token: string) => void;
-    logout: () => void;
+    login: () => Promise<void>;
+    logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
     isLoading: boolean;
 }
@@ -76,68 +76,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isLoading, setIsLoading] = useState(true);
     const [isSessionExpired, setIsSessionExpired] = useState(false);
     const interceptorIdRef = useRef<number | null>(null);
+    const userRef = useRef<User | null>(null);
 
-    const logout = useCallback(() => {
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
+    useEffect(() => {
+        userRef.current = user;
+    }, [user]);
+
+    const clearSessionState = useCallback(() => {
         setUser(null);
     }, []);
+
+    const logout = useCallback(async () => {
+        try {
+            await axios.post('/api/auth/logout');
+        } catch (error) {
+            console.error("Failed to clear server session", error);
+        } finally {
+            clearSessionState();
+            setIsSessionExpired(false);
+            setIsLoading(false);
+        }
+    }, [clearSessionState]);
 
     const fetchUser = useCallback(async () => {
         try {
             const response = await axios.get<User>('/api/users/me');
             setUser(normalizeUser(response.data));
         } catch (error) {
-            console.error("Failed to fetch user", error);
-            // Don't call logout here, the interceptor handles 401
-            if ((error as any).response?.status !== 401) {
-                logout();
+            const responseStatus = (error as any).response?.status;
+            if (responseStatus === 401) {
+                clearSessionState();
+            } else {
+                console.error("Failed to fetch user", error);
+                clearSessionState();
             }
         } finally {
             setIsLoading(false);
         }
-    }, [logout]);
+    }, [clearSessionState]);
 
-    const login = useCallback((token: string) => {
-        localStorage.setItem('token', token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        setIsSessionExpired(false); // Clear any previous session expired state
+    const login = useCallback(async () => {
+        setIsSessionExpired(false);
         setIsLoading(true);
-        fetchUser();
+        await fetchUser();
     }, [fetchUser]);
 
     useEffect(() => {
-        // Set up axios response interceptor for 401 errors
         interceptorIdRef.current = axios.interceptors.response.use(
             (response) => response,
             (error) => {
                 if (error.response?.status === 401) {
-                    // Session expired - clear auth state and show modal
-                    localStorage.removeItem('token');
-                    delete axios.defaults.headers.common['Authorization'];
-                    setUser(null);
-                    setIsSessionExpired(true);
+                    const hadActiveSession = Boolean(userRef.current);
+                    clearSessionState();
+                    if (hadActiveSession) {
+                        setIsSessionExpired(true);
+                    }
                 }
                 return Promise.reject(error);
             }
         );
 
-        // Initial auth check
-        const token = localStorage.getItem('token');
-        if (token) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            fetchUser();
-        } else {
-            setIsLoading(false);
-        }
+        void fetchUser();
 
-        // Cleanup interceptor on unmount
         return () => {
             if (interceptorIdRef.current !== null) {
                 axios.interceptors.response.eject(interceptorIdRef.current);
             }
         };
-    }, [fetchUser]);
+    }, [clearSessionState, fetchUser]);
 
     const handleCloseSessionExpiredModal = () => {
         setIsSessionExpired(false);

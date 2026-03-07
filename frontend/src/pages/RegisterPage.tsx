@@ -1,6 +1,6 @@
-// input:  [register/token/google endpoints, auth login action, password policy helpers, theme visuals]
+// input:  [register/token/google endpoints, cookie-session login action, password policy helpers, theme visuals]
 // output: [`RegisterPage` route component]
-// pos:    [Account creation page for email/password and Google sign-up flows]
+// pos:    [Account creation page for email/password and Google sign-up flows with cookie-backed session bootstrap]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -108,10 +108,10 @@ export const RegisterPage: React.FC = () => {
                     }
                     setIsGoogleLoading(true);
                     try {
-                        const loginResponse = await axios.post('/api/auth/google', {
+                        await axios.post('/api/auth/google', {
                             id_token: response.credential
                         });
-                        login(loginResponse.data.access_token);
+                        await login();
                         navigate('/');
                     } catch (err: any) {
                         toast.error(err.response?.data?.detail || 'Google sign-in failed.');
@@ -174,13 +174,13 @@ export const RegisterPage: React.FC = () => {
             formData.append('username', lowerEmail);
             formData.append('password', password);
 
-            const loginResponse = await axios.post('/api/auth/token', formData, {
+            await axios.post('/api/auth/token', formData, {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
             });
 
-            login(loginResponse.data.access_token);
+            await login();
             navigate('/');
         } catch (err: any) {
             setError(err.response?.data?.detail || 'Failed to register. Please try again.');

@@ -1,5 +1,5 @@
 // input:  [calendar settings state, settings update callback, schedule data hooks, shadcn settings/time-input UI primitives]
-// output: [`CalendarSettingsSection` settings UI for calendar behavior, time window, colors, export, and reset actions]
+// output: [`CalendarSettingsSection` settings UI for calendar behavior, Reading Week week-number controls, colors, export, and reset actions]
 // pos:    [Calendar tab settings panel entry that normalizes state and applies granular patches]
 //
 // ⚠️ When this file is updated:
@@ -32,6 +32,7 @@ import { buildCourseOptions } from '../../shared/utils';
 import { EventColorPicker } from './components/EventColorPicker';
 import {
   DEFAULT_CALENDAR_SETTINGS,
+  CALENDAR_TIME_INPUT_STEP_SECONDS,
   normalizeDayMinuteWindow,
   normalizeCalendarSettings,
   parseTimeInputValue,
@@ -48,6 +49,8 @@ interface CalendarSettingsSectionProps {
 export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({ semesterId, settings, updateSettings }) => {
   const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
+  const [dayStartDraft, setDayStartDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayStartMinutes));
+  const [dayEndDraft, setDayEndDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayEndMinutes));
   const timeInputClassName = 'appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none';
   const { items, maxWeek } = useScheduleData({
     semesterId,
@@ -71,25 +74,39 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
     void Promise.resolve(updateSettings(nextSettings));
   };
 
-  const updateDayStartTime = (value: string) => {
+  React.useEffect(() => {
+    setDayStartDraft(toTimeInputValue(normalizedSettings.dayStartMinutes));
+  }, [normalizedSettings.dayStartMinutes]);
+
+  React.useEffect(() => {
+    setDayEndDraft(toTimeInputValue(normalizedSettings.dayEndMinutes));
+  }, [normalizedSettings.dayEndMinutes]);
+
+  const commitDayStartTime = React.useCallback((value: string) => {
     const parsed = parseTimeInputValue(value);
-    if (parsed === null) return;
+    if (parsed === null) {
+      setDayStartDraft(toTimeInputValue(normalizedSettings.dayStartMinutes));
+      return;
+    }
     const minuteWindow = normalizeDayMinuteWindow(parsed, normalizedSettings.dayEndMinutes);
     patchSettings({
       dayStartMinutes: minuteWindow.dayStartMinutes,
       dayEndMinutes: minuteWindow.dayEndMinutes,
     });
-  };
+  }, [normalizedSettings.dayEndMinutes, normalizedSettings.dayStartMinutes]);
 
-  const updateDayEndTime = (value: string) => {
+  const commitDayEndTime = React.useCallback((value: string) => {
     const parsed = parseTimeInputValue(value);
-    if (parsed === null) return;
+    if (parsed === null) {
+      setDayEndDraft(toTimeInputValue(normalizedSettings.dayEndMinutes));
+      return;
+    }
     const minuteWindow = normalizeDayMinuteWindow(normalizedSettings.dayStartMinutes, parsed);
     patchSettings({
       dayStartMinutes: minuteWindow.dayStartMinutes,
       dayEndMinutes: minuteWindow.dayEndMinutes,
     });
-  };
+  }, [normalizedSettings.dayEndMinutes, normalizedSettings.dayStartMinutes]);
 
   return (
     <>
@@ -105,9 +122,21 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
                 <InputGroupInput
                   id="calendar-settings-day-start"
                   type="time"
-                  step={1800}
-                  value={toTimeInputValue(normalizedSettings.dayStartMinutes)}
-                  onChange={(event) => updateDayStartTime(event.target.value)}
+                  step={CALENDAR_TIME_INPUT_STEP_SECONDS}
+                  value={dayStartDraft}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setDayStartDraft(nextValue);
+                    if (parseTimeInputValue(nextValue) !== null) {
+                      commitDayStartTime(nextValue);
+                    }
+                  }}
+                  onBlur={(event) => commitDayStartTime(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') return;
+                    commitDayStartTime(event.currentTarget.value);
+                    event.currentTarget.blur();
+                  }}
                   className={timeInputClassName}
                 />
                 <InputGroupAddon align="inline-end" className="pr-2">
@@ -121,9 +150,21 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
                 <InputGroupInput
                   id="calendar-settings-day-end"
                   type="time"
-                  step={1800}
-                  value={toTimeInputValue(normalizedSettings.dayEndMinutes)}
-                  onChange={(event) => updateDayEndTime(event.target.value)}
+                  step={CALENDAR_TIME_INPUT_STEP_SECONDS}
+                  value={dayEndDraft}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setDayEndDraft(nextValue);
+                    if (parseTimeInputValue(nextValue) !== null) {
+                      commitDayEndTime(nextValue);
+                    }
+                  }}
+                  onBlur={(event) => commitDayEndTime(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') return;
+                    commitDayEndTime(event.currentTarget.value);
+                    event.currentTarget.blur();
+                  }}
                   className={timeInputClassName}
                 />
                 <InputGroupAddon align="inline-end" className="pr-2">
@@ -154,6 +195,18 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
               id="calendar-settings-show-weekends"
               checked={normalizedSettings.showWeekends}
               onCheckedChange={(checked) => patchSettings({ showWeekends: checked })}
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="calendar-settings-count-reading-week" className="cursor-pointer text-base">Count Reading Week in week number</Label>
+              <p className="text-sm text-muted-foreground">When disabled, weeks after Reading Week keep their academic numbering without counting the break week.</p>
+            </div>
+            <Switch
+              id="calendar-settings-count-reading-week"
+              checked={normalizedSettings.countReadingWeekInWeekNumber}
+              onCheckedChange={(checked) => patchSettings({ countReadingWeekInWeekNumber: checked })}
             />
           </div>
 
@@ -207,7 +260,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             <div className="space-y-1 mb-2 sm:mb-0">
               <p className="font-medium text-base">Restore defaults</p>
               <p className="text-sm text-muted-foreground">
-                Restore event colors, time window, weekend visibility, and conflict highlighting to defaults.
+                Restore event colors, time window, weekend visibility, Reading Week numbering, and conflict highlighting to defaults.
               </p>
             </div>
             <AlertDialog>

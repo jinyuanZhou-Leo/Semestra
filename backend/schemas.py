@@ -220,6 +220,8 @@ class SemesterBase(BaseModel):
     average_scaled: float = 0.0
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    reading_week_start: Optional[date] = None
+    reading_week_end: Optional[date] = None
 
 class SemesterCreate(SemesterBase):
     pass

@@ -1,6 +1,6 @@
-// input:  [selected calendar event, optional conflict peers, dialog state, and save callback]
+// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, and save callback]
 // output: [`EventEditor` modal for event visibility/enable toggles plus conflict context]
-// pos:    [Calendar detail dialog that explains schedule conflicts while editing an event]
+// pos:    [Calendar detail dialog that explains schedule conflicts while editing an event with Reading Week-aware labels]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,10 +22,18 @@ interface EventEditorProps {
   onOpenChange: (open: boolean) => void;
   event: CalendarEventData | null;
   conflictingEvents?: CalendarEventData[];
+  formatWeekLabel?: (week: number) => string;
   onSave: (eventId: string, patch: CalendarEventPatch) => Promise<void>;
 }
 
-export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, event, conflictingEvents = [], onSave }) => {
+export const EventEditor: React.FC<EventEditorProps> = ({
+  open,
+  onOpenChange,
+  event,
+  conflictingEvents = [],
+  formatWeekLabel,
+  onSave,
+}) => {
   const [isSkipped, setIsSkipped] = React.useState(false);
   const [isEnabled, setIsEnabled] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -78,7 +86,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, ev
             <div className="rounded-md border p-3">
               <p className="font-medium">{event.title}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Week {event.week}, {event.start.toLocaleDateString()} {event.startTime}-{event.endTime}
+                {formatWeekLabel ? formatWeekLabel(event.week) : `Week ${event.week}`}, {event.start.toLocaleDateString()} {event.startTime}-{event.endTime}
               </p>
             </div>
 
@@ -102,7 +110,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, ev
                           </Badge>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Week {item.week} · {item.start.toLocaleDateString()} · {item.startTime}-{item.endTime}
+                          {formatWeekLabel ? formatWeekLabel(item.week) : `Week ${item.week}`} · {item.start.toLocaleDateString()} · {item.startTime}-{item.endTime}
                         </p>
                       </div>
                     ))}

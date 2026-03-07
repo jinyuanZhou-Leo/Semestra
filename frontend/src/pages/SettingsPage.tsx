@@ -1,6 +1,6 @@
-// input:  [auth context, user settings/import-export APIs, dialog helpers, theme hooks]
+// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout]
+// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout plus account sign-out]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -286,8 +286,8 @@ export const SettingsPage: React.FC = () => {
     // Mock user settings (unused for now)
     // const [email, setEmail] = useState(user?.email || '');
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await logout();
         navigate('/login');
     };
 

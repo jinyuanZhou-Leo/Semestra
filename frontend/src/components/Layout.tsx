@@ -1,6 +1,6 @@
-// input:  [auth state, app-status notifications, header slot props, theme toggle and children]
+// input:  [auth state/actions, app-status notifications, header slot props, theme toggle and children]
 // output: [`Layout` component]
-// pos:    [Shared authenticated page chrome (header/status/actions/content container)]
+// pos:    [Shared authenticated page chrome with authenticated header actions and sign-out handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -34,7 +34,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const navigate = useNavigate();
     const { status, clearStatus, pendingSyncRetryCount, retryFailedSync } = useAppStatus();
     const isSyncStatus = status?.type === 'error' && /sync/i.test(status.message);
@@ -254,8 +254,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
-                                        onClick={() => {
-                                            localStorage.removeItem('token');
+                                        onClick={async () => {
+                                            await logout();
                                             window.location.href = '/login';
                                         }}
                                         className="cursor-pointer text-destructive focus:text-destructive"

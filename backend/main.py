@@ -1,13 +1,12 @@
-# input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules]
+# input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings]
 # output: [FastAPI app instance and all HTTP route handlers]
-# pos:    [Backend entry point and API orchestration layer]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
 #    2. Update the INDEX.md of the folder this file belongs to
 
-from fastapi import FastAPI, Depends, HTTPException, status, Form, Query
-from fastapi.responses import Response
+from fastapi import FastAPI, Depends, HTTPException, Response, status, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -69,6 +68,12 @@ def ensure_schema_compatibility():
         else:
             with engine.begin() as connection:
                 connection.execute(text("UPDATE semesters SET end_date = DATE(start_date, '+111 day') WHERE end_date IS NULL"))
+        if "reading_week_start" not in semester_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE semesters ADD COLUMN reading_week_start DATE"))
+        if "reading_week_end" not in semester_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE semesters ADD COLUMN reading_week_end DATE"))
 
     if inspector.has_table("tabs"):
         tab_columns = {column["name"] for column in inspector.get_columns("tabs")}
@@ -248,6 +253,69 @@ def validate_program_timezone_or_422(timezone: str) -> ZoneInfo:
 def get_semester_max_week(semester: models.Semester) -> int:
     total_days = (semester.end_date - semester.start_date).days + 1
     return max(1, math.ceil(total_days / 7))
+
+def resolve_semester_date_bounds(
+    start_date: Optional[date],
+    end_date: Optional[date],
+) -> tuple[date, date]:
+    default_start, default_end = crud.get_default_semester_dates()
+    resolved_start = start_date or default_start
+    resolved_end = end_date or default_end
+    return resolved_start, resolved_end
+
+def validate_reading_week_or_422(
+    semester_start: date,
+    semester_end: date,
+    reading_week_start: Optional[date],
+    reading_week_end: Optional[date],
+) -> None:
+    if reading_week_start is None and reading_week_end is None:
+        return
+
+    if reading_week_start is None or reading_week_end is None:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail(
+                "INVALID_READING_WEEK_RANGE",
+                "reading_week_start and reading_week_end must both be provided.",
+            ),
+        )
+
+    if reading_week_start > reading_week_end:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail(
+                "INVALID_READING_WEEK_RANGE",
+                "reading_week_start must be earlier than or equal to reading_week_end.",
+            ),
+        )
+
+    if (reading_week_end - reading_week_start).days != 6:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail(
+                "INVALID_READING_WEEK_SPAN",
+                "Reading Week must span exactly 7 days.",
+            ),
+        )
+
+    if reading_week_start.isoweekday() != 1 or reading_week_end.isoweekday() != 7:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail(
+                "INVALID_READING_WEEK_ALIGNMENT",
+                "Reading Week must start on Monday and end on Sunday.",
+            ),
+        )
+
+    if reading_week_start < semester_start or reading_week_end > semester_end:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail(
+                "INVALID_READING_WEEK_RANGE",
+                "Reading Week must fall within the semester date range.",
+            ),
+        )
 
 def resolve_week_index(semester: models.Semester, timezone: str, requested_week: Optional[int]) -> int:
     max_week = get_semester_max_week(semester)
@@ -683,7 +751,12 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     return crud.create_user(db=db, user=user)
 
 @app.post("/auth/token", response_model=schemas.Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), remember_me: bool = Form(False), db: Session = Depends(get_db)):
+async def login_for_access_token(
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    remember_me: bool = Form(False),
+    db: Session = Depends(get_db),
+):
     user = crud.get_user_by_email(db, email=form_data.username)
     if not user or not crud.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -700,10 +773,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = auth.create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
+    auth.set_auth_cookie(response, access_token, access_token_expires)
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/auth/google", response_model=schemas.Token)
-def login_with_google(payload: schemas.GoogleAuthRequest, db: Session = Depends(get_db)):
+def login_with_google(
+    payload: schemas.GoogleAuthRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     google_payload = verify_google_id_token(payload.id_token)
     email = google_payload.get("email")
     email_verified = google_payload.get("email_verified")
@@ -718,9 +796,11 @@ def login_with_google(payload: schemas.GoogleAuthRequest, db: Session = Depends(
 
     user = crud.get_user_by_google_sub(db, google_sub=sub)
     if user:
+        access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = auth.create_access_token(
-            data={"sub": user.email}, expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+            data={"sub": user.email}, expires_delta=access_token_expires
         )
+        auth.set_auth_cookie(response, access_token, access_token_expires)
         return {"access_token": access_token, "token_type": "bearer"}
 
     user = crud.get_user_by_email(db, email=email)
@@ -734,10 +814,19 @@ def login_with_google(payload: schemas.GoogleAuthRequest, db: Session = Depends(
     else:
         user = crud.create_user_from_google(db, email=email, google_sub=sub)
 
+    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email}, expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+        data={"sub": user.email}, expires_delta=access_token_expires
     )
+    auth.set_auth_cookie(response, access_token, access_token_expires)
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout():
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    auth.clear_auth_cookie(response)
+    return response
 
 @app.post("/auth/google/link")
 def link_google_account(payload: schemas.GoogleAuthRequest, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -1107,11 +1196,18 @@ def create_semester_for_program(
     program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
     if not program:
         raise HTTPException(status_code=404, detail="Program not found")
-    if semester.start_date and semester.end_date and semester.start_date > semester.end_date:
+    resolved_start_date, resolved_end_date = resolve_semester_date_bounds(semester.start_date, semester.end_date)
+    if resolved_start_date > resolved_end_date:
         raise HTTPException(
             status_code=422,
             detail=error_detail("INVALID_SEMESTER_DATE_RANGE", "start_date must be earlier than or equal to end_date."),
         )
+    validate_reading_week_or_422(
+        resolved_start_date,
+        resolved_end_date,
+        semester.reading_week_start,
+        semester.reading_week_end,
+    )
     return crud.create_semester(db=db, semester=semester, program_id=program_id)
 
 @app.post("/programs/{program_id}/semesters/upload", response_model=schemas.Semester)
@@ -1186,11 +1282,21 @@ def update_semester(semester_id: str, semester: schemas.SemesterCreate, db: Sess
     ).first()
     if not db_semester:
         raise HTTPException(status_code=404, detail="Semester not found")
-    if semester.start_date and semester.end_date and semester.start_date > semester.end_date:
+    resolved_start_date, resolved_end_date = resolve_semester_date_bounds(
+        semester.start_date or db_semester.start_date,
+        semester.end_date or db_semester.end_date,
+    )
+    if resolved_start_date > resolved_end_date:
         raise HTTPException(
             status_code=422,
             detail=error_detail("INVALID_SEMESTER_DATE_RANGE", "start_date must be earlier than or equal to end_date."),
         )
+    validate_reading_week_or_422(
+        resolved_start_date,
+        resolved_end_date,
+        semester.reading_week_start,
+        semester.reading_week_end,
+    )
     return crud.update_semester(db, semester_id=semester_id, semester_update=semester)
 
 @app.delete("/semesters/{semester_id}")

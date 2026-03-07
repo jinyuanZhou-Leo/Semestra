@@ -1,12 +1,13 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
-`docs/` stores product planning, refactor execution notes, and plugin requirements for Semestra.
-These documents define implementation scope, acceptance criteria, and rollout constraints.
-They are the source of truth for delivery sequencing before code changes land.
+`docs/` stores product planning, refactor execution notes, plugin requirements, and operational security notes for Semestra.
+These documents define implementation scope, acceptance criteria, rollout constraints, and key implementation decisions.
+They are the source of truth for delivery sequencing and human-readable project guidance before and after code changes land.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Documentation index | Architecture summary and file-level catalog for `docs/`. |
+| auth-security-explained.md | Security note | Plain-language explanation of JWT secret management, HttpOnly cookie sessions, deployment settings, and the March 2026 auth hardening change. |
 | fix-dashboard-edit-mode-widget-reload.md | Bug fix spec | Records issue context and fix approach for dashboard edit-mode widget reload behavior. |
 | timetable_refactoring_plan_optimized.md | Refactor plan | Optimized plan for timetable plugin refactor phases, architecture, and acceptance checkpoints. |
 | todolist.md | Execution checklist | Actionable progress checklist for builtin timetable refactor tasks. |
