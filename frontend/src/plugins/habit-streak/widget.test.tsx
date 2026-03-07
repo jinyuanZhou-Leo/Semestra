@@ -1,19 +1,24 @@
 // input:  [HabitStreak widget/helper exports and testing-library render/event utilities]
-// output: [vitest coverage for habit check-in windows, widget UI behavior, and header reset actions]
-// pos:    [plugin-level regression tests for habit-streak helper logic and runtime contract expectations]
+// output: [vitest coverage for habit check-in windows, real check-in history normalization, dual display-style widget UI behavior, ring-only encouragement toast behavior, and header reset actions]
+// pos:    [plugin-level regression tests for habit-streak helper logic, 7-day streak calendar rendering, classic ring fallback, toast gating, and runtime contract expectations]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     HabitStreakWidget,
     HabitStreakWidgetDefinition,
     computeNextStreakCount,
     getCheckInWindowState,
+    normalizeHabitStreakSettings,
 } from './widget';
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 describe('HabitStreak helpers', () => {
     it('falls back to the daily cadence when an unsupported interval is provided', () => {
@@ -63,6 +68,25 @@ describe('HabitStreak helpers', () => {
         expect(state.windowsSinceLast).toBe(0);
         expect(state.remainingMs).toBe(3 * 24 * 60 * 60 * 1000);
     });
+
+    it('normalizes check-in history to recent unique local date keys', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-06T12:00:00.000Z'));
+
+        const settings = normalizeHabitStreakSettings({
+            checkInHistory: ['2026-03-06', '2026-02-30', '2025-11-10', '2026-03-05', '2026-03-06', 'bad-key'],
+        });
+
+        expect(settings.checkInHistory).toEqual(['2026-03-05', '2026-03-06']);
+    });
+
+    it('falls back to calendar display style when an invalid style is provided', () => {
+        const settings = normalizeHabitStreakSettings({
+            displayStyle: 'sparkle-orbit',
+        });
+
+        expect(settings.displayStyle).toBe('calendar');
+    });
 });
 
 describe('HabitStreakWidget', () => {
@@ -89,6 +113,8 @@ describe('HabitStreakWidget', () => {
     });
 
     it('increments streak when check-in is available', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-06T14:30:00.000Z'));
         const updateSettings = vi.fn();
 
         render(
@@ -115,9 +141,43 @@ describe('HabitStreakWidget', () => {
                 streakCount: 1,
                 bestStreak: 1,
                 totalCheckIns: 1,
-                lastCheckInAt: expect.any(String),
+                lastCheckInAt: '2026-03-06T14:30:00.000Z',
+                checkInHistory: ['2026-03-06'],
+                displayStyle: 'calendar',
                 targetStreak: 21,
                 showMotivationalMessage: true,
+            })
+        );
+    });
+
+    it('keeps same-day repeat check-ins from duplicating the calendar history', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-06T18:20:00.000Z'));
+        const updateSettings = vi.fn();
+
+        render(
+            <HabitStreakWidget
+                widgetId="habit-repeat"
+                settings={{
+                    habitName: 'Spanish',
+                    checkInIntervalHours: 0,
+                    targetStreak: 21,
+                    streakCount: 4,
+                    bestStreak: 8,
+                    totalCheckIns: 11,
+                    lastCheckInAt: '2026-03-06T08:00:00.000Z',
+                    checkInHistory: ['2026-03-06'],
+                }}
+                updateSettings={updateSettings}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+
+        expect(updateSettings).toHaveBeenCalledWith(
+            expect.objectContaining({
+                totalCheckIns: 12,
+                checkInHistory: ['2026-03-06'],
             })
         );
     });
@@ -145,6 +205,8 @@ describe('HabitStreakWidget', () => {
     });
 
     it('keeps the legacy capsule text removed without rendering a goal label row', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-06T10:00:00.000Z'));
         const updateSettings = vi.fn();
 
         render(
@@ -158,6 +220,7 @@ describe('HabitStreakWidget', () => {
                     bestStreak: 7,
                     totalCheckIns: 12,
                     lastCheckInAt: null,
+                    checkInHistory: ['2026-03-02', '2026-03-05', '2026-03-06'],
                 }}
                 updateSettings={updateSettings}
             />
@@ -165,6 +228,65 @@ describe('HabitStreakWidget', () => {
 
         expect(screen.queryByText('Goal: 30 streaks')).not.toBeInTheDocument();
         expect(screen.queryByText('5/30 streak')).not.toBeInTheDocument();
+        expect(screen.getByText('Day Streak')).toBeInTheDocument();
+        expect(screen.getAllByTestId(/habit-day-/)).toHaveLength(7);
+        expect(screen.getByTestId('habit-day-2026-03-06')).toHaveAttribute('data-today', 'true');
+        expect(screen.getByTestId('habit-day-2026-03-05')).toHaveAttribute('data-completed', 'true');
+        expect(screen.getByTestId('habit-day-2026-03-04')).toHaveAttribute('data-completed', 'false');
+    });
+
+    it('renders the classic ring view when selected in settings', () => {
+        const updateSettings = vi.fn();
+
+        render(
+            <HabitStreakWidget
+                widgetId="habit-ring"
+                settings={{
+                    habitName: 'Stretch',
+                    checkInIntervalHours: 24,
+                    targetStreak: 12,
+                    streakCount: 4,
+                    bestStreak: 9,
+                    totalCheckIns: 15,
+                    lastCheckInAt: null,
+                    displayStyle: 'ring',
+                }}
+                updateSettings={updateSettings}
+            />
+        );
+
+        expect(screen.getByTestId('habit-display-ring')).toBeInTheDocument();
+        expect(screen.getByText('Streak')).toBeInTheDocument();
+        expect(screen.queryAllByTestId(/habit-day-/)).toHaveLength(0);
+        expect(screen.queryByText('Day Streak')).not.toBeInTheDocument();
+    });
+
+    it('does not show encouragement text in Duolingo calendar view', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-06T10:00:00.000Z'));
+        const updateSettings = vi.fn();
+
+        render(
+            <HabitStreakWidget
+                widgetId="habit-calendar-toast"
+                settings={{
+                    habitName: 'Practice piano',
+                    checkInIntervalHours: 0,
+                    targetStreak: 21,
+                    streakCount: 2,
+                    bestStreak: 5,
+                    totalCheckIns: 7,
+                    lastCheckInAt: null,
+                    displayStyle: 'calendar',
+                    showMotivationalMessage: true,
+                }}
+                updateSettings={updateSettings}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+
+        expect(screen.queryByTestId('habit-motivational-toast')).not.toBeInTheDocument();
     });
 
     it('resets streak through header confirm action', () => {
@@ -187,6 +309,7 @@ describe('HabitStreakWidget', () => {
                     bestStreak: 9,
                     totalCheckIns: 22,
                     lastCheckInAt: '2026-02-19T09:00:00.000Z',
+                    checkInHistory: ['2026-02-17', '2026-02-18', '2026-02-19'],
                 },
                 updateSettings,
             },
@@ -215,6 +338,8 @@ describe('HabitStreakWidget', () => {
             bestStreak: 0,
             totalCheckIns: 0,
             lastCheckInAt: null,
+            checkInHistory: [],
+            displayStyle: 'calendar',
             showMotivationalMessage: true,
         });
     });
@@ -239,6 +364,7 @@ describe('HabitStreakWidget', () => {
                     bestStreak: 10,
                     totalCheckIns: 18,
                     lastCheckInAt: '2026-02-20T09:00:00.000Z',
+                    checkInHistory: ['2026-02-20'],
                     showMotivationalMessage: false,
                 },
                 updateSettings,
@@ -268,6 +394,8 @@ describe('HabitStreakWidget', () => {
             bestStreak: 0,
             totalCheckIns: 0,
             lastCheckInAt: null,
+            checkInHistory: [],
+            displayStyle: 'calendar',
             showMotivationalMessage: false,
         });
     });

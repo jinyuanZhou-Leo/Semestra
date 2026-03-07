@@ -22,8 +22,8 @@ The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, an
 | course-list/ | Widget plugin | Course list widget with plugin-level management settings panel. |
 | course-list/INDEX.md | Plugin architecture index | File map for course-list plugin runtime, metadata, global settings, and async fetch guards. |
 | grade-calculator/ | Widget plugin | Grade calculator widget with scoring helpers and settings model. |
-| habit-streak/ | Widget plugin | Habit streak widget with cadence checks, preset cadence settings, softer light-mode ring track contrast, a cleaner shadowless ring surface, subtle orbital ring motion, center-text readability tuning, borderless Check-In CTA styling, precomputed lower-cost milestone/overachieve burst animation, expanded short interval-agnostic motivation templates, rewards, and tests. |
-| habit-streak/INDEX.md | Plugin architecture index | File map for habit-streak helper logic, light/dark ring + typography runtime tuning, preset cadence settings, shadowless ring/button visual cleanup, subtle ring motion behavior, and precomputed burst animation behavior. |
+| habit-streak/ | Widget plugin | Habit streak widget with cadence checks, real recent check-in history, switchable Duolingo-style flame/calendar and classic ring visuals, borderless Check-In CTA styling, reward bursts, and tests. |
+| habit-streak/INDEX.md | Plugin architecture index | File map for habit-streak helper logic, recent-history normalization, dual streak-view rendering, preset cadence settings, and burst animation behavior. |
 | pomodoro/ | Widget plugin | Pomodoro focus timer widget with session transitions and tests. |
 | sticky-note/ | Widget plugin | Sticky note widget with editable content and header actions. |
 | tab-template/ | Template plugin | Starter template showing tab plugin structure and contracts. |

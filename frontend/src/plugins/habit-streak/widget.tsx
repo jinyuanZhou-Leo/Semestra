@@ -1,6 +1,6 @@
 // input:  [widget settings/update callbacks, framer-motion animation runtime, shadcn form controls/dialog actions]
 // output: [habit-streak widget component, settings component, helpers, and widget definition metadata]
-// pos:    [plugin runtime + settings layer for interval-based habit check-ins with preset cadence controls, clean theme-adaptive streak ring visuals with subtle orbital animation, shadowless check-in CTA styling, stronger center typography contrast, and reusable precomputed burst animations]
+// pos:    [plugin runtime + settings layer for interval-based habit check-ins with preset cadence controls, real recent-history tracking, switchable Duolingo-card/classic-ring visuals, ring-only encouragement toast behavior, shadowless check-in CTA styling, and reusable burst animations]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { RotateCcw, Sparkles } from 'lucide-react';
+import { Check, Flame, RotateCcw, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const HOUR_IN_MS = 60 * 60 * 1000;
@@ -28,6 +28,11 @@ const INTERVAL_OPTIONS = [
 ] as const;
 const ALLOWED_INTERVAL_HOURS = INTERVAL_OPTIONS.map((option) => option.value);
 const MIN_TARGET_STREAK = 1;
+const DISPLAY_STYLE_OPTIONS = [
+    { value: 'calendar', label: 'Duolingo Style' },
+    { value: 'ring', label: 'Ring' },
+] as const;
+type HabitStreakDisplayStyle = typeof DISPLAY_STYLE_OPTIONS[number]['value'];
 interface HabitStreakSettings {
     habitName: string;
     checkInIntervalHours: number;
@@ -36,6 +41,8 @@ interface HabitStreakSettings {
     bestStreak: number;
     totalCheckIns: number;
     lastCheckInAt: string | null;
+    checkInHistory: string[];
+    displayStyle: HabitStreakDisplayStyle;
     showMotivationalMessage: boolean;
 }
 
@@ -53,8 +60,13 @@ const DEFAULT_HABIT_STREAK_SETTINGS: HabitStreakSettings = {
     bestStreak: 0,
     totalCheckIns: 0,
     lastCheckInAt: null,
+    checkInHistory: [],
+    displayStyle: 'calendar',
     showMotivationalMessage: true,
 };
+
+const HISTORY_RETENTION_DAYS = 90;
+const LOCAL_DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 // ─── Motivational messages ────────────────────────────────────────────────────
 type MessageTemplate = (n: number) => string;
@@ -166,18 +178,79 @@ const clampTargetStreak = (value: unknown): number => {
     return Math.max(MIN_TARGET_STREAK, rounded);
 };
 
+const clampDisplayStyle = (value: unknown): HabitStreakDisplayStyle => {
+    if (typeof value !== 'string') return DEFAULT_HABIT_STREAK_SETTINGS.displayStyle;
+    return DISPLAY_STYLE_OPTIONS.some((option) => option.value === value)
+        ? value as HabitStreakDisplayStyle
+        : DEFAULT_HABIT_STREAK_SETTINGS.displayStyle;
+};
+
 const getStartOfLocalDay = (timestampMs: number) => {
     const date = new Date(timestampMs);
     return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 };
 
-const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSettings => {
+const getLocalDateParts = (dateKey: string) => {
+    if (!LOCAL_DATE_KEY_REGEX.test(dateKey)) return null;
+    const [yearRaw, monthRaw, dayRaw] = dateKey.split('-');
+    const year = Number.parseInt(yearRaw, 10);
+    const monthIndex = Number.parseInt(monthRaw, 10) - 1;
+    const day = Number.parseInt(dayRaw, 10);
+    if (!Number.isInteger(year) || !Number.isInteger(monthIndex) || !Number.isInteger(day)) {
+        return null;
+    }
+
+    const date = new Date(year, monthIndex, day);
+    if (
+        Number.isNaN(date.getTime()) ||
+        date.getFullYear() !== year ||
+        date.getMonth() !== monthIndex ||
+        date.getDate() !== day
+    ) {
+        return null;
+    }
+
+    return { year, monthIndex, day, timestampMs: date.getTime() };
+};
+
+const getLocalDateKey = (timestampMs: number) => {
+    const date = new Date(timestampMs);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const normalizeCheckInHistory = (history: unknown, nowMs: number): string[] => {
+    if (!Array.isArray(history)) return [];
+
+    const maxTimestampMs = getStartOfLocalDay(nowMs);
+    const minTimestampMs = maxTimestampMs - (HISTORY_RETENTION_DAYS - 1) * DAY_IN_MS;
+    const uniqueKeys = new Set<string>();
+    const normalizedHistory: { key: string; timestampMs: number }[] = [];
+
+    history.forEach((value) => {
+        if (typeof value !== 'string') return;
+        const parsed = getLocalDateParts(value);
+        if (!parsed) return;
+        if (parsed.timestampMs < minTimestampMs || parsed.timestampMs > maxTimestampMs) return;
+        if (uniqueKeys.has(value)) return;
+        uniqueKeys.add(value);
+        normalizedHistory.push({ key: value, timestampMs: parsed.timestampMs });
+    });
+
+    normalizedHistory.sort((left, right) => left.timestampMs - right.timestampMs);
+    return normalizedHistory.map((entry) => entry.key);
+};
+
+export const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSettings => {
     if (!settings || typeof settings !== 'object') {
         return DEFAULT_HABIT_STREAK_SETTINGS;
     }
 
     const source = settings as Partial<HabitStreakSettings>;
     const parsedLastCheckInAt = typeof source.lastCheckInAt === 'string' ? Date.parse(source.lastCheckInAt) : NaN;
+    const nowMs = Date.now();
 
     return {
         habitName: typeof source.habitName === 'string' ? source.habitName : DEFAULT_HABIT_STREAK_SETTINGS.habitName,
@@ -187,6 +260,8 @@ const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSettings =>
         bestStreak: Number.isFinite(source.bestStreak) ? Math.max(0, Math.round(source.bestStreak as number)) : 0,
         totalCheckIns: Number.isFinite(source.totalCheckIns) ? Math.max(0, Math.round(source.totalCheckIns as number)) : 0,
         lastCheckInAt: Number.isNaN(parsedLastCheckInAt) ? null : new Date(parsedLastCheckInAt).toISOString(),
+        checkInHistory: normalizeCheckInHistory(source.checkInHistory, nowMs),
+        displayStyle: clampDisplayStyle(source.displayStyle),
         showMotivationalMessage: typeof source.showMotivationalMessage === 'boolean' ? source.showMotivationalMessage : DEFAULT_HABIT_STREAK_SETTINGS.showMotivationalMessage,
     };
 };
@@ -324,6 +399,25 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
                 </div>
             </div>
 
+            <div className="grid gap-2">
+                <Label htmlFor={`${ids}-display-style`}>Display style</Label>
+                <Select
+                    value={habitSettings.displayStyle}
+                    onValueChange={(value) => updateSettings({ displayStyle: clampDisplayStyle(value) })}
+                >
+                    <SelectTrigger id={`${ids}-display-style`} className="w-full">
+                        <SelectValue placeholder="Select display style" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {DISPLAY_STYLE_OPTIONS.map((option) => (
+                            <SelectItem key={`habit-display-style-${option.value}`} value={option.value}>
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
             {/* Motivational message toggle */}
             <div className="flex items-center justify-between gap-4 pt-2">
                 <div className="grid gap-0.5">
@@ -331,7 +425,9 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
                         Encouragement on check-in
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                        Show a motivational message each time you check in.
+                        {habitSettings.displayStyle === 'calendar'
+                            ? 'Hidden in Duolingo calendar view, preserved for classic ring.'
+                            : 'Show a motivational message each time you check in.'}
                     </p>
                 </div>
                 <Switch
@@ -343,6 +439,15 @@ const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings,
         </div>
     );
 };
+
+interface HabitStreakCardProps {
+    prefersReducedMotion: boolean;
+    nowMs: number;
+    streakCount: number;
+    checkInHistory: string[];
+    targetProgress: number;
+    reactionSignal: number;
+}
 
 interface HabitRingProps {
     prefersReducedMotion: boolean;
@@ -501,12 +606,13 @@ const MilestoneBurstLayer: React.FC<{
     );
 };
 
-const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount, targetProgress, reactionSignal }) => {
+const useStreakBursts = (
+    targetProgress: number,
+    reactionSignal: number,
+    prefersReducedMotion: boolean
+) => {
     const [bursts, setBursts] = useState<BurstState[]>([]);
     const [milestoneBursts, setMilestoneBursts] = useState<MilestoneBurstState[]>([]);
-    const gradientId = useId().replace(/:/g, '-');
-
-    // Track previous tier to detect boundary crossings
     const prevTierRef = React.useRef(getMilestoneTier(targetProgress));
 
     useEffect(() => {
@@ -519,38 +625,179 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
             overachieveParticles: isOverachieve ? buildOverachieveParticleSpecs(burstId) : undefined,
         };
         setBursts((prev) => [...prev, nextBurst].slice(-3));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [reactionSignal, prefersReducedMotion]);
+    }, [reactionSignal, targetProgress, prefersReducedMotion]);
 
     useEffect(() => {
         if (prefersReducedMotion) return;
         const currentTier = getMilestoneTier(targetProgress);
         if (currentTier > prevTierRef.current && currentTier > 0 && targetProgress > 0) {
-            // Reached a new 25% milestone
             const colors = ['#fde047', '#fcd34d', '#fbbf24', '#f59e0b', '#f43f5e'];
-            setMilestoneBursts(prev => [...prev, { id: Date.now(), color: colors[currentTier], tier: currentTier }].slice(-4));
+            setMilestoneBursts((prev) => [...prev, { id: Date.now(), color: colors[currentTier], tier: currentTier }].slice(-4));
         }
         prevTierRef.current = currentTier;
     }, [targetProgress, prefersReducedMotion]);
 
-    const circumference = 2 * Math.PI * 46; // r=46
+    return { bursts, milestoneBursts };
+};
+
+interface RecentDayCell {
+    key: string;
+    dayLabel: string;
+    dayNumber: string;
+    isToday: boolean;
+    isCompleted: boolean;
+}
+
+const buildRecentDayCells = (checkInHistory: string[], nowMs: number): RecentDayCell[] => {
+    const completedDays = new Set(checkInHistory);
+    return Array.from({ length: 7 }, (_, index) => {
+        const offset = 6 - index;
+        const date = new Date(getStartOfLocalDay(nowMs) - offset * DAY_IN_MS);
+        const key = getLocalDateKey(date.getTime());
+        return {
+            key,
+            dayLabel: date.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 1),
+            dayNumber: String(date.getDate()),
+            isToday: offset === 0,
+            isCompleted: completedDays.has(key),
+        };
+    });
+};
+
+const HabitStreakCard: React.FC<HabitStreakCardProps> = ({
+    prefersReducedMotion,
+    nowMs,
+    streakCount,
+    checkInHistory,
+    targetProgress,
+    reactionSignal,
+}) => {
+    const { bursts, milestoneBursts } = useStreakBursts(targetProgress, reactionSignal, prefersReducedMotion);
+    const recentDayCells = useMemo(() => buildRecentDayCells(checkInHistory, nowMs), [checkInHistory, nowMs]);
+
+    return (
+        <div className="relative flex w-full max-w-[250px] flex-col items-center justify-center gap-4">
+            <AnimatePresence>
+                {bursts.map(burst => (
+                    <div key={burst.id} className="pointer-events-none absolute left-1/2 top-12 h-28 w-28 -translate-x-1/2 -translate-y-1/2 mix-blend-screen">
+                        <motion.div
+                            className="absolute inset-0 rounded-full border-2"
+                            style={{ borderColor: burst.isOverachieve ? 'rgba(244, 63, 94, 0.4)' : 'rgba(249, 115, 22, 0.5)' }}
+                            initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '3px' }}
+                            animate={prefersReducedMotion ? { opacity: 0 } : { scale: burst.isOverachieve ? 1.8 : 1.6, opacity: 0, borderWidth: '0px' }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                        />
+                        {burst.isOverachieve && burst.overachieveParticles && (
+                            <BurstParticles
+                                particles={burst.overachieveParticles}
+                                color="#f43f5e"
+                                prefersReducedMotion={prefersReducedMotion}
+                            />
+                        )}
+                    </div>
+                ))}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {milestoneBursts.map((burst) => (
+                    <MilestoneBurstLayer key={burst.id} burst={burst} prefersReducedMotion={prefersReducedMotion} />
+                ))}
+            </AnimatePresence>
+
+            <motion.div
+                className="relative flex w-full max-w-[210px] items-center gap-3 rounded-[26px] px-4 py-3 text-white shadow-[0_18px_40px_rgba(242,109,44,0.26)]"
+                style={{
+                    background:
+                        'linear-gradient(180deg, rgba(255,184,75,0.98) 0%, rgba(255,128,40,0.98) 48%, rgba(232,73,45,0.98) 100%)',
+                }}
+                initial={prefersReducedMotion ? false : { scale: 0.97, opacity: 0.96 }}
+                animate={prefersReducedMotion ? { scale: 1, opacity: 1 } : { scale: [1, 1.02, 1], opacity: 1 }}
+                transition={prefersReducedMotion ? { duration: 0.2 } : { duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <div className="absolute inset-x-5 top-0 h-px bg-white/45" />
+                <div className="absolute -left-3 top-2 h-10 w-10 rounded-full bg-white/18 blur-2xl" />
+                <motion.div
+                    key={streakCount}
+                    className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white/18 ring-1 ring-white/35 backdrop-blur-[2px]"
+                    initial={prefersReducedMotion ? false : { scale: 0.88, rotate: -8 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                >
+                    <Flame className="h-8 w-8 fill-current text-white drop-shadow-[0_6px_12px_rgba(131,31,2,0.28)]" />
+                </motion.div>
+                <div className="grid min-w-0 gap-0.5">
+                    <motion.span
+                        key={`streak-count-${streakCount}`}
+                        className="text-[clamp(1.8rem,12cqmin,2.6rem)] font-black leading-none tracking-[-0.06em]"
+                        initial={prefersReducedMotion ? false : { scale: 1.1, opacity: 0.7 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                    >
+                        {streakCount}
+                    </motion.span>
+                    <span className="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-white/80">
+                        Day Streak
+                    </span>
+                </div>
+            </motion.div>
+
+            <div className="grid w-full grid-cols-7 gap-1.5">
+                {recentDayCells.map((day) => (
+                    <div
+                        key={day.key}
+                        data-testid={`habit-day-${day.key}`}
+                        data-completed={day.isCompleted ? 'true' : 'false'}
+                        data-today={day.isToday ? 'true' : 'false'}
+                        className={cn(
+                            'relative flex min-h-[72px] flex-col items-center justify-between rounded-[18px] px-1.5 py-2 text-center ring-1 transition-transform duration-300',
+                            day.isCompleted
+                                ? 'bg-[linear-gradient(180deg,#ffb84b_0%,#ff7f3a_52%,#e54a2e_100%)] text-white ring-transparent shadow-[0_10px_24px_rgba(232,73,45,0.22)]'
+                                : 'bg-white/72 text-stone-600 ring-black/6 dark:bg-white/8 dark:text-white/72 dark:ring-white/10',
+                            day.isToday && 'scale-[1.03] ring-2 ring-[#ff8f2c] dark:ring-[#ffb14b]',
+                        )}
+                    >
+                        {day.isToday && (
+                            <div className="pointer-events-none absolute inset-x-2 -top-1 h-3 rounded-full bg-[#ffb55d]/70 blur-md dark:bg-[#ff9f57]/55" />
+                        )}
+                        <span className={cn('text-[0.6rem] font-bold uppercase tracking-[0.18em]', day.isCompleted ? 'text-white/72' : 'text-stone-400 dark:text-white/45')}>
+                            {day.dayLabel}
+                        </span>
+                        <span className="text-base font-black leading-none tracking-tight">
+                            {day.dayNumber}
+                        </span>
+                        <span
+                            className={cn(
+                                'flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
+                                day.isCompleted
+                                    ? 'bg-white/22 text-white'
+                                    : 'bg-stone-200 text-stone-400 dark:bg-white/10 dark:text-white/36',
+                            )}
+                        >
+                            {day.isCompleted ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount, targetProgress, reactionSignal }) => {
+    const { bursts, milestoneBursts } = useStreakBursts(targetProgress, reactionSignal, prefersReducedMotion);
+    const gradientId = useId().replace(/:/g, '-');
+    const circumference = 2 * Math.PI * 46;
     const strokeDashoffset = circumference - (targetProgress / 100) * circumference;
 
     return (
-        <div className="relative flex aspect-square h-full max-h-[160px] min-h-[70px] items-center justify-center">
-            {/* Progress SVG Ring */}
+        <div className="relative flex aspect-square h-full max-h-[160px] min-h-[70px] items-center justify-center" data-testid="habit-display-ring">
             <motion.svg
                 className="absolute inset-0 h-full w-full transform"
                 viewBox="0 0 100 100"
                 initial={{ rotate: -90, scale: 1 }}
-                animate={prefersReducedMotion
-                    ? { rotate: -90, scale: 1 }
-                    : { rotate: [-90, -88.8, -90.8, -90], scale: [1, 1.012, 1] }}
-                transition={prefersReducedMotion
-                    ? { duration: 0 }
-                    : { duration: 6.6, repeat: Infinity, ease: "easeInOut" }}
+                animate={prefersReducedMotion ? { rotate: -90, scale: 1 } : { rotate: [-90, -88.8, -90.8, -90], scale: [1, 1.012, 1] }}
+                transition={prefersReducedMotion ? { duration: 0 } : { duration: 6.6, repeat: Infinity, ease: 'easeInOut' }}
             >
-                {/* Track background */}
                 <circle
                     cx="50"
                     cy="50"
@@ -559,7 +806,6 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     fill="none"
                     style={{ stroke: 'var(--habit-ring-track)' }}
                 />
-                {/* Animated progress */}
                 <motion.circle
                     cx="50"
                     cy="50"
@@ -569,22 +815,18 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                     strokeLinecap="round"
                     fill="none"
                     initial={prefersReducedMotion ? { strokeDashoffset } : { strokeDashoffset: circumference }}
-                    animate={prefersReducedMotion
-                        ? { strokeDashoffset }
-                        : { strokeDashoffset, opacity: [0.9, 1, 0.9] }}
+                    animate={prefersReducedMotion ? { strokeDashoffset } : { strokeDashoffset, opacity: [0.9, 1, 0.9] }}
                     transition={prefersReducedMotion
                         ? { duration: 1.2, ease: [0.16, 1, 0.3, 1] }
                         : {
                             strokeDashoffset: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
-                            opacity: { duration: 2.3, repeat: Infinity, ease: "easeInOut" },
+                            opacity: { duration: 2.3, repeat: Infinity, ease: 'easeInOut' },
                         }}
                     strokeDasharray={circumference}
                 />
-
-                {/* Subtle orbital shimmer ring */}
                 <motion.g
                     animate={prefersReducedMotion ? { rotate: 0 } : { rotate: 360 }}
-                    transition={prefersReducedMotion ? { duration: 0 } : { duration: 9, repeat: Infinity, ease: "linear" }}
+                    transition={prefersReducedMotion ? { duration: 0 } : { duration: 9, repeat: Infinity, ease: 'linear' }}
                     style={{ transformOrigin: '50% 50%' }}
                 >
                     <circle
@@ -608,9 +850,8 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                 </defs>
             </motion.svg>
 
-            {/* Reaction Ripple Burst */}
             <AnimatePresence>
-                {bursts.map(burst => (
+                {bursts.map((burst) => (
                     <div key={burst.id} className="pointer-events-none absolute inset-0 mix-blend-screen">
                         <motion.div
                             className="absolute inset-0 rounded-full border-2"
@@ -618,7 +859,7 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                             initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '3px' }}
                             animate={prefersReducedMotion ? { opacity: 0 } : { scale: burst.isOverachieve ? 1.8 : 1.6, opacity: 0, borderWidth: '0px' }}
                             exit={{ opacity: 0 }}
-                            transition={{ duration: 0.8, ease: "easeOut" }}
+                            transition={{ duration: 0.8, ease: 'easeOut' }}
                         />
                         {burst.isOverachieve && burst.overachieveParticles && (
                             <BurstParticles
@@ -631,20 +872,18 @@ const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount
                 ))}
             </AnimatePresence>
 
-            {/* Milestone Particle Bursts (every 25%) */}
             <AnimatePresence>
                 {milestoneBursts.map((burst) => (
                     <MilestoneBurstLayer key={burst.id} burst={burst} prefersReducedMotion={prefersReducedMotion} />
                 ))}
             </AnimatePresence>
 
-            {/* Center Content */}
             <div className="flex flex-col items-center justify-center -space-y-1">
                 <motion.span
                     key={streakCount}
                     initial={prefersReducedMotion ? false : { scale: 1.15, opacity: 0.5 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     className="font-extrabold tracking-tighter drop-shadow-[0_1px_0_rgba(255,255,255,0.45)] dark:drop-shadow-none"
                     style={{
                         fontSize: 'clamp(1rem, 18cqmin, 2.5rem)',
@@ -680,6 +919,7 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
     const [motivationalToast, setMotivationalToast] = useState<MotivationalToast | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const canShowMotivationalToast = habitSettings.displayStyle === 'ring' && habitSettings.showMotivationalMessage;
 
     const checkInState = useMemo(
         () => getCheckInWindowState(habitSettings.lastCheckInAt, habitSettings.checkInIntervalHours, nowMs),
@@ -699,14 +939,28 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
         };
     }, []);
 
+    useEffect(() => {
+        if (canShowMotivationalToast) return;
+        if (toastTimerRef.current) {
+            clearTimeout(toastTimerRef.current);
+            toastTimerRef.current = null;
+        }
+        setMotivationalToast(null);
+    }, [canShowMotivationalToast]);
+
     const handleCheckIn = useCallback(() => {
         if (!checkInState.canCheckIn) return;
 
         const checkInAtMs = Date.now();
+        const todayKey = getLocalDateKey(checkInAtMs);
         const nextStreakCount = computeNextStreakCount(
             habitSettings.streakCount,
             checkInState.windowsSinceLast,
             Boolean(habitSettings.lastCheckInAt)
+        );
+        const nextCheckInHistory = normalizeCheckInHistory(
+            [...habitSettings.checkInHistory, todayKey],
+            checkInAtMs
         );
 
         void updateSettings({
@@ -715,18 +969,19 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
             bestStreak: Math.max(habitSettings.bestStreak, nextStreakCount),
             totalCheckIns: habitSettings.totalCheckIns + 1,
             lastCheckInAt: new Date(checkInAtMs).toISOString(),
+            checkInHistory: nextCheckInHistory,
         });
 
         setNowMs(checkInAtMs);
         setFlameReactionSignal((signal) => signal + 1);
 
         // Show motivational message if enabled
-        if (habitSettings.showMotivationalMessage) {
+        if (canShowMotivationalToast) {
             if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
             setMotivationalToast({ id: checkInAtMs, message: getMotivationalMessage(nextStreakCount) });
             toastTimerRef.current = setTimeout(() => setMotivationalToast(null), 3800);
         }
-    }, [checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, updateSettings]);
+    }, [canShowMotivationalToast, checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, updateSettings]);
 
     const buttonLabel = checkInState.canCheckIn
         ? 'Check In'
@@ -757,14 +1012,25 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     </div>
                 </div>
 
-                {/* Ring Visualization */}
+                {/* Streak Visualization */}
                 <div className="flex min-h-0 flex-1 items-center justify-center">
-                    <HabitRing
-                        prefersReducedMotion={prefersReducedMotion}
-                        streakCount={habitSettings.streakCount}
-                        targetProgress={targetProgress}
-                        reactionSignal={flameReactionSignal}
-                    />
+                    {habitSettings.displayStyle === 'calendar' ? (
+                        <HabitStreakCard
+                            prefersReducedMotion={prefersReducedMotion}
+                            nowMs={nowMs}
+                            streakCount={habitSettings.streakCount}
+                            checkInHistory={habitSettings.checkInHistory}
+                            targetProgress={targetProgress}
+                            reactionSignal={flameReactionSignal}
+                        />
+                    ) : (
+                            <HabitRing
+                                prefersReducedMotion={prefersReducedMotion}
+                                streakCount={habitSettings.streakCount}
+                                targetProgress={targetProgress}
+                                reactionSignal={flameReactionSignal}
+                            />
+                    )}
                 </div>
 
                 {/* Check In Action */}
@@ -790,6 +1056,7 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     {motivationalToast && (
                         <motion.div
                             key={motivationalToast.id}
+                            data-testid="habit-motivational-toast"
                             className="pointer-events-none absolute inset-x-0 bottom-11 z-20 flex items-end justify-center px-1 pb-1"
                             initial={{ opacity: 0, y: 6, scale: 0.96 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -864,6 +1131,7 @@ export const HabitStreakWidgetDefinition: WidgetDefinition = {
                             bestStreak: 0,
                             totalCheckIns: 0,
                             lastCheckInAt: null,
+                            checkInHistory: [],
                         });
                     }}
                 />
