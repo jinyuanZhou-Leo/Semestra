@@ -1,6 +1,6 @@
-// input:  [widget settings for timezone/second visibility and shared UI primitives from shadcn]
+// input:  [widget settings for timezone/second visibility, browser locale, and shared UI primitives from shadcn]
 // output: [world-clock widget component, settings component, and plugin definition metadata]
-// pos:    [timezone display plugin rendering formatted date/time with configurable refresh cadence]
+// pos:    [timezone display plugin rendering locale-aware date/time with configurable refresh cadence]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -84,6 +84,12 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
  */
 const WorldClockComponent: React.FC<WidgetProps> = ({ settings }) => {
     const [time, setTime] = useState(new Date());
+    const locale = useMemo(() => {
+        if (typeof navigator === 'undefined') {
+            return undefined;
+        }
+        return navigator.languages?.find(Boolean) ?? navigator.language;
+    }, []);
 
     // Default settings if not present
     const timezone = settings?.timezone || 'UTC';
@@ -126,15 +132,15 @@ const WorldClockComponent: React.FC<WidgetProps> = ({ settings }) => {
         if (showSeconds) {
             options.second = '2-digit';
         }
-        return new Intl.DateTimeFormat('en-US', options);
-    }, [timezone, showSeconds]);
+        return new Intl.DateTimeFormat(locale, options);
+    }, [locale, timezone, showSeconds]);
 
-    const dateFormatter = useMemo(() => new Intl.DateTimeFormat('en-US', {
+    const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         timeZone: timezone
-    }), [timezone]);
+    }), [locale, timezone]);
 
     const formattedTime = timeFormatter.format(time);
     const formattedDate = dateFormatter.format(time);

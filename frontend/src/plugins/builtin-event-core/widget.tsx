@@ -1,3 +1,11 @@
+// input:  [widget context, semester/course APIs, schedule hook, and shared timetable event bus]
+// output: [`BuiltinTodayEventsWidgetDefinition` and today-events widget runtime component]
+// pos:    [Built-in event-core widget that summarizes active events for the current day with scoped refreshes]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
@@ -139,8 +147,8 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
 
   useEventBus('timetable:schedule-data-changed', (payload) => {
     if (!resolvedSemesterId) return;
-    if (payload.semesterId && payload.semesterId !== resolvedSemesterId) return;
-    if (courseId && payload.courseId && payload.courseId !== courseId) return;
+    if (!payload.semesterId || payload.semesterId !== resolvedSemesterId) return;
+    if (courseId && payload.courseId !== courseId) return;
     void reload();
   });
 

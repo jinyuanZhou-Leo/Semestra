@@ -1,7 +1,16 @@
+// input:  [week/view state, conflict summary text, and calendar navigation callbacks]
+// output: [`CalendarToolbar` control bar for calendar navigation, view switching, and conflict summary]
+// pos:    [Calendar header controls that surface week navigation plus high-level conflict state]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { CalendarViewMode } from '../../shared/types';
@@ -12,6 +21,7 @@ interface CalendarToolbarProps {
   viewMode: CalendarViewMode;
   dateRangeLabel: string;
   isTodayWeek: boolean;
+  conflictSummary?: string | null;
   onWeekChange: (week: number) => void;
   onToday: () => void;
   onViewModeChange: (viewMode: CalendarViewMode) => void;
@@ -23,6 +33,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
   viewMode,
   dateRangeLabel,
   isTodayWeek,
+  conflictSummary,
   onWeekChange,
   onToday,
   onViewModeChange,
@@ -86,9 +97,16 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
         </ToggleGroup>
       </div>
 
-      <p className="rounded-md border border-border/70 bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground">
-        Week {safeWeek}/{safeMaxWeek} · {dateRangeLabel}
-      </p>
+      <div className="flex items-center gap-2">
+        {conflictSummary ? (
+          <Badge variant="destructive" className="shrink-0">
+            {conflictSummary}
+          </Badge>
+        ) : null}
+        <p className="rounded-md border border-border/70 bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground">
+          Week {safeWeek}/{safeMaxWeek} · {dateRangeLabel}
+        </p>
+      </div>
     </div>
   );
 };

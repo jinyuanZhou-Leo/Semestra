@@ -1,6 +1,15 @@
+// input:  [selected calendar event, optional conflict peers, dialog state, and save callback]
+// output: [`EventEditor` modal for event visibility/enable toggles plus conflict context]
+// pos:    [Calendar detail dialog that explains schedule conflicts while editing an event]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,14 +21,19 @@ interface EventEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   event: CalendarEventData | null;
+  conflictingEvents?: CalendarEventData[];
   onSave: (eventId: string, patch: CalendarEventPatch) => Promise<void>;
 }
 
-export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, event, onSave }) => {
+export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, event, conflictingEvents = [], onSave }) => {
   const [isSkipped, setIsSkipped] = React.useState(false);
   const [isEnabled, setIsEnabled] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const showEnableSwitch = event?.source !== 'schedule';
+  const conflictingPeers = React.useMemo(() => {
+    if (!event?.conflictGroupId) return [];
+    return conflictingEvents.filter((item) => item.id !== event.id);
+  }, [conflictingEvents, event?.conflictGroupId, event?.id]);
 
   React.useEffect(() => {
     if (!event || !open) return;
@@ -67,6 +81,35 @@ export const EventEditor: React.FC<EventEditorProps> = ({ open, onOpenChange, ev
                 Week {event.week}, {event.start.toLocaleDateString()} {event.startTime}-{event.endTime}
               </p>
             </div>
+
+            {event.isConflict ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/8 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  Conflict detected
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  This event overlaps with {conflictingPeers.length === 0 ? 'another scheduled event' : `${conflictingPeers.length} other event${conflictingPeers.length === 1 ? '' : 's'}`}.
+                </p>
+                {conflictingPeers.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {conflictingPeers.map((item) => (
+                      <div key={item.id} className="rounded border border-destructive/20 bg-background/70 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-medium text-foreground">{item.courseName}</p>
+                          <Badge variant="outline" className="shrink-0 border-destructive/30 text-destructive">
+                            {item.eventTypeCode}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Week {item.week} · {item.start.toLocaleDateString()} · {item.startTime}-{item.endTime}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="space-y-3">
               {showEnableSwitch ? (

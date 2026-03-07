@@ -1,6 +1,6 @@
-// input:  [semester context id, semester/course API service, and router link navigation]
+// input:  [semester context id, semester/course API service, router link navigation, and shared alert/button primitives]
 // output: [course-list widget component and plugin definition metadata]
-// pos:    [semester-scoped dashboard widget that fetches and renders course summary cards]
+// pos:    [semester-scoped dashboard widget that fetches/render course cards with explicit loading and retry states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,7 +14,17 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import type { Course } from '../../services/api';
 import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, Loader2 } from 'lucide-react';
+
+const resolveErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message.trim().length > 0) {
+        return error.message;
+    }
+    return fallback;
+};
 
 /**
  * CourseList Plugin - Memoized for performance
@@ -22,35 +32,45 @@ import { Badge } from '@/components/ui/badge';
  */
 const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
     const [courses, setCourses] = useState<Course[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const latestFetchRef = React.useRef(0);
 
-    useEffect(() => {
+    const loadCourses = React.useCallback(async () => {
         if (!semesterId) {
             setCourses([]);
+            setErrorMessage(null);
+            setIsLoading(false);
             return;
         }
 
-        let isActive = true;
         const fetchId = latestFetchRef.current + 1;
         latestFetchRef.current = fetchId;
+        setIsLoading(true);
+        setErrorMessage(null);
 
-        const fetchCourses = async () => {
-            try {
-                const data = await api.getSemester(semesterId);
-                if (!isActive || fetchId !== latestFetchRef.current) return;
-                setCourses(Array.isArray(data.courses) ? data.courses : []);
-            } catch (error) {
-                if (!isActive || fetchId !== latestFetchRef.current) return;
-                console.error('Failed to load course list widget data', error);
-                setCourses([]);
+        try {
+            const data = await api.getSemester(semesterId);
+            if (fetchId !== latestFetchRef.current) return;
+            setCourses(Array.isArray(data.courses) ? data.courses : []);
+        } catch (error) {
+            if (fetchId !== latestFetchRef.current) return;
+            console.error('Failed to load course list widget data', error);
+            setCourses([]);
+            setErrorMessage(resolveErrorMessage(error, 'Unable to load courses for this semester.'));
+        } finally {
+            if (fetchId === latestFetchRef.current) {
+                setIsLoading(false);
             }
-        };
-
-        void fetchCourses();
-        return () => {
-            isActive = false;
-        };
+        }
     }, [semesterId]);
+
+    useEffect(() => {
+        void loadCourses();
+        return () => {
+            latestFetchRef.current += 1;
+        };
+    }, [loadCourses]);
 
     if (!semesterId) {
         return (
@@ -63,7 +83,23 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
     return (
         <div className="flex h-full flex-col p-3">
             <div className="course-list-scroll no-scrollbar flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {courses.length === 0 ? (
+                {isLoading ? (
+                    <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Loading courses...</span>
+                    </div>
+                ) : errorMessage ? (
+                    <Alert variant="destructive" className="mx-auto max-w-sm">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Could not load courses</AlertTitle>
+                        <AlertDescription className="space-y-3">
+                            <p>{errorMessage}</p>
+                            <Button type="button" variant="outline" size="sm" onClick={() => void loadCourses()}>
+                                Retry
+                            </Button>
+                        </AlertDescription>
+                    </Alert>
+                ) : courses.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No courses</div>
                 ) : (
                         <div className="flex flex-col gap-1.5">

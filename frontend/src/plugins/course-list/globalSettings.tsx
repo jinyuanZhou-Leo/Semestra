@@ -1,6 +1,14 @@
+// input:  [semester context id, semester/course API service, settings-section UI, and modal/alert primitives]
+// output: [course-list global settings component for semester course management]
+// pos:    [settings-side management panel that loads semester courses, surfaces failures, and handles removal flows]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 import {
   AlertDialog,
@@ -13,6 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { SettingsSection } from '@/components/SettingsSection';
 import {
@@ -27,20 +36,44 @@ import { CourseManagerModal } from '@/components/CourseManagerModal';
 import api from '@/services/api';
 import type { Course, Semester } from '@/services/api';
 import type { WidgetGlobalSettingsProps } from '@/services/widgetRegistry';
-import { Loader2, Trash2 } from 'lucide-react';
+import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
+
+const resolveErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  return fallback;
+};
 
 export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semesterId, onRefresh }) => {
   const [semester, setSemester] = useState<Semester | null>(null);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchSemester = useCallback(async () => {
-    if (!semesterId) return;
+    if (!semesterId) {
+      setSemester(null);
+      setLoadError(null);
+      setIsLoading(false);
+      return false;
+    }
+
+    setSemester((current) => (current?.id === semesterId ? current : null));
+    setIsLoading(true);
+    setLoadError(null);
+
     try {
       const data = await api.getSemester(semesterId);
       setSemester(data);
+      return true;
     } catch (error) {
       console.error('Failed to fetch semester', error);
+      setLoadError(resolveErrorMessage(error, 'Unable to load courses for this semester.'));
+      return false;
+    } finally {
+      setIsLoading(false);
     }
   }, [semesterId]);
 
@@ -53,10 +86,14 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
     setRemovingCourseId(courseId);
     try {
       await api.updateCourse(courseId, { semester_id: null as any });
-      void fetchSemester();
+      const refreshed = await fetchSemester();
       onRefresh();
+      if (!refreshed) {
+        toast.error('Course was updated, but the course list could not be refreshed.');
+      }
     } catch (error) {
       console.error('Failed to remove course', error);
+      toast.error(resolveErrorMessage(error, 'Failed to remove course from this semester.'));
     } finally {
       setRemovingCourseId(null);
     }
@@ -80,8 +117,26 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
       description="Manage courses assigned to this semester."
     >
       <div className="space-y-4">
+        {loadError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Could not refresh semester courses</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>{loadError}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void fetchSemester()}>
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         <div className="w-full">
-          {courses.length === 0 ? (
+          {isLoading && !semester ? (
+            <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground" role="status" aria-live="polite">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading courses...</span>
+            </div>
+          ) : courses.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
               No courses assigned.
             </div>

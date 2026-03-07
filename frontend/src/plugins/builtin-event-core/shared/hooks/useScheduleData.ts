@@ -1,3 +1,11 @@
+// input:  [semester schedule service APIs, cache constants, hook options, and shared schedule mappers]
+// output: [`useScheduleData` hook for cached single-week/all-weeks schedule snapshots]
+// pos:    [Shared event-core data hook that deduplicates schedule requests and exposes refresh state]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React from 'react';
 import scheduleService from '@/services/schedule';
 import {
@@ -219,6 +227,7 @@ export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDat
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const requestCounterRef = React.useRef(0);
+  const hasSnapshotRef = React.useRef(false);
 
   const load = React.useCallback(async (forceRefresh: boolean) => {
     if (!semesterId || !enabled) {
@@ -226,6 +235,7 @@ export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDat
       setError(null);
       setIsLoading(false);
       setIsRefreshing(false);
+      hasSnapshotRef.current = false;
       return;
     }
 
@@ -239,7 +249,7 @@ export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDat
     const requestId = requestCounterRef.current + 1;
     requestCounterRef.current = requestId;
 
-    if (snapshot.items.length > 0) {
+    if (hasSnapshotRef.current) {
       setIsRefreshing(true);
     } else {
       setIsLoading(true);
@@ -265,6 +275,7 @@ export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDat
 
       setSnapshot(nextSnapshot);
       setError(null);
+      hasSnapshotRef.current = true;
     } catch (loadError) {
       if (requestCounterRef.current !== requestId) {
         return;
@@ -277,7 +288,7 @@ export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDat
         setIsRefreshing(false);
       }
     }
-  }, [enabled, mode, safeWeek, semesterId, snapshot.items.length, withConflicts, safeCacheTtlMs, safeMaxParallelRequests]);
+  }, [enabled, mode, safeWeek, semesterId, withConflicts, safeCacheTtlMs, safeMaxParallelRequests]);
 
   React.useEffect(() => {
     void load(false);

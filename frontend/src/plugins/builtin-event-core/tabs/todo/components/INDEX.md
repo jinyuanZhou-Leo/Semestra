@@ -10,6 +10,6 @@ Dialogs are grouped under `dialogs/` while cards/headers/sections stay in this f
 | TodoListSidebar.tsx | List navigation panel | Selects lists and manages custom list actions with mobile-safe sizing. |
 | TodoMainHeader.tsx | Action header | Renders list title, sort controls, and primary add actions. |
 | TodoTaskCard.tsx | Task card item | Displays task content, status, badges, and edit/delete controls with mobile width optimization. |
-| TodoSectionBlock.tsx | Section container | Collapsible section wrapper with drag target behavior and no mobile left indent for section title/task rows. |
+| TodoSectionBlock.tsx | Section container | Collapsible section wrapper with drag target behavior, no mobile left indent for section title/task rows, and delete-confirmation request wiring. |
 | TodoUnsectionedBlock.tsx | Unsectioned bucket | Renders tasks without a section and accepts drop operations. |
 | dialogs/ | Dialog components | Modal flows for task edit/create, list rename/delete, and section rename. |

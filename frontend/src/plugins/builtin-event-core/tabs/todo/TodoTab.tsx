@@ -10,6 +10,16 @@
 import React from 'react';
 import { toast } from 'sonner';
 import api, { type Course } from '@/services/api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../shared/constants';
@@ -77,6 +87,29 @@ interface TodoTabProps {
   semesterId?: string;
 }
 
+const SEMESTER_TODO_DETAIL_MAX_PARALLEL_REQUESTS = 4;
+const TODO_SYNC_RETRY_DELAY_MS = 1_500;
+
+const runWithConcurrencyLimit = async <T,>(tasks: Array<() => Promise<T>>, maxParallelRequests: number): Promise<T[]> => {
+  if (tasks.length === 0) return [];
+
+  const results = new Array<T>(tasks.length);
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < tasks.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await tasks[currentIndex]();
+    }
+  };
+
+  const workerCount = Math.min(tasks.length, Math.max(1, Math.floor(maxParallelRequests)));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+  return results;
+};
+
 export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, courseId, semesterId }) => {
   const mode: TodoTabMode = courseId
     ? 'course'
@@ -105,6 +138,13 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   const [listManageMode, setListManageMode] = React.useState(false);
   const [deleteListDialogOpen, setDeleteListDialogOpen] = React.useState(false);
   const [deleteListTarget, setDeleteListTarget] = React.useState<{ id: string; name: string } | null>(null);
+  const [deleteSectionDialogOpen, setDeleteSectionDialogOpen] = React.useState(false);
+  const [deleteSectionTarget, setDeleteSectionTarget] = React.useState<{
+    listId: string;
+    sectionId: string;
+    sectionName: string;
+    taskCount: number;
+  } | null>(null);
   const [sortMode, setSortMode] = React.useState<TodoSortMode>('created');
   const [sortDirection, setSortDirection] = React.useState<TodoSortDirection>('asc');
 
@@ -116,6 +156,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   const pendingSyncRef = React.useRef<Map<string, SemesterCourseListState>>(new Map());
   const inflightSyncRef = React.useRef<Set<string>>(new Set());
   const completedMoveTimersRef = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const isMountedRef = React.useRef(true);
 
   const updateLocalSettings = React.useCallback((nextSettings: Record<string, unknown>) => {
     void updateSettings(nextSettings);
@@ -185,12 +226,12 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   const flushCourseListSync = React.useCallback(async (targetCourseId: string) => {
     if (inflightSyncRef.current.has(targetCourseId)) return;
     inflightSyncRef.current.add(targetCourseId);
+    let retryScheduled = false;
 
     try {
       while (pendingSyncRef.current.has(targetCourseId)) {
         const pending = pendingSyncRef.current.get(targetCourseId);
         if (!pending) break;
-        pendingSyncRef.current.delete(targetCourseId);
 
         let tabId = pending.tabId;
         let baseSettings = pending.baseSettings;
@@ -205,20 +246,25 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
           tabId = created.id;
           baseSettings = parseJsonObject(created.settings);
 
-          setSemesterCourseLists((previous) => {
-            const current = previous[targetCourseId];
-            if (!current) return previous;
+          if (isMountedRef.current) {
+            setSemesterCourseLists((previous) => {
+              const current = previous[targetCourseId];
+              if (!current) return previous;
 
-            return {
-              ...previous,
-              [targetCourseId]: {
-                ...current,
-                tabId,
-                baseSettings,
-              },
-            };
-          });
+              return {
+                ...previous,
+                [targetCourseId]: {
+                  ...current,
+                  tabId,
+                  baseSettings,
+                },
+              };
+            });
+          }
 
+          if (pendingSyncRef.current.get(targetCourseId) === pending) {
+            pendingSyncRef.current.delete(targetCourseId);
+          }
           continue;
         }
 
@@ -238,45 +284,66 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
           isRecord(updatedSettings.courseList) ? updatedSettings.courseList : undefined,
         );
 
-        setSemesterCourseLists((previous) => {
-          const current = previous[targetCourseId];
-          if (!current) return previous;
+        if (isMountedRef.current) {
+          setSemesterCourseLists((previous) => {
+            const current = previous[targetCourseId];
+            if (!current) return previous;
 
-          return {
-            ...previous,
-            [targetCourseId]: {
-              ...current,
-              tabId,
-              baseSettings: updatedSettings,
-              sections: normalized.sections,
-              tasks: normalized.tasks,
-            },
-          };
-        });
+            return {
+              ...previous,
+              [targetCourseId]: {
+                ...current,
+                tabId,
+                baseSettings: updatedSettings,
+                sections: normalized.sections,
+                tasks: normalized.tasks,
+              },
+            };
+          });
+        }
+
+        if (pendingSyncRef.current.get(targetCourseId) === pending) {
+          pendingSyncRef.current.delete(targetCourseId);
+        }
       }
     } catch (error: any) {
       toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save course todo list.');
+      if (isMountedRef.current) {
+        const previousTimer = syncTimersRef.current.get(targetCourseId);
+        if (previousTimer) clearTimeout(previousTimer);
+        const retryTimer = setTimeout(() => {
+          syncTimersRef.current.delete(targetCourseId);
+          void flushCourseListSync(targetCourseId);
+        }, TODO_SYNC_RETRY_DELAY_MS);
+        syncTimersRef.current.set(targetCourseId, retryTimer);
+        retryScheduled = true;
+      } else {
+        retryScheduled = true;
+      }
     } finally {
       inflightSyncRef.current.delete(targetCourseId);
-      if (pendingSyncRef.current.has(targetCourseId)) {
+      if (!retryScheduled && pendingSyncRef.current.has(targetCourseId)) {
         void flushCourseListSync(targetCourseId);
       }
     }
   }, []);
 
-  const queueCourseListSync = React.useCallback((entry: SemesterCourseListState) => {
-    pendingSyncRef.current.set(entry.courseId, entry);
-
-    const previousTimer = syncTimersRef.current.get(entry.courseId);
+  const scheduleCourseListSync = React.useCallback((targetCourseId: string, delayMs = 350) => {
+    const previousTimer = syncTimersRef.current.get(targetCourseId);
     if (previousTimer) clearTimeout(previousTimer);
 
     const nextTimer = setTimeout(() => {
-      syncTimersRef.current.delete(entry.courseId);
-      void flushCourseListSync(entry.courseId);
-    }, 350);
+      syncTimersRef.current.delete(targetCourseId);
+      void flushCourseListSync(targetCourseId);
+    }, delayMs);
 
-    syncTimersRef.current.set(entry.courseId, nextTimer);
+    syncTimersRef.current.set(targetCourseId, nextTimer);
   }, [flushCourseListSync]);
+
+  const queueCourseListSync = React.useCallback((entry: SemesterCourseListState) => {
+    pendingSyncRef.current.set(entry.courseId, entry);
+    scheduleCourseListSync(entry.courseId);
+  }, [scheduleCourseListSync]);
 
   const updateSemesterCourseList = React.useCallback(
     (targetCourseId: string, updater: (current: TodoListStorage) => TodoListStorage) => {
@@ -314,22 +381,25 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
       try {
         const semester = await api.getSemester(semesterId);
         const courses = (semester.courses ?? []) as Course[];
-
-        const details = await Promise.all(
-          courses.map(async (course) => {
+        const coursesNeedingDetail = courses.filter((course) => !Array.isArray(course.tabs));
+        const detailResponses = await runWithConcurrencyLimit(
+          coursesNeedingDetail.map((course) => async () => {
             try {
               const detail = await api.getCourse(course.id);
-              return { course, detail };
+              return { courseId: course.id, detail };
             } catch {
-              return { course, detail: undefined };
+              return { courseId: course.id, detail: undefined };
             }
           }),
+          SEMESTER_TODO_DETAIL_MAX_PARALLEL_REQUESTS,
         );
 
         if (cancelled || loadRequestIdRef.current !== requestId) return;
 
+        const detailsByCourseId = new Map(detailResponses.map((item) => [item.courseId, item.detail]));
         const nextState: Record<string, SemesterCourseListState> = {};
-        details.forEach(({ course, detail }) => {
+        courses.forEach((course) => {
+          const detail = Array.isArray(course.tabs) ? course : detailsByCourseId.get(course.id);
           const todoTab = detail?.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
           nextState[course.id] = normalizeCourseListStateFromTab(course.id, course.name, todoTab);
         });
@@ -356,10 +426,20 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   React.useEffect(() => {
     const syncTimers = syncTimersRef.current;
     return () => {
+      isMountedRef.current = false;
+      const pendingCourseIds = Array.from(new Set([
+        ...pendingSyncRef.current.keys(),
+        ...syncTimers.keys(),
+      ]));
       syncTimers.forEach((timer) => clearTimeout(timer));
       syncTimers.clear();
+      pendingCourseIds.forEach((targetCourseId) => {
+        if (pendingSyncRef.current.has(targetCourseId)) {
+          void flushCourseListSync(targetCourseId);
+        }
+      });
     };
-  }, []);
+  }, [flushCourseListSync]);
 
   const clearTaskMoveTimer = React.useCallback((listId: string, taskId: string) => {
     const key = listTimerKey(listId, taskId);
@@ -513,6 +593,16 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
     setDeleteListTarget(null);
   }, [deleteListTarget, handleDeleteCustomList]);
 
+  const openDeleteSectionAlert = React.useCallback((list: TodoListModel, section: TodoSection, taskCount: number) => {
+    setDeleteSectionTarget({
+      listId: list.id,
+      sectionId: section.id,
+      sectionName: section.name,
+      taskCount,
+    });
+    setDeleteSectionDialogOpen(true);
+  }, []);
+
   const handleRenameList = React.useCallback((list: TodoListModel, nextName: string) => {
     if (!list.editableName) return;
 
@@ -622,6 +712,18 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
       };
     });
   }, [mutateListStorage, shouldAutoMoveCompleted]);
+
+  const confirmDeleteSection = React.useCallback(() => {
+    if (!deleteSectionTarget) return;
+
+    const targetList = allLists.find((list) => list.id === deleteSectionTarget.listId);
+    if (targetList) {
+      handleDeleteSection(targetList, deleteSectionTarget.sectionId);
+    }
+
+    setDeleteSectionDialogOpen(false);
+    setDeleteSectionTarget(null);
+  }, [allLists, deleteSectionTarget, handleDeleteSection]);
 
   const openCreateTaskDialog = React.useCallback((list: TodoListModel) => {
     const defaultSectionId = userSectionsOf(list.sections)[0]?.id ?? UNSECTIONED_TASK_BUCKET_ID;
@@ -963,7 +1065,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
                         onDragOverSection={handleTaskDragOverSection}
                         onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(event, activeList, targetSectionId, beforeTaskId)}
                         onOpenSectionTitleEditor={openSectionTitleEditor}
-                        onDeleteSection={(sectionId) => handleDeleteSection(activeList, sectionId)}
+                        onRequestDeleteSection={(section) => openDeleteSectionAlert(activeList, section, tasks.length)}
                         renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
                       />
                     );
@@ -986,6 +1088,38 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         }}
         onConfirmDelete={confirmDeleteCustomList}
       />
+
+      <AlertDialog
+        open={deleteSectionDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteSectionDialogOpen(open);
+          if (!open) {
+            setDeleteSectionTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent size="sm" className="select-none">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete section?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteSectionTarget ? (
+                <>
+                  Section <span className="font-medium text-foreground">{deleteSectionTarget.sectionName}</span>{' '}
+                  will be removed. {deleteSectionTarget.taskCount > 0
+                    ? `${deleteSectionTarget.taskCount} task${deleteSectionTarget.taskCount === 1 ? '' : 's'} will be moved into another section or the unsectioned list.`
+                    : 'No tasks will be moved.'}
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDeleteSection}>
+              Delete section
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <TodoListTitleDialog
         open={listTitleDialogOpen}
