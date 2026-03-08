@@ -1,12 +1,12 @@
-// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks, responsive dialog wrapper]
+// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks, auto-save status UI, and responsive dialog wrapper]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout, backup restore dialog flow, and account sign-out]
+// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout, debounced auto-save feedback, backup restore dialog flow, and account sign-out]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useCallback, useEffect, useRef, useState, Suspense, lazy, useId } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy, useId } from "react";
 import { Layout } from "../components/Layout";
 import { Button } from "@/components/ui/button";
 import { GPAScalingTable } from "../components/GPAScalingTable";
@@ -29,9 +29,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
-import { SaveSettingButton } from "../components/SaveSettingButton";
+import { AutoSaveStatus } from "../components/AutoSaveStatus";
 import { useTheme } from "../components/ThemeProvider";
 import { DEFAULT_GPA_SCALING_TABLE_JSON } from "../utils/gpaUtils";
+import { useAutoSave } from "../hooks/useAutoSave";
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -193,55 +194,49 @@ export const SettingsPage: React.FC = () => {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isDirty]);
 
-    // Auto-save & Animation 
-    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'success'>('idle');
-    const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const resetSaveStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const saveSettings = useCallback(async () => {
+    const settingsSnapshot = useMemo(() => ({
+        nickname,
+        gpaTableJson,
+        defaultCourseCredit
+    }), [defaultCourseCredit, gpaTableJson, nickname]);
+    const isSettingsValid = useMemo(() => {
         try {
             JSON.parse(gpaTableJson);
+            return true;
         } catch {
-            // Don't auto-save invalid JSON, maybe show error? 
-            // For now just return to avoid annoyance
-            return;
+            return false;
         }
+    }, [gpaTableJson]);
 
-        if (resetSaveStateTimerRef.current) {
-            clearTimeout(resetSaveStateTimerRef.current);
-        }
+    const saveSettings = useCallback(async () => {
+        await api.updateUser({
+            gpa_scaling_table: gpaTableJson,
+            nickname: nickname,
+            default_course_credit: defaultCourseCredit
+        });
+        await refreshUser();
 
-        setSaveState('saving');
-        try {
-            await api.updateUser({
-                gpa_scaling_table: gpaTableJson,
-                nickname: nickname,
-                default_course_credit: defaultCourseCredit
-            });
-            await refreshUser();
+        setInitialState({ nickname, gpaTableJson, defaultCourseCredit });
+        setIsDirty(false);
+    }, [defaultCourseCredit, gpaTableJson, nickname, refreshUser]);
 
-            setInitialState({ nickname, gpaTableJson, defaultCourseCredit });
-            setIsDirty(false);
-
-            setSaveState('success');
-            if (resetSaveStateTimerRef.current) {
-                clearTimeout(resetSaveStateTimerRef.current);
-            }
-
-            // Revert to idle after delay
-            resetSaveStateTimerRef.current = setTimeout(() => {
-                setSaveState('idle');
-            }, 900);
-
-        } catch (error) {
-            console.error("Failed to save settings", error);
-            setSaveState('idle'); // Or error state if needed
+    const { saveState } = useAutoSave({
+        value: settingsSnapshot,
+        savedValue: initialState ?? settingsSnapshot,
+        enabled: !!initialState,
+        isEqual: (left, right) =>
+            left.nickname === right.nickname
+            && left.gpaTableJson === right.gpaTableJson
+            && left.defaultCourseCredit === right.defaultCourseCredit,
+        validate: () => isSettingsValid,
+        onSave: saveSettings,
+        onError: async () => {
             await showAlert({
                 title: "Save failed",
                 description: "Failed to save settings."
             });
         }
-    }, [defaultCourseCredit, gpaTableJson, nickname, refreshUser, showAlert]);
+    });
 
     const clearRestoreBackupState = useCallback(() => {
         setSelectedBackupFile(null);
@@ -306,34 +301,6 @@ export const SettingsPage: React.FC = () => {
         }
     }, [clearRestoreBackupState, selectedBackupFile, showAlert]);
 
-    // Auto-save Effect
-    useEffect(() => {
-        if (!initialState) return;
-
-        // Check if actually changed
-        const hasChanged = nickname !== initialState.nickname ||
-            gpaTableJson !== initialState.gpaTableJson ||
-            defaultCourseCredit !== initialState.defaultCourseCredit;
-
-        if (hasChanged) {
-            // Clear existing timer
-            if (autoSaveTimerRef.current) {
-                clearTimeout(autoSaveTimerRef.current);
-            }
-
-            // Set new timer
-            autoSaveTimerRef.current = setTimeout(() => {
-                void saveSettings();
-            }, 1000); // 1s debounce
-        }
-
-        return () => {
-            if (autoSaveTimerRef.current) {
-                clearTimeout(autoSaveTimerRef.current);
-            }
-        };
-    }, [nickname, gpaTableJson, defaultCourseCredit, initialState, saveSettings]);
-
     // Manual Back Handler
     const handleBack = async (e: React.MouseEvent) => {
         // If saving, wait? Or allow exit? Allow exit for now.
@@ -364,14 +331,6 @@ export const SettingsPage: React.FC = () => {
     };
 
     const avatarInitial = (user?.email?.charAt(0).toUpperCase() || "U").trim();
-
-    useEffect(() => {
-        return () => {
-            if (resetSaveStateTimerRef.current) {
-                clearTimeout(resetSaveStateTimerRef.current);
-            }
-        };
-    }, []);
 
     const breadcrumb = (
         <Breadcrumb>
@@ -561,11 +520,11 @@ export const SettingsPage: React.FC = () => {
                             </div>
 
                             <div className="flex justify-start pt-4">
-                                <SaveSettingButton
-                                    onClick={() => saveSettings()}
+                                <AutoSaveStatus
                                     saveState={saveState}
-                                    label="Save Changes"
-                                    className="min-w-[140px]"
+                                    hasPendingChanges={isDirty}
+                                    isValid={isSettingsValid}
+                                    className="justify-start"
                                 />
                             </div>
                         </div>

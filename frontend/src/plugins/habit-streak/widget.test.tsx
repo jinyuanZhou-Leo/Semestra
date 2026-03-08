@@ -1,14 +1,13 @@
-// input:  [habit-streak widget/helper exports, mocked sibling-sync API calls, and testing-library render/event utilities]
-// output: [vitest coverage for habit check-in windows, shared normalization, dual widget rendering, sibling data sync, mode-specific settings, single-shell chrome, and header reset actions]
-// pos:    [plugin-level regression tests for the split Duolingo/Ring habit-streak widgets and their shared streak model]
+// input:  [habit-streak widget/helper exports and testing-library render/event utilities]
+// output: [vitest coverage for habit check-in windows, per-instance normalization, dual widget rendering, mode-specific settings, single-shell chrome, and header reset/delete actions]
+// pos:    [plugin-level regression tests for the split Duolingo/Ring habit-streak widgets and their per-instance streak model]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import api from '../../services/api';
 import {
     HabitStreakDuolingoWidget,
     HabitStreakDuolingoWidgetDefinition,
@@ -21,20 +20,11 @@ import {
     resetHabitStreakSharedStoreForTests,
 } from './widget';
 
-vi.mock('../../services/api', () => ({
-    default: {
-        updateWidget: vi.fn().mockResolvedValue({}),
-    },
-}));
-
-const mockedApi = vi.mocked(api);
-
 afterEach(() => {
     vi.useRealTimers();
 });
 
 beforeEach(() => {
-    mockedApi.updateWidget.mockClear();
     resetHabitStreakSharedStoreForTests();
 });
 
@@ -114,10 +104,12 @@ describe('HabitStreak widgets', () => {
                 settings={{
                     habitName: 'Read chapter',
                     checkInIntervalHours: 24,
+                    targetStreak: 21,
                     streakCount: 0,
                     bestStreak: 0,
                     totalCheckIns: 0,
                     lastCheckInAt: null,
+                    checkInHistory: [],
                 }}
                 updateSettings={updateSettings}
             />
@@ -141,6 +133,8 @@ describe('HabitStreak widgets', () => {
                     bestStreak: 9,
                     totalCheckIns: 15,
                     lastCheckInAt: null,
+                    checkInHistory: [],
+                    showMotivationalMessage: false,
                 }}
                 updateSettings={updateSettings}
             />
@@ -151,7 +145,7 @@ describe('HabitStreak widgets', () => {
         expect(screen.queryAllByTestId(/habit-day-/)).toHaveLength(0);
     });
 
-    it('increments streak in the Duolingo widget and syncs the sibling ring widget', async () => {
+    it('increments streak only for the checked-in instance when multiple widgets share a context', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-03-06T14:30:00.000Z'));
         const updateDuolingoSettings = vi.fn();
@@ -165,10 +159,12 @@ describe('HabitStreak widgets', () => {
                     settings={{
                         habitName: 'Workout',
                         checkInIntervalHours: 24,
+                        targetStreak: 21,
                         streakCount: 0,
                         bestStreak: 0,
                         totalCheckIns: 0,
                         lastCheckInAt: null,
+                        checkInHistory: [],
                     }}
                     updateSettings={updateDuolingoSettings}
                 />
@@ -176,13 +172,14 @@ describe('HabitStreak widgets', () => {
                     widgetId="habit-ring"
                     semesterId="semester-1"
                     settings={{
-                        habitName: 'Workout',
+                        habitName: 'Read',
                         checkInIntervalHours: 24,
                         targetStreak: 21,
-                        streakCount: 0,
-                        bestStreak: 0,
-                        totalCheckIns: 0,
-                        lastCheckInAt: null,
+                        streakCount: 3,
+                        bestStreak: 5,
+                        totalCheckIns: 9,
+                        lastCheckInAt: '2026-03-05T14:30:00.000Z',
+                        checkInHistory: ['2026-03-03', '2026-03-04', '2026-03-05'],
                         showMotivationalMessage: false,
                     }}
                     updateSettings={updateRingSettings}
@@ -203,19 +200,11 @@ describe('HabitStreak widgets', () => {
         );
 
         const ring = screen.getByTestId('habit-display-ring');
-        expect(within(ring).getByText('1')).toBeInTheDocument();
-
-        await Promise.resolve();
-
-        expect(mockedApi.updateWidget).toHaveBeenCalledWith(
-            'habit-ring',
-            expect.objectContaining({
-                settings: expect.any(String),
-            })
-        );
+        expect(within(ring).getByText('3')).toBeInTheDocument();
+        expect(updateRingSettings).not.toHaveBeenCalled();
     });
 
-    it('keeps same-day repeat check-ins from duplicating the shared history', () => {
+    it('keeps same-day repeat check-ins from duplicating the instance history', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-03-06T18:20:00.000Z'));
         const updateSettings = vi.fn();
@@ -262,6 +251,7 @@ describe('HabitStreak widgets', () => {
                     bestStreak: 2,
                     totalCheckIns: 2,
                     lastCheckInAt: new Date().toISOString(),
+                    checkInHistory: [],
                     showMotivationalMessage: true,
                 }}
                 updateSettings={updateSettings}
@@ -318,6 +308,7 @@ describe('HabitStreak widgets', () => {
                     bestStreak: 9,
                     totalCheckIns: 15,
                     lastCheckInAt: null,
+                    checkInHistory: [],
                     showMotivationalMessage: false,
                 }}
                 updateSettings={updateSettings}
@@ -346,6 +337,7 @@ describe('HabitStreak widgets', () => {
                     bestStreak: 5,
                     totalCheckIns: 7,
                     lastCheckInAt: null,
+                    checkInHistory: [],
                 }}
                 updateSettings={updateSettings}
             />
@@ -372,6 +364,7 @@ describe('HabitStreak widgets', () => {
                     bestStreak: 5,
                     totalCheckIns: 7,
                     lastCheckInAt: null,
+                    checkInHistory: [],
                     showMotivationalMessage: true,
                 }}
                 updateSettings={updateSettings}
@@ -429,9 +422,10 @@ describe('HabitStreak widgets', () => {
         expect(screen.getByLabelText('Encouragement on check-in')).toBeInTheDocument();
     });
 
-    it('resets the shared streak through the Duolingo header action and syncs the sibling widget', async () => {
+    it('resets only the current instance through the Duolingo header action', async () => {
         const resetAction = HabitStreakDuolingoWidgetDefinition.headerButtons?.find((button) => button.id === 'reset-streak');
-        const updateSettings = vi.fn();
+        const updateDuolingoSettings = vi.fn();
+        const updateRingSettings = vi.fn();
         let confirmAction: (() => void | Promise<void>) | null = null;
 
         if (!resetAction) {
@@ -439,22 +433,39 @@ describe('HabitStreak widgets', () => {
         }
 
         render(
-            <HabitStreakRingWidget
-                widgetId="habit-ring"
-                semesterId="semester-2"
-                settings={{
-                    habitName: 'Meditate',
-                    checkInIntervalHours: 24,
-                    targetStreak: 14,
-                    streakCount: 6,
-                    bestStreak: 9,
-                    totalCheckIns: 22,
-                    lastCheckInAt: '2026-02-19T09:00:00.000Z',
-                    checkInHistory: ['2026-02-17', '2026-02-18', '2026-02-19'],
-                    showMotivationalMessage: false,
-                }}
-                updateSettings={vi.fn()}
-            />
+            <>
+                <HabitStreakDuolingoWidget
+                    widgetId="habit-duo"
+                    semesterId="semester-2"
+                    settings={{
+                        habitName: 'Meditate',
+                        checkInIntervalHours: 24,
+                        targetStreak: 14,
+                        streakCount: 6,
+                        bestStreak: 9,
+                        totalCheckIns: 22,
+                        lastCheckInAt: '2026-02-19T09:00:00.000Z',
+                        checkInHistory: ['2026-02-17', '2026-02-18', '2026-02-19'],
+                    }}
+                    updateSettings={updateDuolingoSettings}
+                />
+                <HabitStreakRingWidget
+                    widgetId="habit-ring"
+                    semesterId="semester-2"
+                    settings={{
+                        habitName: 'Study',
+                        checkInIntervalHours: 24,
+                        targetStreak: 14,
+                        streakCount: 4,
+                        bestStreak: 7,
+                        totalCheckIns: 18,
+                        lastCheckInAt: '2026-02-18T09:00:00.000Z',
+                        checkInHistory: ['2026-02-16', '2026-02-17', '2026-02-18'],
+                        showMotivationalMessage: false,
+                    }}
+                    updateSettings={updateRingSettings}
+                />
+            </>
         );
 
         const actionNode = resetAction.render(
@@ -471,7 +482,7 @@ describe('HabitStreak widgets', () => {
                     lastCheckInAt: '2026-02-19T09:00:00.000Z',
                     checkInHistory: ['2026-02-17', '2026-02-18', '2026-02-19'],
                 },
-                updateSettings,
+                updateSettings: updateDuolingoSettings,
             },
             {
                 ActionButton: () => null,
@@ -487,11 +498,12 @@ describe('HabitStreak widgets', () => {
         if (!confirmAction) {
             throw new Error('Missing reset confirm callback');
         }
+        const runConfirmAction: () => void | Promise<void> = confirmAction;
         await act(async () => {
-            await confirmAction();
+            await runConfirmAction();
         });
 
-        expect(updateSettings).toHaveBeenCalledWith({
+        expect(updateDuolingoSettings).toHaveBeenCalledWith({
             habitName: 'Meditate',
             checkInIntervalHours: 24,
             targetStreak: 14,
@@ -501,14 +513,68 @@ describe('HabitStreak widgets', () => {
             lastCheckInAt: null,
             checkInHistory: [],
         });
+        expect(updateRingSettings).not.toHaveBeenCalled();
+    });
 
-        await waitFor(() => {
-            expect(mockedApi.updateWidget).toHaveBeenCalledWith(
-                'habit-ring',
-                expect.objectContaining({
-                    settings: expect.any(String),
-                })
-            );
+    it('cleans up the deleted widget instance record without leaking stale progress into a replacement instance', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-06T09:00:00.000Z'));
+        const updateOriginalSettings = vi.fn();
+        const updateReplacementSettings = vi.fn();
+
+        const { rerender } = render(
+            <HabitStreakDuolingoWidget
+                widgetId="habit-delete-me"
+                semesterId="semester-3"
+                settings={{
+                    habitName: 'Journal',
+                    checkInIntervalHours: 0,
+                    targetStreak: 10,
+                    streakCount: 2,
+                    bestStreak: 2,
+                    totalCheckIns: 2,
+                    lastCheckInAt: '2026-03-05T09:00:00.000Z',
+                    checkInHistory: ['2026-03-04', '2026-03-05'],
+                }}
+                updateSettings={updateOriginalSettings}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+
+        expect(updateOriginalSettings).toHaveBeenCalledWith(
+            expect.objectContaining({
+                streakCount: 3,
+                totalCheckIns: 3,
+                checkInHistory: ['2026-03-04', '2026-03-05', '2026-03-06'],
+            })
+        );
+
+        await HabitStreakDuolingoWidgetDefinition.onDelete?.({
+            widgetId: 'habit-delete-me',
+            semesterId: 'semester-3',
+            settings: {},
         });
+
+        rerender(
+            <HabitStreakDuolingoWidget
+                widgetId="habit-delete-me"
+                semesterId="semester-3"
+                settings={{
+                    habitName: 'Journal',
+                    checkInIntervalHours: 24,
+                    targetStreak: 10,
+                    streakCount: 0,
+                    bestStreak: 0,
+                    totalCheckIns: 0,
+                    lastCheckInAt: null,
+                    checkInHistory: [],
+                }}
+                updateSettings={updateReplacementSettings}
+            />
+        );
+
+        expect(screen.getByRole('button', { name: 'Check In' })).toBeEnabled();
+        expect(updateReplacementSettings).not.toHaveBeenCalled();
     });
 });

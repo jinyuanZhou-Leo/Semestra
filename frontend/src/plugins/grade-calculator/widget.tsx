@@ -1,3 +1,11 @@
+// input:  [widget settings/update callbacks, course/program GPA lookup APIs, auth fallback scaling state, and shadcn table/form primitives]
+// output: [grade-calculator widget component and widget definition]
+// pos:    [course-scoped grade planning widget with inline-edit assessment rows and sortable weight/grade columns]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
@@ -8,7 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Trash2 } from 'lucide-react';
 
 interface Assessment {
     id: string;
@@ -17,9 +25,17 @@ interface Assessment {
     grade: number | string;
 }
 
+type SortField = 'percentage' | 'grade' | null;
+type SortDirection = 'asc' | 'desc';
+
+const parseAssessmentNumber = (value: number | string): number => {
+    if (typeof value === 'number') return value;
+    return parseFloat(value) || 0;
+};
+
 /**
  * GradeCalculator Plugin
- * 
+ *
  * SIMPLIFIED IMPLEMENTATION:
  * - Framework handles debouncing automatically via updateSettings
  * - Plugin just calls updateSettings, framework does Optimistic UI + debounced API sync
@@ -27,7 +43,6 @@ interface Assessment {
  */
 const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSettings, courseId, updateCourse }) => {
     const { user } = useAuth();
-    // Use settings directly - framework handles Optimistic UI
     const assessments: Assessment[] = useMemo(
         () => (Array.isArray(settings.assessments) ? settings.assessments as Assessment[] : []),
         [settings.assessments]
@@ -37,6 +52,8 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
         [user?.gpa_scaling_table]
     );
     const [scalingTableJson, setScalingTableJson] = useState<string>(fallbackScalingTable);
+    const [sortField, setSortField] = useState<SortField>(null);
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
     useEffect(() => {
         let isActive = true;
@@ -54,73 +71,104 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
                             }
                         }
                     }
-                } catch (e) {
-                    console.error("Failed to resolve scaling table", e);
+                } catch (error) {
+                    console.error('Failed to resolve scaling table', error);
                 }
             }
             if (isActive) {
                 setScalingTableJson(resolved);
             }
         };
-        resolveScalingTable();
+        void resolveScalingTable();
         return () => {
             isActive = false;
         };
     }, [courseId, fallbackScalingTable]);
 
-    // Calculate totals from assessments
     const { totalPercentage, totalGrade, totalGradeScaled } = useMemo(() => {
-        let tp = 0;
+        let nextTotalPercentage = 0;
         let weightedGradeSum = 0;
 
-        assessments.forEach(a => {
-            const p = typeof a.percentage === 'string' ? parseFloat(a.percentage) || 0 : a.percentage;
-            const g = typeof a.grade === 'string' ? parseFloat(a.grade) || 0 : a.grade;
+        assessments.forEach((assessment) => {
+            const percentage = parseAssessmentNumber(assessment.percentage);
+            const grade = parseAssessmentNumber(assessment.grade);
 
-            tp += p;
-            weightedGradeSum += (g * p / 100);
+            nextTotalPercentage += percentage;
+            weightedGradeSum += (grade * percentage / 100);
         });
 
-        const tpRounded = Math.round(tp * 100) / 100;
-        const tgRounded = Math.round(weightedGradeSum * 100) / 100;
-        const scaled = calculateGPA(tgRounded, scalingTableJson);
-        return { totalPercentage: tpRounded, totalGrade: tgRounded, totalGradeScaled: scaled };
+        const roundedPercentage = Math.round(nextTotalPercentage * 100) / 100;
+        const roundedGrade = Math.round(weightedGradeSum * 100) / 100;
+        const scaled = calculateGPA(roundedGrade, scalingTableJson);
+
+        return { totalPercentage: roundedPercentage, totalGrade: roundedGrade, totalGradeScaled: scaled };
     }, [assessments, scalingTableJson]);
 
-    // Update course via context for reactive UI
+    const sortedAssessments = useMemo(() => {
+        if (!sortField) return assessments;
+
+        const directionMultiplier = sortDirection === 'asc' ? 1 : -1;
+        return [...assessments].sort((left, right) => {
+            const leftValue = parseAssessmentNumber(left[sortField]);
+            const rightValue = parseAssessmentNumber(right[sortField]);
+            const numericDiff = (leftValue - rightValue) * directionMultiplier;
+
+            if (numericDiff !== 0) {
+                return numericDiff;
+            }
+
+            return left.name.localeCompare(right.name);
+        });
+    }, [assessments, sortDirection, sortField]);
+
     useEffect(() => {
         if (totalPercentage === 100 && courseId && updateCourse) {
             updateCourse({
                 grade_percentage: totalGrade,
-                grade_scaled: typeof totalGradeScaled === 'number' ? totalGradeScaled : 0
+                grade_scaled: typeof totalGradeScaled === 'number' ? totalGradeScaled : 0,
             });
         }
     }, [totalPercentage, totalGrade, totalGradeScaled, courseId, updateCourse]);
 
-    // Simple handlers - just call updateSettings, framework handles debouncing
     const handleAddRow = useCallback(() => {
         const newAssessment: Assessment = {
             id: Date.now().toString(),
             name: 'New Assessment',
             percentage: '',
-            grade: ''
+            grade: '',
         };
         updateSettings({ ...settings, assessments: [...assessments, newAssessment] });
     }, [settings, assessments, updateSettings]);
 
     const handleRemoveRow = useCallback((id: string) => {
-        updateSettings({ ...settings, assessments: assessments.filter(a => a.id !== id) });
+        updateSettings({ ...settings, assessments: assessments.filter((assessment) => assessment.id !== id) });
     }, [settings, assessments, updateSettings]);
 
-    const handleUpdateRow = useCallback((id: string, field: keyof Assessment, value: any) => {
-        const newAssessments = assessments.map(a => {
-            if (a.id === id) {
-                return { ...a, [field]: value };
+    const handleUpdateRow = useCallback((id: string, field: keyof Assessment, value: string) => {
+        const nextAssessments = assessments.map((assessment) => {
+            if (assessment.id === id) {
+                return { ...assessment, [field]: value };
             }
-            return a;
+            return assessment;
         });
-        updateSettings({ ...settings, assessments: newAssessments });
+        updateSettings({ ...settings, assessments: nextAssessments });
     }, [settings, assessments, updateSettings]);
+
+    const handleSort = useCallback((field: Exclude<SortField, null>) => {
+        if (sortField === field) {
+            if (sortDirection === 'desc') {
+                setSortDirection('asc');
+                return;
+            }
+
+            setSortField(null);
+            setSortDirection('desc');
+            return;
+        }
+
+        setSortField(field);
+        setSortDirection('desc');
+    }, [sortDirection, sortField]);
 
     const formatWeightSum = (weight: number): string => {
         if (weight > 100) return 'INV';
@@ -129,46 +177,64 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
         return weight.toFixed(2);
     };
 
+    const getSortIcon = (field: Exclude<SortField, null>) => {
+        if (sortField !== field) return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/80" />;
+        return sortDirection === 'desc'
+            ? <ArrowDown className="h-3.5 w-3.5" />
+            : <ArrowUp className="h-3.5 w-3.5" />;
+    };
 
     return (
-        <div className="flex h-full flex-col p-3">
+        <div className="flex h-full flex-col px-3 pb-3 pt-0">
             <div className="no-scrollbar flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <Table className="w-full border-collapse text-sm">
                     <TableHeader>
                         <TableRow className="h-auto border-b border-border hover:bg-transparent">
                             <TableHead className="p-2 text-left font-medium text-muted-foreground">Name</TableHead>
-                            <TableHead
-                                className={`w-[108px] p-2 text-right font-medium ${
-                                    totalPercentage !== 100 ? 'text-destructive' : 'text-muted-foreground'
-                                }`}
-                            >
-                                <span className="inline-flex items-center justify-end">
-                                    Weight(
-                                    <span className="inline-block w-[3.4ch] text-center tabular-nums">
-                                        {formatWeightSum(totalPercentage)}
+                            <TableHead className="w-[120px] p-2 text-right font-medium text-muted-foreground">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleSort('percentage')}
+                                    className="ml-auto h-8 gap-1 px-2"
+                                >
+                                    <span className={totalPercentage !== 100 ? 'text-destructive' : undefined}>
+                                        Weight ({formatWeightSum(totalPercentage)}%)
                                     </span>
-                                    %)
-                                </span>
+                                    {getSortIcon('percentage')}
+                                </Button>
                             </TableHead>
-                            <TableHead className="w-[96px] p-2 text-right font-medium text-muted-foreground">Grade</TableHead>
-                            <TableHead className="w-[40px] p-2" />
+                            <TableHead className="w-[108px] p-2 text-right font-medium text-muted-foreground">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleSort('grade')}
+                                    className="ml-auto h-8 gap-1 px-2"
+                                >
+                                    <span>Grade</span>
+                                    {getSortIcon('grade')}
+                                </Button>
+                            </TableHead>
+                            <TableHead className="w-[28px] p-1" />
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {assessments.map(a => (
-                            <TableRow key={a.id} className="border-b border-border hover:bg-transparent">
+                        {sortedAssessments.map((assessment) => (
+                            <TableRow key={assessment.id} className="border-b border-border hover:bg-transparent">
                                 <TableCell className="p-2 align-middle">
                                     <Input
-                                        value={a.name}
-                                        onChange={e => handleUpdateRow(a.id, 'name', e.target.value)}
+                                        value={assessment.name}
+                                        onChange={(event) => handleUpdateRow(assessment.id, 'name', event.target.value)}
                                         placeholder="Name"
                                         className="h-8 text-sm"
                                     />
                                 </TableCell>
                                 <TableCell className="p-2 align-middle">
                                     <Input
-                                        value={a.percentage}
-                                        onChange={e => handleUpdateRow(a.id, 'percentage', e.target.value)}
+                                        value={assessment.percentage}
+                                        onChange={(event) => handleUpdateRow(assessment.id, 'percentage', event.target.value)}
                                         inputMode="decimal"
                                         placeholder="0"
                                         className="h-8 text-right text-sm tabular-nums"
@@ -176,24 +242,26 @@ const GradeCalculatorComponent: React.FC<WidgetProps> = ({ settings, updateSetti
                                 </TableCell>
                                 <TableCell className="p-2 align-middle">
                                     <Input
-                                        value={a.grade}
-                                        onChange={e => {
-                                            let val = e.target.value;
-                                            const num = parseFloat(val);
-                                            if (!isNaN(num) && num > 100) val = '100';
-                                            handleUpdateRow(a.id, 'grade', val);
+                                        value={assessment.grade}
+                                        onChange={(event) => {
+                                            let nextValue = event.target.value;
+                                            const parsedValue = parseFloat(nextValue);
+                                            if (!Number.isNaN(parsedValue) && parsedValue > 100) {
+                                                nextValue = '100';
+                                            }
+                                            handleUpdateRow(assessment.id, 'grade', nextValue);
                                         }}
                                         inputMode="decimal"
                                         placeholder="0"
                                         className="h-8 text-right text-sm tabular-nums"
                                     />
                                 </TableCell>
-                                <TableCell className="p-2 text-center align-middle">
+                                <TableCell className="p-1 text-center align-middle">
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        onClick={() => handleRemoveRow(a.id)}
-                                        className="text-muted-foreground/70 hover:bg-destructive/10 hover:text-destructive"
+                                        onClick={() => handleRemoveRow(assessment.id)}
+                                        className="h-7 w-7 text-muted-foreground/70 hover:bg-destructive/10 hover:text-destructive"
                                         aria-label="Remove"
                                     >
                                         <Trash2 className="h-4 w-4" />

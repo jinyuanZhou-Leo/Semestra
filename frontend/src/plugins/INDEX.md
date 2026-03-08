@@ -22,9 +22,10 @@ The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, an
 | counter/INDEX.md | Plugin architecture index | File map for counter plugin runtime, metadata, settings, bound validation, and design notes. |
 | course-list/ | Widget plugin | Course list widget with plugin-level management settings panel. |
 | course-list/INDEX.md | Plugin architecture index | File map for course-list plugin runtime, metadata, global settings, and explicit async loading/error feedback. |
-| grade-calculator/ | Widget plugin | Grade calculator widget with scoring helpers and settings model. |
-| habit-streak/ | Widget plugin | Habit streak dual-widget plugin with shared streak data, split Duolingo/ring widget definitions, mode-specific settings, reward bursts, and tests. |
-| habit-streak/INDEX.md | Plugin architecture index | File map for habit-streak shared-state helpers, split widget files, sibling sync behavior, mode-specific settings, and burst animation behavior. |
+| grade-calculator/ | Widget plugin | Grade calculator widget with sortable assessment rows and GPA scoring helpers. |
+| grade-calculator/INDEX.md | Plugin architecture index | File map for the grade-calculator runtime, metadata, and sortable table behavior. |
+| habit-streak/ | Widget plugin | Habit streak dual-widget plugin with per-instance streak data, split Duolingo/ring widget definitions, mode-specific settings, reward bursts, and tests. |
+| habit-streak/INDEX.md | Plugin architecture index | File map for habit-streak per-instance state helpers, split widget files, delete cleanup behavior, mode-specific settings, and burst animation behavior. |
 | pomodoro/ | Widget plugin | Pomodoro focus timer widget with session transitions and tests. |
 | sticky-note/ | Widget plugin | Sticky note widget with editable content and header actions. |
 | tab-template/ | Template plugin | Starter template showing tab plugin structure and contracts. |

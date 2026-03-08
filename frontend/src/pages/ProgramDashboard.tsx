@@ -1212,7 +1212,6 @@ const ProgramDashboardContent: React.FC = () => {
                             hide_gpa: program.hide_gpa
                         }}
                         onSave={handleUpdateProgram}
-                        onSuccess={() => setIsSettingsOpen(false)}
                         showCancel
                         onCancel={() => setIsSettingsOpen(false)}
                     />

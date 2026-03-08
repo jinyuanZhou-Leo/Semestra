@@ -1,17 +1,18 @@
-// input:  [initial course fields (name/alias/category/credits/GPA flags) and save callback]
+// input:  [initial course fields (name/alias/category/credits/GPA flags) and auto-save callback]
 // output: [`CourseSettingsPanel` component]
-// pos:    [Settings form section for editing per-course metadata and GPA participation]
+// pos:    [Settings form section for editing per-course metadata and GPA participation with debounced auto-save]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useState, useId } from "react";
+import React, { useEffect, useMemo, useRef, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SettingsSection } from "./SettingsSection";
-import { SaveSettingButton } from "./SaveSettingButton";
+import { AutoSaveStatus } from "./AutoSaveStatus";
+import { useAutoSave } from "@/hooks/useAutoSave";
 
 interface CourseSettingsPanelProps {
   initialName: string;
@@ -32,11 +33,6 @@ interface CourseSettingsPanelProps {
   }) => Promise<void>;
 }
 
-const wait = (delayMs: number) =>
-  new Promise<void>((resolve) => {
-    window.setTimeout(resolve, delayMs);
-  });
-
 export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   initialName,
   initialSettings,
@@ -48,50 +44,100 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   const [credits, setCredits] = useState(String(initialSettings?.credits || ""));
   const [includeInGpa, setIncludeInGpa] = useState(initialSettings?.include_in_gpa ?? true);
   const [hideGpa, setHideGpa] = useState(initialSettings?.hide_gpa ?? false);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
   const fieldId = useId();
   const initialAlias = initialSettings?.alias || "";
   const initialCategory = initialSettings?.category || "";
   const initialCredits = String(initialSettings?.credits || "");
   const initialIncludeInGpa = initialSettings?.include_in_gpa ?? true;
   const initialHideGpa = initialSettings?.hide_gpa ?? false;
+  const savedSnapshot = useMemo(
+    () => ({
+      name: initialName,
+      alias: initialAlias,
+      category: initialCategory,
+      credits: initialCredits,
+      includeInGpa: initialIncludeInGpa,
+      hideGpa: initialHideGpa,
+    }),
+    [
+      initialAlias,
+      initialCategory,
+      initialCredits,
+      initialHideGpa,
+      initialIncludeInGpa,
+      initialName,
+    ]
+  );
+  const draftSnapshot = useMemo(
+    () => ({
+      name,
+      alias,
+      category,
+      credits,
+      includeInGpa,
+      hideGpa,
+    }),
+    [alias, category, credits, hideGpa, includeInGpa, name]
+  );
+  const lastLoadedSnapshotRef = useRef(savedSnapshot);
 
   useEffect(() => {
-    setName(initialName);
-    setAlias(initialAlias);
-    setCategory(initialCategory);
-    setCredits(initialCredits);
-    setIncludeInGpa(initialIncludeInGpa);
-    setHideGpa(initialHideGpa);
-  }, [initialName, initialAlias, initialCategory, initialCredits, initialIncludeInGpa, initialHideGpa]);
+    const previousSnapshot = lastLoadedSnapshotRef.current;
+    const externalChanged =
+      previousSnapshot.name !== savedSnapshot.name ||
+      previousSnapshot.alias !== savedSnapshot.alias ||
+      previousSnapshot.category !== savedSnapshot.category ||
+      previousSnapshot.credits !== savedSnapshot.credits ||
+      previousSnapshot.includeInGpa !== savedSnapshot.includeInGpa ||
+      previousSnapshot.hideGpa !== savedSnapshot.hideGpa;
+    const draftHasLocalChanges =
+      previousSnapshot.name !== draftSnapshot.name ||
+      previousSnapshot.alias !== draftSnapshot.alias ||
+      previousSnapshot.category !== draftSnapshot.category ||
+      previousSnapshot.credits !== draftSnapshot.credits ||
+      previousSnapshot.includeInGpa !== draftSnapshot.includeInGpa ||
+      previousSnapshot.hideGpa !== draftSnapshot.hideGpa;
+    const incomingMatchesDraft =
+      savedSnapshot.name === draftSnapshot.name &&
+      savedSnapshot.alias === draftSnapshot.alias &&
+      savedSnapshot.category === draftSnapshot.category &&
+      savedSnapshot.credits === draftSnapshot.credits &&
+      savedSnapshot.includeInGpa === draftSnapshot.includeInGpa &&
+      savedSnapshot.hideGpa === draftSnapshot.hideGpa;
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (saveState === "saving") return;
+    lastLoadedSnapshotRef.current = savedSnapshot;
+    if (!externalChanged) return;
+    if (draftHasLocalChanges && !incomingMatchesDraft) return;
 
-    setSaveState("saving");
+    setName(savedSnapshot.name);
+    setAlias(savedSnapshot.alias);
+    setCategory(savedSnapshot.category);
+    setCredits(savedSnapshot.credits);
+    setIncludeInGpa(savedSnapshot.includeInGpa);
+    setHideGpa(savedSnapshot.hideGpa);
+  }, [draftSnapshot, savedSnapshot]);
 
-    try {
+  const { saveState, hasPendingChanges } = useAutoSave({
+    value: draftSnapshot,
+    savedValue: savedSnapshot,
+    onSave: async (snapshot) => {
       await onSave({
-        name,
-        alias: alias || null,
-        category: category || null,
-        credits: parseFloat(credits) || 0,
-        include_in_gpa: includeInGpa,
-        hide_gpa: hideGpa,
+        name: snapshot.name,
+        alias: snapshot.alias || null,
+        category: snapshot.category || null,
+        credits: parseFloat(snapshot.credits) || 0,
+        include_in_gpa: snapshot.includeInGpa,
+        hide_gpa: snapshot.hideGpa,
       });
-      setSaveState("success");
-      await wait(700);
-      setSaveState("idle");
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error("Failed to save settings", error);
-      setSaveState("idle");
-    }
-  };
+    },
+  });
 
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
-      <form onSubmit={handleSave} className="grid gap-6">
+      <div className="grid gap-6">
         <div className="grid gap-2 max-w-sm">
           <Label htmlFor={`${fieldId}-name`}>Name</Label>
           <Input
@@ -164,14 +210,12 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
         </div>
 
         <div className="flex items-center justify-end">
-          <SaveSettingButton
-            type="submit"
-            label="Save Settings"
+          <AutoSaveStatus
             saveState={saveState}
-            animated
+            hasPendingChanges={hasPendingChanges}
           />
         </div>
-      </form>
+      </div>
     </SettingsSection>
   );
 };

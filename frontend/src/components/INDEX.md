@@ -14,11 +14,12 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome and edit-mode-only hover elevation. |
 | AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
 | AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation. |
+| AutoSaveStatus.tsx | UI component | Shared non-interactive auto-save status line for settings surfaces with saving, pending, and validation feedback. |
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
 | BackButton.tsx | UI component | Reusable component for back button UI/interaction flow. |
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
 | CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation. |
-| CourseSettingsPanel.tsx | UI component | Reusable component for course settings panel UI/interaction flow. |
+| CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, pending-save feedback, and draft-safe sync against backend refreshes. |
 | GPAScalingTable.tsx | UI component | Reusable component for g p a scaling table UI/interaction flow. |
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |
 | GradientBlinds.tsx | UI component | Reusable component for gradient blinds UI/interaction flow. |
@@ -28,11 +29,11 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | Layout.tsx | UI component | Shared authenticated layout chrome, including header breadcrumb slot, fixed-height overflow handling, and server-backed sign-out actions. |
 | PageSkeleton.tsx | UI component | Reusable component for page skeleton UI/interaction flow. |
 | PluginSettingsCard.tsx | UI component | Reusable component for plugin settings card UI/interaction flow. |
-| ProgramSettingsPanel.tsx | UI component | Reusable component for program settings panel UI/interaction flow. |
+| ProgramSettingsPanel.tsx | UI component | Program settings panel with debounced auto-save, JSON validation feedback, and draft-safe sync against optimistic program updates. |
 | ResponsiveDialogDrawer.tsx | UI component | Shared responsive overlay wrapper that renders desktop dialog and mobile drawer, with unified header/footer slots and open-time focus handoff. |
 | RequireAuth.tsx | UI component | Reusable component for require auth UI/interaction flow. |
-| SaveSettingButton.tsx | UI component | Reusable component for save setting button UI/interaction flow. |
-| SemesterSettingsPanel.tsx | UI component | Reusable semester settings panel with semester-duration editing, optional Monday-to-Sunday Reading Week selection, and mobile-safe calendar trigger text. |
+| SaveSettingButton.tsx | UI component | Legacy animated save CTA retained for non-auto-save settings flows. |
+| SemesterSettingsPanel.tsx | UI component | Semester settings panel with debounced auto-save, Reading Week validation, and draft-safe sync against refreshed semester payloads. |
 | SessionExpiredModal.tsx | UI component | Reusable component for session expired modal UI/interaction flow. |
 | SettingsModal.tsx | UI component | Reusable component for settings modal UI/interaction flow. |
 | SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles that can inherit a page-level offset provider. |
@@ -41,6 +42,6 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | TabSwitch.tsx | UI component | Reusable component for tab switch UI/interaction flow. |
 | ThemeProvider.tsx | UI component | Reusable component for theme provider UI/interaction flow. |
 | ThemeToggle.tsx | UI component | Reusable component for theme toggle UI/interaction flow. |
-| WidgetSettingsModal.tsx | UI component | Reusable widget-settings modal relying on shared dialog animation primitives while preserving the active widget payload through close animations. |
+| WidgetSettingsModal.tsx | UI component | Widget-settings modal that preserves the active widget payload through close animations and commits edits on explicit save. |
 | WorkspaceNav.tsx | UI component | Shared sticky workspace navigation row that pairs semester/course context with the homepage tab switcher and extra-large mobile workspace titles. |
 | WorkspaceOverviewStats.tsx | UI component | Compact dashboard-only stat strip using normal labels and optional icons after workspace titles move out of page heroes, with tighter mobile card height. |

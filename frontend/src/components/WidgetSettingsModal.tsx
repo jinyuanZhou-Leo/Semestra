@@ -1,6 +1,6 @@
-// input:  [active widget payload, widget registry settings component lookup, save callback, dialog open state]
+// input:  [active widget payload, widget registry settings component lookup, save callback, and dialog open state]
 // output: [`WidgetSettingsModal` component]
-// pos:    [Per-widget settings editor modal that preserves the last widget payload through the close animation]
+// pos:    [Per-widget settings editor modal that preserves the last widget payload through close animation and commits changes on explicit save]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments

@@ -109,6 +109,13 @@ const buildOverachieveParticleSpecs = (seed: number): ParticleSpec[] => {
     });
 };
 
+let burstSequence = 0;
+
+const getNextBurstId = () => {
+    burstSequence += 1;
+    return burstSequence;
+};
+
 export const useStreakBursts = (
     targetProgress: number,
     reactionSignal: number,
@@ -120,7 +127,7 @@ export const useStreakBursts = (
 
     React.useEffect(() => {
         if (prefersReducedMotion || reactionSignal === 0) return;
-        const burstId = Date.now();
+        const burstId = getNextBurstId();
         const isOverachieve = targetProgress >= 100;
         const nextBurst: BurstState = {
             id: burstId,
@@ -135,7 +142,7 @@ export const useStreakBursts = (
         const currentTier = getMilestoneTier(targetProgress);
         if (currentTier > prevTierRef.current && currentTier > 0 && targetProgress > 0) {
             const colors = ['#fde047', '#fcd34d', '#fbbf24', '#f59e0b', '#f43f5e'];
-            setMilestoneBursts((prev) => [...prev, { id: Date.now(), color: colors[currentTier], tier: currentTier }].slice(-4));
+            setMilestoneBursts((prev) => [...prev, { id: getNextBurstId(), color: colors[currentTier], tier: currentTier }].slice(-4));
         }
         prevTierRef.current = currentTier;
     }, [targetProgress, prefersReducedMotion]);

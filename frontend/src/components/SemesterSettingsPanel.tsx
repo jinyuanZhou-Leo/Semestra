@@ -1,23 +1,24 @@
-// input:  [semester initial fields, date pickers, date-fns parse/format helpers, and save callback]
+// input:  [semester initial fields, date pickers, date-fns parse/format helpers, and auto-save callback]
 // output: [`SemesterSettingsPanel` component]
-// pos:    [Semester settings form for term title, semester duration, and optional Reading Week management]
+// pos:    [Semester settings form for term title, semester duration, and optional Reading Week management with debounced auto-save]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useState, useId } from "react";
+import React, { useEffect, useMemo, useRef, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SettingsSection } from "./SettingsSection";
-import { SaveSettingButton } from "./SaveSettingButton";
+import { AutoSaveStatus } from "./AutoSaveStatus";
 import { cn } from "@/lib/utils";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAutoSave } from "@/hooks/useAutoSave";
 
 interface SemesterSettingsPanelProps {
   initialName: string;
@@ -36,11 +37,6 @@ interface SemesterSettingsPanelProps {
   }) => Promise<void>;
 }
 
-const wait = (delayMs: number) =>
-  new Promise<void>((resolve) => {
-    window.setTimeout(resolve, delayMs);
-  });
-
 export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   initialName,
   initialSettings,
@@ -53,7 +49,6 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   const [readingWeekStart, setReadingWeekStart] = useState<Date | undefined>(undefined);
   const [readingWeekEnd, setReadingWeekEnd] = useState<Date | undefined>(undefined);
   const [formError, setFormError] = useState("");
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
   const fieldId = useId();
   const startDateRaw = initialSettings?.start_date;
   const endDateRaw = initialSettings?.end_date;
@@ -69,6 +64,27 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
     : "Optional";
 
   const normalizeToDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  const savedSnapshot = useMemo(
+    () => ({
+      name: initialName,
+      startDate: startDateRaw ?? null,
+      endDate: endDateRaw ?? null,
+      readingWeekStart: readingWeekStartRaw ?? null,
+      readingWeekEnd: readingWeekEndRaw ?? null,
+    }),
+    [endDateRaw, initialName, readingWeekEndRaw, readingWeekStartRaw, startDateRaw]
+  );
+  const draftSnapshot = useMemo(
+    () => ({
+      name,
+      startDate: startDate ? format(startDate, "yyyy-MM-dd") : null,
+      endDate: endDate ? format(endDate, "yyyy-MM-dd") : null,
+      readingWeekStart: readingWeekStart ? format(readingWeekStart, "yyyy-MM-dd") : null,
+      readingWeekEnd: readingWeekEnd ? format(readingWeekEnd, "yyyy-MM-dd") : null,
+    }),
+    [endDate, name, readingWeekEnd, readingWeekStart, startDate]
+  );
+  const lastLoadedSnapshotRef = useRef(savedSnapshot);
 
   const isReadingWeekDateDisabled = (day: Date) => {
     if (!startDate || !endDate) return false;
@@ -78,24 +94,48 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   };
 
   useEffect(() => {
-    setName(initialName);
+    const previousSnapshot = lastLoadedSnapshotRef.current;
+    const externalChanged =
+      previousSnapshot.name !== savedSnapshot.name ||
+      previousSnapshot.startDate !== savedSnapshot.startDate ||
+      previousSnapshot.endDate !== savedSnapshot.endDate ||
+      previousSnapshot.readingWeekStart !== savedSnapshot.readingWeekStart ||
+      previousSnapshot.readingWeekEnd !== savedSnapshot.readingWeekEnd;
+    const draftHasLocalChanges =
+      previousSnapshot.name !== draftSnapshot.name ||
+      previousSnapshot.startDate !== draftSnapshot.startDate ||
+      previousSnapshot.endDate !== draftSnapshot.endDate ||
+      previousSnapshot.readingWeekStart !== draftSnapshot.readingWeekStart ||
+      previousSnapshot.readingWeekEnd !== draftSnapshot.readingWeekEnd;
+    const incomingMatchesDraft =
+      savedSnapshot.name === draftSnapshot.name &&
+      savedSnapshot.startDate === draftSnapshot.startDate &&
+      savedSnapshot.endDate === draftSnapshot.endDate &&
+      savedSnapshot.readingWeekStart === draftSnapshot.readingWeekStart &&
+      savedSnapshot.readingWeekEnd === draftSnapshot.readingWeekEnd;
+
+    lastLoadedSnapshotRef.current = savedSnapshot;
+    if (!externalChanged) return;
+    if (draftHasLocalChanges && !incomingMatchesDraft) return;
+
+    setName(savedSnapshot.name);
     setFormError("");
 
     const parsedStart =
-      typeof startDateRaw === "string" && startDateRaw.length > 0
-        ? parseISO(startDateRaw)
+      typeof savedSnapshot.startDate === "string" && savedSnapshot.startDate.length > 0
+        ? parseISO(savedSnapshot.startDate)
         : undefined;
     const parsedEnd =
-      typeof endDateRaw === "string" && endDateRaw.length > 0
-        ? parseISO(endDateRaw)
+      typeof savedSnapshot.endDate === "string" && savedSnapshot.endDate.length > 0
+        ? parseISO(savedSnapshot.endDate)
         : undefined;
     const parsedReadingWeekStart =
-      typeof readingWeekStartRaw === "string" && readingWeekStartRaw.length > 0
-        ? parseISO(readingWeekStartRaw)
+      typeof savedSnapshot.readingWeekStart === "string" && savedSnapshot.readingWeekStart.length > 0
+        ? parseISO(savedSnapshot.readingWeekStart)
         : undefined;
     const parsedReadingWeekEnd =
-      typeof readingWeekEndRaw === "string" && readingWeekEndRaw.length > 0
-        ? parseISO(readingWeekEndRaw)
+      typeof savedSnapshot.readingWeekEnd === "string" && savedSnapshot.readingWeekEnd.length > 0
+        ? parseISO(savedSnapshot.readingWeekEnd)
         : undefined;
     setStartDate(parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart : undefined);
     setEndDate(parsedEnd && !Number.isNaN(parsedEnd.getTime()) ? parsedEnd : undefined);
@@ -109,12 +149,42 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
         ? parsedReadingWeekEnd
         : undefined
     );
-  }, [endDateRaw, initialName, readingWeekEndRaw, readingWeekStartRaw, startDateRaw]);
+  }, [draftSnapshot, savedSnapshot]);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (saveState === "saving") return;
+  const isValid = useMemo(() => {
+    if (startDate && endDate && startDate > endDate) {
+      return false;
+    }
 
+    if ((readingWeekStart && !readingWeekEnd) || (!readingWeekStart && readingWeekEnd)) {
+      return false;
+    }
+
+    if (readingWeekStart && readingWeekEnd) {
+      if (!startDate || !endDate) {
+        return false;
+      }
+
+      if (differenceInCalendarDays(readingWeekEnd, readingWeekStart) !== 6) {
+        return false;
+      }
+
+      if (readingWeekStart.getDay() !== 1 || readingWeekEnd.getDay() !== 0) {
+        return false;
+      }
+
+      if (
+        normalizeToDay(readingWeekStart) < normalizeToDay(startDate)
+        || normalizeToDay(readingWeekEnd) > normalizeToDay(endDate)
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [endDate, readingWeekEnd, readingWeekStart, startDate]);
+
+  useEffect(() => {
     if (startDate && endDate && startDate > endDate) {
       setFormError("Start date must be earlier than or equal to end date.");
       return;
@@ -151,28 +221,29 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
     }
 
     setFormError("");
-    setSaveState("saving");
+  }, [endDate, readingWeekEnd, readingWeekStart, startDate]);
 
-    try {
+  const { saveState, hasPendingChanges } = useAutoSave({
+    value: draftSnapshot,
+    savedValue: savedSnapshot,
+    validate: () => isValid,
+    onSave: async (snapshot) => {
       await onSave({
-        name,
-        start_date: startDate ? format(startDate, "yyyy-MM-dd") : null,
-        end_date: endDate ? format(endDate, "yyyy-MM-dd") : null,
-        reading_week_start: readingWeekStart ? format(readingWeekStart, "yyyy-MM-dd") : null,
-        reading_week_end: readingWeekEnd ? format(readingWeekEnd, "yyyy-MM-dd") : null,
+        name: snapshot.name,
+        start_date: snapshot.startDate,
+        end_date: snapshot.endDate,
+        reading_week_start: snapshot.readingWeekStart,
+        reading_week_end: snapshot.readingWeekEnd,
       });
-      setSaveState("success");
-      await wait(700);
-      setSaveState("idle");
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error("Failed to save settings", error);
-      setSaveState("idle");
-    }
-  };
+    },
+  });
 
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
-      <form onSubmit={handleSave} className="grid gap-6">
+      <div className="grid gap-6">
         <div className="grid gap-2 max-w-sm">
           <Label htmlFor={`${fieldId}-name`}>Name</Label>
           <Input
@@ -280,14 +351,13 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
         {formError && <p className="text-sm text-destructive">{formError}</p>}
 
         <div className="flex items-center justify-end">
-          <SaveSettingButton
-            type="submit"
-            label="Save Settings"
+          <AutoSaveStatus
             saveState={saveState}
-            animated
+            hasPendingChanges={hasPendingChanges}
+            isValid={isValid}
           />
         </div>
-      </form>
+      </div>
     </SettingsSection>
   );
 };

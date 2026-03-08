@@ -1,18 +1,19 @@
-// input:  [program name/credits/GPA defaults, GPA table editor, save/cancel lifecycle callbacks]
+// input:  [program name/credits/GPA defaults, GPA table editor, auto-save lifecycle callbacks, and optional close action]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form rendered inside program dashboard modal]
+// pos:    [Program-level settings form rendered inside program dashboard modal with debounced auto-save feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useState, useId } from "react";
+import React, { useEffect, useMemo, useRef, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GPAScalingTable } from "./GPAScalingTable";
-import { SaveSettingButton } from "./SaveSettingButton";
+import { AutoSaveStatus } from "./AutoSaveStatus";
+import { useAutoSave } from "@/hooks/useAutoSave";
 
 interface ProgramSettingsPanelProps {
   initialName: string;
@@ -27,21 +28,14 @@ interface ProgramSettingsPanelProps {
     gpa_scaling_table: string;
     hide_gpa: boolean;
   }) => Promise<void>;
-  onSuccess?: () => void | Promise<void>;
   showCancel?: boolean;
   onCancel?: () => void;
 }
-
-const wait = (delayMs: number) =>
-  new Promise<void>((resolve) => {
-    window.setTimeout(resolve, delayMs);
-  });
 
 export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   initialName,
   initialSettings,
   onSave,
-  onSuccess,
   showCancel = false,
   onCancel,
 }) => {
@@ -50,54 +44,95 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   const [hideGpa, setHideGpa] = useState(initialSettings?.hide_gpa ?? false);
   const [gpaTableJson, setGpaTableJson] = useState(initialSettings?.gpa_scaling_table || "{}");
   const [jsonError, setJsonError] = useState("");
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
   const fieldId = useId();
   const initialGradCredits = String(initialSettings?.grad_requirement_credits || "");
   const initialHideGpa = initialSettings?.hide_gpa ?? false;
   const initialGpaTableJson = initialSettings?.gpa_scaling_table || "{}";
+  const savedSnapshot = useMemo(
+    () => ({
+      name: initialName,
+      gradCredits: initialGradCredits,
+      hideGpa: initialHideGpa,
+      gpaTableJson: initialGpaTableJson,
+    }),
+    [initialGpaTableJson, initialGradCredits, initialHideGpa, initialName]
+  );
+  const draftSnapshot = useMemo(
+    () => ({
+      name,
+      gradCredits,
+      hideGpa,
+      gpaTableJson,
+    }),
+    [gpaTableJson, gradCredits, hideGpa, name]
+  );
+  const lastLoadedSnapshotRef = useRef(savedSnapshot);
 
   useEffect(() => {
-    setName(initialName);
-    setGradCredits(initialGradCredits);
-    setHideGpa(initialHideGpa);
-    setGpaTableJson(initialGpaTableJson);
+    const previousSnapshot = lastLoadedSnapshotRef.current;
+    const externalChanged =
+      previousSnapshot.name !== savedSnapshot.name ||
+      previousSnapshot.gradCredits !== savedSnapshot.gradCredits ||
+      previousSnapshot.hideGpa !== savedSnapshot.hideGpa ||
+      previousSnapshot.gpaTableJson !== savedSnapshot.gpaTableJson;
+    const draftHasLocalChanges =
+      previousSnapshot.name !== draftSnapshot.name ||
+      previousSnapshot.gradCredits !== draftSnapshot.gradCredits ||
+      previousSnapshot.hideGpa !== draftSnapshot.hideGpa ||
+      previousSnapshot.gpaTableJson !== draftSnapshot.gpaTableJson;
+    const incomingMatchesDraft =
+      savedSnapshot.name === draftSnapshot.name &&
+      savedSnapshot.gradCredits === draftSnapshot.gradCredits &&
+      savedSnapshot.hideGpa === draftSnapshot.hideGpa &&
+      savedSnapshot.gpaTableJson === draftSnapshot.gpaTableJson;
+
+    lastLoadedSnapshotRef.current = savedSnapshot;
+    if (!externalChanged) return;
+    if (draftHasLocalChanges && !incomingMatchesDraft) return;
+
+    setName(savedSnapshot.name);
+    setGradCredits(savedSnapshot.gradCredits);
+    setHideGpa(savedSnapshot.hideGpa);
+    setGpaTableJson(savedSnapshot.gpaTableJson);
     setJsonError("");
-  }, [initialName, initialGradCredits, initialHideGpa, initialGpaTableJson]);
+  }, [draftSnapshot, savedSnapshot]);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (saveState === "saving") return;
-
-    try {
-      JSON.parse(gpaTableJson);
+  const { saveState, hasPendingChanges, isValid } = useAutoSave({
+    value: draftSnapshot,
+    savedValue: savedSnapshot,
+    validate: (snapshot) => {
+      try {
+        JSON.parse(snapshot.gpaTableJson);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    onSave: async (snapshot) => {
       setJsonError("");
-    } catch {
-      setJsonError("Invalid JSON for GPA Table");
+      await onSave({
+        name: snapshot.name,
+        grad_requirement_credits: parseFloat(snapshot.gradCredits) || 0,
+        gpa_scaling_table: snapshot.gpaTableJson,
+        hide_gpa: snapshot.hideGpa,
+      });
+    },
+    onError: (error) => {
+      console.error("Failed to save settings", error);
+    },
+  });
+
+  useEffect(() => {
+    if (isValid) {
+      setJsonError("");
       return;
     }
 
-    setSaveState("saving");
-
-    try {
-      await onSave({
-        name,
-        grad_requirement_credits: parseFloat(gradCredits) || 0,
-        gpa_scaling_table: gpaTableJson,
-        hide_gpa: hideGpa,
-      });
-      setSaveState("success");
-      await wait(700);
-      setSaveState("idle");
-      await wait(220);
-      await onSuccess?.();
-    } catch (error) {
-      console.error("Failed to save settings", error);
-      setSaveState("idle");
-    }
-  };
+    setJsonError("Invalid JSON for GPA Table");
+  }, [isValid]);
 
   return (
-    <form onSubmit={handleSave} className="grid gap-6">
+    <div className="grid gap-6">
       <div className="grid gap-2">
         <Label htmlFor={`${fieldId}-name`}>Name</Label>
         <Input
@@ -152,18 +187,16 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
             type="button"
             variant="secondary"
             onClick={onCancel}
-            disabled={saveState === "saving"}
           >
             Cancel
           </Button>
         )}
-        <SaveSettingButton
-          type="submit"
-          label="Save Changes"
+        <AutoSaveStatus
           saveState={saveState}
-          animated
+          hasPendingChanges={hasPendingChanges}
+          isValid={isValid}
         />
       </div>
-    </form>
+    </div>
   );
 };

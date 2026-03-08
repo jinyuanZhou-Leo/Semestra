@@ -1,6 +1,6 @@
 // input:  [widget settings/update callbacks, sibling widget sync API calls, split Duolingo/ring display components, shared date/history helpers, and shadcn form controls/dialog actions]
-// output: [habit-streak shared helpers, Duolingo widget component/definition, Ring widget component/definition, and mode-specific settings components]
-// pos:    [plugin runtime + settings layer for dual habit-streak widgets with shared streak state, sibling sync, and mode-specific feedback wiring]
+// output: [habit-streak instance-state helpers, Duolingo widget component/definition, Ring widget component/definition, and mode-specific settings components]
+// pos:    [plugin runtime + settings layer for dual habit-streak widgets with per-instance streak state, compact untitled fallback text, and mode-specific feedback wiring]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,6 @@
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { HeaderButtonContext, WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
-import api from '../../services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -84,121 +83,69 @@ const DEFAULT_HABIT_STREAK_RING_SETTINGS: HabitStreakRingSettings = {
     showMotivationalMessage: true,
 };
 
-interface HabitContextWidgetRegistration {
-    settings: HabitStreakSettings;
-    variant: HabitStreakVariant;
-}
-
-interface HabitContextEntry {
+interface HabitInstanceEntry {
     listeners: Set<() => void>;
-    sharedSettings: HabitStreakSharedSettings;
-    widgets: Map<string, HabitContextWidgetRegistration>;
+    settings: HabitStreakSharedSettings;
 }
 
-const habitSharedStore = new Map<string, HabitContextEntry>();
+const habitInstanceStore = new Map<string, HabitInstanceEntry>();
 
-const getHabitContextKey = (widgetId: string, semesterId?: string, courseId?: string) => {
-    if (semesterId) return `semester:${semesterId}`;
-    if (courseId) return `course:${courseId}`;
-    return `widget:${widgetId}`;
-};
-
-const getHabitContextEntry = (
-    contextKey: string,
-    fallbackSharedSettings: HabitStreakSharedSettings
-): HabitContextEntry => {
-    const existing = habitSharedStore.get(contextKey);
+const getHabitInstanceEntry = (
+    widgetId: string,
+    fallbackSettings: HabitStreakSharedSettings
+): HabitInstanceEntry => {
+    const existing = habitInstanceStore.get(widgetId);
     if (existing) return existing;
 
-    const created: HabitContextEntry = {
+    const created: HabitInstanceEntry = {
         listeners: new Set(),
-        sharedSettings: fallbackSharedSettings,
-        widgets: new Map(),
+        settings: fallbackSettings,
     };
-    habitSharedStore.set(contextKey, created);
+    habitInstanceStore.set(widgetId, created);
     return created;
 };
 
-const emitHabitContext = (contextKey: string) => {
-    const entry = habitSharedStore.get(contextKey);
+const emitHabitInstance = (widgetId: string) => {
+    const entry = habitInstanceStore.get(widgetId);
     if (!entry) return;
     entry.listeners.forEach((listener) => listener());
 };
 
-const readHabitSharedSettings = (
-    contextKey: string,
-    fallbackSharedSettings: HabitStreakSharedSettings
-) => getHabitContextEntry(contextKey, fallbackSharedSettings).sharedSettings;
-
-const writeHabitSharedSettings = (
-    contextKey: string,
-    sharedSettings: HabitStreakSharedSettings
-) => {
-    const entry = getHabitContextEntry(contextKey, sharedSettings);
-    if (jsonDeepEqual(entry.sharedSettings, sharedSettings)) return;
-    entry.sharedSettings = sharedSettings;
-    emitHabitContext(contextKey);
-};
-
-const registerHabitWidget = (
-    contextKey: string,
+const readHabitInstanceSettings = (
     widgetId: string,
-    variant: HabitStreakVariant,
-    settings: HabitStreakSettings
+    fallbackSettings: HabitStreakSharedSettings
+) => getHabitInstanceEntry(widgetId, fallbackSettings).settings;
+
+const writeHabitInstanceSettings = (
+    widgetId: string,
+    nextSettings: HabitStreakSharedSettings
 ) => {
-    const entry = getHabitContextEntry(contextKey, extractHabitSharedSettings(settings));
-    entry.widgets.set(widgetId, { variant, settings });
+    const entry = getHabitInstanceEntry(widgetId, nextSettings);
+    if (jsonDeepEqual(entry.settings, nextSettings)) return;
+    entry.settings = nextSettings;
+    emitHabitInstance(widgetId);
 };
 
-const unregisterHabitWidget = (contextKey: string, widgetId: string) => {
-    const entry = habitSharedStore.get(contextKey);
-    if (!entry) return;
-    entry.widgets.delete(widgetId);
-    if (entry.widgets.size === 0 && entry.listeners.size === 0) {
-        habitSharedStore.delete(contextKey);
-    }
+const deleteHabitInstanceRecord = (widgetId: string) => {
+    habitInstanceStore.delete(widgetId);
 };
 
-const subscribeHabitSharedSettings = (contextKey: string, listener: () => void) => {
-    const entry = getHabitContextEntry(contextKey, DEFAULT_SHARED_SETTINGS);
+const subscribeHabitInstanceSettings = (widgetId: string, listener: () => void) => {
+    const entry = getHabitInstanceEntry(widgetId, DEFAULT_SHARED_SETTINGS);
     entry.listeners.add(listener);
 
     return () => {
-        const latestEntry = habitSharedStore.get(contextKey);
+        const latestEntry = habitInstanceStore.get(widgetId);
         if (!latestEntry) return;
         latestEntry.listeners.delete(listener);
-        if (latestEntry.listeners.size === 0 && latestEntry.widgets.size === 0) {
-            habitSharedStore.delete(contextKey);
+        if (latestEntry.listeners.size === 0) {
+            habitInstanceStore.delete(widgetId);
         }
     };
 };
 
-const syncHabitSharedSettingsToSiblingWidgets = async (
-    contextKey: string,
-    sourceWidgetId: string,
-    nextSharedSettings: HabitStreakSharedSettings
-) => {
-    const entry = habitSharedStore.get(contextKey);
-    if (!entry) return;
-
-    const syncTasks = Array.from(entry.widgets.entries())
-        .filter(([widgetId]) => widgetId !== sourceWidgetId)
-        .map(async ([widgetId, registration]) => {
-            const nextSettings = applySharedSettings(registration.settings, nextSharedSettings);
-            entry.widgets.set(widgetId, {
-                ...registration,
-                settings: nextSettings,
-            });
-            await api.updateWidget(widgetId, {
-                settings: JSON.stringify(nextSettings),
-            });
-        });
-
-    await Promise.all(syncTasks);
-};
-
 export const resetHabitStreakSharedStoreForTests = () => {
-    habitSharedStore.clear();
+    habitInstanceStore.clear();
 };
 
 type MessageTemplate = (n: number) => string;
@@ -617,11 +564,6 @@ const HabitStreakDuolingoSettingsComponent: React.FC<WidgetSettingsProps<HabitSt
             settings={duolingoSettings}
             onSettingsChange={onSettingsChange}
             showCadence={false}
-            extraFooter={(
-                <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                    Duolingo board uses the shared streak data and keeps the board-focused controls only.
-                </div>
-            )}
         />
     );
 };
@@ -670,10 +612,8 @@ interface MotivationalToast {
     message: string;
 }
 
-const useHabitSharedSettings = (
-    contextKey: string,
+const useHabitInstanceSettings = (
     widgetId: string,
-    variant: HabitStreakVariant,
     normalizedSettings: HabitStreakSettings
 ) => {
     const initialSharedSettings = useMemo(
@@ -681,23 +621,20 @@ const useHabitSharedSettings = (
         [normalizedSettings]
     );
     const subscribe = useCallback(
-        (listener: () => void) => subscribeHabitSharedSettings(contextKey, listener),
-        [contextKey]
+        (listener: () => void) => subscribeHabitInstanceSettings(widgetId, listener),
+        [widgetId]
     );
     const getSnapshot = useCallback(
-        () => readHabitSharedSettings(contextKey, initialSharedSettings),
-        [contextKey, initialSharedSettings]
+        () => readHabitInstanceSettings(widgetId, initialSharedSettings),
+        [widgetId, initialSharedSettings]
     );
-    const sharedSettings = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    const instanceSettings = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
     useEffect(() => {
-        registerHabitWidget(contextKey, widgetId, variant, normalizedSettings);
-        return () => {
-            unregisterHabitWidget(contextKey, widgetId);
-        };
-    }, [contextKey, normalizedSettings, variant, widgetId]);
+        writeHabitInstanceSettings(widgetId, initialSharedSettings);
+    }, [initialSharedSettings, widgetId]);
 
-    return sharedSettings;
+    return instanceSettings;
 };
 
 interface HabitStreakWidgetComponentProps<TSettings extends HabitStreakSettings> extends WidgetProps<TSettings> {
@@ -707,19 +644,16 @@ interface HabitStreakWidgetComponentProps<TSettings extends HabitStreakSettings>
 
 const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
     widgetId,
-    semesterId,
-    courseId,
     settings,
     updateSettings,
     normalizeSettings,
     variant,
 }: HabitStreakWidgetComponentProps<TSettings>) => {
     const normalizedSettings = normalizeSettings(settings);
-    const contextKey = getHabitContextKey(widgetId, semesterId, courseId);
-    const sharedSettings = useHabitSharedSettings(contextKey, widgetId, variant, normalizedSettings);
+    const instanceSettings = useHabitInstanceSettings(widgetId, normalizedSettings);
     const habitSettings = useMemo(
-        () => applySharedSettings(normalizedSettings, sharedSettings),
-        [normalizedSettings, sharedSettings]
+        () => applySharedSettings(normalizedSettings, instanceSettings),
+        [normalizedSettings, instanceSettings]
     );
     const [nowMs, setNowMs] = useState(() => Date.now());
     const [flameReactionSignal, setFlameReactionSignal] = useState(0);
@@ -754,15 +688,10 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
         setMotivationalToast(null);
     }, [canShowMotivationalToast]);
 
-    const pushSharedSettings = useCallback(async (nextSharedSettings: HabitStreakSharedSettings) => {
-        writeHabitSharedSettings(contextKey, nextSharedSettings);
+    const pushInstanceSettings = useCallback((nextSharedSettings: HabitStreakSharedSettings) => {
+        writeHabitInstanceSettings(widgetId, nextSharedSettings);
         void updateSettings(applySharedSettings(normalizedSettings, nextSharedSettings) as TSettings);
-        try {
-            await syncHabitSharedSettingsToSiblingWidgets(contextKey, widgetId, nextSharedSettings);
-        } catch (error) {
-            console.error('Failed to sync habit streak sibling widgets', error);
-        }
-    }, [contextKey, normalizedSettings, updateSettings, widgetId]);
+    }, [normalizedSettings, updateSettings, widgetId]);
 
     const handleCheckIn = useCallback(() => {
         if (!checkInState.canCheckIn) return;
@@ -786,7 +715,7 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
             ),
         };
 
-        void pushSharedSettings(nextSharedSettings);
+        pushInstanceSettings(nextSharedSettings);
         setNowMs(checkInAtMs);
         setFlameReactionSignal((signal) => signal + 1);
 
@@ -795,14 +724,14 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
             setMotivationalToast({ id: checkInAtMs, message: getMotivationalMessage(nextStreakCount) });
             toastTimerRef.current = setTimeout(() => setMotivationalToast(null), 3800);
         }
-    }, [canShowMotivationalToast, checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, pushSharedSettings]);
+    }, [canShowMotivationalToast, checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, pushInstanceSettings]);
 
     const buttonLabel = checkInState.canCheckIn
         ? 'Check In'
         : `Wait ${formatRemainingTime(checkInState.remainingMs)}`;
     const habitTitle = habitSettings.habitName.trim().length > 0
         ? habitSettings.habitName
-        : 'Habit task (e.g. Review notes for 30 mins)';
+        : 'Untitled habit';
     const targetProgress = Math.min(100, Math.round((habitSettings.streakCount / habitSettings.targetStreak) * 100));
     const recentDayCells = useMemo(
         () => buildRecentDayCells(habitSettings.checkInHistory, nowMs),
@@ -928,7 +857,7 @@ const createResetHeaderButton = <TSettings extends HabitStreakSettings>(
     normalizeSettings: (settings: unknown) => TSettings
 ) => ({
     id: 'reset-streak',
-    render: ({ widgetId, semesterId, courseId, settings: rawSettings, updateSettings }: HeaderButtonContext, { ConfirmActionButton }: { ConfirmActionButton: React.FC<any> }) => (
+    render: ({ widgetId, settings: rawSettings, updateSettings }: HeaderButtonContext, { ConfirmActionButton }: { ConfirmActionButton: React.FC<any> }) => (
         <ConfirmActionButton
             title="Reset streak"
             icon={<RotateCcw className="h-4 w-4" />}
@@ -939,14 +868,8 @@ const createResetHeaderButton = <TSettings extends HabitStreakSettings>(
             onClick={async () => {
                 const currentSettings = normalizeSettings(rawSettings);
                 const nextSharedSettings = getResetSharedSettings(extractHabitSharedSettings(currentSettings));
-                const contextKey = getHabitContextKey(widgetId, semesterId, courseId);
-                writeHabitSharedSettings(contextKey, nextSharedSettings);
+                writeHabitInstanceSettings(widgetId, nextSharedSettings);
                 void updateSettings(applySharedSettings(currentSettings, nextSharedSettings));
-                try {
-                    await syncHabitSharedSettingsToSiblingWidgets(contextKey, widgetId, nextSharedSettings);
-                } catch (error) {
-                    console.error('Failed to sync habit streak sibling widgets after reset', error);
-                }
             }}
         />
     ),
@@ -958,6 +881,9 @@ export const HabitStreakDuolingoWidgetDefinition: WidgetDefinition = {
     SettingsComponent: HabitStreakDuolingoSettingsComponent,
     defaultSettings: DEFAULT_HABIT_STREAK_DUOLINGO_SETTINGS,
     headerButtons: [createResetHeaderButton(normalizeHabitStreakDuolingoSettings)],
+    onDelete: ({ widgetId }) => {
+        deleteHabitInstanceRecord(widgetId);
+    },
 };
 
 export const HabitStreakRingWidgetDefinition: WidgetDefinition = {
@@ -966,6 +892,9 @@ export const HabitStreakRingWidgetDefinition: WidgetDefinition = {
     SettingsComponent: HabitStreakRingSettingsComponent,
     defaultSettings: DEFAULT_HABIT_STREAK_RING_SETTINGS,
     headerButtons: [createResetHeaderButton(normalizeHabitStreakRingSettings)],
+    onDelete: ({ widgetId }) => {
+        deleteHabitInstanceRecord(widgetId);
+    },
 };
 
 export const HabitStreakWidgetDefinitions = [
