@@ -485,16 +485,17 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
 
   React.useEffect(() => {
     const syncTimers = syncTimersRef.current;
+    const pendingSync = pendingSyncRef.current;
     return () => {
       isMountedRef.current = false;
       const pendingCourseIds = Array.from(new Set([
-        ...pendingSyncRef.current.keys(),
+        ...pendingSync.keys(),
         ...syncTimers.keys(),
       ]));
       syncTimers.forEach((timer) => clearTimeout(timer));
       syncTimers.clear();
       pendingCourseIds.forEach((targetCourseId) => {
-        if (pendingSyncRef.current.has(targetCourseId)) {
+        if (pendingSync.has(targetCourseId)) {
           void flushCourseListSync(targetCourseId);
         }
       });
