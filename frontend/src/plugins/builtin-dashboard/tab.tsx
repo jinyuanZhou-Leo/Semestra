@@ -1,6 +1,6 @@
-// input:  [builtin tab context state, dashboard widget callbacks (local layout sync + commit persistence), motion + icon dependencies, shared button variant classes]
+// input:  [builtin tab context state, optional dashboard overview nodes, dashboard widget callbacks (local layout sync + commit persistence), motion + icon dependencies, shared button variant classes]
 // output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` plugin metadata]
-// pos:    [Built-in dashboard tab UI entry handling edit mode state, theme-adaptive floating action controls with light-mode light-green glass active edit surface + dark-green dark mode, and split layout callback wiring]
+// pos:    [Built-in dashboard tab UI entry handling dashboard overview rendering, edit mode state, theme-adaptive floating action controls, and split layout callback wiring]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -95,6 +95,12 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
 
     return (
         <div className="relative">
+            {dashboard.overview ? (
+                <div className="mb-4">
+                    {dashboard.overview}
+                </div>
+            ) : null}
+
             {/* Bottom-right action dock */}
             <div className="pointer-events-none fixed right-4 bottom-4 z-30 flex items-center md:right-8 md:bottom-8">
                 <AnimatePresence>

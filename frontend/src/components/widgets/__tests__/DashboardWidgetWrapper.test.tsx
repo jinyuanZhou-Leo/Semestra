@@ -35,7 +35,7 @@ describe('DashboardWidgetWrapper', () => {
         });
     });
 
-    it('shows a bordered skeleton while a known widget plugin is still loading', async () => {
+    it('shows a ring-matched widget skeleton while a known widget plugin is still loading', async () => {
         vi.spyOn(pluginSystem, 'getWidgetComponentByType').mockReturnValue(undefined);
 
         render(
@@ -47,7 +47,7 @@ describe('DashboardWidgetWrapper', () => {
 
         const skeleton = screen.getByTestId('plugin-widget-skeleton');
         expect(skeleton).toBeInTheDocument();
-        expect(skeleton).toHaveClass('border', 'bg-card');
+        expect(skeleton).toHaveClass('bg-card', 'ring-1', 'ring-foreground/10', 'shadow-none');
         expect(screen.queryByText('Widget Unavailable')).not.toBeInTheDocument();
 
         await waitFor(() => {

@@ -1,6 +1,6 @@
-// input:  [tab items, active selection, add/remove/reorder callbacks, drag/confirm UI events]
+// input:  [tab items, active selection, add/remove/reorder callbacks, drag/confirm UI events, and workspace-nav width constraints]
 // output: [`Tabs` component and `TabItem` interface]
-// pos:    [Dashboard tab bar handling select, drag-sort, add, and delete-confirm actions]
+// pos:    [Dashboard tab bar handling select, drag-sort, add, delete-confirm actions, and stable right-aligned workspace tab layout]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -107,10 +107,10 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
     };
 
     return (
-        <div className="flex items-center gap-2 max-w-full">
-            <div className="inline-flex h-10 items-center justify-center rounded-lg bg-muted px-1 py-1 text-muted-foreground max-w-full">
+        <div className="flex w-full max-w-full items-center justify-end gap-2 transition-[max-width,width] duration-300 ease-out">
+            <div className="inline-flex h-10 w-full max-w-full min-w-0 items-center justify-center rounded-lg bg-muted px-1 py-1 text-muted-foreground transition-[max-width,width] duration-300 ease-out lg:w-auto">
                 <div
-                    className="dashboard-tabs-scroll my-[-2px] flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden py-[2px] no-scrollbar"
+                    className="dashboard-tabs-scroll my-[-2px] flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden py-[2px] no-scrollbar transition-[max-width,width] duration-300 ease-out"
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                     role="tablist"
                     aria-label="Dashboard Tabs"
@@ -134,7 +134,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                 role="tab"
                                 aria-selected={isActive}
                                 className={cn(
-                                    "group relative inline-flex min-h-8 items-center justify-center whitespace-nowrap rounded-md px-3.5 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer",
+                                    "group relative inline-flex min-h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md px-3.5 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer",
                                     isActive
                                         ? "bg-background text-foreground shadow"
                                         : "hover:bg-background/50 hover:text-foreground",

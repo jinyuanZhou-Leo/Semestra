@@ -11,7 +11,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | settings/ | Subdirectory | Reserved settings sub-components area. |
 | skeletons/ | Subdirectory | Loading skeleton component set. |
 | ui/ | Subdirectory | shadcn UI primitives (excluded from this documentation scope per request). |
-| widgets/ | Subdirectory | Dashboard widget layout/container infrastructure. |
+| widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome and edit-mode-only hover elevation. |
 | AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
 | AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation. |
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
@@ -35,10 +35,12 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | SemesterSettingsPanel.tsx | UI component | Reusable semester settings panel with semester-duration editing, optional Monday-to-Sunday Reading Week selection, and mobile-safe calendar trigger text. |
 | SessionExpiredModal.tsx | UI component | Reusable component for session expired modal UI/interaction flow. |
 | SettingsModal.tsx | UI component | Reusable component for settings modal UI/interaction flow. |
-| SettingsSection.tsx | UI component | Reusable component for settings section UI/interaction flow. |
+| SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles that can inherit a page-level offset provider. |
 | SettingsTabContent.tsx | UI component | Reusable component for settings tab content UI/interaction flow. |
-| Tabs.tsx | UI component | Reusable component for tabs UI/interaction flow. |
+| Tabs.tsx | UI component | Reusable dashboard/homepage tab shell with drag-sort, add/remove controls, overflow scrolling, and stable right-aligned workspace navigation behavior. |
 | TabSwitch.tsx | UI component | Reusable component for tab switch UI/interaction flow. |
 | ThemeProvider.tsx | UI component | Reusable component for theme provider UI/interaction flow. |
 | ThemeToggle.tsx | UI component | Reusable component for theme toggle UI/interaction flow. |
 | WidgetSettingsModal.tsx | UI component | Reusable widget-settings modal relying on shared dialog animation primitives while preserving the active widget payload through close animations. |
+| WorkspaceNav.tsx | UI component | Shared sticky workspace navigation row that pairs semester/course context with the homepage tab switcher and extra-large mobile workspace titles. |
+| WorkspaceOverviewStats.tsx | UI component | Compact dashboard-only stat strip using normal labels and optional icons after workspace titles move out of page heroes, with tighter mobile card height. |

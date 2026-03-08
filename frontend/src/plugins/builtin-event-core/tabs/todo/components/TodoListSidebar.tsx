@@ -1,6 +1,6 @@
-// input:  [Todo list collection state and list-level callbacks from TodoTab]
+// input:  [Todo list collection state, loading flags, and list-level callbacks from TodoTab]
 // output: [TodoListSidebar React component]
-// pos:    [List navigation panel for selecting and managing todo lists in semester mode]
+// pos:    [List navigation panel for selecting and managing todo lists in semester mode, including lightweight loading placeholders]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { TodoListModel, TodoTabMode } from '../types';
 
 interface TodoListSidebarProps {
@@ -71,12 +72,25 @@ export const TodoListSidebar: React.FC<TodoListSidebarProps> = ({
         ) : null}
       </div>
 
-      {semesterCourseListsLoading && mode === 'semester' && allLists.length === 0 ? (
-        <p className="mb-2 px-0.5 text-xs text-muted-foreground">Loading lists...</p>
-      ) : null}
-
       <ScrollArea className="h-[220px] sm:h-[260px] md:h-[560px]">
         <div className="space-y-1.5 pr-1">
+          {semesterCourseListsLoading && mode === 'semester' && allLists.length === 0 ? (
+            Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={`todo-sidebar-skeleton-${index}`}
+                className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-3/5 rounded-full" />
+                    <Skeleton className="h-3 w-2/5 rounded-full opacity-70" />
+                  </div>
+                  <Skeleton className="h-5 w-12 rounded-full" />
+                </div>
+              </div>
+            ))
+          ) : null}
+
           {allLists.map((list) => {
             const isActive = activeListId === list.id;
             const total = list.tasks.length;

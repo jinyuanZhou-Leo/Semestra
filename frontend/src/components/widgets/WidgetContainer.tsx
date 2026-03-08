@@ -1,6 +1,6 @@
-// input:  [widget action callbacks, touch-device signal, desktop-hover + touch-direct action visibility, widget-header glass control styles]
+// input:  [widget action callbacks, touch-device signal, desktop-hover + touch-direct action visibility, widget-header glass control styles, and shared card ring conventions]
 // output: [`WidgetContainer` component]
-// pos:    [Widget chrome shell that renders drag/action controls in edit mode with direct mobile visibility]
+// pos:    [Widget chrome shell that renders drag/action controls in edit mode with direct mobile visibility and single-ring card chrome]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -61,9 +61,9 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
     return (
         <Card
             className={cn(
-                'group relative flex h-full select-none flex-col overflow-hidden rounded-[var(--radius-widget)] border border-border/60 bg-card shadow-sm transition-[box-shadow,border-color]',
+                'group relative flex h-full select-none flex-col overflow-hidden rounded-[var(--radius-widget)] bg-card shadow-none transition-[box-shadow,ring-color]',
                 'p-0', // Override Card's default padding so widget content can fully control layout
-                isHovered && !isTouchDevice ? 'shadow-md border-border/80' : ''
+                isEditMode && isHovered && !isTouchDevice ? 'ring-foreground/16 shadow-md' : ''
             )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}

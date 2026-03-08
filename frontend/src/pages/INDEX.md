@@ -6,11 +6,11 @@ Each page composes shared contexts, hooks, components, and service APIs.
 
 | File | Role | Description |
 |------|------|-------------|
-| CourseHomepage.tsx | Route page | Course workspace route that wires dashboard widgets with split layout local-sync/commit persistence callbacks, non-wrapping/truncating breadcrumb placeholders, focus-safe add-widget/add-tab overlay triggers, and tab content fade-in on every active-tab switch. |
+| CourseHomepage.tsx | Route page | Course workspace route with compact workspace navigation, parent-context breadcrumb handling, dashboard-only overview stats, focus-safe add-widget/add-tab overlay triggers, and tab content fade-in on every active-tab switch. |
 | HomePage.tsx | Route page | Home workspace route with responsive create-program surface (desktop dialog + mobile drawer) and program overview cards. |
 | LandingPage.tsx | Route page | Public marketing page mounted only on `/landing`, separate from the product-first root entry flow. |
 | LoginPage.tsx | Route page | Login route that exchanges credentials or Google identity for a cookie-backed session before bootstrapping the auth context. |
 | ProgramDashboard.tsx | Route page | Program workspace route with compact mobile overview stat strip plus responsive create-semester surface (desktop dialog + mobile drawer). |
 | RegisterPage.tsx | Route page | Registration route that creates an account, exchanges credentials or Google identity for a cookie-backed session, and bootstraps auth state. |
-| SemesterHomepage.tsx | Route page | Semester workspace route that wires dashboard widgets with split layout local-sync/commit persistence callbacks, focus-safe add-widget/add-tab overlay triggers, tab fade transitions, and semester settings including Reading Week persistence. |
+| SemesterHomepage.tsx | Route page | Semester workspace route with compact workspace navigation, parent-context breadcrumb handling, dashboard-only overview stats, focus-safe add-widget/add-tab overlay triggers, tab fade transitions, and semester settings including Reading Week persistence. |
 | SettingsPage.tsx | Route page | Settings workspace route with responsive wrapping for appearance controls, backup restore drag-drop dialog flow, overflow-safe account/version text on mobile, and account sign-out wiring. |

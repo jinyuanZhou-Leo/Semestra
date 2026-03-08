@@ -1,6 +1,6 @@
-// input:  [widget settings/update callbacks, framer-motion animation runtime, shadcn form controls/dialog actions]
-// output: [habit-streak widget component, settings component, helpers, and widget definition metadata]
-// pos:    [plugin runtime + settings layer for interval-based habit check-ins with preset cadence controls, real recent-history tracking, switchable Duolingo-card/classic-ring visuals, a minimal calendar-first Duolingo week board, calendar-locked daily cadence plus disabled encouragement, ring-only encouragement toast behavior, shadowless check-in CTA styling, and reusable burst animations]
+// input:  [widget settings/update callbacks, sibling widget sync API calls, split Duolingo/ring display components, shared date/history helpers, and shadcn form controls/dialog actions]
+// output: [habit-streak shared helpers, Duolingo widget component/definition, Ring widget component/definition, and mode-specific settings components]
+// pos:    [plugin runtime + settings layer for dual habit-streak widgets with shared streak state, sibling sync, and mode-specific feedback wiring]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,16 +8,20 @@
 
 "use no memo";
 
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import type { HeaderButtonContext, WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import api from '../../services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Check, Flame, RotateCcw, Sparkles } from 'lucide-react';
+import { CalendarDays, RotateCcw, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { jsonDeepEqual } from '../../plugin-system/utils';
+import { HabitStreakCalendar, type RecentDayCell } from './HabitStreakCalendar';
+import { HabitStreakRing } from './HabitStreakRing';
 
 const HOUR_IN_MS = 60 * 60 * 1000;
 const DAY_IN_MS = 24 * HOUR_IN_MS;
@@ -28,12 +32,14 @@ const INTERVAL_OPTIONS = [
 ] as const;
 const ALLOWED_INTERVAL_HOURS = INTERVAL_OPTIONS.map((option) => option.value);
 const MIN_TARGET_STREAK = 1;
-const DISPLAY_STYLE_OPTIONS = [
-    { value: 'calendar', label: 'Duolingo Style' },
-    { value: 'ring', label: 'Ring' },
-] as const;
-type HabitStreakDisplayStyle = typeof DISPLAY_STYLE_OPTIONS[number]['value'];
-interface HabitStreakSettings {
+const HISTORY_RETENTION_DAYS = 90;
+const LOCAL_DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const DUOLINGO_WIDGET_TYPE = 'habit-streak-duolingo';
+const RING_WIDGET_TYPE = 'habit-streak-ring';
+
+type HabitStreakVariant = 'duolingo' | 'ring';
+
+interface HabitStreakSharedSettings {
     habitName: string;
     checkInIntervalHours: number;
     targetStreak: number;
@@ -42,9 +48,15 @@ interface HabitStreakSettings {
     totalCheckIns: number;
     lastCheckInAt: string | null;
     checkInHistory: string[];
-    displayStyle: HabitStreakDisplayStyle;
+}
+
+interface HabitStreakDuolingoSettings extends HabitStreakSharedSettings {}
+
+interface HabitStreakRingSettings extends HabitStreakSharedSettings {
     showMotivationalMessage: boolean;
 }
+
+type HabitStreakSettings = HabitStreakDuolingoSettings | HabitStreakRingSettings;
 
 interface CheckInWindowState {
     canCheckIn: boolean;
@@ -52,7 +64,7 @@ interface CheckInWindowState {
     windowsSinceLast: number;
 }
 
-const DEFAULT_HABIT_STREAK_SETTINGS: HabitStreakSettings = {
+const DEFAULT_SHARED_SETTINGS: HabitStreakSharedSettings = {
     habitName: '',
     checkInIntervalHours: 24,
     targetStreak: 21,
@@ -61,14 +73,134 @@ const DEFAULT_HABIT_STREAK_SETTINGS: HabitStreakSettings = {
     totalCheckIns: 0,
     lastCheckInAt: null,
     checkInHistory: [],
-    displayStyle: 'calendar',
+};
+
+const DEFAULT_HABIT_STREAK_DUOLINGO_SETTINGS: HabitStreakDuolingoSettings = {
+    ...DEFAULT_SHARED_SETTINGS,
+};
+
+const DEFAULT_HABIT_STREAK_RING_SETTINGS: HabitStreakRingSettings = {
+    ...DEFAULT_SHARED_SETTINGS,
     showMotivationalMessage: true,
 };
 
-const HISTORY_RETENTION_DAYS = 90;
-const LOCAL_DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+interface HabitContextWidgetRegistration {
+    settings: HabitStreakSettings;
+    variant: HabitStreakVariant;
+}
 
-// ─── Motivational messages ────────────────────────────────────────────────────
+interface HabitContextEntry {
+    listeners: Set<() => void>;
+    sharedSettings: HabitStreakSharedSettings;
+    widgets: Map<string, HabitContextWidgetRegistration>;
+}
+
+const habitSharedStore = new Map<string, HabitContextEntry>();
+
+const getHabitContextKey = (widgetId: string, semesterId?: string, courseId?: string) => {
+    if (semesterId) return `semester:${semesterId}`;
+    if (courseId) return `course:${courseId}`;
+    return `widget:${widgetId}`;
+};
+
+const getHabitContextEntry = (
+    contextKey: string,
+    fallbackSharedSettings: HabitStreakSharedSettings
+): HabitContextEntry => {
+    const existing = habitSharedStore.get(contextKey);
+    if (existing) return existing;
+
+    const created: HabitContextEntry = {
+        listeners: new Set(),
+        sharedSettings: fallbackSharedSettings,
+        widgets: new Map(),
+    };
+    habitSharedStore.set(contextKey, created);
+    return created;
+};
+
+const emitHabitContext = (contextKey: string) => {
+    const entry = habitSharedStore.get(contextKey);
+    if (!entry) return;
+    entry.listeners.forEach((listener) => listener());
+};
+
+const readHabitSharedSettings = (
+    contextKey: string,
+    fallbackSharedSettings: HabitStreakSharedSettings
+) => getHabitContextEntry(contextKey, fallbackSharedSettings).sharedSettings;
+
+const writeHabitSharedSettings = (
+    contextKey: string,
+    sharedSettings: HabitStreakSharedSettings
+) => {
+    const entry = getHabitContextEntry(contextKey, sharedSettings);
+    if (jsonDeepEqual(entry.sharedSettings, sharedSettings)) return;
+    entry.sharedSettings = sharedSettings;
+    emitHabitContext(contextKey);
+};
+
+const registerHabitWidget = (
+    contextKey: string,
+    widgetId: string,
+    variant: HabitStreakVariant,
+    settings: HabitStreakSettings
+) => {
+    const entry = getHabitContextEntry(contextKey, extractHabitSharedSettings(settings));
+    entry.widgets.set(widgetId, { variant, settings });
+};
+
+const unregisterHabitWidget = (contextKey: string, widgetId: string) => {
+    const entry = habitSharedStore.get(contextKey);
+    if (!entry) return;
+    entry.widgets.delete(widgetId);
+    if (entry.widgets.size === 0 && entry.listeners.size === 0) {
+        habitSharedStore.delete(contextKey);
+    }
+};
+
+const subscribeHabitSharedSettings = (contextKey: string, listener: () => void) => {
+    const entry = getHabitContextEntry(contextKey, DEFAULT_SHARED_SETTINGS);
+    entry.listeners.add(listener);
+
+    return () => {
+        const latestEntry = habitSharedStore.get(contextKey);
+        if (!latestEntry) return;
+        latestEntry.listeners.delete(listener);
+        if (latestEntry.listeners.size === 0 && latestEntry.widgets.size === 0) {
+            habitSharedStore.delete(contextKey);
+        }
+    };
+};
+
+const syncHabitSharedSettingsToSiblingWidgets = async (
+    contextKey: string,
+    sourceWidgetId: string,
+    nextSharedSettings: HabitStreakSharedSettings
+) => {
+    const entry = habitSharedStore.get(contextKey);
+    if (!entry) return;
+
+    const syncTasks = Array.from(entry.widgets.entries())
+        .filter(([widgetId]) => widgetId !== sourceWidgetId)
+        .map(async ([widgetId, registration]) => {
+            const nextSettings = applySharedSettings(registration.settings, nextSharedSettings);
+            entry.widgets.set(widgetId, {
+                ...registration,
+                settings: nextSettings,
+            });
+            await api.updateWidget(widgetId, {
+                settings: JSON.stringify(nextSettings),
+            });
+        });
+
+    await Promise.all(syncTasks);
+};
+
+export const resetHabitStreakSharedStoreForTests = () => {
+    habitSharedStore.clear();
+};
+
 type MessageTemplate = (n: number) => string;
 
 const MOTIVATIONAL_MESSAGES: { streakMin: number; templates: MessageTemplate[] }[] = [
@@ -77,7 +209,7 @@ const MOTIVATIONAL_MESSAGES: { streakMin: number; templates: MessageTemplate[] }
         templates: [
             (n) => `Streak #${n}. Every streak starts here.`,
             (n) => `Check-in ${n} done. You showed up.`,
-            (n) => `Streak #${n} - the hardest part is beginning.`,
+            (n) => `Streak #${n}. The hardest part is beginning.`,
             (n) => `Check-in ${n}. Nice start.`,
             (n) => `Streak #${n}. Keep going.`,
         ],
@@ -156,42 +288,26 @@ const MOTIVATIONAL_MESSAGES: { streakMin: number; templates: MessageTemplate[] }
 
 const getMotivationalMessage = (streakCount: number): string => {
     const tiers = [...MOTIVATIONAL_MESSAGES].reverse();
-    const tier = tiers.find((t) => streakCount >= t.streakMin) ?? MOTIVATIONAL_MESSAGES[0];
+    const tier = tiers.find((candidate) => streakCount >= candidate.streakMin) ?? MOTIVATIONAL_MESSAGES[0];
     const pool = tier.templates;
     return pool[Math.floor(Math.random() * pool.length)](streakCount);
 };
 
 const clampIntervalHours = (value: unknown): number => {
     const numericValue = typeof value === 'string' ? Number.parseInt(value, 10) : Number(value);
-    if (!Number.isFinite(numericValue)) return DEFAULT_HABIT_STREAK_SETTINGS.checkInIntervalHours;
+    if (!Number.isFinite(numericValue)) return DEFAULT_SHARED_SETTINGS.checkInIntervalHours;
     const rounded = Math.round(numericValue);
     if (ALLOWED_INTERVAL_HOURS.includes(rounded as typeof ALLOWED_INTERVAL_HOURS[number])) {
         return rounded;
     }
-    return DEFAULT_HABIT_STREAK_SETTINGS.checkInIntervalHours;
+    return DEFAULT_SHARED_SETTINGS.checkInIntervalHours;
 };
 
 const clampTargetStreak = (value: unknown): number => {
     const numericValue = typeof value === 'string' ? Number.parseInt(value, 10) : Number(value);
-    if (!Number.isFinite(numericValue)) return DEFAULT_HABIT_STREAK_SETTINGS.targetStreak;
+    if (!Number.isFinite(numericValue)) return DEFAULT_SHARED_SETTINGS.targetStreak;
     const rounded = Math.round(numericValue);
     return Math.max(MIN_TARGET_STREAK, rounded);
-};
-
-const clampDisplayStyle = (value: unknown): HabitStreakDisplayStyle => {
-    if (typeof value !== 'string') return DEFAULT_HABIT_STREAK_SETTINGS.displayStyle;
-    return DISPLAY_STYLE_OPTIONS.some((option) => option.value === value)
-        ? value as HabitStreakDisplayStyle
-        : DEFAULT_HABIT_STREAK_SETTINGS.displayStyle;
-};
-
-const applyDisplayStyleConstraints = (settings: HabitStreakSettings): HabitStreakSettings => {
-    if (settings.displayStyle !== 'calendar') return settings;
-    return {
-        ...settings,
-        checkInIntervalHours: 24,
-        showMotivationalMessage: false,
-    };
 };
 
 const getStartOfLocalDay = (timestampMs: number) => {
@@ -252,17 +368,17 @@ const normalizeCheckInHistory = (history: unknown, nowMs: number): string[] => {
     return normalizedHistory.map((entry) => entry.key);
 };
 
-export const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSettings => {
+const normalizeSharedSettings = (settings: unknown): HabitStreakSharedSettings => {
     if (!settings || typeof settings !== 'object') {
-        return DEFAULT_HABIT_STREAK_SETTINGS;
+        return DEFAULT_SHARED_SETTINGS;
     }
 
-    const source = settings as Partial<HabitStreakSettings>;
+    const source = settings as Partial<HabitStreakSharedSettings>;
     const parsedLastCheckInAt = typeof source.lastCheckInAt === 'string' ? Date.parse(source.lastCheckInAt) : NaN;
     const nowMs = Date.now();
 
-    return applyDisplayStyleConstraints({
-        habitName: typeof source.habitName === 'string' ? source.habitName : DEFAULT_HABIT_STREAK_SETTINGS.habitName,
+    return {
+        habitName: typeof source.habitName === 'string' ? source.habitName : DEFAULT_SHARED_SETTINGS.habitName,
         checkInIntervalHours: clampIntervalHours(source.checkInIntervalHours),
         targetStreak: clampTargetStreak(source.targetStreak),
         streakCount: Number.isFinite(source.streakCount) ? Math.max(0, Math.round(source.streakCount as number)) : 0,
@@ -270,9 +386,48 @@ export const normalizeHabitStreakSettings = (settings: unknown): HabitStreakSett
         totalCheckIns: Number.isFinite(source.totalCheckIns) ? Math.max(0, Math.round(source.totalCheckIns as number)) : 0,
         lastCheckInAt: Number.isNaN(parsedLastCheckInAt) ? null : new Date(parsedLastCheckInAt).toISOString(),
         checkInHistory: normalizeCheckInHistory(source.checkInHistory, nowMs),
-        displayStyle: clampDisplayStyle(source.displayStyle),
-        showMotivationalMessage: typeof source.showMotivationalMessage === 'boolean' ? source.showMotivationalMessage : DEFAULT_HABIT_STREAK_SETTINGS.showMotivationalMessage,
-    });
+    };
+};
+
+export const normalizeHabitStreakDuolingoSettings = (settings: unknown): HabitStreakDuolingoSettings => {
+    return normalizeSharedSettings(settings);
+};
+
+export const normalizeHabitStreakRingSettings = (settings: unknown): HabitStreakRingSettings => {
+    const sharedSettings = normalizeSharedSettings(settings);
+    const source = settings && typeof settings === 'object'
+        ? settings as Partial<HabitStreakRingSettings>
+        : null;
+
+    return {
+        ...sharedSettings,
+        showMotivationalMessage: typeof source?.showMotivationalMessage === 'boolean'
+            ? source.showMotivationalMessage
+            : DEFAULT_HABIT_STREAK_RING_SETTINGS.showMotivationalMessage,
+    };
+};
+
+const extractHabitSharedSettings = (settings: HabitStreakSettings): HabitStreakSharedSettings => {
+    return {
+        habitName: settings.habitName,
+        checkInIntervalHours: settings.checkInIntervalHours,
+        targetStreak: settings.targetStreak,
+        streakCount: settings.streakCount,
+        bestStreak: settings.bestStreak,
+        totalCheckIns: settings.totalCheckIns,
+        lastCheckInAt: settings.lastCheckInAt,
+        checkInHistory: settings.checkInHistory,
+    };
+};
+
+const applySharedSettings = <T extends HabitStreakSettings>(
+    settings: T,
+    sharedSettings: HabitStreakSharedSettings
+): T => {
+    return {
+        ...settings,
+        ...sharedSettings,
+    };
 };
 
 export const getCheckInWindowState = (
@@ -353,313 +508,6 @@ const formatRemainingTime = (remainingMs: number): string => {
     return `${hours}h ${minutes}m ${seconds}s`;
 };
 
-const HabitStreakSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSettingsChange }) => {
-    const ids = useId();
-    const habitSettings = normalizeHabitStreakSettings(settings);
-    const isCalendarDisplay = habitSettings.displayStyle === 'calendar';
-
-    const updateSettings = useCallback((patch: Partial<HabitStreakSettings>) => {
-        onSettingsChange(applyDisplayStyleConstraints({
-            ...habitSettings,
-            ...patch,
-        }));
-    }, [habitSettings, onSettingsChange]);
-
-    return (
-        <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor={`${ids}-habit-name`}>Habit</Label>
-                <Input
-                    id={`${ids}-habit-name`}
-                    value={habitSettings.habitName}
-                    placeholder="Review notes"
-                    onChange={(event) => updateSettings({ habitName: event.target.value })}
-                />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-2">
-                    <Label htmlFor={`${ids}-interval-hours`}>Check-in cadence</Label>
-                    <Select
-                        value={String(habitSettings.checkInIntervalHours)}
-                        onValueChange={(value) => updateSettings({ checkInIntervalHours: clampIntervalHours(value) })}
-                        disabled={isCalendarDisplay}
-                    >
-                        <SelectTrigger id={`${ids}-interval-hours`} className="w-full">
-                            <SelectValue placeholder="Select cadence" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {INTERVAL_OPTIONS.map((option) => (
-                                <SelectItem key={`habit-interval-${option.value}`} value={String(option.value)}>
-                                    {option.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor={`${ids}-target-streak`}>Target streak (count)</Label>
-                    <Input
-                        id={`${ids}-target-streak`}
-                        type="number"
-                        min={MIN_TARGET_STREAK}
-                        value={habitSettings.targetStreak}
-                        onChange={(event) => updateSettings({ targetStreak: clampTargetStreak(event.target.value) })}
-                    />
-                </div>
-            </div>
-
-            <div className="grid gap-2">
-                <Label htmlFor={`${ids}-display-style`}>Display style</Label>
-                <Select
-                    value={habitSettings.displayStyle}
-                    onValueChange={(value) => updateSettings({ displayStyle: clampDisplayStyle(value) })}
-                >
-                    <SelectTrigger id={`${ids}-display-style`} className="w-full">
-                        <SelectValue placeholder="Select display style" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {DISPLAY_STYLE_OPTIONS.map((option) => (
-                            <SelectItem key={`habit-display-style-${option.value}`} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            {/* Motivational message toggle */}
-            <div className="flex items-center justify-between gap-4 pt-2">
-                <div className="grid gap-0.5">
-                    <Label htmlFor={`${ids}-motivational-msg`} className="cursor-pointer text-sm font-medium">
-                        Encouragement on check-in
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                        {habitSettings.displayStyle === 'calendar'
-                            ? 'Hidden in Duolingo calendar view, preserved for classic ring.'
-                            : 'Show a motivational message each time you check in.'}
-                    </p>
-                </div>
-                <Switch
-                    id={`${ids}-motivational-msg`}
-                    checked={habitSettings.showMotivationalMessage}
-                    onCheckedChange={(checked) => updateSettings({ showMotivationalMessage: checked })}
-                    disabled={isCalendarDisplay}
-                />
-            </div>
-        </div>
-    );
-};
-
-interface HabitStreakCardProps {
-    prefersReducedMotion: boolean;
-    nowMs: number;
-    streakCount: number;
-    checkInHistory: string[];
-    targetProgress: number;
-    reactionSignal: number;
-}
-
-interface HabitRingProps {
-    prefersReducedMotion: boolean;
-    streakCount: number;
-    targetProgress: number;
-    reactionSignal: number;
-}
-
-interface MilestoneBurstState {
-    id: number;
-    color: string;
-    tier: number;
-}
-
-interface ParticleSpec {
-    id: number;
-    x: number;
-    y: number;
-    duration: number;
-    delay: number;
-    sizeClass: string;
-    scalePeak: number;
-    glowBlur: number;
-}
-
-interface BurstState {
-    id: number;
-    isOverachieve?: boolean;
-    overachieveParticles?: ParticleSpec[];
-}
-
-interface ParticlePlan {
-    count: number;
-    angleJitterDeg: number;
-    distanceMin: number;
-    distanceMax: number;
-    durationMin: number;
-    durationMax: number;
-    delayMax: number;
-    sizeClass: string;
-    scalePeak: number;
-    glowBlur: number;
-}
-
-const getMilestoneTier = (progress: number): 0 | 1 | 2 | 3 | 4 => {
-    if (progress >= 100) return 4;
-    if (progress >= 75) return 3;
-    if (progress >= 50) return 2;
-    if (progress >= 25) return 1;
-    return 0;
-};
-
-const createSeededRandom = (seed: number) => {
-    let state = Math.abs(seed % 2147483647) || 1;
-    return () => {
-        state = (state * 16807) % 2147483647;
-        return (state - 1) / 2147483646;
-    };
-};
-
-const buildParticleSpecs = (seed: number, plan: ParticlePlan): ParticleSpec[] => {
-    const random = createSeededRandom(seed);
-    return Array.from({ length: plan.count }, (_, index) => {
-        const angle = (index * (360 / plan.count) + (random() * plan.angleJitterDeg - plan.angleJitterDeg / 2)) * (Math.PI / 180);
-        const distance = plan.distanceMin + random() * (plan.distanceMax - plan.distanceMin);
-        return {
-            id: index,
-            x: Math.cos(angle) * distance,
-            y: Math.sin(angle) * distance,
-            duration: plan.durationMin + random() * (plan.durationMax - plan.durationMin),
-            delay: random() * plan.delayMax,
-            sizeClass: plan.sizeClass,
-            scalePeak: plan.scalePeak,
-            glowBlur: plan.glowBlur,
-        };
-    });
-};
-
-const buildMilestoneParticleSpecs = (seed: number, isMax: boolean): ParticleSpec[] => {
-    return buildParticleSpecs(seed, {
-        count: isMax ? 24 : 12,
-        angleJitterDeg: 10,
-        distanceMin: isMax ? 74 : 54,
-        distanceMax: isMax ? 98 : 74,
-        durationMin: isMax ? 0.82 : 0.58,
-        durationMax: isMax ? 0.98 : 0.70,
-        delayMax: 0.06,
-        sizeClass: isMax ? "h-2 w-2" : "h-1.5 w-1.5",
-        scalePeak: isMax ? 1.6 : 1.3,
-        glowBlur: isMax ? 9 : 6,
-    });
-};
-
-const buildOverachieveParticleSpecs = (seed: number): ParticleSpec[] => {
-    return buildParticleSpecs(seed, {
-        count: 8,
-        angleJitterDeg: 14,
-        distanceMin: 42,
-        distanceMax: 58,
-        durationMin: 0.5,
-        durationMax: 0.64,
-        delayMax: 0.05,
-        sizeClass: "h-1 w-1",
-        scalePeak: 1.4,
-        glowBlur: 7,
-    });
-};
-
-const BurstParticles: React.FC<{
-    particles: ParticleSpec[];
-    color: string;
-    prefersReducedMotion: boolean;
-}> = ({ particles, color, prefersReducedMotion }) => (
-    <>
-        {particles.map((particle) => (
-            <motion.div
-                key={particle.id}
-                className={`absolute left-1/2 top-1/2 ${particle.sizeClass} -translate-x-1/2 -translate-y-1/2 rounded-full will-change-transform`}
-                style={{ backgroundColor: color, boxShadow: `0 0 ${particle.glowBlur}px ${color}` }}
-                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 1, x: 0, y: 0, scale: 0.6 }}
-                animate={prefersReducedMotion ? { opacity: 0 } : {
-                    opacity: [1, 0.85, 0],
-                    x: particle.x,
-                    y: particle.y,
-                    scale: [1, particle.scalePeak, 0],
-                }}
-                transition={{ duration: particle.duration, delay: particle.delay, ease: "easeOut" }}
-            />
-        ))}
-    </>
-);
-
-const MilestoneBurstLayer: React.FC<{
-    burst: MilestoneBurstState;
-    prefersReducedMotion: boolean;
-}> = ({ burst, prefersReducedMotion }) => {
-    const isMax = burst.tier === 4;
-    const particleSpecs = useMemo(
-        () => buildMilestoneParticleSpecs(burst.id, isMax),
-        [burst.id, isMax]
-    );
-
-    return (
-        <div className="pointer-events-none absolute inset-0 mix-blend-screen">
-            {isMax && (
-                <motion.div
-                    className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px]"
-                    style={{ borderColor: burst.color }}
-                    initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.9, opacity: 0.95, borderWidth: '4px' }}
-                    animate={prefersReducedMotion ? { opacity: 0 } : { scale: 2.4, opacity: 0, borderWidth: '0px' }}
-                    transition={{ duration: 0.66, ease: "easeOut" }}
-                />
-            )}
-            <BurstParticles particles={particleSpecs} color={burst.color} prefersReducedMotion={prefersReducedMotion} />
-        </div>
-    );
-};
-
-const useStreakBursts = (
-    targetProgress: number,
-    reactionSignal: number,
-    prefersReducedMotion: boolean
-) => {
-    const [bursts, setBursts] = useState<BurstState[]>([]);
-    const [milestoneBursts, setMilestoneBursts] = useState<MilestoneBurstState[]>([]);
-    const prevTierRef = React.useRef(getMilestoneTier(targetProgress));
-
-    useEffect(() => {
-        if (prefersReducedMotion || reactionSignal === 0) return;
-        const burstId = Date.now();
-        const isOverachieve = targetProgress >= 100;
-        const nextBurst: BurstState = {
-            id: burstId,
-            isOverachieve,
-            overachieveParticles: isOverachieve ? buildOverachieveParticleSpecs(burstId) : undefined,
-        };
-        setBursts((prev) => [...prev, nextBurst].slice(-3));
-    }, [reactionSignal, targetProgress, prefersReducedMotion]);
-
-    useEffect(() => {
-        if (prefersReducedMotion) return;
-        const currentTier = getMilestoneTier(targetProgress);
-        if (currentTier > prevTierRef.current && currentTier > 0 && targetProgress > 0) {
-            const colors = ['#fde047', '#fcd34d', '#fbbf24', '#f59e0b', '#f43f5e'];
-            setMilestoneBursts((prev) => [...prev, { id: Date.now(), color: colors[currentTier], tier: currentTier }].slice(-4));
-        }
-        prevTierRef.current = currentTier;
-    }, [targetProgress, prefersReducedMotion]);
-
-    return { bursts, milestoneBursts };
-};
-
-interface RecentDayCell {
-    key: string;
-    dayLabel: string;
-    dayNumber: string;
-    isToday: boolean;
-    isCompleted: boolean;
-}
-
 const buildRecentDayCells = (checkInHistory: string[], nowMs: number): RecentDayCell[] => {
     const completedDays = new Set(checkInHistory);
     return Array.from({ length: 7 }, (_, index) => {
@@ -676,218 +524,144 @@ const buildRecentDayCells = (checkInHistory: string[], nowMs: number): RecentDay
     });
 };
 
-const HabitStreakCard: React.FC<HabitStreakCardProps> = ({
-    prefersReducedMotion,
-    nowMs,
-    streakCount,
-    checkInHistory,
-    targetProgress,
-    reactionSignal,
-}) => {
-    const { bursts, milestoneBursts } = useStreakBursts(targetProgress, reactionSignal, prefersReducedMotion);
-    const recentDayCells = useMemo(() => buildRecentDayCells(checkInHistory, nowMs), [checkInHistory, nowMs]);
+const getResetSharedSettings = (settings: HabitStreakSharedSettings): HabitStreakSharedSettings => ({
+    ...settings,
+    streakCount: 0,
+    bestStreak: 0,
+    totalCheckIns: 0,
+    lastCheckInAt: null,
+    checkInHistory: [],
+});
+
+interface HabitSharedSettingsFieldsProps<TSettings extends HabitStreakSettings> {
+    settings: TSettings;
+    onSettingsChange: (nextSettings: TSettings) => void;
+    showCadence: boolean;
+    extraFooter?: React.ReactNode;
+}
+
+const HabitSharedSettingsFields = <TSettings extends HabitStreakSettings>({
+    settings,
+    onSettingsChange,
+    showCadence,
+    extraFooter,
+}: HabitSharedSettingsFieldsProps<TSettings>) => {
+    const ids = useId();
+
+    const updateSettings = useCallback((patch: Partial<TSettings>) => {
+        onSettingsChange({
+            ...settings,
+            ...patch,
+        });
+    }, [onSettingsChange, settings]);
 
     return (
-        <div className="relative flex w-full max-w-[286px] flex-col items-center justify-center gap-2.5">
-            <AnimatePresence>
-                {bursts.map(burst => (
-                    <div key={burst.id} className="pointer-events-none absolute left-1/2 top-24 h-36 w-36 -translate-x-1/2 -translate-y-1/2 mix-blend-screen">
-                        <motion.div
-                            className="absolute inset-0 rounded-full border-2"
-                            style={{ borderColor: burst.isOverachieve ? 'rgba(244, 63, 94, 0.4)' : 'rgba(249, 115, 22, 0.5)' }}
-                            initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '3px' }}
-                            animate={prefersReducedMotion ? { opacity: 0 } : { scale: burst.isOverachieve ? 1.8 : 1.6, opacity: 0, borderWidth: '0px' }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.8, ease: "easeOut" }}
-                        />
-                        {burst.isOverachieve && burst.overachieveParticles && (
-                            <BurstParticles
-                                particles={burst.overachieveParticles}
-                                color="#f43f5e"
-                                prefersReducedMotion={prefersReducedMotion}
-                            />
-                        )}
-                    </div>
-                ))}
-            </AnimatePresence>
+        <div className="grid gap-4">
+            <div className="grid gap-2">
+                <Label htmlFor={`${ids}-habit-name`}>Habit</Label>
+                <Input
+                    id={`${ids}-habit-name`}
+                    value={settings.habitName}
+                    placeholder="Review notes"
+                    onChange={(event) => updateSettings({ habitName: event.target.value } as Partial<TSettings>)}
+                />
+            </div>
 
-            <AnimatePresence>
-                {milestoneBursts.map((burst) => (
-                    <MilestoneBurstLayer key={burst.id} burst={burst} prefersReducedMotion={prefersReducedMotion} />
-                ))}
-            </AnimatePresence>
-
-            <div className="w-full">
-                <div className="mb-2.5 flex items-center justify-between gap-3 whitespace-nowrap px-1">
-                    <span className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-stone-500 dark:text-white/45">
-                        Week
-                    </span>
-                    <div className="flex items-center gap-1.5 text-[0.72rem] font-semibold text-stone-600 dark:text-white/68">
-                        <Flame className="h-3.5 w-3.5 text-[#ef7b2d]" />
-                        <span className="font-black text-stone-900 dark:text-white">{streakCount}d</span>
-                    </div>
-                </div>
-
-                <div className="grid w-full grid-cols-7 gap-1.5" data-testid="habit-calendar-board">
-                    {recentDayCells.map((day) => (
-                        <div
-                            key={day.key}
-                            data-testid={`habit-day-${day.key}`}
-                            data-completed={day.isCompleted ? 'true' : 'false'}
-                            data-today={day.isToday ? 'true' : 'false'}
-                            className={cn(
-                                'relative flex min-h-[84px] flex-col items-center justify-between rounded-[18px] px-1 py-2.5 text-center ring-1 transition-transform duration-300',
-                                day.isCompleted
-                                    ? 'bg-[linear-gradient(180deg,#ffbb52_0%,#ff8c40_50%,#e45433_100%)] text-white ring-transparent shadow-[0_10px_20px_rgba(232,73,45,0.2)]'
-                                    : 'bg-white/84 text-stone-600 ring-black/6 dark:bg-white/6 dark:text-white/72 dark:ring-white/10',
-                                day.isToday && 'scale-[1.02] ring-2 ring-[#ff8f2c] dark:ring-[#ffb14b]',
-                            )}
+            <div className={cn('grid gap-3', showCadence && 'sm:grid-cols-2')}>
+                {showCadence ? (
+                    <div className="grid gap-2">
+                        <Label htmlFor={`${ids}-interval-hours`}>Check-in cadence</Label>
+                        <Select
+                            value={String(settings.checkInIntervalHours)}
+                            onValueChange={(value) => updateSettings({ checkInIntervalHours: clampIntervalHours(value) } as Partial<TSettings>)}
                         >
-                            <span className={cn('text-[0.56rem] font-bold uppercase tracking-[0.18em]', day.isCompleted ? 'text-white/72' : 'text-stone-400 dark:text-white/45')}>
-                                {day.dayLabel}
-                            </span>
-                            <span className="text-[1.08rem] font-black leading-none tracking-tight">
-                                {day.dayNumber}
-                            </span>
-                            <span
-                                className={cn(
-                                    'flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
-                                    day.isCompleted
-                                        ? 'bg-white/22 text-white'
-                                        : 'bg-stone-200 text-stone-400 dark:bg-white/10 dark:text-white/36',
-                                )}
-                            >
-                                {day.isCompleted ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-                            </span>
-                        </div>
-                    ))}
+                            <SelectTrigger id={`${ids}-interval-hours`} className="w-full">
+                                <SelectValue placeholder="Select cadence" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {INTERVAL_OPTIONS.map((option) => (
+                                    <SelectItem key={`habit-interval-${option.value}`} value={String(option.value)}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ) : null}
+
+                <div className="grid gap-2">
+                    <Label htmlFor={`${ids}-target-streak`}>Target streak (count)</Label>
+                    <Input
+                        id={`${ids}-target-streak`}
+                        type="number"
+                        min={MIN_TARGET_STREAK}
+                        value={settings.targetStreak}
+                        onChange={(event) => updateSettings({ targetStreak: clampTargetStreak(event.target.value) } as Partial<TSettings>)}
+                    />
                 </div>
             </div>
+
+            {extraFooter}
         </div>
     );
 };
 
-const HabitRing: React.FC<HabitRingProps> = ({ prefersReducedMotion, streakCount, targetProgress, reactionSignal }) => {
-    const { bursts, milestoneBursts } = useStreakBursts(targetProgress, reactionSignal, prefersReducedMotion);
-    const gradientId = useId().replace(/:/g, '-');
-    const circumference = 2 * Math.PI * 46;
-    const strokeDashoffset = circumference - (targetProgress / 100) * circumference;
+const HabitStreakDuolingoSettingsComponent: React.FC<WidgetSettingsProps<HabitStreakDuolingoSettings>> = ({
+    settings,
+    onSettingsChange,
+}) => {
+    const duolingoSettings = normalizeHabitStreakDuolingoSettings(settings);
 
     return (
-        <div className="relative flex aspect-square h-full max-h-[160px] min-h-[70px] items-center justify-center" data-testid="habit-display-ring">
-            <motion.svg
-                className="absolute inset-0 h-full w-full transform"
-                viewBox="0 0 100 100"
-                initial={{ rotate: -90, scale: 1 }}
-                animate={prefersReducedMotion ? { rotate: -90, scale: 1 } : { rotate: [-90, -88.8, -90.8, -90], scale: [1, 1.012, 1] }}
-                transition={prefersReducedMotion ? { duration: 0 } : { duration: 6.6, repeat: Infinity, ease: 'easeInOut' }}
-            >
-                <circle
-                    cx="50"
-                    cy="50"
-                    r="46"
-                    strokeWidth="4.5"
-                    fill="none"
-                    style={{ stroke: 'var(--habit-ring-track)' }}
-                />
-                <motion.circle
-                    cx="50"
-                    cy="50"
-                    r="46"
-                    stroke={`url(#${gradientId})`}
-                    strokeWidth="4.5"
-                    strokeLinecap="round"
-                    fill="none"
-                    initial={prefersReducedMotion ? { strokeDashoffset } : { strokeDashoffset: circumference }}
-                    animate={prefersReducedMotion ? { strokeDashoffset } : { strokeDashoffset, opacity: [0.9, 1, 0.9] }}
-                    transition={prefersReducedMotion
-                        ? { duration: 1.2, ease: [0.16, 1, 0.3, 1] }
-                        : {
-                            strokeDashoffset: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
-                            opacity: { duration: 2.3, repeat: Infinity, ease: 'easeInOut' },
-                        }}
-                    strokeDasharray={circumference}
-                />
-                <motion.g
-                    animate={prefersReducedMotion ? { rotate: 0 } : { rotate: 360 }}
-                    transition={prefersReducedMotion ? { duration: 0 } : { duration: 9, repeat: Infinity, ease: 'linear' }}
-                    style={{ transformOrigin: '50% 50%' }}
-                >
-                    <circle
-                        cx="50"
-                        cy="50"
-                        r="46"
-                        strokeWidth="1.15"
-                        fill="none"
-                        stroke="rgba(255,255,255,0.4)"
-                        strokeDasharray="6 26"
-                        strokeLinecap="round"
-                        opacity={0.28}
-                    />
-                </motion.g>
-                <defs>
-                    <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#facc15" />
-                        <stop offset="50%" stopColor="#f97316" />
-                        <stop offset="100%" stopColor="#f43f5e" />
-                    </linearGradient>
-                </defs>
-            </motion.svg>
+        <HabitSharedSettingsFields
+            settings={duolingoSettings}
+            onSettingsChange={onSettingsChange}
+            showCadence={false}
+            extraFooter={(
+                <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    Duolingo board uses the shared streak data and keeps the board-focused controls only.
+                </div>
+            )}
+        />
+    );
+};
 
-            <AnimatePresence>
-                {bursts.map((burst) => (
-                    <div key={burst.id} className="pointer-events-none absolute inset-0 mix-blend-screen">
-                        <motion.div
-                            className="absolute inset-0 rounded-full border-2"
-                            style={{ borderColor: burst.isOverachieve ? 'rgba(244, 63, 94, 0.4)' : 'rgba(249, 115, 22, 0.5)' }}
-                            initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.8, opacity: 1, borderWidth: '3px' }}
-                            animate={prefersReducedMotion ? { opacity: 0 } : { scale: burst.isOverachieve ? 1.8 : 1.6, opacity: 0, borderWidth: '0px' }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.8, ease: 'easeOut' }}
-                        />
-                        {burst.isOverachieve && burst.overachieveParticles && (
-                            <BurstParticles
-                                particles={burst.overachieveParticles}
-                                color="#f43f5e"
-                                prefersReducedMotion={prefersReducedMotion}
-                            />
-                        )}
+const HabitStreakRingSettingsComponent: React.FC<WidgetSettingsProps<HabitStreakRingSettings>> = ({
+    settings,
+    onSettingsChange,
+}) => {
+    const ringSettings = normalizeHabitStreakRingSettings(settings);
+
+    const handleToggleMotivationalMessage = useCallback((checked: boolean) => {
+        onSettingsChange({
+            ...ringSettings,
+            showMotivationalMessage: checked,
+        });
+    }, [onSettingsChange, ringSettings]);
+
+    return (
+        <HabitSharedSettingsFields
+            settings={ringSettings}
+            onSettingsChange={onSettingsChange}
+            showCadence
+            extraFooter={(
+                <div className="flex items-center justify-between gap-4 pt-2">
+                    <div className="grid gap-0.5">
+                        <Label htmlFor="habit-ring-motivational-msg" className="cursor-pointer text-sm font-medium">
+                            Encouragement on check-in
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                            Show a motivational message each time you check in from the ring widget.
+                        </p>
                     </div>
-                ))}
-            </AnimatePresence>
-
-            <AnimatePresence>
-                {milestoneBursts.map((burst) => (
-                    <MilestoneBurstLayer key={burst.id} burst={burst} prefersReducedMotion={prefersReducedMotion} />
-                ))}
-            </AnimatePresence>
-
-            <div className="flex flex-col items-center justify-center -space-y-1">
-                <motion.span
-                    key={streakCount}
-                    initial={prefersReducedMotion ? false : { scale: 1.15, opacity: 0.5 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                    className="font-extrabold tracking-tighter drop-shadow-[0_1px_0_rgba(255,255,255,0.45)] dark:drop-shadow-none"
-                    style={{
-                        fontSize: 'clamp(1rem, 18cqmin, 2.5rem)',
-                        lineHeight: 1,
-                        color: 'var(--habit-ring-center-number)',
-                    }}
-                >
-                    {streakCount}
-                </motion.span>
-                <span
-                    className="mt-0 font-bold uppercase tracking-widest"
-                    style={{
-                        fontSize: 'clamp(0.45rem, 6cqmin, 0.6rem)',
-                        color: 'var(--habit-ring-center-label)',
-                    }}
-                >
-                    Streak
-                </span>
-            </div>
-        </div>
+                    <Switch
+                        id="habit-ring-motivational-msg"
+                        checked={ringSettings.showMotivationalMessage}
+                        onCheckedChange={handleToggleMotivationalMessage}
+                    />
+                </div>
+            )}
+        />
     );
 };
 
@@ -896,18 +670,67 @@ interface MotivationalToast {
     message: string;
 }
 
-const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
-    const habitSettings = normalizeHabitStreakSettings(settings);
+const useHabitSharedSettings = (
+    contextKey: string,
+    widgetId: string,
+    variant: HabitStreakVariant,
+    normalizedSettings: HabitStreakSettings
+) => {
+    const initialSharedSettings = useMemo(
+        () => extractHabitSharedSettings(normalizedSettings),
+        [normalizedSettings]
+    );
+    const subscribe = useCallback(
+        (listener: () => void) => subscribeHabitSharedSettings(contextKey, listener),
+        [contextKey]
+    );
+    const getSnapshot = useCallback(
+        () => readHabitSharedSettings(contextKey, initialSharedSettings),
+        [contextKey, initialSharedSettings]
+    );
+    const sharedSettings = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+    useEffect(() => {
+        registerHabitWidget(contextKey, widgetId, variant, normalizedSettings);
+        return () => {
+            unregisterHabitWidget(contextKey, widgetId);
+        };
+    }, [contextKey, normalizedSettings, variant, widgetId]);
+
+    return sharedSettings;
+};
+
+interface HabitStreakWidgetComponentProps<TSettings extends HabitStreakSettings> extends WidgetProps<TSettings> {
+    normalizeSettings: (settings: unknown) => TSettings;
+    variant: HabitStreakVariant;
+}
+
+const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
+    widgetId,
+    semesterId,
+    courseId,
+    settings,
+    updateSettings,
+    normalizeSettings,
+    variant,
+}: HabitStreakWidgetComponentProps<TSettings>) => {
+    const normalizedSettings = normalizeSettings(settings);
+    const contextKey = getHabitContextKey(widgetId, semesterId, courseId);
+    const sharedSettings = useHabitSharedSettings(contextKey, widgetId, variant, normalizedSettings);
+    const habitSettings = useMemo(
+        () => applySharedSettings(normalizedSettings, sharedSettings),
+        [normalizedSettings, sharedSettings]
+    );
     const [nowMs, setNowMs] = useState(() => Date.now());
     const [flameReactionSignal, setFlameReactionSignal] = useState(0);
     const [motivationalToast, setMotivationalToast] = useState<MotivationalToast | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const canShowMotivationalToast = habitSettings.displayStyle === 'ring' && habitSettings.showMotivationalMessage;
+    const canShowMotivationalToast = variant === 'ring' && 'showMotivationalMessage' in habitSettings && habitSettings.showMotivationalMessage;
 
     const checkInState = useMemo(
         () => getCheckInWindowState(habitSettings.lastCheckInAt, habitSettings.checkInIntervalHours, nowMs),
-        [habitSettings.lastCheckInAt, habitSettings.checkInIntervalHours, nowMs]
+        [habitSettings.checkInIntervalHours, habitSettings.lastCheckInAt, nowMs]
     );
 
     useEffect(() => {
@@ -916,7 +739,6 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
         return () => window.clearInterval(timer);
     }, [checkInState.canCheckIn]);
 
-    // Clean up toast timer on unmount
     useEffect(() => {
         return () => {
             if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -932,6 +754,16 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
         setMotivationalToast(null);
     }, [canShowMotivationalToast]);
 
+    const pushSharedSettings = useCallback(async (nextSharedSettings: HabitStreakSharedSettings) => {
+        writeHabitSharedSettings(contextKey, nextSharedSettings);
+        void updateSettings(applySharedSettings(normalizedSettings, nextSharedSettings) as TSettings);
+        try {
+            await syncHabitSharedSettingsToSiblingWidgets(contextKey, widgetId, nextSharedSettings);
+        } catch (error) {
+            console.error('Failed to sync habit streak sibling widgets', error);
+        }
+    }, [contextKey, normalizedSettings, updateSettings, widgetId]);
+
     const handleCheckIn = useCallback(() => {
         if (!checkInState.canCheckIn) return;
 
@@ -942,30 +774,28 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
             checkInState.windowsSinceLast,
             Boolean(habitSettings.lastCheckInAt)
         );
-        const nextCheckInHistory = normalizeCheckInHistory(
-            [...habitSettings.checkInHistory, todayKey],
-            checkInAtMs
-        );
-
-        void updateSettings({
-            ...habitSettings,
+        const nextSharedSettings: HabitStreakSharedSettings = {
+            ...extractHabitSharedSettings(habitSettings),
             streakCount: nextStreakCount,
             bestStreak: Math.max(habitSettings.bestStreak, nextStreakCount),
             totalCheckIns: habitSettings.totalCheckIns + 1,
             lastCheckInAt: new Date(checkInAtMs).toISOString(),
-            checkInHistory: nextCheckInHistory,
-        });
+            checkInHistory: normalizeCheckInHistory(
+                [...habitSettings.checkInHistory, todayKey],
+                checkInAtMs
+            ),
+        };
 
+        void pushSharedSettings(nextSharedSettings);
         setNowMs(checkInAtMs);
         setFlameReactionSignal((signal) => signal + 1);
 
-        // Show motivational message if enabled
         if (canShowMotivationalToast) {
             if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
             setMotivationalToast({ id: checkInAtMs, message: getMotivationalMessage(nextStreakCount) });
             toastTimerRef.current = setTimeout(() => setMotivationalToast(null), 3800);
         }
-    }, [canShowMotivationalToast, checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, updateSettings]);
+    }, [canShowMotivationalToast, checkInState.canCheckIn, checkInState.windowsSinceLast, habitSettings, pushSharedSettings]);
 
     const buttonLabel = checkInState.canCheckIn
         ? 'Check In'
@@ -974,17 +804,19 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
         ? habitSettings.habitName
         : 'Habit task (e.g. Review notes for 30 mins)';
     const targetProgress = Math.min(100, Math.round((habitSettings.streakCount / habitSettings.targetStreak) * 100));
+    const recentDayCells = useMemo(
+        () => buildRecentDayCells(habitSettings.checkInHistory, nowMs),
+        [habitSettings.checkInHistory, nowMs]
+    );
 
     return (
-        <div className="habit-streak-widget group relative flex h-full min-h-0 flex-col overflow-hidden p-3 text-foreground shadow-[0_14px_30px_rgba(236,114,41,0.22)] outline outline-1 -outline-offset-1 outline-black/5 transition-colors dark:shadow-[0_20px_40px_rgba(77,24,8,0.56)] dark:outline-white/10 xl:p-4">
-            {/* Modern Glowing Aura Blobs */}
+        <div className="habit-streak-widget group relative flex h-full min-h-0 flex-col overflow-hidden p-3 text-foreground transition-colors xl:p-4">
             <div className="pointer-events-none absolute inset-0 z-0 opacity-60 mix-blend-plus-lighter transition-opacity duration-1000 group-hover:opacity-100 dark:opacity-40">
                 <div className="absolute -left-12 -top-12 h-40 w-40 rounded-full bg-amber-400/30 blur-3xl dark:bg-amber-600/20" />
                 <div className="absolute -right-12 bottom-0 h-48 w-48 rounded-full bg-rose-400/20 blur-3xl dark:bg-rose-600/10" />
             </div>
 
             <div className="relative z-10 flex min-h-0 flex-1 flex-col justify-between gap-2">
-                {/* Header */}
                 <div className="flex items-start justify-between">
                     <div className="grid gap-0.5">
                         <h3 className={cn(
@@ -996,28 +828,25 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     </div>
                 </div>
 
-                {/* Streak Visualization */}
                 <div className="flex min-h-0 flex-1 items-center justify-center">
-                    {habitSettings.displayStyle === 'calendar' ? (
-                        <HabitStreakCard
+                    {variant === 'duolingo' ? (
+                        <HabitStreakCalendar
                             prefersReducedMotion={prefersReducedMotion}
-                            nowMs={nowMs}
                             streakCount={habitSettings.streakCount}
-                            checkInHistory={habitSettings.checkInHistory}
+                            recentDayCells={recentDayCells}
                             targetProgress={targetProgress}
                             reactionSignal={flameReactionSignal}
                         />
                     ) : (
-                            <HabitRing
-                                prefersReducedMotion={prefersReducedMotion}
-                                streakCount={habitSettings.streakCount}
-                                targetProgress={targetProgress}
-                                reactionSignal={flameReactionSignal}
-                            />
+                        <HabitStreakRing
+                            prefersReducedMotion={prefersReducedMotion}
+                            streakCount={habitSettings.streakCount}
+                            targetProgress={targetProgress}
+                            reactionSignal={flameReactionSignal}
+                        />
                     )}
                 </div>
 
-                {/* Check In Action */}
                 <div className="mt-auto shrink-0 grid gap-2">
                     <Button
                         onClick={handleCheckIn}
@@ -1035,7 +864,6 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                     </Button>
                 </div>
 
-                {/* Motivational Message Toast */}
                 <AnimatePresence>
                     {motivationalToast && (
                         <motion.div
@@ -1083,43 +911,74 @@ const HabitStreakWidgetComponent: React.FC<WidgetProps> = ({ settings, updateSet
                         radial-gradient(72% 62% at 52% 58%, rgba(247, 151, 43, 0.2) 0%, rgba(247, 151, 43, 0) 66%),
                         linear-gradient(142deg, #2f1208 0%, #3e170b 46%, #4a1b10 100%);
                 }
-
             `}</style>
         </div>
     );
 };
 
-export const HabitStreakWidget = HabitStreakWidgetComponent;
+export const HabitStreakDuolingoWidget: React.FC<WidgetProps<HabitStreakDuolingoSettings>> = (props) => (
+    <HabitStreakWidgetComponent {...props} normalizeSettings={normalizeHabitStreakDuolingoSettings} variant="duolingo" />
+);
 
-export const HabitStreakWidgetDefinition: WidgetDefinition = {
-    type: 'habit-streak',
-    component: HabitStreakWidget,
-    SettingsComponent: HabitStreakSettingsComponent,
-    defaultSettings: DEFAULT_HABIT_STREAK_SETTINGS,
-    headerButtons: [
-        {
-            id: 'reset-streak',
-            render: ({ settings: rawSettings, updateSettings: updateWidgetSettings }, { ConfirmActionButton }) => (
-                <ConfirmActionButton
-                    title="Reset streak"
-                    icon={<RotateCcw className="h-4 w-4" />}
-                    dialogTitle="Reset this habit streak?"
-                    dialogDescription="This will clear streak progress and check-in history."
-                    confirmText="Reset"
-                    confirmVariant="destructive"
-                    onClick={() => {
-                        const currentSettings = normalizeHabitStreakSettings(rawSettings);
-                        void updateWidgetSettings({
-                            ...currentSettings,
-                            streakCount: 0,
-                            bestStreak: 0,
-                            totalCheckIns: 0,
-                            lastCheckInAt: null,
-                            checkInHistory: [],
-                        });
-                    }}
-                />
-            ),
-        },
-    ],
+export const HabitStreakRingWidget: React.FC<WidgetProps<HabitStreakRingSettings>> = (props) => (
+    <HabitStreakWidgetComponent {...props} normalizeSettings={normalizeHabitStreakRingSettings} variant="ring" />
+);
+
+const createResetHeaderButton = <TSettings extends HabitStreakSettings>(
+    normalizeSettings: (settings: unknown) => TSettings
+) => ({
+    id: 'reset-streak',
+    render: ({ widgetId, semesterId, courseId, settings: rawSettings, updateSettings }: HeaderButtonContext, { ConfirmActionButton }: { ConfirmActionButton: React.FC<any> }) => (
+        <ConfirmActionButton
+            title="Reset streak"
+            icon={<RotateCcw className="h-4 w-4" />}
+            dialogTitle="Reset this habit streak?"
+            dialogDescription="This will clear streak progress and check-in history."
+            confirmText="Reset"
+            confirmVariant="destructive"
+            onClick={async () => {
+                const currentSettings = normalizeSettings(rawSettings);
+                const nextSharedSettings = getResetSharedSettings(extractHabitSharedSettings(currentSettings));
+                const contextKey = getHabitContextKey(widgetId, semesterId, courseId);
+                writeHabitSharedSettings(contextKey, nextSharedSettings);
+                void updateSettings(applySharedSettings(currentSettings, nextSharedSettings));
+                try {
+                    await syncHabitSharedSettingsToSiblingWidgets(contextKey, widgetId, nextSharedSettings);
+                } catch (error) {
+                    console.error('Failed to sync habit streak sibling widgets after reset', error);
+                }
+            }}
+        />
+    ),
+});
+
+export const HabitStreakDuolingoWidgetDefinition: WidgetDefinition = {
+    type: DUOLINGO_WIDGET_TYPE,
+    component: HabitStreakDuolingoWidget,
+    SettingsComponent: HabitStreakDuolingoSettingsComponent,
+    defaultSettings: DEFAULT_HABIT_STREAK_DUOLINGO_SETTINGS,
+    headerButtons: [createResetHeaderButton(normalizeHabitStreakDuolingoSettings)],
+};
+
+export const HabitStreakRingWidgetDefinition: WidgetDefinition = {
+    type: RING_WIDGET_TYPE,
+    component: HabitStreakRingWidget,
+    SettingsComponent: HabitStreakRingSettingsComponent,
+    defaultSettings: DEFAULT_HABIT_STREAK_RING_SETTINGS,
+    headerButtons: [createResetHeaderButton(normalizeHabitStreakRingSettings)],
+};
+
+export const HabitStreakWidgetDefinitions = [
+    HabitStreakDuolingoWidgetDefinition,
+    HabitStreakRingWidgetDefinition,
+];
+
+export const HabitStreakWidgetTypes = {
+    duolingo: DUOLINGO_WIDGET_TYPE,
+    ring: RING_WIDGET_TYPE,
+};
+
+export const HabitStreakIcons = {
+    duolingo: CalendarDays,
+    ring: Sparkles,
 };

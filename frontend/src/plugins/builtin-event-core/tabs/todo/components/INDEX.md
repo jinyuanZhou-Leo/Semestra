@@ -7,7 +7,7 @@ Dialogs are grouped under `dialogs/` while cards/headers/sections stay in this f
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for todo tab presentation components. |
-| TodoListSidebar.tsx | List navigation panel | Selects lists and manages custom list actions with mobile-safe sizing. |
+| TodoListSidebar.tsx | List navigation panel | Selects lists, manages custom list actions, and shows lightweight sidebar skeleton rows during semester list loading. |
 | TodoMainHeader.tsx | Action header | Renders list title, sort controls, and primary add actions. |
 | TodoTaskCard.tsx | Task card item | Displays task content, status, badges, and edit/delete controls with mobile width optimization. |
 | TodoSectionBlock.tsx | Section container | Collapsible section wrapper with drag target behavior, no mobile left indent for section title/task rows, and delete-confirmation request wiring. |

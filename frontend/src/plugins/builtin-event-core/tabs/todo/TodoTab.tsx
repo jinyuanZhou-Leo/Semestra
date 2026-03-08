@@ -1,6 +1,6 @@
 // input:  [Tab settings payload, Todo state hooks, todoData helpers, shared UI primitives, and event bus]
 // output: [TodoTab React component for course/semester todo management]
-// pos:    [Todo tab orchestration layer that wires list selection, task mutations, responsive layout, and calendar refresh notifications]
+// pos:    [Todo tab orchestration layer that wires list selection, task mutations, responsive layout, calendar refresh notifications, and loading placeholders]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../shared/constants';
 import { timetableEventBus } from '../../shared/eventBus';
 import { TodoListSidebar } from './components/TodoListSidebar';
@@ -109,6 +110,51 @@ const runWithConcurrencyLimit = async <T,>(tasks: Array<() => Promise<T>>, maxPa
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   return results;
+};
+
+const TodoMainPanelSkeleton: React.FC = () => {
+  return (
+    <div className="pt-1">
+      <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-40 rounded-full" />
+          <Skeleton className="h-3.5 w-24 rounded-full opacity-70" />
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="h-9 w-28 rounded-full" />
+          <Skeleton className="h-9 w-28 rounded-full" />
+        </div>
+      </div>
+
+      <div className="space-y-4 pt-4">
+        <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-4 w-32 rounded-full" />
+          </div>
+          <div className="mt-3 space-y-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Skeleton key={`todo-unsectioned-skeleton-${index}`} className="h-14 rounded-xl" />
+            ))}
+          </div>
+        </div>
+
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={`todo-section-skeleton-${index}`} className="rounded-2xl border border-border/60 bg-background/80 p-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded-md" />
+              <Skeleton className="h-4 w-28 rounded-full" />
+            </div>
+            <div className="mt-3 space-y-2">
+              <Skeleton className="h-14 rounded-xl" />
+              <Skeleton className="h-14 rounded-xl" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, courseId, semesterId }) => {
@@ -1007,6 +1053,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
   };
 
   const showListSidebar = mode === 'semester';
+  const showSemesterLoadingSkeleton = mode === 'semester' && semesterCourseListsLoading && allLists.length === 0 && !activeList;
 
   return (
     <div className="space-y-4 select-none">
@@ -1029,65 +1076,71 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         ) : null}
 
         <div className="min-w-0 px-2 py-3 sm:px-4">
-          <TodoMainHeader
-            activeList={activeList}
-            sortMode={sortMode}
-            sortDirection={sortDirection}
-            sortOptions={SORT_OPTIONS}
-            onSortModeChange={setSortMode}
-            onSortDirectionChange={setSortDirection}
-            onOpenListTitleEditor={openListTitleEditor}
-            onAddSection={handleAddSection}
-            onOpenCreateTaskDialog={openCreateTaskDialog}
-          />
+          {showSemesterLoadingSkeleton ? (
+            <TodoMainPanelSkeleton />
+          ) : (
+            <>
+              <TodoMainHeader
+                activeList={activeList}
+                sortMode={sortMode}
+                sortDirection={sortDirection}
+                sortOptions={SORT_OPTIONS}
+                onSortModeChange={setSortMode}
+                onSortDirectionChange={setSortDirection}
+                onOpenListTitleEditor={openListTitleEditor}
+                onAddSection={handleAddSection}
+                onOpenCreateTaskDialog={openCreateTaskDialog}
+              />
 
-          <div className="pt-4">
-            {!activeList ? (
-              <p className="text-sm text-muted-foreground">No list available.</p>
-            ) : (
-              <ScrollArea className="h-[420px] sm:h-[500px] lg:h-[560px]">
-                <div className="space-y-3 pr-0 sm:pr-2">
-                  <TodoUnsectionedBlock
-                    sectionId={UNSECTIONED_TASK_BUCKET_ID}
-                    tasks={unsectionedTasks}
-                    dragOverSectionId={dragOverSectionId}
-                    onDragOverSection={handleTaskDragOverSection}
-                    onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(
-                      event,
-                      activeList,
-                      targetSectionId,
-                      beforeTaskId,
-                    )}
-                    renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
-                  />
-
-                  {activeList.sections.map((section) => {
-                    const tasks = sectionTasksMap.get(section.id) ?? [];
-                    const isOpen = isSectionOpen(activeList.id, section.id);
-                    const canDeleteSection = section.id !== COMPLETED_SECTION_ID && activeListUserSections.length > 0;
-
-                    return (
-                      <TodoSectionBlock
-                        key={section.id}
-                        section={section}
-                        tasks={tasks}
-                        completedSectionId={COMPLETED_SECTION_ID}
-                        isOpen={isOpen}
-                        canDeleteSection={canDeleteSection}
+              <div className="pt-4">
+                {!activeList ? (
+                  <p className="text-sm text-muted-foreground">No list available.</p>
+                ) : (
+                  <ScrollArea className="h-[420px] sm:h-[500px] lg:h-[560px]">
+                    <div className="space-y-3 pr-0 sm:pr-2">
+                      <TodoUnsectionedBlock
+                        sectionId={UNSECTIONED_TASK_BUCKET_ID}
+                        tasks={unsectionedTasks}
                         dragOverSectionId={dragOverSectionId}
-                        onOpenChange={(open) => setSectionOpen(activeList.id, section.id, open)}
                         onDragOverSection={handleTaskDragOverSection}
-                        onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(event, activeList, targetSectionId, beforeTaskId)}
-                        onOpenSectionTitleEditor={openSectionTitleEditor}
-                        onRequestDeleteSection={(section) => openDeleteSectionAlert(activeList, section, tasks.length)}
+                        onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(
+                          event,
+                          activeList,
+                          targetSectionId,
+                          beforeTaskId,
+                        )}
                         renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
                       />
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            )}
-          </div>
+
+                      {activeList.sections.map((section) => {
+                        const tasks = sectionTasksMap.get(section.id) ?? [];
+                        const isOpen = isSectionOpen(activeList.id, section.id);
+                        const canDeleteSection = section.id !== COMPLETED_SECTION_ID && activeListUserSections.length > 0;
+
+                        return (
+                          <TodoSectionBlock
+                            key={section.id}
+                            section={section}
+                            tasks={tasks}
+                            completedSectionId={COMPLETED_SECTION_ID}
+                            isOpen={isOpen}
+                            canDeleteSection={canDeleteSection}
+                            dragOverSectionId={dragOverSectionId}
+                            onOpenChange={(open) => setSectionOpen(activeList.id, section.id, open)}
+                            onDragOverSection={handleTaskDragOverSection}
+                            onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(event, activeList, targetSectionId, beforeTaskId)}
+                            onOpenSectionTitleEditor={openSectionTitleEditor}
+                            onRequestDeleteSection={(section) => openDeleteSectionAlert(activeList, section, tasks.length)}
+                            renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
+                          />
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

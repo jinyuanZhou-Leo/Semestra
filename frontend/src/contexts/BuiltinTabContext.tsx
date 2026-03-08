@@ -1,6 +1,6 @@
-// input:  [dashboard widget actions (including layout sync/commit callbacks) and settings section nodes passed from homepage pages]
+// input:  [dashboard widget actions (including layout sync/commit callbacks), optional overview nodes, and settings section nodes passed from homepage pages]
 // output: [`BuiltinTabProvider`, `useBuiltinTabContext()`, and built-in tab context types]
-// pos:    [Bridge context consumed by builtin dashboard/settings tab implementations with split layout sync and persistence actions]
+// pos:    [Bridge context consumed by builtin dashboard/settings tab implementations with split layout sync, persistence actions, and dashboard overview slots]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,6 +14,7 @@ import type { Layout } from 'react-grid-layout';
 
 type DashboardContextValue = {
     widgets: WidgetItem[];
+    overview?: React.ReactNode;
     onAddWidgetClick: () => void;
     onRemoveWidget: (id: string) => void;
     onEditWidget: (widget: WidgetItem) => void;

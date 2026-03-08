@@ -1,6 +1,6 @@
-// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings registries, active tab selection state]
+// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings registries, and active tab selection state]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with tabbed dashboard, widgets, settings panel, and per-switch tab fade transitions]
+// pos:    [Semester workspace page with workspace navigation, dashboard-only overview stats, settings panel, and per-switch tab fade transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -20,7 +20,6 @@ import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
-import { Skeleton } from '@/components/ui/skeleton';
 import { CardSkeleton } from '../components/skeletons';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { Container } from '../components/Container';
@@ -28,8 +27,10 @@ import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
-import { useStickyCollapse } from '../hooks/useStickyCollapse';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
+import { WorkspaceNav } from '../components/WorkspaceNav';
+import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
+import { BookOpen, GraduationCap, Percent } from 'lucide-react';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
@@ -65,8 +66,6 @@ const SemesterHomepageContent: React.FC = () => {
     const [activeTabId, setActiveTabId] = useState('');
 
     const [programName, setProgramName] = useState<string | null>(null);
-
-    const { isShrunk, heroRef, heroSpacerHeight } = useStickyCollapse();
     const openAddWidgetModal = useCallback(() => {
         const activeElement = document.activeElement;
         if (activeElement instanceof HTMLElement) {
@@ -220,6 +219,49 @@ const SemesterHomepageContent: React.FC = () => {
         </Breadcrumb>
     );
 
+    const semesterOverview = useMemo(() => {
+        if (!semester) return null;
+
+        const totalCredits = semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0;
+        return (
+            <WorkspaceOverviewStats
+                items={[
+                    {
+                        label: 'Credits',
+                        icon: <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />,
+                        value: (
+                            <AnimatedNumber
+                                value={totalCredits}
+                                format={(value) => value.toFixed(2)}
+                            />
+                        ),
+                    },
+                    {
+                        label: 'Average',
+                        icon: <Percent className="h-3.5 w-3.5" aria-hidden="true" />,
+                        value: (
+                            <AnimatedNumber
+                                value={semester.average_percentage}
+                                format={(value) => `${value.toFixed(1)}%`}
+                            />
+                        ),
+                    },
+                    {
+                        label: 'GPA',
+                        icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />,
+                        value: (
+                            <AnimatedNumber
+                                value={semester.average_scaled}
+                                format={(value) => value.toFixed(2)}
+                                rainbowThreshold={3.8}
+                            />
+                        ),
+                    },
+                ]}
+            />
+        );
+    }, [semester]);
+
     const dashboardContent = useMemo(() => {
         if (!semester) return null;
         if (!activeTabId) return <PluginTabSkeleton />;
@@ -359,6 +401,7 @@ const SemesterHomepageContent: React.FC = () => {
         isLoading: isLoading,
         dashboard: {
             widgets: widgets,
+            overview: semesterOverview,
             onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
             onEditWidget: setEditingWidget,
@@ -396,6 +439,7 @@ const SemesterHomepageContent: React.FC = () => {
         handleUpdateWidgetDebounced,
         handleLayoutChange,
         handleLayoutCommit,
+        semesterOverview,
         semester,
         handleUpdateSemester,
         hasPluginSettings,
@@ -407,103 +451,23 @@ const SemesterHomepageContent: React.FC = () => {
     return (
         <Layout breadcrumb={breadcrumb}>
             <BuiltinTabProvider value={builtinTabContext}>
-                <div
-                    ref={heroRef}
-                    className={`sticky-page-header sticky left-0 right-0 z-40 top-[60px] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-[padding,box-shadow] duration-300 ease-out ${isShrunk ? 'shadow-sm' : 'shadow-none'}`}
-                    style={{
-                        paddingTop: isShrunk ? '8px' : '16px',
-                        paddingBottom: isShrunk ? '8px' : '16px'
-                    }}
-                >
-                    <Container className="flex flex-wrap items-center">
-                        <div className="flex flex-col gap-2 relative w-full">
-                            <div className="min-w-0">
-                                {isLoading || !semester ? (
-                                    <Skeleton className="h-12 w-3/5" />
-                                ) : (
-                                        <h1
-                                            className="select-none truncate font-bold tracking-tight origin-left"
-                                            style={{
-                                                fontSize: '2.25rem',
-                                                lineHeight: '2.5rem',
-                                                transformOrigin: 'left center',
-                                                transform: isShrunk ? 'scale(0.8)' : 'scale(1)',
-                                                transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                                            }}
-                                        >
-                                            {semester.name}
-                                    </h1>
-                                )}
+                <WorkspaceNav
+                    title={semester?.name || 'Semester'}
+                    isLoading={isLoading || !semester}
+                    tabsLoading={!areBuiltinTabsReady}
+                    tabs={(
+                        <Tabs
+                            items={tabBarItems}
+                            activeId={activeTabId}
+                            onSelect={setActiveTabId}
+                            onRemove={handleRemoveTab}
+                            onReorder={handleReorderTabs}
+                            onAdd={openAddTabModal}
+                        />
+                    )}
+                />
 
-                                <div
-                                    className="select-none flex flex-wrap gap-6 overflow-hidden"
-                                    style={{
-                                        maxHeight: isShrunk ? '0px' : '140px',
-                                        opacity: isShrunk ? 0 : 1,
-                                        marginTop: isShrunk ? '0' : '0.75rem',
-                                        transform: isShrunk ? 'translateY(-8px)' : 'translateY(0)',
-                                        transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin-top 0.3s ease, transform 0.3s ease'
-                                    }}
-                                >
-                                    {/* Stats content ... unchanged */}
-                                    <div className="min-w-[72px]">
-                                        <div className="text-xs uppercase tracking-wider text-muted-foreground/80">Credits</div>
-                                        <div className="text-2xl font-semibold">
-                                            {isLoading || !semester ? (
-                                                <Skeleton className="h-6 w-8" />
-                                            ) : (
-                                                <AnimatedNumber
-                                                    value={semester.courses?.reduce((sum, course) => sum + (course.credits || 0), 0) || 0}
-                                                    format={(val) => val.toFixed(2)}
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="min-w-[96px]">
-                                        <div className="text-xs uppercase tracking-wider text-muted-foreground/80">Avg</div>
-                                        <div className="text-2xl font-semibold">
-                                            {isLoading || !semester ? (
-                                                <Skeleton className="h-6 w-12" />
-                                            ) : (
-                                                <AnimatedNumber
-                                                    value={semester.average_percentage}
-                                                    format={(val) => `${val.toFixed(1)}%`}
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="min-w-[80px]">
-                                        <div className="text-xs uppercase tracking-wider text-muted-foreground/80">GPA</div>
-                                        <div className="text-2xl font-semibold">
-                                            {isLoading || !semester ? (
-                                                <Skeleton className="h-6 w-10" />
-                                            ) : (
-                                                <AnimatedNumber
-                                                    value={semester.average_scaled}
-                                                    format={(val) => val.toFixed(2)}
-                                                    rainbowThreshold={3.8}
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="w-full mt-4">
-                            <Tabs
-                                items={tabBarItems}
-                                activeId={activeTabId}
-                                onSelect={setActiveTabId}
-                                onRemove={handleRemoveTab}
-                                onReorder={handleReorderTabs}
-                                onAdd={openAddTabModal}
-                            />
-                        </div>
-                    </Container>
-                </div>
-
-                <Container className="py-4">
+                <Container className="py-5 sm:py-6">
                     {isLoading || !semester ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {[1, 2, 3, 4, 5, 6].map(i => (
@@ -514,10 +478,6 @@ const SemesterHomepageContent: React.FC = () => {
                             dashboardContent
                     )}
                 </Container>
-                <div
-                    aria-hidden="true"
-                    style={{ height: isShrunk ? heroSpacerHeight : 0 }}
-                />
 
                 {semester && (
                     <>

@@ -1,23 +1,41 @@
-// input:  [HabitStreak widget/helper exports and testing-library render/event utilities]
-// output: [vitest coverage for habit check-in windows, real check-in history normalization, dual display-style widget UI behavior, ring-only encouragement toast behavior, and header reset actions]
-// pos:    [plugin-level regression tests for habit-streak helper logic, minimal calendar-first 7-day board rendering, classic ring fallback, toast gating, and runtime contract expectations]
+// input:  [habit-streak widget/helper exports, mocked sibling-sync API calls, and testing-library render/event utilities]
+// output: [vitest coverage for habit check-in windows, shared normalization, dual widget rendering, sibling data sync, mode-specific settings, single-shell chrome, and header reset actions]
+// pos:    [plugin-level regression tests for the split Duolingo/Ring habit-streak widgets and their shared streak model]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import api from '../../services/api';
 import {
-    HabitStreakWidget,
-    HabitStreakWidgetDefinition,
+    HabitStreakDuolingoWidget,
+    HabitStreakDuolingoWidgetDefinition,
+    HabitStreakRingWidget,
+    HabitStreakRingWidgetDefinition,
     computeNextStreakCount,
     getCheckInWindowState,
-    normalizeHabitStreakSettings,
+    normalizeHabitStreakDuolingoSettings,
+    normalizeHabitStreakRingSettings,
+    resetHabitStreakSharedStoreForTests,
 } from './widget';
+
+vi.mock('../../services/api', () => ({
+    default: {
+        updateWidget: vi.fn().mockResolvedValue({}),
+    },
+}));
+
+const mockedApi = vi.mocked(api);
 
 afterEach(() => {
     vi.useRealTimers();
+});
+
+beforeEach(() => {
+    mockedApi.updateWidget.mockClear();
+    resetHabitStreakSharedStoreForTests();
 });
 
 describe('HabitStreak helpers', () => {
@@ -69,44 +87,30 @@ describe('HabitStreak helpers', () => {
         expect(state.remainingMs).toBe(3 * 24 * 60 * 60 * 1000);
     });
 
-    it('normalizes check-in history to recent unique local date keys', () => {
+    it('normalizes Duolingo settings to recent unique local date keys', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-03-06T12:00:00.000Z'));
 
-        const settings = normalizeHabitStreakSettings({
+        const settings = normalizeHabitStreakDuolingoSettings({
             checkInHistory: ['2026-03-06', '2026-02-30', '2025-11-10', '2026-03-05', '2026-03-06', 'bad-key'],
         });
 
         expect(settings.checkInHistory).toEqual(['2026-03-05', '2026-03-06']);
     });
 
-    it('falls back to calendar display style when an invalid style is provided', () => {
-        const settings = normalizeHabitStreakSettings({
-            displayStyle: 'sparkle-orbit',
-        });
-
-        expect(settings.displayStyle).toBe('calendar');
-    });
-
-    it('locks calendar display style to daily cadence and disabled encouragement', () => {
-        const settings = normalizeHabitStreakSettings({
-            displayStyle: 'calendar',
-            checkInIntervalHours: 168,
-            showMotivationalMessage: true,
-        });
-
-        expect(settings.checkInIntervalHours).toBe(24);
-        expect(settings.showMotivationalMessage).toBe(false);
+    it('defaults ring encouragement to enabled when missing', () => {
+        const settings = normalizeHabitStreakRingSettings({});
+        expect(settings.showMotivationalMessage).toBe(true);
     });
 });
 
-describe('HabitStreakWidget', () => {
-    it('renders habit task as read-only title', () => {
+describe('HabitStreak widgets', () => {
+    it('renders Duolingo widget title as read-only text', () => {
         const updateSettings = vi.fn();
 
         render(
-            <HabitStreakWidget
-                widgetId="habit-1"
+            <HabitStreakDuolingoWidget
+                widgetId="habit-duo-title"
                 settings={{
                     habitName: 'Read chapter',
                     checkInIntervalHours: 24,
@@ -123,51 +127,101 @@ describe('HabitStreakWidget', () => {
         expect(updateSettings).not.toHaveBeenCalled();
     });
 
-    it('increments streak when check-in is available', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-03-06T14:30:00.000Z'));
+    it('renders the ring widget when using the ring definition', () => {
         const updateSettings = vi.fn();
 
         render(
-            <HabitStreakWidget
-                widgetId="habit-2"
+            <HabitStreakRingWidget
+                widgetId="habit-ring"
                 settings={{
-                    habitName: 'Workout',
-                    checkInIntervalHours: 1,
-                    streakCount: 0,
-                    bestStreak: 0,
-                    totalCheckIns: 0,
+                    habitName: 'Stretch',
+                    checkInIntervalHours: 24,
+                    targetStreak: 12,
+                    streakCount: 4,
+                    bestStreak: 9,
+                    totalCheckIns: 15,
                     lastCheckInAt: null,
                 }}
                 updateSettings={updateSettings}
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+        expect(screen.getByTestId('habit-display-ring')).toBeInTheDocument();
+        expect(screen.getByText('Streak')).toBeInTheDocument();
+        expect(screen.queryAllByTestId(/habit-day-/)).toHaveLength(0);
+    });
 
-        expect(updateSettings).toHaveBeenCalledWith(
+    it('increments streak in the Duolingo widget and syncs the sibling ring widget', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-06T14:30:00.000Z'));
+        const updateDuolingoSettings = vi.fn();
+        const updateRingSettings = vi.fn();
+
+        render(
+            <>
+                <HabitStreakDuolingoWidget
+                    widgetId="habit-duo"
+                    semesterId="semester-1"
+                    settings={{
+                        habitName: 'Workout',
+                        checkInIntervalHours: 24,
+                        streakCount: 0,
+                        bestStreak: 0,
+                        totalCheckIns: 0,
+                        lastCheckInAt: null,
+                    }}
+                    updateSettings={updateDuolingoSettings}
+                />
+                <HabitStreakRingWidget
+                    widgetId="habit-ring"
+                    semesterId="semester-1"
+                    settings={{
+                        habitName: 'Workout',
+                        checkInIntervalHours: 24,
+                        targetStreak: 21,
+                        streakCount: 0,
+                        bestStreak: 0,
+                        totalCheckIns: 0,
+                        lastCheckInAt: null,
+                        showMotivationalMessage: false,
+                    }}
+                    updateSettings={updateRingSettings}
+                />
+            </>
+        );
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Check In' })[0]);
+
+        expect(updateDuolingoSettings).toHaveBeenCalledWith(
             expect.objectContaining({
-                habitName: 'Workout',
-                checkInIntervalHours: 24,
                 streakCount: 1,
                 bestStreak: 1,
                 totalCheckIns: 1,
                 lastCheckInAt: '2026-03-06T14:30:00.000Z',
                 checkInHistory: ['2026-03-06'],
-                displayStyle: 'calendar',
-                targetStreak: 21,
-                showMotivationalMessage: false,
+            })
+        );
+
+        const ring = screen.getByTestId('habit-display-ring');
+        expect(within(ring).getByText('1')).toBeInTheDocument();
+
+        await Promise.resolve();
+
+        expect(mockedApi.updateWidget).toHaveBeenCalledWith(
+            'habit-ring',
+            expect.objectContaining({
+                settings: expect.any(String),
             })
         );
     });
 
-    it('keeps same-day repeat check-ins from duplicating the calendar history', () => {
+    it('keeps same-day repeat check-ins from duplicating the shared history', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-03-06T18:20:00.000Z'));
         const updateSettings = vi.fn();
 
         render(
-            <HabitStreakWidget
+            <HabitStreakRingWidget
                 widgetId="habit-repeat"
                 settings={{
                     habitName: 'Spanish',
@@ -178,7 +232,7 @@ describe('HabitStreakWidget', () => {
                     totalCheckIns: 11,
                     lastCheckInAt: '2026-03-06T08:00:00.000Z',
                     checkInHistory: ['2026-03-06'],
-                    displayStyle: 'ring',
+                    showMotivationalMessage: false,
                 }}
                 updateSettings={updateSettings}
             />
@@ -198,15 +252,17 @@ describe('HabitStreakWidget', () => {
         const updateSettings = vi.fn();
 
         render(
-            <HabitStreakWidget
-                widgetId="habit-3"
+            <HabitStreakRingWidget
+                widgetId="habit-locked"
                 settings={{
                     habitName: 'Flash cards',
                     checkInIntervalHours: 24,
+                    targetStreak: 12,
                     streakCount: 2,
                     bestStreak: 2,
                     totalCheckIns: 2,
                     lastCheckInAt: new Date().toISOString(),
+                    showMotivationalMessage: true,
                 }}
                 updateSettings={updateSettings}
             />
@@ -216,13 +272,13 @@ describe('HabitStreakWidget', () => {
         expect(button).toBeDisabled();
     });
 
-    it('keeps the legacy capsule text removed without rendering a goal label row', () => {
+    it('renders the minimal Duolingo board without the removed goal label row', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-03-06T10:00:00.000Z'));
         const updateSettings = vi.fn();
 
         render(
-            <HabitStreakWidget
+            <HabitStreakDuolingoWidget
                 widgetId="habit-target"
                 settings={{
                     habitName: 'Daily writing',
@@ -240,24 +296,20 @@ describe('HabitStreakWidget', () => {
 
         expect(screen.queryByText('Goal: 30 streaks')).not.toBeInTheDocument();
         expect(screen.queryByText('5/30 streak')).not.toBeInTheDocument();
-        expect(screen.queryByText('Day Streak')).not.toBeInTheDocument();
         expect(screen.getByText('Week')).toBeInTheDocument();
         expect(screen.getByTestId('habit-calendar-board')).toBeInTheDocument();
-        expect(screen.queryByTestId('habit-calendar-summary')).not.toBeInTheDocument();
         expect(screen.getByText('5d')).toBeInTheDocument();
-        expect(screen.queryByText('Keep the row alive')).not.toBeInTheDocument();
         expect(screen.getAllByTestId(/habit-day-/)).toHaveLength(7);
         expect(screen.getByTestId('habit-day-2026-03-06')).toHaveAttribute('data-today', 'true');
         expect(screen.getByTestId('habit-day-2026-03-05')).toHaveAttribute('data-completed', 'true');
         expect(screen.getByTestId('habit-day-2026-03-04')).toHaveAttribute('data-completed', 'false');
     });
 
-    it('renders the classic ring view when selected in settings', () => {
+    it('does not add an inner outline shell on top of the shared widget container', () => {
         const updateSettings = vi.fn();
-
-        render(
-            <HabitStreakWidget
-                widgetId="habit-ring"
+        const { container } = render(
+            <HabitStreakRingWidget
+                widgetId="habit-shell"
                 settings={{
                     habitName: 'Stretch',
                     checkInIntervalHours: 24,
@@ -266,25 +318,25 @@ describe('HabitStreakWidget', () => {
                     bestStreak: 9,
                     totalCheckIns: 15,
                     lastCheckInAt: null,
-                    displayStyle: 'ring',
+                    showMotivationalMessage: false,
                 }}
                 updateSettings={updateSettings}
             />
         );
 
-        expect(screen.getByTestId('habit-display-ring')).toBeInTheDocument();
-        expect(screen.getByText('Streak')).toBeInTheDocument();
-        expect(screen.queryAllByTestId(/habit-day-/)).toHaveLength(0);
-        expect(screen.queryByText('Day Streak')).not.toBeInTheDocument();
+        const root = container.querySelector('.habit-streak-widget');
+        expect(root).toBeInTheDocument();
+        expect(root).not.toHaveClass('outline');
+        expect(root).not.toHaveClass('outline-1');
     });
 
-    it('does not show encouragement text in Duolingo calendar view', () => {
+    it('does not show encouragement text in the Duolingo widget', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-03-06T10:00:00.000Z'));
         const updateSettings = vi.fn();
 
         render(
-            <HabitStreakWidget
+            <HabitStreakDuolingoWidget
                 widgetId="habit-calendar-toast"
                 settings={{
                     habitName: 'Practice piano',
@@ -294,8 +346,6 @@ describe('HabitStreakWidget', () => {
                     bestStreak: 5,
                     totalCheckIns: 7,
                     lastCheckInAt: null,
-                    displayStyle: 'calendar',
-                    showMotivationalMessage: true,
                 }}
                 updateSettings={updateSettings}
             />
@@ -306,18 +356,68 @@ describe('HabitStreakWidget', () => {
         expect(screen.queryByTestId('habit-motivational-toast')).not.toBeInTheDocument();
     });
 
-    it('disables cadence and encouragement settings in Duolingo calendar view', () => {
-        const SettingsComponent = HabitStreakWidgetDefinition.SettingsComponent;
+    it('shows encouragement text in the ring widget when enabled', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-03-06T10:00:00.000Z'));
+        const updateSettings = vi.fn();
+
+        render(
+            <HabitStreakRingWidget
+                widgetId="habit-ring-toast"
+                settings={{
+                    habitName: 'Practice piano',
+                    checkInIntervalHours: 0,
+                    targetStreak: 21,
+                    streakCount: 2,
+                    bestStreak: 5,
+                    totalCheckIns: 7,
+                    lastCheckInAt: null,
+                    showMotivationalMessage: true,
+                }}
+                updateSettings={updateSettings}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+
+        expect(screen.getByTestId('habit-motivational-toast')).toBeInTheDocument();
+    });
+
+    it('shows only Duolingo-appropriate settings in the Duolingo widget settings panel', () => {
+        const SettingsComponent = HabitStreakDuolingoWidgetDefinition.SettingsComponent;
         const onSettingsChange = vi.fn();
 
         if (!SettingsComponent) {
-            throw new Error('Missing habit-streak settings component');
+            throw new Error('Missing Duolingo settings component');
         }
 
         render(
             <SettingsComponent
                 settings={{
-                    displayStyle: 'calendar',
+                    habitName: 'Read',
+                    targetStreak: 14,
+                }}
+                onSettingsChange={onSettingsChange}
+            />
+        );
+
+        expect(screen.getByLabelText('Habit')).toBeInTheDocument();
+        expect(screen.getByLabelText('Target streak (count)')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Check-in cadence')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Encouragement on check-in')).not.toBeInTheDocument();
+    });
+
+    it('shows cadence and encouragement settings in the ring widget settings panel', () => {
+        const SettingsComponent = HabitStreakRingWidgetDefinition.SettingsComponent;
+        const onSettingsChange = vi.fn();
+
+        if (!SettingsComponent) {
+            throw new Error('Missing ring settings component');
+        }
+
+        render(
+            <SettingsComponent
+                settings={{
                     checkInIntervalHours: 168,
                     showMotivationalMessage: true,
                 }}
@@ -325,24 +425,42 @@ describe('HabitStreakWidget', () => {
             />
         );
 
-        expect(screen.getByLabelText('Check-in cadence')).toBeDisabled();
-        expect(screen.getByLabelText('Encouragement on check-in')).toBeDisabled();
-        expect(screen.getByText('Hidden in Duolingo calendar view, preserved for classic ring.')).toBeInTheDocument();
-        expect(onSettingsChange).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Check-in cadence')).toBeInTheDocument();
+        expect(screen.getByLabelText('Encouragement on check-in')).toBeInTheDocument();
     });
 
-    it('resets streak through header confirm action', () => {
-        const resetAction = HabitStreakWidgetDefinition.headerButtons?.find((button) => button.id === 'reset-streak');
+    it('resets the shared streak through the Duolingo header action and syncs the sibling widget', async () => {
+        const resetAction = HabitStreakDuolingoWidgetDefinition.headerButtons?.find((button) => button.id === 'reset-streak');
         const updateSettings = vi.fn();
         let confirmAction: (() => void | Promise<void>) | null = null;
 
         if (!resetAction) {
-            throw new Error('Missing habit-streak reset action');
+            throw new Error('Missing Duolingo reset action');
         }
+
+        render(
+            <HabitStreakRingWidget
+                widgetId="habit-ring"
+                semesterId="semester-2"
+                settings={{
+                    habitName: 'Meditate',
+                    checkInIntervalHours: 24,
+                    targetStreak: 14,
+                    streakCount: 6,
+                    bestStreak: 9,
+                    totalCheckIns: 22,
+                    lastCheckInAt: '2026-02-19T09:00:00.000Z',
+                    checkInHistory: ['2026-02-17', '2026-02-18', '2026-02-19'],
+                    showMotivationalMessage: false,
+                }}
+                updateSettings={vi.fn()}
+            />
+        );
 
         const actionNode = resetAction.render(
             {
-                widgetId: 'habit-4',
+                widgetId: 'habit-duo',
+                semesterId: 'semester-2',
                 settings: {
                     habitName: 'Meditate',
                     checkInIntervalHours: 24,
@@ -369,8 +487,9 @@ describe('HabitStreakWidget', () => {
         if (!confirmAction) {
             throw new Error('Missing reset confirm callback');
         }
-        const runConfirm = confirmAction as (() => void | Promise<void>);
-        void runConfirm();
+        await act(async () => {
+            await confirmAction();
+        });
 
         expect(updateSettings).toHaveBeenCalledWith({
             habitName: 'Meditate',
@@ -381,64 +500,15 @@ describe('HabitStreakWidget', () => {
             totalCheckIns: 0,
             lastCheckInAt: null,
             checkInHistory: [],
-            displayStyle: 'calendar',
-            showMotivationalMessage: false,
         });
-    });
 
-    it('preserves motivational message preference when reset from header action', () => {
-        const resetAction = HabitStreakWidgetDefinition.headerButtons?.find((button) => button.id === 'reset-streak');
-        const updateSettings = vi.fn();
-        let confirmAction: (() => void | Promise<void>) | null = null;
-
-        if (!resetAction) {
-            throw new Error('Missing habit-streak reset action');
-        }
-
-        const actionNode = resetAction.render(
-            {
-                widgetId: 'habit-5',
-                settings: {
-                    habitName: 'Read',
-                    checkInIntervalHours: 24,
-                    targetStreak: 21,
-                    streakCount: 10,
-                    bestStreak: 10,
-                    totalCheckIns: 18,
-                    lastCheckInAt: '2026-02-20T09:00:00.000Z',
-                    checkInHistory: ['2026-02-20'],
-                    showMotivationalMessage: false,
-                },
-                updateSettings,
-            },
-            {
-                ActionButton: () => null,
-                ConfirmActionButton: (props) => {
-                    confirmAction = props.onClick;
-                    return null;
-                },
-            }
-        );
-
-        render(<>{actionNode}</>);
-
-        if (!confirmAction) {
-            throw new Error('Missing reset confirm callback');
-        }
-        const runConfirm = confirmAction as (() => void | Promise<void>);
-        void runConfirm();
-
-        expect(updateSettings).toHaveBeenCalledWith({
-            habitName: 'Read',
-            checkInIntervalHours: 24,
-            targetStreak: 21,
-            streakCount: 0,
-            bestStreak: 0,
-            totalCheckIns: 0,
-            lastCheckInAt: null,
-            checkInHistory: [],
-            displayStyle: 'calendar',
-            showMotivationalMessage: false,
+        await waitFor(() => {
+            expect(mockedApi.updateWidget).toHaveBeenCalledWith(
+                'habit-ring',
+                expect.objectContaining({
+                    settings: expect.any(String),
+                })
+            );
         });
     });
 });

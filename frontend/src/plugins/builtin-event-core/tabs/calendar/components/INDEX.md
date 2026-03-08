@@ -7,5 +7,5 @@ The folder isolates settings controls and loading placeholders from the Calendar
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for Calendar-only presentational helpers. |
-| CalendarSkeleton.tsx | Loading UI | Placeholder shell used while Calendar runtime state is still loading. |
+| CalendarSkeleton.tsx | Loading UI | Compact toolbar-and-grid placeholder used while Calendar runtime state is still loading. |
 | EventColorPicker.tsx | Settings field | Source-aware color picker row for dynamic Calendar source color settings. |
