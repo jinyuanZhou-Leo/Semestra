@@ -10,12 +10,15 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CalendarSettings } from './CalendarSettings';
 import type { CalendarSettingsState } from '../../shared/types';
+import {
+  BUILTIN_CALENDAR_SOURCE_SCHEDULE,
+  BUILTIN_CALENDAR_SOURCE_TODO,
+} from '../../shared/constants';
 
 const buildSettings = (): CalendarSettingsState => ({
   eventColors: {
-    schedule: '#2563eb',
-    todo: '#16a34a',
-    custom: '#f59e0b',
+    [BUILTIN_CALENDAR_SOURCE_SCHEDULE]: '#2563eb',
+    [BUILTIN_CALENDAR_SOURCE_TODO]: '#16a34a',
   },
   highlightConflicts: true,
   showWeekends: true,

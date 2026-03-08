@@ -1,3 +1,11 @@
+// input:  [builtin event-core module identifiers and calendar/schedule behavior defaults]
+// output: [shared constants for plugin types, Calendar source ids, event rendering, cache policy, and event bus timing]
+// pos:    [constant layer reused across event-core tabs, widgets, and standalone calendar source adapters]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 export const BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE = 'builtin-academic-calendar';
 export const BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE = 'builtin-course-schedule';
 export const BUILTIN_TIMETABLE_TODO_TAB_TYPE = 'builtin-todo';
@@ -25,11 +33,8 @@ export const CALENDAR_PIXEL_PER_MINUTE = 1.05;
 export const CALENDAR_ROW_MIN_HEIGHT = 120;
 export const CALENDAR_MAX_EVENT_LINES_PER_DAY = 3;
 
-export const CALENDAR_EVENT_DEFAULT_COLORS = {
-  schedule: '#3b82f6',
-  todo: '#10b981',
-  custom: '#8b5cf6',
-} as const;
+export const BUILTIN_CALENDAR_SOURCE_SCHEDULE = 'builtin-event-core:schedule';
+export const BUILTIN_CALENDAR_SOURCE_TODO = 'builtin-event-core:todo';
 
 export const CALENDAR_DEFAULT_VIEW_MODE = 'week';
 

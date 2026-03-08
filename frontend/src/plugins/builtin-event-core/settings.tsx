@@ -1,3 +1,11 @@
+// input:  [plugin settings registry helpers, builtin calendar source registration, and tab settings components]
+// output: [default plugin settings declaration for builtin-event-core]
+// pos:    [settings entrypoint that exposes builtin tab settings while ensuring Calendar sources are registered]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
@@ -12,8 +20,11 @@ import {
   BUILTIN_TIMETABLE_TODO_TAB_TYPE,
 } from './shared/constants';
 import { CalendarSettingsSection } from './tabs/calendar/CalendarSettingsSection';
+import { ensureBuiltinCalendarSourcesRegistered } from './tabs/calendar/sources/registerBuiltinCalendarSources';
 import { CourseScheduleSettings } from './tabs/course-schedule';
 import { TodoSettingsSection } from './tabs/todo/TodoSettingsSection';
+
+ensureBuiltinCalendarSourcesRegistered();
 
 const BuiltinAcademicCalendarSettings: React.FC<TabSettingsProps> = ({ semesterId, settings, updateSettings }) => {
   if (!semesterId) return null;

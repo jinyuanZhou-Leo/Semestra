@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Vite + React frontend for Semestra with lazy routes and plugin-driven dashboards.
-Core behavior is split across contexts, hooks, services, and reusable UI components, including context-safe optimistic sync, glassmorphism widget header controls, state-driven modal animations that preserve widget settings content through exit transitions, per-switch tab content fade-ins on semester/course workspaces, and switchable habit-streak calendar-first/classic-ring views with real recent-history tracking and refined ring styling.
+Core behavior is split across contexts, hooks, services, reusable UI components, and a standalone `src/calendar-core/` domain layer for Calendar event-source registration.
 Build/test configs and scripts support local development, bundling, release metadata, and cookie-backed auth bootstrapping so the browser no longer persists login bearer tokens in localStorage.
 
 | File | Role | Description |
@@ -16,7 +16,7 @@ Build/test configs and scripts support local development, bundling, release meta
 | eslint.config.js | Lint config | ESLint ruleset for TypeScript + React hooks. |
 | index.html | HTML entry | Root HTML template with pre-React loading fallback. |
 | package-lock.json | Dependency lockfile | Pinned npm dependency tree for reproducible installs. |
-| package.json | Package manifest | Frontend scripts, dependencies, and package metadata, now bumped for the FullCalendar calendar migration. |
+| package.json | Package manifest | Frontend scripts, dependencies, and package metadata, now bumped for the standalone Calendar source registry refactor. |
 | README.md | Guide | Baseline React+Vite README and project notes. |
 | tailwind.config.ts | Style config | Tailwind scanning configuration and theme wiring. |
 | tsconfig.app.json | TypeScript config | Application TypeScript compiler options. |

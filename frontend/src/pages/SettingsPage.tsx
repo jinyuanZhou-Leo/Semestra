@@ -1,12 +1,12 @@
-// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks]
+// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks, responsive dialog wrapper]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout plus account sign-out]
+// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout, backup restore dialog flow, and account sign-out]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from "react";
+import React, { useCallback, useEffect, useRef, useState, Suspense, lazy, useId } from "react";
 import { Layout } from "../components/Layout";
 import { Button } from "@/components/ui/button";
 import { GPAScalingTable } from "../components/GPAScalingTable";
@@ -38,6 +38,8 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
+import { Upload } from "lucide-react";
+import { ResponsiveDialogDrawer } from "../components/ResponsiveDialogDrawer";
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
@@ -68,9 +70,16 @@ export const SettingsPage: React.FC = () => {
     const [isDirty, setIsDirty] = useState(false);
 
     // Import modal state
+    const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [importData, setImportData] = useState<ImportData | null>(null);
     const [existingProgramNames, setExistingProgramNames] = useState<string[]>([]);
+    const [selectedBackupFile, setSelectedBackupFile] = useState<File | null>(null);
+    const [isRestoreDragging, setIsRestoreDragging] = useState(false);
+    const [isPreparingImport, setIsPreparingImport] = useState(false);
+    const restoreBackupFormId = useId();
+    const restoreBackupFileInputId = useId();
+    const restoreBackupFileInputRef = useRef<HTMLInputElement>(null);
 
     const [googleLinkError, setGoogleLinkError] = useState('');
     const [googleLinkSuccess, setGoogleLinkSuccess] = useState(false);
@@ -233,6 +242,69 @@ export const SettingsPage: React.FC = () => {
             });
         }
     }, [defaultCourseCredit, gpaTableJson, nickname, refreshUser, showAlert]);
+
+    const clearRestoreBackupState = useCallback(() => {
+        setSelectedBackupFile(null);
+        setIsRestoreDragging(false);
+        if (restoreBackupFileInputRef.current) {
+            restoreBackupFileInputRef.current.value = "";
+        }
+    }, []);
+
+    const syncRestoreBackupFile = useCallback(async (file: File | null) => {
+        if (!file) return;
+
+        const isJsonFile = file.name.toLowerCase().endsWith(".json") || file.type === "application/json";
+        if (!isJsonFile) {
+            await showAlert({
+                title: "Invalid backup file",
+                description: "Please choose a valid Semestra backup file in JSON format."
+            });
+            return;
+        }
+
+        setSelectedBackupFile(file);
+    }, [showAlert]);
+
+    const handlePrepareImport = useCallback(async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (!selectedBackupFile) {
+            await showAlert({
+                title: "Backup file required",
+                description: "Choose a Semestra backup file before continuing."
+            });
+            return;
+        }
+
+        setIsPreparingImport(true);
+        try {
+            const text = await selectedBackupFile.text();
+            const data = JSON.parse(text) as ImportData;
+
+            if (!data.programs || !Array.isArray(data.programs)) {
+                await showAlert({
+                    title: "Invalid backup file",
+                    description: "Invalid backup file format."
+                });
+                return;
+            }
+
+            const programs = await api.getPrograms();
+            setExistingProgramNames(programs.map((program) => program.name));
+            setImportData(data);
+            setRestoreDialogOpen(false);
+            clearRestoreBackupState();
+            setImportModalOpen(true);
+        } catch (error) {
+            console.error("Import failed:", error);
+            await showAlert({
+                title: "Import failed",
+                description: "Import failed. Please make sure the file is a valid Semestra backup."
+            });
+        } finally {
+            setIsPreparingImport(false);
+        }
+    }, [clearRestoreBackupState, selectedBackupFile, showAlert]);
 
     // Auto-save Effect
     useEffect(() => {
@@ -545,7 +617,7 @@ export const SettingsPage: React.FC = () => {
 
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div className="space-y-1 mb-2 sm:mb-0">
-                                    <p className="font-medium text-base">Import Data</p>
+                                    <p className="font-medium text-base">Restore From Backup</p>
                                     <p className="text-sm text-muted-foreground">
                                         Restore your data from a valid Semestra backup file.
                                     </p>
@@ -553,44 +625,113 @@ export const SettingsPage: React.FC = () => {
                                 <Button
                                     variant="outline"
                                     onClick={() => {
-                                        const input = document.createElement("input");
-                                        input.type = "file";
-                                        input.accept = ".json,application/json";
-                                        input.onchange = async (e) => {
-                                            const file = (e.target as HTMLInputElement).files?.[0];
-                                            if (!file) return;
-
-                                            try {
-                                                const text = await file.text();
-                                                const data = JSON.parse(text) as ImportData;
-
-                                                if (!data.programs || !Array.isArray(data.programs)) {
-                                                    await showAlert({
-                                                        title: "Invalid backup file",
-                                                        description: "Invalid backup file format."
-                                                    });
-                                                    return;
-                                                }
-
-                                                const programs = await api.getPrograms();
-                                                setExistingProgramNames(programs.map((p) => p.name));
-                                                setImportData(data);
-                                                setImportModalOpen(true);
-                                            } catch (error: any) {
-                                                console.error("Import failed:", error);
-                                                await showAlert({
-                                                    title: "Import failed",
-                                                    description:
-                                                        "Import failed. Please make sure the file is a valid Semestra backup."
-                                                });
-                                            }
-                                        };
-                                        input.click();
+                                        clearRestoreBackupState();
+                                        setRestoreDialogOpen(true);
                                     }}
                                 >
-                                    Restore Backup
+                                    Restore From Backup
                                 </Button>
                             </div>
+
+                            <ResponsiveDialogDrawer
+                                open={restoreDialogOpen}
+                                onOpenChange={(open) => {
+                                    setRestoreDialogOpen(open);
+                                    if (!open) {
+                                        clearRestoreBackupState();
+                                    }
+                                }}
+                                title="Restore From Backup"
+                                description="Upload a Semestra backup file to review and restore your data."
+                                desktopContentClassName="sm:max-w-[425px]"
+                                mobileContentClassName="h-[85vh] max-h-[85vh]"
+                                footer={(
+                                    <>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => {
+                                                setRestoreDialogOpen(false);
+                                                clearRestoreBackupState();
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            form={restoreBackupFormId}
+                                            disabled={!selectedBackupFile || isPreparingImport}
+                                        >
+                                            {isPreparingImport ? "Preparing..." : "Review Backup"}
+                                        </Button>
+                                    </>
+                                )}
+                                desktopFooterClassName="pt-4"
+                                mobileFooterClassName="px-0"
+                            >
+                                <form
+                                    id={restoreBackupFormId}
+                                    onSubmit={handlePrepareImport}
+                                    className="space-y-4 overflow-y-auto px-4 pb-4 sm:space-y-4 sm:px-0 sm:py-4 sm:pb-0"
+                                >
+                                    <div className="space-y-2">
+                                        <Label htmlFor={restoreBackupFileInputId}>Backup File</Label>
+                                        <div
+                                            className={cn(
+                                                "cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all",
+                                                isRestoreDragging
+                                                    ? "border-primary bg-primary/5"
+                                                    : "border-muted-foreground/25 hover:border-primary/50"
+                                            )}
+                                            onClick={() => restoreBackupFileInputRef.current?.click()}
+                                            onDragOver={(event) => {
+                                                event.preventDefault();
+                                                setIsRestoreDragging(true);
+                                            }}
+                                            onDragLeave={(event) => {
+                                                event.preventDefault();
+                                                setIsRestoreDragging(false);
+                                            }}
+                                            onDrop={async (event) => {
+                                                event.preventDefault();
+                                                setIsRestoreDragging(false);
+                                                const file = event.dataTransfer.files?.[0] ?? null;
+                                                await syncRestoreBackupFile(file);
+                                            }}
+                                        >
+                                            <input
+                                                ref={restoreBackupFileInputRef}
+                                                id={restoreBackupFileInputId}
+                                                type="file"
+                                                accept=".json,application/json"
+                                                className="hidden"
+                                                onChange={async (event) => {
+                                                    const file = event.target.files?.[0] ?? null;
+                                                    await syncRestoreBackupFile(file);
+                                                }}
+                                            />
+                                            <div className="flex flex-col items-center gap-2">
+                                                {selectedBackupFile ? (
+                                                    <div className="flex items-center gap-2 font-medium text-primary">
+                                                        <Upload className="h-5 w-5" />
+                                                        <span className="break-all">{selectedBackupFile.name}</span>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="h-8 w-8 text-muted-foreground/50" />
+                                                        <div className="text-sm text-muted-foreground">
+                                                            Click or drag a `.json` backup file to upload
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                            The backup will be validated before you choose how to merge it.
+                                        </p>
+                                    </div>
+                                </form>
+                            </ResponsiveDialogDrawer>
 
                             {importModalOpen && (
                                 <Suspense fallback={null}>

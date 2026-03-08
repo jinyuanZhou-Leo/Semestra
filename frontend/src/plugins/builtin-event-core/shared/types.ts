@@ -7,8 +7,10 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { CourseEvent, CourseEventType, CourseSection, ScheduleItem, WeekPattern } from '@/services/schedule';
+import type { CalendarEventData, CalendarEventPatch, SemesterDateRange } from '@/calendar-core';
 
 export type { CourseEvent, CourseEventType, CourseSection, ScheduleItem, WeekPattern };
+export type { CalendarEventData, CalendarEventPatch, SemesterDateRange };
 
 export type ScheduleDataMode = 'single-week' | 'all-weeks';
 
@@ -56,57 +58,13 @@ export type PublishEventOptions = {
 
 export type WeekPatternOption = WeekPattern;
 
-export type EventSource = 'schedule' | 'todo' | 'custom';
 export type CalendarViewMode = 'week' | 'month';
 
-export interface CalendarEventColorConfig {
-  schedule: string;
-  todo: string;
-  custom: string;
-}
-
 export interface CalendarSettingsState {
-  eventColors: CalendarEventColorConfig;
+  eventColors: Record<string, string>;
   highlightConflicts: boolean;
   showWeekends: boolean;
   countReadingWeekInWeekNumber: boolean;
   dayStartMinutes: number;
   dayEndMinutes: number;
-}
-
-export interface SemesterDateRange {
-  startDate: Date;
-  endDate: Date;
-  readingWeekStart: Date | null;
-  readingWeekEnd: Date | null;
-}
-
-export interface CalendarEventData {
-  id: string;
-  eventId: string;
-  source: EventSource;
-  title: string;
-  courseId: string;
-  courseName: string;
-  eventTypeCode: string;
-  start: Date;
-  end: Date;
-  allDay: boolean;
-  week: number;
-  dayOfWeek: number;
-  weekPattern?: WeekPattern | null;
-  isRecurring: boolean;
-  startTime: string;
-  endTime: string;
-  color: string;
-  isSkipped: boolean;
-  isConflict: boolean;
-  conflictGroupId?: string | null;
-  enable: boolean;
-  note?: string | null;
-}
-
-export interface CalendarEventPatch {
-  skip?: boolean;
-  enable?: boolean;
 }

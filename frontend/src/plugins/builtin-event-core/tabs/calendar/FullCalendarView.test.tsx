@@ -10,6 +10,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { FullCalendarView } from './FullCalendarView';
 import type { CalendarEventData } from '../../shared/types';
+import { BUILTIN_CALENDAR_SOURCE_SCHEDULE } from '../../shared/constants';
 
 beforeAll(() => {
   (globalThis as unknown as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver = class ResizeObserver {
@@ -36,7 +37,7 @@ beforeAll(() => {
 const buildEvent = (id: string, hour: number): CalendarEventData => ({
   id,
   eventId: id,
-  source: 'schedule',
+  sourceId: BUILTIN_CALENDAR_SOURCE_SCHEDULE,
   title: `Event ${id}`,
   courseId: 'course-1',
   courseName: `Course ${id}`,

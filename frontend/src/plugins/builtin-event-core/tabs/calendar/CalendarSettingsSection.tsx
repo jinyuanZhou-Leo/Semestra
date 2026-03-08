@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { useCalendarSourceRegistry } from '@/calendar-core';
 import { useScheduleData } from '../../shared/hooks/useScheduleData';
 import type { CalendarSettingsState } from '../../shared/types';
 import { buildCourseOptions } from '../../shared/utils';
@@ -33,6 +34,7 @@ import { EventColorPicker } from './components/EventColorPicker';
 import {
   DEFAULT_CALENDAR_SETTINGS,
   CALENDAR_TIME_INPUT_STEP_SECONDS,
+  getScheduleEventColor,
   normalizeDayMinuteWindow,
   normalizeCalendarSettings,
   parseTimeInputValue,
@@ -48,6 +50,7 @@ interface CalendarSettingsSectionProps {
 
 export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({ semesterId, settings, updateSettings }) => {
   const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
+  const calendarSources = useCalendarSourceRegistry();
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
   const [dayStartDraft, setDayStartDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayStartMinutes));
   const [dayEndDraft, setDayEndDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayEndMinutes));
@@ -213,21 +216,14 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
           <div className="space-y-2 pt-2">
             <Label>Event source colors</Label>
             <div className="grid gap-3 lg:grid-cols-3">
-              <EventColorPicker
-                source="schedule"
-                value={normalizedSettings.eventColors.schedule}
-                onChange={(color) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, schedule: color } })}
-              />
-              <EventColorPicker
-                source="todo"
-                value={normalizedSettings.eventColors.todo}
-                onChange={(color) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, todo: color } })}
-              />
-              <EventColorPicker
-                source="custom"
-                value={normalizedSettings.eventColors.custom}
-                onChange={(color) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, custom: color } })}
-              />
+              {calendarSources.map((source) => (
+                <EventColorPicker
+                  key={source.id}
+                  source={source}
+                  value={normalizedSettings.eventColors[source.id] ?? source.defaultColor}
+                  onChange={(color) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, [source.id]: color } })}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -300,7 +296,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
           courseOptions={courseOptions}
           dayStartMinutes={normalizedSettings.dayStartMinutes}
           dayEndMinutes={normalizedSettings.dayEndMinutes}
-          eventColor={normalizedSettings.eventColors.schedule}
+          eventColor={getScheduleEventColor(normalizedSettings)}
         />
       ) : null}
     </>

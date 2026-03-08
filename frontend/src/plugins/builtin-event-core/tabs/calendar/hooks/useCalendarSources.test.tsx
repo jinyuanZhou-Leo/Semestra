@@ -1,0 +1,146 @@
+// input:  [calendar source orchestration hook, mock source definitions, and renderHook helpers]
+// output: [tests for independent source loading and targeted refresh behavior]
+// pos:    [calendar source orchestration regression suite]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import type { CalendarSourceContext, CalendarSourceDefinition } from '@/calendar-core';
+import { useCalendarSources } from './useCalendarSources';
+
+const calendarContext: CalendarSourceContext = {
+  semesterId: 'semester-1',
+  semesterRange: {
+    startDate: new Date('2026-03-02T00:00:00'),
+    endDate: new Date('2026-06-30T00:00:00'),
+    readingWeekStart: null,
+    readingWeekEnd: null,
+  },
+  maxWeek: 16,
+};
+
+const buildEvent = (id: string, sourceId: string) => ({
+  id,
+  eventId: id,
+  sourceId,
+  title: id,
+  courseId: 'course-1',
+  courseName: 'Course 1',
+  eventTypeCode: 'LECTURE',
+  start: new Date('2026-03-10T09:00:00'),
+  end: new Date('2026-03-10T10:00:00'),
+  allDay: false,
+  week: 2,
+  dayOfWeek: 2,
+  weekPattern: 'EVERY',
+  isRecurring: true,
+  startTime: '09:00',
+  endTime: '10:00',
+  isSkipped: false,
+  isConflict: false,
+  enable: true,
+});
+
+describe('useCalendarSources', () => {
+  it('keeps healthy source data when another source fails', async () => {
+    const stableSource: CalendarSourceDefinition = {
+      id: 'owner:stable',
+      ownerId: 'owner',
+      label: 'Stable',
+      defaultColor: '#3b82f6',
+      priority: 100,
+      load: vi.fn(async () => [buildEvent('stable-event', 'owner:stable')]),
+      shouldRefresh: () => true,
+    };
+    const failingSource: CalendarSourceDefinition = {
+      id: 'owner:failing',
+      ownerId: 'owner',
+      label: 'Failing',
+      defaultColor: '#ef4444',
+      priority: 200,
+      load: vi.fn(async () => {
+        throw new Error('boom');
+      }),
+      shouldRefresh: () => true,
+    };
+
+    const sources = [stableSource, failingSource];
+    const { result } = renderHook((props: { sources: CalendarSourceDefinition[] }) => useCalendarSources({
+      sources: props.sources,
+      context: calendarContext,
+    }), {
+      initialProps: { sources },
+    });
+
+    await waitFor(() => {
+      expect(result.current.events).toHaveLength(1);
+    });
+
+    expect(result.current.events[0]?.id).toBe('stable-event');
+    expect(result.current.errorBySourceId.get('owner:failing')?.message).toBe('boom');
+  });
+
+  it('refreshes only sources whose predicates match the signal', async () => {
+    const scheduleLoad = vi.fn(async () => [buildEvent('schedule-event', 'owner:schedule')]);
+    const todoLoad = vi.fn(async () => [buildEvent('todo-event', 'owner:todo')]);
+    const scheduleSource: CalendarSourceDefinition = {
+      id: 'owner:schedule',
+      ownerId: 'owner',
+      label: 'Schedule',
+      defaultColor: '#3b82f6',
+      priority: 100,
+      load: scheduleLoad,
+      shouldRefresh: (signal) => signal.type === 'timetable' && signal.reason === 'event-updated',
+    };
+    const todoSource: CalendarSourceDefinition = {
+      id: 'owner:todo',
+      ownerId: 'owner',
+      label: 'Todo',
+      defaultColor: '#10b981',
+      priority: 200,
+      load: todoLoad,
+      shouldRefresh: (signal) => signal.type === 'timetable' && signal.reason === 'events-updated',
+    };
+
+    const sources = [scheduleSource, todoSource];
+    const { result } = renderHook((props: { sources: CalendarSourceDefinition[] }) => useCalendarSources({
+      sources: props.sources,
+      context: calendarContext,
+    }), {
+      initialProps: { sources },
+    });
+
+    await waitFor(() => {
+      expect(scheduleLoad).toHaveBeenCalledTimes(1);
+      expect(todoLoad).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      await result.current.reloadMatchingSources({
+        type: 'timetable',
+        source: 'course',
+        reason: 'event-updated',
+        semesterId: 'semester-1',
+        courseId: 'course-1',
+      });
+    });
+
+    expect(scheduleLoad).toHaveBeenCalledTimes(2);
+    expect(todoLoad).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.reloadMatchingSources({
+        type: 'timetable',
+        source: 'semester',
+        reason: 'events-updated',
+        semesterId: 'semester-1',
+      });
+    });
+
+    expect(scheduleLoad).toHaveBeenCalledTimes(2);
+    expect(todoLoad).toHaveBeenCalledTimes(2);
+  });
+});

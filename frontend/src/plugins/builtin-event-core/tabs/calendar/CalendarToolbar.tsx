@@ -74,7 +74,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
           onClick={onToday}
           disabled={isCurrentPeriod}
         >
-          This {periodLabel}
+          Today
         </Button>
         <Button
           type="button"

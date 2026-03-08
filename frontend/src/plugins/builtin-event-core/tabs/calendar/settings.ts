@@ -9,13 +9,17 @@
 import {
   CALENDAR_DEFAULT_END_MINUTES,
   CALENDAR_DEFAULT_START_MINUTES,
-  CALENDAR_EVENT_DEFAULT_COLORS,
+  BUILTIN_CALENDAR_SOURCE_SCHEDULE,
 } from '../../shared/constants';
 import type { CalendarSettingsState } from '../../shared/types';
+import { getRegisteredCalendarSources } from '@/calendar-core';
+import { ensureBuiltinCalendarSourcesRegistered } from './sources/registerBuiltinCalendarSources';
 
 const DAY_MINUTES = 24 * 60;
 const MIN_WINDOW_MINUTES = 60;
 export const CALENDAR_TIME_INPUT_STEP_SECONDS = 60;
+
+ensureBuiltinCalendarSourcesRegistered();
 
 const clampMinute = (value: number) => Math.max(0, Math.min(DAY_MINUTES - 1, Math.floor(value)));
 
@@ -56,12 +60,19 @@ export const parseTimeInputValue = (value: string): number | null => {
   return clampMinute((hour * 60) + minute);
 };
 
+export const buildDefaultCalendarEventColors = () => {
+  return getRegisteredCalendarSources().reduce<Record<string, string>>((colors, source) => {
+    colors[source.id] = source.defaultColor;
+    return colors;
+  }, {});
+};
+
+export const getCalendarEventColor = (eventColors: Record<string, string>, sourceId: string) => {
+  return eventColors[sourceId] ?? buildDefaultCalendarEventColors()[sourceId] ?? '#3b82f6';
+};
+
 export const DEFAULT_CALENDAR_SETTINGS: CalendarSettingsState = {
-  eventColors: {
-    schedule: CALENDAR_EVENT_DEFAULT_COLORS.schedule,
-    todo: CALENDAR_EVENT_DEFAULT_COLORS.todo,
-    custom: CALENDAR_EVENT_DEFAULT_COLORS.custom,
-  },
+  eventColors: buildDefaultCalendarEventColors(),
   highlightConflicts: true,
   showWeekends: true,
   countReadingWeekInWeekNumber: false,
@@ -71,9 +82,17 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettingsState = {
 
 export const normalizeCalendarSettings = (value: unknown): CalendarSettingsState => {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const sourceColors = source.eventColors && typeof source.eventColors === 'object'
+  const providedColors = source.eventColors && typeof source.eventColors === 'object'
     ? (source.eventColors as Record<string, unknown>)
     : {};
+  const defaultEventColors = buildDefaultCalendarEventColors();
+  const normalizedProvidedColors = Object.fromEntries(
+    Object.entries(providedColors).filter((entry) => typeof entry[1] === 'string'),
+  ) as Record<string, string>;
+  const eventColors: Record<string, string> = {
+    ...defaultEventColors,
+    ...normalizedProvidedColors,
+  };
 
   const { dayStartMinutes, dayEndMinutes } = normalizeDayMinuteWindow(
     parseMinuteValue(source.dayStartMinutes, CALENDAR_DEFAULT_START_MINUTES),
@@ -81,11 +100,7 @@ export const normalizeCalendarSettings = (value: unknown): CalendarSettingsState
   );
 
   return {
-    eventColors: {
-      schedule: typeof sourceColors.schedule === 'string' ? sourceColors.schedule : CALENDAR_EVENT_DEFAULT_COLORS.schedule,
-      todo: typeof sourceColors.todo === 'string' ? sourceColors.todo : CALENDAR_EVENT_DEFAULT_COLORS.todo,
-      custom: typeof sourceColors.custom === 'string' ? sourceColors.custom : CALENDAR_EVENT_DEFAULT_COLORS.custom,
-    },
+    eventColors,
     highlightConflicts: typeof source.highlightConflicts === 'boolean' ? source.highlightConflicts : true,
     showWeekends: typeof source.showWeekends === 'boolean' ? source.showWeekends : true,
     countReadingWeekInWeekNumber: typeof source.countReadingWeekInWeekNumber === 'boolean'
@@ -94,4 +109,8 @@ export const normalizeCalendarSettings = (value: unknown): CalendarSettingsState
     dayStartMinutes,
     dayEndMinutes,
   };
+};
+
+export const getScheduleEventColor = (settings: CalendarSettingsState) => {
+  return getCalendarEventColor(settings.eventColors, BUILTIN_CALENDAR_SOURCE_SCHEDULE);
 };

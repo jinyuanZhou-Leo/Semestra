@@ -1,6 +1,6 @@
-// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, and save callback]
-// output: [`EventEditor` modal for event visibility/enable toggles plus conflict context]
-// pos:    [Calendar detail dialog that explains schedule conflicts while editing an event with Reading Week-aware labels]
+// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, source label, and save callback]
+// output: [`EventEditor` modal for source-aware skip editing plus conflict context]
+// pos:    [Calendar detail dialog that explains schedule conflicts while editing occurrence skip state with Reading Week-aware labels]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,12 +15,13 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import type { CalendarEventData, CalendarEventPatch } from '../../shared/types';
+import type { CalendarEventData, CalendarEventPatch } from '@/calendar-core';
 
 interface EventEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   event: CalendarEventData | null;
+  sourceLabel: string;
   conflictingEvents?: CalendarEventData[];
   formatWeekLabel?: (week: number) => string;
   onSave: (eventId: string, patch: CalendarEventPatch) => Promise<void>;
@@ -30,14 +31,13 @@ export const EventEditor: React.FC<EventEditorProps> = ({
   open,
   onOpenChange,
   event,
+  sourceLabel,
   conflictingEvents = [],
   formatWeekLabel,
   onSave,
 }) => {
   const [isSkipped, setIsSkipped] = React.useState(false);
-  const [isEnabled, setIsEnabled] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
-  const showEnableSwitch = event?.source !== 'schedule';
   const conflictingPeers = React.useMemo(() => {
     if (!event?.conflictGroupId) return [];
     return conflictingEvents.filter((item) => item.id !== event.id);
@@ -46,7 +46,6 @@ export const EventEditor: React.FC<EventEditorProps> = ({
   React.useEffect(() => {
     if (!event || !open) return;
     setIsSkipped(event.isSkipped);
-    setIsEnabled(event.enable);
   }, [event, open]);
 
   const handleSave = async () => {
@@ -54,14 +53,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
 
     setIsSaving(true);
     try {
-      const patch: CalendarEventPatch = {
-        skip: isSkipped,
-      };
-      if (showEnableSwitch) {
-        patch.enable = isEnabled;
-      }
-
-      await onSave(event.eventId, patch);
+      await onSave(event.eventId, { skip: isSkipped });
       onOpenChange(false);
     } finally {
       setIsSaving(false);
@@ -74,11 +66,9 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Event Details
-            <Badge variant="secondary">{event?.source ?? 'schedule'}</Badge>
+            <Badge variant="secondary">{sourceLabel}</Badge>
           </DialogTitle>
-          <DialogDescription>
-            {showEnableSwitch ? 'Update visibility and active state for this event.' : 'Update visibility for this event.'}
-          </DialogDescription>
+          <DialogDescription>Update visibility for this event.</DialogDescription>
         </DialogHeader>
 
         {!event ? null : (
@@ -120,20 +110,6 @@ export const EventEditor: React.FC<EventEditorProps> = ({
             ) : null}
 
             <div className="space-y-3">
-              {showEnableSwitch ? (
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="event-editor-enable" className="cursor-pointer">Enabled</Label>
-                    <p className="text-xs text-muted-foreground">Disabled events are not active for attendance flow.</p>
-                  </div>
-                  <Switch
-                    id="event-editor-enable"
-                    checked={isEnabled}
-                    onCheckedChange={setIsEnabled}
-                  />
-                </div>
-              ) : null}
-
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div className="space-y-0.5">
                   <Label htmlFor="event-editor-skip" className="cursor-pointer">Skip this event</Label>

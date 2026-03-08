@@ -116,10 +116,10 @@ const buildCalendarEvents = (
     allDay: event.allDay,
     backgroundColor: event.isConflict && highlightConflicts
       ? 'var(--semestra-calendar-conflict-surface)'
-      : addAlpha(event.color, 0.14),
+      : addAlpha(event.color ?? '#3b82f6', 0.14),
     borderColor: event.isConflict && highlightConflicts
       ? 'var(--semestra-calendar-conflict-border)'
-      : event.color,
+      : (event.color ?? '#3b82f6'),
     textColor: 'var(--color-foreground)',
     classNames: [
       'semestra-fc-event',
@@ -316,8 +316,9 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
         datesSet={handleDatesSet}
         eventDidMount={(arg) => {
           const { sourceEvent, highlightConflicts: shouldHighlightConflicts } = arg.event.extendedProps as EventExtendedProps;
-          arg.el.style.setProperty('--semestra-calendar-accent', sourceEvent.color);
-          arg.el.style.setProperty('--semestra-calendar-accent-soft', addAlpha(sourceEvent.color, sourceEvent.isConflict && shouldHighlightConflicts ? 0.22 : 0.14));
+          const resolvedColor = sourceEvent.color ?? '#3b82f6';
+          arg.el.style.setProperty('--semestra-calendar-accent', resolvedColor);
+          arg.el.style.setProperty('--semestra-calendar-accent-soft', addAlpha(resolvedColor, sourceEvent.isConflict && shouldHighlightConflicts ? 0.22 : 0.14));
           arg.el.setAttribute('aria-label', buildEventLabel(sourceEvent, shouldHighlightConflicts && sourceEvent.isConflict));
         }}
         moreLinkContent={(arg) => <span className="text-xs font-medium">View {arg.num} more</span>}

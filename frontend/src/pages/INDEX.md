@@ -13,4 +13,4 @@ Each page composes shared contexts, hooks, components, and service APIs.
 | ProgramDashboard.tsx | Route page | Program workspace route with compact mobile overview stat strip plus responsive create-semester surface (desktop dialog + mobile drawer). |
 | RegisterPage.tsx | Route page | Registration route that creates an account, exchanges credentials or Google identity for a cookie-backed session, and bootstraps auth state. |
 | SemesterHomepage.tsx | Route page | Semester workspace route that wires dashboard widgets with split layout local-sync/commit persistence callbacks, focus-safe add-widget/add-tab overlay triggers, tab fade transitions, and semester settings including Reading Week persistence. |
-| SettingsPage.tsx | Route page | Settings workspace route with responsive wrapping for appearance controls, overflow-safe account/version text on mobile, and account sign-out wiring. |
+| SettingsPage.tsx | Route page | Settings workspace route with responsive wrapping for appearance controls, backup restore drag-drop dialog flow, overflow-safe account/version text on mobile, and account sign-out wiring. |

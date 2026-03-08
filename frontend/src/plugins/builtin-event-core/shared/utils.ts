@@ -7,19 +7,14 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { CourseEvent, ScheduleItem } from '@/services/schedule';
+import type { CalendarEventData, CalendarEventPatch, SemesterDateRange } from '@/calendar-core';
 import {
   ALL_FILTER_VALUE,
-  CALENDAR_EVENT_DEFAULT_COLORS,
+  BUILTIN_CALENDAR_SOURCE_SCHEDULE,
   DAY_OF_WEEK_OPTIONS,
   SLOT_LOCATION_NOTE_PREFIX,
 } from './constants';
-import type {
-  CalendarEventData,
-  CalendarEventPatch,
-  CalendarEventColorConfig,
-  ScheduleFilterState,
-  SemesterDateRange,
-} from './types';
+import type { ScheduleFilterState } from './types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -279,7 +274,6 @@ export const getDisplayMaxWeek = (
 export const toCalendarEvent = (
   item: ScheduleItem,
   semesterStartDate: Date,
-  eventColors: CalendarEventColorConfig = CALENDAR_EVENT_DEFAULT_COLORS,
 ): CalendarEventData | null => {
   const targetDate = getDateForScheduleItem(semesterStartDate, item.week, item.dayOfWeek);
   const start = parseTimeOnDate(targetDate, item.startTime);
@@ -292,7 +286,7 @@ export const toCalendarEvent = (
   return {
     id: `${item.eventId}:${item.week}`,
     eventId: item.eventId,
-    source: 'schedule',
+    sourceId: BUILTIN_CALENDAR_SOURCE_SCHEDULE,
     title: item.title?.trim() || `${item.courseName} · ${item.eventTypeCode}`,
     courseId: item.courseId,
     courseName: item.courseName,
@@ -306,7 +300,6 @@ export const toCalendarEvent = (
     isRecurring: Boolean(item.weekPattern),
     startTime: item.startTime,
     endTime: item.endTime,
-    color: eventColors.schedule,
     isSkipped: item.skip,
     isConflict: item.isConflict,
     conflictGroupId: item.conflictGroupId,
@@ -324,12 +317,11 @@ export const sortCalendarEvents = (events: CalendarEventData[]) => {
 export const buildCalendarEvents = (
   items: ScheduleItem[],
   semesterStartDate: Date,
-  eventColors: CalendarEventColorConfig,
 ) => {
   const events: CalendarEventData[] = [];
 
   for (const item of items) {
-    const event = toCalendarEvent(item, semesterStartDate, eventColors);
+    const event = toCalendarEvent(item, semesterStartDate);
     if (!event) continue;
 
     events.push(event);

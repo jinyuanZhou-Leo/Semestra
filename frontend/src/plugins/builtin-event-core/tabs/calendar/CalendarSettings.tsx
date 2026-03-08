@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { useCalendarSourceRegistry } from '@/calendar-core';
 import type { CalendarSettingsState } from '../../shared/types';
 import {
   CALENDAR_TIME_INPUT_STEP_SECONDS,
@@ -37,6 +38,7 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
   onChange,
   onReset,
 }) => {
+  const calendarSources = useCalendarSourceRegistry();
   const [dayStartDraft, setDayStartDraft] = React.useState(() => toTimeInputValue(settings.dayStartMinutes));
   const [dayEndDraft, setDayEndDraft] = React.useState(() => toTimeInputValue(settings.dayEndMinutes));
 
@@ -183,36 +185,18 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
           <div className="space-y-3">
             <p className="text-sm font-medium">Event colors</p>
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="color-schedule">Schedule</Label>
-                <Input
-                  id="color-schedule"
-                  type="color"
-                  value={settings.eventColors.schedule}
-                  onChange={(event) => patchSettings({ eventColors: { ...settings.eventColors, schedule: event.target.value } })}
-                  className="h-10 w-full cursor-pointer"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="color-todo">Todo</Label>
-                <Input
-                  id="color-todo"
-                  type="color"
-                  value={settings.eventColors.todo}
-                  onChange={(event) => patchSettings({ eventColors: { ...settings.eventColors, todo: event.target.value } })}
-                  className="h-10 w-full cursor-pointer"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="color-custom">Custom</Label>
-                <Input
-                  id="color-custom"
-                  type="color"
-                  value={settings.eventColors.custom}
-                  onChange={(event) => patchSettings({ eventColors: { ...settings.eventColors, custom: event.target.value } })}
-                  className="h-10 w-full cursor-pointer"
-                />
-              </div>
+              {calendarSources.map((source) => (
+                <div key={source.id} className="space-y-1.5">
+                  <Label htmlFor={`color-${source.id}`}>{source.label}</Label>
+                  <Input
+                    id={`color-${source.id}`}
+                    type="color"
+                    value={settings.eventColors[source.id] ?? source.defaultColor}
+                    onChange={(event) => patchSettings({ eventColors: { ...settings.eventColors, [source.id]: event.target.value } })}
+                    className="h-10 w-full cursor-pointer"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
