@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SettingsSection } from "./SettingsSection";
-import { AutoSaveStatus } from "./AutoSaveStatus";
 import { useAutoSave } from "@/hooks/useAutoSave";
 
 interface CourseSettingsPanelProps {
@@ -117,7 +116,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
     setHideGpa(savedSnapshot.hideGpa);
   }, [draftSnapshot, savedSnapshot]);
 
-  const { saveState, hasPendingChanges } = useAutoSave({
+  useAutoSave({
     value: draftSnapshot,
     savedValue: savedSnapshot,
     onSave: async (snapshot) => {
@@ -207,13 +206,6 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
               Hide GPA Info
             </Label>
           </div>
-        </div>
-
-        <div className="flex items-center justify-end">
-          <AutoSaveStatus
-            saveState={saveState}
-            hasPendingChanges={hasPendingChanges}
-          />
         </div>
       </div>
     </SettingsSection>

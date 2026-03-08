@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SettingsSection } from "./SettingsSection";
-import { AutoSaveStatus } from "./AutoSaveStatus";
 import { cn } from "@/lib/utils";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
@@ -207,7 +206,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
     setFormError("");
   }, [endDate, readingWeekEnd, readingWeekStart, startDate]);
 
-  const { saveState, hasPendingChanges } = useAutoSave({
+  useAutoSave({
     value: draftSnapshot,
     savedValue: savedSnapshot,
     validate: () => isValid,
@@ -331,14 +330,6 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
         </div>
 
         {formError && <p className="text-sm text-destructive">{formError}</p>}
-
-        <div className="flex items-center justify-end">
-          <AutoSaveStatus
-            saveState={saveState}
-            hasPendingChanges={hasPendingChanges}
-            isValid={isValid}
-          />
-        </div>
       </div>
     </SettingsSection>
   );

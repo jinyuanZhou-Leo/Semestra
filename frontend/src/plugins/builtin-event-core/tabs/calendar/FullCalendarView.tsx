@@ -1,5 +1,5 @@
 // input:  [FullCalendar React adapter, schedule/todo-derived calendar events, week/view state, and calendar navigation callbacks]
-// output: [FullCalendarView React component backed by the FullCalendar library]
+// output: [FullCalendarView React component backed by the FullCalendar library with a single-shell border treatment]
 // pos:    [calendar renderer that bridges built-in event-core state into FullCalendar week/month views with all-day support]
 //
 // ⚠️ When this file is updated:

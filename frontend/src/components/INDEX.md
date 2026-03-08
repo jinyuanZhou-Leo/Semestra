@@ -14,7 +14,6 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome and edit-mode-only hover elevation. |
 | AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
 | AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation. |
-| AutoSaveStatus.tsx | UI component | Shared non-interactive auto-save status line for settings surfaces with saving, pending, and validation feedback. |
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
 | BackButton.tsx | UI component | Reusable component for back button UI/interaction flow. |
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |

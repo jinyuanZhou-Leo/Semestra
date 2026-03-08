@@ -1,6 +1,6 @@
-// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks, auto-save status UI, and responsive dialog wrapper]
+// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks, and responsive dialog wrapper]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout, debounced auto-save feedback, backup restore dialog flow, and account sign-out]
+// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -29,7 +29,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
-import { AutoSaveStatus } from "../components/AutoSaveStatus";
 import { useTheme } from "../components/ThemeProvider";
 import { DEFAULT_GPA_SCALING_TABLE_JSON } from "../utils/gpaUtils";
 import { useAutoSave } from "../hooks/useAutoSave";
@@ -519,14 +518,6 @@ export const SettingsPage: React.FC = () => {
                                 />
                             </div>
 
-                            <div className="flex justify-start pt-4">
-                                <AutoSaveStatus
-                                    saveState={saveState}
-                                    hasPendingChanges={isDirty}
-                                    isValid={isSettingsValid}
-                                    className="justify-start"
-                                />
-                            </div>
                         </div>
                     </SettingsSection>
 

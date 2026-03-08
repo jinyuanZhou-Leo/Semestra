@@ -1,6 +1,6 @@
 // input:  [program name/credits/GPA defaults, GPA table editor, auto-save lifecycle callbacks, and optional close action]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form rendered inside program dashboard modal with debounced auto-save feedback]
+// pos:    [Program-level settings form rendered inside program dashboard modal with debounced auto-save persistence]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GPAScalingTable } from "./GPAScalingTable";
-import { AutoSaveStatus } from "./AutoSaveStatus";
 import { useAutoSave } from "@/hooks/useAutoSave";
 
 interface ProgramSettingsPanelProps {
@@ -97,7 +96,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
     setJsonError("");
   }, [draftSnapshot, savedSnapshot]);
 
-  const { saveState, hasPendingChanges, isValid } = useAutoSave({
+  const { isValid } = useAutoSave({
     value: draftSnapshot,
     savedValue: savedSnapshot,
     validate: (snapshot) => {
@@ -191,11 +190,6 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
             Cancel
           </Button>
         )}
-        <AutoSaveStatus
-          saveState={saveState}
-          hasPendingChanges={hasPendingChanges}
-          isValid={isValid}
-        />
       </div>
     </div>
   );
