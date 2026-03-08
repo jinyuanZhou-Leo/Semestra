@@ -23,6 +23,8 @@ describe('useCalendarNavigationState', () => {
       semesterId: string;
       semesterRange: ReturnType<typeof buildRange>;
       maxWeek: number;
+      showWeekends: boolean;
+      weekViewDayCount: number;
     }) => useCalendarNavigationState({
       ...props,
       countReadingWeekInWeekNumber: false,
@@ -31,6 +33,8 @@ describe('useCalendarNavigationState', () => {
         semesterId: 'semester-1',
         semesterRange: buildRange(),
         maxWeek: 16,
+        showWeekends: true,
+        weekViewDayCount: 5,
       },
     });
 
@@ -48,8 +52,33 @@ describe('useCalendarNavigationState', () => {
       semesterId: 'semester-1',
       semesterRange: buildRange(),
       maxWeek: 16,
+      showWeekends: true,
+      weekViewDayCount: 5,
     });
 
     expect(result.current.monthAnchorDate.getMonth()).toBe(3);
+  });
+
+  it('keeps week navigation on full academic weeks regardless of screen day count', () => {
+    const { result } = renderHook(() => useCalendarNavigationState({
+      semesterId: 'semester-1',
+      semesterRange: buildRange(),
+      maxWeek: 16,
+      countReadingWeekInWeekNumber: false,
+      showWeekends: false,
+      weekViewDayCount: 3,
+    }));
+
+    act(() => {
+      result.current.handleWeekChange(1);
+    });
+
+    expect(result.current.dateRangeLabel).toBe('Mar 2 - Mar 8');
+
+    act(() => {
+      result.current.handleNavigateNext();
+    });
+
+    expect(result.current.dateRangeLabel).toBe('Mar 9 - Mar 15');
   });
 });

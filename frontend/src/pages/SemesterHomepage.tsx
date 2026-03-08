@@ -59,7 +59,7 @@ import {
 } from '@/components/ui/breadcrumb';
 
 const SemesterHomepageContent: React.FC = () => {
-    const { semester, updateSemester, refreshSemester, isLoading } = useSemesterData();
+    const { semester, refreshSemester, isLoading } = useSemesterData();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
@@ -326,12 +326,12 @@ const SemesterHomepageContent: React.FC = () => {
     const handleUpdateSemester = useCallback(async (data: any) => {
         if (!semester) return;
         try {
-            await updateSemester(data);
+            await api.updateSemester(semester.id, data);
             await refreshSemester();
         } catch (error) {
             console.error("Failed to update semester", error);
         }
-    }, [refreshSemester, semester, updateSemester]);
+    }, [refreshSemester, semester]);
 
     const tabSettingsSections = useMemo(() => {
         const settingsByType = new Map(

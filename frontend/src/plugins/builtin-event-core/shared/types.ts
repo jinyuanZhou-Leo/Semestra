@@ -65,6 +65,7 @@ export interface CalendarSettingsState {
   highlightConflicts: boolean;
   showWeekends: boolean;
   countReadingWeekInWeekNumber: boolean;
+  weekViewDayCount: number;
   dayStartMinutes: number;
   dayEndMinutes: number;
 }

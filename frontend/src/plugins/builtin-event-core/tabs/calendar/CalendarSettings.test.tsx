@@ -15,6 +15,13 @@ import {
   BUILTIN_CALENDAR_SOURCE_TODO,
 } from '../../shared/constants';
 
+if (!('scrollIntoView' in HTMLElement.prototype)) {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    value: () => {},
+    writable: true,
+  });
+}
+
 const buildSettings = (): CalendarSettingsState => ({
   eventColors: {
     [BUILTIN_CALENDAR_SOURCE_SCHEDULE]: '#2563eb',
@@ -23,6 +30,7 @@ const buildSettings = (): CalendarSettingsState => ({
   highlightConflicts: true,
   showWeekends: true,
   countReadingWeekInWeekNumber: false,
+  weekViewDayCount: 5,
   dayStartMinutes: 8 * 60,
   dayEndMinutes: 18 * 60,
 });
@@ -89,6 +97,27 @@ describe('CalendarSettings', () => {
     expect(handleChange).toHaveBeenCalledWith(expect.objectContaining({
       countReadingWeekInWeekNumber: true,
       showWeekends: true,
+    }));
+  });
+
+  it('updates the visible day count for week view paging', () => {
+    const handleChange = vi.fn();
+
+    render(
+      <CalendarSettings
+        open
+        onOpenChange={vi.fn()}
+        settings={buildSettings()}
+        onChange={handleChange}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('combobox', { name: /Days per screen/i }));
+    fireEvent.click(screen.getByRole('option', { name: '3 days' }));
+
+    expect(handleChange).toHaveBeenCalledWith(expect.objectContaining({
+      weekViewDayCount: 3,
     }));
   });
 });

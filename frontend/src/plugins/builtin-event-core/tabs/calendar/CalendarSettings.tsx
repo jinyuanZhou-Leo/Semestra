@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
 import type { CalendarSettingsState } from '../../shared/types';
@@ -30,6 +31,8 @@ interface CalendarSettingsProps {
   onChange: (nextSettings: CalendarSettingsState) => void;
   onReset: () => void;
 }
+
+const WEEK_VIEW_DAY_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 
 export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
   open,
@@ -98,6 +101,27 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
         </DialogHeader>
 
         <div className="space-y-5">
+          <div className="space-y-2">
+            <div className="space-y-2">
+              <Label htmlFor="calendar-week-view-day-count">Days per screen</Label>
+              <Select
+                value={String(settings.weekViewDayCount)}
+                onValueChange={(value) => patchSettings({ weekViewDayCount: Number(value) })}
+              >
+                <SelectTrigger id="calendar-week-view-day-count" className="w-full">
+                  <SelectValue placeholder="Select visible days" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
+                    <SelectItem key={dayCount} value={String(dayCount)}>
+                      {dayCount} day{dayCount === 1 ? '' : 's'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="calendar-day-start">Day start time</Label>

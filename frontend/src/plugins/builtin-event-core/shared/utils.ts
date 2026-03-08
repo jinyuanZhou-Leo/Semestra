@@ -152,6 +152,11 @@ const startOfDay = (date: Date) => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 };
 
+const isWeekend = (date: Date) => {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+};
+
 export const startOfWeekMonday = (date: Date) => {
   const normalized = startOfDay(date);
   const day = normalized.getDay();
@@ -161,6 +166,85 @@ export const startOfWeekMonday = (date: Date) => {
 
 export const addDays = (date: Date, days: number) => {
   return new Date(date.getTime() + (days * DAY_MS));
+};
+
+export const getNextVisibleDate = (date: Date, showWeekends: boolean) => {
+  let cursor = startOfDay(date);
+  while (!showWeekends && isWeekend(cursor)) {
+    cursor = addDays(cursor, 1);
+  }
+  return cursor;
+};
+
+export const getPreviousVisibleDate = (date: Date, showWeekends: boolean) => {
+  let cursor = startOfDay(date);
+  while (!showWeekends && isWeekend(cursor)) {
+    cursor = addDays(cursor, -1);
+  }
+  return cursor;
+};
+
+export const getCalendarVisibleRangeEnd = (startDate: Date, visibleDayCount: number, showWeekends: boolean) => {
+  const safeVisibleDayCount = Math.max(1, Math.floor(visibleDayCount));
+  let cursor = getNextVisibleDate(startDate, showWeekends);
+  let remainingVisibleDays = safeVisibleDayCount;
+
+  while (remainingVisibleDays > 0) {
+    if (showWeekends || !isWeekend(cursor)) {
+      remainingVisibleDays -= 1;
+    }
+    cursor = addDays(cursor, 1);
+  }
+
+  return cursor;
+};
+
+export const shiftCalendarVisibleStartDate = (startDate: Date, visibleDayDelta: number, showWeekends: boolean) => {
+  if (visibleDayDelta === 0) {
+    return getNextVisibleDate(startDate, showWeekends);
+  }
+
+  const direction = Math.sign(visibleDayDelta);
+  let remainingVisibleDays = Math.abs(Math.floor(visibleDayDelta));
+  let cursor = getNextVisibleDate(startDate, showWeekends);
+
+  while (remainingVisibleDays > 0) {
+    cursor = addDays(cursor, direction);
+    if (showWeekends || !isWeekend(cursor)) {
+      remainingVisibleDays -= 1;
+    }
+  }
+
+  return cursor;
+};
+
+export const getVisiblePageStartForDate = (date: Date, visibleDayCount: number, showWeekends: boolean) => {
+  const safeVisibleDayCount = Math.max(1, Math.floor(visibleDayCount));
+  const normalizedDate = startOfDay(date);
+  const weekStart = startOfWeekMonday(normalizedDate);
+  let cursor = weekStart;
+  let currentPageStart = getNextVisibleDate(weekStart, showWeekends);
+  let visibleDayIndex = 0;
+
+  while (cursor.getTime() < normalizedDate.getTime()) {
+    if (showWeekends || !isWeekend(cursor)) {
+      if (visibleDayIndex > 0 && visibleDayIndex % safeVisibleDayCount === 0) {
+        currentPageStart = cursor;
+      }
+      visibleDayIndex += 1;
+    }
+    cursor = addDays(cursor, 1);
+  }
+
+  if (!showWeekends && isWeekend(normalizedDate)) {
+    return currentPageStart;
+  }
+
+  if ((showWeekends || !isWeekend(normalizedDate)) && visibleDayIndex > 0 && visibleDayIndex % safeVisibleDayCount === 0) {
+    return normalizedDate;
+  }
+
+  return currentPageStart;
 };
 
 export const parseTimeOnDate = (date: Date, time: string) => {

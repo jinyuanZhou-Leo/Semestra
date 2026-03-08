@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
 import { useScheduleData } from '../../shared/hooks/useScheduleData';
@@ -47,6 +48,8 @@ interface CalendarSettingsSectionProps {
   settings: unknown;
   updateSettings: (newSettings: CalendarSettingsState) => void | Promise<void>;
 }
+
+const WEEK_VIEW_DAY_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 
 export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({ semesterId, settings, updateSettings }) => {
   const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
@@ -118,6 +121,30 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
         description="Configure visibility and source colors for the calendar tab."
       >
         <div className="space-y-5">
+          <div className="space-y-2">
+            <div className="space-y-2">
+              <Label htmlFor="calendar-settings-week-view-day-count">Days per screen</Label>
+              <Select
+                value={String(normalizedSettings.weekViewDayCount)}
+                onValueChange={(value) => patchSettings({ weekViewDayCount: Number(value) })}
+              >
+                <SelectTrigger id="calendar-settings-week-view-day-count" className="w-full">
+                  <SelectValue placeholder="Select visible days" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
+                    <SelectItem key={dayCount} value={String(dayCount)}>
+                      {dayCount} day{dayCount === 1 ? '' : 's'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Keep the full week visible and enable horizontal scrolling when this is smaller than the week width.
+              </p>
+            </div>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="calendar-settings-day-start">Day start time</Label>
@@ -256,7 +283,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
             <div className="space-y-1 mb-2 sm:mb-0">
               <p className="font-medium text-base">Restore defaults</p>
               <p className="text-sm text-muted-foreground">
-                Restore event colors, time window, weekend visibility, Reading Week numbering, and conflict highlighting to defaults.
+                Restore event colors, week-view screen width, time window, weekend visibility, Reading Week numbering, and conflict highlighting to defaults.
               </p>
             </div>
             <AlertDialog>

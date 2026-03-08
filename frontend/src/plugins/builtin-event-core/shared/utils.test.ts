@@ -8,11 +8,14 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  getCalendarVisibleRangeEnd,
   getDisplayMaxWeek,
   getDisplayWeekNumber,
+  getVisiblePageStartForDate,
   getWeekStartForSemester,
   isDateInReadingWeek,
   resolveSemesterDateRange,
+  shiftCalendarVisibleStartDate,
 } from './utils';
 
 describe('shared calendar date helpers', () => {
@@ -49,5 +52,25 @@ describe('shared calendar date helpers', () => {
     expect(getDisplayWeekNumber(range, 8, false)).toBe(7);
     expect(getDisplayMaxWeek(range, 16, false)).toBe(15);
     expect(getDisplayWeekNumber(range, 8, true)).toBe(8);
+  });
+
+  it('builds weekday-only visible ranges without counting hidden weekends', () => {
+    const start = new Date('2026-03-06T00:00:00');
+    const end = getCalendarVisibleRangeEnd(start, 3, false);
+
+    expect(end.toISOString().slice(0, 10)).toBe('2026-03-11');
+  });
+
+  it('moves visible pages by displayed weekdays when weekends are hidden', () => {
+    const start = new Date('2026-03-06T00:00:00');
+    const shifted = shiftCalendarVisibleStartDate(start, 2, false);
+
+    expect(shifted.toISOString().slice(0, 10)).toBe('2026-03-10');
+  });
+
+  it('finds the page start for a date inside a multi-day week view', () => {
+    const pageStart = getVisiblePageStartForDate(new Date('2026-03-12T09:00:00'), 3, false);
+
+    expect(pageStart.toISOString().slice(0, 10)).toBe('2026-03-12');
   });
 });

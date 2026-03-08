@@ -30,7 +30,6 @@ import type { CalendarEventData, CalendarViewMode, SemesterDateRange } from '../
 import {
   addDays,
   getWeekFromSemesterDate,
-  getWeekStartForSemester,
   startOfWeekMonday,
 } from '../../shared/utils';
 
@@ -40,9 +39,11 @@ interface FullCalendarViewProps {
   maxWeek: number;
   viewMode: CalendarViewMode;
   monthAnchorDate: Date;
+  weekViewStartDate: Date;
   semesterRange: SemesterDateRange;
   dayStartMinutes: number;
   dayEndMinutes: number;
+  weekViewDayCount: number;
   highlightConflicts: boolean;
   showWeekends: boolean;
   isPending: boolean;
@@ -221,9 +222,11 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   maxWeek,
   viewMode,
   monthAnchorDate,
+  weekViewStartDate,
   semesterRange,
   dayStartMinutes,
   dayEndMinutes,
+  weekViewDayCount,
   highlightConflicts,
   showWeekends,
   isPending,
@@ -231,9 +234,12 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   onViewModeChange,
   onEventClick,
 }) => {
+  const safeWeekViewDayCount = Math.max(1, Math.floor(weekViewDayCount));
+  const visibleDayColumns = showWeekends ? 7 : 5;
+  const weekViewMinWidthPercent = Math.max(100, (visibleDayColumns / safeWeekViewDayCount) * 100);
   const currentDate = React.useMemo(
-    () => (viewMode === 'month' ? monthAnchorDate : getWeekStartForSemester(semesterRange.startDate, week)),
-    [monthAnchorDate, semesterRange.startDate, viewMode, week],
+    () => (viewMode === 'month' ? monthAnchorDate : weekViewStartDate),
+    [monthAnchorDate, viewMode, weekViewStartDate],
   );
   const currentView = viewMode === 'month' ? 'dayGridMonth' : 'timeGridWeek';
   const calendarKey = React.useMemo(
@@ -286,50 +292,56 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
       )}
       data-pending={isPending ? 'true' : 'false'}
     >
-      <FullCalendar
-        key={calendarKey}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView={currentView}
-        initialDate={currentDate}
-        headerToolbar={false}
-        height="100%"
-        firstDay={1}
-        weekends={showWeekends}
-        allDaySlot
-        nowIndicator
-        editable={false}
-        selectable={false}
-        navLinks={false}
-        events={calendarEvents}
-        validRange={validRange}
-        slotMinTime={toDurationTime(dayStartMinutes)}
-        slotMaxTime={toDurationTime(dayEndMinutes)}
-        slotDuration="00:30:00"
-        slotLabelInterval="01:00:00"
-        expandRows
-        stickyHeaderDates
-        dayMaxEvents={CALENDAR_MAX_EVENT_LINES_PER_DAY}
-        slotEventOverlap={false}
-        moreLinkClick={handleMoreLinkClick}
-        eventClick={handleEventClick}
-        eventContent={renderEventContent}
-        datesSet={handleDatesSet}
-        eventDidMount={(arg) => {
-          const { sourceEvent, highlightConflicts: shouldHighlightConflicts } = arg.event.extendedProps as EventExtendedProps;
-          const resolvedColor = sourceEvent.color ?? '#3b82f6';
-          arg.el.style.setProperty('--semestra-calendar-accent', resolvedColor);
-          arg.el.style.setProperty('--semestra-calendar-accent-soft', addAlpha(resolvedColor, sourceEvent.isConflict && shouldHighlightConflicts ? 0.22 : 0.14));
-          arg.el.setAttribute('aria-label', buildEventLabel(sourceEvent, shouldHighlightConflicts && sourceEvent.isConflict));
-        }}
-        moreLinkContent={(arg) => <span className="text-xs font-medium">View {arg.num} more</span>}
-        moreLinkDidMount={(arg: MoreLinkMountArg) => {
-          arg.el.setAttribute('aria-label', `View ${arg.num} more events`);
-        }}
-        dayHeaderContent={(arg) => renderDayHeader(arg)}
-        dayCellClassNames={(arg) => (arg.isOther ? ['semestra-fc-day--outside'] : [])}
-        viewClassNames={['semestra-fc-view']}
-        eventMinHeight={44}
-      />
+      <div
+        data-slot={viewMode === 'week' ? 'calendar-week-scroll-frame' : 'calendar-frame'}
+        className="h-full min-h-0"
+        style={viewMode === 'week' ? { minWidth: `${weekViewMinWidthPercent}%` } : undefined}
+      >
+        <FullCalendar
+          key={calendarKey}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView={currentView}
+          initialDate={currentDate}
+          headerToolbar={false}
+          height="100%"
+          firstDay={1}
+          weekends={showWeekends}
+          allDaySlot
+          nowIndicator
+          editable={false}
+          selectable={false}
+          navLinks={false}
+          events={calendarEvents}
+          validRange={validRange}
+          slotMinTime={toDurationTime(dayStartMinutes)}
+          slotMaxTime={toDurationTime(dayEndMinutes)}
+          slotDuration="00:30:00"
+          slotLabelInterval="01:00:00"
+          expandRows
+          stickyHeaderDates
+          dayMaxEvents={CALENDAR_MAX_EVENT_LINES_PER_DAY}
+          slotEventOverlap={false}
+          moreLinkClick={handleMoreLinkClick}
+          eventClick={handleEventClick}
+          eventContent={renderEventContent}
+          datesSet={handleDatesSet}
+          eventDidMount={(arg) => {
+            const { sourceEvent, highlightConflicts: shouldHighlightConflicts } = arg.event.extendedProps as EventExtendedProps;
+            const resolvedColor = sourceEvent.color ?? '#3b82f6';
+            arg.el.style.setProperty('--semestra-calendar-accent', resolvedColor);
+            arg.el.style.setProperty('--semestra-calendar-accent-soft', addAlpha(resolvedColor, sourceEvent.isConflict && shouldHighlightConflicts ? 0.22 : 0.14));
+            arg.el.setAttribute('aria-label', buildEventLabel(sourceEvent, shouldHighlightConflicts && sourceEvent.isConflict));
+          }}
+          moreLinkContent={(arg) => <span className="text-xs font-medium">View {arg.num} more</span>}
+          moreLinkDidMount={(arg: MoreLinkMountArg) => {
+            arg.el.setAttribute('aria-label', `View ${arg.num} more events`);
+          }}
+          dayHeaderContent={(arg) => renderDayHeader(arg)}
+          dayCellClassNames={(arg) => (arg.isOther ? ['semestra-fc-day--outside'] : [])}
+          viewClassNames={['semestra-fc-view']}
+          eventMinHeight={44}
+        />
+      </div>
     </div>
   );
 };

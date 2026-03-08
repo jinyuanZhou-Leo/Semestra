@@ -11,7 +11,7 @@
 import React from 'react';
 import type { SemesterDateRange } from '@/calendar-core';
 import type { CalendarViewMode } from '../../../shared/types';
-import { CALENDAR_DEFAULT_VIEW_MODE, DEFAULT_WEEK } from '../../../shared/constants';
+import { CALENDAR_DEFAULT_VIEW_MODE } from '../../../shared/constants';
 import {
   addDays,
   getDisplayMaxWeek,
@@ -39,15 +39,24 @@ interface UseCalendarNavigationStateOptions {
   semesterRange: SemesterDateRange;
   maxWeek: number;
   countReadingWeekInWeekNumber: boolean;
+  showWeekends: boolean;
+  weekViewDayCount: number;
 }
+
+const clampWeek = (week: number, maxWeek: number) => {
+  const upperBound = Math.max(1, maxWeek);
+  return Math.max(1, Math.min(upperBound, week));
+};
 
 export const useCalendarNavigationState = ({
   semesterId,
   semesterRange,
   maxWeek,
   countReadingWeekInWeekNumber,
+  showWeekends: _showWeekends,
+  weekViewDayCount: _weekViewDayCount,
 }: UseCalendarNavigationStateOptions) => {
-  const [week, setWeek] = React.useState(DEFAULT_WEEK);
+  const [week, setWeek] = React.useState(1);
   const [viewMode, setViewMode] = React.useState<CalendarViewMode>(CALENDAR_DEFAULT_VIEW_MODE as CalendarViewMode);
   const [monthAnchorDate, setMonthAnchorDate] = React.useState<Date>(semesterRange.startDate);
   const hasUserInteractedWithWeekRef = React.useRef(false);
@@ -59,10 +68,7 @@ export const useCalendarNavigationState = ({
   );
 
   React.useEffect(() => {
-    setWeek((current) => {
-      const upperBound = Math.max(1, maxWeek);
-      return Math.max(1, Math.min(upperBound, current));
-    });
+    setWeek((current) => clampWeek(current, maxWeek));
   }, [maxWeek]);
 
   React.useEffect(() => {
@@ -99,8 +105,8 @@ export const useCalendarNavigationState = ({
   }, [monthAnchorDate, semesterRange.endDate, semesterRange.startDate, viewMode]);
 
   const handleWeekChange = React.useCallback((targetWeek: number) => {
-    const boundedWeek = Math.max(1, Math.min(Math.max(1, maxWeek), targetWeek));
     hasUserInteractedWithWeekRef.current = true;
+    const boundedWeek = clampWeek(targetWeek, maxWeek);
     setWeek(boundedWeek);
     setMonthAnchorDate(getWeekStartForSemester(semesterRange.startDate, boundedWeek));
   }, [maxWeek, semesterRange.startDate]);
@@ -110,11 +116,11 @@ export const useCalendarNavigationState = ({
     if (viewMode === 'month') {
       const targetDate = new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth() - 1, 1);
       setMonthAnchorDate(targetDate);
-      setWeek(Math.max(1, Math.min(Math.max(1, maxWeek), getWeekFromSemesterDate(semesterRange.startDate, targetDate))));
+      setWeek(clampWeek(getWeekFromSemesterDate(semesterRange.startDate, targetDate), maxWeek));
       return;
     }
 
-    setWeek((current) => Math.max(1, Math.min(Math.max(1, maxWeek), current - 1)));
+    setWeek((current) => clampWeek(current - 1, maxWeek));
   }, [maxWeek, monthAnchorDate, semesterRange.startDate, viewMode]);
 
   const handleNavigateNext = React.useCallback(() => {
@@ -122,11 +128,11 @@ export const useCalendarNavigationState = ({
     if (viewMode === 'month') {
       const targetDate = new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth() + 1, 1);
       setMonthAnchorDate(targetDate);
-      setWeek(Math.max(1, Math.min(Math.max(1, maxWeek), getWeekFromSemesterDate(semesterRange.startDate, targetDate))));
+      setWeek(clampWeek(getWeekFromSemesterDate(semesterRange.startDate, targetDate), maxWeek));
       return;
     }
 
-    setWeek((current) => Math.max(1, Math.min(Math.max(1, maxWeek), current + 1)));
+    setWeek((current) => clampWeek(current + 1, maxWeek));
   }, [maxWeek, monthAnchorDate, semesterRange.startDate, viewMode]);
 
   const handleToday = React.useCallback(() => {
@@ -183,6 +189,7 @@ export const useCalendarNavigationState = ({
 
   return {
     week,
+    weekViewStartDate: getWeekStartForSemester(semesterRange.startDate, week),
     viewMode,
     monthAnchorDate,
     currentWeek,

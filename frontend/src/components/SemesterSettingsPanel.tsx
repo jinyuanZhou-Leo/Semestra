@@ -15,10 +15,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SettingsSection } from "./SettingsSection";
 import { AutoSaveStatus } from "./AutoSaveStatus";
 import { cn } from "@/lib/utils";
-import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
+import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAutoSave } from "@/hooks/useAutoSave";
+
+const parseDateOrUndefined = (value?: string | null) => {
+  if (typeof value !== "string" || value.length === 0) {
+    return undefined;
+  }
+
+  const parsed = parseISO(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
 
 interface SemesterSettingsPanelProps {
   initialName: string;
@@ -43,17 +52,17 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   onSave,
 }) => {
   const isMobile = useIsMobile();
-  const [name, setName] = useState(initialName);
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [readingWeekStart, setReadingWeekStart] = useState<Date | undefined>(undefined);
-  const [readingWeekEnd, setReadingWeekEnd] = useState<Date | undefined>(undefined);
-  const [formError, setFormError] = useState("");
-  const fieldId = useId();
   const startDateRaw = initialSettings?.start_date;
   const endDateRaw = initialSettings?.end_date;
   const readingWeekStartRaw = initialSettings?.reading_week_start;
   const readingWeekEndRaw = initialSettings?.reading_week_end;
+  const [name, setName] = useState(initialName);
+  const [startDate, setStartDate] = useState<Date | undefined>(() => parseDateOrUndefined(startDateRaw));
+  const [endDate, setEndDate] = useState<Date | undefined>(() => parseDateOrUndefined(endDateRaw));
+  const [readingWeekStart, setReadingWeekStart] = useState<Date | undefined>(() => parseDateOrUndefined(readingWeekStartRaw));
+  const [readingWeekEnd, setReadingWeekEnd] = useState<Date | undefined>(() => parseDateOrUndefined(readingWeekEndRaw));
+  const [formError, setFormError] = useState("");
+  const fieldId = useId();
   const dateRangeLabel = startDate
     ? endDate
       ? `${format(startDate, "PP")} - ${format(endDate, "PP")}`
@@ -88,9 +97,8 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
 
   const isReadingWeekDateDisabled = (day: Date) => {
     if (!startDate || !endDate) return false;
-    const monday = startOfWeek(day, { weekStartsOn: 1 });
-    const sunday = addDays(monday, 6);
-    return normalizeToDay(monday) < normalizeToDay(startDate) || normalizeToDay(sunday) > normalizeToDay(endDate);
+    const normalizedDay = normalizeToDay(day);
+    return normalizedDay < normalizeToDay(startDate) || normalizedDay > normalizeToDay(endDate);
   };
 
   useEffect(() => {
@@ -121,34 +129,10 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
     setName(savedSnapshot.name);
     setFormError("");
 
-    const parsedStart =
-      typeof savedSnapshot.startDate === "string" && savedSnapshot.startDate.length > 0
-        ? parseISO(savedSnapshot.startDate)
-        : undefined;
-    const parsedEnd =
-      typeof savedSnapshot.endDate === "string" && savedSnapshot.endDate.length > 0
-        ? parseISO(savedSnapshot.endDate)
-        : undefined;
-    const parsedReadingWeekStart =
-      typeof savedSnapshot.readingWeekStart === "string" && savedSnapshot.readingWeekStart.length > 0
-        ? parseISO(savedSnapshot.readingWeekStart)
-        : undefined;
-    const parsedReadingWeekEnd =
-      typeof savedSnapshot.readingWeekEnd === "string" && savedSnapshot.readingWeekEnd.length > 0
-        ? parseISO(savedSnapshot.readingWeekEnd)
-        : undefined;
-    setStartDate(parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart : undefined);
-    setEndDate(parsedEnd && !Number.isNaN(parsedEnd.getTime()) ? parsedEnd : undefined);
-    setReadingWeekStart(
-      parsedReadingWeekStart && !Number.isNaN(parsedReadingWeekStart.getTime())
-        ? parsedReadingWeekStart
-        : undefined
-    );
-    setReadingWeekEnd(
-      parsedReadingWeekEnd && !Number.isNaN(parsedReadingWeekEnd.getTime())
-        ? parsedReadingWeekEnd
-        : undefined
-    );
+    setStartDate(parseDateOrUndefined(savedSnapshot.startDate));
+    setEndDate(parseDateOrUndefined(savedSnapshot.endDate));
+    setReadingWeekStart(parseDateOrUndefined(savedSnapshot.readingWeekStart));
+    setReadingWeekEnd(parseDateOrUndefined(savedSnapshot.readingWeekEnd));
   }, [draftSnapshot, savedSnapshot]);
 
   const isValid = useMemo(() => {
@@ -294,7 +278,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
           <div className="space-y-1">
             <Label>Reading Week</Label>
             <p className="text-sm text-muted-foreground">
-              Optional. Pick any day and Semestra will store the full Monday-to-Sunday week.
+              Optional. Select the full Reading Week date range. It must span exactly one Monday-to-Sunday week.
             </p>
           </div>
           <Popover>
@@ -321,11 +305,9 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
                   from: readingWeekStart,
                   to: readingWeekEnd,
                 }}
-                onDayClick={(day, modifiers) => {
-                  if (modifiers.disabled) return;
-                  const monday = startOfWeek(day, { weekStartsOn: 1 });
-                  setReadingWeekStart(monday);
-                  setReadingWeekEnd(addDays(monday, 6));
+                onSelect={(range) => {
+                  setReadingWeekStart(range?.from);
+                  setReadingWeekEnd(range?.to);
                 }}
                 disabled={isReadingWeekDateDisabled}
                 numberOfMonths={isMobile ? 1 : 2}

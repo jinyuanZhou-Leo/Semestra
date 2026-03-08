@@ -8,7 +8,7 @@ These hooks split semester context, navigation, source loading, and editing into
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for Calendar orchestration hooks. |
 | useCalendarEventEditing.ts | Edit-flow hook | Manages source-aware editability, optimistic skip patches, and editor state. |
-| useCalendarNavigationState.ts | Navigation hook | Owns week/month state, labels, and user-navigation rules. |
+| useCalendarNavigationState.ts | Navigation hook | Owns week/month state, academic week labels, and user-navigation rules independent from week-view scroll width. |
 | useCalendarSources.ts | Source orchestration hook | Loads registered Calendar sources independently and supports targeted refreshes. |
 | useSemesterCalendarContext.ts | Semester context hook | Resolves stable semester date bounds and max-week values outside of source loaders. |
 | useViewportBoundHeight.ts | Layout hook | Measures the available Calendar shell height without coupling layout observers to business state. |

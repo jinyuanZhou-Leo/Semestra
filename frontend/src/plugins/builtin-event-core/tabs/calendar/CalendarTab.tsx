@@ -84,6 +84,8 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     semesterRange: semesterContext.semesterRange,
     maxWeek: semesterContext.maxWeek,
     countReadingWeekInWeekNumber: settings.countReadingWeekInWeekNumber,
+    showWeekends: settings.showWeekends,
+    weekViewDayCount: settings.weekViewDayCount,
   });
   const sourceContext = React.useMemo(() => {
     if (!semesterId || !semesterContext.isReady) return null;
@@ -137,6 +139,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     dependencies: [
       settings.dayStartMinutes,
       settings.dayEndMinutes,
+      settings.weekViewDayCount,
       settings.showWeekends,
       navigation.viewMode,
     ],
@@ -285,9 +288,11 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
               maxWeek={semesterContext.maxWeek}
               viewMode={navigation.viewMode}
               monthAnchorDate={navigation.monthAnchorDate}
+              weekViewStartDate={navigation.weekViewStartDate}
               semesterRange={semesterContext.semesterRange}
               dayStartMinutes={settings.dayStartMinutes}
               dayEndMinutes={settings.dayEndMinutes}
+              weekViewDayCount={settings.weekViewDayCount}
               highlightConflicts={settings.highlightConflicts}
               showWeekends={settings.showWeekends}
               isPending={areSourcesLoading}

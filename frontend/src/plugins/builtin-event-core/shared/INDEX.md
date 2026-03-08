@@ -11,5 +11,5 @@ This layer now also exposes built-in Calendar source ids, semester week/date con
 | eventBus.ts | Event bus | Lightweight timetable event bus used to fan out scoped schedule mutations. |
 | hooks/ | Shared hooks | Event-core hooks including cached schedule loading helpers. |
 | utils.test.ts | Test file | Guards timezone-safe semester date parsing, Reading Week range validation, and week-number alignment helpers. |
-| types.ts | Shared types | Schedule/event payload types shared across tabs, widget, and settings surfaces, including `calendar-core` event re-exports and Reading Week-aware settings state. |
+| types.ts | Shared types | Schedule/event payload types shared across tabs, widget, and settings surfaces, including `calendar-core` event re-exports and week-view screen-width calendar settings state. |
 | utils.ts | Shared utilities | Date/time conversion, semester week/date helpers, Reading Week-aware numbering/filtering helpers, recurring-event mapping, schedule grouping, filtering, and source-ready calendar/todo event mappers. |

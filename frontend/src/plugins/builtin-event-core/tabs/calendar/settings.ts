@@ -18,6 +18,8 @@ import { ensureBuiltinCalendarSourcesRegistered } from './sources/registerBuilti
 const DAY_MINUTES = 24 * 60;
 const MIN_WINDOW_MINUTES = 60;
 export const CALENDAR_TIME_INPUT_STEP_SECONDS = 60;
+export const CALENDAR_MIN_WEEK_VIEW_DAY_COUNT = 1;
+export const CALENDAR_MAX_WEEK_VIEW_DAY_COUNT = 7;
 
 ensureBuiltinCalendarSourcesRegistered();
 
@@ -26,6 +28,14 @@ const clampMinute = (value: number) => Math.max(0, Math.min(DAY_MINUTES - 1, Mat
 const parseMinuteValue = (value: unknown, fallback: number) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
   return clampMinute(value);
+};
+
+const normalizeWeekViewDayCount = (value: unknown) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 5;
+  return Math.max(
+    CALENDAR_MIN_WEEK_VIEW_DAY_COUNT,
+    Math.min(CALENDAR_MAX_WEEK_VIEW_DAY_COUNT, Math.floor(value)),
+  );
 };
 
 export const normalizeDayMinuteWindow = (start: number, end: number) => {
@@ -76,6 +86,7 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettingsState = {
   highlightConflicts: true,
   showWeekends: true,
   countReadingWeekInWeekNumber: false,
+  weekViewDayCount: 5,
   dayStartMinutes: CALENDAR_DEFAULT_START_MINUTES,
   dayEndMinutes: CALENDAR_DEFAULT_END_MINUTES,
 };
@@ -106,6 +117,7 @@ export const normalizeCalendarSettings = (value: unknown): CalendarSettingsState
     countReadingWeekInWeekNumber: typeof source.countReadingWeekInWeekNumber === 'boolean'
       ? source.countReadingWeekInWeekNumber
       : false,
+    weekViewDayCount: normalizeWeekViewDayCount(source.weekViewDayCount),
     dayStartMinutes,
     dayEndMinutes,
   };

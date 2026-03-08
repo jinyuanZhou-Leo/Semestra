@@ -71,6 +71,7 @@ describe('FullCalendarView', () => {
         maxWeek={16}
         viewMode="month"
         monthAnchorDate={new Date('2026-03-02T00:00:00')}
+        weekViewStartDate={new Date('2026-03-02T00:00:00')}
         semesterRange={{
           startDate: new Date('2026-03-02T00:00:00'),
           endDate: new Date('2026-06-30T00:00:00'),
@@ -79,6 +80,7 @@ describe('FullCalendarView', () => {
         }}
         dayStartMinutes={8 * 60}
         dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
         highlightConflicts={false}
         showWeekends
         isPending={false}
@@ -105,6 +107,7 @@ describe('FullCalendarView', () => {
         maxWeek={16}
         viewMode="month"
         monthAnchorDate={new Date('2026-03-02T00:00:00')}
+        weekViewStartDate={new Date('2026-03-02T00:00:00')}
         semesterRange={{
           startDate: new Date('2026-03-02T00:00:00'),
           endDate: new Date('2026-06-30T00:00:00'),
@@ -113,6 +116,7 @@ describe('FullCalendarView', () => {
         }}
         dayStartMinutes={8 * 60}
         dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
         highlightConflicts
         showWeekends
         isPending={false}
@@ -138,6 +142,7 @@ describe('FullCalendarView', () => {
         maxWeek={16}
         viewMode="week"
         monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
         semesterRange={{
           startDate: new Date('2026-03-02T00:00:00'),
           endDate: new Date('2026-06-30T00:00:00'),
@@ -146,6 +151,7 @@ describe('FullCalendarView', () => {
         }}
         dayStartMinutes={8 * 60}
         dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
         highlightConflicts={false}
         showWeekends
         isPending={false}
@@ -172,6 +178,7 @@ describe('FullCalendarView', () => {
         maxWeek={16}
         viewMode="week"
         monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
         semesterRange={{
           startDate: new Date('2026-03-02T00:00:00'),
           endDate: new Date('2026-06-30T00:00:00'),
@@ -180,6 +187,7 @@ describe('FullCalendarView', () => {
         }}
         dayStartMinutes={8 * 60}
         dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
         highlightConflicts={false}
         showWeekends
         isPending={false}
@@ -192,5 +200,40 @@ describe('FullCalendarView', () => {
     expect(await screen.findByText('LECTURE')).toBeInTheDocument();
     expect(screen.getByLabelText('Recurring event')).toBeInTheDocument();
     expect(screen.queryByText(/9:00 - 10:00/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps the full week and widens the week grid for horizontal scrolling', async () => {
+    const { container } = render(
+      <FullCalendarView
+        events={[buildEvent('window', 9)]}
+        week={1}
+        maxWeek={16}
+        viewMode="week"
+        monthAnchorDate={new Date('2026-03-02T00:00:00')}
+        weekViewStartDate={new Date('2026-03-02T00:00:00')}
+        semesterRange={{
+          startDate: new Date('2026-03-02T00:00:00'),
+          endDate: new Date('2026-06-30T00:00:00'),
+          readingWeekStart: null,
+          readingWeekEnd: null,
+        }}
+        dayStartMinutes={8 * 60}
+        dayEndMinutes={18 * 60}
+        weekViewDayCount={3}
+        highlightConflicts={false}
+        showWeekends={false}
+        isPending={false}
+        onWeekChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('Mon')).toBeInTheDocument();
+    expect(screen.getByText('Tue')).toBeInTheDocument();
+    expect(screen.getByText('Wed')).toBeInTheDocument();
+    expect(screen.getByText('Thu')).toBeInTheDocument();
+    expect(screen.getByText('Fri')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="calendar-week-scroll-frame"]')).toHaveStyle({ minWidth: '166.66666666666669%' });
   });
 });
