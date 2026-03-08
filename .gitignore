@@ -26,6 +26,7 @@ frontend/src/version.json
 *.sln
 *.sw?
 *.pyc
+__pycache__/
 *.db
 
 
