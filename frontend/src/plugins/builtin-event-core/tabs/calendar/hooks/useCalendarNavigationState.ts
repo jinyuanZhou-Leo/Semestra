@@ -53,8 +53,6 @@ export const useCalendarNavigationState = ({
   semesterRange,
   maxWeek,
   countReadingWeekInWeekNumber,
-  showWeekends: _showWeekends,
-  weekViewDayCount: _weekViewDayCount,
 }: UseCalendarNavigationStateOptions) => {
   const [week, setWeek] = React.useState(1);
   const [viewMode, setViewMode] = React.useState<CalendarViewMode>(CALENDAR_DEFAULT_VIEW_MODE as CalendarViewMode);

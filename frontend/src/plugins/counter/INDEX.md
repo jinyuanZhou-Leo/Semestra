@@ -10,4 +10,4 @@ Counter plugin provides a bounded numeric widget with optional ring visualizatio
 | counter.md | Design notes | Product/design notes for the counter widget behavior and look-and-feel. |
 | metadata.ts | Plugin metadata | Declares plugin id and widget catalog entry metadata (name, icon, layout, etc.). |
 | index.ts | Runtime entry | Exports widget definition and metadata for plugin-system loading. |
-| widget.tsx | Widget runtime | Implements counter controls, ring progress rendering, range sanitization/clamping, validation messaging, settings form, and accessible increment/decrement actions. |
+| widget.tsx | Widget runtime | Implements counter controls, ring progress rendering, range sanitization/clamping, validation messaging, settings form, and compiler-safe accessible increment/decrement actions. |

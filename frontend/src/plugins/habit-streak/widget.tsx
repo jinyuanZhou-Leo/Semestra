@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { HeaderButtonContext, WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
 import { Button } from '@/components/ui/button';
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -49,7 +50,7 @@ interface HabitStreakSharedSettings {
     checkInHistory: string[];
 }
 
-interface HabitStreakDuolingoSettings extends HabitStreakSharedSettings {}
+type HabitStreakDuolingoSettings = HabitStreakSharedSettings;
 
 interface HabitStreakRingSettings extends HabitStreakSharedSettings {
     showMotivationalMessage: boolean;
@@ -384,7 +385,17 @@ export const getCheckInWindowState = (
 ): CheckInWindowState => {
     const normalizedIntervalHours = clampIntervalHours(intervalHours);
     if (normalizedIntervalHours === 0) {
-        return { canCheckIn: true, remainingMs: 0, windowsSinceLast: 1 };
+        if (!lastCheckInAt) {
+            return { canCheckIn: true, remainingMs: 0, windowsSinceLast: 0 };
+        }
+
+        const lastCheckInMs = Date.parse(lastCheckInAt);
+        if (Number.isNaN(lastCheckInMs)) {
+            return { canCheckIn: true, remainingMs: 0, windowsSinceLast: 0 };
+        }
+
+        const dayDiff = Math.max(0, Math.round((getStartOfLocalDay(nowMs) - getStartOfLocalDay(lastCheckInMs)) / DAY_IN_MS));
+        return { canCheckIn: true, remainingMs: 0, windowsSinceLast: dayDiff };
     }
 
     if (!lastCheckInAt) {
@@ -439,7 +450,8 @@ export const computeNextStreakCount = (
     hasPreviousCheckIn: boolean
 ) => {
     if (!hasPreviousCheckIn) return 1;
-    if (windowsSinceLast <= 1) return Math.max(1, currentStreak + 1);
+    if (windowsSinceLast <= 0) return Math.max(1, currentStreak);
+    if (windowsSinceLast === 1) return Math.max(1, currentStreak + 1);
     return 1;
 };
 
@@ -659,7 +671,7 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
     const [flameReactionSignal, setFlameReactionSignal] = useState(0);
     const [motivationalToast, setMotivationalToast] = useState<MotivationalToast | null>(null);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const prefersReducedMotion = usePrefersReducedMotion();
     const canShowMotivationalToast = variant === 'ring' && 'showMotivationalMessage' in habitSettings && habitSettings.showMotivationalMessage;
 
     const checkInState = useMemo(
@@ -732,6 +744,9 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
     const habitTitle = habitSettings.habitName.trim().length > 0
         ? habitSettings.habitName
         : 'Untitled habit';
+    const checkInButtonAriaLabel = checkInState.canCheckIn
+        ? `Check in ${habitTitle}`
+        : `Wait to check in ${habitTitle}. ${formatRemainingTime(checkInState.remainingMs)} remaining.`;
     const targetProgress = Math.min(100, Math.round((habitSettings.streakCount / habitSettings.targetStreak) * 100));
     const recentDayCells = useMemo(
         () => buildRecentDayCells(habitSettings.checkInHistory, nowMs),
@@ -780,6 +795,7 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
                     <Button
                         onClick={handleCheckIn}
                         disabled={!checkInState.canCheckIn}
+                        aria-label={checkInButtonAriaLabel}
                         className="group/habit-checkin relative h-10 w-full overflow-hidden border-0 bg-gradient-to-r from-[#ff9f1c] via-[#ff6b35] to-[#e5383b] text-sm font-semibold text-white shadow-none transition-all duration-300 ease-out hover:brightness-110 active:scale-[0.985] enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-[#8e6f53] disabled:text-white/80 disabled:shadow-none disabled:opacity-75"
                     >
                         <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.22)_50%,transparent_75%)] opacity-0 transition-opacity duration-300 group-hover/habit-checkin:opacity-100" />
@@ -806,6 +822,8 @@ const HabitStreakWidgetComponent = <TSettings extends HabitStreakSettings>({
                         >
                             <p
                                 className="max-w-[95%] rounded-full px-3 py-1.5 text-center text-[10.5px] font-semibold leading-snug shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                                role="status"
+                                aria-live="polite"
                                 style={{
                                     backgroundColor: 'color-mix(in srgb, var(--color-background) 88%, transparent)',
                                     color: 'var(--color-foreground)',

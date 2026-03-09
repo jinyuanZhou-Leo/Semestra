@@ -1,4 +1,4 @@
-// input:  [container ref, browser resize/observer APIs, and calendar layout dependencies]
+// input:  [container ref, browser resize/observer APIs, and a stable calendar layout dependency key]
 // output: [`useViewportBoundHeight()` hook that measures an available Calendar shell height]
 // pos:    [layout hook that isolates viewport-bound Calendar sizing from feature orchestration logic]
 //
@@ -15,10 +15,10 @@ const VIEWPORT_BOTTOM_GUTTER = 12;
 
 interface UseViewportBoundHeightOptions {
   cardRef: React.RefObject<HTMLDivElement | null>;
-  dependencies: React.DependencyList;
+  dependencyKey: string;
 }
 
-export const useViewportBoundHeight = ({ cardRef, dependencies }: UseViewportBoundHeightOptions) => {
+export const useViewportBoundHeight = ({ cardRef, dependencyKey }: UseViewportBoundHeightOptions) => {
   const [viewportBoundHeight, setViewportBoundHeight] = React.useState<number | null>(null);
 
   const updateViewportBoundHeight = React.useCallback(() => {
@@ -32,7 +32,7 @@ export const useViewportBoundHeight = ({ cardRef, dependencies }: UseViewportBou
 
   React.useLayoutEffect(() => {
     updateViewportBoundHeight();
-  }, [updateViewportBoundHeight, ...dependencies]);
+  }, [dependencyKey, updateViewportBoundHeight]);
 
   React.useEffect(() => {
     const card = cardRef.current;

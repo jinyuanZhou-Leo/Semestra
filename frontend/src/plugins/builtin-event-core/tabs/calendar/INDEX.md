@@ -7,9 +7,9 @@ Hooks and source adapters isolate semester context, navigation, editing, and per
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for calendar tab files and responsibilities. |
-| CalendarSettings.tsx | Legacy settings dialog | Dialog-style Calendar settings UI for direct in-tab configuration using dynamic source-color controls and week-view day-count selection. |
+| CalendarSettings.tsx | Legacy settings dialog | Dialog-style Calendar settings UI for direct in-tab configuration using draft-friendly time inputs, dynamic source-color controls, and week-view day-count selection. |
 | CalendarSettings.test.tsx | Test file | Verifies draft-friendly calendar time inputs plus Reading Week toggles and week-view day-count selection behavior. |
-| CalendarSettingsSection.tsx | Active settings section | Settings-page Calendar controls including week-view screen width, time window, toggles, Reading Week numbering, dynamic source colors, export, and reset actions. |
+| CalendarSettingsSection.tsx | Active settings section | Settings-page Calendar controls including draft-friendly time-window inputs, week-view screen width, toggles, Reading Week numbering, dynamic source colors, export, and reset actions. |
 | CalendarTab.test.tsx | Test file | Verifies CalendarTab can render events from independently registered Calendar sources. |
 | CalendarTab.tsx | Main runtime | Source-driven Calendar shell that composes standalone registry data, semester context, configurable week-view scroll width, editing, and viewport sizing. |
 | CalendarToolbar.tsx | Toolbar UI | Period navigation and view mode controls for week/month calendar surfaces with Reading Week-aware week labels. |

@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -51,34 +51,45 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
   const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const latestFetchRef = useRef(0);
 
   const fetchSemester = useCallback(async () => {
     if (!semesterId) {
+      latestFetchRef.current += 1;
       setSemester(null);
       setLoadError(null);
       setIsLoading(false);
       return false;
     }
 
+    const fetchId = latestFetchRef.current + 1;
+    latestFetchRef.current = fetchId;
     setSemester((current) => (current?.id === semesterId ? current : null));
     setIsLoading(true);
     setLoadError(null);
 
     try {
       const data = await api.getSemester(semesterId);
+      if (fetchId !== latestFetchRef.current) return false;
       setSemester(data);
       return true;
     } catch (error) {
+      if (fetchId !== latestFetchRef.current) return false;
       console.error('Failed to fetch semester', error);
       setLoadError(resolveErrorMessage(error, 'Unable to load courses for this semester.'));
       return false;
     } finally {
-      setIsLoading(false);
+      if (fetchId === latestFetchRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [semesterId]);
 
   useEffect(() => {
     void fetchSemester();
+    return () => {
+      latestFetchRef.current += 1;
+    };
   }, [fetchSemester]);
 
   const handleRemoveCourse = async (courseId: string) => {
@@ -110,6 +121,7 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
 
   const courses = semester?.courses || [];
   const programId = semester?.program_id || '';
+  const canManageCourses = programId.length > 0 && !isLoading && !loadError;
 
   return (
     <SettingsSection
@@ -213,9 +225,20 @@ export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
           )}
         </div>
 
-        <Button onClick={() => setIsManagerOpen(true)} className="w-full">
+        <Button
+          type="button"
+          onClick={() => setIsManagerOpen(true)}
+          className="w-full"
+          disabled={!canManageCourses}
+        >
           + Add / Manage Courses
         </Button>
+
+        {!canManageCourses ? (
+          <p className="text-xs text-muted-foreground">
+            Load semester details successfully before opening course management.
+          </p>
+        ) : null}
 
         <CourseManagerModal
           isOpen={isManagerOpen}

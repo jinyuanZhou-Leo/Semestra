@@ -64,7 +64,7 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
     setDayEndDraft(toTimeInputValue(settings.dayEndMinutes));
   }, [settings.dayEndMinutes]);
 
-  const commitDayStartTime = React.useCallback((value: string) => {
+  const commitDayStartTime = (value: string) => {
     const parsed = parseTimeInputValue(value);
     if (parsed === null) {
       setDayStartDraft(toTimeInputValue(settings.dayStartMinutes));
@@ -75,9 +75,9 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
       dayStartMinutes: minuteWindow.dayStartMinutes,
       dayEndMinutes: minuteWindow.dayEndMinutes,
     });
-  }, [settings.dayEndMinutes, settings.dayStartMinutes]);
+  };
 
-  const commitDayEndTime = React.useCallback((value: string) => {
+  const commitDayEndTime = (value: string) => {
     const parsed = parseTimeInputValue(value);
     if (parsed === null) {
       setDayEndDraft(toTimeInputValue(settings.dayEndMinutes));
@@ -88,7 +88,7 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
       dayStartMinutes: minuteWindow.dayStartMinutes,
       dayEndMinutes: minuteWindow.dayEndMinutes,
     });
-  }, [settings.dayEndMinutes, settings.dayStartMinutes]);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

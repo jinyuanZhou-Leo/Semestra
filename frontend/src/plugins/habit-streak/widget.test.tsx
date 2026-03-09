@@ -26,6 +26,16 @@ afterEach(() => {
 
 beforeEach(() => {
     resetHabitStreakSharedStoreForTests();
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+        matches: false,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+    })) as typeof window.matchMedia;
 });
 
 describe('HabitStreak helpers', () => {
@@ -64,6 +74,17 @@ describe('HabitStreak helpers', () => {
 
         expect(state.canCheckIn).toBe(true);
         expect(state.remainingMs).toBe(0);
+        expect(state.windowsSinceLast).toBe(0);
+    });
+
+    it('treats the next local day as a new streak window when interval is zero', () => {
+        const now = new Date(2026, 1, 20, 0, 10, 0, 0).getTime();
+        const lastCheckInAt = new Date(2026, 1, 19, 23, 50, 0, 0).toISOString();
+
+        const state = getCheckInWindowState(lastCheckInAt, 0, now);
+
+        expect(state.canCheckIn).toBe(true);
+        expect(state.windowsSinceLast).toBe(1);
     });
 
     it('supports weekly interval lock', () => {
@@ -187,7 +208,7 @@ describe('HabitStreak widgets', () => {
             </>
         );
 
-        fireEvent.click(screen.getAllByRole('button', { name: 'Check In' })[0]);
+        fireEvent.click(screen.getByRole('button', { name: 'Check in Workout' }));
 
         expect(updateDuolingoSettings).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -227,10 +248,12 @@ describe('HabitStreak widgets', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Check in Spanish' }));
 
         expect(updateSettings).toHaveBeenCalledWith(
             expect.objectContaining({
+                streakCount: 4,
+                bestStreak: 8,
                 totalCheckIns: 12,
                 checkInHistory: ['2026-03-06'],
             })
@@ -258,7 +281,7 @@ describe('HabitStreak widgets', () => {
             />
         );
 
-        const button = screen.getByRole('button', { name: /Wait/ });
+        const button = screen.getByRole('button', { name: /Wait to check in Flash cards/i });
         expect(button).toBeDisabled();
     });
 
@@ -343,7 +366,7 @@ describe('HabitStreak widgets', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Check in Practice piano' }));
 
         expect(screen.queryByTestId('habit-motivational-toast')).not.toBeInTheDocument();
     });
@@ -371,7 +394,7 @@ describe('HabitStreak widgets', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Check in Practice piano' }));
 
         expect(screen.getByTestId('habit-motivational-toast')).toBeInTheDocument();
     });
@@ -540,7 +563,7 @@ describe('HabitStreak widgets', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Check In' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Check in Journal' }));
 
         expect(updateOriginalSettings).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -574,7 +597,29 @@ describe('HabitStreak widgets', () => {
             />
         );
 
-        expect(screen.getByRole('button', { name: 'Check In' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Check in Journal' })).toBeEnabled();
         expect(updateReplacementSettings).not.toHaveBeenCalled();
+    });
+
+    it('includes the habit title in the check-in button accessible name', () => {
+        render(
+            <HabitStreakRingWidget
+                widgetId="habit-accessible-name"
+                settings={{
+                    habitName: 'Stretch',
+                    checkInIntervalHours: 24,
+                    targetStreak: 12,
+                    streakCount: 4,
+                    bestStreak: 9,
+                    totalCheckIns: 15,
+                    lastCheckInAt: null,
+                    checkInHistory: [],
+                    showMotivationalMessage: false,
+                }}
+                updateSettings={vi.fn()}
+            />
+        );
+
+        expect(screen.getByRole('button', { name: 'Check in Stretch' })).toBeInTheDocument();
     });
 });

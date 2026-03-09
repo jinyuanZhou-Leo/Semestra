@@ -127,16 +127,7 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
     }
 
     void loadSources(sources);
-  }, [
-    context?.semesterId,
-    context?.maxWeek,
-    context?.semesterRange.startDate.getTime(),
-    context?.semesterRange.endDate.getTime(),
-    context?.semesterRange.readingWeekStart?.getTime() ?? null,
-    context?.semesterRange.readingWeekEnd?.getTime() ?? null,
-    loadSources,
-    sources,
-  ]);
+  }, [context, loadSources, sources]);
 
   const reloadMatchingSources = React.useCallback(async (signal: CalendarRefreshSignal) => {
     if (!context) return;

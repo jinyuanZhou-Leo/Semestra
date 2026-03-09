@@ -88,7 +88,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
     setDayEndDraft(toTimeInputValue(normalizedSettings.dayEndMinutes));
   }, [normalizedSettings.dayEndMinutes]);
 
-  const commitDayStartTime = React.useCallback((value: string) => {
+  const commitDayStartTime = (value: string) => {
     const parsed = parseTimeInputValue(value);
     if (parsed === null) {
       setDayStartDraft(toTimeInputValue(normalizedSettings.dayStartMinutes));
@@ -99,9 +99,9 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
       dayStartMinutes: minuteWindow.dayStartMinutes,
       dayEndMinutes: minuteWindow.dayEndMinutes,
     });
-  }, [normalizedSettings.dayEndMinutes, normalizedSettings.dayStartMinutes]);
+  };
 
-  const commitDayEndTime = React.useCallback((value: string) => {
+  const commitDayEndTime = (value: string) => {
     const parsed = parseTimeInputValue(value);
     if (parsed === null) {
       setDayEndDraft(toTimeInputValue(normalizedSettings.dayEndMinutes));
@@ -112,7 +112,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
       dayStartMinutes: minuteWindow.dayStartMinutes,
       dayEndMinutes: minuteWindow.dayEndMinutes,
     });
-  }, [normalizedSettings.dayEndMinutes, normalizedSettings.dayStartMinutes]);
+  };
 
   return (
     <>

@@ -136,13 +136,13 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   });
   const viewportBoundHeight = useViewportBoundHeight({
     cardRef,
-    dependencies: [
+    dependencyKey: [
       settings.dayStartMinutes,
       settings.dayEndMinutes,
       settings.weekViewDayCount,
       settings.showWeekends,
       navigation.viewMode,
-    ],
+    ].join(':'),
   });
 
   const calendarEvents = React.useMemo(() => {

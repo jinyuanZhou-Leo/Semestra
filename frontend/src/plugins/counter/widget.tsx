@@ -86,12 +86,12 @@ const CounterSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onS
     const formId = useId();
     const validationMessages = getCounterValidationMessages(rawSettings, counterSettings);
 
-    const applySettings = useCallback((patch: Partial<CounterSettings>) => {
+    const applySettings = (patch: Partial<CounterSettings>) => {
         onSettingsChange(sanitizeCounterSettings({
             ...counterSettings,
             ...patch,
         }));
-    }, [counterSettings, onSettingsChange]);
+    };
 
     return (
         <div className="flex flex-col gap-4">
