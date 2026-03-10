@@ -32,7 +32,7 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import scheduleService, { type CourseEventType } from '@/services/schedule';
-import { CrudPanel } from '../../components/CrudPanel';
+import { CrudPanel } from '@/components/CrudPanel';
 import { EventTypeFormDialog } from '../../components/EventTypeFormDialog';
 import { timetableEventBus } from '../../shared/eventBus';
 

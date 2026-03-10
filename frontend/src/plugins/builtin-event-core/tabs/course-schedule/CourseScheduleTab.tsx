@@ -38,7 +38,7 @@ import scheduleService, {
   type CourseEventType,
   type CourseSection,
 } from '@/services/schedule';
-import { EmptyTableRow, PanelHeader, TableShell } from '../../components/CrudPanel';
+import { EmptyTableRow, PanelHeader, TableShell } from '@/components/CrudPanel';
 import { EventTypeFormDialog } from '../../components/EventTypeFormDialog';
 import {
   DAY_OF_WEEK_OPTIONS,

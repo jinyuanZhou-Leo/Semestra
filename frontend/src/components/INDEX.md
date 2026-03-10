@@ -17,6 +17,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
 | BackButton.tsx | UI component | Reusable component for back button UI/interaction flow. |
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
+| CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
 | CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation. |
 | CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, pending-save feedback, and draft-safe sync against backend refreshes. |
 | GPAScalingTable.tsx | UI component | Reusable component for g p a scaling table UI/interaction flow. |
