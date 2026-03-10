@@ -11,17 +11,19 @@ Auth now signs JWTs from env-backed secrets and ships browser sessions via HttpO
 | auth.py | Auth utility | Handles JWT creation/validation, secure auth-cookie helpers, and current-user resolution from cookie or bearer token. |
 | crud.py | Data access | Implements database CRUD for users, tasks, courses, widgets, plugin shared settings, and user settings. |
 | database.py | DB bootstrap | Configures SQLAlchemy engine/session and database base metadata. |
+| gradebook.py | Gradebook domain service | Owns built-in gradebook initialization, scenario/category/assessment mutations, solver math, import/export mapping, and course-grade projection serialization. |
 | logic.py | Domain logic | Provides GPA and grading-related business logic helpers. |
-| main.py | API entry point | Defines FastAPI app, middleware, HTTP route handlers, auth login/logout cookie issuance, semester Reading Week validation/schema compatibility shims, and plugin shared settings endpoints. |
+| main.py | API entry point | Defines FastAPI app, middleware, HTTP route handlers, auth login/logout cookie issuance, semester Reading Week validation/schema compatibility shims, plugin shared settings endpoints, and gradebook APIs. |
 | migrate_add_category.py | Migration script | Adds widget category support to existing database schema. |
 | migrate_add_program_id_to_course.py | Migration script | Adds `program_id` to courses and related constraints. |
 | migrate_user_settings.py | Migration script | Creates and backfills user settings columns and defaults. |
 | migrate_week_pattern_to_alternating.py | Migration script | Migrates week pattern model to alternating-week structure. |
-| models.py | ORM models | Defines SQLAlchemy table models and relational constraints, including optional semester Reading Week dates and context-scoped plugin shared settings records. |
+| models.py | ORM models | Defines SQLAlchemy table models and relational constraints, including optional semester Reading Week dates, context-scoped plugin shared settings records, and gradebook domain tables. |
 | prod.sh | Ops script | Production bootstrap script for backend service process startup. |
 | requirements.txt | Dependency manifest | Lists Python runtime dependencies required by backend. |
-| schemas.py | API schema layer | Defines request/response validation models, including semester Reading Week fields, plugin shared settings payloads, and strict widget `layout_config` shape/range validation. |
+| schemas.py | API schema layer | Defines request/response validation models, including semester Reading Week fields, plugin shared settings payloads, strict widget `layout_config` shape/range validation, and gradebook contracts. |
 | test_crud.py | Integration test script | Verifies CRUD workflows against a running local API. |
+| test_gradebook.py | Unit test script | Verifies builtin gradebook initialization, category guards, due-date sorting, projection stability, and solver math against the gradebook domain service. |
 | test_logic.py | Integration test script | Verifies academic logic flows against API endpoints. |
 | test_nickname.py | Integration test script | Validates nickname update and retrieval API behavior. |
 | test_widget_delete.py | Integration test script | Validates widget deletion endpoint behavior. |

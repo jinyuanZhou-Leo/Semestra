@@ -1,6 +1,6 @@
-// input:  [timetable builtin tab-type constants and homepage shell requirements]
+// input:  [timetable and builtin-gradebook tab-type constants plus homepage shell requirements]
 // output: [homepage builtin tab IDs, config interface, and semester/course config objects]
-// pos:    [Central ordering/placement rules for fixed homepage tabs]
+// pos:    [central ordering and placement rules for fixed homepage tabs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,6 +13,7 @@ import {
     BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,
     BUILTIN_TIMETABLE_TODO_TAB_TYPE,
 } from '../plugins/builtin-event-core/shared/constants';
+import { BUILTIN_GRADEBOOK_TAB_TYPE } from '../plugins/builtin-gradebook/shared';
 
 export const HOMEPAGE_DASHBOARD_TAB_TYPE = 'dashboard';
 export const HOMEPAGE_SETTINGS_TAB_TYPE = 'settings';
@@ -31,6 +32,7 @@ const SEMESTER_BUILTIN_TAB_IDS = [
 
 const COURSE_BUILTIN_TAB_IDS = [
     HOMEPAGE_DASHBOARD_TAB_TYPE,
+    BUILTIN_GRADEBOOK_TAB_TYPE,
     BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,
     BUILTIN_TIMETABLE_TODO_TAB_TYPE,
     HOMEPAGE_SETTINGS_TAB_TYPE,

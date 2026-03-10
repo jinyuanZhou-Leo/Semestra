@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums]
-# output: [Request/response schema classes for API contracts, including plugin-shared settings payloads]
-# pos:    [Serialization and validation layer between API and domain]
+# output: [Request/response schema classes for API contracts, including plugin-shared settings payloads and course gradebooks]
+# pos:    [Serialization and validation layer between API and domain services]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -221,6 +221,8 @@ class Course(CourseBase):
     id: str
     program_id: str
     semester_id: Optional[str] = None
+    has_gradebook: bool = False
+    gradebook_revision: int = 0
     class Config:
         from_attributes = True
 
@@ -228,6 +230,189 @@ class CourseWithWidgets(Course):
     widgets: List[Widget] = []
     tabs: List[Tab] = []
     plugin_settings: List[PluginSetting] = []
+
+class GradebookTargetMode(str, Enum):
+    PERCENTAGE = "percentage"
+    GPA = "gpa"
+
+class GradebookAssessmentStatus(str, Enum):
+    PLANNED = "planned"
+    COMPLETED = "completed"
+    EXCLUDED = "excluded"
+
+class GradebookForecastMode(str, Enum):
+    MANUAL = "manual"
+    SOLVER = "solver"
+
+class GradebookFeasibility(str, Enum):
+    ON_TRACK = "on_track"
+    ALREADY_SECURED = "already_secured"
+    NEEDS_PERFECTION = "needs_perfection"
+    INFEASIBLE = "infeasible"
+    INVALID = "invalid"
+
+class GradebookScenarioBase(BaseModel):
+    name: str
+    color_token: str = "emerald"
+    order_index: int = 0
+    is_baseline: bool = False
+
+class GradebookScenario(GradebookScenarioBase):
+    id: str
+
+    class Config:
+        from_attributes = True
+
+class GradebookAssessmentCategoryBase(BaseModel):
+    name: str
+    key: str
+    is_builtin: bool = False
+    color_token: str = "slate"
+    order_index: int = 0
+    is_archived: bool = False
+
+class GradebookAssessmentCategory(GradebookAssessmentCategoryBase):
+    id: str
+
+    class Config:
+        from_attributes = True
+
+class GradebookAssessmentScenarioScoreBase(BaseModel):
+    scenario_id: str
+    forecast_score: Optional[float] = None
+
+class GradebookAssessmentScenarioScore(GradebookAssessmentScenarioScoreBase):
+    class Config:
+        from_attributes = True
+
+class GradebookAssessmentBase(BaseModel):
+    category_id: Optional[str] = None
+    title: str
+    due_date: Optional[date] = None
+    weight: float = 0.0
+    status: GradebookAssessmentStatus = GradebookAssessmentStatus.PLANNED
+    forecast_mode: GradebookForecastMode = GradebookForecastMode.MANUAL
+    actual_score: Optional[float] = None
+    notes: Optional[str] = None
+    order_index: int = 0
+
+class GradebookAssessment(GradebookAssessmentBase):
+    id: str
+    scenario_scores: List[GradebookAssessmentScenarioScore] = []
+
+    class Config:
+        from_attributes = True
+
+class GradebookScenarioCard(BaseModel):
+    scenario_id: str
+    scenario_name: str
+    projected_percentage: Optional[float] = None
+    projected_gpa: Optional[float] = None
+    required_score: Optional[float] = None
+    remaining_weight: float = 0.0
+    feasibility: GradebookFeasibility = GradebookFeasibility.INVALID
+
+class GradebookUpcomingDueItem(BaseModel):
+    assessment_id: str
+    title: str
+    due_date: date
+    category_name: Optional[str] = None
+    category_color_token: Optional[str] = None
+
+class GradebookSummary(BaseModel):
+    current_actual_percentage: Optional[float] = None
+    current_actual_gpa: Optional[float] = None
+    baseline_target_mode: GradebookTargetMode
+    baseline_target_value: float
+    baseline_required_score: Optional[float] = None
+    baseline_projected_percentage: Optional[float] = None
+    baseline_projected_gpa: Optional[float] = None
+    remaining_weight: float = 0.0
+    feasibility: GradebookFeasibility = GradebookFeasibility.INVALID
+    validation_issues: List[str] = []
+    formula_breakdown: List[str] = []
+    scenario_cards: List[GradebookScenarioCard] = []
+    upcoming_due_items: List[GradebookUpcomingDueItem] = []
+
+class CourseGradebook(BaseModel):
+    course_id: str
+    revision: int
+    target_mode: GradebookTargetMode
+    target_value: float
+    baseline_scenario_id: Optional[str] = None
+    scenarios: List[GradebookScenario] = []
+    categories: List[GradebookAssessmentCategory] = []
+    assessments: List[GradebookAssessment] = []
+    summary: GradebookSummary
+
+class GradebookRevisionRequest(BaseModel):
+    revision: int
+
+class GradebookTargetUpdate(BaseModel):
+    revision: int
+    target_mode: GradebookTargetMode
+    target_value: float
+
+class GradebookScenarioCreate(BaseModel):
+    revision: int
+    name: str
+    color_token: Optional[str] = None
+    duplicate_from_scenario_id: Optional[str] = None
+
+class GradebookScenarioUpdate(BaseModel):
+    revision: int
+    name: Optional[str] = None
+    color_token: Optional[str] = None
+    is_baseline: Optional[bool] = None
+
+class GradebookCategoryCreate(BaseModel):
+    revision: int
+    name: str
+    color_token: Optional[str] = None
+
+class GradebookCategoryUpdate(BaseModel):
+    revision: int
+    name: Optional[str] = None
+    color_token: Optional[str] = None
+    is_archived: Optional[bool] = None
+
+class GradebookAssessmentCreate(GradebookAssessmentBase):
+    revision: int
+    scenario_scores: List[GradebookAssessmentScenarioScoreBase] = []
+
+class GradebookAssessmentUpdate(BaseModel):
+    revision: int
+    category_id: Optional[str] = None
+    title: Optional[str] = None
+    due_date: Optional[date] = None
+    weight: Optional[float] = None
+    status: Optional[GradebookAssessmentStatus] = None
+    forecast_mode: Optional[GradebookForecastMode] = None
+    actual_score: Optional[float] = None
+    notes: Optional[str] = None
+    scenario_scores: Optional[List[GradebookAssessmentScenarioScoreBase]] = None
+
+class GradebookAssessmentReorderRequest(BaseModel):
+    revision: int
+    assessment_ids: List[str]
+
+class GradebookScenarioScoreUpdateItem(BaseModel):
+    assessment_id: str
+    scenario_id: str
+    forecast_score: Optional[float] = None
+
+class GradebookScenarioScoresUpdateRequest(BaseModel):
+    revision: int
+    updates: List[GradebookScenarioScoreUpdateItem]
+
+class GradebookConvertToSolverRequest(BaseModel):
+    revision: int
+    assessment_ids: Optional[List[str]] = None
+
+class GradebookApplySolvedScoreRequest(BaseModel):
+    revision: int
+    scenario_id: str
+    assessment_ids: Optional[List[str]] = None
 
 
 # --- Semester Schemas ---
@@ -531,6 +716,28 @@ class PluginSettingExport(BaseModel):
     plugin_id: str
     settings: str = "{}"
 
+class GradebookScenarioExport(GradebookScenarioBase):
+    id: Optional[str] = None
+
+class GradebookAssessmentCategoryExport(GradebookAssessmentCategoryBase):
+    id: Optional[str] = None
+
+class GradebookAssessmentScenarioScoreExport(GradebookAssessmentScenarioScoreBase):
+    pass
+
+class GradebookAssessmentExport(GradebookAssessmentBase):
+    id: Optional[str] = None
+    scenario_scores: List[GradebookAssessmentScenarioScoreExport] = []
+
+class CourseGradebookExport(BaseModel):
+    revision: int = 1
+    target_mode: GradebookTargetMode = GradebookTargetMode.PERCENTAGE
+    target_value: float = 0.0
+    baseline_scenario_id: Optional[str] = None
+    scenarios: List[GradebookScenarioExport] = []
+    categories: List[GradebookAssessmentCategoryExport] = []
+    assessments: List[GradebookAssessmentExport] = []
+
 class CourseExport(BaseModel):
     name: str
     alias: Optional[str] = None
@@ -543,6 +750,7 @@ class CourseExport(BaseModel):
     widgets: List[WidgetExport] = []
     tabs: List[TabExport] = []
     plugin_settings: List[PluginSettingExport] = []
+    gradebook: Optional[CourseGradebookExport] = None
 
 class SemesterExport(BaseModel):
     name: str

@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, timezone/date helpers]
-# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, and user settings]
-# pos:    [Database access layer for backend services]
+# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, user settings, and gradebook initialization]
+# pos:    [Database access layer for backend services and gradebook-backed course creation]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import models
 import schemas
 import bcrypt
+import gradebook
 
 DEFAULT_GPA_SCALING = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}'
 DEFAULT_COURSE_CREDIT = 0.5
@@ -280,12 +281,9 @@ def create_course(db: Session, course: schemas.CourseCreate, program_id: str, se
             updated_at="",
         ))
     db.commit()
-
-    # Create default widgets
-    create_widget(db, schemas.WidgetCreate(
-        widget_type="grade-calculator",
-        is_removable=False
-    ), course_id=db_course.id)
+    db.refresh(db_course)
+    gradebook.ensure_course_gradebook(db, db_course)
+    db.refresh(db_course)
 
     # Trigger logic
     if semester_id:

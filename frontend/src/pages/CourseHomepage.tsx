@@ -46,6 +46,7 @@ import {
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
 import { timetableEventBus } from '../plugins/builtin-event-core/shared/eventBus';
+import { BUILTIN_GRADEBOOK_TAB_TYPE, OPEN_GRADEBOOK_TAB_EVENT } from '../plugins/builtin-gradebook/shared';
 import {
     COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
     HOMEPAGE_DASHBOARD_TAB_TYPE,
@@ -407,6 +408,20 @@ const CourseHomepageContent: React.FC = () => {
             setActiveTabId(tabBarItems[0].id);
         }
     }, [activeTabId, areBuiltinTabsReady, tabBarItems]);
+
+    useEffect(() => {
+        const handleOpenGradebookTab = () => {
+            const gradebookTab = visibleTabs.find((tab) => tab.type === BUILTIN_GRADEBOOK_TAB_TYPE);
+            if (gradebookTab) {
+                setActiveTabId(gradebookTab.id);
+            }
+        };
+
+        window.addEventListener(OPEN_GRADEBOOK_TAB_EVENT, handleOpenGradebookTab);
+        return () => {
+            window.removeEventListener(OPEN_GRADEBOOK_TAB_EVENT, handleOpenGradebookTab);
+        };
+    }, [visibleTabs]);
 
     const tabInstanceSettingsSections = useMemo(() => {
         const sections = visibleTabs

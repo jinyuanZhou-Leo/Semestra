@@ -496,6 +496,7 @@ export const canAddTabCatalogItem = (
     const allowedContexts = item.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS;
     if (!allowedContexts.includes(context)) return false;
     if (isUnlimitedInstances(item.maxInstances)) return true;
+    if (item.maxInstances === 0) return currentCount < 1;
     if (typeof item.maxInstances === 'number') return currentCount < item.maxInstances;
     return true;
 };
@@ -508,6 +509,7 @@ export const canAddWidgetCatalogItem = (
     const allowedContexts = item.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS;
     if (!allowedContexts.includes(context)) return false;
     if (isUnlimitedInstances(item.maxInstances)) return true;
+    if (item.maxInstances === 0) return currentCount < 1;
     if (typeof item.maxInstances === 'number') return currentCount < item.maxInstances;
     return true;
 };

@@ -896,12 +896,12 @@ When custom CSS is needed, use CSS variables:
 - **Tabs**: Optimize for large layouts, avoid fixed heights
 - **Responsive**: Test on different screen sizes and grid dimensions
 
-### Example: GradeCalculator
+### Example: Builtin Gradebook
 
-See `frontend/src/plugins/grade-calculator/widget.tsx` for a complete example demonstrating:
-- Using `settings` directly without local state duplication
-- Calling `updateSettings` for all changes
-- Using `useMemo` for computed values
+See `frontend/src/plugins/builtin-gradebook/tab.tsx` for a complete example demonstrating:
+- Metadata-first registration with a lazy runtime entry in `index.ts`
+- Keeping instance view state in `tab.settings` while persisting domain data through backend APIs
+- Pairing a course-only builtin tab with an optional read-only summary widget
 
 ## Widget UI Design Guidelines
 

@@ -9,7 +9,7 @@ Also contains homepage builtin-tab configuration and widget layout normalization
 | __tests__/ | Subdirectory | Test cases for modules in this folder. |
 | googleIdentity.ts | Utility module | Lazy loader for Google Identity Services script. |
 | gpaUtils.ts | Utility module | GPA conversion helpers and default scaling table constants. |
-| homepageBuiltinTabs.ts | Utility module | Builtin homepage tab ordering/config constants. |
+| homepageBuiltinTabs.ts | Utility module | Builtin homepage tab ordering/config constants, including the course Gradebook tab position. |
 | icon.ts | Utility module | Type guard for icon values that should render as images. |
 | passwordRules.ts | Utility module | Password validation rules and helper hint text. |
 | widgetLayout.ts | Utility module | Shared widget layout constraint and size normalization helpers. |

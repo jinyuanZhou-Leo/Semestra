@@ -1,6 +1,6 @@
-// input:  [widget collection, edit-mode flags, v2 RGL width hook, resize-frequency guards, interaction-scoped local sync + commit callbacks, layout normalization utilities]
+// input:  [widget collection, edit-mode flags, v2 RGL width hook, resize-frequency guards, interaction-scoped local sync + commit callbacks, layout normalization utilities, and unavailable-widget delete overrides]
 // output: [`DashboardGrid` component and dashboard layout type contracts]
-// pos:    [Core responsive dashboard renderer with resize-stabilized width updates and split local-sync/commit persistence flows]
+// pos:    [Core responsive dashboard renderer with resize-stabilized width updates, split local-sync/commit persistence flows, and unavailable-widget delete escape hatches]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -361,6 +361,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                                     widget={widget}
                                     index={index}
                                     onRemove={onRemoveWidget && isRemovable ? onRemoveWidget : undefined}
+                                    onRemoveUnavailable={onRemoveWidget}
                                     onEdit={onEditWidget}
                                     onUpdateWidget={onUpdateWidget || (async () => { })}
                                     onUpdateWidgetDebounced={onUpdateWidgetDebounced}

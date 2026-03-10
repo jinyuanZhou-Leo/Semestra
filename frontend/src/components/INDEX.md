@@ -11,7 +11,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | settings/ | Subdirectory | Reserved settings sub-components area. |
 | skeletons/ | Subdirectory | Loading skeleton component set. |
 | ui/ | Subdirectory | shadcn UI primitives (excluded from this documentation scope per request). |
-| widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome and edit-mode-only hover elevation. |
+| widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome, edit-mode-only hover elevation, and forced delete affordances when plugin widgets become unavailable. |
 | AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
 | AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation. |
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |

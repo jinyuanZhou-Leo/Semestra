@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings]
-# output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence endpoints]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance]
+# output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence and gradebook endpoints]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance and gradebook APIs]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -28,6 +28,7 @@ from google.auth.transport import requests as google_requests
 import models
 import schemas
 import crud
+import gradebook
 import auth
 from database import engine, get_db
 
@@ -126,6 +127,15 @@ def now_utc_iso() -> str:
 
 def error_detail(code: str, message: str) -> dict:
     return {"code": code, "message": message}
+
+def raise_gradebook_http_error(exc: Exception) -> None:
+    if isinstance(exc, gradebook.GradebookNotFoundError):
+        raise HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, gradebook.GradebookConflictError):
+        raise HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, gradebook.GradebookValidationError):
+        raise HTTPException(status_code=422, detail=str(exc))
+    raise exc
 
 def validate_time_range(start_time: str, end_time: str):
     try:
@@ -905,6 +915,7 @@ async def export_user_data(
                 courses_export.append(schemas.CourseExport(
                     name=course.name,
                     alias=course.alias,
+                    category=course.category,
                     credits=course.credits,
                     grade_percentage=course.grade_percentage,
                     grade_scaled=course.grade_scaled,
@@ -913,6 +924,7 @@ async def export_user_data(
                     widgets=widgets_export,
                     tabs=tabs_export,
                     plugin_settings=plugin_settings_export,
+                    gradebook=gradebook.export_course_gradebook(course),
                 ))
             
             # Semester widgets and tabs
@@ -1090,6 +1102,7 @@ async def import_user_data(
                     course=schemas.CourseCreate(
                         name=course_data.name,
                         alias=course_data.alias,
+                        category=course_data.category,
                         credits=course_data.credits,
                         grade_percentage=course_data.grade_percentage,
                         grade_scaled=course_data.grade_scaled,
@@ -1137,6 +1150,9 @@ async def import_user_data(
                         ),
                         course_id=course.id,
                     )
+
+                if course_data.gradebook is not None:
+                    gradebook.import_course_gradebook(db, course.id, course_data.gradebook)
     
     for program_data in data.programs:
         name_lower = program_data.name.lower()
@@ -1459,6 +1475,221 @@ def delete_course(
     db.delete(db_course)
     db.commit()
     return {"ok": True}
+
+
+@app.get("/courses/{course_id}/gradebook", response_model=schemas.CourseGradebook)
+def read_course_gradebook(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.get_course_gradebook_payload(db, course.id)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.put("/courses/{course_id}/gradebook/target", response_model=schemas.CourseGradebook)
+def update_course_gradebook_target(
+    course_id: str,
+    payload: schemas.GradebookTargetUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.update_target(db, course.id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.post("/courses/{course_id}/gradebook/scenarios", response_model=schemas.CourseGradebook)
+def create_course_gradebook_scenario(
+    course_id: str,
+    payload: schemas.GradebookScenarioCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.create_scenario(db, course.id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.patch("/courses/{course_id}/gradebook/scenarios/{scenario_id}", response_model=schemas.CourseGradebook)
+def update_course_gradebook_scenario(
+    course_id: str,
+    scenario_id: str,
+    payload: schemas.GradebookScenarioUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.update_scenario(db, course.id, scenario_id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.delete("/courses/{course_id}/gradebook/scenarios/{scenario_id}", response_model=schemas.CourseGradebook)
+def delete_course_gradebook_scenario(
+    course_id: str,
+    scenario_id: str,
+    payload: schemas.GradebookRevisionRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.delete_scenario(db, course.id, scenario_id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.post("/courses/{course_id}/gradebook/categories", response_model=schemas.CourseGradebook)
+def create_course_gradebook_category(
+    course_id: str,
+    payload: schemas.GradebookCategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.create_category(db, course.id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.patch("/courses/{course_id}/gradebook/categories/{category_id}", response_model=schemas.CourseGradebook)
+def update_course_gradebook_category(
+    course_id: str,
+    category_id: str,
+    payload: schemas.GradebookCategoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.update_category(db, course.id, category_id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.delete("/courses/{course_id}/gradebook/categories/{category_id}", response_model=schemas.CourseGradebook)
+def delete_course_gradebook_category(
+    course_id: str,
+    category_id: str,
+    payload: schemas.GradebookRevisionRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.delete_category(db, course.id, category_id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.post("/courses/{course_id}/gradebook/assessments", response_model=schemas.CourseGradebook)
+def create_course_gradebook_assessment(
+    course_id: str,
+    payload: schemas.GradebookAssessmentCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.create_assessment(db, course.id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.patch("/courses/{course_id}/gradebook/assessments/{assessment_id}", response_model=schemas.CourseGradebook)
+def update_course_gradebook_assessment(
+    course_id: str,
+    assessment_id: str,
+    payload: schemas.GradebookAssessmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.update_assessment(db, course.id, assessment_id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.delete("/courses/{course_id}/gradebook/assessments/{assessment_id}", response_model=schemas.CourseGradebook)
+def delete_course_gradebook_assessment(
+    course_id: str,
+    assessment_id: str,
+    payload: schemas.GradebookRevisionRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.delete_assessment(db, course.id, assessment_id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.put("/courses/{course_id}/gradebook/assessments/reorder", response_model=schemas.CourseGradebook)
+def reorder_course_gradebook_assessments(
+    course_id: str,
+    payload: schemas.GradebookAssessmentReorderRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.reorder_assessments(db, course.id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.put("/courses/{course_id}/gradebook/scenario-scores", response_model=schemas.CourseGradebook)
+def update_course_gradebook_scenario_scores(
+    course_id: str,
+    payload: schemas.GradebookScenarioScoresUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.update_scenario_scores(db, course.id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.post("/courses/{course_id}/gradebook/actions/convert-to-solver", response_model=schemas.CourseGradebook)
+def convert_course_gradebook_to_solver(
+    course_id: str,
+    payload: schemas.GradebookConvertToSolverRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.convert_to_solver(db, course.id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
+@app.post("/courses/{course_id}/gradebook/actions/apply-solved-score", response_model=schemas.CourseGradebook)
+def apply_course_gradebook_solved_score(
+    course_id: str,
+    payload: schemas.GradebookApplySolvedScoreRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    try:
+        return gradebook.apply_solved_score(db, course.id, payload)
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
 
 # --- Event Types ---
 @app.get("/courses/{course_id}/event-types", response_model=list[schemas.CourseEventType])

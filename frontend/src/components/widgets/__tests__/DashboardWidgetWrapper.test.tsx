@@ -1,12 +1,12 @@
-// input:  [DashboardWidgetWrapper, mocked plugin-system facade state, and testing-library render assertions]
-// output: [regression tests for widget loading skeletons and loaded-state fade-in rendering]
-// pos:    [Widget wrapper tests that prevent known plugin types from flashing error UI before runtime registration completes]
+// input:  [DashboardWidgetWrapper, mocked plugin-system facade state, and testing-library render assertions/interactions]
+// output: [regression tests for widget loading skeletons, unavailable-widget delete fallback, and loaded-state fade-in rendering]
+// pos:    [Widget wrapper tests that prevent known plugin types from flashing error UI before runtime registration completes and preserve unavailable-widget removal]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardWidgetWrapper } from '../DashboardWidgetWrapper';
 import * as pluginSystem from '../../../plugin-system';
@@ -68,5 +68,24 @@ describe('DashboardWidgetWrapper', () => {
 
         expect(screen.getByTestId('loaded-widget')).toBeInTheDocument();
         expect(container.querySelector('.motion-safe\\:animate-in')).not.toBeNull();
+    });
+
+    it('keeps delete available for unavailable widgets even when the normal widget remove action is disabled', () => {
+        vi.spyOn(pluginSystem, 'useWidgetPluginLoadState').mockReturnValue({ status: 'error', error: new Error('boom') });
+        vi.spyOn(pluginSystem, 'getWidgetComponentByType').mockReturnValue(undefined);
+
+        const onRemoveUnavailable = vi.fn();
+
+        render(
+            <DashboardWidgetWrapper
+                widget={{ id: 'widget-3', type: 'missing-widget', settings: {}, is_removable: false } as any}
+                onRemoveUnavailable={onRemoveUnavailable}
+                onUpdateWidget={vi.fn().mockResolvedValue(undefined)}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete Widget' }));
+
+        expect(onRemoveUnavailable).toHaveBeenCalledWith('widget-3');
     });
 });

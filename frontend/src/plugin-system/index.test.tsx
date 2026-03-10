@@ -9,10 +9,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  canAddTabCatalogItem,
   ensureTabPluginByTypeLoaded,
   ensureWidgetPluginByTypeLoaded,
   getPluginSettingsSections,
   getTabSettingsComponentByType,
+  getTabCatalog,
   getWidgetSettingsComponentByType,
 } from './index';
 
@@ -33,5 +35,12 @@ describe('plugin-system settings API', () => {
     expect(
       getPluginSettingsSections('course').map(({ pluginId, id }) => `${pluginId}:${id}`)
     ).not.toContain('course-list:course-list-management');
+  });
+
+  it('treats maxInstances=0 builtin tabs as a single allowed instance', () => {
+    const gradebookItem = getTabCatalog('course').find((item) => item.type === 'builtin-gradebook');
+    expect(gradebookItem).toBeDefined();
+    expect(canAddTabCatalogItem(gradebookItem!, 'course', 0)).toBe(true);
+    expect(canAddTabCatalogItem(gradebookItem!, 'course', 1)).toBe(false);
   });
 });

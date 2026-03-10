@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, JSON scaling definitions]
-# output: [Business logic helpers for GPA, grades, and week calculations]
-# pos:    [Pure/domain logic layer consumed by API handlers]
+# output: [Business logic helpers for GPA, gradebook target resolution, grades, and week calculations]
+# pos:    [Pure/domain logic layer consumed by API handlers and gradebook services]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -123,6 +123,46 @@ def calculate_gpa(percentage: float, scaling_table: dict) -> float:
     # Fallback if no range matches (e.g. > 100 or < 0, or gaps)
     return 0.0
 
+def get_minimum_percentage_for_gpa(target_gpa: float, scaling_table: dict) -> float | None:
+    """
+    Resolves the minimum percentage threshold that satisfies a target GPA.
+    The search respects discrete grade buckets instead of interpolating between them.
+    """
+    if not scaling_table:
+        return None
+
+    thresholds: list[tuple[float, float]] = []
+    for raw_key, raw_gpa in scaling_table.items():
+        try:
+            gpa_value = float(raw_gpa)
+        except Exception:
+            continue
+
+        key = str(raw_key).strip()
+        lower_bound: float | None = None
+        try:
+            if "-" in key:
+                start, end = map(float, key.split("-", 1))
+                lower_bound = min(start, end)
+            elif key.startswith(">=") or key.startswith(">"):
+                lower_bound = float("".join(ch for ch in key if ch.isdigit() or ch == "."))
+            else:
+                lower_bound = float(key)
+        except Exception:
+            lower_bound = None
+
+        if lower_bound is None:
+            continue
+        thresholds.append((lower_bound, gpa_value))
+
+    if not thresholds:
+        return None
+
+    eligible = [lower_bound for lower_bound, gpa_value in thresholds if gpa_value >= float(target_gpa)]
+    if not eligible:
+        return None
+    return min(eligible)
+
 def update_course_stats(course: models.Course, db: Session):
     """
     Updates the scaled GPA for a course.
@@ -131,7 +171,7 @@ def update_course_stats(course: models.Course, db: Session):
     # course.semester and course.semester.program might trigger DB calls
     
     semester = course.semester
-    program = semester.program if semester else None
+    program = semester.program if semester else course.program
     
     table = get_scaling_table(program)
     course.grade_scaled = calculate_gpa(course.grade_percentage, table)

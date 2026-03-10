@@ -1,6 +1,6 @@
-// input:  [widget item data, widget registry lookup, plugin lazy loader, update/remove callbacks, widget-header glass control styles]
+// input:  [widget item data, widget registry lookup, plugin lazy loader, update/remove callbacks including unavailable-widget override, and widget-header glass control styles]
 // output: [`DashboardWidgetWrapper` component]
-// pos:    [Runtime wrapper that mounts plugin widget content and glassmorphism header controls into the dashboard shell]
+// pos:    [Runtime wrapper that mounts plugin widget content, preserves unavailable-widget delete escape hatches, and renders glassmorphism header controls into the dashboard shell]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -45,6 +45,7 @@ interface DashboardWidgetWrapperProps {
     widget: WidgetItem;
     index?: number;
     onRemove?: (id: string) => void;
+    onRemoveUnavailable?: (id: string) => void;
     onEdit?: (widget: WidgetItem) => void;
     /** For immediate updates (modals, etc.) */
     onUpdateWidget: (id: string, newSettings: any) => Promise<void>;
@@ -69,6 +70,7 @@ interface DashboardWidgetWrapperProps {
 const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = ({
     widget,
     onRemove,
+    onRemoveUnavailable,
     onEdit,
     onUpdateWidget,
     onUpdateWidgetDebounced,
@@ -117,6 +119,10 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     const handleRemove = useCallback(() => {
         if (onRemove) onRemove(widget.id);
     }, [onRemove, widget.id]);
+
+    const handleRemoveUnavailable = useCallback(() => {
+        if (onRemoveUnavailable) onRemoveUnavailable(widget.id);
+    }, [onRemoveUnavailable, widget.id]);
 
     const handleEdit = useCallback(() => {
         if (onEdit) onEdit(widget);
@@ -239,7 +245,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
         return (
             <WidgetContainer
                 id={widget.id}
-                onRemove={onRemove ? handleRemove : undefined}
+                onRemove={onRemoveUnavailable ? handleRemoveUnavailable : onRemove ? handleRemove : undefined}
                 isEditMode={isEditMode}
             >
                 <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center text-muted-foreground bg-muted/20">
@@ -265,11 +271,11 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                             ? `The plugin for ${widget.type} failed to load.`
                             : `The plugin for ${widget.type} is missing or disabled.`}
                     </p>
-                    {onRemove && (
+                    {(onRemoveUnavailable || onRemove) && (
                         <Button
                             variant="destructive"
                             size="sm"
-                            onClick={handleRemove}
+                            onClick={onRemoveUnavailable ? handleRemoveUnavailable : handleRemove}
                         >
                             Delete Widget
                         </Button>
