@@ -18,7 +18,6 @@ const widgetLayouts = new Map([
     ['counter', { w: 3, h: 4 }],
     ['course-list', { w: 6, h: 8 }],
     ['constrained', { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 }],
-    ['ratio-locked', { w: 4, h: 3, minW: 2, minH: 1, maxW: 6, maxH: 6, aspectRatio: 16 / 9 }],
 ]);
 
 // Mock ResizeObserver
@@ -39,10 +38,6 @@ beforeAll(() => {
     });
     WidgetRegistry.register({
         type: 'constrained',
-        component: Counter,
-    });
-    WidgetRegistry.register({
-        type: 'ratio-locked',
         component: Counter,
     });
 });
@@ -265,36 +260,6 @@ describe('DashboardGrid', () => {
             maxW: 2,
             minH: 2,
             maxH: 4
-        });
-    });
-
-    it('normalizes layout to optional aspect ratio when widget defines aspectRatio', () => {
-        const widgets = [
-            {
-                id: '1',
-                type: 'ratio-locked',
-                title: 'Ratio',
-                layout: {
-                    mobile: { x: 0, y: 0, w: 2, h: 6 }
-                }
-            }
-        ];
-
-        render(
-            <DashboardGrid
-                widgets={widgets as any}
-                onLayoutChange={() => { }}
-                semesterId={'1'}
-                isEditMode
-            />
-        );
-
-        const ratioWidget = latestResponsiveProps.layouts?.xxs?.[0];
-        expect(ratioWidget).toMatchObject({
-            x: 0,
-            y: 0,
-            w: 2,
-            h: 1
         });
     });
 

@@ -1,6 +1,6 @@
 // input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, settings registry, and Vite HMR updates]
-// output: [plugin facade helpers for catalogs, load state, metadata resolution, settings resolution, and lazy runtime registration]
-// pos:    [Central plugin manager facade that validates plugin declarations, keeps metadata/settings eager, and loads runtime definitions on demand]
+// output: [plugin facade helpers for catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, and lazy runtime registration]
+// pos:    [Central plugin manager facade that validates plugin declarations, keeps metadata/plugin settings eager, and exposes runtime load-state-aware registration helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,14 +9,15 @@
 import { useSyncExternalStore } from 'react';
 import type { FC } from 'react';
 
-import type { TabContext, TabProps } from '../services/tabRegistry';
+import type { TabContext, TabProps, TabSettingsProps } from '../services/tabRegistry';
 import { TabRegistry } from '../services/tabRegistry';
 import type { WidgetContext, WidgetProps, WidgetSettingsProps } from '../services/widgetRegistry';
 import { WidgetRegistry } from '../services/widgetRegistry';
 import {
     PluginSettingsRegistry,
-    type TabSettingsDefinition,
-    type WidgetGlobalSettingsDefinition,
+    type PluginSettingsContext,
+    type RegisteredPluginSettingsSectionDefinition,
+    usePluginSettingsRegistry as usePluginSettingsRegistryStore,
 } from '../services/pluginSettingsRegistry';
 import type {
     PluginMetadataDefinition,
@@ -35,10 +36,17 @@ import {
     DEFAULT_WIDGET_ALLOWED_CONTEXTS,
 } from './utils';
 export { PluginContentFadeIn, PluginTabSkeleton, PluginWidgetSkeleton } from './PluginLoadSkeleton';
+export { PluginSettingsSectionRenderer } from './PluginSettingsSectionRenderer';
 
 export type { PluginMetadataDefinition, PluginRuntimeDefinition, PluginSettingsDefinition } from './contracts';
 export { definePluginMetadata, definePluginRuntime, definePluginSettings } from './contracts';
 export type { ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
+export type {
+    PluginSettingsContext,
+    PluginSettingsProps,
+    PluginSettingsSectionDefinition,
+    RegisteredPluginSettingsSectionDefinition,
+} from '../services/pluginSettingsRegistry';
 
 type PluginRuntimeModule = {
     default?: PluginRuntimeDefinition;
@@ -74,8 +82,10 @@ interface PluginEntry {
 const IDLE_LOAD_STATE: PluginLoadState = { status: 'idle', error: null };
 
 const listeners = new Set<() => void>();
+let loadStateVersion = 0;
 
 const notifyListeners = () => {
+    loadStateVersion += 1;
     listeners.forEach((listener) => listener());
 };
 
@@ -251,22 +261,24 @@ settingsModulePaths.forEach((path) => {
     if (!entry) return;
 
     const settings = asSettingsDefinition(settingsModules[path]);
-    const invalidTabSetting = settings.tabSettings?.find((definition) => tabTypeToPluginId.get(definition.type) !== entry.id);
-    if (invalidTabSetting) {
-        failValidation(`[plugin-system] Invalid tab settings type "${invalidTabSetting.type}" in plugin "${entry.id}"`);
-        return;
-    }
-    const invalidWidgetSetting = settings.widgetGlobalSettings?.find((definition) => widgetTypeToPluginId.get(definition.type) !== entry.id);
-    if (invalidWidgetSetting) {
-        failValidation(`[plugin-system] Invalid widget settings type "${invalidWidgetSetting.type}" in plugin "${entry.id}"`);
+    const sectionIds = new Set<string>();
+    const invalidPluginSetting = settings.pluginSettings?.find((definition) => {
+        if (typeof definition.id !== 'string' || definition.id.trim().length === 0) {
+            return true;
+        }
+        if (sectionIds.has(definition.id)) {
+            return true;
+        }
+        sectionIds.add(definition.id);
+        return false;
+    });
+    if (invalidPluginSetting) {
+        failValidation(`[plugin-system] Invalid plugin settings section in plugin "${entry.id}"`);
         return;
     }
 
-    if (settings.tabSettings?.length) {
-        PluginSettingsRegistry.registerTabSettingsMany(settings.tabSettings);
-    }
-    if (settings.widgetGlobalSettings?.length) {
-        PluginSettingsRegistry.registerWidgetGlobalSettingsMany(settings.widgetGlobalSettings);
+    if (settings.pluginSettings?.length) {
+        PluginSettingsRegistry.registerPluginSettingsMany(entry.id, settings.pluginSettings);
     }
 });
 
@@ -364,6 +376,15 @@ const forceReloadPluginEntry = async (entry: PluginEntry) => {
     return loadPluginEntry(entry);
 };
 
+const disposePluginEntry = (entry: PluginEntry) => {
+    unregisterEntryRuntime(entry);
+    PluginSettingsRegistry.registerPluginSettingsMany(entry.id, []);
+};
+
+const disposePluginSystemState = () => {
+    pluginEntries.forEach(disposePluginEntry);
+};
+
 const getLoadStateByPluginId = (pluginId?: string): PluginLoadState => {
     if (!pluginId) {
         return IDLE_LOAD_STATE;
@@ -395,20 +416,18 @@ export const useWidgetPluginLoadState = (type?: string): PluginLoadState => {
     );
 };
 
-export const usePluginTabSettingsRegistry = (): TabSettingsDefinition[] => {
+export const usePluginLoadStateVersion = (): number => {
     return useSyncExternalStore(
-        (listener) => PluginSettingsRegistry.subscribe(listener),
-        () => PluginSettingsRegistry.getAllTabSettingsDefinitions(),
-        () => PluginSettingsRegistry.getAllTabSettingsDefinitions()
+        (listener) => subscribe(listener),
+        () => loadStateVersion,
+        () => loadStateVersion
     );
 };
 
-export const usePluginWidgetGlobalSettingsRegistry = (): WidgetGlobalSettingsDefinition[] => {
-    return useSyncExternalStore(
-        (listener) => PluginSettingsRegistry.subscribe(listener),
-        () => PluginSettingsRegistry.getAllWidgetGlobalSettingsDefinitions(),
-        () => PluginSettingsRegistry.getAllWidgetGlobalSettingsDefinitions()
-    );
+export const usePluginSettingsRegistry = (
+    context?: PluginSettingsContext
+): RegisteredPluginSettingsSectionDefinition[] => {
+    return usePluginSettingsRegistryStore(context);
 };
 
 export const hasTabPluginForType = (type: string) => tabTypeToPluginId.has(type);
@@ -501,11 +520,21 @@ export const getWidgetComponentByType = (type: string): FC<WidgetProps> | undefi
     return WidgetRegistry.getComponent(type);
 };
 
+export const getTabSettingsComponentByType = (type: string): FC<TabSettingsProps> | undefined => {
+    return TabRegistry.get(type)?.SettingsComponent;
+};
+
 export const getWidgetSettingsComponentByType = (type: string): FC<WidgetSettingsProps> | undefined => {
     return WidgetRegistry.get(type)?.SettingsComponent;
 };
 
 export const getWidgetDefinitionByType = (type: string) => WidgetRegistry.get(type);
+
+export const getPluginSettingsSections = (
+    context?: PluginSettingsContext
+): RegisteredPluginSettingsSectionDefinition[] => {
+    return PluginSettingsRegistry.getAllPluginSettingsSections(context);
+};
 
 const getPluginDirectoryFromRuntimePath = (path: string): string | null => {
     const match = path.match(/^\.\.\/plugins\/([^/]+)\//);
@@ -513,6 +542,10 @@ const getPluginDirectoryFromRuntimePath = (path: string): string | null => {
 };
 
 if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+        disposePluginSystemState();
+    });
+
     import.meta.hot.accept(runtimeHmrModulePaths, (updatedModules) => {
         const affectedEntries = new Set<PluginEntry>();
         runtimeHmrModulePaths.forEach((path, index) => {

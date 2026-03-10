@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks]
-// output: [Program/Semester/Course/Widget/Tab types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, settings, and auth-adjacent data flows]
+// output: [Program/Semester/Course/Widget/Tab/PluginSetting types and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, and auth-adjacent data flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -65,6 +65,14 @@ export interface Tab {
     order_index: number;
     is_removable?: boolean;
     is_draggable?: boolean;
+}
+
+export interface PluginSetting {
+    id: string;
+    plugin_id: string;
+    settings: string;
+    semester_id?: string;
+    course_id?: string;
 }
 
 const inFlightRequests = new Map<string, Promise<unknown>>();
@@ -213,6 +221,34 @@ const api = {
     },
     deleteTab: async (tabId: string) => {
         await axios.delete(`/api/tabs/${tabId}`);
+    },
+
+    // Plugin settings
+    getPluginSettingsForSemester: async (semesterId: string) => {
+        return dedupeGet(`GET:/api/semesters/${semesterId}/plugin-settings`, async () => {
+            const response = await axios.get<PluginSetting[]>(`/api/semesters/${semesterId}/plugin-settings`);
+            return response.data;
+        });
+    },
+    getPluginSettingsForCourse: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/plugin-settings`, async () => {
+            const response = await axios.get<PluginSetting[]>(`/api/courses/${courseId}/plugin-settings`);
+            return response.data;
+        });
+    },
+    upsertPluginSettingsForSemester: async (semesterId: string, pluginId: string, data: { settings: string }) => {
+        const response = await axios.put<PluginSetting>(`/api/semesters/${semesterId}/plugin-settings/${pluginId}`, {
+            plugin_id: pluginId,
+            settings: data.settings,
+        });
+        return response.data;
+    },
+    upsertPluginSettingsForCourse: async (courseId: string, pluginId: string, data: { settings: string }) => {
+        const response = await axios.put<PluginSetting>(`/api/courses/${courseId}/plugin-settings/${pluginId}`, {
+            plugin_id: pluginId,
+            settings: data.settings,
+        });
+        return response.data;
     },
 
     // Auth

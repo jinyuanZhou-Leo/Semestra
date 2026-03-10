@@ -17,7 +17,6 @@ export interface WidgetLayoutDefinition {
     minH?: number;
     maxW?: number;
     maxH?: number;
-    aspectRatio?: number;
 }
 
 export interface TabCatalogItem {

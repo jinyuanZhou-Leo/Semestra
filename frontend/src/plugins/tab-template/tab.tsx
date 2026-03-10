@@ -1,7 +1,19 @@
+// input:  [tab registry contracts, shared template settings helpers, and form primitives]
+// output: [`TemplateTab`, `TemplateTabDefinition`, and template tab instance settings UI]
+// pos:    [starter tab runtime that demonstrates instance settings through `TabDefinition.SettingsComponent`]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
-import React, { useCallback, useMemo } from 'react';
-import type { TabDefinition, TabProps } from '../../services/tabRegistry';
+import React, { useCallback, useId, useMemo } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { SettingsSection } from '@/components/SettingsSection';
+import type { TabDefinition, TabProps, TabSettingsProps } from '../../services/tabRegistry';
 import { resolveTemplateSettings } from './shared';
 
 const TemplateTabComponent: React.FC<TabProps> = ({ settings, updateSettings }) => {
@@ -65,9 +77,57 @@ const TemplateTabComponent: React.FC<TabProps> = ({ settings, updateSettings }) 
 
 export const TemplateTab = TemplateTabComponent;
 
+const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
+    const resolved = useMemo(() => resolveTemplateSettings(settings), [settings]);
+    const titleId = useId();
+    const checklistId = useId();
+
+    const handleTitleChange = useCallback((value: string) => {
+        updateSettings({ ...resolved, title: value });
+    }, [resolved, updateSettings]);
+
+    const handleChecklistToggle = useCallback((checked: boolean) => {
+        updateSettings({ ...resolved, showChecklist: checked });
+    }, [resolved, updateSettings]);
+
+    return (
+        <SettingsSection
+            title="Display"
+            description="Configure how this tab is displayed."
+        >
+            <div className="grid gap-4">
+                <div className="grid max-w-sm gap-2">
+                    <Label htmlFor={titleId}>
+                        Template Title
+                    </Label>
+                    <Input
+                        id={titleId}
+                        value={resolved.title}
+                        onChange={(event) => handleTitleChange(event.target.value)}
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        id={checklistId}
+                        checked={resolved.showChecklist}
+                        onCheckedChange={(checked) => {
+                            if (checked === 'indeterminate') return;
+                            handleChecklistToggle(checked);
+                        }}
+                    />
+                    <Label htmlFor={checklistId} className="cursor-pointer text-sm font-normal text-muted-foreground">
+                        Show quick-start checklist
+                    </Label>
+                </div>
+            </div>
+        </SettingsSection>
+    );
+};
+
 export const TemplateTabDefinition: TabDefinition = {
     type: 'tab-template',
     component: TemplateTab,
+    SettingsComponent: TemplateTabSettingsComponent,
     defaultSettings: {
         title: 'Tab Template',
         note: '',

@@ -2,7 +2,7 @@
 
 Cross-page hooks for data sync, dashboard state, and UI responsiveness.
 Contains optimistic CRUD orchestration for tabs/widgets with context-change cancellation guards.
-Includes stale-request-safe fetch primitives plus parallelized order/layout backend synchronization logic.
+Includes stale-request-safe fetch primitives, framework-managed plugin shared-settings autosave, and parallelized order/layout backend synchronization logic.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -15,7 +15,9 @@ Includes stale-request-safe fetch primitives plus parallelized order/layout back
 | useDataFetch.ts | Hook module | Generic fetch hook with loading/error state plus stale-response guards to prevent older requests from overwriting newer state. |
 | useEntityContext.ts | Hook module | Generic optimistic entity-sync hook with debounced persistence and entity-switch guards for pending update queues. |
 | useHomepageBuiltinTabs.ts | Hook module | Custom hook implementing use homepage builtin tabs behavior. |
+| usePluginSharedSettings.ts | Hook module | Loads one plugin-level shared-settings record for the active semester/course context and syncs updates through framework autosave with debounce and max-wait forcing. |
 | usePrefersReducedMotion.ts | Hook module | Custom hook implementing use prefers reduced motion behavior. |
 | useScrollProgress.ts | Hook module | Custom hook implementing use scroll progress behavior. |
 | useStickyCollapse.ts | Hook module | Custom hook implementing use sticky collapse behavior. |
 | useTouchDevice.ts | Hook module | Custom hook implementing use touch device behavior. |
+| useVisibleTabSettingsPreload.ts | Hook module | Preloads visible tab runtimes so inactive tabs can still expose instance settings inside the Settings page. |

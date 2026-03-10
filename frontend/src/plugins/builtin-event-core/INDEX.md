@@ -11,9 +11,9 @@ Subfolders split reusable dialogs/utilities from tab-specific UI to keep semeste
 | components/INDEX.md | Shared components architecture index | File map for reusable event-core dialogs and weekly conflict-aware schedule rendering. |
 | index.ts | Runtime entry | Exports plugin definitions and metadata bindings for loader integration. |
 | metadata.ts | Plugin metadata | Declares plugin id and catalog-visible tab/widget metadata. |
-| settings.tsx | Settings registry | Registers tab-level settings panels for calendar, course schedule, and todo modules while ensuring built-in Calendar sources are registered. |
+| settings.tsx | Settings entry | Keeps plugin-global settings discovery stable without opting built-in event-core behavior into the framework-managed shared-settings persistence path. |
 | shared/ | Shared domain layer | Constants, event bus, hooks, types, and helpers shared by event-core tabs/widgets, including source ids and Reading Week-aware calendar semantics. |
 | shared/INDEX.md | Shared architecture index | File map for shared schedule payloads, event bus contracts, and cache-aware hooks. |
-| tab.tsx | Tab definition entry | Exposes tab runtime definitions and wiring for plugin system consumption. |
+| tab.tsx | Tab definition entry | Exposes tab runtime definitions plus generic tab instance settings wiring for plugin-system consumption. |
 | tabs/ | Tab modules | Calendar, course-schedule, and todo feature implementations, including registry-backed Calendar source adapters and configurable week-view scroll width. |
 | widget.tsx | Widget runtime | Event-core widget card runtime and schedule summary presentation. |

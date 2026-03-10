@@ -64,6 +64,16 @@ const createDeferred = <T,>() => {
     return { promise, resolve, reject };
 };
 
+const buildPluginSettingsProps = (semesterId: string) => ({
+    semesterId,
+    settings: {},
+    updateSettings: vi.fn(),
+    saveState: 'idle' as const,
+    hasPendingChanges: false,
+    isLoading: false,
+    onRefresh: vi.fn(),
+});
+
 describe('CourseListGlobalSettings', () => {
     afterEach(() => {
         vi.restoreAllMocks();
@@ -81,10 +91,10 @@ describe('CourseListGlobalSettings', () => {
         });
 
         const { rerender } = render(
-            <CourseListGlobalSettings semesterId="semester-1" onRefresh={vi.fn()} />
+            <CourseListGlobalSettings {...buildPluginSettingsProps('semester-1')} />
         );
 
-        rerender(<CourseListGlobalSettings semesterId="semester-2" onRefresh={vi.fn()} />);
+        rerender(<CourseListGlobalSettings {...buildPluginSettingsProps('semester-2')} />);
 
         secondSemester.resolve(buildSemesterResponse('semester-2', 'Physics'));
         expect(await screen.findByText('Physics')).toBeInTheDocument();
@@ -100,7 +110,7 @@ describe('CourseListGlobalSettings', () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
         vi.spyOn(api, 'getSemester').mockRejectedValueOnce(new Error('Semester unavailable'));
 
-        render(<CourseListGlobalSettings semesterId="semester-1" onRefresh={vi.fn()} />);
+        render(<CourseListGlobalSettings {...buildPluginSettingsProps('semester-1')} />);
 
         expect(await screen.findByText('Could not refresh semester courses')).toBeInTheDocument();
 

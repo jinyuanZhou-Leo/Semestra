@@ -1,5 +1,5 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums]
-# output: [Request/response schema classes for API contracts]
+# output: [Request/response schema classes for API contracts, including plugin-shared settings payloads]
 # pos:    [Serialization and validation layer between API and domain]
 #
 # ⚠️ When this file is updated:
@@ -176,6 +176,22 @@ class TabUpdate(BaseModel):
     order_index: Optional[int] = None
     is_draggable: Optional[bool] = None
 
+# --- Plugin Settings Schemas ---
+class PluginSettingBase(BaseModel):
+    plugin_id: str
+    settings: str = "{}"
+
+class PluginSettingCreate(PluginSettingBase):
+    pass
+
+class PluginSetting(PluginSettingBase):
+    id: str
+    semester_id: Optional[str] = None
+    course_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 # --- Course Schemas ---
 class CourseBase(BaseModel):
     name: str
@@ -211,6 +227,7 @@ class Course(CourseBase):
 class CourseWithWidgets(Course):
     widgets: List[Widget] = []
     tabs: List[Tab] = []
+    plugin_settings: List[PluginSetting] = []
 
 
 # --- Semester Schemas ---
@@ -236,6 +253,7 @@ class SemesterWithDetails(Semester):
     courses: List[Course] = []
     widgets: List[Widget] = []
     tabs: List[Tab] = []
+    plugin_settings: List[PluginSetting] = []
 
 
 # --- Program Schemas ---
@@ -509,6 +527,10 @@ class TabExport(BaseModel):
     is_removable: bool = True
     is_draggable: bool = True
 
+class PluginSettingExport(BaseModel):
+    plugin_id: str
+    settings: str = "{}"
+
 class CourseExport(BaseModel):
     name: str
     alias: Optional[str] = None
@@ -520,6 +542,7 @@ class CourseExport(BaseModel):
     hide_gpa: bool = False
     widgets: List[WidgetExport] = []
     tabs: List[TabExport] = []
+    plugin_settings: List[PluginSettingExport] = []
 
 class SemesterExport(BaseModel):
     name: str
@@ -528,6 +551,7 @@ class SemesterExport(BaseModel):
     courses: List[CourseExport] = []
     widgets: List[WidgetExport] = []
     tabs: List[TabExport] = []
+    plugin_settings: List[PluginSettingExport] = []
 
 class ProgramExport(BaseModel):
     name: str

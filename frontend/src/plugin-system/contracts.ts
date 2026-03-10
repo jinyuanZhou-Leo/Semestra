@@ -8,10 +8,7 @@
 
 import type { TabDefinition } from '../services/tabRegistry';
 import type { WidgetDefinition } from '../services/widgetRegistry';
-import type {
-    TabSettingsDefinition,
-    WidgetGlobalSettingsDefinition,
-} from '../services/pluginSettingsRegistry';
+import type { PluginSettingsSectionDefinition } from '../services/pluginSettingsRegistry';
 import type { TabCatalogItem, WidgetCatalogItem } from './types';
 
 export interface PluginMetadataDefinition {
@@ -26,8 +23,7 @@ export interface PluginRuntimeDefinition {
 }
 
 export interface PluginSettingsDefinition {
-    tabSettings?: TabSettingsDefinition[];
-    widgetGlobalSettings?: WidgetGlobalSettingsDefinition[];
+    pluginSettings?: PluginSettingsSectionDefinition[];
 }
 
 export const definePluginMetadata = (definition: PluginMetadataDefinition): PluginMetadataDefinition => ({
@@ -42,6 +38,5 @@ export const definePluginRuntime = (definition: PluginRuntimeDefinition): Plugin
 });
 
 export const definePluginSettings = (definition: PluginSettingsDefinition): PluginSettingsDefinition => ({
-    tabSettings: definition.tabSettings ?? [],
-    widgetGlobalSettings: definition.widgetGlobalSettings ?? [],
+    pluginSettings: definition.pluginSettings ?? [],
 });

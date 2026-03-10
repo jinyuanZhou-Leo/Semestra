@@ -1,5 +1,5 @@
 # input:  [SQLAlchemy session, models, schemas, timezone/date helpers]
-# output: [CRUD functions for users, tasks, courses, widgets, and settings]
+# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, and user settings]
 # pos:    [Database access layer for backend services]
 #
 # ⚠️ When this file is updated:
@@ -319,6 +319,10 @@ def _ensure_tab_context(semester_id: str | None, course_id: str | None):
     if (semester_id is None and course_id is None) or (semester_id is not None and course_id is not None):
         raise ValueError("Tab must be attached to exactly one context (semester_id or course_id).")
 
+def _ensure_plugin_settings_context(semester_id: str | None, course_id: str | None):
+    if (semester_id is None and course_id is None) or (semester_id is not None and course_id is not None):
+        raise ValueError("Plugin settings must be attached to exactly one context (semester_id or course_id).")
+
 # --- Widget CRUD ---
 def create_widget(db: Session, widget: schemas.WidgetCreate, semester_id: str | None = None, course_id: str | None = None):
     _ensure_widget_context(semester_id, course_id)
@@ -386,3 +390,57 @@ def update_tab(db: Session, tab_id: str, tab_update: schemas.TabUpdate):
     db.commit()
     db.refresh(db_tab)
     return db_tab
+
+# --- Plugin Settings CRUD ---
+def get_plugin_settings_for_context(
+    db: Session,
+    semester_id: str | None = None,
+    course_id: str | None = None,
+):
+    _ensure_plugin_settings_context(semester_id, course_id)
+    query = db.query(models.PluginSetting)
+    if semester_id is not None:
+        query = query.filter(models.PluginSetting.semester_id == semester_id)
+    if course_id is not None:
+        query = query.filter(models.PluginSetting.course_id == course_id)
+    return query.order_by(models.PluginSetting.plugin_id.asc()).all()
+
+def get_plugin_setting(
+    db: Session,
+    plugin_id: str,
+    semester_id: str | None = None,
+    course_id: str | None = None,
+):
+    _ensure_plugin_settings_context(semester_id, course_id)
+    query = db.query(models.PluginSetting).filter(models.PluginSetting.plugin_id == plugin_id)
+    if semester_id is not None:
+        query = query.filter(models.PluginSetting.semester_id == semester_id)
+    if course_id is not None:
+        query = query.filter(models.PluginSetting.course_id == course_id)
+    return query.first()
+
+def upsert_plugin_setting(
+    db: Session,
+    plugin_setting: schemas.PluginSettingCreate,
+    semester_id: str | None = None,
+    course_id: str | None = None,
+):
+    _ensure_plugin_settings_context(semester_id, course_id)
+    db_plugin_setting = get_plugin_setting(
+        db,
+        plugin_id=plugin_setting.plugin_id,
+        semester_id=semester_id,
+        course_id=course_id,
+    )
+    if db_plugin_setting is None:
+        db_plugin_setting = models.PluginSetting(
+            plugin_id=plugin_setting.plugin_id,
+            semester_id=semester_id,
+            course_id=course_id,
+        )
+
+    db_plugin_setting.settings = plugin_setting.settings
+    db.add(db_plugin_setting)
+    db.commit()
+    db.refresh(db_plugin_setting)
+    return db_plugin_setting

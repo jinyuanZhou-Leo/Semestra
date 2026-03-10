@@ -12,4 +12,4 @@ Also contains homepage builtin-tab configuration and widget layout normalization
 | homepageBuiltinTabs.ts | Utility module | Builtin homepage tab ordering/config constants. |
 | icon.ts | Utility module | Type guard for icon values that should render as images. |
 | passwordRules.ts | Utility module | Password validation rules and helper hint text. |
-| widgetLayout.ts | Utility module | Shared widget layout constraint/aspect-ratio normalization helpers. |
+| widgetLayout.ts | Utility module | Shared widget layout constraint and size normalization helpers. |

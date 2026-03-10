@@ -17,7 +17,6 @@ export interface WidgetLayoutConstraints {
     minH: number;
     maxW: number;
     maxH?: number;
-    aspectRatio?: number;
 }
 
 const clamp = (value: number, minValue: number, maxValue: number): number => {
@@ -33,11 +32,6 @@ const toSafeInteger = (value: unknown, fallback: number): number => {
     return Math.floor(value);
 };
 
-const toSafeAspectRatio = (value: unknown): number | undefined => {
-    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
-    return value;
-};
-
 const clampHeight = (value: number, minH: number, maxH?: number): number => {
     if (maxH === undefined) return clampMin(value, minH);
     return clamp(value, minH, maxH);
@@ -51,51 +45,6 @@ const normalizeWithoutAspectRatio = (
     const w = clamp(toSafeInteger(rawW, constraints.defaultW), constraints.minW, constraints.maxW);
     const h = clampHeight(toSafeInteger(rawH, constraints.defaultH), constraints.minH, constraints.maxH);
     return { w, h };
-};
-
-const chooseBestAspectRatioSize = (
-    targetW: number,
-    targetH: number,
-    constraints: WidgetLayoutConstraints
-) => {
-    const ratio = constraints.aspectRatio;
-    if (!ratio) {
-        return { w: targetW, h: targetH };
-    }
-
-    let best = {
-        w: targetW,
-        h: targetH,
-        score: Number.POSITIVE_INFINITY
-    };
-
-    for (let w = constraints.minW; w <= constraints.maxW; w += 1) {
-        const idealH = w / ratio;
-        const candidateHValues = new Set<number>([
-            Math.floor(idealH),
-            Math.round(idealH),
-            Math.ceil(idealH),
-            constraints.minH,
-            targetH
-        ]);
-        if (constraints.maxH !== undefined) {
-            candidateHValues.add(constraints.maxH);
-        }
-
-        candidateHValues.forEach((hCandidate) => {
-            const h = clampHeight(hCandidate, constraints.minH, constraints.maxH);
-            if (h <= 0) return;
-            const ratioError = Math.abs((w / h) - ratio);
-            const sizeDrift = Math.abs(w - targetW) + Math.abs(h - targetH);
-            const score = ratioError * 100 + sizeDrift;
-
-            if (score < best.score) {
-                best = { w, h, score };
-            }
-        });
-    }
-
-    return { w: best.w, h: best.h };
 };
 
 export const resolveWidgetLayoutConstraints = (
@@ -115,7 +64,6 @@ export const resolveWidgetLayoutConstraints = (
             : undefined;
     const defaultHRaw = toSafeInteger(layoutDef?.h, DEFAULT_WIDGET_LAYOUT.h);
     const defaultH = clampHeight(defaultHRaw, minH, maxH);
-    const aspectRatio = toSafeAspectRatio(layoutDef?.aspectRatio);
 
     return {
         defaultW,
@@ -124,7 +72,6 @@ export const resolveWidgetLayoutConstraints = (
         minH,
         maxW,
         maxH,
-        aspectRatio,
     };
 };
 
@@ -133,10 +80,7 @@ export const normalizeWidgetSize = (
     rawH: unknown,
     constraints: WidgetLayoutConstraints
 ) => {
-    const normalized = normalizeWithoutAspectRatio(rawW, rawH, constraints);
-    if (!constraints.aspectRatio) return normalized;
-
-    return chooseBestAspectRatioSize(normalized.w, normalized.h, constraints);
+    return normalizeWithoutAspectRatio(rawW, rawH, constraints);
 };
 
 export const normalizeLayoutX = (

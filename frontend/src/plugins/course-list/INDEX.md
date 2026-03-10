@@ -2,8 +2,8 @@
 
 Course-list plugin shows semester-scoped course cards with grade/credit metadata and quick navigation links.
 `metadata.ts` is eagerly loaded for plugin catalog usage while `index.ts` lazily exports runtime definitions.
-`widget.tsx` and `globalSettings.tsx` now expose explicit loading, retry, and failure feedback instead of collapsing errors into empty states.
-The global settings surface now ignores stale semester responses and only opens course management after a valid semester/program payload is loaded.
+`widget.tsx` and `globalSettings.tsx` expose explicit loading, retry, and failure feedback instead of collapsing errors into empty states.
+The plugin-global settings surface now receives framework-managed shared-settings props while still using direct semester management APIs for its builtin-style course operations.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -11,7 +11,7 @@ The global settings surface now ignores stale semester responses and only opens 
 | globalSettings.test.tsx | Test file | Covers stale semester-response protection and the disabled course-manager entry when semester details fail to load. |
 | metadata.ts | Plugin metadata | Declares plugin id and widget catalog entry metadata. |
 | index.ts | Runtime entry | Exports widget definition and metadata for plugin loader integration. |
-| settings.ts | Settings entry | Exposes eager settings arrays used by plugin settings framework. |
-| globalSettings.tsx | Global settings UI | Provides shared/global configuration controls with semester load retry UI, stale-response guards, and a disabled manager entry until semester/program data is valid. |
+| settings.ts | Settings entry | Registers plugin-global settings sections for semester course management and opts into framework-managed shared-settings props. |
+| globalSettings.tsx | Plugin settings UI | Provides shared course-management controls with semester load retry UI, stale-response guards, and a disabled manager entry until semester/program data is valid while remaining compatible with framework-managed plugin settings props. |
 | widget.test.tsx | Test file | Covers widget loading, error alert, and retry behavior for semester course fetches. |
 | widget.tsx | Widget runtime | Fetches and renders semester courses with race-safe async updates plus explicit loading/error/empty states. |

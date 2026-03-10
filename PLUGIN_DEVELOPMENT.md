@@ -44,8 +44,8 @@ default export definePluginSettings(...)"]
 
 The important split is:
 - `metadata.ts` drives add-modal catalogs and display metadata before runtime code is loaded.
-- `index.ts` stays lazy and only registers tab/widget runtime definitions when a type is actually needed.
-- `settings.ts` / `settings.tsx` is eager so Settings-page sections are available without waiting for tab/widget runtime modules.
+- `index.ts` stays lazy and registers tab/widget runtime definitions plus instance settings when a type is actually needed.
+- `settings.ts` / `settings.tsx` is eager and reserved for plugin-global settings sections that are shared across instances.
 
 ### Plugin Folder Structure (Recommended)
 
@@ -53,7 +53,7 @@ The important split is:
 frontend/src/plugins/<plugin-name>/
   metadata.ts     // REQUIRED: Plugin id, widget/tab catalog entries (name, icon, layout, etc.)
   index.ts        // REQUIRED: Default-exports definePluginRuntime(...) (lazy runtime UI entry)
-  settings.ts(x)  // OPTIONAL: Default-exports definePluginSettings(...) when plugin exposes settings sections
+  settings.ts(x)  // OPTIONAL: Default-exports definePluginSettings(...) when plugin exposes plugin-global settings
   widget.tsx      // Optional: widget implementation
   tab.tsx         // Optional: tab implementation
   shared.ts       // Optional: shared types/helpers
@@ -94,18 +94,18 @@ Framework behavior:
 The plugin system scans:
 - `metadata.ts` with eager `import.meta.glob` for catalog display (name, icon, layout).
 - `index.ts` with `import.meta.glob` for lazy runtime registration (tab/widget UI).
-- `settings.ts` / `settings.tsx` with eager `import.meta.glob` for settings registration (only if the file exists).
+- `settings.ts` / `settings.tsx` with eager `import.meta.glob` for plugin-global settings registration (only if the file exists).
 
 If `index.ts` default-exports `definePluginRuntime(...)`, runtime UI remains lazy.
-If `settings.ts` / `settings.tsx` default-exports `definePluginSettings(...)`, settings panels are always available without waiting for runtime UI modules.
+If `settings.ts` / `settings.tsx` default-exports `definePluginSettings(...)`, plugin-global settings panels are available without waiting for runtime UI modules.
 
 **Loading Model**
 - Metadata (`metadata.ts`): eagerly loaded — names, descriptions, icons, layout, context limits, and instance limits are available before runtime modules.
 - Runtime UI (`index.ts` -> `tab.tsx` / `widget.tsx`): lazy-loaded.
-- Settings UI (`settings.ts` / `settings.tsx`): eagerly loaded (optional).
-- This keeps catalogs and Settings-page sections available without loading runtime UI bundles.
+- Plugin-global settings UI (`settings.ts` / `settings.tsx`): eagerly loaded (optional).
+- This keeps catalogs and shared plugin settings available without loading runtime UI bundles.
 
-> **Note**: `settings.ts` is optional. Plugins without tab settings or widget global settings do not need this file.
+> **Note**: `settings.ts` is optional. Plugins without shared plugin settings do not need this file.
 
 ### Plugin Manager Facade
 
@@ -120,12 +120,15 @@ Useful public helpers:
 - `ensureWidgetPluginByTypeLoaded(type)`
 - `useTabPluginLoadState(type)`
 - `useWidgetPluginLoadState(type)`
-- `usePluginTabSettingsRegistry()`
-- `usePluginWidgetGlobalSettingsRegistry()`
+- `usePluginLoadStateVersion()`
+- `getTabSettingsComponentByType(type)`
+- `getWidgetSettingsComponentByType(type)`
+- `usePluginSettingsRegistry(context?)`
 
 Important behavior:
 - `ensure*PluginByTypeLoaded(...)` returns `true` only when runtime registration actually succeeds.
 - Failed runtime imports move the plugin into `error` state; consumers should not treat that as an unknown type.
+- `usePluginLoadStateVersion()` is useful when a page needs to react to multiple plugin load-state transitions while resolving several tab settings sections at once.
 - `TabRegistry`, `WidgetRegistry`, and `PluginSettingsRegistry` still exist internally, but page-level integration should prefer the facade above.
 
 ## Structure
@@ -196,15 +199,24 @@ export interface WidgetSettingsProps<S = any> {
     onSettingsChange: (newSettings: S) => void;
 }
 
-// Plugin-level global settings (shown in Settings tab)
-export interface WidgetGlobalSettingsProps {
-    semesterId?: string;   // Semester context (if applicable)
-    courseId?: string;     // Course context (if applicable)
-    onRefresh: () => void; // Call to refresh parent data after mutations
+// Plugin-level shared settings (shown in Settings tab)
+export interface PluginSettingsProps<S = any> {
+    settings: S;                               // Framework-managed shared settings for this plugin + context
+    updateSettings: (newSettings: S) => void | Promise<void>; // Debounced/max-wait sync, just like tab/widget settings
+    saveState: 'idle' | 'saving' | 'success'; // Current framework save state for the shared settings record
+    hasPendingChanges: boolean;                // Whether unsaved shared-settings edits are queued
+    isLoading: boolean;                        // Whether the shared settings record is still loading
+    semesterId?: string;                       // Semester context (if applicable)
+    courseId?: string;                         // Course context (if applicable)
+    onRefresh: () => void;                     // Escape hatch for refreshing host-owned data after custom mutations
 }
 ```
 
-Plugin-level settings are registered in `settings.ts` / `settings.tsx`, not through the runtime definition. The framework-supported global settings path is the `widgetGlobalSettings` array returned from `definePluginSettings(...)`.
+Plugin-level settings are registered in `settings.ts` / `settings.tsx`, not through the runtime definition. The framework-supported shared settings path is the `pluginSettings` array returned from `definePluginSettings(...)`.
+
+For regular plugins, prefer storing plugin-level configuration in `settings` and updating it with `updateSettings(...)`. The framework persists one shared JSON record per plugin per active context (`pluginId + semesterId` or `pluginId + courseId`) using the same debounce/max-wait autosave pattern as tab and widget settings.
+
+Builtin or host-coupled plugins can still ignore `settings` / `updateSettings` and call private APIs directly when they need richer operations than a shared JSON payload.
 
 `WidgetDefinition.globalSettingsComponent` is not part of the supported API. If you need a Settings-page section, register it through `definePluginSettings(...)`.
 
@@ -301,8 +313,8 @@ const MyWidgetSettings: React.FC<WidgetSettingsProps> = ({ settings, onSettingsC
 
 ### Plugin-Level Global Settings
 
-Widgets can provide plugin-level settings panels that are rendered in the Settings tab.
-Unlike `SettingsComponent` (which is per-instance and shown in a modal), plugin-level settings are shown once in the Settings tab regardless of how many widget instances exist.
+Plugins can provide plugin-level settings panels that are rendered in the Settings tab.
+Unlike `SettingsComponent` (which is per-instance and shown in a modal), plugin-level settings are shown once in the Settings tab regardless of how many tab/widget instances exist.
 Register these panels in `settings.ts` / `settings.tsx`.
 
 Use cases:
@@ -310,36 +322,64 @@ Use cases:
 - Plugin-wide configuration that applies to all instances
 - Management functions (e.g., adding/removing items)
 - Settings that don't belong to any specific widget instance
+- Shared JSON settings that all tabs/widgets in the same plugin/context can read
 
 **Example - Course List Plugin (`settings.ts`)**:
 ```typescript
 import { definePluginSettings } from '../../plugin-system/contracts';
-import type { WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
-import type { WidgetGlobalSettingsProps } from '../../services/widgetRegistry';
+import type { PluginSettingsProps, PluginSettingsSectionDefinition } from '../../services/pluginSettingsRegistry';
 
-const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ 
-    semesterId, 
-    onRefresh 
+interface CourseListSharedSettings {
+    sortBy?: 'name' | 'grade';
+}
+
+const CourseListGlobalSettings: React.FC<PluginSettingsProps<CourseListSharedSettings>> = ({
+    settings,
+    updateSettings,
+    saveState,
+    semesterId,
+    onRefresh,
 }) => {
-    // Fetch semester data, manage courses, etc.
+    const nextSettings = {
+        sortBy: settings?.sortBy ?? 'name',
+    };
+
     return (
         <SettingsSection title="Courses" description="Manage courses">
-            {/* Course management UI */}
+            <Select
+                value={nextSettings.sortBy}
+                onValueChange={(sortBy: 'name' | 'grade') => {
+                    void Promise.resolve(updateSettings({ ...nextSettings, sortBy }));
+                }}
+            >
+                <SelectTrigger>
+                    <SelectValue placeholder="Sort courses by" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="grade">Grade</SelectItem>
+                </SelectContent>
+            </Select>
+
+            <p className="text-xs text-muted-foreground">
+                Shared settings save automatically ({saveState}).
+            </p>
         </SettingsSection>
     );
 };
 
 export default definePluginSettings({
-  widgetGlobalSettings: [
+  pluginSettings: [
     {
-      type: 'course-list',
+      id: 'course-list-management',
       component: CourseListGlobalSettings,
+      allowedContexts: ['semester'],
     },
-  ] satisfies WidgetGlobalSettingsDefinition[],
+  ] satisfies PluginSettingsSectionDefinition[],
 });
 ```
 
-**Note**: The panel is shown only when the widget catalog `allowedContexts` includes the current page context (semester or course).
+**Note**: Context visibility for plugin-global settings is declared by `allowedContexts` on each `pluginSettings` section.
 
 
 ### WidgetProps
@@ -369,9 +409,6 @@ For resizable dashboard widgets, prefer a single responsive component over multi
 - Split into internal subviews only when layout structure is fundamentally different (for example `CompactView` vs `FullView`), still under one widget component.
 - Define size tokens for spacing, typography, controls, and visual elements so scaling is consistent.
 - Validate at minimum, medium, and maximum widget sizes to prevent overflow regressions.
-- If your widget needs a stable shape during resize, set `layout.aspectRatio` (for example `1`, `4 / 3`, or `16 / 9`).
-- `aspectRatio` is optional. The framework keeps the closest integer grid size that respects `min/max` constraints.
-
 This keeps behavior consistent, reduces maintenance cost, and avoids state divergence between size variants.
 
 ### TabDefinition
@@ -380,6 +417,7 @@ This keeps behavior consistent, reduces maintenance cost, and avoids state diver
 export interface TabDefinition {
     type: string;          // Unique identifier for the tab type
     component: React.FC<TabProps>; // The main tab content component
+    SettingsComponent?: React.FC<TabSettingsProps>; // Optional per-instance settings UI for this tab
     defaultSettings?: any; // Default settings for new tabs
     onCreate?: (ctx: TabLifecycleContext) => Promise<void> | void;
     onDelete?: (ctx: TabLifecycleContext) => Promise<void> | void;
@@ -388,8 +426,8 @@ export interface TabDefinition {
 
 > Same as `WidgetDefinition`: metadata fields belong in `metadata.ts` only.
 
-`TabDefinition.settingsComponent` is not part of the supported API.
-Tab settings panels are registered in `settings.ts` / `settings.tsx` through the `tabSettings` array returned from `definePluginSettings(...)`.
+Tab instance settings belong on `TabDefinition.SettingsComponent`.
+The Settings page preloads visible tab runtimes so inactive tabs can still expose their instance settings.
 
 ### Tab Instance Flags (Persistence Layer)
 
@@ -565,23 +603,59 @@ export default definePluginRuntime({
 });
 ```
 
-`frontend/src/plugins/my-new-plugin/settings.ts` **(optional — only needed if you expose tab settings and/or widget global settings)**
+`frontend/src/plugins/my-new-plugin/settings.ts` **(optional — only needed if you expose plugin-global settings)**
 
 ```typescript
 import { definePluginSettings } from '../../plugin-system/contracts';
-import type { TabSettingsProps } from '../../services/tabRegistry';
-import type { WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
+import type { PluginSettingsProps, PluginSettingsSectionDefinition } from '../../services/pluginSettingsRegistry';
 
-const NotesTabSettings: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
-    // settings fields
-    return null;
+interface NotesSharedSettings {
+    defaultTemplate: string;
+    autoPinImportant: boolean;
+}
+
+const normalizeNotesSharedSettings = (settings: unknown): NotesSharedSettings => {
+    if (!settings || typeof settings !== 'object') {
+        return { defaultTemplate: '', autoPinImportant: false };
+    }
+    const value = settings as Partial<NotesSharedSettings>;
+    return {
+        defaultTemplate: typeof value.defaultTemplate === 'string' ? value.defaultTemplate : '',
+        autoPinImportant: Boolean(value.autoPinImportant),
+    };
+};
+
+const NotesPluginSettings: React.FC<PluginSettingsProps<NotesSharedSettings>> = ({
+    settings,
+    updateSettings,
+    saveState,
+    hasPendingChanges,
+}) => {
+    const resolved = normalizeNotesSharedSettings(settings);
+
+    return (
+        <SettingsSection title="Defaults" description="Shared settings for every Notes tab in this course.">
+            <Input
+                value={resolved.defaultTemplate}
+                onChange={(event) => {
+                    void Promise.resolve(updateSettings({ ...resolved, defaultTemplate: event.target.value }));
+                }}
+            />
+            <Checkbox
+                checked={resolved.autoPinImportant}
+                onCheckedChange={(checked) => {
+                    void Promise.resolve(updateSettings({ ...resolved, autoPinImportant: checked === true }));
+                }}
+            />
+            <p>{hasPendingChanges ? 'Saving…' : `Saved state: ${saveState}`}</p>
+        </SettingsSection>
+    );
 };
 
 export default definePluginSettings({
-    tabSettings: [
-        { type: 'notes-tab', component: NotesTabSettings },
-    ],
-    widgetGlobalSettings: [] satisfies WidgetGlobalSettingsDefinition[],
+    pluginSettings: [
+        { id: 'notes-plugin-settings', component: NotesPluginSettings, allowedContexts: ['course'] },
+    ] satisfies PluginSettingsSectionDefinition[],
 });
 ```
 
@@ -591,7 +665,7 @@ The plugin manager validates declarations at startup and runtime:
 - `pluginId` must be unique.
 - Tab `type` values must be unique across all plugins.
 - Widget `type` values must be unique across all plugins.
-- `settings.ts(x)` definitions must reference only types declared by the same plugin in `metadata.ts`.
+- Each `pluginSettings` section `id` must be non-empty and unique within the plugin.
 - `index.ts` runtime definitions must exactly match the types declared in `metadata.ts`.
 
 Development behavior:
@@ -622,6 +696,8 @@ const handleChange = async (value: string) => {
     await api.updateWidget(widgetId, { settings: JSON.stringify(...) });
 };
 ```
+
+The same rule now applies to `PluginSettingsProps.updateSettings(...)` for regular plugin-global shared settings. Call the framework hook and let the platform batch and persist the JSON payload. Only builtin or host-coupled plugins should bypass this and call private APIs directly.
 
 ### React.memo Optimization
 
@@ -1060,29 +1136,53 @@ Settings Page
 
 ### settings.ts(x)（插件设置入口）
 
-插件设置必须在 `settings.ts` / `settings.tsx` 中通过 `definePluginSettings(...)` 注册，而不是挂在 `TabDefinition` / `WidgetDefinition` 上。
+插件共享设置必须在 `settings.ts` / `settings.tsx` 中通过 `definePluginSettings(...)` 注册；Tab / Widget 实例设置则挂在各自的 `SettingsComponent` 上。
 
 ```typescript
 import { definePluginSettings } from '../../plugin-system/contracts';
-import type { WidgetGlobalSettingsDefinition } from '../../services/pluginSettingsRegistry';
+import type { PluginSettingsProps, PluginSettingsSectionDefinition } from '../../services/pluginSettingsRegistry';
 import type { TabSettingsProps } from '../../services/tabRegistry';
-import type { WidgetGlobalSettingsProps } from '../../services/widgetRegistry';
 
 const MyTabSettings: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
-  return <SettingsSection title="Display">{/* tab settings */}</SettingsSection>;
+  return <SettingsSection title="Display">{/* tab instance settings */}</SettingsSection>;
 };
 
-const MyWidgetGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semesterId, onRefresh }) => {
-  return <SettingsSection title="Courses">{/* global settings */}</SettingsSection>;
+interface MyPluginSharedSettings {
+  accentColor: string;
+}
+
+const MyPluginSettings: React.FC<PluginSettingsProps<MyPluginSharedSettings>> = ({
+  settings,
+  updateSettings,
+  isLoading,
+}) => {
+  const resolved = {
+    accentColor: typeof settings?.accentColor === 'string' ? settings.accentColor : '#2563eb',
+  };
+
+  return (
+    <SettingsSection title="Courses">
+      <Input
+        value={resolved.accentColor}
+        disabled={isLoading}
+        onChange={(event) => {
+          void Promise.resolve(updateSettings({ ...resolved, accentColor: event.target.value }));
+        }}
+      />
+    </SettingsSection>
+  );
+};
+
+export const MyTabDefinition: TabDefinition = {
+  type: 'my-tab-type',
+  component: MyTab,
+  SettingsComponent: MyTabSettings,
 };
 
 export default definePluginSettings({
-  tabSettings: [
-    { type: 'my-tab-type', component: MyTabSettings },
-  ],
-  widgetGlobalSettings: [
-    { type: 'my-widget-type', component: MyWidgetGlobalSettings },
-  ] satisfies WidgetGlobalSettingsDefinition[],
+  pluginSettings: [
+    { id: 'courses', component: MyPluginSettings, allowedContexts: ['semester'] },
+  ] satisfies PluginSettingsSectionDefinition[],
 });
 ```
 
@@ -1090,7 +1190,9 @@ export default definePluginSettings({
 - 必须使用 `SettingsSection` 包装设置内容
 - 可以返回多个 `SettingsSection`，每个代表一个设置分类
 - 框架已经提供插件标题，不要在组件内部重复插件名
-- `tabSettings` / `widgetGlobalSettings` 里的 `type` 必须属于当前插件在 `metadata.ts` 中声明过的类型，否则启动校验会失败
+- `pluginSettings` 里的 `id` 必须非空，且在同一个插件内唯一
+- 常规插件应优先使用 `PluginSettingsProps.settings` + `updateSettings(...)` 读写共享配置
+- 只有 builtin / host-coupled 插件才应该跳过框架存储，直接调用私有 API
 
 ### SettingsSection 组件
 

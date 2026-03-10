@@ -1,6 +1,6 @@
-// input:  [semester context id, semester/course API service, settings-section UI, and modal/alert primitives]
-// output: [course-list global settings component for semester course management]
-// pos:    [settings-side management panel that loads semester courses, surfaces failures, and handles removal flows]
+// input:  [plugin settings props, semester/course API service, settings-section UI, and modal/alert primitives]
+// output: [course-list plugin settings component for semester course management]
+// pos:    [plugin-global settings panel that loads semester courses, surfaces failures, and handles removal flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -35,7 +35,7 @@ import {
 import { CourseManagerModal } from '@/components/CourseManagerModal';
 import api from '@/services/api';
 import type { Course, Semester } from '@/services/api';
-import type { WidgetGlobalSettingsProps } from '@/services/widgetRegistry';
+import type { PluginSettingsProps } from '@/services/pluginSettingsRegistry';
 import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
 
 const resolveErrorMessage = (error: unknown, fallback: string) => {
@@ -45,7 +45,7 @@ const resolveErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-export const CourseListGlobalSettings: React.FC<WidgetGlobalSettingsProps> = ({ semesterId, onRefresh }) => {
+export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semesterId, onRefresh }) => {
   const [semester, setSemester] = useState<Semester | null>(null);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);

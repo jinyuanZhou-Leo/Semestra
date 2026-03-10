@@ -39,6 +39,7 @@ export interface TabDefinition {
     type: string;
     component: React.FC<TabProps>;
     defaultSettings?: any;
+    SettingsComponent?: React.FC<TabSettingsProps>;
     onCreate?: (context: TabLifecycleContext) => Promise<void> | void;
     onDelete?: (context: TabLifecycleContext) => Promise<void> | void;
 }

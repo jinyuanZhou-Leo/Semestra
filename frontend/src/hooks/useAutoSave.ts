@@ -1,5 +1,5 @@
 // input:  [current draft value, saved snapshot value, async save callback, optional equality/validation/timing config]
-// output: [`useAutoSave()` hook exposing save state and pending-change status for auto-saving forms]
+// output: [`useAutoSave()` hook exposing save state, pending-change status, and a manual flush action for auto-saving forms]
 // pos:    [Cross-page auto-save scheduler with debounce, max-wait throttling, and save-state feedback]
 //
 // ⚠️ When this file is updated:
@@ -183,5 +183,6 @@ export const useAutoSave = <T>({
     saveState,
     hasPendingChanges,
     isValid,
+    flush: runSave,
   };
 };

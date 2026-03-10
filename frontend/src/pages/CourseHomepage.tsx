@@ -1,6 +1,6 @@
-// input:  [course context, dashboard tab/widget hooks, plugin metadata/settings registries, and active tab selection state]
+// input:  [course context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, and active tab selection state]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, dashboard-only overview stats, course settings, and per-switch tab fade transitions]
+// pos:    [Course workspace page with workspace navigation, dashboard-only overview stats, plugin-global settings, and per-switch tab fade transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -27,6 +27,7 @@ import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
+import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPreload';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
@@ -34,11 +35,13 @@ import { BookOpen, GraduationCap, Percent } from 'lucide-react';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
+    getTabPluginLoadState,
     getTabComponentByType,
-    getWidgetCatalogItemByType,
+    getTabSettingsComponentByType,
     hasTabPluginForType,
-    usePluginTabSettingsRegistry,
-    usePluginWidgetGlobalSettingsRegistry,
+    PluginSettingsSectionRenderer,
+    usePluginLoadStateVersion,
+    usePluginSettingsRegistry,
     useTabPluginLoadState,
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
@@ -315,13 +318,19 @@ const CourseHomepageContent: React.FC = () => {
         ensureBuiltinTabInstance,
     });
 
-    const tabSettingsDefinitions = usePluginTabSettingsRegistry();
-    const widgetGlobalSettingsDefinitions = usePluginWidgetGlobalSettingsRegistry();
+    const pluginSettingsDefinitions = usePluginSettingsRegistry('course');
     const activeTabType = useMemo(
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
     );
     const activeTabLoadState = useTabPluginLoadState(activeTabType);
+    const isSettingsTabActive = activeTabType === HOMEPAGE_SETTINGS_TAB_TYPE;
+    const pluginLoadStateVersion = usePluginLoadStateVersion();
+    useVisibleTabSettingsPreload({
+        tabs: visibleTabs,
+        enabled: isSettingsTabActive,
+        ignoredTypes: [HOMEPAGE_DASHBOARD_TAB_TYPE, HOMEPAGE_SETTINGS_TAB_TYPE],
+    });
 
     const dashboardContent = useMemo(() => {
         if (!course) return null;
@@ -399,25 +408,64 @@ const CourseHomepageContent: React.FC = () => {
         }
     }, [activeTabId, areBuiltinTabsReady, tabBarItems]);
 
-    const tabSettingsSections = useMemo(() => {
-        const settingsByType = new Map(
-            tabSettingsDefinitions.map((definition) => [definition.type, definition.component])
-        );
+    const tabInstanceSettingsSections = useMemo(() => {
         const sections = visibleTabs
-            .map(tab => {
-                const SettingsComponent = settingsByType.get(tab.type);
-                if (!SettingsComponent) return null;
-            return (
-                <React.Fragment key={tab.id}>
-                    <SettingsComponent
-                        tabId={tab.id}
-                        settings={tab.settings || {}}
-                        courseId={course?.id}
-                        updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
-                    />
-                </React.Fragment>
-            );
-        }).filter(Boolean);
+            .filter((tab) => tab.type !== HOMEPAGE_DASHBOARD_TAB_TYPE && tab.type !== HOMEPAGE_SETTINGS_TAB_TYPE)
+            .map((tab) => {
+                const SettingsComponent = getTabSettingsComponentByType(tab.type);
+                if (SettingsComponent) {
+                    return (
+                        <React.Fragment key={tab.id}>
+                            <SettingsComponent
+                                tabId={tab.id}
+                                settings={tab.settings || {}}
+                                courseId={course?.id}
+                                updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
+                            />
+                        </React.Fragment>
+                    );
+                }
+                if (!isSettingsTabActive) return null;
+
+                if (!hasTabPluginForType(tab.type)) {
+                    return (
+                        <div
+                            key={tab.id}
+                            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            Settings unavailable for {tab.title || tab.type}: unknown tab type.
+                        </div>
+                    );
+                }
+
+                const tabLoadState = getTabPluginLoadState(tab.type);
+                if (tabLoadState.status === 'error') {
+                    return (
+                        <div
+                            key={tab.id}
+                            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            Settings unavailable for {tab.title || tab.type}: plugin failed to load.
+                        </div>
+                    );
+                }
+                if (tabLoadState.status === 'loaded') return null;
+                return (
+                    <div
+                        key={tab.id}
+                        className="rounded-xl border border-border/70 bg-card/60 px-4 py-3 text-sm text-muted-foreground"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        Loading settings for {tab.title || tab.type}...
+                    </div>
+                );
+            })
+            .filter(Boolean);
 
         if (sections.length === 0) return null;
 
@@ -430,21 +478,18 @@ const CourseHomepageContent: React.FC = () => {
         visibleTabs,
         course?.id,
         handleUpdateTabSettings,
-        tabSettingsDefinitions
+        isSettingsTabActive,
+        pluginLoadStateVersion
     ]);
 
-    const widgetSettingsSections = useMemo(() => {
-        const sections = widgetGlobalSettingsDefinitions
-            .filter((definition) => {
-                const metadata = getWidgetCatalogItemByType(definition.type);
-                const allowedContexts = metadata?.allowedContexts ?? ['semester', 'course'];
-                return allowedContexts.includes('course');
-            })
+    const pluginSettingsSections = useMemo(() => {
+        const sections = pluginSettingsDefinitions
             .map((definition) => {
-                const GlobalSettingsComponent = definition.component;
                 return (
-                    <React.Fragment key={definition.type}>
-                        <GlobalSettingsComponent
+                    <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
+                        <PluginSettingsSectionRenderer
+                            pluginId={definition.pluginId}
+                            component={definition.component}
                             courseId={course?.id}
                             onRefresh={refreshCourse}
                         />
@@ -459,9 +504,9 @@ const CourseHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [widgetGlobalSettingsDefinitions, course?.id, refreshCourse]);
+    }, [pluginSettingsDefinitions, course?.id, refreshCourse]);
 
-    const hasPluginSettings = Boolean(widgetSettingsSections || tabSettingsSections);
+    const hasPluginSettings = Boolean(pluginSettingsSections || tabInstanceSettingsSections);
 
     const handleUpdateCourse = useCallback(async (data: any) => {
         if (!course) return;
@@ -511,8 +556,8 @@ const CourseHomepageContent: React.FC = () => {
             ),
             extraSections: hasPluginSettings ? (
                 <div className="space-y-6">
-                    {widgetSettingsSections}
-                    {tabSettingsSections}
+                    {pluginSettingsSections}
+                    {tabInstanceSettingsSections}
                 </div>
             ) : undefined
         }
@@ -535,8 +580,8 @@ const CourseHomepageContent: React.FC = () => {
         updateCourse,
         handleUpdateCourse,
         hasPluginSettings,
-        widgetSettingsSections,
-        tabSettingsSections,
+        pluginSettingsSections,
+        tabInstanceSettingsSections,
         openAddWidgetModal
     ]);
 

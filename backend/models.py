@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions]
-# pos:    [Persistent data model layer]
+# output: [ORM model classes and table definitions, including context-scoped plugin shared settings]
+# pos:    [Persistent data model layer for academic data, dashboard instances, and plugin-shared settings]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -83,6 +83,7 @@ class Semester(Base):
     courses = relationship("Course", back_populates="semester", cascade="all, delete-orphan")
     widgets = relationship("Widget", back_populates="semester_context", cascade="all, delete-orphan")
     tabs = relationship("Tab", back_populates="semester_context", cascade="all, delete-orphan")
+    plugin_settings = relationship("PluginSetting", back_populates="semester_context", cascade="all, delete-orphan")
 
 
 class Course(Base):
@@ -105,6 +106,7 @@ class Course(Base):
     semester = relationship("Semester", back_populates="courses")
     widgets = relationship("Widget", back_populates="course_context", cascade="all, delete-orphan")
     tabs = relationship("Tab", back_populates="course_context", cascade="all, delete-orphan")
+    plugin_settings = relationship("PluginSetting", back_populates="course_context", cascade="all, delete-orphan")
     event_types = relationship("CourseEventType", back_populates="course", cascade="all, delete-orphan")
     sections = relationship("CourseSection", back_populates="course", cascade="all, delete-orphan")
     events = relationship("CourseEvent", back_populates="course", cascade="all, delete-orphan")
@@ -265,3 +267,24 @@ class Tab(Base):
 
     semester_context = relationship("Semester", back_populates="tabs")
     course_context = relationship("Course", back_populates="tabs")
+
+class PluginSetting(Base):
+    __tablename__ = "plugin_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "((semester_id IS NOT NULL AND course_id IS NULL) OR (semester_id IS NULL AND course_id IS NOT NULL))",
+            name="ck_plugin_settings_single_context",
+        ),
+        UniqueConstraint("plugin_id", "semester_id", name="uq_plugin_settings_plugin_semester"),
+        UniqueConstraint("plugin_id", "course_id", name="uq_plugin_settings_plugin_course"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    plugin_id = Column(String, nullable=False, index=True)
+    settings = Column(Text, default="{}")
+
+    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
+    course_id = Column(String, ForeignKey("courses.id"), nullable=True)
+
+    semester_context = relationship("Semester", back_populates="plugin_settings")
+    course_context = relationship("Course", back_populates="plugin_settings")

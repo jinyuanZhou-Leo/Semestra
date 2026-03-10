@@ -1,6 +1,6 @@
-// input:  [plugin settings definitions from metadata modules and React subscription state]
-// output: [`PluginSettingsRegistry`, definition types, and registry subscription hooks]
-// pos:    [Settings registry that exposes plugin tab/global settings to settings pages]
+// input:  [plugin-global settings definitions, shared-settings prop contracts, and React subscription state]
+// output: [`PluginSettingsRegistry`, plugin settings sync prop types, and registry subscription hooks]
+// pos:    [Settings registry that exposes plugin-global settings sections plus framework-managed shared-settings props to settings pages]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,83 +10,77 @@
 
 import React, { useSyncExternalStore } from 'react';
 
-import type { TabSettingsProps } from './tabRegistry';
-import type { WidgetGlobalSettingsProps } from './widgetRegistry';
+export type PluginSettingsContext = 'semester' | 'course';
+export type PluginSettingsSaveState = 'idle' | 'saving' | 'success';
 
-export interface TabSettingsDefinition {
-  type: string;
-  component: React.FC<TabSettingsProps>;
+export interface PluginSettingsProps<S = any> {
+  settings: S;
+  updateSettings: (newSettings: S) => void | Promise<void>;
+  saveState: PluginSettingsSaveState;
+  hasPendingChanges: boolean;
+  isLoading: boolean;
+  semesterId?: string;
+  courseId?: string;
+  onRefresh: () => void;
 }
 
-export interface WidgetGlobalSettingsDefinition {
-  type: string;
-  component: React.FC<WidgetGlobalSettingsProps>;
+export interface PluginSettingsSectionDefinition<S = any> {
+  id: string;
+  component: React.FC<PluginSettingsProps<S>>;
+  allowedContexts?: PluginSettingsContext[];
+}
+
+export interface RegisteredPluginSettingsSectionDefinition extends PluginSettingsSectionDefinition {
+  pluginId: string;
 }
 
 type Listener = () => void;
 
-class PluginSettingsRegistryClass {
-  private tabSettingsByType = new Map<string, React.FC<TabSettingsProps>>();
-  private widgetGlobalSettingsByType = new Map<string, React.FC<WidgetGlobalSettingsProps>>();
+const DEFAULT_ALLOWED_CONTEXTS: PluginSettingsContext[] = ['semester', 'course'];
+
+export class PluginSettingsRegistryClass {
+  private pluginSettingsSections: RegisteredPluginSettingsSectionDefinition[] = [];
   private listeners: Set<Listener> = new Set();
-  private tabSnapshot: TabSettingsDefinition[] = [];
-  private widgetSnapshot: WidgetGlobalSettingsDefinition[] = [];
+  private snapshot: RegisteredPluginSettingsSectionDefinition[] = [];
+  private snapshotByContext: Record<PluginSettingsContext, RegisteredPluginSettingsSectionDefinition[]> = {
+    semester: [],
+    course: [],
+  };
 
   private rebuildSnapshots() {
-    this.tabSnapshot = Array.from(this.tabSettingsByType.entries()).map(([type, component]) => ({
-      type,
-      component,
-    }));
-    this.widgetSnapshot = Array.from(this.widgetGlobalSettingsByType.entries()).map(([type, component]) => ({
-      type,
-      component,
-    }));
+    this.snapshot = [...this.pluginSettingsSections];
+    this.snapshotByContext = {
+      semester: this.snapshot.filter((definition) => {
+        const allowedContexts = definition.allowedContexts ?? DEFAULT_ALLOWED_CONTEXTS;
+        return allowedContexts.includes('semester');
+      }),
+      course: this.snapshot.filter((definition) => {
+        const allowedContexts = definition.allowedContexts ?? DEFAULT_ALLOWED_CONTEXTS;
+        return allowedContexts.includes('course');
+      }),
+    };
   }
 
-  registerTabSettings(definition: TabSettingsDefinition) {
-    this.tabSettingsByType.set(definition.type, definition.component);
+  registerPluginSettingsMany(pluginId: string, definitions: PluginSettingsSectionDefinition[]) {
+    const nextDefinitions = this.pluginSettingsSections.filter((definition) => definition.pluginId !== pluginId);
+    if (definitions.length > 0) {
+      nextDefinitions.push(
+        ...definitions.map((definition) => ({
+          pluginId,
+          ...definition,
+        }))
+      );
+    }
+    this.pluginSettingsSections = nextDefinitions;
     this.rebuildSnapshots();
     this.notifyListeners();
   }
 
-  registerTabSettingsMany(definitions: TabSettingsDefinition[]) {
-    if (definitions.length === 0) return;
-    definitions.forEach((definition) => {
-      this.tabSettingsByType.set(definition.type, definition.component);
-    });
-    this.rebuildSnapshots();
-    this.notifyListeners();
-  }
-
-  getTabSettingsComponent(type: string): React.FC<TabSettingsProps> | undefined {
-    return this.tabSettingsByType.get(type);
-  }
-
-  getAllTabSettingsDefinitions(): TabSettingsDefinition[] {
-    return this.tabSnapshot;
-  }
-
-  registerWidgetGlobalSettings(definition: WidgetGlobalSettingsDefinition) {
-    this.widgetGlobalSettingsByType.set(definition.type, definition.component);
-    this.rebuildSnapshots();
-    this.notifyListeners();
-  }
-
-  registerWidgetGlobalSettingsMany(definitions: WidgetGlobalSettingsDefinition[]) {
-    if (definitions.length === 0) return;
-    definitions.forEach((definition) => {
-      this.widgetGlobalSettingsByType.set(definition.type, definition.component);
-    });
-    this.rebuildSnapshots();
-    this.notifyListeners();
-  }
-
-  getWidgetGlobalSettingsComponent(type: string): React.FC<WidgetGlobalSettingsProps> | undefined {
-    return this.widgetGlobalSettingsByType.get(type);
-  }
-
-  getAllWidgetGlobalSettingsDefinitions(): WidgetGlobalSettingsDefinition[] {
-    return this.widgetSnapshot;
+  getAllPluginSettingsSections(context?: PluginSettingsContext): RegisteredPluginSettingsSectionDefinition[] {
+    if (!context) {
+      return this.snapshot;
+    }
+    return this.snapshotByContext[context];
   }
 
   subscribe(listener: Listener): () => void {
@@ -101,18 +95,12 @@ class PluginSettingsRegistryClass {
 
 export const PluginSettingsRegistry = new PluginSettingsRegistryClass();
 
-export const useTabSettingsRegistry = (): TabSettingsDefinition[] => {
+export const usePluginSettingsRegistry = (
+  context?: PluginSettingsContext
+): RegisteredPluginSettingsSectionDefinition[] => {
   return useSyncExternalStore(
     (listener) => PluginSettingsRegistry.subscribe(listener),
-    () => PluginSettingsRegistry.getAllTabSettingsDefinitions(),
-    () => PluginSettingsRegistry.getAllTabSettingsDefinitions()
-  );
-};
-
-export const useWidgetGlobalSettingsRegistry = (): WidgetGlobalSettingsDefinition[] => {
-  return useSyncExternalStore(
-    (listener) => PluginSettingsRegistry.subscribe(listener),
-    () => PluginSettingsRegistry.getAllWidgetGlobalSettingsDefinitions(),
-    () => PluginSettingsRegistry.getAllWidgetGlobalSettingsDefinitions()
+    () => PluginSettingsRegistry.getAllPluginSettingsSections(context),
+    () => PluginSettingsRegistry.getAllPluginSettingsSections(context)
   );
 };

@@ -1,6 +1,6 @@
-// input:  [widget plugin definitions, header-button render contracts, React subscriptions]
+// input:  [widget plugin definitions, header-button render contracts, and React subscriptions]
 // output: [widget prop/definition types, singleton `WidgetRegistry`, and helper hooks]
-// pos:    [Runtime registry for widget components, constraints, and lifecycle callbacks]
+// pos:    [Runtime registry for widget components, instance settings UIs, constraints, and lifecycle callbacks]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -71,17 +71,6 @@ export type { MaxInstances } from '../plugin-system/utils';
 export interface WidgetSettingsProps<S = any> {
     settings: S;
     onSettingsChange: (newSettings: S) => void;
-}
-
-/**
- * Props for plugin-level global settings component.
- * This settings component is shown in the Settings tab and applies to the plugin as a whole,
- * not to individual widget instances.
- */
-export interface WidgetGlobalSettingsProps {
-    semesterId?: string;
-    courseId?: string;
-    onRefresh: () => void;
 }
 
 export interface WidgetDefinition {

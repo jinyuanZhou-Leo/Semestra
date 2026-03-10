@@ -1,5 +1,5 @@
 # input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings]
-# output: [FastAPI app instance and all HTTP route handlers]
+# output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence endpoints]
 # pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance]
 #
 # ⚠️ When this file is updated:
@@ -869,7 +869,7 @@ async def export_user_data(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    """Export all user data (programs, semesters, courses, widgets, tabs)."""
+    """Export all user data (programs, semesters, courses, widgets, tabs, plugin settings)."""
     programs = crud.get_programs(db, user_id=current_user.id)
     
     programs_export = []
@@ -896,6 +896,12 @@ async def export_user_data(
                         is_draggable=t.is_draggable
                     ) for t in course.tabs
                 ]
+                plugin_settings_export = [
+                    schemas.PluginSettingExport(
+                        plugin_id=setting.plugin_id,
+                        settings=setting.settings,
+                    ) for setting in course.plugin_settings
+                ]
                 courses_export.append(schemas.CourseExport(
                     name=course.name,
                     alias=course.alias,
@@ -905,7 +911,8 @@ async def export_user_data(
                     include_in_gpa=course.include_in_gpa,
                     hide_gpa=course.hide_gpa,
                     widgets=widgets_export,
-                    tabs=tabs_export
+                    tabs=tabs_export,
+                    plugin_settings=plugin_settings_export,
                 ))
             
             # Semester widgets and tabs
@@ -926,6 +933,12 @@ async def export_user_data(
                     is_draggable=t.is_draggable
                 ) for t in semester.tabs
             ]
+            semester_plugin_settings = [
+                schemas.PluginSettingExport(
+                    plugin_id=setting.plugin_id,
+                    settings=setting.settings,
+                ) for setting in semester.plugin_settings
+            ]
             
             semesters_export.append(schemas.SemesterExport(
                 name=semester.name,
@@ -933,7 +946,8 @@ async def export_user_data(
                 average_scaled=semester.average_scaled,
                 courses=courses_export,
                 widgets=semester_widgets,
-                tabs=semester_tabs
+                tabs=semester_tabs,
+                plugin_settings=semester_plugin_settings,
             ))
         
         programs_export.append(schemas.ProgramExport(
@@ -949,7 +963,7 @@ async def export_user_data(
     user_setting = crud.get_user_setting_dict(current_user)
     
     return schemas.UserDataExport(
-        version="1.0",
+        version="1.1",
         exported_at=datetime.utcnow().isoformat(),
         settings=schemas.UserSettingsExport(
             nickname=current_user.nickname,
@@ -1058,6 +1072,16 @@ async def import_user_data(
                     ),
                     semester_id=semester.id
                 )
+
+            for plugin_setting_data in semester_data.plugin_settings:
+                crud.upsert_plugin_setting(
+                    db=db,
+                    plugin_setting=schemas.PluginSettingCreate(
+                        plugin_id=plugin_setting_data.plugin_id,
+                        settings=plugin_setting_data.settings,
+                    ),
+                    semester_id=semester.id,
+                )
             
             # Create courses
             for course_data in semester_data.courses:
@@ -1102,6 +1126,16 @@ async def import_user_data(
                             is_draggable=tab_data.is_draggable
                         ),
                         course_id=course.id
+                    )
+
+                for plugin_setting_data in course_data.plugin_settings:
+                    crud.upsert_plugin_setting(
+                        db=db,
+                        plugin_setting=schemas.PluginSettingCreate(
+                            plugin_id=plugin_setting_data.plugin_id,
+                            settings=plugin_setting_data.settings,
+                        ),
+                        course_id=course.id,
                     )
     
     for program_data in data.programs:
@@ -1274,6 +1308,27 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
         raise HTTPException(status_code=404, detail="Semester not found")
     return semester
 
+@app.get("/semesters/{semester_id}/plugin-settings", response_model=list[schemas.PluginSetting])
+def read_semester_plugin_settings(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    return crud.get_plugin_settings_for_context(db, semester_id=semester_id)
+
+@app.put("/semesters/{semester_id}/plugin-settings/{plugin_id}", response_model=schemas.PluginSetting)
+def upsert_semester_plugin_setting(
+    semester_id: str,
+    plugin_id: str,
+    plugin_setting: schemas.PluginSettingCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    payload = plugin_setting.copy(update={"plugin_id": plugin_id})
+    return crud.upsert_plugin_setting(db, payload, semester_id=semester_id)
+
 @app.put("/semesters/{semester_id}", response_model=schemas.Semester)
 def update_semester(semester_id: str, semester: schemas.SemesterCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     # Verify ownership
@@ -1356,6 +1411,27 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
         raise HTTPException(status_code=404, detail="Course not found")
     # SQLAlchemy relationships (widgets) are lazy loaded, so pydantic will fetch them if in schema
     return db_course
+
+@app.get("/courses/{course_id}/plugin-settings", response_model=list[schemas.PluginSetting])
+def read_course_plugin_settings(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_course(db, current_user, course_id)
+    return crud.get_plugin_settings_for_context(db, course_id=course_id)
+
+@app.put("/courses/{course_id}/plugin-settings/{plugin_id}", response_model=schemas.PluginSetting)
+def upsert_course_plugin_setting(
+    course_id: str,
+    plugin_id: str,
+    plugin_setting: schemas.PluginSettingCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_course(db, current_user, course_id)
+    payload = plugin_setting.copy(update={"plugin_id": plugin_id})
+    return crud.upsert_plugin_setting(db, payload, course_id=course_id)
 
 @app.put("/courses/{course_id}", response_model=schemas.Course)
 def update_course(
