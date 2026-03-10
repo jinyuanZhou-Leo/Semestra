@@ -1,6 +1,6 @@
-// input:  [course gradebook API, widget runtime contracts, gradebook shared formatters, and compact card primitives]
+// input:  [course gradebook API, widget runtime contracts, shadcn card/progress primitives, and builtin-gradebook shared formatters]
 // output: [builtin-gradebook summary widget component and widget definition]
-// pos:    [course-scoped read-only summary widget for baseline projection, feasibility, and due-soon items]
+// pos:    [course-scoped read-only summary widget surfacing baseline projection, progress, and next deadlines]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { cn } from '@/lib/utils';
 import api, { type CourseGradebook } from '@/services/api';
@@ -22,13 +23,16 @@ import {
     BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE,
     BUILTIN_GRADEBOOK_TAB_TYPE,
     OPEN_GRADEBOOK_TAB_EVENT,
+    formatGpa,
     formatGradebookDate,
+    formatPercent,
     getCategoryBadgeClassName,
+    getFeasibilityBadgeClassName,
     getFeasibilityLabel,
 } from './shared';
 
 const SummaryValue: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-    <div className="rounded-xl border border-border/60 bg-background/85 px-3 py-2">
+    <div className="rounded-2xl border border-border/60 bg-background/85 px-3 py-2.5">
         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="mt-1 text-sm font-semibold text-foreground">{value}</div>
     </div>
@@ -103,14 +107,19 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
     };
 
     const upcomingItems = gradebook.summary.upcoming_due_items.slice(0, 3);
+    const completionProgress = Math.max(0, Math.min(100, 100 - gradebook.summary.remaining_weight));
 
     return (
         <div className="flex h-full flex-col gap-3 px-3 pb-3 pt-1">
-            <Card size="sm" className="border-border/70 bg-card/80 shadow-none">
-                <CardHeader className="space-y-1 pb-2">
+            <Card size="sm" className="overflow-hidden border-border/70 bg-card shadow-none">
+                <div className="bg-linear-to-br from-teal-500/10 via-background to-orange-500/10">
+                <CardHeader className="space-y-3 pb-2">
                     <div className="flex items-center justify-between gap-2">
                         <CardTitle className="text-sm font-semibold">Baseline Projection</CardTitle>
-                        <Badge variant="outline" className="border-border/70 bg-background/90">
+                        <Badge
+                            variant="outline"
+                            className={cn('border px-2 py-0 text-[10px]', getFeasibilityBadgeClassName(gradebook.summary.feasibility))}
+                        >
                             {getFeasibilityLabel(gradebook.summary.feasibility)}
                         </Badge>
                     </div>
@@ -118,24 +127,32 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
                         Revision {gradebook.revision}
                     </p>
                 </CardHeader>
-                <CardContent className="grid gap-2 pb-3">
+                <CardContent className="space-y-3 pb-3">
                     <SummaryValue
                         label="Projected"
                         value={gradebook.summary.baseline_projected_percentage === null
                             ? 'Unavailable'
-                            : `${gradebook.summary.baseline_projected_percentage.toFixed(2)}% · ${gradebook.summary.baseline_projected_gpa?.toFixed(2) ?? '0.00'} GPA`}
+                            : `${formatPercent(gradebook.summary.baseline_projected_percentage)} · ${formatGpa(gradebook.summary.baseline_projected_gpa)} GPA`}
                     />
                     <div className="grid grid-cols-2 gap-2">
                         <SummaryValue
                             label="Required"
-                            value={gradebook.summary.baseline_required_score === null ? 'N/A' : `${gradebook.summary.baseline_required_score.toFixed(2)}%`}
+                            value={gradebook.summary.baseline_required_score === null ? 'N/A' : formatPercent(gradebook.summary.baseline_required_score)}
                         />
                         <SummaryValue
                             label="Remaining"
-                            value={`${gradebook.summary.remaining_weight.toFixed(2)}%`}
+                            value={formatPercent(gradebook.summary.remaining_weight)}
                         />
                     </div>
+                    <div className="rounded-2xl border border-border/60 bg-background/85 px-3 py-3">
+                        <div className="flex items-center justify-between gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            <span>Coverage</span>
+                            <span>{formatPercent(100 - gradebook.summary.remaining_weight)}</span>
+                        </div>
+                        <Progress value={completionProgress} className="mt-3 h-2" />
+                    </div>
                 </CardContent>
+                </div>
             </Card>
 
             <Card size="sm" className="flex-1 border-border/70 bg-card/70 shadow-none">
@@ -151,7 +168,7 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
                             No upcoming assessments with due dates yet.
                         </div>
                     ) : upcomingItems.map((item) => (
-                        <div key={item.assessment_id} className="rounded-xl border border-border/60 bg-background/85 px-3 py-2">
+                        <div key={item.assessment_id} className="rounded-2xl border border-border/60 bg-background/85 px-3 py-2.5">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
                                     <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
@@ -179,8 +196,8 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
                     </div>
                     <div className="mt-1 text-sm font-semibold text-foreground">
                         {gradebook.summary.baseline_target_mode === 'gpa'
-                            ? `${gradebook.summary.baseline_target_value.toFixed(2)} GPA`
-                            : `${gradebook.summary.baseline_target_value.toFixed(2)}%`}
+                            ? `${formatGpa(gradebook.summary.baseline_target_value)} GPA`
+                            : formatPercent(gradebook.summary.baseline_target_value)}
                     </div>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-background/85 px-3 py-2">
@@ -191,7 +208,7 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
                     <div className="mt-1 text-sm font-semibold text-foreground">
                         {gradebook.summary.current_actual_percentage === null
                             ? 'N/A'
-                            : `${gradebook.summary.current_actual_percentage.toFixed(2)}%`}
+                            : formatPercent(gradebook.summary.current_actual_percentage)}
                     </div>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-background/85 px-3 py-2">

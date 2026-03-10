@@ -1,6 +1,6 @@
-// input:  [widget CRUD APIs, `WidgetRegistry`, plugin metadata/layout resolvers, layout normalization utilities, retry/status helpers, context guards]
+// input:  [widget CRUD APIs, `WidgetRegistry`, plugin metadata/layout resolvers, layout normalization utilities, retry/status helpers, context guards, and unavailable-widget delete routing]
 // output: [`useDashboardWidgets()` state/actions with split local layout sync, commit persistence, and context-safe synchronization]
-// pos:    [Core widget orchestration hook for dashboard creation, update, remove, and two-phase layout synchronization]
+// pos:    [Core widget orchestration hook for dashboard creation, update, remove, unavailable-widget cleanup, and two-phase layout synchronization]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -298,7 +298,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         }
     }, [courseId, semesterId, onRefresh, widgets]);
 
-    const removeWidget = useCallback(async (id: string) => {
+    const removeWidget = useCallback(async (id: string, options?: { force?: boolean }) => {
         const contextVersion = contextVersionRef.current;
         // Find widget before removing for lifecycle hook
         const widgetToRemove = widgets.find(w => w.id === id);
@@ -316,7 +316,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         syncRetryKeysRef.current.delete(layoutRetryKey);
 
         try {
-            await api.deleteWidget(id);
+            await api.deleteWidget(id, options);
             if (contextVersionRef.current !== contextVersion) return;
 
             // Call onDelete lifecycle hook
@@ -346,6 +346,10 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
             reportError('Failed to remove widget. Please try again.');
         }
     }, [widgets, onRefresh, courseId, semesterId]);
+
+    const removeUnavailableWidget = useCallback(async (id: string) => {
+        await removeWidget(id, { force: true });
+    }, [removeWidget]);
 
     const updateWidget = useCallback(async (id: string, data: any) => {
         const contextVersion = contextVersionRef.current;
@@ -725,6 +729,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         widgets,
         addWidget,
         removeWidget,
+        removeUnavailableWidget,
         updateWidget,
         updateWidgetDebounced,  // For frequent updates (typing)
         flushWidgetSettings,     // For plugins to flush on blur

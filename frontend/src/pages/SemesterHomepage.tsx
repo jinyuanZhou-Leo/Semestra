@@ -1,6 +1,6 @@
-// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, and active tab selection state]
+// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, and active tab selection state]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, dashboard-only overview stats, plugin-global settings, and per-switch tab fade transitions]
+// pos:    [Semester workspace page with workspace navigation, dashboard-only overview stats, plugin-global settings, unavailable-widget cleanup, and per-switch tab fade transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -115,6 +115,7 @@ const SemesterHomepageContent: React.FC = () => {
         updateWidget: handleUpdateWidget,
         updateWidgetDebounced: handleUpdateWidgetDebounced,
         removeWidget: handleRemoveWidget,
+        removeUnavailableWidget: handleRemoveUnavailableWidget,
         updateLayout: handleLayoutChange,
         commitLayout: handleLayoutCommit
     } = useDashboardWidgets({
@@ -449,6 +450,7 @@ const SemesterHomepageContent: React.FC = () => {
             overview: semesterOverview,
             onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
+            onRemoveUnavailableWidget: handleRemoveUnavailableWidget,
             onEditWidget: setEditingWidget,
             onUpdateWidget: handleUpdateWidget,
             onUpdateWidgetDebounced: handleUpdateWidgetDebounced,
@@ -480,6 +482,7 @@ const SemesterHomepageContent: React.FC = () => {
         isLoading,
         widgets,
         handleRemoveWidget,
+        handleRemoveUnavailableWidget,
         handleUpdateWidget,
         handleUpdateWidgetDebounced,
         handleLayoutChange,

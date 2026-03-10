@@ -1,4 +1,4 @@
-// input:  [dashboard widget actions (including layout sync/commit callbacks), optional overview nodes, and settings section nodes passed from homepage pages]
+// input:  [dashboard widget actions (including unavailable-widget delete routing and layout sync/commit callbacks), optional overview nodes, and settings section nodes passed from homepage pages]
 // output: [`BuiltinTabProvider`, `useBuiltinTabContext()`, and built-in tab context types]
 // pos:    [Bridge context consumed by builtin dashboard/settings tab implementations with split layout sync, persistence actions, and dashboard overview slots]
 //
@@ -17,6 +17,7 @@ type DashboardContextValue = {
     overview?: React.ReactNode;
     onAddWidgetClick: () => void;
     onRemoveWidget: (id: string) => void;
+    onRemoveUnavailableWidget: (id: string) => void;
     onEditWidget: (widget: WidgetItem) => void;
     onUpdateWidget: (id: string, data: any) => Promise<void>;
     onUpdateWidgetDebounced?: (id: string, data: any) => void;

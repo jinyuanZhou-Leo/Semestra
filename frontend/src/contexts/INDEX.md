@@ -7,7 +7,7 @@ Exposes typed hooks so page modules can consume shared state safely.
 | File | Role | Description |
 |------|------|-------------|
 | AuthContext.tsx | Context module | Context provider/hook layer for cookie-backed auth state, session refresh, and logout/session-expiry handling. |
-| BuiltinTabContext.tsx | Context module | Context provider/hook layer for builtin tab state, including dashboard overview slots plus separate layout local-sync and commit callbacks. |
+| BuiltinTabContext.tsx | Context module | Context provider/hook layer for builtin tab state, including dashboard overview slots plus separate layout local-sync, commit, and unavailable-widget delete callbacks. |
 | CourseDataContext.tsx | Context module | Context provider/hook layer for course data context state. |
 | DialogContext.tsx | Context module | Context provider/hook layer for dialog context state. |
 | ProgramDataContext.tsx | Context module | Context provider/hook layer for program data context state. |

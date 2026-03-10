@@ -1,6 +1,6 @@
-// input:  [course context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, and active tab selection state]
+// input:  [course context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, and active tab selection state]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, dashboard-only overview stats, plugin-global settings, and per-switch tab fade transitions]
+// pos:    [Course workspace page with workspace navigation, dashboard-only overview stats, plugin-global settings, unavailable-widget cleanup, and per-switch tab fade transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -155,6 +155,7 @@ const CourseHomepageContent: React.FC = () => {
         widgets,
         addWidget: handleAddWidget,
         removeWidget: handleRemoveWidget,
+        removeUnavailableWidget: handleRemoveUnavailableWidget,
         updateWidget: handleUpdateWidget,
         updateWidgetDebounced: handleUpdateWidgetDebounced,
         updateLayout: handleLayoutChange,
@@ -547,6 +548,7 @@ const CourseHomepageContent: React.FC = () => {
             overview: courseOverview,
             onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
+            onRemoveUnavailableWidget: handleRemoveUnavailableWidget,
             onEditWidget: (widget: WidgetItem) => setEditingWidget(widget),
             onUpdateWidget: handleUpdateWidget,
             onUpdateWidgetDebounced: handleUpdateWidgetDebounced,
@@ -580,6 +582,7 @@ const CourseHomepageContent: React.FC = () => {
         isLoading,
         widgets,
         handleRemoveWidget,
+        handleRemoveUnavailableWidget,
         handleUpdateWidget,
         handleUpdateWidgetDebounced,
         handleLayoutChange,

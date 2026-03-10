@@ -2,7 +2,7 @@
 
 Cross-page hooks for data sync, dashboard state, and UI responsiveness.
 Contains optimistic CRUD orchestration for tabs/widgets with context-change cancellation guards.
-Includes stale-request-safe fetch primitives, framework-managed plugin shared-settings autosave, and parallelized order/layout backend synchronization logic.
+Includes stale-request-safe fetch primitives, framework-managed plugin shared-settings autosave, parallelized order/layout backend synchronization logic, and force-aware cleanup for unavailable widgets.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -11,7 +11,7 @@ Includes stale-request-safe fetch primitives, framework-managed plugin shared-se
 | use-mobile.ts | Hook module | Mobile breakpoint hook (640px) with immediate client-side width initialization to avoid first-frame responsive surface mismatches. |
 | useAppStatus.ts | Hook module | Custom hook implementing use app status behavior. |
 | useDashboardTabs.ts | Hook module | Orchestrates tab CRUD with optimistic state, debounced settings sync, context-key reset safeguards, and parallelized order persistence retries. |
-| useDashboardWidgets.ts | Hook module | Orchestrates widget CRUD, resilient settings/layout parsing, context-key reset safeguards, and split local layout sync with parallelized commit persistence. |
+| useDashboardWidgets.ts | Hook module | Orchestrates widget CRUD, unavailable-widget force cleanup, resilient settings/layout parsing, context-key reset safeguards, and split local layout sync with parallelized commit persistence. |
 | useDataFetch.ts | Hook module | Generic fetch hook with loading/error state plus stale-response guards to prevent older requests from overwriting newer state. |
 | useEntityContext.ts | Hook module | Generic optimistic entity-sync hook with debounced persistence and entity-switch guards for pending update queues. |
 | useHomepageBuiltinTabs.ts | Hook module | Custom hook implementing use homepage builtin tabs behavior. |

@@ -13,7 +13,7 @@ Auth now signs JWTs from env-backed secrets and ships browser sessions via HttpO
 | database.py | DB bootstrap | Configures SQLAlchemy engine/session and database base metadata. |
 | gradebook.py | Gradebook domain service | Owns built-in gradebook initialization, scenario/category/assessment mutations, solver math, import/export mapping, and course-grade projection serialization. |
 | logic.py | Domain logic | Provides GPA and grading-related business logic helpers. |
-| main.py | API entry point | Defines FastAPI app, middleware, HTTP route handlers, auth login/logout cookie issuance, semester Reading Week validation/schema compatibility shims, plugin shared settings endpoints, and gradebook APIs. |
+| main.py | API entry point | Defines FastAPI app, middleware, HTTP route handlers, auth login/logout cookie issuance, semester Reading Week validation/schema compatibility shims, plugin shared settings endpoints, gradebook APIs, and force-aware widget deletion. |
 | migrate_add_category.py | Migration script | Adds widget category support to existing database schema. |
 | migrate_add_program_id_to_course.py | Migration script | Adds `program_id` to courses and related constraints. |
 | migrate_user_settings.py | Migration script | Creates and backfills user settings columns and defaults. |

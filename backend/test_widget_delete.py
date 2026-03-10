@@ -1,5 +1,5 @@
 # input:  [requests/json/uuid, running API server]
-# output: [Integration test for widget deletion behavior]
+# output: [Integration test for widget deletion behavior, including force-delete fallback]
 # pos:    [Manual/integration validation script for widget API]
 #
 # ⚠️ When this file is updated:
@@ -69,6 +69,16 @@ def test_widget_delete():
     
     if resp.status_code == 200:
         print("SUCCESS: Manual widget deleted successfully.")
+    else:
+        print(f"FAILED: Expected 200, got {resp.status_code}")
+        print(resp.text)
+
+    # 8. ATTEMPT FORCE DELETE DEFAULT WIDGET (Should Succeed)
+    print("Attempting to force delete DEFAULT Course List widget...")
+    resp = requests.delete(f"{BASE_URL}/widgets/{course_list_widget['id']}", headers=headers, params={"force": "true"})
+
+    if resp.status_code == 200:
+        print("SUCCESS: Default widget force deleted successfully.")
     else:
         print(f"FAILED: Expected 200, got {resp.status_code}")
         print(resp.text)

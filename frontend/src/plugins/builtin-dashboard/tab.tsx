@@ -1,4 +1,4 @@
-// input:  [builtin tab context state, optional dashboard overview nodes, dashboard widget callbacks (local layout sync + commit persistence), motion + icon dependencies, shared button variant classes]
+// input:  [builtin tab context state, optional dashboard overview nodes, dashboard widget callbacks (including unavailable-widget delete routing plus local layout sync + commit persistence), motion + icon dependencies, shared button variant classes]
 // output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` plugin metadata]
 // pos:    [Built-in dashboard tab UI entry handling dashboard overview rendering, edit mode state, theme-adaptive floating action controls, and split layout callback wiring]
 //
@@ -172,6 +172,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
                 onLayoutChange={dashboard.onLayoutChange}
                 onLayoutCommit={dashboard.onLayoutCommit}
                 onRemoveWidget={dashboard.onRemoveWidget}
+                onRemoveUnavailableWidget={dashboard.onRemoveUnavailableWidget}
                 onEditWidget={dashboard.onEditWidget}
                 onUpdateWidget={dashboard.onUpdateWidget}
                 onUpdateWidgetDebounced={dashboard.onUpdateWidgetDebounced}

@@ -1,6 +1,6 @@
-# input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings]
+# input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings, and widget delete query flags]
 # output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence and gradebook endpoints]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance and gradebook APIs]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, gradebook APIs, and force-aware widget deletion]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -2502,7 +2502,10 @@ def update_widget(
 
 @app.delete("/widgets/{widget_id}")
 def delete_widget(
-    widget_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+    widget_id: str,
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
 ):
     # Check Semester widget
     db_widget_sem = db.query(models.Widget).join(models.Semester).join(models.Program).filter(
@@ -2519,7 +2522,7 @@ def delete_widget(
     if not db_widget:
         raise HTTPException(status_code=404, detail="Widget not found")
         
-    if db_widget.is_removable is False:
+    if db_widget.is_removable is False and not force:
         raise HTTPException(status_code=400, detail="Cannot delete this widget")
         
     return crud.delete_widget(db=db, widget_id=widget_id)

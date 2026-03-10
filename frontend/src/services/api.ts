@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, and widget delete options]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Gradebook types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, and course gradebook domain APIs]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, and course gradebook domain APIs including force-aware widget deletion]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -292,8 +292,10 @@ const api = {
         const response = await axios.put<Widget>(`/api/widgets/${widgetId}`, data);
         return response.data;
     },
-    deleteWidget: async (widgetId: string) => {
-        await axios.delete(`/api/widgets/${widgetId}`);
+    deleteWidget: async (widgetId: string, options?: { force?: boolean }) => {
+        await axios.delete(`/api/widgets/${widgetId}`, {
+            params: options?.force ? { force: true } : undefined,
+        });
     },
 
     // Tabs
