@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums]
-# output: [Request/response schema classes for API contracts, including plugin-shared settings payloads and course gradebooks]
-# pos:    [Serialization and validation layer between API and domain services]
+# output: [Request/response schema classes for API contracts, including plugin-shared settings payloads and fact-oriented note-free course gradebooks]
+# pos:    [Serialization and validation layer between API and domain services, including fact-only gradebook wire contracts]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -293,7 +293,6 @@ class GradebookAssessmentBase(BaseModel):
     status: GradebookAssessmentStatus = GradebookAssessmentStatus.PLANNED
     forecast_mode: GradebookForecastMode = GradebookForecastMode.MANUAL
     actual_score: Optional[float] = None
-    notes: Optional[str] = None
     order_index: int = 0
 
 class GradebookAssessment(GradebookAssessmentBase):
@@ -336,52 +335,41 @@ class GradebookSummary(BaseModel):
 
 class CourseGradebook(BaseModel):
     course_id: str
-    revision: int
     target_mode: GradebookTargetMode
     target_value: float
     baseline_scenario_id: Optional[str] = None
+    scaling_table: dict[str, float] = {}
     scenarios: List[GradebookScenario] = []
     categories: List[GradebookAssessmentCategory] = []
     assessments: List[GradebookAssessment] = []
-    summary: GradebookSummary
-
-class GradebookRevisionRequest(BaseModel):
-    revision: int
 
 class GradebookTargetUpdate(BaseModel):
-    revision: int
     target_mode: GradebookTargetMode
     target_value: float
 
 class GradebookScenarioCreate(BaseModel):
-    revision: int
     name: str
     color_token: Optional[str] = None
     duplicate_from_scenario_id: Optional[str] = None
 
 class GradebookScenarioUpdate(BaseModel):
-    revision: int
     name: Optional[str] = None
     color_token: Optional[str] = None
     is_baseline: Optional[bool] = None
 
 class GradebookCategoryCreate(BaseModel):
-    revision: int
     name: str
     color_token: Optional[str] = None
 
 class GradebookCategoryUpdate(BaseModel):
-    revision: int
     name: Optional[str] = None
     color_token: Optional[str] = None
     is_archived: Optional[bool] = None
 
 class GradebookAssessmentCreate(GradebookAssessmentBase):
-    revision: int
     scenario_scores: List[GradebookAssessmentScenarioScoreBase] = []
 
 class GradebookAssessmentUpdate(BaseModel):
-    revision: int
     category_id: Optional[str] = None
     title: Optional[str] = None
     due_date: Optional[date] = None
@@ -389,11 +377,9 @@ class GradebookAssessmentUpdate(BaseModel):
     status: Optional[GradebookAssessmentStatus] = None
     forecast_mode: Optional[GradebookForecastMode] = None
     actual_score: Optional[float] = None
-    notes: Optional[str] = None
     scenario_scores: Optional[List[GradebookAssessmentScenarioScoreBase]] = None
 
 class GradebookAssessmentReorderRequest(BaseModel):
-    revision: int
     assessment_ids: List[str]
 
 class GradebookScenarioScoreUpdateItem(BaseModel):
@@ -402,15 +388,12 @@ class GradebookScenarioScoreUpdateItem(BaseModel):
     forecast_score: Optional[float] = None
 
 class GradebookScenarioScoresUpdateRequest(BaseModel):
-    revision: int
     updates: List[GradebookScenarioScoreUpdateItem]
 
 class GradebookConvertToSolverRequest(BaseModel):
-    revision: int
     assessment_ids: Optional[List[str]] = None
 
 class GradebookApplySolvedScoreRequest(BaseModel):
-    revision: int
     scenario_id: str
     assessment_ids: Optional[List[str]] = None
 

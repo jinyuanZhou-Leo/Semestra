@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence and gradebook endpoints]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, gradebook APIs, and force-aware widget deletion]
+# output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence and fact-oriented gradebook endpoints]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, fact-only gradebook APIs, and force-aware widget deletion]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -1537,13 +1537,12 @@ def update_course_gradebook_scenario(
 def delete_course_gradebook_scenario(
     course_id: str,
     scenario_id: str,
-    payload: schemas.GradebookRevisionRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     course = get_owned_course(db, current_user, course_id)
     try:
-        return gradebook.delete_scenario(db, course.id, scenario_id, payload)
+        return gradebook.delete_scenario(db, course.id, scenario_id)
     except Exception as exc:
         raise_gradebook_http_error(exc)
 
@@ -1581,13 +1580,12 @@ def update_course_gradebook_category(
 def delete_course_gradebook_category(
     course_id: str,
     category_id: str,
-    payload: schemas.GradebookRevisionRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     course = get_owned_course(db, current_user, course_id)
     try:
-        return gradebook.delete_category(db, course.id, category_id, payload)
+        return gradebook.delete_category(db, course.id, category_id)
     except Exception as exc:
         raise_gradebook_http_error(exc)
 
@@ -1625,13 +1623,12 @@ def update_course_gradebook_assessment(
 def delete_course_gradebook_assessment(
     course_id: str,
     assessment_id: str,
-    payload: schemas.GradebookRevisionRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     course = get_owned_course(db, current_user, course_id)
     try:
-        return gradebook.delete_assessment(db, course.id, assessment_id, payload)
+        return gradebook.delete_assessment(db, course.id, assessment_id)
     except Exception as exc:
         raise_gradebook_http_error(exc)
 

@@ -38,7 +38,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | SettingsModal.tsx | UI component | Reusable component for settings modal UI/interaction flow. |
 | SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles that can inherit a page-level offset provider. |
 | SettingsTabContent.tsx | UI component | Reusable component for settings tab content UI/interaction flow. |
-| Tabs.tsx | UI component | Reusable dashboard/homepage tab shell with drag-sort, add/remove controls, overflow scrolling, and stable right-aligned workspace navigation behavior. |
+| Tabs.tsx | UI component | Reusable dashboard/homepage tab shell with drag-sort, add/remove controls, overflow scrolling, edge-shadow overflow affordances, and stable right-aligned workspace navigation behavior. |
 | TabSwitch.tsx | UI component | Reusable component for tab switch UI/interaction flow. |
 | ThemeProvider.tsx | UI component | Reusable component for theme provider UI/interaction flow. |
 | ThemeToggle.tsx | UI component | Reusable component for theme toggle UI/interaction flow. |

@@ -1,6 +1,6 @@
-// input:  [gradebook API contracts, date-fns format helpers, and plugin-level UI state defaults]
-// output: [builtin-gradebook constants, view-setting helpers, category color metadata, and shared formatters]
-// pos:    [shared configuration layer used by the builtin-gradebook tab, widget, and course-page integration]
+// input:  [gradebook fact contracts, date-fns format helpers, and plugin-level UI state defaults]
+// output: [builtin-gradebook constants, client-side projection calculators, and shared formatters]
+// pos:    [shared calculation/configuration layer used by the builtin-gradebook tab, widget, and course-page integration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,6 +15,8 @@ import type {
     GradebookAssessmentCategory,
     GradebookAssessmentStatus,
     GradebookFeasibility,
+    GradebookScalingTable,
+    GradebookTargetMode,
 } from '@/services/api';
 
 export const BUILTIN_GRADEBOOK_PLUGIN_ID = 'builtin-gradebook';
@@ -44,6 +46,39 @@ export interface OpenGradebookTabDetail {
     tabType: string;
 }
 
+export interface ComputedGradebookScenarioCard {
+    scenario_id: string;
+    scenario_name: string;
+    projected_percentage: number | null;
+    projected_gpa: number | null;
+    required_score: number | null;
+    remaining_weight: number;
+    feasibility: GradebookFeasibility;
+}
+
+export interface ComputedGradebookUpcomingDueItem {
+    assessment_id: string;
+    title: string;
+    due_date: string;
+    category_name: string | null;
+    category_color_token: string | null;
+}
+
+export interface ComputedGradebookSummary {
+    current_actual_percentage: number;
+    current_actual_gpa: number;
+    baseline_target_mode: GradebookTargetMode;
+    baseline_target_value: number;
+    baseline_required_score: number | null;
+    baseline_projected_percentage: number | null;
+    baseline_projected_gpa: number | null;
+    remaining_weight: number;
+    feasibility: GradebookFeasibility;
+    validation_issues: string[];
+    scenario_cards: ComputedGradebookScenarioCard[];
+    upcoming_due_items: ComputedGradebookUpcomingDueItem[];
+}
+
 export const DEFAULT_GRADEBOOK_VIEW_SETTINGS: GradebookViewSettings = {
     selectedScenarioId: null,
     sortKey: 'due_date',
@@ -65,6 +100,193 @@ export const CATEGORY_COLOR_OPTIONS = [
 ] as const;
 
 export const GRADEBOOK_CATEGORY_COLOR_TOKENS = CATEGORY_COLOR_OPTIONS.map((option) => option.value);
+const TARGET_MODE_VALUES: GradebookTargetMode[] = ['percentage', 'gpa'];
+
+const roundValue = (value: number, digits: number = 4): number => Number(value.toFixed(digits));
+
+const calculateGradebookGpa = (percentage: number | null, scalingTable: GradebookScalingTable): number | null => {
+    if (percentage === null || !Number.isFinite(percentage)) return null;
+
+    for (const [range, rawGpa] of Object.entries(scalingTable)) {
+        const cleanRange = range.trim();
+        const gpa = Number(rawGpa);
+        if (!Number.isFinite(gpa)) continue;
+
+        if (cleanRange.includes('-')) {
+            const parts = cleanRange.split('-').map((part) => Number(part.trim()));
+            if (parts.length === 2 && parts.every(Number.isFinite)) {
+                const min = Math.min(parts[0], parts[1]);
+                const max = Math.max(parts[0], parts[1]);
+                if (percentage >= min && percentage <= max) {
+                    return roundValue(gpa, 3);
+                }
+            }
+            continue;
+        }
+
+        if (cleanRange.startsWith('>=')
+            || cleanRange.startsWith('>')) {
+            const threshold = Number(cleanRange.replace(/[^0-9.]/g, ''));
+            if (Number.isFinite(threshold) && percentage >= threshold) {
+                return roundValue(gpa, 3);
+            }
+            continue;
+        }
+
+        const exactValue = Number(cleanRange);
+        if (Number.isFinite(exactValue) && Math.abs(percentage - exactValue) < 0.01) {
+            return roundValue(gpa, 3);
+        }
+    }
+
+    const numericEntries = Object.entries(scalingTable)
+        .filter(([key]) => !key.includes('-'))
+        .map(([key, gpa]) => ({ key: Number(key), gpa: Number(gpa) }))
+        .filter((entry) => Number.isFinite(entry.key) && Number.isFinite(entry.gpa))
+        .sort((left, right) => right.key - left.key);
+
+    for (const entry of numericEntries) {
+        if (percentage >= entry.key) {
+            return roundValue(entry.gpa, 3);
+        }
+    }
+
+    return 0;
+};
+
+const resolveTargetPercentage = (
+    targetMode: GradebookTargetMode,
+    targetValue: number,
+    scalingTable: GradebookScalingTable,
+): number | null => {
+    if (targetMode === 'percentage') {
+        return targetValue;
+    }
+
+    let threshold: number | null = null;
+    for (let percentage = 0; percentage <= 100; percentage += 1) {
+        const resolvedGpa = calculateGradebookGpa(percentage, scalingTable);
+        if (resolvedGpa !== null && resolvedGpa >= targetValue) {
+            threshold = percentage;
+            break;
+        }
+    }
+
+    return threshold;
+};
+
+const buildValidationIssues = (gradebook: CourseGradebook): string[] => {
+    const issues: string[] = [];
+    const totalWeight = gradebook.assessments
+        .filter((assessment) => assessment.status !== 'excluded')
+        .reduce((sum, assessment) => sum + assessment.weight, 0);
+
+    if (!TARGET_MODE_VALUES.includes(gradebook.target_mode)) {
+        issues.push('Target mode must be percentage or gpa.');
+    }
+    if (gradebook.scenarios.length === 0) {
+        issues.push('At least one scenario is required.');
+    }
+    if (getSelectedScenario(gradebook, gradebook.baseline_scenario_id)?.id == null) {
+        issues.push('A baseline scenario is required.');
+    }
+    if (Math.abs(totalWeight - 100) > 0.01) {
+        issues.push('Active assessment weights must sum to 100.00%.');
+    }
+    if (gradebook.target_mode === 'gpa' && resolveTargetPercentage(gradebook.target_mode, gradebook.target_value, gradebook.scaling_table) === null) {
+        issues.push('Unable to resolve GPA target with the current scaling table.');
+    }
+
+    return issues;
+};
+
+const buildScenarioCard = (
+    gradebook: CourseGradebook,
+    scenarioId: string,
+    scenarioName: string,
+    targetPercentage: number,
+    validationIssues: string[],
+): ComputedGradebookScenarioCard => {
+    let completedContribution = 0;
+    let manualContribution = 0;
+    let solverWeight = 0;
+
+    for (const assessment of gradebook.assessments) {
+        if (assessment.status === 'excluded') continue;
+
+        if (assessment.status === 'completed') {
+            if (assessment.actual_score !== null) {
+                completedContribution += (assessment.weight * assessment.actual_score) / 100;
+            }
+            continue;
+        }
+
+        if (assessment.forecast_mode === 'solver') {
+            solverWeight += assessment.weight;
+            continue;
+        }
+
+        const forecastScore = getAssessmentScenarioScore(assessment, scenarioId);
+        if (forecastScore !== null) {
+            manualContribution += (assessment.weight * forecastScore) / 100;
+        }
+    }
+
+    const remainingWeight = roundValue(
+        gradebook.assessments
+            .filter((assessment) => assessment.status !== 'excluded' && assessment.status !== 'completed')
+            .reduce((sum, assessment) => sum + assessment.weight, 0),
+    );
+    const fixedContribution = completedContribution + manualContribution;
+
+    if (validationIssues.length > 0) {
+        return {
+            scenario_id: scenarioId,
+            scenario_name: scenarioName,
+            projected_percentage: null,
+            projected_gpa: null,
+            required_score: null,
+            remaining_weight: remainingWeight,
+            feasibility: 'invalid',
+        };
+    }
+
+    if (solverWeight > 0) {
+        const requiredScore = ((targetPercentage - fixedContribution) / solverWeight) * 100;
+        const clampedRequiredScore = Math.max(0, Math.min(requiredScore, 100));
+        const projectedPercentage = fixedContribution + (solverWeight * clampedRequiredScore) / 100;
+        const feasibility: GradebookFeasibility = requiredScore <= 0
+            ? 'already_secured'
+            : requiredScore > 100
+                ? 'infeasible'
+                : Math.abs(requiredScore - 100) <= 0.01
+                    ? 'needs_perfection'
+                    : 'on_track';
+
+        return {
+            scenario_id: scenarioId,
+            scenario_name: scenarioName,
+            projected_percentage: roundValue(projectedPercentage),
+            projected_gpa: calculateGradebookGpa(projectedPercentage, gradebook.scaling_table),
+            required_score: roundValue(requiredScore),
+            remaining_weight: remainingWeight,
+            feasibility,
+        };
+    }
+
+    const projectedPercentage = fixedContribution;
+    const alreadySecured = projectedPercentage >= targetPercentage;
+
+    return {
+        scenario_id: scenarioId,
+        scenario_name: scenarioName,
+        projected_percentage: roundValue(projectedPercentage),
+        projected_gpa: calculateGradebookGpa(projectedPercentage, gradebook.scaling_table),
+        required_score: alreadySecured ? 0 : null,
+        remaining_weight: remainingWeight,
+        feasibility: alreadySecured ? 'already_secured' : 'invalid',
+    };
+};
 
 export const normalizeGradebookViewSettings = (value: unknown): GradebookViewSettings => {
     const settings = typeof value === 'object' && value !== null ? value as Partial<GradebookViewSettings> : {};
@@ -174,9 +396,85 @@ export const getSelectedScenario = (gradebook: CourseGradebook | null, scenarioI
         ?? null;
 };
 
-export const getScenarioRequiredScore = (gradebook: CourseGradebook, scenarioId: string | null): number | null => {
-    if (!scenarioId) return gradebook.summary.baseline_required_score;
-    return gradebook.summary.scenario_cards.find((scenario) => scenario.scenario_id === scenarioId)?.required_score ?? null;
+export const buildComputedGradebookSummary = (gradebook: CourseGradebook): ComputedGradebookSummary => {
+    const validationIssues = buildValidationIssues(gradebook);
+    const targetPercentage = resolveTargetPercentage(
+        gradebook.target_mode,
+        gradebook.target_value,
+        gradebook.scaling_table,
+    ) ?? 0;
+
+    const scenarioCards = gradebook.scenarios
+        .slice()
+        .sort((left, right) => left.order_index - right.order_index)
+        .map((scenario) => buildScenarioCard(
+            gradebook,
+            scenario.id,
+            scenario.name,
+            targetPercentage,
+            validationIssues,
+        ));
+
+    const baselineScenario = getSelectedScenario(gradebook, gradebook.baseline_scenario_id);
+    const baselineCard = scenarioCards.find((card) => card.scenario_id === baselineScenario?.id) ?? scenarioCards[0] ?? null;
+
+    const currentActualPercentage = roundValue(
+        gradebook.assessments.reduce((sum, assessment) => {
+            if (assessment.status !== 'completed' || assessment.actual_score === null) {
+                return sum;
+            }
+            return sum + (assessment.weight * assessment.actual_score) / 100;
+        }, 0),
+    );
+
+    const remainingWeight = roundValue(
+        gradebook.assessments.reduce((sum, assessment) => (
+            assessment.status === 'planned' ? sum + assessment.weight : sum
+        ), 0),
+    );
+
+    const categoriesById = new Map(gradebook.categories.map((category) => [category.id, category]));
+    const upcomingDueItems = gradebook.assessments
+        .filter((assessment) => assessment.status === 'planned' && Boolean(assessment.due_date))
+        .slice()
+        .sort((left, right) => {
+            const dueComparison = (left.due_date ?? '').localeCompare(right.due_date ?? '');
+            if (dueComparison !== 0) return dueComparison;
+            return left.order_index - right.order_index;
+        })
+        .map((assessment) => {
+            const category = assessment.category_id ? categoriesById.get(assessment.category_id) : undefined;
+            return {
+                assessment_id: assessment.id,
+                title: assessment.title,
+                due_date: assessment.due_date ?? '',
+                category_name: category?.name ?? null,
+                category_color_token: category?.color_token ?? null,
+            };
+        });
+
+    return {
+        current_actual_percentage: currentActualPercentage,
+        current_actual_gpa: calculateGradebookGpa(currentActualPercentage, gradebook.scaling_table) ?? 0,
+        baseline_target_mode: gradebook.target_mode,
+        baseline_target_value: gradebook.target_value,
+        baseline_required_score: baselineCard?.required_score ?? null,
+        baseline_projected_percentage: baselineCard?.projected_percentage ?? null,
+        baseline_projected_gpa: baselineCard?.projected_gpa ?? null,
+        remaining_weight: remainingWeight,
+        feasibility: baselineCard?.feasibility ?? 'invalid',
+        validation_issues: validationIssues,
+        scenario_cards: scenarioCards,
+        upcoming_due_items: upcomingDueItems,
+    };
+};
+
+export const getScenarioRequiredScore = (
+    computedSummary: ComputedGradebookSummary,
+    scenarioId: string | null,
+): number | null => {
+    if (!scenarioId) return computedSummary.baseline_required_score;
+    return computedSummary.scenario_cards.find((scenario) => scenario.scenario_id === scenarioId)?.required_score ?? null;
 };
 
 export const getAssessmentDisplayScore = (

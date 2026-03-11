@@ -1,3 +1,11 @@
+// input:  [course gradebook APIs, plugin settings contracts, and shared category/scenario helpers]
+// output: [builtin-gradebook shared settings section for scenarios and categories]
+// pos:    [course-scoped gradebook settings surface that edits fact data outside the main planning tab]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Edit, Star, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -197,7 +205,7 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
         void loadGradebook();
     }, [loadGradebook]);
 
-    /** Commits a gradebook mutation; only shows a toast on error. */
+    /** Commits a gradebook mutation and refreshes the host settings shell after success. */
     const commitGradebook = useCallback(async (promise: Promise<CourseGradebook>) => {
         setIsMutating(true);
         try {
@@ -206,21 +214,11 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
             onRefresh();
         } catch (error: unknown) {
             console.error('Failed to update gradebook', error);
-            if (
-                typeof error === 'object' &&
-                error !== null &&
-                'response' in error &&
-                (error as { response?: { status?: number } }).response?.status === 409
-            ) {
-                toast.error('Gradebook revision conflict. Reloading the latest data.');
-                await loadGradebook();
-                return;
-            }
             toast.error(getApiErrorMessage(error));
         } finally {
             setIsMutating(false);
         }
-    }, [loadGradebook, onRefresh]);
+    }, [onRefresh]);
 
     const handleOpenCreate = useCallback(() => {
         setEditingCategory(null);
@@ -236,13 +234,11 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
         if (!gradebook || !courseId) return;
         if (editingCategory) {
             await commitGradebook(api.updateCourseGradebookCategory(courseId, editingCategory.id, {
-                revision: gradebook.revision,
                 name,
                 color_token: colorToken,
             }));
         } else {
             await commitGradebook(api.createCourseGradebookCategory(courseId, {
-                revision: gradebook.revision,
                 name,
                 color_token: colorToken,
             }));
@@ -278,10 +274,9 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                                         value={editingScenarioName}
                                         onChange={(e) => setEditingScenarioName(e.target.value)}
                                         className="h-8 max-w-[200px]"
-                                        onKeyDown={(e) => {
+                                                onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
                                                 void commitGradebook(api.updateCourseGradebookScenario(courseId, scenario.id, {
-                                                    revision: gradebook.revision,
                                                     name: editingScenarioName.trim(),
                                                 }));
                                                 setEditingScenarioId(null);
@@ -309,7 +304,6 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                                         type="button" size="sm" variant="ghost" disabled={isMutating}
                                         onClick={() => {
                                             void commitGradebook(api.updateCourseGradebookScenario(courseId, scenario.id, {
-                                                revision: gradebook.revision,
                                                 name: editingScenarioName.trim(),
                                             }));
                                             setEditingScenarioId(null);
@@ -332,7 +326,6 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                                     <Button
                                         type="button" size="icon" variant="ghost" disabled={isMutating}
                                         onClick={() => void commitGradebook(api.updateCourseGradebookScenario(courseId, scenario.id, {
-                                            revision: gradebook.revision,
                                             is_baseline: true,
                                         }))}
                                     ><Star className="h-4 w-4 text-muted-foreground hover:text-foreground" /></Button>
@@ -359,7 +352,7 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                                                 <AlertDialogAction
                                                     variant="destructive"
                                                     onClick={() => void commitGradebook(
-                                                        api.deleteCourseGradebookScenario(courseId, scenario.id, { revision: gradebook.revision })
+                                                        api.deleteCourseGradebookScenario(courseId, scenario.id)
                                                     )}
                                                 >Delete</AlertDialogAction>
                                             </AlertDialogFooter>
@@ -387,7 +380,6 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && newScenarioName.trim()) {
                                     void commitGradebook(api.createCourseGradebookScenario(courseId, {
-                                        revision: gradebook.revision,
                                         name: newScenarioName.trim(),
                                         color_token: CATEGORY_COLOR_OPTIONS[(gradebook.scenarios.length + 1) % CATEGORY_COLOR_OPTIONS.length].value,
                                     }));
@@ -399,7 +391,6 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                             type="button" size="sm" disabled={isMutating || !newScenarioName.trim()}
                             onClick={() => {
                                 void commitGradebook(api.createCourseGradebookScenario(courseId, {
-                                    revision: gradebook.revision,
                                     name: newScenarioName.trim(),
                                     color_token: CATEGORY_COLOR_OPTIONS[(gradebook.scenarios.length + 1) % CATEGORY_COLOR_OPTIONS.length].value,
                                 }));
@@ -477,9 +468,9 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                     <AlertDialogAction
-                                                        variant="destructive"
-                                                        onClick={() => void commitGradebook(
-                                                            api.deleteCourseGradebookCategory(courseId, category.id, { revision: gradebook.revision })
+                                                    variant="destructive"
+                                                    onClick={() => void commitGradebook(
+                                                            api.deleteCourseGradebookCategory(courseId, category.id)
                                                         )}
                                                     >Delete</AlertDialogAction>
                                                 </AlertDialogFooter>

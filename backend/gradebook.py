@@ -1,6 +1,6 @@
-# input:  [SQLAlchemy session, gradebook ORM models, GPA logic helpers, and gradebook API schemas]
-# output: [course-gradebook domain service for initialization, validation, solver math, serialization, and CRUD mutations]
-# pos:    [backend gradebook domain layer used by course APIs, import/export flows, and tests]
+# input:  [SQLAlchemy session, gradebook ORM models, GPA logic helpers, and fact-oriented gradebook API schemas]
+# output: [course-gradebook domain service for initialization, validation, solver math, note-free fact serialization, and CRUD mutations]
+# pos:    [backend gradebook domain layer used by course APIs, import/export flows, and tests without persisting derived projections]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -69,11 +69,6 @@ def _normalize_name(value: str, field_name: str) -> str:
     if not normalized:
         raise GradebookValidationError(f"{field_name} cannot be empty.")
     return normalized
-
-
-def _assert_revision(gradebook: models.CourseGradebook, revision: int) -> None:
-    if int(gradebook.revision or 0) != int(revision):
-        raise GradebookConflictError("Gradebook revision conflict. Refresh and try again.")
 
 
 def _touch_gradebook(gradebook: models.CourseGradebook) -> None:
@@ -364,7 +359,7 @@ def get_course_gradebook_or_404(db: Session, course_id: str) -> models.CourseGra
     return ensure_course_gradebook(db, course)
 
 
-def build_course_gradebook_payload(gradebook: models.CourseGradebook) -> schemas.CourseGradebook:
+def _build_gradebook_summary(gradebook: models.CourseGradebook) -> schemas.GradebookSummary:
     course = gradebook.course
     if course is None:
         raise GradebookValidationError("Gradebook must belong to a course.")
@@ -419,12 +414,35 @@ def build_course_gradebook_payload(gradebook: models.CourseGradebook) -> schemas
     feasibility = baseline_card.feasibility if baseline_card is not None else "invalid"
     formula_breakdown = _build_formula_breakdown(target_percentage, baseline_card, gradebook) if baseline_card is not None else []
 
+    return schemas.GradebookSummary(
+        current_actual_percentage=current_actual_percentage,
+        current_actual_gpa=current_actual_gpa,
+        baseline_target_mode=gradebook.target_mode,
+        baseline_target_value=gradebook.target_value,
+        baseline_required_score=baseline_card.required_score if baseline_card else None,
+        baseline_projected_percentage=baseline_card.projected_percentage if baseline_card else None,
+        baseline_projected_gpa=baseline_card.projected_gpa if baseline_card else None,
+        remaining_weight=remaining_weight,
+        feasibility=feasibility,
+        validation_issues=validation_issues,
+        formula_breakdown=formula_breakdown,
+        scenario_cards=scenario_cards,
+        upcoming_due_items=upcoming_due_items,
+    )
+
+
+def build_course_gradebook_payload(gradebook: models.CourseGradebook) -> schemas.CourseGradebook:
+    course = gradebook.course
+    if course is None:
+        raise GradebookValidationError("Gradebook must belong to a course.")
+
+    scaling_table = _resolve_gpa_scale(course)
     return schemas.CourseGradebook(
         course_id=course.id,
-        revision=gradebook.revision,
         target_mode=gradebook.target_mode,
         target_value=gradebook.target_value,
         baseline_scenario_id=gradebook.baseline_scenario_id,
+        scaling_table={str(key): float(value) for key, value in scaling_table.items()},
         scenarios=[
             schemas.GradebookScenario.model_validate(scenario, from_attributes=True)
             for scenario in sorted(gradebook.scenarios, key=lambda item: item.order_index)
@@ -443,27 +461,11 @@ def build_course_gradebook_payload(gradebook: models.CourseGradebook) -> schemas
                 status=assessment.status,
                 forecast_mode=assessment.forecast_mode,
                 actual_score=assessment.actual_score,
-                notes=assessment.notes,
                 order_index=assessment.order_index,
                 scenario_scores=_serialize_scenario_scores(assessment),
             )
             for assessment in sorted(gradebook.assessments, key=lambda item: item.order_index)
         ],
-        summary=schemas.GradebookSummary(
-            current_actual_percentage=current_actual_percentage,
-            current_actual_gpa=current_actual_gpa,
-            baseline_target_mode=gradebook.target_mode,
-            baseline_target_value=gradebook.target_value,
-            baseline_required_score=baseline_card.required_score if baseline_card else None,
-            baseline_projected_percentage=baseline_card.projected_percentage if baseline_card else None,
-            baseline_projected_gpa=baseline_card.projected_gpa if baseline_card else None,
-            remaining_weight=remaining_weight,
-            feasibility=feasibility,
-            validation_issues=validation_issues,
-            formula_breakdown=formula_breakdown,
-            scenario_cards=scenario_cards,
-            upcoming_due_items=upcoming_due_items,
-        ),
     )
 
 
@@ -472,18 +474,7 @@ def apply_course_gradebook_projection(db: Session, gradebook: models.CourseGrade
     db.refresh(gradebook)
     for assessment in list(gradebook.assessments):
         db.refresh(assessment)
-    payload = build_course_gradebook_payload(gradebook)
-    course = gradebook.course
-    if course is None:
-        raise GradebookValidationError("Gradebook must belong to a course.")
-
-    course.grade_percentage = payload.summary.baseline_projected_percentage or 0.0
-    course.grade_scaled = payload.summary.baseline_projected_gpa or 0.0
-    db.add(course)
-    db.flush()
-    if course.semester is not None:
-        logic.update_semester_stats(course.semester, db)
-    return payload
+    return build_course_gradebook_payload(gradebook)
 
 
 def get_course_gradebook_payload(db: Session, course_id: str) -> schemas.CourseGradebook:
@@ -496,7 +487,6 @@ def get_course_gradebook_payload(db: Session, course_id: str) -> schemas.CourseG
 
 def update_target(db: Session, course_id: str, payload: schemas.GradebookTargetUpdate) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     if payload.target_mode not in TARGET_MODE_VALUES:
         raise GradebookValidationError("target_mode must be percentage or gpa.")
     gradebook.target_mode = payload.target_mode
@@ -511,7 +501,6 @@ def update_target(db: Session, course_id: str, payload: schemas.GradebookTargetU
 
 def create_scenario(db: Session, course_id: str, payload: schemas.GradebookScenarioCreate) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     scenario = models.GradebookScenario(
         gradebook_id=gradebook.id,
         name=_normalize_name(payload.name, "Scenario name"),
@@ -548,7 +537,6 @@ def update_scenario(
     payload: schemas.GradebookScenarioUpdate,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     scenario = next((item for item in gradebook.scenarios if item.id == scenario_id), None)
     if scenario is None:
         raise GradebookNotFoundError("Scenario not found.")
@@ -572,10 +560,8 @@ def delete_scenario(
     db: Session,
     course_id: str,
     scenario_id: str,
-    payload: schemas.GradebookRevisionRequest,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     scenario = next((item for item in gradebook.scenarios if item.id == scenario_id), None)
     if scenario is None:
         raise GradebookNotFoundError("Scenario not found.")
@@ -597,7 +583,6 @@ def delete_scenario(
 
 def create_category(db: Session, course_id: str, payload: schemas.GradebookCategoryCreate) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     name = _normalize_name(payload.name, "Category name")
     key = _slugify(name)
     existing_keys = {item.key for item in gradebook.categories}
@@ -631,7 +616,6 @@ def update_category(
     payload: schemas.GradebookCategoryUpdate,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     category = next((item for item in gradebook.categories if item.id == category_id), None)
     if category is None:
         raise GradebookNotFoundError("Category not found.")
@@ -656,10 +640,8 @@ def delete_category(
     db: Session,
     course_id: str,
     category_id: str,
-    payload: schemas.GradebookRevisionRequest,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     category = next((item for item in gradebook.categories if item.id == category_id), None)
     if category is None:
         raise GradebookNotFoundError("Category not found.")
@@ -705,7 +687,6 @@ def create_assessment(
     payload: schemas.GradebookAssessmentCreate,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     if payload.status not in ASSESSMENT_STATUS_VALUES:
         raise GradebookValidationError("Invalid assessment status.")
     if payload.forecast_mode not in FORECAST_MODE_VALUES:
@@ -722,7 +703,6 @@ def create_assessment(
         status=payload.status,
         forecast_mode=payload.forecast_mode,
         actual_score=payload.actual_score,
-        notes=payload.notes,
         order_index=len(gradebook.assessments),
     )
     _touch_row(assessment)
@@ -744,7 +724,6 @@ def update_assessment(
     payload: schemas.GradebookAssessmentUpdate,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     assessment = next((item for item in gradebook.assessments if item.id == assessment_id), None)
     if assessment is None:
         raise GradebookNotFoundError("Assessment not found.")
@@ -752,7 +731,6 @@ def update_assessment(
         raise GradebookValidationError("Selected category does not exist.")
 
     update_data = payload.model_dump(exclude_unset=True)
-    update_data.pop("revision", None)
     update_data.pop("scenario_scores", None)
     for key, value in update_data.items():
         if key == "title" and value is not None:
@@ -779,10 +757,8 @@ def delete_assessment(
     db: Session,
     course_id: str,
     assessment_id: str,
-    payload: schemas.GradebookRevisionRequest,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     assessment = next((item for item in gradebook.assessments if item.id == assessment_id), None)
     if assessment is None:
         raise GradebookNotFoundError("Assessment not found.")
@@ -802,7 +778,6 @@ def reorder_assessments(
     payload: schemas.GradebookAssessmentReorderRequest,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     existing_ids = {assessment.id for assessment in gradebook.assessments}
     requested_ids = list(payload.assessment_ids)
     if set(requested_ids) != existing_ids:
@@ -826,7 +801,6 @@ def update_scenario_scores(
     payload: schemas.GradebookScenarioScoresUpdateRequest,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     assessment_map = {assessment.id: assessment for assessment in gradebook.assessments}
     scenario_ids = {scenario.id for scenario in gradebook.scenarios}
     for update in payload.updates:
@@ -864,7 +838,6 @@ def convert_to_solver(
     payload: schemas.GradebookConvertToSolverRequest,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
     target_ids = set(payload.assessment_ids or [assessment.id for assessment in gradebook.assessments if assessment.status == "planned"])
     for assessment in gradebook.assessments:
         if assessment.id in target_ids and assessment.status == "planned":
@@ -885,8 +858,7 @@ def apply_solved_score(
     payload: schemas.GradebookApplySolvedScoreRequest,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    _assert_revision(gradebook, payload.revision)
-    scenario_card = next((item for item in build_course_gradebook_payload(gradebook).summary.scenario_cards if item.scenario_id == payload.scenario_id), None)
+    scenario_card = next((item for item in _build_gradebook_summary(gradebook).scenario_cards if item.scenario_id == payload.scenario_id), None)
     if scenario_card is None or scenario_card.required_score is None:
         raise GradebookValidationError("Selected scenario does not have a solved score to apply.")
     target_ids = set(
@@ -959,7 +931,6 @@ def export_course_gradebook(course: models.Course) -> Optional[schemas.CourseGra
                 status=assessment.status,
                 forecast_mode=assessment.forecast_mode,
                 actual_score=assessment.actual_score,
-                notes=assessment.notes,
                 order_index=assessment.order_index,
                 scenario_scores=assessment.scenario_scores,
             )
@@ -1033,7 +1004,6 @@ def import_course_gradebook(
             status=assessment_data.status,
             forecast_mode=assessment_data.forecast_mode,
             actual_score=assessment_data.actual_score,
-            notes=assessment_data.notes,
             order_index=assessment_data.order_index,
         )
         _touch_row(assessment)

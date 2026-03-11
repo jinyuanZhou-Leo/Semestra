@@ -1,6 +1,6 @@
-// input:  [course gradebook APIs, course data refresh helpers, shadcn UI primitives, and builtin-gradebook shared selectors/formatters]
-// output: [builtin-gradebook planning tab component and tab definition]
-// pos:    [course-scoped gradebook command center for scenario planning and assessment triage]
+// input:  [course gradebook APIs, shadcn UI primitives, and builtin-gradebook shared selectors/formatters]
+// output: [table-first builtin-gradebook planning tab component and tab definition]
+// pos:    [course-scoped gradebook command center that derives projections from fact data on the client]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -33,11 +33,10 @@ import api, {
     type GradebookAssessmentCategory,
     type GradebookAssessmentScenarioScore,
     type GradebookAssessmentStatus,
+    type GradebookFeasibility,
     type GradebookForecastMode,
-    type GradebookTargetMode,
 } from '@/services/api';
 import type { TabDefinition, TabProps } from '@/services/tabRegistry';
-import { useCourseData } from '@/contexts/CourseDataContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,7 +48,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 
 import {
@@ -69,7 +68,6 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import {
     Tooltip,
     TooltipContent,
@@ -80,22 +78,20 @@ import { ResponsiveDialogDrawer } from '@/components/ResponsiveDialogDrawer';
 import { cn } from '@/lib/utils';
 import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
+    buildComputedGradebookSummary,
     DEFAULT_GRADEBOOK_VIEW_SETTINGS,
+    type ComputedGradebookSummary,
     formatGpa,
-    formatGradebookDate,
     formatGradebookDateInput,
     formatPercent,
     getApiErrorMessage,
     getAssessmentDisplayScore,
-    getAssessmentStatusLabel,
     getCategoryBadgeClassName,
     getCategoryById,
     getFeasibilityLabel,
-    getRelativeDueText,
     getScenarioRequiredScore,
     getScenarioSwatchClassName,
     getSelectedScenarioId,
-    isAssessmentOverdue,
     normalizeGradebookViewSettings,
     type GradebookViewSettings,
 } from './shared';
@@ -109,7 +105,6 @@ type AssessmentDraft = {
     status: GradebookAssessmentStatus;
     forecast_mode: GradebookForecastMode;
     actual_score: string;
-    notes: string;
     scenario_scores: Record<string, string>;
 };
 
@@ -124,19 +119,7 @@ const ASSESSMENT_FILTER_OPTIONS: Array<{
     { value: 'excluded', label: 'Excluded' },
 ];
 
-const getStatusBadgeClassName = (status: GradebookAssessmentStatus) => {
-    switch (status) {
-        case 'completed':
-            return 'border-emerald-200/80 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-emerald-300';
-        case 'excluded':
-            return 'border-slate-200/80 bg-slate-100 text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/50 dark:text-slate-400';
-        case 'planned':
-        default:
-            return 'border-amber-200/80 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/50 dark:text-amber-300';
-    }
-};
-
-const getFeasibilityStatTone = (feasibility: CourseGradebook['summary']['feasibility']) => {
+const getFeasibilityStatTone = (feasibility: GradebookFeasibility) => {
     switch (feasibility) {
         case 'already_secured':
             return 'teal';
@@ -163,7 +146,6 @@ const createAssessmentDraft = (
     status: assessment?.status ?? 'planned',
     forecast_mode: assessment?.forecast_mode ?? 'manual',
     actual_score: assessment?.actual_score === null || assessment?.actual_score === undefined ? '' : String(assessment.actual_score),
-    notes: assessment?.notes ?? '',
     scenario_scores: Object.fromEntries(
         gradebook.scenarios.map((scenario) => [
             scenario.id,
@@ -273,7 +255,7 @@ const GradebookAssessmentDialog: React.FC<{
             open={open}
             onOpenChange={onOpenChange}
             title={draft.id ? 'Edit Assessment' : 'Add Assessment'}
-            description="Keep weights, due dates, scenario forecasts, and notes aligned in one place."
+            description="Keep weights, due dates, and scenario forecasts aligned in one place."
             desktopContentClassName="sm:max-w-3xl gap-0"
             mobileContentClassName="max-h-[90vh] gap-0"
             desktopHeaderClassName="border-b px-6 py-5"
@@ -440,16 +422,6 @@ const GradebookAssessmentDialog: React.FC<{
                         </div>
                     </div>
                 ) : null}
-
-                <label className="space-y-2">
-                    <span className="text-sm font-medium text-foreground">Notes</span>
-                    <Textarea
-                        value={draft.notes}
-                        onChange={(event) => setField('notes', event.target.value)}
-                        className="min-h-24 resize-none"
-                        placeholder="Context for grading, assumptions, or reminders."
-                    />
-                </label>
             </div>
         </ResponsiveDialogDrawer>
     );
@@ -458,7 +430,6 @@ const GradebookAssessmentDialog: React.FC<{
 // ── Main Tab ──────────────────────────────────────────────────────────────────
 
 const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSettings }) => {
-    const { refreshCourse } = useCourseData();
     const [gradebook, setGradebook] = React.useState<CourseGradebook | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -504,29 +475,22 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
         try {
             const response = await promise;
             setGradebook(response);
-            await refreshCourse();
         } catch (error: unknown) {
             console.error('Failed to update gradebook', error);
-            if (
-                typeof error === 'object'
-                && error !== null
-                && 'response' in error
-                && (error as { response?: { status?: number } }).response?.status === 409
-            ) {
-                toast.error('Gradebook revision conflict. Reloading the latest data.');
-                await loadGradebook();
-                return;
-            }
             toast.error(getApiErrorMessage(error));
         } finally {
             setIsMutating(false);
         }
-    }, [loadGradebook, refreshCourse]);
+    }, []);
 
     const selectedScenarioId = gradebook ? getSelectedScenarioId(gradebook, viewSettings) : null;
     const categoriesById = React.useMemo(
         () => new Map((gradebook?.categories ?? []).map((category) => [category.id, category])),
         [gradebook?.categories],
+    );
+    const computedSummary = React.useMemo<ComputedGradebookSummary | null>(
+        () => (gradebook ? buildComputedGradebookSummary(gradebook) : null),
+        [gradebook],
     );
 
     const requestSort = React.useCallback((sortKey: GradebookViewSettings['sortKey']) => {
@@ -544,7 +508,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
             const categoryName = categoriesById.get(assessment.category_id ?? '')?.name.toLowerCase() ?? '';
             const matchesSearch = !normalizedQuery
                 || assessment.title.toLowerCase().includes(normalizedQuery)
-                || (assessment.notes ?? '').toLowerCase().includes(normalizedQuery)
                 || categoryName.includes(normalizedQuery);
 
             if (!matchesSearch) return false;
@@ -590,23 +553,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
         return filtered;
     }, [categoriesById, deferredAssessmentSearchQuery, gradebook, viewSettings.filters, viewSettings.sortDirection, viewSettings.sortKey]);
 
-    const groupedAssessments = React.useMemo(() => {
-        if (!gradebook || viewSettings.groupBy !== 'type') {
-            return new Map<string, GradebookAssessment[]>([['All Assessments', filteredAssessments]]);
-        }
-        const groups = new Map<string, GradebookAssessment[]>();
-        filteredAssessments.forEach((assessment) => {
-            const label = categoriesById.get(assessment.category_id ?? '')?.name ?? 'Uncategorized';
-            const current = groups.get(label);
-            if (current) {
-                current.push(assessment);
-            } else {
-                groups.set(label, [assessment]);
-            }
-        });
-        return groups;
-    }, [categoriesById, filteredAssessments, gradebook, viewSettings.groupBy]);
-
     const handleSaveAssessment = async () => {
         if (!courseId || !gradebook || !assessmentDraft) return;
         const scenarioScores: GradebookAssessmentScenarioScore[] = gradebook.scenarios.map((scenario) => ({
@@ -615,7 +561,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
         }));
 
         const payload = {
-            revision: gradebook.revision,
             category_id: assessmentDraft.category_id,
             title: assessmentDraft.title.trim(),
             due_date: assessmentDraft.due_date || null,
@@ -623,7 +568,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
             status: assessmentDraft.status,
             forecast_mode: assessmentDraft.forecast_mode,
             actual_score: parseOptionalNumber(assessmentDraft.actual_score),
-            notes: assessmentDraft.notes || null,
             scenario_scores: scenarioScores,
         };
 
@@ -648,7 +592,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
     const handleDeleteAssessment = async () => {
         if (!courseId || !gradebook || !assessmentDraft?.id) return;
         await commitGradebook(
-            api.deleteCourseGradebookAssessment(courseId, assessmentDraft.id, { revision: gradebook.revision }),
+            api.deleteCourseGradebookAssessment(courseId, assessmentDraft.id),
         );
         setIsAssessmentDialogOpen(false);
         setAssessmentDraft(null);
@@ -664,8 +608,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
         }
         if (nextValue === gradebook.target_value) return;
         await commitGradebook(api.updateCourseGradebookTarget(courseId, {
-            revision: gradebook.revision,
-            target_mode: gradebook.target_mode as GradebookTargetMode,
+            target_mode: gradebook.target_mode,
             target_value: nextValue,
         }));
     }, [commitGradebook, courseId, gradebook, targetDraft]);
@@ -712,14 +655,14 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
     // ── Derived values ─────────────────────────────────────────────────────────
 
     const selectedScenario = gradebook.scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? gradebook.scenarios[0] ?? null;
-    const selectedScenarioCard = gradebook.summary.scenario_cards.find((scenario) => scenario.scenario_id === selectedScenario?.id) ?? null;
-    const selectedScenarioRequiredScore = getScenarioRequiredScore(gradebook, selectedScenario?.id ?? null);
+    const selectedScenarioCard = computedSummary?.scenario_cards.find((scenario) => scenario.scenario_id === selectedScenario?.id) ?? null;
+    const selectedScenarioRequiredScore = computedSummary ? getScenarioRequiredScore(computedSummary, selectedScenario?.id ?? null) : null;
     const completedCount = gradebook.assessments.filter((assessment) => assessment.status === 'completed').length;
     const plannedCount = gradebook.assessments.filter((assessment) => assessment.status === 'planned').length;
-    const selectedScenarioProjection = selectedScenarioCard?.projected_percentage ?? gradebook.summary.baseline_projected_percentage;
-    const selectedScenarioProjectedGpa = selectedScenarioCard?.projected_gpa ?? gradebook.summary.baseline_projected_gpa;
-    const selectedScenarioRemainingWeight = selectedScenarioCard?.remaining_weight ?? gradebook.summary.remaining_weight;
-    const selectedScenarioFeasibility = selectedScenarioCard?.feasibility ?? gradebook.summary.feasibility;
+    const selectedScenarioProjection = selectedScenarioCard?.projected_percentage ?? computedSummary?.baseline_projected_percentage ?? null;
+    const selectedScenarioProjectedGpa = selectedScenarioCard?.projected_gpa ?? computedSummary?.baseline_projected_gpa ?? null;
+    const selectedScenarioRemainingWeight = selectedScenarioCard?.remaining_weight ?? computedSummary?.remaining_weight ?? 0;
+    const selectedScenarioFeasibility = selectedScenarioCard?.feasibility ?? computedSummary?.feasibility ?? 'invalid';
     const feasibilityTone = getFeasibilityStatTone(selectedScenarioFeasibility);
 
     const hasActiveFilters = viewSettings.filters !== 'all' || assessmentSearchQuery.trim();
@@ -729,124 +672,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
     return (
         <TooltipProvider>
             <div className="space-y-4">
-
-                {/* ── Overview Card ───────────────────────────────────────────── */}
-                <Card className="border-border/60 bg-card shadow-none">
-                    {/* Header row: target controls on left, scenario select on right */}
-                    <div className="flex items-center justify-between gap-4 px-5 pt-5 pb-4">
-                        {/* Target */}
-                        <div className="flex items-center gap-2">
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        className="flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/30 px-2 py-1 text-sm hover:bg-muted/60 hover:border-border transition-colors"
-                                        onClick={() => void commitGradebook(
-                                            api.updateCourseGradebookTarget(courseId, {
-                                                revision: gradebook.revision,
-                                                target_mode: gradebook.target_mode === 'percentage' ? 'gpa' : 'percentage',
-                                                target_value: gradebook.target_value,
-                                            }),
-                                        )}
-                                    >
-                                        <Target className="h-3.5 w-3.5 text-muted-foreground" />
-                                        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                                            {gradebook.target_mode === 'gpa' ? 'GPA' : '%'}
-                                        </span>
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>Toggle target mode</TooltipContent>
-                            </Tooltip>
-                            <Input
-                                id="target-input"
-                                className="h-8 w-20 border-border/60 bg-muted/20 px-2 text-sm font-semibold tracking-tight focus-visible:ring-1 focus-visible:ring-primary/50"
-                                value={targetDraft}
-                                inputMode="decimal"
-                                onChange={(e) => setTargetDraft(e.target.value)}
-                                onBlur={() => void handleSaveTarget()}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        e.currentTarget.blur();
-                                    }
-                                }}
-                                placeholder={gradebook.target_mode === 'gpa' ? '4.0' : '85'}
-                            />
-                        </div>
-
-                        {/* Scenario */}
-                        {gradebook.scenarios.length > 0 ? (
-                            <Select
-                                value={selectedScenarioId ?? ''}
-                                onValueChange={(val) => pushViewSettings({ selectedScenarioId: val })}
-                            >
-                                <SelectTrigger className="h-8 w-[184px] border-border/60 bg-muted/20 text-sm font-medium">
-                                    <SelectValue placeholder="Select scenario" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {gradebook.scenarios.map((scenario) => (
-                                        <SelectItem key={scenario.id} value={scenario.id}>
-                                            <div className="flex items-center gap-2">
-                                                <span className={cn('h-2 w-2 rounded-full shrink-0', getScenarioSwatchClassName(scenario.color_token))} />
-                                                <span>{scenario.name}</span>
-                                                {scenario.is_baseline ? (
-                                                    <span className="text-[10px] text-muted-foreground">(Baseline)</span>
-                                                ) : null}
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        ) : null}
-                    </div>
-
-                    {/* Stat Grid */}
-                    <CardContent className="px-5 pb-5 pt-0">
-                        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                            <StatCard
-                                label="Actual Score"
-                                value={formatPercent(gradebook.summary.current_actual_percentage)}
-                                subValue={formatGpa(gradebook.summary.current_actual_gpa)}
-                                hint={`${completedCount} of ${gradebook.assessments.length} completed`}
-                            />
-                            <StatCard
-                                label={`Projected · ${selectedScenario?.name ?? 'Baseline'}`}
-                                value={formatPercent(selectedScenarioProjection)}
-                                subValue={formatGpa(selectedScenarioProjectedGpa)}
-                                hint={getFeasibilityLabel(selectedScenarioFeasibility)}
-                                tone={feasibilityTone}
-                            />
-                            <StatCard
-                                label="Required Avg"
-                                value={selectedScenarioRequiredScore === null ? 'N/A' : formatPercent(selectedScenarioRequiredScore)}
-                                hint="Average score needed going forward"
-                            />
-                            <StatCard
-                                label="Remaining Weight"
-                                value={formatPercent(selectedScenarioRemainingWeight)}
-                                hint={`${plannedCount} planned item${plannedCount !== 1 ? 's' : ''} pending`}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* ── Validation Alert ────────────────────────────────────────── */}
-                {gradebook.summary.validation_issues.length > 0 ? (
-                    <Alert className="border-destructive/25 bg-destructive/5 text-destructive py-3 px-4">
-                        <Flag className="h-4 w-4 shrink-0" />
-                        <AlertDescription className="text-sm">
-                            <span className="font-semibold">Validation issues: </span>
-                            {gradebook.summary.validation_issues.join(' · ')}
-                        </AlertDescription>
-                    </Alert>
-                ) : null}
-
                 {/* ── Assessments Card ────────────────────────────────────────── */}
                 <Card className="border-border/60 bg-card shadow-none">
-
                     {/* Toolbar */}
                     <div className="flex flex-col gap-3 px-5 pt-5 pb-4 sm:flex-row sm:items-center sm:justify-between">
-
                         {/* Left: Search + Filter + Count */}
                         <div className="flex flex-1 items-center gap-2 min-w-0">
                             <div className="relative flex-1 max-w-72">
@@ -895,22 +724,8 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
                             )}
                         </div>
 
-                        {/* Right: Group by + Bulk Actions + Add */}
+                        {/* Right: Bulk Actions + Add */}
                         <div className="flex items-center gap-2 shrink-0">
-                            <Select
-                                value={viewSettings.groupBy}
-                                onValueChange={(value) => pushViewSettings({ groupBy: value as GradebookViewSettings['groupBy'] })}
-                            >
-                                <SelectTrigger className={cn('h-9 w-auto min-w-[110px] border-border/60 bg-muted/30 text-sm', viewSettings.groupBy !== 'none' ? 'border-primary/50 bg-primary/5 text-primary' : '')}>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">No grouping</SelectItem>
-                                    <SelectItem value="type">By category</SelectItem>
-                                </SelectContent>
-                            </Select>
-
-                            {/* Bulk Actions Dropdown */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button type="button" variant="outline" size="sm" className="h-9 border-border/60">
@@ -922,7 +737,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
                                     <DropdownMenuItem
                                         onSelect={() => void commitGradebook(
                                             api.convertCourseGradebookToSolver(courseId, {
-                                                revision: gradebook.revision,
                                                 assessment_ids: gradebook.assessments
                                                     .filter((a) => a.status === 'planned')
                                                     .map((a) => a.id),
@@ -939,7 +753,6 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
                                             <DropdownMenuItem
                                                 onSelect={() => void commitGradebook(
                                                     api.applyCourseGradebookSolvedScore(courseId, {
-                                                        revision: gradebook.revision,
                                                         scenario_id: selectedScenario.id,
                                                         assessment_ids: gradebook.assessments
                                                             .filter((a) => a.forecast_mode === 'solver' && a.status === 'planned')
@@ -971,204 +784,254 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId, settings, updateSet
                         </div>
                     </div>
 
-                    {/* Assessment Table Groups */}
                     <CardContent className="p-0 border-t border-border/50">
-                        {Array.from(groupedAssessments.entries()).map(([groupName, assessments], groupIndex) => (
-                            <div key={groupName}>
-                                {groupIndex > 0 ? <div className="border-t border-border/30" /> : null}
-
-                                {viewSettings.groupBy === 'type' ? (
-                                    <div className="flex items-center gap-2 px-5 py-3 bg-muted/20">
-                                        <span className="text-xs font-semibold text-foreground">{groupName}</span>
-                                        <span className="text-xs text-muted-foreground">{assessments.length} item{assessments.length !== 1 ? 's' : ''}</span>
-                                    </div>
-                                ) : null}
-
-                                {assessments.length === 0 ? (
-                                    <div className="flex min-h-36 items-center justify-center px-6 text-center">
-                                        <div className="space-y-1">
-                                            <p className="text-sm font-medium text-muted-foreground">
-                                                {hasActiveFilters
-                                                    ? 'No assessments match the current filters.'
-                                                    : 'No assessments have been added yet.'}
-                                            </p>
-                                            {!hasActiveFilters ? (
-                                                <p className="text-xs text-muted-foreground/70">
-                                                    Click <strong>Add</strong> to create your first assessment.
-                                                </p>
-                                            ) : null}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow className="hover:bg-transparent border-b border-border/40">
-                                                <SortableHead
-                                                    label="Assessment"
-                                                    sortKey="title"
-                                                    currentSortKey={viewSettings.sortKey}
-                                                    currentDirection={viewSettings.sortDirection}
-                                                    onRequestSort={requestSort}
-                                                    className="pl-5"
-                                                />
-                                                <SortableHead
-                                                    label="Category"
-                                                    sortKey="type"
-                                                    currentSortKey={viewSettings.sortKey}
-                                                    currentDirection={viewSettings.sortDirection}
-                                                    onRequestSort={requestSort}
-                                                />
-                                                <SortableHead
-                                                    label="Due"
-                                                    sortKey="due_date"
-                                                    currentSortKey={viewSettings.sortKey}
-                                                    currentDirection={viewSettings.sortDirection}
-                                                    onRequestSort={requestSort}
-                                                />
-                                                <SortableHead
-                                                    label="Weight"
-                                                    sortKey="weight"
-                                                    currentSortKey={viewSettings.sortKey}
-                                                    currentDirection={viewSettings.sortDirection}
-                                                    onRequestSort={requestSort}
-                                                    align="right"
-                                                />
-                                                <SortableHead
-                                                    label="Status"
-                                                    sortKey="status"
-                                                    currentSortKey={viewSettings.sortKey}
-                                                    currentDirection={viewSettings.sortDirection}
-                                                    onRequestSort={requestSort}
-                                                />
-                                                <SortableHead
-                                                    label="Score"
-                                                    currentSortKey={viewSettings.sortKey}
-                                                    currentDirection={viewSettings.sortDirection}
-                                                    onRequestSort={requestSort}
-                                                    align="right"
-                                                />
-                                                <TableHead className="w-12 pr-5" />
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {assessments.map((assessment) => {
-                                                const category = getCategoryById(gradebook.categories, assessment.category_id);
-                                                const displayScore = getAssessmentDisplayScore(assessment, selectedScenario?.id ?? null);
-                                                const overdue = isAssessmentOverdue(assessment);
-
-                                                return (
-                                                    <TableRow
-                                                        key={assessment.id}
-                                                        className="group hover:bg-muted/30 border-b border-border/30 last:border-0 align-middle"
-                                                    >
-                                                        {/* Assessment title + mode */}
-                                                        <TableCell className="pl-5 py-3 min-w-[220px]">
-                                                            <div className="space-y-0.5">
-                                                                <div className="text-sm font-medium text-foreground leading-snug">
-                                                                    {assessment.title}
-                                                                </div>
-                                                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
-                                                                    <span>{assessment.forecast_mode === 'solver' ? 'Solver' : 'Manual'}</span>
-                                                                    {assessment.notes ? (
-                                                                        <>
-                                                                            <span className="h-1 w-1 rounded-full bg-current opacity-50" />
-                                                                            <span className="line-clamp-1 max-w-[180px]">{assessment.notes}</span>
-                                                                        </>
-                                                                    ) : null}
-                                                                </div>
-                                                            </div>
-                                                        </TableCell>
-
-                                                        {/* Category */}
-                                                        <TableCell className="py-3">
-                                                            {category ? (
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className={cn('px-2 py-0 text-[10px] font-medium', getCategoryBadgeClassName(category.color_token))}
-                                                                >
-                                                                    {category.name}
-                                                                </Badge>
-                                                            ) : (
-                                                                <span className="text-xs text-muted-foreground/50">—</span>
-                                                            )}
-                                                        </TableCell>
-
-                                                        {/* Due Date */}
-                                                        <TableCell className="py-3">
-                                                            {assessment.due_date ? (
-                                                                <div className="space-y-0.5">
-                                                                    <div className={cn('text-sm', overdue ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-foreground')}>
-                                                                        {formatGradebookDate(assessment.due_date)}
-                                                                    </div>
-                                                                    <div className={cn('text-[11px]', overdue ? 'text-rose-500/80 dark:text-rose-400/70' : 'text-muted-foreground/70')}>
-                                                                        {getRelativeDueText(assessment.due_date)}
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-xs text-muted-foreground/50">No due date</span>
-                                                            )}
-                                                        </TableCell>
-
-                                                        {/* Weight */}
-                                                        <TableCell className="py-3 text-right tabular-nums">
-                                                            <span className="text-sm font-medium text-foreground">
-                                                                {formatPercent(assessment.weight)}
-                                                            </span>
-                                                        </TableCell>
-
-                                                        {/* Status */}
-                                                        <TableCell className="py-3">
-                                                            <Badge
-                                                                variant="outline"
-                                                                className={cn('px-2 py-0 text-[10px] font-medium', getStatusBadgeClassName(assessment.status))}
-                                                            >
-                                                                {getAssessmentStatusLabel(assessment.status)}
-                                                            </Badge>
-                                                        </TableCell>
-
-                                                        {/* Score */}
-                                                        <TableCell className="py-3 text-right">
-                                                            <div className="space-y-0.5">
-                                                                <div className="text-sm font-semibold tabular-nums text-foreground">
-                                                                    {displayScore === null ? (
-                                                                        <span className="text-muted-foreground/50 font-normal">—</span>
-                                                                    ) : formatPercent(displayScore)}
-                                                                </div>
-                                                                {displayScore !== null ? (
-                                                                    <div className="text-[11px] text-muted-foreground/60">
-                                                                        {assessment.status === 'completed'
-                                                                            ? 'Actual'
-                                                                            : assessment.forecast_mode === 'solver'
-                                                                                ? 'Solver'
-                                                                                : 'Forecast'}
-                                                                    </div>
-                                                                ) : null}
-                                                            </div>
-                                                        </TableCell>
-
-                                                        {/* Edit */}
-                                                        <TableCell className="py-3 pr-5 text-right">
-                                                            <Button
-                                                                type="button"
-                                                                size="icon-sm"
-                                                                variant="ghost"
-                                                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                onClick={() => {
-                                                                    setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
-                                                                    setIsAssessmentDialogOpen(true);
-                                                                }}
-                                                            >
-                                                                <Pencil className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                )}
+                        {filteredAssessments.length === 0 ? (
+                            <div className="px-5 py-6">
+                                <Empty className="min-h-56 border-border/70 bg-muted/30">
+                                    <EmptyHeader>
+                                        <EmptyTitle>
+                                            {hasActiveFilters ? 'No assessments found' : 'No assessments yet'}
+                                        </EmptyTitle>
+                                        <EmptyDescription>
+                                            {hasActiveFilters
+                                                ? 'Adjust the search or filters to see more assessment rows.'
+                                                : 'Add your first assessment to start tracking weights and projected scores.'}
+                                        </EmptyDescription>
+                                    </EmptyHeader>
+                                    <EmptyContent>
+                                        {!hasActiveFilters ? (
+                                            <Button
+                                                type="button"
+                                                onClick={() => {
+                                                    setAssessmentDraft(createAssessmentDraft(gradebook));
+                                                    setIsAssessmentDialogOpen(true);
+                                                }}
+                                            >
+                                                <Plus className="mr-1.5 h-4 w-4" />
+                                                Add Assessment
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setAssessmentSearchQuery('');
+                                                    pushViewSettings({ filters: 'all' });
+                                                }}
+                                            >
+                                                Clear Filters
+                                            </Button>
+                                        )}
+                                    </EmptyContent>
+                                </Empty>
                             </div>
-                        ))}
+                        ) : (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="hover:bg-transparent border-b border-border/40">
+                                        <SortableHead
+                                            label="Name"
+                                            sortKey="title"
+                                            currentSortKey={viewSettings.sortKey}
+                                            currentDirection={viewSettings.sortDirection}
+                                            onRequestSort={requestSort}
+                                            className="pl-5"
+                                        />
+                                        <SortableHead
+                                            label="Weight"
+                                            sortKey="weight"
+                                            currentSortKey={viewSettings.sortKey}
+                                            currentDirection={viewSettings.sortDirection}
+                                            onRequestSort={requestSort}
+                                            align="right"
+                                        />
+                                        <SortableHead
+                                            label="Category"
+                                            sortKey="type"
+                                            currentSortKey={viewSettings.sortKey}
+                                            currentDirection={viewSettings.sortDirection}
+                                            onRequestSort={requestSort}
+                                        />
+                                        <TableHead className="text-right">Score</TableHead>
+                                        <TableHead className="w-16 pr-5 text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredAssessments.map((assessment) => {
+                                        const category = getCategoryById(gradebook.categories, assessment.category_id);
+                                        const displayScore = getAssessmentDisplayScore(assessment, selectedScenario?.id ?? null);
+
+                                        return (
+                                            <TableRow
+                                                key={assessment.id}
+                                                className="hover:bg-muted/30 border-b border-border/30 last:border-0 align-middle"
+                                            >
+                                                <TableCell className="pl-5 py-3 min-w-[220px]">
+                                                    <div className="text-sm font-medium text-foreground leading-snug">
+                                                        {assessment.title}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="py-3 text-right tabular-nums">
+                                                    <span className="text-sm font-medium text-foreground">
+                                                        {formatPercent(assessment.weight)}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    {category ? (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={cn('px-2 py-0 text-[10px] font-medium', getCategoryBadgeClassName(category.color_token))}
+                                                        >
+                                                            {category.name}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground/50">—</span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="py-3 text-right">
+                                                    <div className="space-y-0.5">
+                                                        <div className="text-sm font-semibold tabular-nums text-foreground">
+                                                            {displayScore === null ? (
+                                                                <span className="text-muted-foreground/50 font-normal">—</span>
+                                                            ) : formatPercent(displayScore)}
+                                                        </div>
+                                                        {displayScore !== null ? (
+                                                            <div className="text-[11px] text-muted-foreground/60">
+                                                                {assessment.status === 'completed'
+                                                                    ? 'Actual'
+                                                                    : assessment.forecast_mode === 'solver'
+                                                                        ? 'Solver'
+                                                                        : 'Forecast'}
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="py-3 pr-5 text-right">
+                                                    <Button
+                                                        type="button"
+                                                        size="icon-sm"
+                                                        variant="ghost"
+                                                        className="h-7 w-7"
+                                                        onClick={() => {
+                                                            setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
+                                                            setIsAssessmentDialogOpen(true);
+                                                        }}
+                                                    >
+                                                        <Pencil className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* ── Validation Alert ────────────────────────────────────────── */}
+                {computedSummary && computedSummary.validation_issues.length > 0 ? (
+                    <Alert className="border-destructive/25 bg-destructive/5 text-destructive py-3 px-4">
+                        <Flag className="h-4 w-4 shrink-0" />
+                        <AlertDescription className="text-sm">
+                            <span className="font-semibold">Validation issues: </span>
+                            {computedSummary.validation_issues.join(' · ')}
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
+
+                {/* ── Overview Card ───────────────────────────────────────────── */}
+                <Card className="border-border/60 bg-card shadow-none">
+                    <div className="flex items-center justify-between gap-4 px-5 pt-5 pb-4">
+                        <div className="flex items-center gap-2">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/30 px-2 py-1 text-sm hover:bg-muted/60 hover:border-border transition-colors"
+                                        onClick={() => void commitGradebook(
+                                            api.updateCourseGradebookTarget(courseId, {
+                                                target_mode: gradebook.target_mode === 'percentage' ? 'gpa' : 'percentage',
+                                                target_value: gradebook.target_value,
+                                            }),
+                                        )}
+                                    >
+                                        <Target className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                                            {gradebook.target_mode === 'gpa' ? 'GPA' : '%'}
+                                        </span>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Toggle target mode</TooltipContent>
+                            </Tooltip>
+                            <Input
+                                id="target-input"
+                                className="h-8 w-20 border-border/60 bg-muted/20 px-2 text-sm font-semibold tracking-tight focus-visible:ring-1 focus-visible:ring-primary/50"
+                                value={targetDraft}
+                                inputMode="decimal"
+                                onChange={(e) => setTargetDraft(e.target.value)}
+                                onBlur={() => void handleSaveTarget()}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        e.currentTarget.blur();
+                                    }
+                                }}
+                                placeholder={gradebook.target_mode === 'gpa' ? '4.0' : '85'}
+                            />
+                        </div>
+
+                        {gradebook.scenarios.length > 0 ? (
+                            <Select
+                                value={selectedScenarioId ?? ''}
+                                onValueChange={(val) => pushViewSettings({ selectedScenarioId: val })}
+                            >
+                                <SelectTrigger className="h-8 w-[184px] border-border/60 bg-muted/20 text-sm font-medium">
+                                    <SelectValue placeholder="Select scenario" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {gradebook.scenarios.map((scenario) => (
+                                        <SelectItem key={scenario.id} value={scenario.id}>
+                                            <div className="flex items-center gap-2">
+                                                <span className={cn('h-2 w-2 rounded-full shrink-0', getScenarioSwatchClassName(scenario.color_token))} />
+                                                <span>{scenario.name}</span>
+                                                {scenario.is_baseline ? (
+                                                    <span className="text-[10px] text-muted-foreground">(Baseline)</span>
+                                                ) : null}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : null}
+                    </div>
+
+                    <CardContent className="px-5 pb-5 pt-0">
+                        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                            <StatCard
+                                label="Actual Score"
+                                value={formatPercent(computedSummary?.current_actual_percentage)}
+                                subValue={formatGpa(computedSummary?.current_actual_gpa)}
+                                hint={`${completedCount} of ${gradebook.assessments.length} completed`}
+                            />
+                            <StatCard
+                                label={`Projected · ${selectedScenario?.name ?? 'Baseline'}`}
+                                value={formatPercent(selectedScenarioProjection)}
+                                subValue={formatGpa(selectedScenarioProjectedGpa)}
+                                hint={getFeasibilityLabel(selectedScenarioFeasibility)}
+                                tone={feasibilityTone}
+                            />
+                            <StatCard
+                                label="Required Avg"
+                                value={selectedScenarioRequiredScore === null ? 'N/A' : formatPercent(selectedScenarioRequiredScore)}
+                                hint="Average score needed going forward"
+                            />
+                            <StatCard
+                                label="Remaining Weight"
+                                value={formatPercent(selectedScenarioRemainingWeight)}
+                                hint={`${plannedCount} planned item${plannedCount !== 1 ? 's' : ''} pending`}
+                            />
+                        </div>
                     </CardContent>
                 </Card>
 

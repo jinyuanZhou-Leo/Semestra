@@ -1,5 +1,5 @@
-// input:  [Tabs component, Testing Library render helpers, and Vitest matchers]
-// output: [regression tests for workspace-tab alignment and tab actions]
+// input:  [Tabs component, Testing Library render helpers, DOM layout mocks, and Vitest matchers]
+// output: [regression tests for workspace-tab alignment, overflow cues, and tab actions]
 // pos:    [component-level regression coverage for shared dashboard tab shell behavior]
 //
 // ⚠️ When this file is updated:
@@ -9,6 +9,17 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { Tabs } from '../Tabs';
+
+class ResizeObserverMock {
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+}
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+    value: ResizeObserverMock,
+    writable: true,
+});
 
 describe('Tabs component', () => {
     it('keeps the outer shell right-aligned while preserving full-width overflow support', () => {
@@ -52,5 +63,46 @@ describe('Tabs component', () => {
 
         expect(handleSelect).toHaveBeenCalledWith('settings');
         expect(handleAdd).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows edge shadows only while horizontal overflow remains off-screen', () => {
+        const { container } = render(
+            <Tabs
+                items={[
+                    { id: 'dashboard', label: 'Dashboard' },
+                    { id: 'calendar', label: 'Calendar' },
+                    { id: 'tasks', label: 'Tasks' },
+                ]}
+                activeId="dashboard"
+                onSelect={() => {}}
+                onAdd={() => {}}
+            />
+        );
+
+        const tablist = screen.getByRole('tablist', { name: 'Dashboard Tabs' });
+        Object.defineProperty(tablist, 'clientWidth', { configurable: true, value: 120 });
+        Object.defineProperty(tablist, 'scrollWidth', { configurable: true, value: 360 });
+        Object.defineProperty(tablist, 'scrollLeft', { configurable: true, writable: true, value: 0 });
+
+        fireEvent.scroll(tablist);
+
+        const shadows = container.querySelectorAll('[aria-hidden="true"]');
+        const leftShadow = shadows[0];
+        const rightShadow = shadows[1];
+
+        expect(leftShadow).toHaveClass('opacity-0');
+        expect(rightShadow).toHaveClass('opacity-100');
+
+        Object.defineProperty(tablist, 'scrollLeft', { configurable: true, writable: true, value: 120 });
+        fireEvent.scroll(tablist);
+
+        expect(leftShadow).toHaveClass('opacity-100');
+        expect(rightShadow).toHaveClass('opacity-100');
+
+        Object.defineProperty(tablist, 'scrollLeft', { configurable: true, writable: true, value: 240 });
+        fireEvent.scroll(tablist);
+
+        expect(leftShadow).toHaveClass('opacity-100');
+        expect(rightShadow).toHaveClass('opacity-0');
     });
 });
