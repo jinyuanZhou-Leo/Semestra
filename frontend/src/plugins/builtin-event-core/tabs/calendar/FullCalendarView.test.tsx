@@ -1,5 +1,5 @@
 // input:  [FullCalendarView renderer, calendar event fixtures, DOM observer shims, and testing-library helpers]
-// output: [test suite validating FullCalendar-backed month overflow, DST-safe week sync, conflict labels, and event click wiring]
+// output: [test suite validating FullCalendar-backed overflow, Apple Calendar-style schedule metadata, DST-safe week sync, conflict labels, and event click wiring]
 // pos:    [Calendar regression tests for the builtin-event-core FullCalendar adapter]
 //
 // ⚠️ When this file is updated:
@@ -10,7 +10,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { FullCalendarView } from './FullCalendarView';
 import type { CalendarEventData } from '../../shared/types';
-import { BUILTIN_CALENDAR_SOURCE_SCHEDULE } from '../../shared/constants';
+import { BUILTIN_CALENDAR_SOURCE_SCHEDULE, SLOT_LOCATION_NOTE_PREFIX } from '../../shared/constants';
 
 beforeAll(() => {
   (globalThis as unknown as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver = class ResizeObserver {
@@ -34,29 +34,38 @@ beforeAll(() => {
   });
 });
 
-const buildEvent = (id: string, hour: number): CalendarEventData => ({
+const buildEvent = (
+  id: string,
+  hour: number,
+  options?: {
+    durationHours?: number;
+    note?: string;
+    title?: string;
+    allDay?: boolean;
+  },
+): CalendarEventData => ({
   id,
   eventId: id,
   sourceId: BUILTIN_CALENDAR_SOURCE_SCHEDULE,
-  title: `Event ${id}`,
+  title: options?.title ?? `Event ${id}`,
   courseId: 'course-1',
   courseName: `Course ${id}`,
   eventTypeCode: 'LECTURE',
   start: new Date(`2026-03-10T${String(hour).padStart(2, '0')}:00:00`),
-  end: new Date(`2026-03-10T${String(hour + 1).padStart(2, '0')}:00:00`),
-  allDay: false,
+  end: new Date(`2026-03-10T${String(hour + (options?.durationHours ?? 1)).padStart(2, '0')}:00:00`),
+  allDay: options?.allDay ?? false,
   week: 2,
   dayOfWeek: 2,
   weekPattern: 'EVERY',
   isRecurring: true,
   startTime: `${String(hour).padStart(2, '0')}:00`,
-  endTime: `${String(hour + 1).padStart(2, '0')}:00`,
+  endTime: `${String(hour + (options?.durationHours ?? 1)).padStart(2, '0')}:00`,
   color: '#2563eb',
   isSkipped: false,
   isConflict: false,
   conflictGroupId: null,
   enable: true,
-  note: '',
+  note: options?.note ?? '',
 });
 
 describe('FullCalendarView', () => {
@@ -90,7 +99,7 @@ describe('FullCalendarView', () => {
       />,
     );
 
-    const moreLink = await screen.findByText(/View 1 more/i);
+    const moreLink = await screen.findByText(/1 more/i);
     fireEvent.click(moreLink);
 
     await waitFor(() => {
@@ -161,7 +170,7 @@ describe('FullCalendarView', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByLabelText(/09:00 Course click/i));
+    fireEvent.click(await screen.findByLabelText(/09:00.*Course click/i));
 
     expect(onEventClick).toHaveBeenCalledTimes(1);
     expect(onEventClick.mock.calls[0]?.[0]).toMatchObject({
@@ -203,10 +212,14 @@ describe('FullCalendarView', () => {
     expect(onWeekChange).not.toHaveBeenCalled();
   });
 
-  it('renders event type on its own line and shows recurring icon in week view', async () => {
+  it('renders title, location, and time like the schedule reference in week view', async () => {
     render(
       <FullCalendarView
-        events={[buildEvent('recurring', 9)]}
+        events={[buildEvent('recurring', 9, {
+          durationHours: 2,
+          title: 'ECE110H1 TUT0106',
+          note: `${SLOT_LOCATION_NOTE_PREFIX}GB 303`,
+        })]}
         week={2}
         maxWeek={16}
         viewMode="week"
@@ -230,9 +243,110 @@ describe('FullCalendarView', () => {
       />,
     );
 
-    expect(await screen.findByText('LECTURE')).toBeInTheDocument();
+    expect(await screen.findByText('ECE110H1 TUT0106')).toBeInTheDocument();
+    expect(screen.getByText('GB 303')).toBeInTheDocument();
+    expect(screen.getByText('09:00-11:00')).toBeInTheDocument();
     expect(screen.getByLabelText('Recurring event')).toBeInTheDocument();
-    expect(screen.queryByText(/9:00 - 10:00/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps location visible for shorter week-view events', async () => {
+    render(
+      <FullCalendarView
+        events={[buildEvent('short-location', 9, {
+          durationHours: 1,
+          title: 'ECE110H1 LEC0103',
+          note: `${SLOT_LOCATION_NOTE_PREFIX}GB 341`,
+        })]}
+        week={2}
+        maxWeek={16}
+        viewMode="week"
+        monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
+        semesterRange={{
+          startDate: new Date('2026-03-02T00:00:00'),
+          endDate: new Date('2026-06-30T00:00:00'),
+          readingWeekStart: null,
+          readingWeekEnd: null,
+        }}
+        dayStartMinutes={8 * 60}
+        dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
+        highlightConflicts={false}
+        showWeekends
+        isPending={false}
+        onWeekChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('ECE110H1 LEC0103')).toBeInTheDocument();
+    expect(screen.getByText('GB 341')).toBeInTheDocument();
+  });
+
+  it('renders compact month chips with the event time on the trailing edge', async () => {
+    render(
+      <FullCalendarView
+        events={[buildEvent('month-chip', 9, { title: 'ECE110 Assignment 4' })]}
+        week={2}
+        maxWeek={16}
+        viewMode="month"
+        monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
+        semesterRange={{
+          startDate: new Date('2026-03-02T00:00:00'),
+          endDate: new Date('2026-06-30T00:00:00'),
+          readingWeekStart: null,
+          readingWeekEnd: null,
+        }}
+        dayStartMinutes={8 * 60}
+        dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
+        highlightConflicts={false}
+        showWeekends
+        isPending={false}
+        onWeekChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    const chipLabel = await screen.findByText('ECE110 Assignment 4');
+    const chip = chipLabel.closest('.fc-event');
+
+    expect(chipLabel).toBeInTheDocument();
+    expect(chip?.textContent?.replace('ECE110 Assignment 4', '').trim().length).toBeGreaterThan(0);
+  });
+
+  it('keeps all-day month events as filled pills', async () => {
+    render(
+      <FullCalendarView
+        events={[buildEvent('all-day-pill', 9, { title: 'Assignment 3 [ECE110H1]', allDay: true })]}
+        week={2}
+        maxWeek={16}
+        viewMode="month"
+        monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
+        semesterRange={{
+          startDate: new Date('2026-03-02T00:00:00'),
+          endDate: new Date('2026-06-30T00:00:00'),
+          readingWeekStart: null,
+          readingWeekEnd: null,
+        }}
+        dayStartMinutes={8 * 60}
+        dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
+        highlightConflicts={false}
+        showWeekends
+        isPending={false}
+        onWeekChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    const pillLabel = await screen.findByText('Assignment 3 [ECE110H1]');
+    expect(pillLabel.closest('.fc-daygrid-event')?.getAttribute('data-semestra-all-day')).toBe('true');
   });
 
   it('keeps the full week and widens the week grid for horizontal scrolling', async () => {

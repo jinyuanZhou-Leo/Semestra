@@ -1,6 +1,6 @@
 // input:  [course id, schedule service CRUD APIs, event-core shared helpers, and table/dialog UI primitives]
-// output: [CourseScheduleTab React component]
-// pos:    [course-schedule management surface that renders accessible section rows and event toggle workflows]
+// output: [CourseScheduleTab React component with explicit per-section location visibility]
+// pos:    [course-schedule management surface that renders accessible section rows, location summaries, and event toggle workflows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -52,6 +52,7 @@ import { timetableEventBus } from '../../shared/eventBus';
 import { asChecked, extractLocationFromNote, getDayLabel, groupCourseEventsBySection } from '../../shared/utils';
 
 const dayLabel = (value: number) => DAY_OF_WEEK_OPTIONS.find((item) => item.value === value)?.label ?? String(value);
+const resolveEventLocation = (event: CourseEvent, fallbackLocation?: string | null) => extractLocationFromNote(event.note) || fallbackLocation || '';
 
 export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) => {
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
@@ -184,7 +185,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
     const inferredSlots: SectionSlotDraft[] = [];
 
     for (const event of sectionEvents) {
-      const location = extractLocationFromNote(event.note) || '';
+      const location = resolveEventLocation(event, section.location);
       const signature = `${event.dayOfWeek}-${event.startTime}-${event.endTime}-${location}`;
       if (uniqueSignatures.has(signature)) continue;
       uniqueSignatures.add(signature);
@@ -262,7 +263,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
       </div>
 
       <div className="rounded-md border border-border/70 p-0">
-        <TableShell minWidthClassName="min-w-[760px]">
+        <TableShell minWidthClassName="min-w-[920px]">
           <Table>
             <TableHeader>
               <TableRow>
@@ -271,24 +272,33 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
                 <TableHead>Section ID</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Instructor</TableHead>
+                <TableHead>Location</TableHead>
                 <TableHead>Recurrence</TableHead>
                 <TableHead className="text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sections.length === 0 && <EmptyTableRow colSpan={7} message="No sections yet." />}
+              {sections.length === 0 && <EmptyTableRow colSpan={8} message="No sections yet." />}
               {sections.map((section) => {
                 const isExpanded = expandedSectionIds.has(section.sectionId);
                 const sectionEvents = eventsBySectionId.get(section.sectionId) ?? [];
                 const uniqueSignatures = new Set<string>();
                 const displaySlots: string[] = [];
+                const displayLocations = new Set<string>();
 
                 for (const event of sectionEvents) {
-                  const location = extractLocationFromNote(event.note);
+                  const location = resolveEventLocation(event, section.location);
                   const signature = `${event.dayOfWeek}-${event.startTime}-${event.endTime}-${location}`;
                   if (uniqueSignatures.has(signature)) continue;
                   uniqueSignatures.add(signature);
-                  displaySlots.push(`${dayLabel(event.dayOfWeek)} ${event.startTime}-${event.endTime}${location ? ` @ ${location}` : ''}`);
+                  if (location) {
+                    displayLocations.add(location);
+                  }
+                  displaySlots.push(`${dayLabel(event.dayOfWeek)} ${event.startTime}-${event.endTime}`);
+                }
+
+                if (displayLocations.size === 0 && section.location?.trim()) {
+                  displayLocations.add(section.location.trim());
                 }
 
                 const allEnabled = sectionEvents.every((event) => event.enable);
@@ -329,6 +339,9 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
                       <TableCell className="font-medium">{section.sectionId}</TableCell>
                       <TableCell>{section.eventTypeCode}</TableCell>
                       <TableCell>{section.instructor || '-'}</TableCell>
+                      <TableCell className="max-w-[14rem] truncate text-sm text-muted-foreground">
+                        {Array.from(displayLocations).join(', ') || '-'}
+                      </TableCell>
                       <TableCell className="max-w-[16rem] truncate text-xs text-muted-foreground">
                         {displaySlots.join(', ') || 'No slots'}
                       </TableCell>
@@ -377,7 +390,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
                     </TableRow>
                     {isExpanded && (
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
-                        <TableCell colSpan={7} className="p-0">
+                        <TableCell colSpan={8} className="p-0">
                           <Collapsible open>
                             <CollapsibleContent className="p-4">
                               <div className="rounded-md border bg-background py-1">
@@ -397,9 +410,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
                                       <span>
                                         {getDayLabel(event.dayOfWeek)} {event.startTime}-{event.endTime}
                                       </span>
-                                      <span className="truncate text-muted-foreground">
-                                        {extractLocationFromNote(event.note) || '-'}
-                                      </span>
+                                      <span className="truncate text-muted-foreground">{resolveEventLocation(event, section.location) || '-'}</span>
                                     </div>
                                   </div>
                                 ))}
