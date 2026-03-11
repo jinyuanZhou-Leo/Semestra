@@ -1,6 +1,6 @@
-// input:  [widget context, semester/course APIs, schedule hook, and shared timetable event bus]
+// input:  [widget context, semester/course APIs, schedule hook, and shared DST-safe timetable event utilities]
 // output: [`BuiltinTodayEventsWidgetDefinition` and today-events widget runtime component]
-// pos:    [Built-in event-core widget that summarizes active events for the current day with scoped refreshes]
+// pos:    [Built-in event-core widget that summarizes active events for the current day with scoped refreshes and stable academic week lookup]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,10 +17,9 @@ import { Button } from '@/components/ui/button';
 import { BUILTIN_TIMETABLE_TODAY_EVENTS_WIDGET_TYPE } from './shared/constants';
 import { useEventBus } from './shared/eventBus';
 import { useScheduleData } from './shared/hooks/useScheduleData';
-import { resolveSemesterDateRange, startOfWeekMonday } from './shared/utils';
+import { getWeekFromSemesterDate, resolveSemesterDateRange } from './shared/utils';
 
 const FALLBACK_RANGE = resolveSemesterDateRange(undefined, undefined, 16);
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const dayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
 const dateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
@@ -122,9 +121,7 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
   }, [semesterRange.endDate, semesterRange.startDate, today]);
 
   const currentWeek = React.useMemo(() => {
-    const semesterWeekStart = startOfWeekMonday(semesterRange.startDate).getTime();
-    const todayWeekStart = startOfWeekMonday(today).getTime();
-    const rawWeek = Math.floor((todayWeekStart - semesterWeekStart) / WEEK_MS) + 1;
+    const rawWeek = getWeekFromSemesterDate(semesterRange.startDate, today);
     return Math.max(1, rawWeek);
   }, [semesterRange.startDate, today]);
 

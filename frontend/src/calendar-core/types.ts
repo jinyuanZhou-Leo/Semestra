@@ -56,6 +56,7 @@ export type CalendarRefreshSignal =
     source: 'course' | 'semester';
     reason:
       | 'course-updated'
+      | 'gradebook-assessments-updated'
       | 'event-type-created'
       | 'event-type-updated'
       | 'event-type-deleted'

@@ -1,6 +1,6 @@
-// input:  [semester id, semester range, max-week bounds, and shared calendar date helpers]
+// input:  [semester id, semester range, max-week bounds, and DST-safe shared calendar date helpers]
 // output: [`useCalendarNavigationState()` hook exposing stable week/month navigation state and labels]
-// pos:    [calendar navigation hook that isolates toolbar/view state from source loading and edit flows]
+// pos:    [calendar navigation hook that isolates toolbar/view state from source loading and edit flows with DST-safe academic week math]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -24,12 +24,8 @@ import {
 
 const rangeDateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const monthLabelFormatter = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
 const getCurrentWeek = (semesterRange: SemesterDateRange, maxWeek: number) => {
-  const semesterStart = startOfWeekMonday(semesterRange.startDate).getTime();
-  const todayStart = startOfWeekMonday(new Date()).getTime();
-  const rawWeek = Math.floor((todayStart - semesterStart) / WEEK_MS) + 1;
+  const rawWeek = getWeekFromSemesterDate(semesterRange.startDate, new Date());
   const upperBound = Math.max(1, maxWeek);
   return Math.max(1, Math.min(upperBound, rawWeek));
 };

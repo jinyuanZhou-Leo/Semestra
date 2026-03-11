@@ -1,6 +1,6 @@
 // input:  [semester context, calendar-core registry, shared timetable event bus, and calendar subcomponents]
 // output: [Calendar tab runtime component with source-driven event rendering and low-coupling extension wiring]
-// pos:    [built-in event-core Calendar composition shell that binds registry sources, navigation state, and editing flows]
+// pos:    [built-in event-core Calendar composition shell that binds registry sources, navigation state, editing flows, and external refresh signals]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -53,6 +53,7 @@ const toRefreshSignal = (payload: {
   source: 'course' | 'semester';
   reason:
     | 'course-updated'
+    | 'gradebook-assessments-updated'
     | 'event-type-created'
     | 'event-type-updated'
     | 'event-type-deleted'

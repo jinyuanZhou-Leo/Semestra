@@ -1,4 +1,4 @@
-// input:  [semester id, semester API, and shared Reading Week date helpers]
+// input:  [semester id, semester API, and shared DST-safe Reading Week date helpers]
 // output: [`useSemesterCalendarContext()` hook exposing stable semester range/max-week state]
 // pos:    [calendar context hook that owns semester time boundaries independently from registered sources]
 //
@@ -11,16 +11,12 @@
 import React from 'react';
 import api from '@/services/api';
 import type { SemesterDateRange } from '@/calendar-core';
-import { resolveSemesterDateRange, startOfWeekMonday } from '../../../shared/utils';
+import { getWeekFromSemesterDate, resolveSemesterDateRange } from '../../../shared/utils';
 
 const FALLBACK_MAX_WEEK = 16;
 const FALLBACK_RANGE: SemesterDateRange = resolveSemesterDateRange(undefined, undefined, FALLBACK_MAX_WEEK);
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
 const getMaxWeekFromRange = (range: SemesterDateRange) => {
-  const start = startOfWeekMonday(range.startDate).getTime();
-  const end = startOfWeekMonday(range.endDate).getTime();
-  return Math.max(1, Math.floor((end - start) / WEEK_MS) + 1);
+  return Math.max(1, getWeekFromSemesterDate(range.startDate, range.endDate));
 };
 
 interface SemesterCalendarContextState {

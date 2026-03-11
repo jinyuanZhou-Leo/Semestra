@@ -1,6 +1,6 @@
 // input:  [schedule service DTOs, todo scheduling metadata, and shared calendar/tab state contracts]
-// output: [event-core shared types for schedule snapshots, filters, calendar events, and settings]
-// pos:    [type layer connecting timetable services with builtin-event-core tabs and widgets]
+// output: [event-core shared types for schedule snapshots, filters, calendar events, settings, and timetable refresh payloads]
+// pos:    [type layer connecting timetable services with builtin-event-core tabs, widgets, and external Calendar sources]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -32,6 +32,7 @@ export interface TimetableScheduleChangePayload {
   source: 'course' | 'semester';
   reason:
     | 'course-updated'
+    | 'gradebook-assessments-updated'
     | 'event-type-created'
     | 'event-type-updated'
     | 'event-type-deleted'

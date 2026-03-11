@@ -1,4 +1,4 @@
-// input:  [calendar-core registry helpers plus built-in schedule/todo source definitions]
+// input:  [calendar-core registry helpers plus built-in schedule/todo/gradebook source definitions]
 // output: [`ensureBuiltinCalendarSourcesRegistered()` initializer for event-core Calendar sources]
 // pos:    [safe source-registration bridge that keeps built-in Calendar sources discoverable without touching plugin contracts]
 //
@@ -8,6 +8,7 @@
 
 import { registerCalendarSources } from '@/calendar-core';
 import { BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../../shared/constants';
+import { builtinGradebookCalendarSource } from './gradebookSource';
 import { builtinScheduleCalendarSource } from './scheduleSource';
 import { builtinTodoCalendarSource } from './todoSource';
 
@@ -18,6 +19,7 @@ export const ensureBuiltinCalendarSourcesRegistered = () => {
   registerCalendarSources(BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE, [
     builtinScheduleCalendarSource,
     builtinTodoCalendarSource,
+    builtinGradebookCalendarSource,
   ]);
   hasRegisteredBuiltinCalendarSources = true;
 };

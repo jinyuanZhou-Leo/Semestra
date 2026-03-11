@@ -1,6 +1,6 @@
-// input:  [course gradebook APIs, course data update context, shared animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, and builtin-gradebook shared forecast/plan helpers]
+// input:  [course gradebook APIs, course data update context, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, and builtin-gradebook shared forecast/plan helpers]
 // output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI and tab definition]
-// pos:    [course-scoped gradebook surface for assessment scores, moved course stat strip, and a mode-aware plan workflow with stable toolbar layout and temporary what-if editing]
+// pos:    [course-scoped gradebook surface for assessment scores, Calendar due-date sync, and a mode-aware plan workflow with stable toolbar layout and temporary what-if editing]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -67,6 +67,7 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useCourseData } from '@/contexts/CourseDataContext';
+import { timetableEventBus } from '../builtin-event-core/shared/eventBus';
 import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
     buildComputedGradebookSummary,
@@ -97,6 +98,16 @@ type AssessmentDraft = {
 
 const DEFAULT_SORT_KEY: GradebookSortKey = 'due_date';
 const DEFAULT_SORT_DIRECTION: GradebookSortDirection = 'none';
+
+const publishGradebookAssessmentCalendarRefresh = (courseId: string, semesterId?: string) => {
+    if (!semesterId) return;
+    timetableEventBus.publish('timetable:schedule-data-changed', {
+        source: 'course',
+        reason: 'gradebook-assessments-updated',
+        courseId,
+        semesterId,
+    });
+};
 
 const parseOptionalNumber = (value: string): number | null => {
     if (!value.trim()) return null;
@@ -329,9 +340,11 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 grade_percentage: nextSummary.current_real_percentage,
                 grade_scaled: nextSummary.current_real_gpa,
             });
+            return true;
         } catch (error: unknown) {
             console.error('Failed to update gradebook', error);
             toast.error(getApiErrorMessage(error));
+            return false;
         } finally {
             setIsMutating(false);
         }
@@ -419,11 +432,13 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             return;
         }
 
-        if (assessmentDraft.id) {
-            await commitGradebook(api.updateCourseGradebookAssessment(courseId, assessmentDraft.id, payload));
-        } else {
-            await commitGradebook(api.createCourseGradebookAssessment(courseId, payload));
+        const didSave = assessmentDraft.id
+            ? await commitGradebook(api.updateCourseGradebookAssessment(courseId, assessmentDraft.id, payload))
+            : await commitGradebook(api.createCourseGradebookAssessment(courseId, payload));
+        if (!didSave) {
+            return;
         }
+        publishGradebookAssessmentCalendarRefresh(courseId, course?.semester_id);
 
         setAssessmentDialogOpen(false);
         setAssessmentDraft(null);
@@ -877,7 +892,11 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                                                         variant="destructive"
                                                                         onClick={() => {
                                                                             setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
-                                                                            void commitGradebook(api.deleteCourseGradebookAssessment(courseId, assessment.id));
+                                                                            void commitGradebook(api.deleteCourseGradebookAssessment(courseId, assessment.id))
+                                                                                .then((didDelete) => {
+                                                                                    if (!didDelete) return;
+                                                                                    publishGradebookAssessmentCalendarRefresh(courseId, course?.semester_id);
+                                                                                });
                                                                         }}
                                                                     >
                                                                         Delete

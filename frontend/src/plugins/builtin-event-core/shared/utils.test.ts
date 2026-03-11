@@ -1,5 +1,5 @@
 // input:  [shared calendar date helpers and Vitest assertions]
-// output: [regression tests covering semester date parsing, week alignment, and Reading Week helpers]
+// output: [regression tests covering semester date parsing, DST-safe week alignment, and Reading Week helpers]
 // pos:    [shared event-core test suite for timezone-safe calendar utility behavior]
 //
 // ⚠️ When this file is updated:
@@ -12,6 +12,7 @@ import {
   getDisplayMaxWeek,
   getDisplayWeekNumber,
   getVisiblePageStartForDate,
+  getWeekFromSemesterDate,
   getWeekStartForSemester,
   isDateInReadingWeek,
   resolveSemesterDateRange,
@@ -45,6 +46,13 @@ describe('shared calendar date helpers', () => {
     expect(isDateInReadingWeek(new Date('2026-02-23T12:00:00'), range)).toBe(false);
   });
 
+  it('preserves Reading Week ranges that cross the spring DST boundary', () => {
+    const range = resolveSemesterDateRange('2026-03-02', '2026-04-30', 16, '2026-03-09', '2026-03-15');
+
+    expect(range.readingWeekStart?.toISOString().slice(0, 10)).toBe('2026-03-09');
+    expect(range.readingWeekEnd?.toISOString().slice(0, 10)).toBe('2026-03-15');
+  });
+
   it('skips Reading Week from displayed numbering when the calendar setting is disabled', () => {
     const range = resolveSemesterDateRange('2026-01-05', '2026-04-30', 16, '2026-02-16', '2026-02-22');
 
@@ -72,5 +80,12 @@ describe('shared calendar date helpers', () => {
     const pageStart = getVisiblePageStartForDate(new Date('2026-03-12T09:00:00'), 3, false);
 
     expect(pageStart.toISOString().slice(0, 10)).toBe('2026-03-12');
+  });
+
+  it('keeps academic week indexes stable across the spring DST shift', () => {
+    const semesterStart = new Date('2026-03-02T00:00:00');
+
+    expect(getWeekFromSemesterDate(semesterStart, new Date('2026-03-09T00:00:00'))).toBe(2);
+    expect(getWeekFromSemesterDate(semesterStart, new Date('2026-06-29T00:00:00'))).toBe(18);
   });
 });

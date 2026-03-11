@@ -1,5 +1,5 @@
 // input:  [FullCalendarView renderer, calendar event fixtures, DOM observer shims, and testing-library helpers]
-// output: [test suite validating FullCalendar-backed month overflow, conflict labels, and event click wiring]
+// output: [test suite validating FullCalendar-backed month overflow, DST-safe week sync, conflict labels, and event click wiring]
 // pos:    [Calendar regression tests for the builtin-event-core FullCalendar adapter]
 //
 // ⚠️ When this file is updated:
@@ -168,6 +168,39 @@ describe('FullCalendarView', () => {
       eventId: 'click',
       courseName: 'Course click',
     });
+  });
+
+  it('does not snap a DST-crossing week back to the previous week on render', async () => {
+    const onWeekChange = vi.fn();
+
+    render(
+      <FullCalendarView
+        events={[buildEvent('dst', 9)]}
+        week={2}
+        maxWeek={18}
+        viewMode="week"
+        monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
+        semesterRange={{
+          startDate: new Date('2026-03-02T00:00:00'),
+          endDate: new Date('2026-06-30T00:00:00'),
+          readingWeekStart: null,
+          readingWeekEnd: null,
+        }}
+        dayStartMinutes={8 * 60}
+        dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
+        highlightConflicts={false}
+        showWeekends
+        isPending={false}
+        onWeekChange={onWeekChange}
+        onViewModeChange={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('Mon')).toBeInTheDocument();
+    expect(onWeekChange).not.toHaveBeenCalled();
   });
 
   it('renders event type on its own line and shows recurring icon in week view', async () => {

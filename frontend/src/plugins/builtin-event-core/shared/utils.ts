@@ -1,6 +1,6 @@
 // input:  [schedule service entities, shared calendar constants, todo scheduling data, and semester date ranges]
-// output: [date/time helpers, schedule grouping utilities, and event-core calendar mappers]
-// pos:    [shared event-core utility layer for transforming backend schedule data into tab-ready state with Reading Week support]
+// output: [DST-safe date/time helpers, schedule grouping utilities, and event-core calendar mappers]
+// pos:    [shared event-core utility layer for transforming backend schedule data into tab-ready state with Reading Week-aware calendar arithmetic]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,6 +17,12 @@ import {
 import type { ScheduleFilterState } from './types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+const getCalendarDayStamp = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+
+const getCalendarDayDifference = (left: Date, right: Date) => {
+  return Math.round((getCalendarDayStamp(right) - getCalendarDayStamp(left)) / DAY_MS);
+};
 
 export const asChecked = (value: boolean | 'indeterminate') => value === true;
 
@@ -161,11 +167,15 @@ export const startOfWeekMonday = (date: Date) => {
   const normalized = startOfDay(date);
   const day = normalized.getDay();
   const offset = day === 0 ? -6 : 1 - day;
-  return new Date(normalized.getTime() + (offset * DAY_MS));
+  const result = new Date(normalized);
+  result.setDate(result.getDate() + offset);
+  return startOfDay(result);
 };
 
 export const addDays = (date: Date, days: number) => {
-  return new Date(date.getTime() + (days * DAY_MS));
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
 };
 
 export const getNextVisibleDate = (date: Date, showWeekends: boolean) => {
@@ -287,7 +297,7 @@ export const resolveSemesterDateRange = (
     && normalizedReadingWeekEnd
     && normalizedReadingWeekStart.getDay() === 1
     && normalizedReadingWeekEnd.getDay() === 0
-    && (normalizedReadingWeekEnd.getTime() - normalizedReadingWeekStart.getTime()) === (6 * DAY_MS)
+    && getCalendarDayDifference(normalizedReadingWeekStart, normalizedReadingWeekEnd) === 6
     && normalizedReadingWeekStart.getTime() >= startDate.getTime()
     && normalizedReadingWeekEnd.getTime() <= endDate.getTime()
   );
@@ -310,9 +320,9 @@ export const getWeekStartForSemester = (semesterStartDate: Date, week: number) =
 };
 
 export const getWeekFromSemesterDate = (semesterStartDate: Date, date: Date) => {
-  const semesterStart = startOfWeekMonday(semesterStartDate).getTime();
-  const targetStart = startOfWeekMonday(date).getTime();
-  return Math.floor((targetStart - semesterStart) / DAY_MS / 7) + 1;
+  const semesterStart = startOfWeekMonday(semesterStartDate);
+  const targetStart = startOfWeekMonday(date);
+  return Math.floor(getCalendarDayDifference(semesterStart, targetStart) / 7) + 1;
 };
 
 export const getReadingWeekIndex = (semesterRange: SemesterDateRange) => {

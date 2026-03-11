@@ -1,6 +1,6 @@
-// input:  [builtin event-core module identifiers and calendar/schedule behavior defaults]
+// input:  [builtin event-core module identifiers and calendar/schedule/gradebook behavior defaults]
 // output: [shared constants for plugin types, Calendar source ids, event rendering, cache policy, and event bus timing]
-// pos:    [constant layer reused across event-core tabs, widgets, and standalone calendar source adapters]
+// pos:    [constant layer reused across event-core tabs, widgets, event-bus payloads, and standalone calendar source adapters]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -35,6 +35,7 @@ export const CALENDAR_MAX_EVENT_LINES_PER_DAY = 3;
 
 export const BUILTIN_CALENDAR_SOURCE_SCHEDULE = 'builtin-event-core:schedule';
 export const BUILTIN_CALENDAR_SOURCE_TODO = 'builtin-event-core:todo';
+export const BUILTIN_CALENDAR_SOURCE_GRADEBOOK = 'builtin-event-core:gradebook';
 
 export const CALENDAR_DEFAULT_VIEW_MODE = 'week';
 
