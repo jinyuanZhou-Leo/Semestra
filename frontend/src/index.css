@@ -449,10 +449,12 @@ body>div>div[role="dialog"][data-state] {
   box-shadow: none;
   backdrop-filter: none;
   overflow: visible;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .semestra-fullcalendar .fc .fc-daygrid-event[data-semestra-all-day="false"]:hover {
-  background: color-mix(in oklab, var(--color-muted) 28%, transparent) !important;
+  background: transparent !important;
   box-shadow: none;
   filter: none;
 }
@@ -467,7 +469,7 @@ body>div>div[role="dialog"][data-state] {
 
 .semestra-fullcalendar .fc .fc-daygrid-event[data-semestra-all-day="true"],
 .semestra-fullcalendar .fc .fc-timegrid-event[data-semestra-all-day="true"] {
-  border-radius: 0.55rem;
+  border-radius: 999px;
   box-shadow:
     inset 0 0 0 1px color-mix(in oklab, var(--color-background) 18%, transparent),
     0 1px 1px color-mix(in oklab, var(--color-foreground) 3%, transparent);

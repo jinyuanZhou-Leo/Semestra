@@ -1,4 +1,4 @@
-// input:  [React-facing calendar consumers, source loaders, and event refresh signals]
+// input:  [React-facing calendar consumers, source loaders, todo completion metadata, and event refresh signals]
 // output: [shared calendar-core event/source/context type contracts]
 // pos:    [standalone calendar domain contract layer used by Calendar UI and external source registrations]
 //
@@ -36,6 +36,11 @@ export interface CalendarEventData {
   conflictGroupId?: string | null;
   enable: boolean;
   note?: string | null;
+  todoState?: {
+    completed: boolean;
+    listSource: 'course' | 'semester-custom';
+    listId: string;
+  };
 }
 
 export interface CalendarEventPatch {

@@ -2,13 +2,13 @@
 
 Vite + React frontend for Semestra with lazy routes and plugin-driven dashboards.
 Core behavior is split across contexts, hooks, services, reusable UI components, and a standalone `src/calendar-core/` domain layer for Calendar event-source registration.
-Build/test configs and scripts support local development, bundling, release metadata, cookie-backed auth bootstrapping, compact calendar/todo loading shells, a single-shell Calendar border treatment with refined scrollbars, dynamic sticky offsets for workspace settings titles, debounced settings auto-save persistence without inline status UI, homepage-aware plugin loading skeletons, empty-state-safe dashboard width measurement so the first widget appears without refresh, a Gradebook command-center refresh with fact-only gradebook payloads plus client-derived projections and a Course List-style percentage-score assessment shell, and the split habit-streak dual-widget runtime with isolated per-instance streak data so the browser no longer persists login bearer tokens in localStorage.
+Build/test configs and scripts support local development, bundling, release metadata, cookie-backed auth bootstrapping, compact calendar/todo loading shells, a single-shell Calendar border treatment with refined scrollbars, dynamic sticky offsets for workspace settings titles, debounced settings auto-save persistence without inline status UI, homepage-aware plugin loading skeletons, opacity-only plugin fade-ins that preserve viewport-fixed dashboard FAB positioning during load, empty-state-safe dashboard width measurement so the first widget appears without refresh, a Gradebook command-center refresh with fact-only gradebook payloads plus client-derived projections and a Course List-style percentage-score assessment shell, and the split habit-streak dual-widget runtime with isolated per-instance streak data so the browser no longer persists login bearer tokens in localStorage.
 
 | File | Role | Description |
 |------|------|-------------|
 | public/ | Subdirectory | Public static asset directory served as-is by Vite. |
 | scripts/ | Subdirectory | Tooling scripts triggered by npm lifecycle hooks. |
-| src/ | Subdirectory | Frontend application source code root, including dashboard empty-state-safe first-widget rendering. |
+| src/ | Subdirectory | Frontend application source code root, including dashboard empty-state-safe first-widget rendering and opacity-only plugin fade-ins that keep fixed overlays stable. |
 | src/plugins/INDEX.md | Plugin architecture index | Catalog map of built-in and custom plugin folders with loader contracts, including the built-in settings tab architecture index. |
 | src/plugins/pomodoro/INDEX.md | Plugin architecture index | File map for Pomodoro timer widget plugin runtime, metadata, and tests. |
 | .env | Environment file | Local frontend environment variables for development. |

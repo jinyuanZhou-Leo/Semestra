@@ -1,6 +1,6 @@
 // input:  [calendar-core source contracts, semester/course APIs, todo storage parsers, and calendar date helpers]
 // output: [built-in todo Calendar source definition]
-// pos:    [built-in Calendar source adapter that maps semester and course todo tasks into calendar events]
+// pos:    [built-in Calendar source adapter that maps semester and course todo tasks, including completed-state metadata, into calendar events]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -54,8 +54,9 @@ const buildTodoEvent = (
   semesterEndDate: Date,
   courseId: string,
   courseName: string,
+  listSource: 'course' | 'semester-custom',
 ): CalendarEventData | null => {
-  if (task.completed || !task.dueDate) return null;
+  if (!task.dueDate) return null;
 
   const targetDate = new Date(`${task.dueDate}T00:00:00`);
   if (!Number.isFinite(targetDate.getTime())) return null;
@@ -100,6 +101,11 @@ const buildTodoEvent = (
     conflictGroupId: null,
     enable: true,
     note: task.description || null,
+    todoState: {
+      completed: task.completed,
+      listSource,
+      listId: courseId,
+    },
   };
 };
 
@@ -133,12 +139,12 @@ export const builtinTodoCalendarSource: CalendarSourceDefinition = {
       const todoTab = detail?.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
       const state = normalizeCourseListStateFromTab(course.id, course.name, todoTab);
       return state.tasks
-        .map((task) => buildTodoEvent(task, context.semesterRange.startDate, context.semesterRange.endDate, course.id, course.name))
+        .map((task) => buildTodoEvent(task, context.semesterRange.startDate, context.semesterRange.endDate, course.id, course.name, 'course'))
         .filter((event): event is CalendarEventData => event !== null);
     });
     const customTodoEvents = semesterCustomLists.flatMap((list: SemesterCustomListStorage) => {
       return list.tasks
-        .map((task) => buildTodoEvent(task, context.semesterRange.startDate, context.semesterRange.endDate, list.id, list.name))
+        .map((task) => buildTodoEvent(task, context.semesterRange.startDate, context.semesterRange.endDate, list.id, list.name, 'semester-custom'))
         .filter((event): event is CalendarEventData => event !== null);
     });
 

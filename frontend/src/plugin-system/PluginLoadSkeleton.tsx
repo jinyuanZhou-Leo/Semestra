@@ -1,6 +1,6 @@
-// input:  [UI skeleton primitive and widget card ring conventions from tab/widget wrappers]
+// input:  [UI skeleton primitive, widget card ring conventions from tab/widget wrappers, and React mount timing for opacity-only plugin fades]
 // output: [`PluginTabSkeleton`, `PluginWidgetSkeleton`, and `PluginContentFadeIn` loading/transition helpers]
-// pos:    [Loading fallback visuals and fade-in wrappers while lazy plugin runtime modules are fetched]
+// pos:    [Loading fallback visuals and opacity-only fade-in wrappers while lazy plugin runtime modules are fetched]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 export const PLUGIN_CONTENT_FADE_IN_CLASSNAME =
-    'h-full motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300';
+    'h-full motion-safe:transition-opacity motion-safe:duration-300 motion-safe:ease-out';
 
 const widgetFrameClassName =
     'overflow-hidden rounded-[var(--radius-widget)] bg-card text-card-foreground ring-1 ring-foreground/10 shadow-none';
@@ -52,8 +52,26 @@ export const PluginContentFadeIn: React.FC<React.PropsWithChildren<{ className?:
     children,
     className,
 }) => {
+    const [isVisible, setIsVisible] = React.useState(false);
+
+    React.useEffect(() => {
+        const rafId = window.requestAnimationFrame(() => {
+            setIsVisible(true);
+        });
+
+        return () => {
+            window.cancelAnimationFrame(rafId);
+        };
+    }, []);
+
     return (
-        <div className={cn(PLUGIN_CONTENT_FADE_IN_CLASSNAME, className)}>
+        <div
+            className={cn(
+                PLUGIN_CONTENT_FADE_IN_CLASSNAME,
+                isVisible ? 'opacity-100' : 'opacity-0',
+                className
+            )}
+        >
             {children}
         </div>
     );

@@ -1,6 +1,6 @@
-// input:  [FullCalendar React adapter, schedule/todo-derived calendar events, week/view state, and calendar navigation callbacks]
-// output: [FullCalendarView React component backed by the FullCalendar library with Apple Calendar-inspired event hierarchy and a custom current-time indicator]
-// pos:    [calendar renderer that bridges built-in event-core state into week/month views with all-day support, compact schedule metadata, and a labeled now line]
+// input:  [FullCalendar React adapter, schedule/todo-derived calendar events, week/view state, calendar navigation callbacks, and todo completion toggles]
+// output: [FullCalendarView React component backed by the FullCalendar library with Apple Calendar-inspired event hierarchy, all-day todo radios, and a custom current-time indicator]
+// pos:    [calendar renderer that bridges built-in event-core state into week/month views with all-day support, compact schedule metadata, todo completion toggles, and a labeled now line]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -21,7 +21,6 @@ import type {
   MoreLinkArg,
   MoreLinkMountArg,
 } from '@fullcalendar/core';
-import { AlertTriangle, Clock3, MapPin, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   CALENDAR_MAX_EVENT_LINES_PER_DAY,
@@ -33,6 +32,7 @@ import {
   getWeekFromSemesterDate,
   startOfWeekMonday,
 } from '../../shared/utils';
+import { CalendarEventContent } from './components/CalendarEventContent';
 
 interface FullCalendarViewProps {
   events: CalendarEventData[];
@@ -51,6 +51,7 @@ interface FullCalendarViewProps {
   onWeekChange: (week: number) => void;
   onViewModeChange: (viewMode: CalendarViewMode) => void;
   onEventClick: (event: CalendarEventData) => void;
+  onToggleTodoCompleted?: (event: CalendarEventData, completed: boolean) => Promise<void>;
 }
 
 type EventExtendedProps = {
@@ -96,22 +97,6 @@ const buildEventLabel = (event: CalendarEventData, showConflictLabel: boolean) =
   return `${metadata.join(' · ')} · ${event.courseName}`;
 };
 
-const getPrimaryEventLabel = (event: CalendarEventData) => {
-  const trimmedTitle = event.title?.trim();
-  if (!trimmedTitle) return event.courseName;
-
-  const generatedTitle = `${event.courseName} · ${event.eventTypeCode}`;
-  return trimmedTitle === generatedTitle ? event.courseName : trimmedTitle;
-};
-
-const getEventDurationMinutes = (event: CalendarEventData) => {
-  return Math.max(0, Math.round((event.end.getTime() - event.start.getTime()) / 60000));
-};
-
-const getEventLocation = (event: CalendarEventData) => extractLocationFromNote(event.note);
-
-const getEventTimeRangeLabel = (event: CalendarEventData) => `${event.startTime}-${event.endTime}`;
-
 const formatNowIndicatorLabel = (date: Date) => {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -154,102 +139,20 @@ const buildCalendarEvents = (
   }));
 };
 
-const renderEventContent = (eventInfo: EventContentArg) => {
+const buildEventContentRenderer = (
+  onToggleTodoCompleted: FullCalendarViewProps['onToggleTodoCompleted'],
+) => (eventInfo: EventContentArg) => {
   const { sourceEvent, highlightConflicts } = eventInfo.event.extendedProps as EventExtendedProps;
-  const showConflictLabel = highlightConflicts && sourceEvent.isConflict;
-  const isMonthView = eventInfo.view.type === 'dayGridMonth';
-  const showCompactLayout = isMonthView || eventInfo.event.allDay;
-  const useMonthTimedRow = isMonthView && !sourceEvent.allDay;
-  const primaryLabel = getPrimaryEventLabel(sourceEvent);
-  const location = getEventLocation(sourceEvent);
-  const durationMinutes = getEventDurationMinutes(sourceEvent);
-  const showLocation = !showCompactLayout && Boolean(location);
-  const showTimeRange = !showCompactLayout && durationMinutes >= 75;
-  const resolvedAccentColor = sourceEvent.isConflict && showConflictLabel
-    ? 'var(--color-destructive)'
-    : (sourceEvent.color ?? '#3b82f6');
-
-  if (showCompactLayout) {
-    return (
-      <div className="flex min-w-0 items-center gap-1.5 text-[11px] leading-tight">
-        {useMonthTimedRow ? (
-          <span
-            className="inline-flex h-4 w-1 shrink-0 rounded-full"
-            style={{ backgroundColor: resolvedAccentColor }}
-            aria-hidden="true"
-          />
-        ) : null}
-        <div className="min-w-0 flex-1">
-          <span className={cn(
-            'semestra-calendar-event-title block truncate font-medium',
-            showConflictLabel ? 'semestra-calendar-event-title--conflict text-destructive' : '',
-          )}
-            style={!showConflictLabel ? { ['--semestra-event-title-color' as string]: resolvedAccentColor } : undefined}
-          >
-            {showConflictLabel ? `Conflict · ${primaryLabel}` : primaryLabel}
-          </span>
-        </div>
-        {useMonthTimedRow && eventInfo.timeText ? (
-          <span className="shrink-0 text-[10px] font-medium text-muted-foreground/90">
-            {eventInfo.timeText}
-          </span>
-        ) : null}
-        {!useMonthTimedRow && sourceEvent.isRecurring ? (
-          <span className="inline-flex shrink-0" style={{ color: resolvedAccentColor }} aria-label="Recurring event" role="img">
-            <RefreshCw className="h-2.5 w-2.5" aria-hidden="true" />
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-full min-w-0 flex-col gap-1.5">
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className={cn(
-          'semestra-calendar-event-title truncate text-[13px] font-semibold leading-[1.15]',
-          showConflictLabel ? 'semestra-calendar-event-title--conflict text-destructive' : null,
-        )}
-          style={!showConflictLabel ? { ['--semestra-event-title-color' as string]: resolvedAccentColor } : undefined}
-        >
-          {primaryLabel}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {showConflictLabel ? (
-            <AlertTriangle className="h-3 w-3 text-destructive" aria-hidden="true" />
-          ) : null}
-          {sourceEvent.isRecurring ? (
-            <span
-              className="inline-flex shrink-0"
-              style={{ color: resolvedAccentColor }}
-              aria-label="Recurring event"
-              role="img"
-            >
-              <RefreshCw className="h-3 w-3" aria-hidden="true" />
-            </span>
-          ) : null}
-        </div>
-      </div>
-      <div className="space-y-1">
-        {showLocation ? (
-          <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium leading-none text-muted-foreground">
-            <MapPin className="h-3 w-3 shrink-0" style={{ color: resolvedAccentColor }} aria-hidden="true" />
-            <span className="truncate" style={{ color: resolvedAccentColor }}>{location}</span>
-          </div>
-        ) : null}
-        {showTimeRange ? (
-          <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium leading-none text-muted-foreground">
-            <Clock3 className="h-3 w-3 shrink-0" style={{ color: resolvedAccentColor }} aria-hidden="true" />
-            <span className="truncate" style={{ color: resolvedAccentColor }}>{getEventTimeRangeLabel(sourceEvent)}</span>
-          </div>
-        ) : null}
-        {showConflictLabel && !showTimeRange ? (
-          <div className="text-[10px] font-semibold text-destructive">
-            Conflict
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <CalendarEventContent
+      event={sourceEvent}
+      highlightConflicts={highlightConflicts}
+      timeText={eventInfo.timeText}
+      viewType={eventInfo.view.type}
+      onToggleTodoCompleted={sourceEvent.allDay && onToggleTodoCompleted
+        ? (completed) => onToggleTodoCompleted(sourceEvent, completed)
+        : undefined}
+    />
   );
 };
 
@@ -301,6 +204,7 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   onWeekChange,
   onViewModeChange,
   onEventClick,
+  onToggleTodoCompleted,
 }) => {
   const calendarContainerRef = React.useRef<HTMLDivElement | null>(null);
   const safeWeekViewDayCount = Math.max(1, Math.floor(weekViewDayCount));
@@ -322,6 +226,10 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   const calendarEvents = React.useMemo(
     () => buildCalendarEvents(events, highlightConflicts),
     [events, highlightConflicts],
+  );
+  const renderEventContent = React.useMemo(
+    () => buildEventContentRenderer(onToggleTodoCompleted),
+    [onToggleTodoCompleted],
   );
   const safeWeek = Math.max(1, Math.min(Math.max(1, maxWeek), week));
 
@@ -349,6 +257,10 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   }, [maxWeek, onViewModeChange, onWeekChange, safeWeek, semesterRange.startDate]);
 
   const handleEventClick = React.useCallback((arg: EventClickArg) => {
+    const eventTarget = arg.jsEvent.target;
+    if (eventTarget instanceof Element && eventTarget.closest('[data-calendar-todo-toggle="true"]')) {
+      return;
+    }
     const { sourceEvent } = arg.event.extendedProps as EventExtendedProps;
     onEventClick(sourceEvent);
   }, [onEventClick]);

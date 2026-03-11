@@ -1,5 +1,5 @@
 // input:  [FullCalendarView renderer, calendar event fixtures, DOM observer shims, and testing-library helpers]
-// output: [test suite validating FullCalendar-backed overflow, Apple Calendar-style schedule metadata, DST-safe week sync, conflict labels, and event click wiring]
+// output: [test suite validating FullCalendar-backed overflow, todo all-day radios, Apple Calendar-style schedule metadata, DST-safe week sync, conflict labels, and event click wiring]
 // pos:    [Calendar regression tests for the builtin-event-core FullCalendar adapter]
 //
 // ⚠️ When this file is updated:
@@ -10,7 +10,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { FullCalendarView } from './FullCalendarView';
 import type { CalendarEventData } from '../../shared/types';
-import { BUILTIN_CALENDAR_SOURCE_SCHEDULE, SLOT_LOCATION_NOTE_PREFIX } from '../../shared/constants';
+import {
+  BUILTIN_CALENDAR_SOURCE_GRADEBOOK,
+  BUILTIN_CALENDAR_SOURCE_SCHEDULE,
+  BUILTIN_CALENDAR_SOURCE_TODO,
+  SLOT_LOCATION_NOTE_PREFIX,
+} from '../../shared/constants';
 
 beforeAll(() => {
   (globalThis as unknown as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver = class ResizeObserver {
@@ -42,11 +47,13 @@ const buildEvent = (
     note?: string;
     title?: string;
     allDay?: boolean;
+    sourceId?: string;
+    todoState?: CalendarEventData['todoState'];
   },
 ): CalendarEventData => ({
   id,
   eventId: id,
-  sourceId: BUILTIN_CALENDAR_SOURCE_SCHEDULE,
+  sourceId: options?.sourceId ?? BUILTIN_CALENDAR_SOURCE_SCHEDULE,
   title: options?.title ?? `Event ${id}`,
   courseId: 'course-1',
   courseName: `Course ${id}`,
@@ -66,6 +73,7 @@ const buildEvent = (
   conflictGroupId: null,
   enable: true,
   note: options?.note ?? '',
+  todoState: options?.todoState,
 });
 
 describe('FullCalendarView', () => {
@@ -347,6 +355,133 @@ describe('FullCalendarView', () => {
 
     const pillLabel = await screen.findByText('Assignment 3 [ECE110H1]');
     expect(pillLabel.closest('.fc-daygrid-event')?.getAttribute('data-semestra-all-day')).toBe('true');
+  });
+
+  it('renders all-day todo events with a completion radio and toggles without opening the event', async () => {
+    const onEventClick = vi.fn();
+    const onToggleTodoCompleted = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <FullCalendarView
+        events={[buildEvent('todo-all-day', 9, {
+          title: 'MAT187 Reflection 3',
+          allDay: true,
+          sourceId: BUILTIN_CALENDAR_SOURCE_TODO,
+          todoState: {
+            completed: false,
+            listSource: 'course',
+            listId: 'course-1',
+          },
+        })]}
+        week={2}
+        maxWeek={16}
+        viewMode="month"
+        monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
+        semesterRange={{
+          startDate: new Date('2026-03-02T00:00:00'),
+          endDate: new Date('2026-06-30T00:00:00'),
+          readingWeekStart: null,
+          readingWeekEnd: null,
+        }}
+        dayStartMinutes={8 * 60}
+        dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
+        highlightConflicts={false}
+        showWeekends
+        isPending={false}
+        onWeekChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onEventClick={onEventClick}
+        onToggleTodoCompleted={onToggleTodoCompleted}
+      />,
+    );
+
+    const toggle = await screen.findByRole('checkbox', { name: /toggle completion for mat187 reflection 3/i });
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(onToggleTodoCompleted).toHaveBeenCalledWith(expect.objectContaining({
+        eventId: 'todo-all-day',
+        sourceId: BUILTIN_CALENDAR_SOURCE_TODO,
+      }), true);
+    });
+    expect(onEventClick).not.toHaveBeenCalled();
+  });
+
+  it('keeps completed all-day todo events visible with a checked radio in week view', async () => {
+    render(
+      <FullCalendarView
+        events={[buildEvent('todo-completed', 9, {
+          title: 'ECE110 Lab 1',
+          allDay: true,
+          sourceId: BUILTIN_CALENDAR_SOURCE_TODO,
+          todoState: {
+            completed: true,
+            listSource: 'course',
+            listId: 'course-1',
+          },
+        })]}
+        week={2}
+        maxWeek={16}
+        viewMode="week"
+        monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
+        semesterRange={{
+          startDate: new Date('2026-03-02T00:00:00'),
+          endDate: new Date('2026-06-30T00:00:00'),
+          readingWeekStart: null,
+          readingWeekEnd: null,
+        }}
+        dayStartMinutes={8 * 60}
+        dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
+        highlightConflicts={false}
+        showWeekends
+        isPending={false}
+        onWeekChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('ECE110 Lab 1')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /toggle completion for ece110 lab 1/i })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('renders a gradebook icon instead of the all-day accent rail', async () => {
+    render(
+      <FullCalendarView
+        events={[buildEvent('gradebook-all-day', 9, {
+          title: 'Quiz 3',
+          allDay: true,
+          sourceId: BUILTIN_CALENDAR_SOURCE_GRADEBOOK,
+        })]}
+        week={2}
+        maxWeek={16}
+        viewMode="week"
+        monthAnchorDate={new Date('2026-03-09T00:00:00')}
+        weekViewStartDate={new Date('2026-03-09T00:00:00')}
+        semesterRange={{
+          startDate: new Date('2026-03-02T00:00:00'),
+          endDate: new Date('2026-06-30T00:00:00'),
+          readingWeekStart: null,
+          readingWeekEnd: null,
+        }}
+        dayStartMinutes={8 * 60}
+        dayEndMinutes={18 * 60}
+        weekViewDayCount={5}
+        highlightConflicts={false}
+        showWeekends
+        isPending={false}
+        onWeekChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('Quiz 3')).toBeInTheDocument();
+    expect(screen.getByLabelText('Gradebook event')).toBeInTheDocument();
   });
 
   it('keeps the full week and widens the week grid for horizontal scrolling', async () => {

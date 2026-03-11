@@ -1,6 +1,6 @@
-// input:  [Tab settings payload, Todo state hooks, todoData helpers, shared UI primitives, and event bus]
+// input:  [Tab settings payload, Todo state hooks, todoData helpers, shared UI primitives, and event bus sync payloads]
 // output: [TodoTab React component for course/semester todo management]
-// pos:    [Todo tab orchestration layer that wires list selection, task mutations, responsive layout, calendar refresh notifications, and loading placeholders]
+// pos:    [Todo tab orchestration layer that wires list selection, task mutations, external calendar-originated todo sync, responsive layout, calendar refresh notifications, and loading placeholders]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../shared/constants';
-import { timetableEventBus } from '../../shared/eventBus';
+import { timetableEventBus, useEventBus } from '../../shared/eventBus';
 import { TodoListSidebar } from './components/TodoListSidebar';
 import { TodoMainHeader } from './components/TodoMainHeader';
 import { TodoSectionBlock } from './components/TodoSectionBlock';
@@ -81,6 +81,7 @@ import {
   userSectionsOf,
   completedSection,
 } from './utils/todoData';
+import { toggleTodoTaskCompletedInStorage } from './utils/todoMutations';
 
 interface TodoTabProps {
   settings: unknown;
@@ -281,6 +282,55 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
     },
     [publishTodoCalendarRefresh, semesterCustomLists, safeSettings, updateLocalSettings],
   );
+
+  useEventBus('timetable:todo-storage-changed', (payload) => {
+    if (!semesterId || payload.semesterId !== semesterId) return;
+
+    if (payload.source === 'course') {
+      if (mode === 'course' && courseId && payload.courseId === courseId) {
+        updateLocalSettings({
+          ...safeSettings,
+          version: TODO_SETTINGS_VERSION,
+          courseList: payload.storage,
+        });
+        return;
+      }
+
+      if (mode === 'semester' && payload.courseId) {
+        setSemesterCourseLists((previous) => {
+          const current = previous[payload.courseId!];
+          if (!current) return previous;
+
+          return {
+            ...previous,
+            [payload.courseId!]: {
+              ...current,
+              sections: payload.storage.sections,
+              tasks: payload.storage.tasks,
+            },
+          };
+        });
+      }
+
+      return;
+    }
+
+    if (mode !== 'semester') return;
+
+    updateLocalSettings({
+      ...safeSettings,
+      version: TODO_SETTINGS_VERSION,
+      semesterCustomLists: semesterCustomLists.map((list) => {
+        if (list.id !== payload.listId) return list;
+        return {
+          ...list,
+          sections: payload.storage.sections,
+          tasks: payload.storage.tasks,
+          updatedAt: nowIso(),
+        };
+      }),
+    });
+  });
 
   const flushCourseListSync = React.useCallback(async (targetCourseId: string) => {
     if (inflightSyncRef.current.has(targetCourseId)) return;
@@ -893,42 +943,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
       clearTaskMoveTimer(list.id, taskId);
     }
 
-    mutateListStorage(list, (current) => {
-      const users = userSectionsOf(current.sections);
-      const fallbackSectionId = users[0]?.id ?? '';
-
-      return {
-        ...current,
-        tasks: current.tasks.map((task) => {
-          if (task.id !== taskId) return task;
-
-          if (!completed) {
-            const restoreSectionId = task.sectionId === COMPLETED_SECTION_ID
-              ? (task.originSectionId && users.some((section) => section.id === task.originSectionId)
-                ? task.originSectionId
-                : fallbackSectionId)
-              : task.sectionId;
-
-            return {
-              ...task,
-              completed: false,
-              sectionId: restoreSectionId,
-              originSectionId: undefined,
-              updatedAt: nowIso(),
-            };
-          }
-
-          return {
-            ...task,
-            completed: true,
-            originSectionId: task.sectionId === COMPLETED_SECTION_ID
-              ? task.originSectionId
-              : (task.originSectionId ?? (task.sectionId || undefined)),
-            updatedAt: nowIso(),
-          };
-        }),
-      };
-    });
+    mutateListStorage(list, (current) => toggleTodoTaskCompletedInStorage(current, taskId, completed, {
+      moveCompletedToCompletedSection: false,
+    }));
 
     if (completed && shouldAutoMoveCompleted) {
       scheduleMoveToCompleted(list, taskId);

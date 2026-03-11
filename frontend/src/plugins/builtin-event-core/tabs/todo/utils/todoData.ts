@@ -1,3 +1,11 @@
+// input:  [raw todo tab settings payloads, API tab records, shared constants, and todo domain types]
+// output: [todo normalization, serialization, formatting, and id/timestamp helper utilities]
+// pos:    [Todo data utility layer that shapes persisted settings into runtime-safe lists, sections, and tasks]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import type { Tab as ApiTab } from '@/services/api';
 import {
   COMPLETED_SECTION_ID,

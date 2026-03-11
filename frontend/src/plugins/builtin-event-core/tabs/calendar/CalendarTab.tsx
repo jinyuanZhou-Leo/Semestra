@@ -1,6 +1,6 @@
-// input:  [semester context, calendar-core registry, shared timetable event bus, and calendar subcomponents]
-// output: [Calendar tab runtime component with source-driven event rendering and low-coupling extension wiring]
-// pos:    [built-in event-core Calendar composition shell that binds registry sources, navigation state, editing flows, and external refresh signals]
+// input:  [semester context, calendar-core registry, shared timetable event bus, todo sync helpers, and calendar subcomponents]
+// output: [Calendar tab runtime component with source-driven event rendering, todo completion sync, and low-coupling extension wiring]
+// pos:    [built-in event-core Calendar composition shell that binds registry sources, navigation state, editing flows, todo completion updates, and external refresh signals]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -29,6 +29,7 @@ import { useCalendarNavigationState } from './hooks/useCalendarNavigationState';
 import { useCalendarSources } from './hooks/useCalendarSources';
 import { useSemesterCalendarContext } from './hooks/useSemesterCalendarContext';
 import { useViewportBoundHeight } from './hooks/useViewportBoundHeight';
+import { syncCalendarTodoCompletion } from '../todo/utils/todoCalendarSync';
 
 ensureBuiltinCalendarSourcesRegistered();
 
@@ -160,6 +161,32 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
       ));
   }, [eventsWithOptimisticPatches, semesterContext.semesterRange, settings.eventColors]);
 
+  const handleToggleTodoCompleted = React.useCallback(async (event: CalendarEventData, completed: boolean) => {
+    if (!semesterId) return;
+
+    try {
+      const signal = toRefreshSignal({
+        semesterId,
+        source: event.todoState?.listSource === 'course' ? 'course' : 'semester',
+        courseId: event.todoState?.listSource === 'course' ? event.courseId : undefined,
+        reason: 'events-updated',
+      });
+      skipNextRefreshRef.current = signal;
+
+      await syncCalendarTodoCompletion({
+        semesterId,
+        event,
+        completed,
+      });
+
+      await reloadMatchingSources(signal);
+    } catch (error: any) {
+      skipNextRefreshRef.current = null;
+      toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to update todo item from Calendar.');
+      throw error;
+    }
+  }, [reloadMatchingSources, semesterId]);
+
   const conflictGroups = React.useMemo(() => {
     const groups = new Map<string, CalendarEventData[]>();
 
@@ -217,6 +244,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
 
     if (signal.type === 'timetable' && signal.source === 'semester') {
       void semesterContext.reload();
+      void reloadMatchingSources(signal);
       return;
     }
 
@@ -300,6 +328,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
               onWeekChange={navigation.handleWeekChange}
               onViewModeChange={navigation.handleViewModeChange}
               onEventClick={handleEventClick}
+              onToggleTodoCompleted={handleToggleTodoCompleted}
             />
           </React.Suspense>
         </div>

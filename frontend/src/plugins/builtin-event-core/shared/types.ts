@@ -1,6 +1,6 @@
-// input:  [schedule service DTOs, todo scheduling metadata, and shared calendar/tab state contracts]
-// output: [event-core shared types for schedule snapshots, filters, calendar events, settings, and timetable refresh payloads]
-// pos:    [type layer connecting timetable services with builtin-event-core tabs, widgets, and external Calendar sources]
+// input:  [schedule service DTOs, todo scheduling metadata, todo list storage contracts, and shared calendar/tab state contracts]
+// output: [event-core shared types for schedule snapshots, filters, calendar events, settings, and timetable/todo sync payloads]
+// pos:    [type layer connecting timetable services with builtin-event-core tabs, widgets, todo sync, and external Calendar sources]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,6 +8,7 @@
 
 import type { CourseEvent, CourseEventType, CourseSection, ScheduleItem, WeekPattern } from '@/services/schedule';
 import type { CalendarEventData, CalendarEventPatch, SemesterDateRange } from '@/calendar-core';
+import type { TodoListStorage, TodoListSource } from '../tabs/todo/types';
 
 export type { CourseEvent, CourseEventType, CourseSection, ScheduleItem, WeekPattern };
 export type { CalendarEventData, CalendarEventPatch, SemesterDateRange };
@@ -47,6 +48,13 @@ export interface TimetableScheduleChangePayload {
 
 export interface TimetableEventPayloadMap {
   'timetable:schedule-data-changed': TimetableScheduleChangePayload;
+  'timetable:todo-storage-changed': {
+    semesterId: string;
+    source: TodoListSource;
+    listId: string;
+    courseId?: string;
+    storage: TodoListStorage;
+  };
 }
 
 export type TimetableEventType = keyof TimetableEventPayloadMap;
