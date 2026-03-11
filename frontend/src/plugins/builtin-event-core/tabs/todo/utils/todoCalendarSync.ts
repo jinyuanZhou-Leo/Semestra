@@ -1,6 +1,6 @@
-// input:  [REST api client, todo settings parsers, shared event bus, and Calendar todo events with completion metadata]
-// output: [`syncCalendarTodoCompletion` helper that persists Calendar-side todo completion toggles and broadcasts Todo sync events]
-// pos:    [Todo/calendar integration helper that updates stored todo data for course and semester-custom lists from Calendar interactions]
+// input:  [REST api client, semester-scoped todo settings parsers, shared event bus, and Calendar todo events with completion metadata]
+// output: [`syncCalendarTodoCompletion` helper that persists Calendar-side todo completion toggles into semester and mirrored course todo storage]
+// pos:    [Todo/calendar integration helper that updates the synchronized semester aggregate and course-specific mirrors from Calendar interactions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,13 +11,13 @@ import type { CalendarEventData } from '@/calendar-core';
 import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../../shared/constants';
 import { timetableEventBus } from '../../../shared/eventBus';
 import { normalizeTodoBehaviorSettings } from '../preferences';
-import { TODO_SETTINGS_VERSION } from '../shared';
-import type { SemesterCustomListStorage, TodoListStorage } from '../types';
+import type { TodoCourseOption } from '../types';
 import {
-  normalizeCourseListStateFromTab,
-  normalizeSemesterCustomLists,
-  nowIso,
+  buildCourseMirrorStorage,
+  normalizeSemesterTodoState,
   parseJsonObject,
+  serializeCourseTodoSettings,
+  serializeSemesterTodoSettings,
 } from './todoData';
 import { toggleTodoTaskCompletedInStorage } from './todoMutations';
 
@@ -26,24 +26,6 @@ interface SyncCalendarTodoCompletionParams {
   event: CalendarEventData;
   completed: boolean;
 }
-
-const buildCourseTodoSettings = (baseSettings: Record<string, unknown>, storage: TodoListStorage) => ({
-  ...baseSettings,
-  version: TODO_SETTINGS_VERSION,
-  courseList: {
-    sections: storage.sections,
-    tasks: storage.tasks,
-  },
-});
-
-const buildSemesterTodoSettings = (
-  baseSettings: Record<string, unknown>,
-  lists: SemesterCustomListStorage[],
-) => ({
-  ...baseSettings,
-  version: TODO_SETTINGS_VERSION,
-  semesterCustomLists: lists,
-});
 
 export const syncCalendarTodoCompletion = async ({
   semesterId,
@@ -54,93 +36,84 @@ export const syncCalendarTodoCompletion = async ({
     throw new Error('Only todo calendar events can be toggled from Calendar.');
   }
 
-  if (event.todoState.listSource === 'course') {
-    const course = await api.getCourse(event.courseId);
-    const todoTab = course.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
-    const parsedSettings = parseJsonObject(todoTab?.settings);
-    const behavior = normalizeTodoBehaviorSettings(parsedSettings);
-    const currentState = normalizeCourseListStateFromTab(event.courseId, course.name, todoTab);
-    const nextStorage = toggleTodoTaskCompletedInStorage(
-      { sections: currentState.sections, tasks: currentState.tasks },
-      event.eventId,
-      completed,
-      { moveCompletedToCompletedSection: behavior.moveCompletedToCompletedSection },
-    );
-    const nextSettings = buildCourseTodoSettings(parsedSettings, nextStorage);
-
-    if (todoTab?.id) {
-      await api.updateTab(todoTab.id, { settings: JSON.stringify(nextSettings) });
-    } else {
-      await api.createTabForCourse(event.courseId, {
-        tab_type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
-        title: 'Todo',
-        settings: JSON.stringify(nextSettings),
-      });
-    }
-
-    timetableEventBus.publish('timetable:todo-storage-changed', {
-      semesterId,
-      source: 'course',
-      courseId: event.courseId,
-      listId: event.courseId,
-      storage: nextStorage,
-    });
-    timetableEventBus.publish('timetable:schedule-data-changed', {
-      semesterId,
-      source: 'course',
-      courseId: event.courseId,
-      reason: 'events-updated',
-    });
-    return;
-  }
-
   const semester = await api.getSemester(semesterId);
-  const todoTab = semester.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
-  const parsedSettings = parseJsonObject(todoTab?.settings);
-  const behavior = normalizeTodoBehaviorSettings(parsedSettings);
-  const currentLists = normalizeSemesterCustomLists(parsedSettings);
-  const targetList = currentLists.find((list) => list.id === event.todoState?.listId);
+  const courseOptions: TodoCourseOption[] = (semester.courses ?? []).map((course) => ({
+    id: course.id,
+    name: course.name,
+    category: course.category ?? '',
+  }));
+  const courseDetails = await Promise.all(
+    courseOptions.map(async (course) => {
+      try {
+        const detail = await api.getCourse(course.id);
+        return { ...course, detail };
+      } catch {
+        return { ...course, detail: undefined };
+      }
+    }),
+  );
 
-  if (!targetList) {
-    throw new Error('Todo list could not be found for this calendar event.');
-  }
-
+  const semesterTodoTab = semester.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
+  const semesterSettings = parseJsonObject(semesterTodoTab?.settings);
+  const semesterState = normalizeSemesterTodoState(
+    semesterSettings,
+    courseDetails.map((course) => ({
+      courseId: course.id,
+      courseName: course.name,
+      courseCategory: course.category,
+      todoTab: course.detail?.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE),
+    })),
+  );
+  const behavior = normalizeTodoBehaviorSettings(semesterSettings);
   const nextStorage = toggleTodoTaskCompletedInStorage(
-    { sections: targetList.sections, tasks: targetList.tasks },
+    { sections: semesterState.sections, tasks: semesterState.tasks },
     event.eventId,
     completed,
     { moveCompletedToCompletedSection: behavior.moveCompletedToCompletedSection },
   );
-  const nextLists = currentLists.map((list) => {
-    if (list.id !== targetList.id) return list;
-    return {
-      ...list,
-      sections: nextStorage.sections,
-      tasks: nextStorage.tasks,
-      updatedAt: nowIso(),
-    };
-  });
-  const nextSettings = buildSemesterTodoSettings(parsedSettings, nextLists);
+  const nextSemesterSettings = serializeSemesterTodoSettings(semesterSettings, nextStorage);
 
-  if (todoTab?.id) {
-    await api.updateTab(todoTab.id, { settings: JSON.stringify(nextSettings) });
+  if (semesterTodoTab?.id) {
+    await api.updateTab(semesterTodoTab.id, { settings: JSON.stringify(nextSemesterSettings) });
   } else {
     await api.createTab(semesterId, {
       tab_type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
       title: 'Todo',
-      settings: JSON.stringify(nextSettings),
+      settings: JSON.stringify(nextSemesterSettings),
     });
+  }
+
+  const toggledTask = nextStorage.tasks.find((task) => task.id === event.eventId);
+  if (toggledTask?.courseId) {
+    const targetCourse = courseDetails.find((course) => course.id === toggledTask.courseId);
+    if (targetCourse) {
+      const mirroredStorage = buildCourseMirrorStorage(nextStorage, targetCourse);
+      const courseTodoTab = targetCourse.detail?.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
+      const courseSettings = parseJsonObject(courseTodoTab?.settings);
+      const nextCourseSettings = serializeCourseTodoSettings(courseSettings, mirroredStorage);
+
+      if (courseTodoTab?.id) {
+        await api.updateTab(courseTodoTab.id, { settings: JSON.stringify(nextCourseSettings) });
+      } else {
+        await api.createTabForCourse(targetCourse.id, {
+          tab_type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
+          title: 'Todo',
+          settings: JSON.stringify(nextCourseSettings),
+        });
+      }
+    }
   }
 
   timetableEventBus.publish('timetable:todo-storage-changed', {
     semesterId,
-    source: 'semester-custom',
-    listId: targetList.id,
+    source: 'semester',
+    listId: semesterId,
     storage: nextStorage,
   });
   timetableEventBus.publish('timetable:schedule-data-changed', {
     semesterId,
-    source: 'semester',
+    source: toggledTask?.courseId ? 'course' : 'semester',
+    courseId: toggledTask?.courseId || undefined,
     reason: 'events-updated',
   });
 };

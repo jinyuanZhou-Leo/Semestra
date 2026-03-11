@@ -2,7 +2,7 @@
 
 Vite + React frontend for Semestra with lazy routes and plugin-driven dashboards.
 Core behavior is split across contexts, hooks, services, reusable UI components, and a standalone `src/calendar-core/` domain layer for Calendar event-source registration.
-Build/test configs and scripts support local development, bundling, release metadata, cookie-backed auth bootstrapping, compact calendar/todo loading shells, a single-shell Calendar border treatment with refined scrollbars, dynamic sticky offsets for workspace settings titles, debounced settings auto-save persistence without inline status UI, homepage-aware plugin loading skeletons, opacity-only plugin fade-ins that preserve viewport-fixed dashboard FAB positioning during load, empty-state-safe dashboard width measurement so the first widget appears without refresh, a Gradebook command-center refresh with fact-only gradebook payloads plus client-derived projections and a Course List-style percentage-score assessment shell, and the split habit-streak dual-widget runtime with isolated per-instance streak data so the browser no longer persists login bearer tokens in localStorage.
+Build/test configs and scripts support local development, bundling, release metadata, cookie-backed auth bootstrapping, compact calendar/todo loading shells including a simplified height-matched Calendar body placeholder, a single-shell Calendar border treatment with refined scrollbars, dynamic sticky offsets for workspace settings titles, debounced settings auto-save persistence without inline status UI, homepage-aware plugin loading skeletons, opacity-only plugin fade-ins that preserve viewport-fixed dashboard FAB positioning during load, empty-state-safe dashboard width measurement so the first widget appears without refresh, an Apple Reminder-style Todo aggregate with mirrored semester/course persistence, a Gradebook command-center refresh with fact-only gradebook payloads plus client-derived projections and a Course List-style percentage-score assessment shell, and the split habit-streak dual-widget runtime with isolated per-instance streak data so the browser no longer persists login bearer tokens in localStorage.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -16,7 +16,7 @@ Build/test configs and scripts support local development, bundling, release meta
 | eslint.config.js | Lint config | ESLint ruleset for TypeScript + React hooks. |
 | index.html | HTML entry | Root HTML template with pre-React loading fallback. |
 | package-lock.json | Dependency lockfile | Pinned npm dependency tree for reproducible installs. |
-| package.json | Package manifest | Frontend scripts, dependencies, and package metadata for the Gradebook V2 release, current settings UI cleanup, split habit-streak dual-widget runtime, multi-instance support, and homepage loading-shell behavior. |
+| package.json | Package manifest | Frontend scripts, dependencies, and package metadata for the Gradebook V2 release, Apple Reminder-style Todo aggregate UX, current settings UI cleanup, split habit-streak dual-widget runtime, multi-instance support, and homepage loading-shell behavior. |
 | README.md | Guide | Baseline React+Vite README and project notes. |
 | tailwind.config.ts | Style config | Tailwind scanning configuration and theme wiring. |
 | tsconfig.app.json | TypeScript config | Application TypeScript compiler options. |

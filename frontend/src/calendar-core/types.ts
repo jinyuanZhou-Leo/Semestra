@@ -38,7 +38,7 @@ export interface CalendarEventData {
   note?: string | null;
   todoState?: {
     completed: boolean;
-    listSource: 'course' | 'semester-custom';
+    listSource: 'course' | 'semester';
     listId: string;
   };
 }

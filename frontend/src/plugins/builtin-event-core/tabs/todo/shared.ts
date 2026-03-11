@@ -1,13 +1,21 @@
+// input:  [Todo domain option/type contracts]
+// output: [Shared Todo constants, storage version markers, and option lists]
+// pos:    [Constant layer reused by Todo runtime, migration helpers, and dialog UIs]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 import type { TodoPriorityOption, TodoSortOption } from './types';
 
-export const TODO_SETTINGS_VERSION = 1;
-export const COURSE_LIST_FALLBACK_NAME = 'Course List';
+export const TODO_SETTINGS_VERSION = 2;
+export const COURSE_LIST_FALLBACK_NAME = 'Course';
 export const DEFAULT_SECTION_NAME = 'General';
 export const COMPLETED_SECTION_ID = '__completed__';
 export const COMPLETED_SECTION_NAME = 'Completed';
 export const UNSECTIONED_TASK_BUCKET_ID = '__unsectioned__';
 export const UNSECTIONED_TASK_BUCKET_NAME = 'No Section';
 export const COMPLETED_MOVE_TIMEOUT_MS = 1500;
+export const SEMESTER_TODO_SETTINGS_KEY = 'semesterTodo';
 
 export const PRIORITY_OPTIONS: TodoPriorityOption[] = [
   { value: 'LOW', label: 'Low', className: 'bg-slate-100 text-slate-700 border-slate-200', weight: 1 },

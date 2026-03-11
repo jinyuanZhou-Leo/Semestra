@@ -338,6 +338,7 @@ const CourseHomepageContent: React.FC = () => {
                     <TabComponent
                         tabId={activeTab.id}
                         settings={activeTab.settings || {}}
+                        semesterId={course.semester_id}
                         courseId={course.id}
                         updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
                     />
@@ -386,6 +387,7 @@ const CourseHomepageContent: React.FC = () => {
                             <SettingsComponent
                                 tabId={tab.id}
                                 settings={tab.settings || {}}
+                                semesterId={course?.semester_id}
                                 courseId={course?.id}
                                 updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
                             />

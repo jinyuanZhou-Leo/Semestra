@@ -1,9 +1,16 @@
+// input:  [Todo runtime state, dialog drafts, and calendar/todo synchronization metadata]
+// output: [Todo domain types for tasks, sections, mirrored storage, and semester/course view models]
+// pos:    [Type layer shared by the Todo tab runtime, helpers, dialogs, and calendar integration]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 export type TodoPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 export type TodoSortMode = 'created' | 'due-date' | 'priority' | 'title';
 export type TodoSortDirection = 'asc' | 'desc';
 
-export type TodoListSource = 'course' | 'semester-custom';
+export type TodoListSource = 'course' | 'semester';
 
 export type TodoTabMode = 'course' | 'semester' | 'unsupported';
 
@@ -20,6 +27,9 @@ export interface TodoTask {
   description: string;
   sectionId: string;
   originSectionId: string | undefined;
+  courseId: string;
+  courseName: string;
+  courseCategory: string;
   dueDate: string;
   dueTime: string;
   priority: TodoPriority;
@@ -34,32 +44,30 @@ export interface TodoListStorage {
   tasks: TodoTask[];
 }
 
-export interface SemesterCustomListStorage extends TodoListStorage {
+export interface TodoCourseOption {
   id: string;
   name: string;
-  createdAt: string;
-  updatedAt: string;
+  category: string;
 }
 
 export interface TodoListModel extends TodoListStorage {
   id: string;
   name: string;
   source: TodoListSource;
-  editableName: boolean;
+  canManageSections: boolean;
+  showCourseTag: boolean;
   courseId?: string;
 }
 
-export interface SemesterCourseListState extends TodoListStorage {
-  courseId: string;
-  courseName: string;
-  tabId?: string;
-  baseSettings: Record<string, unknown>;
+export interface TodoSemesterState extends TodoListStorage {
+  courseOptions: TodoCourseOption[];
 }
 
 export interface TaskDraft {
   title: string;
   description: string;
   sectionId: string;
+  courseId: string;
   dueDate: string;
   dueTime: string;
   priority: TodoPriority;

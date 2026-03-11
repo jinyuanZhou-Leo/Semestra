@@ -262,10 +262,6 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     );
   }
 
-  if (!semesterContext.isReady && semesterContext.isLoading) {
-    return <CalendarSkeleton />;
-  }
-
   if (!semesterContext.isReady && semesterContext.error) {
     return (
       <Card>
@@ -282,8 +278,12 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     );
   }
 
+  if (!semesterContext.isReady && semesterContext.isLoading) {
+    return <CalendarSkeleton viewportBoundHeight={viewportBoundHeight} />;
+  }
+
   if (areSourcesLoading && calendarEvents.length === 0) {
-    return <CalendarSkeleton />;
+    return <CalendarSkeleton viewportBoundHeight={viewportBoundHeight} />;
   }
 
   return (
@@ -310,7 +310,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
         />
 
         <div className="min-h-0 min-w-0 overflow-hidden">
-          <React.Suspense fallback={<CalendarSkeleton />}>
+          <React.Suspense fallback={<CalendarSkeleton viewportBoundHeight={viewportBoundHeight} />}>
             <FullCalendarView
               events={calendarEvents}
               week={navigation.week}

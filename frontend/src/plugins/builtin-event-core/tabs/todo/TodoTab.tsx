@@ -1,6 +1,6 @@
-// input:  [Tab settings payload, Todo state hooks, todoData helpers, shared UI primitives, and event bus sync payloads]
-// output: [TodoTab React component for course/semester todo management]
-// pos:    [Todo tab orchestration layer that wires list selection, task mutations, external calendar-originated todo sync, responsive layout, calendar refresh notifications, and loading placeholders]
+// input:  [Todo tab settings payload, semester/course APIs, synchronized todo data helpers, shared UI primitives, and event bus refresh signals]
+// output: [TodoTab React component for semester-first Apple Reminder-style todo management with mirrored course sync]
+// pos:    [Todo tab orchestration layer that loads semester aggregate state, mirrors course-specific task snapshots, drives task/section mutations, and renders the unified list UI]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,7 +9,8 @@
 
 import React from 'react';
 import { toast } from 'sonner';
-import api, { type Course } from '@/services/api';
+import api from '@/services/api';
+import { getCourseCategoryBadgeClassName } from '@/utils/courseCategoryBadge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,39 +22,31 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../shared/constants';
 import { timetableEventBus, useEventBus } from '../../shared/eventBus';
-import { TodoListSidebar } from './components/TodoListSidebar';
+import { TodoInlineCreateRow } from './components/TodoInlineCreateRow';
 import { TodoMainHeader } from './components/TodoMainHeader';
 import { TodoSectionBlock } from './components/TodoSectionBlock';
 import { TodoTaskCard } from './components/TodoTaskCard';
 import { TodoUnsectionedBlock } from './components/TodoUnsectionedBlock';
-import { TodoDeleteListAlert } from './components/dialogs/TodoDeleteListAlert';
-import { TodoListTitleDialog } from './components/dialogs/TodoListTitleDialog';
 import { TodoSectionTitleDialog } from './components/dialogs/TodoSectionTitleDialog';
 import { TodoTaskDialog } from './components/dialogs/TodoTaskDialog';
 import { useTodoSectionOpenMap } from './hooks/useTodoSectionOpenMap';
 import { useTodoSectionTasks } from './hooks/useTodoSectionTasks';
 import { useTodoTaskDrag } from './hooks/useTodoTaskDrag';
-import { useTodoLists } from './hooks/useTodoLists';
 import { normalizeTodoBehaviorSettings } from './preferences';
 import {
-  COMPLETED_MOVE_TIMEOUT_MS,
   COMPLETED_SECTION_ID,
-  COURSE_LIST_FALLBACK_NAME,
   DEFAULT_SECTION_NAME,
   PRIORITY_OPTIONS,
   SORT_OPTIONS,
-  TODO_SETTINGS_VERSION,
   UNSECTIONED_TASK_BUCKET_ID,
   UNSECTIONED_TASK_BUCKET_NAME,
 } from './shared';
 import type {
-  SemesterCourseListState,
-  SemesterCustomListStorage,
   TaskDraft,
+  TodoCourseOption,
   TodoListModel,
   TodoListStorage,
   TodoSection,
@@ -63,6 +56,8 @@ import type {
   TodoTask,
 } from './types';
 import {
+  buildCourseMirrorStorage,
+  completedSection,
   createSectionName,
   createTaskDraft,
   ensureDateValue,
@@ -70,16 +65,14 @@ import {
   formatTaskDue,
   getPriorityMeta,
   isRecord,
-  listTimerKey,
   makeId,
-  normalizeCourseListStateFromTab,
   normalizeListStorage,
-  normalizeSemesterCustomLists,
+  normalizeSemesterTodoState,
   nowIso,
   parseJsonObject,
-  serializeCourseSettings,
+  serializeCourseTodoSettings,
+  serializeSemesterTodoSettings,
   userSectionsOf,
-  completedSection,
 } from './utils/todoData';
 import { toggleTodoTaskCompletedInStorage } from './utils/todoMutations';
 
@@ -90,437 +83,239 @@ interface TodoTabProps {
   semesterId?: string;
 }
 
-const SEMESTER_TODO_DETAIL_MAX_PARALLEL_REQUESTS = 4;
-const TODO_SYNC_RETRY_DELAY_MS = 1_500;
+interface SemesterTabMeta {
+  tabId?: string;
+  baseSettings: Record<string, unknown>;
+}
 
-const runWithConcurrencyLimit = async <T,>(tasks: Array<() => Promise<T>>, maxParallelRequests: number): Promise<T[]> => {
-  if (tasks.length === 0) return [];
-
-  const results = new Array<T>(tasks.length);
-  let cursor = 0;
-
-  const worker = async () => {
-    while (cursor < tasks.length) {
-      const currentIndex = cursor;
-      cursor += 1;
-      results[currentIndex] = await tasks[currentIndex]();
-    }
-  };
-
-  const workerCount = Math.min(tasks.length, Math.max(1, Math.floor(maxParallelRequests)));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-  return results;
-};
+interface CourseMirrorMeta {
+  tabId?: string;
+  baseSettings: Record<string, unknown>;
+  course: TodoCourseOption;
+}
 
 const TodoMainPanelSkeleton: React.FC = () => {
   return (
-    <div className="pt-1">
-      <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-4 pt-1">
+      <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
-          <Skeleton className="h-7 w-40 rounded-full" />
-          <Skeleton className="h-3.5 w-24 rounded-full opacity-70" />
+          <Skeleton className="h-8 w-40 rounded-full" />
+          <Skeleton className="h-4 w-48 rounded-full opacity-70" />
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="h-9 w-9 rounded-xl" />
           <Skeleton className="h-9 w-28 rounded-full" />
           <Skeleton className="h-9 w-28 rounded-full" />
         </div>
       </div>
 
-      <div className="space-y-4 pt-4">
-        <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-8 rounded-md" />
-            <Skeleton className="h-4 w-32 rounded-full" />
-          </div>
-          <div className="mt-3 space-y-2">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={`todo-unsectioned-skeleton-${index}`} className="h-14 rounded-xl" />
-            ))}
-          </div>
-        </div>
-
-        {Array.from({ length: 2 }).map((_, index) => (
-          <div key={`todo-section-skeleton-${index}`} className="rounded-2xl border border-border/60 bg-background/80 p-3">
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-8 w-8 rounded-md" />
-              <Skeleton className="h-4 w-28 rounded-full" />
-            </div>
-            <div className="mt-3 space-y-2">
-              <Skeleton className="h-14 rounded-xl" />
-              <Skeleton className="h-14 rounded-xl" />
-            </div>
-          </div>
-        ))}
-      </div>
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Skeleton key={`todo-row-skeleton-${index}`} className="h-24 rounded-[28px]" />
+      ))}
     </div>
   );
 };
 
-export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, courseId, semesterId }) => {
+export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId }) => {
   const mode: TodoTabMode = courseId
     ? 'course'
     : semesterId
       ? 'semester'
       : 'unsupported';
 
-  const safeSettings = React.useMemo<Record<string, unknown>>(() => {
-    return isRecord(settings) ? settings : {};
-  }, [settings]);
-
-  const behavior = React.useMemo(() => normalizeTodoBehaviorSettings(safeSettings), [safeSettings]);
-  const shouldAutoMoveCompleted = behavior.moveCompletedToCompletedSection;
-
-  const [courseDisplayName, setCourseDisplayName] = React.useState(COURSE_LIST_FALLBACK_NAME);
-
-  const [listTitleDialogOpen, setListTitleDialogOpen] = React.useState(false);
-  const [listTitleDraft, setListTitleDraft] = React.useState('');
+  const [semesterStorage, setSemesterStorage] = React.useState<TodoListStorage>(() => normalizeListStorage(undefined));
+  const semesterStorageRef = React.useRef<TodoListStorage>(normalizeListStorage(undefined));
+  const [courseOptions, setCourseOptions] = React.useState<TodoCourseOption[]>([]);
+  const courseOptionsRef = React.useRef<TodoCourseOption[]>([]);
+  const [loading, setLoading] = React.useState(mode !== 'unsupported');
+  const [sortMode, setSortMode] = React.useState<TodoSortMode>('created');
+  const [sortDirection, setSortDirection] = React.useState<TodoSortDirection>('asc');
+  const [taskDialogOpen, setTaskDialogOpen] = React.useState(false);
+  const [taskDialogEditingId, setTaskDialogEditingId] = React.useState<string | null>(null);
+  const [taskDraft, setTaskDraft] = React.useState<TaskDraft>(createTaskDraft());
+  const [inlineCreateOpen, setInlineCreateOpen] = React.useState(false);
+  const [inlineDraft, setInlineDraft] = React.useState<TaskDraft>(createTaskDraft());
   const [sectionTitleDialogOpen, setSectionTitleDialogOpen] = React.useState(false);
   const [sectionTitleDraft, setSectionTitleDraft] = React.useState('');
   const [sectionTitleTargetId, setSectionTitleTargetId] = React.useState<string | null>(null);
-
-  const [taskDialogOpen, setTaskDialogOpen] = React.useState(false);
-  const [taskDialogEditingId, setTaskDialogEditingId] = React.useState<string | null>(null);
-  const [taskDraft, setTaskDraft] = React.useState<TaskDraft>(createTaskDraft(UNSECTIONED_TASK_BUCKET_ID));
-  const [listManageMode, setListManageMode] = React.useState(false);
-  const [deleteListDialogOpen, setDeleteListDialogOpen] = React.useState(false);
-  const [deleteListTarget, setDeleteListTarget] = React.useState<{ id: string; name: string } | null>(null);
   const [deleteSectionDialogOpen, setDeleteSectionDialogOpen] = React.useState(false);
-  const [deleteSectionTarget, setDeleteSectionTarget] = React.useState<{
-    listId: string;
-    sectionId: string;
-    sectionName: string;
-    taskCount: number;
-  } | null>(null);
-  const [sortMode, setSortMode] = React.useState<TodoSortMode>('created');
-  const [sortDirection, setSortDirection] = React.useState<TodoSortDirection>('asc');
-
-  const [semesterCourseLists, setSemesterCourseLists] = React.useState<Record<string, SemesterCourseListState>>({});
-  const [semesterCourseListsLoading, setSemesterCourseListsLoading] = React.useState(false);
-
-  const loadRequestIdRef = React.useRef(0);
-  const syncTimersRef = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const pendingSyncRef = React.useRef<Map<string, SemesterCourseListState>>(new Map());
-  const inflightSyncRef = React.useRef<Set<string>>(new Set());
-  const completedMoveTimersRef = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const isMountedRef = React.useRef(true);
-
-  const updateLocalSettings = React.useCallback((nextSettings: Record<string, unknown>) => {
-    void updateSettings(nextSettings);
-  }, [updateSettings]);
-
-  const publishTodoCalendarRefresh = React.useCallback((source: 'course' | 'semester', targetCourseId?: string) => {
-    if (!semesterId) return;
-    timetableEventBus.publish('timetable:schedule-data-changed', {
-      source,
-      reason: 'events-updated',
-      semesterId,
-      courseId: source === 'course' ? targetCourseId : undefined,
-    });
-  }, [semesterId]);
-
-  const courseListStorage = React.useMemo<TodoListStorage>(() => {
-    return normalizeListStorage(isRecord(safeSettings.courseList) ? safeSettings.courseList : undefined);
-  }, [safeSettings]);
-
-  const semesterCustomLists = React.useMemo(() => {
-    return normalizeSemesterCustomLists(safeSettings);
-  }, [safeSettings]);
-
-  React.useEffect(() => {
-    if (!courseId) {
-      setCourseDisplayName(COURSE_LIST_FALLBACK_NAME);
-      return;
-    }
-
-    let cancelled = false;
-
-    api.getCourse(courseId)
-      .then((course) => {
-        if (cancelled) return;
-        setCourseDisplayName(course.name?.trim() || COURSE_LIST_FALLBACK_NAME);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setCourseDisplayName(COURSE_LIST_FALLBACK_NAME);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [courseId]);
-
-  React.useEffect(() => {
-    if (mode !== 'semester') {
-      setListManageMode(false);
-    }
-  }, [mode]);
-
-  const updateCourseListInCurrentTab = React.useCallback(
-    (updater: (current: TodoListStorage) => TodoListStorage) => {
-      const nextStorage = normalizeListStorage(updater(courseListStorage));
-      updateLocalSettings({
-        ...safeSettings,
-        version: TODO_SETTINGS_VERSION,
-        courseList: nextStorage,
-      });
-      publishTodoCalendarRefresh('course', courseId);
-    },
-    [courseId, courseListStorage, publishTodoCalendarRefresh, safeSettings, updateLocalSettings],
+  const [deleteSectionTarget, setDeleteSectionTarget] = React.useState<TodoSection | null>(null);
+  const [semesterSettingsSnapshot, setSemesterSettingsSnapshot] = React.useState<Record<string, unknown>>(
+    isRecord(settings) ? settings : {},
   );
 
-  const updateSemesterCustomLists = React.useCallback(
-    (updater: (current: SemesterCustomListStorage[]) => SemesterCustomListStorage[]) => {
-      const nextLists = updater(semesterCustomLists);
-      updateLocalSettings({
-        ...safeSettings,
-        version: TODO_SETTINGS_VERSION,
-        semesterCustomLists: nextLists,
-      });
-      publishTodoCalendarRefresh('semester');
-    },
-    [publishTodoCalendarRefresh, semesterCustomLists, safeSettings, updateLocalSettings],
-  );
+  const semesterMetaRef = React.useRef<SemesterTabMeta>({ baseSettings: {} });
+  const courseMetaRef = React.useRef<Record<string, CourseMirrorMeta>>({});
 
-  useEventBus('timetable:todo-storage-changed', (payload) => {
-    if (!semesterId || payload.semesterId !== semesterId) return;
+  const behavior = React.useMemo(() => normalizeTodoBehaviorSettings(semesterSettingsSnapshot), [semesterSettingsSnapshot]);
 
-    if (payload.source === 'course') {
-      if (mode === 'course' && courseId && payload.courseId === courseId) {
-        updateLocalSettings({
-          ...safeSettings,
-          version: TODO_SETTINGS_VERSION,
-          courseList: payload.storage,
-        });
-        return;
-      }
+  const courseDisplayName = React.useMemo(() => {
+    if (!courseId) return 'Todo';
+    return courseOptions.find((course) => course.id === courseId)?.name ?? 'Course Todo';
+  }, [courseId, courseOptions]);
 
-      if (mode === 'semester' && payload.courseId) {
-        setSemesterCourseLists((previous) => {
-          const current = previous[payload.courseId!];
-          if (!current) return previous;
-
-          return {
-            ...previous,
-            [payload.courseId!]: {
-              ...current,
-              sections: payload.storage.sections,
-              tasks: payload.storage.tasks,
-            },
-          };
-        });
-      }
-
-      return;
-    }
-
-    if (mode !== 'semester') return;
-
-    updateLocalSettings({
-      ...safeSettings,
-      version: TODO_SETTINGS_VERSION,
-      semesterCustomLists: semesterCustomLists.map((list) => {
-        if (list.id !== payload.listId) return list;
-        return {
-          ...list,
-          sections: payload.storage.sections,
-          tasks: payload.storage.tasks,
-          updatedAt: nowIso(),
-        };
-      }),
-    });
-  });
-
-  const flushCourseListSync = React.useCallback(async (targetCourseId: string) => {
-    if (inflightSyncRef.current.has(targetCourseId)) return;
-    inflightSyncRef.current.add(targetCourseId);
-    let retryScheduled = false;
-
-    try {
-      while (pendingSyncRef.current.has(targetCourseId)) {
-        const pending = pendingSyncRef.current.get(targetCourseId);
-        if (!pending) break;
-
-        let tabId = pending.tabId;
-        let baseSettings = pending.baseSettings;
-
-        if (!tabId) {
-          const created = await api.createTabForCourse(targetCourseId, {
-            tab_type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
-            title: 'Todo',
-            settings: JSON.stringify(serializeCourseSettings(pending)),
-          });
-
-          tabId = created.id;
-          baseSettings = parseJsonObject(created.settings);
-
-          if (isMountedRef.current) {
-            setSemesterCourseLists((previous) => {
-              const current = previous[targetCourseId];
-              if (!current) return previous;
-
-              return {
-                ...previous,
-                [targetCourseId]: {
-                  ...current,
-                  tabId,
-                  baseSettings,
-                },
-              };
-            });
-          }
-
-          if (pendingSyncRef.current.get(targetCourseId) === pending) {
-            pendingSyncRef.current.delete(targetCourseId);
-          }
-          continue;
-        }
-
-        const updated = await api.updateTab(tabId, {
-          settings: JSON.stringify({
-            ...baseSettings,
-            version: TODO_SETTINGS_VERSION,
-            courseList: {
-              sections: pending.sections,
-              tasks: pending.tasks,
-            },
-          }),
-        });
-
-        const updatedSettings = parseJsonObject(updated.settings);
-        const normalized = normalizeListStorage(
-          isRecord(updatedSettings.courseList) ? updatedSettings.courseList : undefined,
-        );
-
-        if (isMountedRef.current) {
-          setSemesterCourseLists((previous) => {
-            const current = previous[targetCourseId];
-            if (!current) return previous;
-
-            return {
-              ...previous,
-              [targetCourseId]: {
-                ...current,
-                tabId,
-                baseSettings: updatedSettings,
-                sections: normalized.sections,
-                tasks: normalized.tasks,
-              },
-            };
-          });
-        }
-
-        if (pendingSyncRef.current.get(targetCourseId) === pending) {
-          pendingSyncRef.current.delete(targetCourseId);
-        }
-      }
-    } catch (error: any) {
-      toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save course todo list.');
-      if (isMountedRef.current) {
-        const previousTimer = syncTimersRef.current.get(targetCourseId);
-        if (previousTimer) clearTimeout(previousTimer);
-        const retryTimer = setTimeout(() => {
-          syncTimersRef.current.delete(targetCourseId);
-          void flushCourseListSync(targetCourseId);
-        }, TODO_SYNC_RETRY_DELAY_MS);
-        syncTimersRef.current.set(targetCourseId, retryTimer);
-        retryScheduled = true;
-      } else {
-        retryScheduled = true;
-      }
-    } finally {
-      inflightSyncRef.current.delete(targetCourseId);
-      if (!retryScheduled && pendingSyncRef.current.has(targetCourseId)) {
-        void flushCourseListSync(targetCourseId);
-      }
-    }
+  const normalizedRuntimeStorage = React.useCallback((input: TodoListStorage) => {
+    return normalizeListStorage(input, courseOptionsRef.current);
   }, []);
 
-  const scheduleCourseListSync = React.useCallback((targetCourseId: string, delayMs = 350) => {
-    const previousTimer = syncTimersRef.current.get(targetCourseId);
-    if (previousTimer) clearTimeout(previousTimer);
+  const persistSynchronizedStorage = React.useCallback(async (
+    nextStorage: TodoListStorage,
+    publishSource: 'course' | 'semester',
+    targetCourseId?: string,
+  ) => {
+    if (!semesterId) return;
 
-    const nextTimer = setTimeout(() => {
-      syncTimersRef.current.delete(targetCourseId);
-      void flushCourseListSync(targetCourseId);
-    }, delayMs);
+    const normalized = normalizedRuntimeStorage(nextStorage);
+    const nextSemesterSettings = serializeSemesterTodoSettings(semesterMetaRef.current.baseSettings, normalized);
+    setSemesterSettingsSnapshot(nextSemesterSettings);
 
-    syncTimersRef.current.set(targetCourseId, nextTimer);
-  }, [flushCourseListSync]);
+    try {
+      let nextSemesterTabId = semesterMetaRef.current.tabId;
 
-  const queueCourseListSync = React.useCallback((entry: SemesterCourseListState) => {
-    pendingSyncRef.current.set(entry.courseId, entry);
-    scheduleCourseListSync(entry.courseId);
-  }, [scheduleCourseListSync]);
-
-  const updateSemesterCourseList = React.useCallback(
-    (targetCourseId: string, updater: (current: TodoListStorage) => TodoListStorage) => {
-      setSemesterCourseLists((previous) => {
-        const current = previous[targetCourseId];
-        if (!current) return previous;
-
-        const nextStorage = normalizeListStorage(updater({ sections: current.sections, tasks: current.tasks }));
-        const nextEntry: SemesterCourseListState = {
-          ...current,
-          sections: nextStorage.sections,
-          tasks: nextStorage.tasks,
+      if (nextSemesterTabId) {
+        const updated = await api.updateTab(nextSemesterTabId, { settings: JSON.stringify(nextSemesterSettings) });
+        semesterMetaRef.current = {
+          tabId: updated.id,
+          baseSettings: parseJsonObject(updated.settings),
         };
-
-        queueCourseListSync(nextEntry);
-        publishTodoCalendarRefresh('course', targetCourseId);
-
-        return {
-          ...previous,
-          [targetCourseId]: nextEntry,
+      } else {
+        const created = await api.createTab(semesterId, {
+          tab_type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
+          title: 'Todo',
+          settings: JSON.stringify(nextSemesterSettings),
+        });
+        nextSemesterTabId = created.id;
+        semesterMetaRef.current = {
+          tabId: created.id,
+          baseSettings: parseJsonObject(created.settings),
         };
+      }
+
+      await Promise.all(Object.values(courseMetaRef.current).map(async (meta) => {
+        const mirroredStorage = buildCourseMirrorStorage(normalized, meta.course);
+        const nextCourseSettings = serializeCourseTodoSettings(meta.baseSettings, mirroredStorage);
+
+        if (meta.tabId) {
+          const updated = await api.updateTab(meta.tabId, { settings: JSON.stringify(nextCourseSettings) });
+          courseMetaRef.current[meta.course.id] = {
+            ...meta,
+            tabId: updated.id,
+            baseSettings: parseJsonObject(updated.settings),
+          };
+          return;
+        }
+
+        const created = await api.createTabForCourse(meta.course.id, {
+          tab_type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
+          title: 'Todo',
+          settings: JSON.stringify(nextCourseSettings),
+        });
+        courseMetaRef.current[meta.course.id] = {
+          ...meta,
+          tabId: created.id,
+          baseSettings: parseJsonObject(created.settings),
+        };
+      }));
+
+      timetableEventBus.publish('timetable:todo-storage-changed', {
+        semesterId,
+        source: 'semester',
+        listId: semesterId,
+        storage: normalized,
       });
-    },
-    [publishTodoCalendarRefresh, queueCourseListSync],
-  );
+      timetableEventBus.publish('timetable:schedule-data-changed', {
+        semesterId,
+        source: publishSource,
+        courseId: publishSource === 'course' ? targetCourseId : undefined,
+        reason: 'events-updated',
+      });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save todo changes.');
+    }
+  }, [normalizedRuntimeStorage, semesterId]);
+
+  const applyStorageMutation = React.useCallback((
+    updater: (current: TodoListStorage) => TodoListStorage,
+    publishSource: 'course' | 'semester',
+    targetCourseId?: string,
+  ) => {
+    const nextStorage = normalizedRuntimeStorage(updater(semesterStorageRef.current));
+    semesterStorageRef.current = nextStorage;
+    setSemesterStorage(nextStorage);
+    void persistSynchronizedStorage(nextStorage, publishSource, targetCourseId);
+  }, [normalizedRuntimeStorage, persistSynchronizedStorage]);
 
   React.useEffect(() => {
-    if (mode !== 'semester' || !semesterId) return;
+    if (!semesterId || mode === 'unsupported') return;
 
     let cancelled = false;
-    const requestId = loadRequestIdRef.current + 1;
-    loadRequestIdRef.current = requestId;
-    setSemesterCourseListsLoading(true);
+    setLoading(true);
 
     const load = async () => {
       try {
         const semester = await api.getSemester(semesterId);
-        const courses = (semester.courses ?? []) as Course[];
-        const coursesNeedingDetail = courses.filter((course) => !Array.isArray(course.tabs));
-        const detailResponses = await runWithConcurrencyLimit(
-          coursesNeedingDetail.map((course) => async () => {
+        const courseSnapshots = await Promise.all(
+          (semester.courses ?? []).map(async (course) => {
             try {
-              const detail = await api.getCourse(course.id);
-              return { courseId: course.id, detail };
+              const detail = Array.isArray(course.tabs) ? course : await api.getCourse(course.id);
+              return {
+                courseId: course.id,
+                courseName: course.name,
+                courseCategory: course.category ?? '',
+                todoTab: detail.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE),
+              };
             } catch {
-              return { courseId: course.id, detail: undefined };
+              return {
+                courseId: course.id,
+                courseName: course.name,
+                courseCategory: course.category ?? '',
+                todoTab: undefined,
+              };
             }
           }),
-          SEMESTER_TODO_DETAIL_MAX_PARALLEL_REQUESTS,
         );
+        const semesterTodoTab = semester.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
+        const semesterSettings = parseJsonObject(semesterTodoTab?.settings);
+        const semesterState = normalizeSemesterTodoState(semesterSettings, courseSnapshots);
 
-        if (cancelled || loadRequestIdRef.current !== requestId) return;
+        if (cancelled) return;
 
-        const detailsByCourseId = new Map(detailResponses.map((item) => [item.courseId, item.detail]));
-        const nextState: Record<string, SemesterCourseListState> = {};
-        courses.forEach((course) => {
-          const detail = Array.isArray(course.tabs) ? course : detailsByCourseId.get(course.id);
-          const todoTab = detail?.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
-          nextState[course.id] = normalizeCourseListStateFromTab(course.id, course.name, todoTab);
+        const nextStorage = normalizedRuntimeStorage({
+          sections: semesterState.sections,
+          tasks: semesterState.tasks,
         });
+        semesterStorageRef.current = nextStorage;
+        setSemesterStorage(nextStorage);
+        courseOptionsRef.current = semesterState.courseOptions;
+        setCourseOptions(semesterState.courseOptions);
+        setSemesterSettingsSnapshot(semesterSettings);
+        semesterMetaRef.current = {
+          tabId: semesterTodoTab?.id,
+          baseSettings: semesterSettings,
+        };
+        courseMetaRef.current = Object.fromEntries(courseSnapshots.map((course) => [
+          course.courseId,
+          {
+            tabId: course.todoTab?.id,
+            baseSettings: parseJsonObject(course.todoTab?.settings),
+            course: {
+              id: course.courseId,
+              name: course.courseName,
+              category: course.courseCategory,
+            },
+          } satisfies CourseMirrorMeta,
+        ]));
 
-        setSemesterCourseLists(nextState);
+        if (!isRecord(semesterSettings.semesterTodo)) {
+          void persistSynchronizedStorage(nextStorage, 'semester');
+        }
       } catch (error: any) {
-        if (cancelled || loadRequestIdRef.current !== requestId) return;
-        toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to load semester todo lists.');
+        if (!cancelled) {
+          toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to load todo data.');
+        }
       } finally {
-        if (!cancelled && loadRequestIdRef.current === requestId) {
-          setSemesterCourseListsLoading(false);
+        if (!cancelled) {
+          setLoading(false);
         }
       }
     };
@@ -529,492 +324,32 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
 
     return () => {
       cancelled = true;
-      loadRequestIdRef.current += 1;
     };
-  }, [mode, semesterId]);
+  }, [mode, persistSynchronizedStorage, semesterId, normalizedRuntimeStorage]);
 
-  React.useEffect(() => {
-    const syncTimers = syncTimersRef.current;
-    const pendingSync = pendingSyncRef.current;
-    return () => {
-      isMountedRef.current = false;
-      const pendingCourseIds = Array.from(new Set([
-        ...pendingSync.keys(),
-        ...syncTimers.keys(),
-      ]));
-      syncTimers.forEach((timer) => clearTimeout(timer));
-      syncTimers.clear();
-      pendingCourseIds.forEach((targetCourseId) => {
-        if (pendingSync.has(targetCourseId)) {
-          void flushCourseListSync(targetCourseId);
-        }
-      });
-    };
-  }, [flushCourseListSync]);
-
-  const clearTaskMoveTimer = React.useCallback((listId: string, taskId: string) => {
-    const key = listTimerKey(listId, taskId);
-    const timer = completedMoveTimersRef.current.get(key);
-    if (timer) {
-      clearTimeout(timer);
-      completedMoveTimersRef.current.delete(key);
-    }
-  }, []);
-
-  const clearAllTaskMoveTimers = React.useCallback(() => {
-    completedMoveTimersRef.current.forEach((timer) => clearTimeout(timer));
-    completedMoveTimersRef.current.clear();
-  }, []);
-
-  React.useEffect(() => {
-    if (!shouldAutoMoveCompleted) {
-      clearAllTaskMoveTimers();
-    }
-  }, [clearAllTaskMoveTimers, shouldAutoMoveCompleted]);
-
-  React.useEffect(() => {
-    return () => {
-      clearAllTaskMoveTimers();
-    };
-  }, [clearAllTaskMoveTimers]);
-
-  const {
-    selectedListId,
-    setSelectedListId,
-    allLists,
-    activeList,
-  } = useTodoLists({
-    mode,
-    courseId,
-    courseDisplayName,
-    courseListStorage,
-    semesterCourseLists,
-    semesterCustomLists,
+  useEventBus('timetable:todo-storage-changed', (payload) => {
+    if (!semesterId || payload.semesterId !== semesterId) return;
+    const normalized = normalizedRuntimeStorage(payload.storage);
+    semesterStorageRef.current = normalized;
+    setSemesterStorage(normalized);
   });
 
-  React.useEffect(() => {
-    if (!sectionTitleDialogOpen || !activeList || !sectionTitleTargetId) return;
-    const exists = activeList.sections.some((section) => section.id === sectionTitleTargetId);
-    if (!exists) {
-      setSectionTitleDialogOpen(false);
-      setSectionTitleTargetId(null);
-    }
-  }, [activeList, sectionTitleDialogOpen, sectionTitleTargetId]);
+  const activeList = React.useMemo<TodoListModel>(() => {
+    const tasks = courseId
+      ? semesterStorage.tasks.filter((task) => task.courseId === courseId)
+      : semesterStorage.tasks;
 
-  const mutateListStorage = React.useCallback(
-    (list: TodoListModel, updater: (current: TodoListStorage) => TodoListStorage) => {
-      if (list.source === 'course') {
-        if (mode === 'course') {
-          updateCourseListInCurrentTab(updater);
-          return;
-        }
-
-        if (list.courseId) {
-          updateSemesterCourseList(list.courseId, updater);
-        }
-
-        return;
-      }
-
-      updateSemesterCustomLists((currentLists) => {
-        return currentLists.map((item) => {
-          if (item.id !== list.id) return item;
-          const nextStorage = normalizeListStorage(updater({ sections: item.sections, tasks: item.tasks }));
-          return {
-            ...item,
-            sections: nextStorage.sections,
-            tasks: nextStorage.tasks,
-            updatedAt: nowIso(),
-          };
-        });
-      });
-    },
-    [mode, updateCourseListInCurrentTab, updateSemesterCourseList, updateSemesterCustomLists],
-  );
-
-  const scheduleMoveToCompleted = React.useCallback((list: TodoListModel, taskId: string) => {
-    if (!shouldAutoMoveCompleted) return;
-
-    clearTaskMoveTimer(list.id, taskId);
-
-    const key = listTimerKey(list.id, taskId);
-    const timer = setTimeout(() => {
-      completedMoveTimersRef.current.delete(key);
-
-      mutateListStorage(list, (current) => {
-        const targetTask = current.tasks.find((task) => task.id === taskId);
-        if (!targetTask || !targetTask.completed || targetTask.sectionId === COMPLETED_SECTION_ID) {
-          return current;
-        }
-
-        return {
-          ...current,
-          tasks: current.tasks.map((task) => {
-            if (task.id !== taskId) return task;
-            return {
-              ...task,
-              sectionId: COMPLETED_SECTION_ID,
-              originSectionId: task.originSectionId ?? (task.sectionId || undefined),
-              updatedAt: nowIso(),
-            };
-          }),
-        };
-      });
-    }, COMPLETED_MOVE_TIMEOUT_MS);
-
-    completedMoveTimersRef.current.set(key, timer);
-  }, [clearTaskMoveTimer, mutateListStorage, shouldAutoMoveCompleted]);
-
-  const handleCreateCustomList = React.useCallback(() => {
-    if (mode !== 'semester') return;
-
-    const completed = completedSection(0);
-
-    const createdAt = nowIso();
-    const nextList: SemesterCustomListStorage = {
-      id: makeId('custom-list'),
-      name: `Custom List ${semesterCustomLists.length + 1}`,
-      sections: [completed],
-      tasks: [],
-      createdAt,
-      updatedAt: createdAt,
+    return {
+      id: courseId ? `course:${courseId}` : `semester:${semesterId ?? 'todo'}`,
+      name: courseId ? courseDisplayName : 'Todo',
+      source: courseId ? 'course' : 'semester',
+      canManageSections: mode === 'semester',
+      showCourseTag: mode === 'semester',
+      courseId,
+      sections: semesterStorage.sections,
+      tasks,
     };
-
-    updateSemesterCustomLists((current) => [...current, nextList]);
-    setSelectedListId(nextList.id);
-  }, [mode, semesterCustomLists.length, setSelectedListId, updateSemesterCustomLists]);
-
-  const handleDeleteCustomList = React.useCallback((listId: string) => {
-    updateSemesterCustomLists((current) => current.filter((item) => item.id !== listId));
-    if (selectedListId === listId) {
-      setSelectedListId('');
-    }
-  }, [selectedListId, setSelectedListId, updateSemesterCustomLists]);
-
-  const openDeleteListAlert = React.useCallback((list: TodoListModel) => {
-    if (list.source !== 'semester-custom') return;
-    setDeleteListTarget({ id: list.id, name: list.name });
-    setDeleteListDialogOpen(true);
-  }, []);
-
-  const confirmDeleteCustomList = React.useCallback(() => {
-    if (!deleteListTarget) return;
-    handleDeleteCustomList(deleteListTarget.id);
-    setDeleteListDialogOpen(false);
-    setDeleteListTarget(null);
-  }, [deleteListTarget, handleDeleteCustomList]);
-
-  const openDeleteSectionAlert = React.useCallback((list: TodoListModel, section: TodoSection, taskCount: number) => {
-    setDeleteSectionTarget({
-      listId: list.id,
-      sectionId: section.id,
-      sectionName: section.name,
-      taskCount,
-    });
-    setDeleteSectionDialogOpen(true);
-  }, []);
-
-  const handleRenameList = React.useCallback((list: TodoListModel, nextName: string) => {
-    if (!list.editableName) return;
-
-    updateSemesterCustomLists((current) => {
-      return current.map((item) => {
-        if (item.id !== list.id) return item;
-        return {
-          ...item,
-          name: nextName,
-          updatedAt: nowIso(),
-        };
-      });
-    });
-  }, [updateSemesterCustomLists]);
-
-  const handleAddSection = React.useCallback((list: TodoListModel) => {
-    mutateListStorage(list, (current) => {
-      const users = userSectionsOf(current.sections);
-      const nextSection: TodoSection = {
-        id: makeId('section'),
-        name: createSectionName(current),
-        order: users.length,
-        isSystem: false,
-      };
-      const nextUsers = [...users, nextSection].map((section, index) => ({ ...section, order: index, isSystem: false }));
-
-      return {
-        ...current,
-        sections: [...nextUsers, completedSection(nextUsers.length)],
-      };
-    });
-  }, [mutateListStorage]);
-
-  const handleRenameSection = React.useCallback((list: TodoListModel, sectionId: string, nextName: string) => {
-    if (sectionId === COMPLETED_SECTION_ID) return;
-
-    mutateListStorage(list, (current) => {
-      const trimmed = nextName.trim();
-      const safeName = trimmed || DEFAULT_SECTION_NAME;
-
-      const nextUsers = userSectionsOf(current.sections)
-        .map((section) => (section.id === sectionId ? { ...section, name: safeName } : section))
-        .map((section, index) => ({ ...section, order: index, isSystem: false }));
-
-      return {
-        ...current,
-        sections: [...nextUsers, completedSection(nextUsers.length)],
-      };
-    });
-  }, [mutateListStorage]);
-
-  const openListTitleEditor = React.useCallback((list: TodoListModel) => {
-    if (!list.editableName) return;
-    setListTitleDraft(list.name);
-    setListTitleDialogOpen(true);
-  }, []);
-
-  const saveListTitle = React.useCallback(() => {
-    if (!activeList || !activeList.editableName) return;
-    const nextTitle = listTitleDraft.trim() || 'Untitled List';
-    handleRenameList(activeList, nextTitle);
-    setListTitleDialogOpen(false);
-  }, [activeList, handleRenameList, listTitleDraft]);
-
-  const openSectionTitleEditor = React.useCallback((section: TodoSection) => {
-    if (section.id === COMPLETED_SECTION_ID) return;
-    setSectionTitleTargetId(section.id);
-    setSectionTitleDraft(section.name);
-    setSectionTitleDialogOpen(true);
-  }, []);
-
-  const saveSectionTitle = React.useCallback(() => {
-    if (!activeList || !sectionTitleTargetId) return;
-    const nextTitle = sectionTitleDraft.trim() || DEFAULT_SECTION_NAME;
-    handleRenameSection(activeList, sectionTitleTargetId, nextTitle);
-    setSectionTitleDialogOpen(false);
-    setSectionTitleTargetId(null);
-  }, [activeList, handleRenameSection, sectionTitleDraft, sectionTitleTargetId]);
-
-  const handleDeleteSection = React.useCallback((list: TodoListModel, sectionId: string) => {
-    if (sectionId === COMPLETED_SECTION_ID) return;
-
-    mutateListStorage(list, (current) => {
-      const users = userSectionsOf(current.sections);
-      if (users.length === 0) {
-        return current;
-      }
-
-      const nextUsers = users.filter((section) => section.id !== sectionId).map((section, index) => ({
-        ...section,
-        order: index,
-        isSystem: false,
-      }));
-      const fallbackSectionId = nextUsers[0]?.id ?? '';
-
-      return {
-        sections: [...nextUsers, completedSection(nextUsers.length)],
-        tasks: current.tasks.map((task) => {
-          if (task.sectionId !== sectionId) return task;
-          return {
-            ...task,
-            sectionId: task.completed && shouldAutoMoveCompleted ? COMPLETED_SECTION_ID : fallbackSectionId,
-            originSectionId: task.completed ? (fallbackSectionId || undefined) : undefined,
-            updatedAt: nowIso(),
-          };
-        }),
-      };
-    });
-  }, [mutateListStorage, shouldAutoMoveCompleted]);
-
-  const confirmDeleteSection = React.useCallback(() => {
-    if (!deleteSectionTarget) return;
-
-    const targetList = allLists.find((list) => list.id === deleteSectionTarget.listId);
-    if (targetList) {
-      handleDeleteSection(targetList, deleteSectionTarget.sectionId);
-    }
-
-    setDeleteSectionDialogOpen(false);
-    setDeleteSectionTarget(null);
-  }, [allLists, deleteSectionTarget, handleDeleteSection]);
-
-  const openCreateTaskDialog = React.useCallback((list: TodoListModel) => {
-    const defaultSectionId = userSectionsOf(list.sections)[0]?.id ?? UNSECTIONED_TASK_BUCKET_ID;
-    setTaskDialogEditingId(null);
-    setTaskDraft(createTaskDraft(defaultSectionId));
-    setTaskDialogOpen(true);
-  }, []);
-
-  const openEditTaskDialog = React.useCallback((list: TodoListModel, task: TodoTask) => {
-    if (task.sectionId === COMPLETED_SECTION_ID) return;
-
-    const userSections = userSectionsOf(list.sections);
-    const fallbackSectionId = userSections[0]?.id ?? '';
-    const effectiveSection = task.sectionId === COMPLETED_SECTION_ID
-      ? (task.originSectionId && userSections.some((section) => section.id === task.originSectionId)
-        ? task.originSectionId
-        : fallbackSectionId)
-      : task.sectionId;
-
-    setTaskDialogEditingId(task.id);
-    setTaskDraft({
-      title: task.title,
-      description: task.description,
-      sectionId: effectiveSection || UNSECTIONED_TASK_BUCKET_ID,
-      dueDate: task.dueDate,
-      dueTime: task.dueTime,
-      priority: task.priority,
-    });
-    setTaskDialogOpen(true);
-  }, []);
-
-  const handleSaveTask = React.useCallback((list: TodoListModel) => {
-    const title = taskDraft.title.trim();
-    if (!title) {
-      toast.message('Task title is required.');
-      return;
-    }
-
-    const userSections = userSectionsOf(list.sections);
-    const safeSectionId = userSections.some((section) => section.id === taskDraft.sectionId)
-      ? taskDraft.sectionId
-      : '';
-
-    mutateListStorage(list, (current) => {
-      if (taskDialogEditingId) {
-        return {
-          ...current,
-          tasks: current.tasks.map((task) => {
-            if (task.id !== taskDialogEditingId) return task;
-
-            const common = {
-              ...task,
-              title,
-              description: taskDraft.description,
-              dueDate: ensureDateValue(taskDraft.dueDate),
-              dueTime: ensureTimeValue(taskDraft.dueTime),
-              priority: taskDraft.priority,
-              updatedAt: nowIso(),
-            };
-
-            if (task.completed && shouldAutoMoveCompleted) {
-              return {
-                ...common,
-                sectionId: COMPLETED_SECTION_ID,
-                originSectionId: safeSectionId || undefined,
-              };
-            }
-
-            return {
-              ...common,
-              sectionId: safeSectionId,
-              originSectionId: task.completed ? (safeSectionId || undefined) : undefined,
-            };
-          }),
-        };
-      }
-
-      const createdAt = nowIso();
-      const nextTask: TodoTask = {
-        id: makeId('task'),
-        title,
-        description: taskDraft.description,
-        sectionId: safeSectionId,
-        originSectionId: undefined,
-        dueDate: ensureDateValue(taskDraft.dueDate),
-        dueTime: ensureTimeValue(taskDraft.dueTime),
-        priority: taskDraft.priority,
-        completed: false,
-        order: current.tasks.length,
-        createdAt,
-        updatedAt: createdAt,
-      };
-
-      return {
-        ...current,
-        tasks: [...current.tasks, nextTask],
-      };
-    });
-
-    setTaskDialogOpen(false);
-    setTaskDialogEditingId(null);
-  }, [mutateListStorage, shouldAutoMoveCompleted, taskDialogEditingId, taskDraft]);
-
-  const handleToggleTaskCompleted = React.useCallback((list: TodoListModel, taskId: string, completed: boolean) => {
-    if (!completed) {
-      clearTaskMoveTimer(list.id, taskId);
-    }
-
-    mutateListStorage(list, (current) => toggleTodoTaskCompletedInStorage(current, taskId, completed, {
-      moveCompletedToCompletedSection: false,
-    }));
-
-    if (completed && shouldAutoMoveCompleted) {
-      scheduleMoveToCompleted(list, taskId);
-    }
-  }, [clearTaskMoveTimer, mutateListStorage, scheduleMoveToCompleted, shouldAutoMoveCompleted]);
-
-  const handleDeleteTask = React.useCallback((list: TodoListModel, taskId: string) => {
-    clearTaskMoveTimer(list.id, taskId);
-    mutateListStorage(list, (current) => ({
-      ...current,
-      tasks: current.tasks.filter((task) => task.id !== taskId),
-    }));
-  }, [clearTaskMoveTimer, mutateListStorage]);
-
-  const handleTaskDrop = React.useCallback((
-    list: TodoListModel,
-    sourceTaskId: string,
-    targetSectionId: string,
-    beforeTaskId: string | null,
-  ) => {
-    mutateListStorage(list, (current) => {
-      const ordered = [...current.tasks].sort((a, b) => a.order - b.order);
-      const sourceIndex = ordered.findIndex((task) => task.id === sourceTaskId);
-      if (sourceIndex < 0) return current;
-
-      const sourceTask = ordered[sourceIndex];
-      if (sourceTask.completed) return current;
-
-      const nextTargetSectionId = targetSectionId === UNSECTIONED_TASK_BUCKET_ID ? '' : targetSectionId;
-      if (nextTargetSectionId === COMPLETED_SECTION_ID) return current;
-      const validSectionIds = new Set(current.sections.map((section) => section.id));
-      if (nextTargetSectionId && !validSectionIds.has(nextTargetSectionId)) return current;
-
-      const remaining = ordered.filter((task) => task.id !== sourceTaskId);
-
-      let insertIndex = remaining.length;
-      if (beforeTaskId) {
-        const beforeIndex = remaining.findIndex((task) => task.id === beforeTaskId);
-        insertIndex = beforeIndex >= 0 ? beforeIndex : remaining.length;
-      } else {
-        const lastIndexInTarget = (() => {
-          for (let index = remaining.length - 1; index >= 0; index -= 1) {
-            if (remaining[index].sectionId === nextTargetSectionId) return index;
-          }
-          return -1;
-        })();
-        insertIndex = lastIndexInTarget >= 0 ? lastIndexInTarget + 1 : remaining.length;
-      }
-
-      const movedTask: TodoTask = {
-        ...sourceTask,
-        sectionId: nextTargetSectionId,
-        updatedAt: nowIso(),
-      };
-
-      const merged = [
-        ...remaining.slice(0, insertIndex),
-        movedTask,
-        ...remaining.slice(insertIndex),
-      ];
-
-      return {
-        ...current,
-        tasks: merged.map((task, index) => ({ ...task, order: index })),
-      };
-    });
-  }, [mutateListStorage]);
-
-  const { isSectionOpen, setSectionOpen } = useTodoSectionOpenMap();
+  }, [courseDisplayName, courseId, mode, semesterId, semesterStorage.sections, semesterStorage.tasks]);
 
   const {
     sectionTasksMap,
@@ -1030,11 +365,301 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
     handleTaskDragEnd,
     handleTaskDragOverSection,
     handleTaskDropToSection,
-  } = useTodoTaskDrag({ onTaskDrop: handleTaskDrop });
+  } = useTodoTaskDrag({
+    onTaskDrop: (sourceTaskId, targetSectionId, beforeTaskId) => {
+      applyStorageMutation((current) => {
+        const ordered = [...current.tasks].sort((a, b) => a.order - b.order);
+        const sourceIndex = ordered.findIndex((task) => task.id === sourceTaskId);
+        if (sourceIndex < 0) return current;
+
+        const sourceTask = ordered[sourceIndex];
+        if (sourceTask.completed) return current;
+
+        const nextTargetSectionId = targetSectionId === UNSECTIONED_TASK_BUCKET_ID ? '' : targetSectionId;
+        if (nextTargetSectionId === COMPLETED_SECTION_ID) return current;
+
+        const validSectionIds = new Set(current.sections.map((section) => section.id));
+        if (nextTargetSectionId && !validSectionIds.has(nextTargetSectionId)) return current;
+
+        const remaining = ordered.filter((task) => task.id !== sourceTaskId);
+        let insertIndex = remaining.length;
+
+        if (beforeTaskId) {
+          const beforeIndex = remaining.findIndex((task) => task.id === beforeTaskId);
+          insertIndex = beforeIndex >= 0 ? beforeIndex : remaining.length;
+        } else {
+          const lastIndexInTarget = (() => {
+            for (let index = remaining.length - 1; index >= 0; index -= 1) {
+              if (remaining[index].sectionId === nextTargetSectionId) return index;
+            }
+            return -1;
+          })();
+          insertIndex = lastIndexInTarget >= 0 ? lastIndexInTarget + 1 : remaining.length;
+        }
+
+        const movedTask: TodoTask = {
+          ...sourceTask,
+          sectionId: nextTargetSectionId,
+          updatedAt: nowIso(),
+        };
+
+        const merged = [
+          ...remaining.slice(0, insertIndex),
+          movedTask,
+          ...remaining.slice(insertIndex),
+        ];
+
+        return {
+          ...current,
+          tasks: merged.map((task, index) => ({ ...task, order: index })),
+        };
+      }, courseId ? 'course' : 'semester', courseId);
+    },
+  });
 
   React.useEffect(() => {
     resetTaskDragState();
-  }, [activeList?.id, resetTaskDragState]);
+  }, [activeList.id, resetTaskDragState]);
+
+  const { isSectionOpen, setSectionOpen } = useTodoSectionOpenMap();
+
+  const openTaskDialogForCreate = React.useCallback(() => {
+    setTaskDialogEditingId(null);
+    setTaskDraft(createTaskDraft('', courseId ?? ''));
+    setTaskDialogOpen(true);
+  }, [courseId]);
+
+  const openTaskDialogForEdit = React.useCallback((task: TodoTask) => {
+    setTaskDialogEditingId(task.id);
+    setTaskDraft({
+      title: task.title,
+      description: task.description,
+      sectionId: task.sectionId,
+      courseId: task.courseId,
+      dueDate: task.dueDate,
+      dueTime: task.dueTime,
+      priority: task.priority,
+    });
+    setTaskDialogOpen(true);
+  }, []);
+
+  const saveTaskDraft = React.useCallback((draft: TaskDraft, editingTaskId: string | null) => {
+    const title = draft.title.trim();
+    if (!title) {
+      toast.message('Task title is required.');
+      return false;
+    }
+
+    const selectedCourse = draft.courseId
+      ? courseOptions.find((course) => course.id === draft.courseId)
+      : undefined;
+    const safeSectionId = userSectionsOf(semesterStorageRef.current.sections).some((section) => section.id === draft.sectionId)
+      ? draft.sectionId
+      : '';
+
+    applyStorageMutation((current) => {
+      if (editingTaskId) {
+        return {
+          ...current,
+          tasks: current.tasks.map((task) => {
+            if (task.id !== editingTaskId) return task;
+
+            const nextCourse = selectedCourse ?? {
+              id: '',
+              name: '',
+              category: '',
+            };
+
+            return {
+              ...task,
+              title,
+              description: draft.description,
+              sectionId: task.completed && behavior.moveCompletedToCompletedSection ? COMPLETED_SECTION_ID : safeSectionId,
+              originSectionId: task.completed ? (safeSectionId || undefined) : undefined,
+              courseId: nextCourse.id,
+              courseName: nextCourse.name,
+              courseCategory: nextCourse.category,
+              dueDate: ensureDateValue(draft.dueDate),
+              dueTime: ensureTimeValue(draft.dueTime),
+              priority: draft.priority,
+              updatedAt: nowIso(),
+            };
+          }),
+        };
+      }
+
+      const createdAt = nowIso();
+      const nextCourse = selectedCourse ?? { id: '', name: '', category: '' };
+      const nextTask: TodoTask = {
+        id: makeId('task'),
+        title,
+        description: draft.description,
+        sectionId: safeSectionId,
+        originSectionId: undefined,
+        courseId: nextCourse.id,
+        courseName: nextCourse.name,
+        courseCategory: nextCourse.category,
+        dueDate: ensureDateValue(draft.dueDate),
+        dueTime: ensureTimeValue(draft.dueTime),
+        priority: draft.priority,
+        completed: false,
+        order: current.tasks.length,
+        createdAt,
+        updatedAt: createdAt,
+      };
+
+      return {
+        ...current,
+        tasks: [...current.tasks, nextTask],
+      };
+    }, draft.courseId || courseId ? 'course' : 'semester', draft.courseId || courseId);
+
+    return true;
+  }, [applyStorageMutation, behavior.moveCompletedToCompletedSection, courseId, courseOptions]);
+
+  const handleSaveDialogTask = React.useCallback(() => {
+    const saved = saveTaskDraft(taskDraft, taskDialogEditingId);
+    if (!saved) return;
+    setTaskDialogOpen(false);
+    setTaskDialogEditingId(null);
+  }, [saveTaskDraft, taskDialogEditingId, taskDraft]);
+
+  const handleSaveInlineTask = React.useCallback(() => {
+    const saved = saveTaskDraft(inlineDraft, null);
+    if (!saved) return;
+    setInlineCreateOpen(false);
+    setInlineDraft(createTaskDraft('', courseId ?? ''));
+  }, [courseId, inlineDraft, saveTaskDraft]);
+
+  const handleToggleTaskCompleted = React.useCallback((taskId: string, completed: boolean) => {
+    applyStorageMutation(
+      (current) => toggleTodoTaskCompletedInStorage(current, taskId, completed, {
+        moveCompletedToCompletedSection: behavior.moveCompletedToCompletedSection,
+      }),
+      courseId ? 'course' : 'semester',
+      courseId,
+    );
+  }, [applyStorageMutation, behavior.moveCompletedToCompletedSection, courseId]);
+
+  const handleDeleteTask = React.useCallback((taskId: string) => {
+    const deletedTask = semesterStorageRef.current.tasks.find((task) => task.id === taskId);
+    applyStorageMutation(
+      (current) => ({
+        ...current,
+        tasks: current.tasks.filter((task) => task.id !== taskId),
+      }),
+      deletedTask?.courseId ? 'course' : 'semester',
+      deletedTask?.courseId || undefined,
+    );
+  }, [applyStorageMutation]);
+
+  const handleAddSection = React.useCallback(() => {
+    if (mode !== 'semester') return;
+    applyStorageMutation((current) => {
+      const users = userSectionsOf(current.sections);
+      const nextSection: TodoSection = {
+        id: makeId('section'),
+        name: createSectionName(current),
+        order: users.length,
+        isSystem: false,
+      };
+      const nextUsers = [...users, nextSection].map((section, index) => ({ ...section, order: index, isSystem: false }));
+      return {
+        ...current,
+        sections: [...nextUsers, completedSection(nextUsers.length)],
+      };
+    }, 'semester');
+  }, [applyStorageMutation, mode]);
+
+  const openSectionTitleEditor = React.useCallback((section: TodoSection) => {
+    if (mode !== 'semester' || section.id === COMPLETED_SECTION_ID) return;
+    setSectionTitleTargetId(section.id);
+    setSectionTitleDraft(section.name);
+    setSectionTitleDialogOpen(true);
+  }, [mode]);
+
+  const saveSectionTitle = React.useCallback(() => {
+    if (!sectionTitleTargetId) return;
+    const nextTitle = sectionTitleDraft.trim() || DEFAULT_SECTION_NAME;
+    applyStorageMutation((current) => {
+      const nextUsers = userSectionsOf(current.sections)
+        .map((section) => (section.id === sectionTitleTargetId ? { ...section, name: nextTitle } : section))
+        .map((section, index) => ({ ...section, order: index, isSystem: false }));
+      return {
+        ...current,
+        sections: [...nextUsers, completedSection(nextUsers.length)],
+      };
+    }, 'semester');
+    setSectionTitleDialogOpen(false);
+    setSectionTitleTargetId(null);
+  }, [applyStorageMutation, sectionTitleDraft, sectionTitleTargetId]);
+
+  const confirmDeleteSection = React.useCallback(() => {
+    if (!deleteSectionTarget) return;
+    applyStorageMutation((current) => {
+      const nextUsers = userSectionsOf(current.sections)
+        .filter((section) => section.id !== deleteSectionTarget.id)
+        .map((section, index) => ({ ...section, order: index, isSystem: false }));
+      const fallbackSectionId = nextUsers[0]?.id ?? '';
+
+      return {
+        sections: [...nextUsers, completedSection(nextUsers.length)],
+        tasks: current.tasks.map((task) => {
+          if (task.sectionId !== deleteSectionTarget.id) return task;
+          return {
+            ...task,
+            sectionId: task.completed && behavior.moveCompletedToCompletedSection ? COMPLETED_SECTION_ID : fallbackSectionId,
+            originSectionId: task.completed ? (fallbackSectionId || undefined) : undefined,
+            updatedAt: nowIso(),
+          };
+        }),
+      };
+    }, 'semester');
+    setDeleteSectionDialogOpen(false);
+    setDeleteSectionTarget(null);
+  }, [applyStorageMutation, behavior.moveCompletedToCompletedSection, deleteSectionTarget]);
+
+  const subtitle = React.useMemo(() => {
+    const total = activeList.tasks.length;
+    const completed = activeList.tasks.filter((task) => task.completed).length;
+    if (mode === 'course') {
+      return `${courseDisplayName} · ${completed}/${total} completed`;
+    }
+    return `${courseOptions.length} courses · ${completed}/${total} completed`;
+  }, [activeList.tasks, courseDisplayName, courseOptions.length, mode]);
+
+  const renderTaskCard = React.useCallback((task: TodoTask, sectionId: string) => {
+    return (
+      <TodoTaskCard
+        key={task.id}
+        task={task}
+        sectionId={sectionId}
+        completedSectionId={COMPLETED_SECTION_ID}
+        draggingTaskId={draggingTaskId}
+        showCourseTag={activeList.showCourseTag}
+        getCourseTagClassName={getCourseCategoryBadgeClassName}
+        onTaskDragStart={handleTaskDragStart}
+        onTaskDragEnd={handleTaskDragEnd}
+        onTaskDragOverSection={handleTaskDragOverSection}
+        onTaskDropToSection={handleTaskDropToSection}
+        onToggleTaskCompleted={handleToggleTaskCompleted}
+        onOpenEditTaskDialog={openTaskDialogForEdit}
+        onDeleteTask={handleDeleteTask}
+        getPriorityMeta={getPriorityMeta}
+        formatTaskDue={formatTaskDue}
+      />
+    );
+  }, [
+    activeList.showCourseTag,
+    draggingTaskId,
+    handleDeleteTask,
+    handleTaskDragEnd,
+    handleTaskDragOverSection,
+    handleTaskDragStart,
+    handleTaskDropToSection,
+    handleToggleTaskCompleted,
+    openTaskDialogForEdit,
+  ]);
 
   if (mode === 'unsupported') {
     return (
@@ -1049,180 +674,98 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
     );
   }
 
-  const renderTaskCard = (list: TodoListModel, task: TodoTask, sectionId: string) => {
-    return (
-      <TodoTaskCard
-        key={task.id}
-        task={task}
-        sectionId={sectionId}
-        completedSectionId={COMPLETED_SECTION_ID}
-        draggingTaskId={draggingTaskId}
-        onTaskDragStart={handleTaskDragStart}
-        onTaskDragEnd={handleTaskDragEnd}
-        onTaskDragOverSection={handleTaskDragOverSection}
-        onTaskDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(event, list, targetSectionId, beforeTaskId)}
-        onToggleTaskCompleted={(taskId, completed) => handleToggleTaskCompleted(list, taskId, completed)}
-        onOpenEditTaskDialog={(currentTask) => openEditTaskDialog(list, currentTask)}
-        onDeleteTask={(taskId) => handleDeleteTask(list, taskId)}
-        getPriorityMeta={getPriorityMeta}
-        formatTaskDue={formatTaskDue}
-      />
-    );
-  };
-
-  const showListSidebar = mode === 'semester';
-  const showSemesterLoadingSkeleton = mode === 'semester' && semesterCourseListsLoading && allLists.length === 0 && !activeList;
-
   return (
     <div className="space-y-4 select-none">
-      <div className={showListSidebar
-        ? 'grid grid-cols-1 gap-0 md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[244px_minmax(0,1fr)]'
-        : ''
-      }>
-        {showListSidebar ? (
-          <TodoListSidebar
-            mode={mode}
-            listManageMode={listManageMode}
-            semesterCourseListsLoading={semesterCourseListsLoading}
-            allLists={allLists}
-            activeListId={activeList?.id}
-            onToggleListManageMode={() => setListManageMode((previous) => !previous)}
-            onCreateCustomList={handleCreateCustomList}
-            onSelectList={setSelectedListId}
-            onOpenDeleteListAlert={openDeleteListAlert}
-          />
-        ) : null}
+      <div className="min-w-0 px-2 py-3 sm:px-4">
+        {loading ? (
+          <TodoMainPanelSkeleton />
+        ) : (
+          <>
+            <TodoMainHeader
+              mode={mode}
+              title={activeList.name}
+              subtitle={subtitle}
+              sortMode={sortMode}
+              sortDirection={sortDirection}
+              sortOptions={SORT_OPTIONS}
+              onSortModeChange={setSortMode}
+              onSortDirectionChange={setSortDirection}
+              onAddSection={handleAddSection}
+              onOpenCreateTaskDialog={openTaskDialogForCreate}
+            />
 
-        <div className="min-w-0 px-2 py-3 sm:px-4">
-          {showSemesterLoadingSkeleton ? (
-            <TodoMainPanelSkeleton />
-          ) : (
-            <>
-              <TodoMainHeader
-                activeList={activeList}
-                sortMode={sortMode}
-                sortDirection={sortDirection}
-                sortOptions={SORT_OPTIONS}
-                onSortModeChange={setSortMode}
-                onSortDirectionChange={setSortDirection}
-                onOpenListTitleEditor={openListTitleEditor}
-                onAddSection={handleAddSection}
-                onOpenCreateTaskDialog={openCreateTaskDialog}
+            <div className="space-y-4 pt-4">
+              <TodoUnsectionedBlock
+                sectionId={UNSECTIONED_TASK_BUCKET_ID}
+                tasks={unsectionedTasks}
+                dragOverSectionId={dragOverSectionId}
+                onDragOverSection={handleTaskDragOverSection}
+                onDropToSection={handleTaskDropToSection}
+                renderTaskCard={renderTaskCard}
               />
 
-              <div className="pt-4">
-                {!activeList ? (
-                  <p className="text-sm text-muted-foreground">No list available.</p>
-                ) : (
-                  <ScrollArea className="h-[420px] sm:h-[500px] lg:h-[560px]">
-                    <div className="space-y-3 pr-0 sm:pr-2">
-                      <TodoUnsectionedBlock
-                        sectionId={UNSECTIONED_TASK_BUCKET_ID}
-                        tasks={unsectionedTasks}
-                        dragOverSectionId={dragOverSectionId}
-                        onDragOverSection={handleTaskDragOverSection}
-                        onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(
-                          event,
-                          activeList,
-                          targetSectionId,
-                          beforeTaskId,
-                        )}
-                        renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
-                      />
+              {activeListUserSections.map((section) => (
+                <TodoSectionBlock
+                  key={section.id}
+                  section={section}
+                  tasks={sectionTasksMap.get(section.id) ?? []}
+                  completedSectionId={COMPLETED_SECTION_ID}
+                  isOpen={isSectionOpen(activeList.id, section.id)}
+                  canDeleteSection={mode === 'semester'}
+                  dragOverSectionId={dragOverSectionId}
+                  onOpenChange={(open) => setSectionOpen(activeList.id, section.id, open)}
+                  onDragOverSection={handleTaskDragOverSection}
+                  onDropToSection={handleTaskDropToSection}
+                  onOpenSectionTitleEditor={openSectionTitleEditor}
+                  onRequestDeleteSection={(sectionToDelete) => {
+                    setDeleteSectionTarget(sectionToDelete);
+                    setDeleteSectionDialogOpen(true);
+                  }}
+                  renderTaskCard={renderTaskCard}
+                />
+              ))}
 
-                      {activeList.sections.map((section) => {
-                        const tasks = sectionTasksMap.get(section.id) ?? [];
-                        const isOpen = isSectionOpen(activeList.id, section.id);
-                        const canDeleteSection = section.id !== COMPLETED_SECTION_ID && activeListUserSections.length > 0;
+              <TodoSectionBlock
+                section={completedSection(activeListUserSections.length)}
+                tasks={sectionTasksMap.get(COMPLETED_SECTION_ID) ?? []}
+                completedSectionId={COMPLETED_SECTION_ID}
+                isOpen={isSectionOpen(activeList.id, COMPLETED_SECTION_ID)}
+                canDeleteSection={false}
+                dragOverSectionId={dragOverSectionId}
+                onOpenChange={(open) => setSectionOpen(activeList.id, COMPLETED_SECTION_ID, open)}
+                onDragOverSection={handleTaskDragOverSection}
+                onDropToSection={handleTaskDropToSection}
+                onOpenSectionTitleEditor={() => undefined}
+                onRequestDeleteSection={() => undefined}
+                renderTaskCard={renderTaskCard}
+              />
 
-                        return (
-                          <TodoSectionBlock
-                            key={section.id}
-                            section={section}
-                            tasks={tasks}
-                            completedSectionId={COMPLETED_SECTION_ID}
-                            isOpen={isOpen}
-                            canDeleteSection={canDeleteSection}
-                            dragOverSectionId={dragOverSectionId}
-                            onOpenChange={(open) => setSectionOpen(activeList.id, section.id, open)}
-                            onDragOverSection={handleTaskDragOverSection}
-                            onDropToSection={(event, targetSectionId, beforeTaskId) => handleTaskDropToSection(event, activeList, targetSectionId, beforeTaskId)}
-                            onOpenSectionTitleEditor={openSectionTitleEditor}
-                            onRequestDeleteSection={(section) => openDeleteSectionAlert(activeList, section, tasks.length)}
-                            renderTaskCard={(task, sectionId) => renderTaskCard(activeList, task, sectionId)}
-                          />
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+              <TodoInlineCreateRow
+                mode={mode}
+                open={inlineCreateOpen}
+                draft={inlineDraft}
+                courseOptions={courseOptions}
+                priorityOptions={PRIORITY_OPTIONS}
+                onOpen={() => {
+                  setInlineDraft(createTaskDraft('', courseId ?? ''));
+                  setInlineCreateOpen(true);
+                }}
+                onDraftChange={(updater) => setInlineDraft((previous) => updater(previous))}
+                onCancel={() => {
+                  setInlineCreateOpen(false);
+                  setInlineDraft(createTaskDraft('', courseId ?? ''));
+                }}
+                onSave={handleSaveInlineTask}
+              />
+            </div>
+          </>
+        )}
       </div>
-
-      <TodoDeleteListAlert
-        open={deleteListDialogOpen}
-        listName={deleteListTarget?.name ?? ''}
-        onOpenChange={(open) => {
-          setDeleteListDialogOpen(open);
-          if (!open) {
-            setDeleteListTarget(null);
-          }
-        }}
-        onConfirmDelete={confirmDeleteCustomList}
-      />
-
-      <AlertDialog
-        open={deleteSectionDialogOpen}
-        onOpenChange={(open) => {
-          setDeleteSectionDialogOpen(open);
-          if (!open) {
-            setDeleteSectionTarget(null);
-          }
-        }}
-      >
-        <AlertDialogContent size="sm" className="select-none">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete section?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteSectionTarget ? (
-                <>
-                  Section <span className="font-medium text-foreground">{deleteSectionTarget.sectionName}</span>{' '}
-                  will be removed. {deleteSectionTarget.taskCount > 0
-                    ? `${deleteSectionTarget.taskCount} task${deleteSectionTarget.taskCount === 1 ? '' : 's'} will be moved into another section or the unsectioned list.`
-                    : 'No tasks will be moved.'}
-                </>
-              ) : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={confirmDeleteSection}>
-              Delete section
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <TodoListTitleDialog
-        open={listTitleDialogOpen}
-        titleDraft={listTitleDraft}
-        onOpenChange={setListTitleDialogOpen}
-        onTitleDraftChange={setListTitleDraft}
-        onSave={saveListTitle}
-      />
 
       <TodoSectionTitleDialog
         open={sectionTitleDialogOpen}
         titleDraft={sectionTitleDraft}
-        onOpenChange={(open) => {
-          setSectionTitleDialogOpen(open);
-          if (!open) {
-            setSectionTitleTargetId(null);
-          }
-        }}
+        onOpenChange={setSectionTitleDialogOpen}
         onTitleDraftChange={setSectionTitleDraft}
         onSave={saveSectionTitle}
       />
@@ -1231,20 +774,35 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, updateSettings, cour
         open={taskDialogOpen}
         editingTaskId={taskDialogEditingId}
         taskDraft={taskDraft}
+        courseOptions={courseOptions}
         sections={activeListUserSections}
+        showCourseField={mode === 'semester'}
         unsectionedBucketId={UNSECTIONED_TASK_BUCKET_ID}
         unsectionedBucketName={UNSECTIONED_TASK_BUCKET_NAME}
         priorityOptions={PRIORITY_OPTIONS}
-        onOpenChange={(open) => {
-          setTaskDialogOpen(open);
-          if (!open) setTaskDialogEditingId(null);
-        }}
-        onTaskDraftChange={setTaskDraft}
-        onSave={() => {
-          if (!activeList) return;
-          handleSaveTask(activeList);
-        }}
+        onOpenChange={setTaskDialogOpen}
+        onTaskDraftChange={(updater) => setTaskDraft((previous) => updater(previous))}
+        onSave={handleSaveDialogTask}
       />
+
+      <AlertDialog open={deleteSectionDialogOpen} onOpenChange={setDeleteSectionDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete section?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteSectionTarget
+                ? `Tasks in ${deleteSectionTarget.name} will move to the first remaining section or No Section.`
+                : 'This action cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDeleteSection}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -1,6 +1,6 @@
-// input:  [shared Skeleton primitive]
+// input:  [shared Skeleton primitive and optional viewport-bound shell height]
 // output: [`CalendarSkeleton` loading placeholder for the Calendar tab]
-// pos:    [compact calendar-only skeleton that mirrors the final toolbar and grid shell without heavy placeholder noise]
+// pos:    [compact calendar-only skeleton that uses only Skeleton blocks and can match the final Calendar shell height]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,13 +11,17 @@
 import React from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const DAY_COLUMN_COUNT = 7;
-const WEEK_ROW_COUNT = 5;
+interface CalendarSkeletonProps {
+  viewportBoundHeight?: number | null;
+}
 
-export const CalendarSkeleton: React.FC = () => {
+export const CalendarSkeleton: React.FC<CalendarSkeletonProps> = ({ viewportBoundHeight }) => {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden rounded-xl bg-card p-3 sm:p-4">
+      <div
+        className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr] gap-3 overflow-hidden p-3 sm:p-4"
+        style={viewportBoundHeight ? { height: `${viewportBoundHeight}px` } : undefined}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Skeleton className="h-8 w-24 rounded-full" />
@@ -29,29 +33,8 @@ export const CalendarSkeleton: React.FC = () => {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background/80 p-3 sm:p-4">
-          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${DAY_COLUMN_COUNT}, minmax(0, 1fr))` }}>
-            {Array.from({ length: DAY_COLUMN_COUNT }).map((_, index) => (
-              <Skeleton key={`calendar-head-${index}`} className="h-4 w-full rounded-full opacity-70" />
-            ))}
-          </div>
-
-          <div className="mt-4 space-y-2.5">
-            {Array.from({ length: WEEK_ROW_COUNT }).map((_, rowIndex) => (
-              <div
-                key={`calendar-row-${rowIndex}`}
-                className="grid gap-2"
-                style={{ gridTemplateColumns: `repeat(${DAY_COLUMN_COUNT}, minmax(0, 1fr))` }}
-              >
-                {Array.from({ length: DAY_COLUMN_COUNT }).map((__, columnIndex) => (
-                  <Skeleton
-                    key={`calendar-cell-${rowIndex}-${columnIndex}`}
-                    className="h-16 rounded-lg border border-border/50 bg-muted/45"
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
+        <div className="min-h-0 min-w-0 overflow-hidden">
+          <Skeleton className="h-full w-full rounded-md" />
         </div>
       </div>
     </div>

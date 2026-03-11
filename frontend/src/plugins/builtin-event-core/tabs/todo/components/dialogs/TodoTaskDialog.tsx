@@ -1,3 +1,10 @@
+// input:  [Task draft state, semester course options, available sections, and save/cancel callbacks]
+// output: [TodoTaskDialog React component]
+// pos:    [Modal task editor used for explicit create/edit flows alongside the inline composer]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 "use no memo";
 
 import React from 'react';
@@ -20,13 +27,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import type { TaskDraft, TodoPriority, TodoPriorityOption, TodoSection } from '../../types';
+import type { TaskDraft, TodoCourseOption, TodoPriority, TodoPriorityOption, TodoSection } from '../../types';
 
 interface TodoTaskDialogProps {
   open: boolean;
   editingTaskId: string | null;
   taskDraft: TaskDraft;
+  courseOptions: TodoCourseOption[];
   sections: TodoSection[];
+  showCourseField: boolean;
   unsectionedBucketId: string;
   unsectionedBucketName: string;
   priorityOptions: TodoPriorityOption[];
@@ -39,7 +48,9 @@ export const TodoTaskDialog: React.FC<TodoTaskDialogProps> = ({
   open,
   editingTaskId,
   taskDraft,
+  courseOptions,
   sections,
+  showCourseField,
   unsectionedBucketId,
   unsectionedBucketName,
   priorityOptions,
@@ -95,6 +106,28 @@ export const TodoTaskDialog: React.FC<TodoTaskDialogProps> = ({
               </SelectContent>
             </Select>
           </div>
+
+          {showCourseField ? (
+            <div className="grid gap-2">
+              <Label>Course</Label>
+              <Select
+                value={taskDraft.courseId || '__none__'}
+                onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, courseId: value === '__none__' ? '' : value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select course" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No Course</SelectItem>
+                  {courseOptions.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">

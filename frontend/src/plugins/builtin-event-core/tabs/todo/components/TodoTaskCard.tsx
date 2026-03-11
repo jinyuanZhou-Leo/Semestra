@@ -1,6 +1,6 @@
-// input:  [Todo task item data, drag handlers, mutation callbacks, and display formatters]
+// input:  [Todo task item data, optional drag handlers, mutation callbacks, course badge styles, and display formatters]
 // output: [TodoTaskCard React component]
-// pos:    [Interactive task row card used inside todo section and unsectioned buckets]
+// pos:    [Reminder-inspired task row used across semester aggregate and course-filtered todo views]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarClock, Flag, Pencil, Trash2 } from 'lucide-react';
+import { CalendarClock, Flag, Pencil, Tag, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,8 @@ interface TodoTaskCardProps {
   sectionId: string;
   completedSectionId: string;
   draggingTaskId: string | null;
+  showCourseTag: boolean;
+  getCourseTagClassName: (category: string) => string;
   onTaskDragStart: (task: TodoTask) => void;
   onTaskDragEnd: () => void;
   onTaskDragOverSection: (event: React.DragEvent<HTMLElement>, targetSectionId: string) => void;
@@ -46,6 +48,8 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
   sectionId,
   completedSectionId,
   draggingTaskId,
+  showCourseTag,
+  getCourseTagClassName,
   onTaskDragStart,
   onTaskDragEnd,
   onTaskDragOverSection,
@@ -115,45 +119,34 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
       onDragOver={(event) => onTaskDragOverSection(event, sectionId)}
       onDrop={(event) => onTaskDropToSection(event, sectionId, task.id)}
       className={cn(
-        'group/task rounded-md border bg-card px-2.5 py-2 shadow-sm transition-shadow sm:px-3',
-        task.completed ? 'bg-muted/30' : 'hover:shadow-md',
+        'group/task rounded-2xl border border-border/65 bg-background/95 px-3 py-3 shadow-[0_1px_0_hsl(var(--border)/0.45)] transition-all sm:px-4',
+        task.completed ? 'bg-muted/25' : 'hover:border-border hover:bg-card',
         draggingTaskId === task.id && 'opacity-55 blur-[1px]',
       )}
     >
-      <div className="flex items-start justify-between gap-1.5 sm:gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <motion.div
             animate={celebrateChecked ? { scale: [1, 1.2, 1.2, 0.9, 1] } : { scale: 1 }}
             whileTap={{ scale: 0.84 }}
             transition={{ duration: 0.44, ease: ['easeOut', 'linear', 'easeIn', 'easeOut'], times: [0, 0.3, 0.66, 0.86, 1] }}
-            className="relative mr-2.5 sm:mr-3"
+            className="relative mt-0.5"
           >
             <AnimatePresence>
               {celebrateChecked ? (
-                <>
-                  <motion.span
-                    key="checkbox-burst-ring"
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-[-7px] rounded-full bg-[conic-gradient(from_0deg,#fb7185,#f59e0b,#22c55e,#3b82f6,#a855f7,#fb7185)] [mask:radial-gradient(farthest-side,transparent_calc(100%-3px),#000_0)]"
-                    initial={{ opacity: 0.95, scale: 0.72, rotate: 0 }}
-                    animate={{
-                      opacity: [0.95, 0.45, 0.08, 0],
-                      scale: [0.72, 1.08, 1.26, 1.38],
-                      rotate: [0, 90, 150, 180],
-                    }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.32, ease: ['easeOut', 'easeOut', 'easeIn'], times: [0, 0.45, 0.8, 1] }}
-                  />
-                  <motion.span
-                    key="checkbox-burst-diffuse"
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-[-11px] rounded-full bg-[conic-gradient(from_0deg,#fb7185,#f59e0b,#22c55e,#3b82f6,#a855f7,#fb7185)] blur-md"
-                    initial={{ opacity: 0, scale: 0.95, rotate: 20 }}
-                    animate={{ opacity: 0.4, scale: 1.15, rotate: 130 }}
-                    exit={{ opacity: 0, scale: 1.9, rotate: 230 }}
-                    transition={{ duration: 0.39, ease: 'easeOut' }}
-                  />
-                </>
+                <motion.span
+                  key="checkbox-burst-ring"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-[-7px] rounded-full bg-[conic-gradient(from_0deg,#fb7185,#f59e0b,#22c55e,#3b82f6,#a855f7,#fb7185)] [mask:radial-gradient(farthest-side,transparent_calc(100%-3px),#000_0)]"
+                  initial={{ opacity: 0.95, scale: 0.72, rotate: 0 }}
+                  animate={{
+                    opacity: [0.95, 0.45, 0.08, 0],
+                    scale: [0.72, 1.08, 1.26, 1.38],
+                    rotate: [0, 90, 150, 180],
+                  }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.32, ease: ['easeOut', 'easeOut', 'easeIn'], times: [0, 0.45, 0.8, 1] }}
+                />
               ) : null}
             </AnimatePresence>
             <Checkbox
@@ -161,20 +154,15 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
               onCheckedChange={(checked) => onToggleTaskCompleted(task.id, checked === true)}
               aria-label={`Mark ${task.title} as completed`}
               className={cn(
-                'relative z-10 size-5',
+                'relative z-10 mt-0.5 size-5 rounded-full',
                 celebrateChecked && 'shadow-[0_0_0_4px_hsl(var(--primary)/0.18)]',
               )}
             />
           </motion.div>
 
-          <div className={cn('min-w-0 space-y-1', task.completed && 'grayscale')}>
+          <div className={cn('min-w-0 flex-1 space-y-1.5', task.completed && 'grayscale')}>
             <div className="relative inline-flex max-w-full align-top">
-              <p
-                className={cn(
-                  'truncate text-sm font-medium',
-                  task.completed && 'text-muted-foreground',
-                )}
-              >
+              <p className={cn('truncate text-[17px] font-medium leading-6', task.completed && 'text-muted-foreground')}>
                 {task.title}
               </p>
               <motion.span
@@ -192,11 +180,11 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
 
             {task.description ? (
               <p
-                className="overflow-hidden text-xs text-muted-foreground"
+                className="overflow-hidden text-sm text-muted-foreground"
                 title={task.description}
                 style={{
                   display: '-webkit-box',
-                  WebkitLineClamp: 2,
+                  WebkitLineClamp: 3,
                   WebkitBoxOrient: 'vertical',
                 }}
               >
@@ -204,43 +192,42 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
               </p>
             ) : null}
 
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge
                 asChild
                 variant="outline"
                 className={cn(
-                  'text-[11px]',
-                  isOverdue && 'border-destructive/40 bg-destructive/10 text-destructive',
+                  'rounded-full border-border/70 bg-muted/40 text-[11px]',
+                  isOverdue && 'border-destructive/35 bg-destructive/10 text-destructive',
                   canEditViaBadge && 'cursor-pointer hover:bg-muted',
-                  isOverdue && canEditViaBadge && 'hover:bg-destructive/20',
                 )}
               >
-                <button
-                  type="button"
-                  onClick={handleOpenBadgeSettings}
-                  aria-label={`Edit due date for ${task.title}`}
-                >
+                <button type="button" onClick={handleOpenBadgeSettings} aria-label={`Edit due date for ${task.title}`}>
                   <CalendarClock className="mr-1 h-3 w-3" />
                   {formatTaskDue(task)}
                 </button>
               </Badge>
+
               <Badge
                 asChild
                 className={cn(
-                  'border text-[11px]',
+                  'rounded-full border text-[11px]',
                   priorityMeta.className,
                   canEditViaBadge && 'cursor-pointer',
                 )}
               >
-                <button
-                  type="button"
-                  onClick={handleOpenBadgeSettings}
-                  aria-label={`Edit priority for ${task.title}`}
-                >
+                <button type="button" onClick={handleOpenBadgeSettings} aria-label={`Edit priority for ${task.title}`}>
                   <Flag className="mr-1 h-3 w-3" />
                   {priorityMeta.label}
                 </button>
               </Badge>
+
+              {showCourseTag && task.courseId ? (
+                <Badge className={cn('rounded-full border-0 text-[11px]', getCourseTagClassName(task.courseCategory))}>
+                  <Tag className="mr-1 h-3 w-3" />
+                  {task.courseName}
+                </Badge>
+              ) : null}
             </div>
           </div>
         </div>
@@ -251,7 +238,7 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
               type="button"
               variant="ghost"
               size="icon-xs"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground md:h-7 md:w-7"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={() => onOpenEditTaskDialog(task)}
               aria-label={`Edit ${task.title}`}
             >
@@ -260,9 +247,9 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
           ) : null}
           <Button
             type="button"
-            variant="destructive"
+            variant="ghost"
             size="icon-xs"
-            className="h-7 w-7 md:h-7 md:w-7"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
             onClick={() => onDeleteTask(task.id)}
             aria-label={`Delete ${task.title}`}
           >

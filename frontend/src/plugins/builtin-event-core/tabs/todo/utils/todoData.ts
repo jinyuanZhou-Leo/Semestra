@@ -1,6 +1,6 @@
 // input:  [raw todo tab settings payloads, API tab records, shared constants, and todo domain types]
-// output: [todo normalization, serialization, formatting, and id/timestamp helper utilities]
-// pos:    [Todo data utility layer that shapes persisted settings into runtime-safe lists, sections, and tasks]
+// output: [todo normalization, migration, serialization, formatting, and id/timestamp helper utilities]
+// pos:    [Todo data utility layer that shapes persisted semester/course settings into runtime-safe synchronized todo state]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,19 +12,34 @@ import {
   COMPLETED_SECTION_NAME,
   DEFAULT_SECTION_NAME,
   PRIORITY_OPTIONS,
+  SEMESTER_TODO_SETTINGS_KEY,
   TODO_SETTINGS_VERSION,
 } from '../shared';
 import type {
-  SemesterCourseListState,
-  SemesterCustomListStorage,
   TaskDraft,
+  TodoCourseOption,
   TodoListStorage,
   TodoPriority,
   TodoSection,
   TodoSortDirection,
   TodoSortMode,
   TodoTask,
+  TodoSemesterState,
 } from '../types';
+
+type CourseSnapshot = {
+  courseId: string;
+  courseName: string;
+  courseCategory: string;
+  todoTab?: ApiTab;
+};
+
+type LegacyCustomListStorage = {
+  id: string;
+  name: string;
+  sections: TodoSection[];
+  tasks: TodoTask[];
+};
 
 export const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -67,6 +82,16 @@ export const ensureDateValue = (value: unknown) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
 };
 
+export const parseJsonObject = (value: string | undefined): Record<string, unknown> => {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 export const completedSection = (order: number): TodoSection => ({
   id: COMPLETED_SECTION_ID,
   name: COMPLETED_SECTION_NAME,
@@ -79,50 +104,43 @@ export const userSectionsOf = (sections: TodoSection[]) => {
 };
 
 const normalizeSections = (input: unknown): TodoSection[] => {
-  const parsed = Array.isArray(input)
-    ? input
-      .map((item, index) => {
-        if (!isRecord(item)) return null;
-        const id = readString(item.id, '').trim();
-        if (!id || id === COMPLETED_SECTION_ID) return null;
-
-        const name = readString(item.name, DEFAULT_SECTION_NAME).trim() || DEFAULT_SECTION_NAME;
-        const orderValue = typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : index;
-
-        return {
-          id,
-          name,
-          order: orderValue,
-        } satisfies TodoSection;
-      })
-      .filter((item): item is TodoSection => item !== null)
-    : [];
-
-  const dedupedUserSections: TodoSection[] = [];
-  const seenIds = new Set<string>();
-
-  parsed
-    .sort((a, b) => a.order - b.order)
-    .forEach((section) => {
-      if (seenIds.has(section.id)) return;
-      seenIds.add(section.id);
-      dedupedUserSections.push(section);
+  const parsed: TodoSection[] = [];
+  if (Array.isArray(input)) {
+    input.forEach((item, index) => {
+      if (!isRecord(item)) return;
+      const id = readString(item.id, '').trim();
+      if (!id || id === COMPLETED_SECTION_ID) return;
+      const name = readString(item.name, DEFAULT_SECTION_NAME).trim() || DEFAULT_SECTION_NAME;
+      const orderValue = typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : index;
+      parsed.push({
+        id,
+        name,
+        order: orderValue,
+        isSystem: false,
+      });
     });
+  }
 
-  const normalizedUsers = dedupedUserSections.map((section, index) => ({
-    ...section,
-    order: index,
-    isSystem: false,
-  }));
+  const seenIds = new Set<string>();
+  const users = parsed
+    .sort((a, b) => a.order - b.order)
+    .filter((section) => {
+      if (seenIds.has(section.id)) return false;
+      seenIds.add(section.id);
+      return true;
+    })
+    .map((section, index) => ({ ...section, order: index, isSystem: false }));
 
-  return [...normalizedUsers, completedSection(normalizedUsers.length)];
+  return [...users, completedSection(users.length)];
 };
 
 const normalizeTasks = (
   input: unknown,
   validSectionIds: Set<string>,
   validUserSectionIds: Set<string>,
-  fallbackUserSectionId?: string,
+  fallbackUserSectionId: string | undefined,
+  courseOptionsById: Map<string, TodoCourseOption>,
+  defaultCourse?: TodoCourseOption,
 ): TodoTask[] => {
   if (!Array.isArray(input)) return [];
 
@@ -144,13 +162,16 @@ const normalizeTasks = (
         ? COMPLETED_SECTION_ID
         : rawSectionId === ''
           ? ''
-        : (validSectionIds.has(rawSectionId)
-          ? rawSectionId
-          : (fallbackUserSectionId ?? ''));
+          : (validSectionIds.has(rawSectionId) ? rawSectionId : (fallbackUserSectionId ?? ''));
       const completed = safeSectionId === COMPLETED_SECTION_ID ? true : readBoolean(item.completed, false);
 
-      const originSectionId = readString(item.originSectionId, '').trim();
-      const safeOriginSectionId = validUserSectionIds.has(originSectionId) ? originSectionId : undefined;
+      const rawOriginSectionId = readString(item.originSectionId, '').trim();
+      const safeOriginSectionId = validUserSectionIds.has(rawOriginSectionId) ? rawOriginSectionId : undefined;
+      const rawCourseId = readString(item.courseId, defaultCourse?.id ?? '').trim();
+      const matchedCourse = rawCourseId ? courseOptionsById.get(rawCourseId) : undefined;
+      const courseId = matchedCourse?.id ?? defaultCourse?.id ?? rawCourseId;
+      const courseName = matchedCourse?.name ?? readString(item.courseName, defaultCourse?.name ?? '').trim();
+      const courseCategory = matchedCourse?.category ?? readString(item.courseCategory, defaultCourse?.category ?? '').trim();
       const orderValue = typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : Number.NaN;
 
       return {
@@ -161,6 +182,9 @@ const normalizeTasks = (
         originSectionId: completed
           ? (safeOriginSectionId ?? (safeSectionId !== COMPLETED_SECTION_ID ? safeSectionId : fallbackUserSectionId))
           : undefined,
+        courseId,
+        courseName,
+        courseCategory,
         dueDate: ensureDateValue(item.dueDate),
         dueTime: ensureTimeValue(item.dueTime),
         priority,
@@ -184,14 +208,19 @@ const normalizeTasks = (
     }));
 };
 
-export const normalizeListStorage = (input: unknown): TodoListStorage => {
+export const normalizeListStorage = (
+  input: unknown,
+  courseOptions: TodoCourseOption[] = [],
+  defaultCourse?: TodoCourseOption,
+): TodoListStorage => {
   const source = isRecord(input) ? input : {};
   const sections = normalizeSections(source.sections);
   const users = userSectionsOf(sections);
   const fallbackUserSectionId = users[0]?.id;
   const sectionIds = new Set(sections.map((section) => section.id));
   const userIds = new Set(users.map((section) => section.id));
-  const tasks = normalizeTasks(source.tasks, sectionIds, userIds, fallbackUserSectionId);
+  const courseOptionsById = new Map(courseOptions.map((course) => [course.id, course]));
+  const tasks = normalizeTasks(source.tasks, sectionIds, userIds, fallbackUserSectionId, courseOptionsById, defaultCourse);
 
   return {
     sections,
@@ -199,74 +228,218 @@ export const normalizeListStorage = (input: unknown): TodoListStorage => {
   };
 };
 
-export const normalizeSemesterCustomLists = (settings: Record<string, unknown>): SemesterCustomListStorage[] => {
+const normalizeLegacySemesterCustomLists = (
+  settings: Record<string, unknown>,
+  courseOptions: TodoCourseOption[],
+): LegacyCustomListStorage[] => {
   const rawLists = settings.semesterCustomLists;
   if (!Array.isArray(rawLists)) return [];
 
   return rawLists
     .map((item) => {
       if (!isRecord(item)) return null;
-      const id = readString(item.id, makeId('custom-list'));
-      const name = readString(item.name, 'Untitled List').trim() || 'Untitled List';
-      const normalized = normalizeListStorage(item);
-      const createdAt = readString(item.createdAt, nowIso());
-      const updatedAt = readString(item.updatedAt, createdAt);
-
+      const normalized = normalizeListStorage(item, courseOptions);
       return {
-        id,
-        name,
+        id: readString(item.id, makeId('legacy-custom')),
+        name: readString(item.name, 'Imported').trim() || 'Imported',
         sections: normalized.sections,
         tasks: normalized.tasks,
-        createdAt,
-        updatedAt,
-      } satisfies SemesterCustomListStorage;
+      } satisfies LegacyCustomListStorage;
     })
-    .filter((item): item is SemesterCustomListStorage => item !== null);
+    .filter((item): item is LegacyCustomListStorage => item !== null);
 };
 
-export const parseJsonObject = (value: string | undefined): Record<string, unknown> => {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return isRecord(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-};
-
-export const normalizeCourseListStateFromTab = (
-  courseId: string,
-  courseName: string,
-  todoTab?: ApiTab,
-): SemesterCourseListState => {
+const normalizeLegacyCourseStorage = (
+  todoTab: ApiTab | undefined,
+  course: TodoCourseOption,
+): TodoListStorage => {
   const parsedSettings = parseJsonObject(todoTab?.settings);
-  const listStorage = normalizeListStorage(isRecord(parsedSettings.courseList) ? parsedSettings.courseList : undefined);
+  return normalizeListStorage(
+    isRecord(parsedSettings.courseList) ? parsedSettings.courseList : undefined,
+    [course],
+    course,
+  );
+};
+
+const migrateLegacyTodoState = (
+  semesterSettings: Record<string, unknown>,
+  courseSnapshots: CourseSnapshot[],
+  courseOptions: TodoCourseOption[],
+): TodoSemesterState => {
+  const sectionEntries: TodoSection[] = [];
+  const sectionIdsByLegacyKey = new Map<string, string>();
+
+  const getOrCreateSectionId = (name: string) => {
+    const normalizedName = name.trim() || DEFAULT_SECTION_NAME;
+    const existingKey = normalizedName.toLowerCase();
+    const existing = sectionEntries.find((section) => section.name.toLowerCase() === existingKey);
+    if (existing) return existing.id;
+    const id = makeId('section');
+    sectionEntries.push({
+      id,
+      name: normalizedName,
+      order: sectionEntries.length,
+      isSystem: false,
+    });
+    return id;
+  };
+
+  const courseTasks = courseSnapshots.flatMap((course) => {
+    const legacyStorage = normalizeLegacyCourseStorage(course.todoTab, {
+      id: course.courseId,
+      name: course.courseName,
+      category: course.courseCategory,
+    });
+
+    return legacyStorage.tasks.map((task, index) => ({
+      ...task,
+      courseId: course.courseId,
+      courseName: course.courseName,
+      courseCategory: course.courseCategory,
+      sectionId: task.completed ? COMPLETED_SECTION_ID : '',
+      originSectionId: task.completed ? undefined : task.originSectionId,
+      order: index,
+    }));
+  });
+
+  const migratedCustomTasks = normalizeLegacySemesterCustomLists(semesterSettings, courseOptions).flatMap((list) => {
+    const userSections = userSectionsOf(list.sections);
+    const fallbackSectionId = getOrCreateSectionId(list.name);
+
+    userSections.forEach((section) => {
+      sectionIdsByLegacyKey.set(`${list.id}:${section.id}`, getOrCreateSectionId(`${list.name} · ${section.name}`));
+    });
+
+    return list.tasks.map((task) => {
+      const mappedSectionId = task.completed
+        ? COMPLETED_SECTION_ID
+        : task.sectionId
+          ? (sectionIdsByLegacyKey.get(`${list.id}:${task.sectionId}`) ?? fallbackSectionId)
+          : fallbackSectionId;
+
+      return {
+        ...task,
+        sectionId: mappedSectionId,
+        originSectionId: task.completed
+          ? mappedSectionId === COMPLETED_SECTION_ID ? fallbackSectionId : mappedSectionId
+          : undefined,
+        courseId: task.courseId,
+        courseName: task.courseName,
+        courseCategory: task.courseCategory,
+      };
+    });
+  });
+
+  const sections = [...sectionEntries.map((section, index) => ({ ...section, order: index })), completedSection(sectionEntries.length)];
+  const tasks = [...courseTasks, ...migratedCustomTasks]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.title.localeCompare(b.title))
+    .map((task, index) => ({
+      ...task,
+      sectionId: task.completed ? COMPLETED_SECTION_ID : (sections.some((section) => section.id === task.sectionId) ? task.sectionId : ''),
+      order: index,
+    }));
 
   return {
-    courseId,
-    courseName,
-    tabId: todoTab?.id,
-    baseSettings: parsedSettings,
-    sections: listStorage.sections,
-    tasks: listStorage.tasks,
+    sections,
+    tasks,
+    courseOptions,
   };
 };
 
-export const serializeCourseSettings = (entry: SemesterCourseListState): Record<string, unknown> => {
+export const normalizeSemesterTodoState = (
+  settings: Record<string, unknown>,
+  courseSnapshots: CourseSnapshot[],
+): TodoSemesterState => {
+  const courseOptions = courseSnapshots.map((course) => ({
+    id: course.courseId,
+    name: course.courseName,
+    category: course.courseCategory,
+  }));
+  const source = isRecord(settings[SEMESTER_TODO_SETTINGS_KEY]) ? settings[SEMESTER_TODO_SETTINGS_KEY] : null;
+
+  if (source) {
+    const normalized = normalizeListStorage(source, courseOptions);
+    return {
+      ...normalized,
+      courseOptions,
+    };
+  }
+
+  return migrateLegacyTodoState(settings, courseSnapshots, courseOptions);
+};
+
+export const normalizeCourseMirrorState = (
+  settings: Record<string, unknown>,
+  course: TodoCourseOption,
+  fallbackSections: TodoSection[],
+): TodoListStorage => {
+  const normalized = normalizeListStorage(
+    isRecord(settings.courseList) ? settings.courseList : undefined,
+    [course],
+    course,
+  );
+  const sections = userSectionsOf(normalized.sections).length > 0 ? normalized.sections : fallbackSections;
   return {
-    ...entry.baseSettings,
-    version: TODO_SETTINGS_VERSION,
-    courseList: {
-      sections: entry.sections,
-      tasks: entry.tasks,
-    },
+    sections,
+    tasks: normalized.tasks
+      .filter((task) => task.courseId === course.id || task.courseId === '')
+      .map((task) => ({
+        ...task,
+        courseId: course.id,
+        courseName: course.name,
+        courseCategory: course.category,
+      })),
   };
 };
 
-export const createTaskDraft = (defaultSectionId: string): TaskDraft => ({
+export const serializeSemesterTodoSettings = (
+  baseSettings: Record<string, unknown>,
+  storage: TodoListStorage,
+) => ({
+  ...baseSettings,
+  version: TODO_SETTINGS_VERSION,
+  [SEMESTER_TODO_SETTINGS_KEY]: {
+    sections: storage.sections,
+    tasks: storage.tasks,
+  },
+});
+
+export const serializeCourseTodoSettings = (
+  baseSettings: Record<string, unknown>,
+  storage: TodoListStorage,
+) => ({
+  ...baseSettings,
+  version: TODO_SETTINGS_VERSION,
+  courseList: {
+    sections: storage.sections,
+    tasks: storage.tasks,
+  },
+});
+
+export const buildCourseMirrorStorage = (
+  semesterStorage: TodoListStorage,
+  course: TodoCourseOption,
+): TodoListStorage => ({
+  sections: semesterStorage.sections,
+  tasks: semesterStorage.tasks
+    .filter((task) => task.courseId === course.id)
+    .map((task, index) => ({
+      ...task,
+      courseId: course.id,
+      courseName: course.name,
+      courseCategory: course.category,
+      order: index,
+    })),
+});
+
+export const createTaskDraft = (
+  sectionId = '',
+  courseId = '',
+): TaskDraft => ({
   title: '',
   description: '',
-  sectionId: defaultSectionId,
+  sectionId,
+  courseId,
   dueDate: '',
   dueTime: '',
   priority: 'MEDIUM',
@@ -282,8 +455,9 @@ const priorityWeightOf = (priority: TodoPriority) => {
 
 const dueWeight = (task: TodoTask) => {
   if (!task.dueDate) return Number.MAX_SAFE_INTEGER;
-  const date = new Date(`${task.dueDate}T${task.dueTime || '23:59'}:00`);
-  return Number.isFinite(date.getTime()) ? date.getTime() : Number.MAX_SAFE_INTEGER;
+  const iso = `${task.dueDate}T${task.dueTime || '23:59'}:00`;
+  const timestamp = new Date(iso).getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.MAX_SAFE_INTEGER;
 };
 
 export const sortTasksForDisplay = (
@@ -292,66 +466,47 @@ export const sortTasksForDisplay = (
   sortMode: TodoSortMode,
   sortDirection: TodoSortDirection,
 ) => {
-  const sorted = [...tasks].sort((a, b) => {
-    if (sortMode === 'created') {
-      return a.order - b.order || a.createdAt.localeCompare(b.createdAt) || a.title.localeCompare(b.title);
+  const direction = sortDirection === 'asc' ? 1 : -1;
+
+  return [...tasks].sort((a, b) => {
+    if (!isCompletedSection && a.completed !== b.completed) {
+      return a.completed ? 1 : -1;
     }
 
-    if (sortMode === 'due-date') {
-      const dueDiff = dueWeight(a) - dueWeight(b);
-      return dueDiff !== 0 ? dueDiff : a.title.localeCompare(b.title);
+    switch (sortMode) {
+      case 'due-date': {
+        const result = dueWeight(a) - dueWeight(b);
+        if (result !== 0) return result * direction;
+        break;
+      }
+      case 'priority': {
+        const result = priorityWeightOf(a.priority) - priorityWeightOf(b.priority);
+        if (result !== 0) return result * direction;
+        break;
+      }
+      case 'title': {
+        const result = a.title.localeCompare(b.title);
+        if (result !== 0) return result * direction;
+        break;
+      }
+      case 'created':
+      default: {
+        const result = a.order - b.order;
+        if (result !== 0) return result * direction;
+        break;
+      }
     }
 
-    if (sortMode === 'priority') {
-      const priorityDiff = priorityWeightOf(b.priority) - priorityWeightOf(a.priority);
-      return priorityDiff !== 0 ? priorityDiff : a.title.localeCompare(b.title);
-    }
-
-    if (sortMode === 'title') {
-      return a.title.localeCompare(b.title);
-    }
-
-    if (isCompletedSection) {
-      return b.updatedAt.localeCompare(a.updatedAt) || b.title.localeCompare(a.title);
-    }
-
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-
-    if (!a.completed && !b.completed) {
-      const dueDiff = dueWeight(a) - dueWeight(b);
-      if (dueDiff !== 0) return dueDiff;
-      const priorityDiff = priorityWeightOf(b.priority) - priorityWeightOf(a.priority);
-      if (priorityDiff !== 0) return priorityDiff;
-    }
-
-    return a.title.localeCompare(b.title);
+    return a.createdAt.localeCompare(b.createdAt);
   });
-
-  if (sortDirection === 'desc') {
-    sorted.reverse();
-  }
-
-  return sorted;
 };
 
 export const formatTaskDue = (task: TodoTask) => {
-  if (!task.dueDate && !task.dueTime) return 'No due date';
-  if (!task.dueDate) return `At ${task.dueTime}`;
-  if (!task.dueTime) return task.dueDate;
-  return `${task.dueDate} ${task.dueTime}`;
+  if (!task.dueDate) return 'No Date';
+  return task.dueTime ? `${task.dueDate} ${task.dueTime}` : task.dueDate;
 };
 
 export const createSectionName = (storage: TodoListStorage) => {
-  const existing = new Set(userSectionsOf(storage.sections).map((section) => section.name.toLowerCase()));
-  let index = userSectionsOf(storage.sections).length + 1;
-  let next = `Section ${index}`;
-
-  while (existing.has(next.toLowerCase())) {
-    index += 1;
-    next = `Section ${index}`;
-  }
-
-  return next;
+  const nextIndex = userSectionsOf(storage.sections).length + 1;
+  return `Section ${nextIndex}`;
 };
-
-export const listTimerKey = (listId: string, taskId: string) => `${listId}:${taskId}`;

@@ -1,12 +1,12 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
-`utils/` contains Todo serialization, normalization, persistence-sync, and shared mutation helpers.
-These files keep TodoTab orchestration lean by centralizing storage shaping and cross-surface mutation rules.
-Calendar-side todo completion now reuses this folder so Todo and Calendar stay behaviorally aligned.
+`utils/` contains Todo serialization, normalization, migration, mirror-sync, and shared mutation helpers.
+These files keep TodoTab orchestration lean by centralizing semester aggregate shaping, course mirror persistence, and cross-surface mutation rules.
+Calendar-side todo completion reuses this folder so Todo and Calendar stay behaviorally aligned with the mirrored aggregate model.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for todo utility modules. |
-| todoCalendarSync.ts | Calendar sync helper | Persists Calendar-side todo completion toggles and broadcasts Todo storage sync payloads. |
-| todoData.ts | Data utilities | Normalization, serialization, parsing, and formatting helpers for todo lists, sections, and tasks. |
+| todoCalendarSync.ts | Calendar sync helper | Persists Calendar-side todo completion toggles into semester aggregate storage and mirrored course tabs, then broadcasts sync payloads. |
+| todoData.ts | Data utilities | Migration, normalization, serialization, parsing, and formatting helpers for synchronized semester/course todo state. |
 | todoMutations.ts | Mutation helpers | Shared task-completion mutation logic reused by Todo and Calendar flows. |

@@ -1,6 +1,6 @@
-// input:  [calendar-core source contracts, semester/course APIs, todo storage parsers, and calendar date helpers]
+// input:  [calendar-core source contracts, semester APIs, todo storage parsers, and calendar date helpers]
 // output: [built-in todo Calendar source definition]
-// pos:    [built-in Calendar source adapter that maps semester and course todo tasks, including completed-state metadata, into calendar events]
+// pos:    [built-in Calendar source adapter that maps semester-synchronized todo tasks into calendar events]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,9 +8,9 @@
 
 "use no memo";
 
-import api, { type Course } from '@/services/api';
+import api from '@/services/api';
 import type { CalendarEventData, CalendarSourceDefinition } from '@/calendar-core';
-import { BUILTIN_CALENDAR_SOURCE_TODO, BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../../shared/constants';
+import { BUILTIN_CALENDAR_SOURCE_TODO, BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE, BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../../shared/constants';
 import {
   addDays,
   getWeekFromSemesterDate,
@@ -18,43 +18,16 @@ import {
   startOfWeekMonday,
   toMinutes,
 } from '../../../shared/utils';
-import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../../shared/constants';
-import { normalizeCourseListStateFromTab, normalizeSemesterCustomLists, parseJsonObject } from '../../todo/utils/todoData';
-import type { SemesterCustomListStorage, TodoTask } from '../../todo/types';
+import { normalizeSemesterTodoState, parseJsonObject } from '../../todo/utils/todoData';
+import type { TodoTask } from '../../todo/types';
 
 const TODO_EVENT_DURATION_MINUTES = 30;
-const TODO_DETAIL_MAX_PARALLEL_REQUESTS = 4;
-
-const runWithConcurrencyLimit = async <T,>(
-  tasks: Array<() => Promise<T>>,
-  maxParallelRequests: number,
-) => {
-  if (tasks.length === 0) return [] as T[];
-
-  const results: T[] = new Array(tasks.length);
-  let cursor = 0;
-
-  const worker = async () => {
-    while (cursor < tasks.length) {
-      const currentIndex = cursor;
-      cursor += 1;
-      results[currentIndex] = await tasks[currentIndex]();
-    }
-  };
-
-  const workerCount = Math.min(tasks.length, Math.max(1, maxParallelRequests));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-  return results;
-};
 
 const buildTodoEvent = (
   task: TodoTask,
+  semesterId: string,
   semesterStartDate: Date,
   semesterEndDate: Date,
-  courseId: string,
-  courseName: string,
-  listSource: 'course' | 'semester-custom',
 ): CalendarEventData | null => {
   if (!task.dueDate) return null;
 
@@ -78,12 +51,12 @@ const buildTodoEvent = (
     : new Date(start.getTime() + (TODO_EVENT_DURATION_MINUTES * 60 * 1000));
 
   return {
-    id: `todo:${courseId}:${task.id}:${task.dueDate}:${task.dueTime || 'all-day'}`,
+    id: `todo:${task.courseId || semesterId}:${task.id}:${task.dueDate}:${task.dueTime || 'all-day'}`,
     eventId: task.id,
     sourceId: BUILTIN_CALENDAR_SOURCE_TODO,
     title: task.title.trim() || 'Todo',
-    courseId,
-    courseName,
+    courseId: task.courseId,
+    courseName: task.courseName,
     eventTypeCode: 'Todo',
     start,
     end,
@@ -103,8 +76,8 @@ const buildTodoEvent = (
     note: task.description || null,
     todoState: {
       completed: task.completed,
-      listSource,
-      listId: courseId,
+      listSource: task.courseId ? 'course' : 'semester',
+      listId: task.courseId || semesterId,
     },
   };
 };
@@ -117,38 +90,32 @@ export const builtinTodoCalendarSource: CalendarSourceDefinition = {
   priority: 200,
   load: async (context) => {
     const semester = await api.getSemester(context.semesterId);
-    const courses = (semester.courses ?? []) as Course[];
-    const coursesNeedingDetail = courses.filter((course) => !Array.isArray(course.tabs));
-    const detailResponses = await runWithConcurrencyLimit(
-      coursesNeedingDetail.map((course) => async () => {
+    const courseDetails = await Promise.all(
+      (semester.courses ?? []).map(async (course) => {
         try {
           const detail = await api.getCourse(course.id);
-          return { courseId: course.id, detail };
+          return {
+            courseId: course.id,
+            courseName: course.name,
+            courseCategory: course.category ?? '',
+            todoTab: detail.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE),
+          };
         } catch {
-          return { courseId: course.id, detail: undefined };
+          return {
+            courseId: course.id,
+            courseName: course.name,
+            courseCategory: course.category ?? '',
+            todoTab: undefined,
+          };
         }
       }),
-      TODO_DETAIL_MAX_PARALLEL_REQUESTS,
     );
-
-    const detailsByCourseId = new Map(detailResponses.map((item) => [item.courseId, item.detail]));
     const semesterTodoTab = semester.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
-    const semesterCustomLists = normalizeSemesterCustomLists(parseJsonObject(semesterTodoTab?.settings));
-    const courseTodoEvents = courses.flatMap((course) => {
-      const detail = Array.isArray(course.tabs) ? course : detailsByCourseId.get(course.id);
-      const todoTab = detail?.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
-      const state = normalizeCourseListStateFromTab(course.id, course.name, todoTab);
-      return state.tasks
-        .map((task) => buildTodoEvent(task, context.semesterRange.startDate, context.semesterRange.endDate, course.id, course.name, 'course'))
-        .filter((event): event is CalendarEventData => event !== null);
-    });
-    const customTodoEvents = semesterCustomLists.flatMap((list: SemesterCustomListStorage) => {
-      return list.tasks
-        .map((task) => buildTodoEvent(task, context.semesterRange.startDate, context.semesterRange.endDate, list.id, list.name, 'semester-custom'))
-        .filter((event): event is CalendarEventData => event !== null);
-    });
+    const semesterState = normalizeSemesterTodoState(parseJsonObject(semesterTodoTab?.settings), courseDetails);
 
-    return [...courseTodoEvents, ...customTodoEvents];
+    return semesterState.tasks
+      .map((task) => buildTodoEvent(task, context.semesterId, context.semesterRange.startDate, context.semesterRange.endDate))
+      .filter((event): event is CalendarEventData => event !== null);
   },
   shouldRefresh: (signal, context) => {
     if (signal.type !== 'timetable') return true;

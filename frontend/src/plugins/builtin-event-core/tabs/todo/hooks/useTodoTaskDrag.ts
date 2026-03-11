@@ -1,9 +1,15 @@
+// input:  [Dragged todo tasks and drop target callbacks from TodoTab]
+// output: [useTodoTaskDrag hook]
+// pos:    [Local interaction hook that tracks the currently dragged task and section-level drop targets]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
 import React from 'react';
-import type { TodoListModel, TodoTask } from '../types';
+import type { TodoTask } from '../types';
 
 interface UseTodoTaskDragParams {
   onTaskDrop: (
-    list: TodoListModel,
     sourceTaskId: string,
     targetSectionId: string,
     beforeTaskId: string | null,
@@ -39,7 +45,6 @@ export const useTodoTaskDrag = ({ onTaskDrop }: UseTodoTaskDragParams) => {
 
   const handleTaskDropToSection = React.useCallback((
     event: React.DragEvent<HTMLElement>,
-    list: TodoListModel,
     targetSectionId: string,
     beforeTaskId: string | null = null,
   ) => {
@@ -50,7 +55,7 @@ export const useTodoTaskDrag = ({ onTaskDrop }: UseTodoTaskDragParams) => {
       return;
     }
 
-    onTaskDrop(list, draggingTaskId, targetSectionId, beforeTaskId);
+    onTaskDrop(draggingTaskId, targetSectionId, beforeTaskId);
     resetTaskDragState();
   }, [draggingTaskId, onTaskDrop, resetTaskDragState]);
 
