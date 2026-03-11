@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { format, isValid, parseISO } from 'date-fns';
-import { ArrowDown, ArrowUp, ArrowUpDown, BookOpen, CalendarDays, GraduationCap, Pencil, Percent, Plus, Search, Sparkles, Target, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, FlaskConical, GraduationCap, Pencil, Percent, Plus, Search, Sparkles, Target, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api, {
@@ -33,10 +33,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
-import { WorkspaceOverviewStats } from '@/components/WorkspaceOverviewStats';
 import {
     Dialog,
     DialogContent,
@@ -74,7 +72,6 @@ import {
     buildComputedGradebookSummary,
     buildPlanModeResult,
     buildSuggestedWhatIfScores,
-    formatGpa,
     formatGradebookDate,
     formatGradebookDateInput,
     formatPercent,
@@ -125,17 +122,6 @@ const createAssessmentDraft = (
     score: assessment?.score === null || assessment?.score === undefined ? '' : String(assessment.score),
 });
 
-const StatCard: React.FC<{
-    label: string;
-    value: string;
-    hint?: string;
-}> = ({ label, value, hint }) => (
-    <div className="rounded-md border border-border/60 bg-background/85 px-4 py-3">
-        <div className="text-xs font-medium text-muted-foreground">{label}</div>
-        <div className="mt-1 text-xl font-semibold tracking-tight text-foreground">{value}</div>
-        {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
-    </div>
-);
 
 const SortableHead: React.FC<{
     label: string;
@@ -189,18 +175,21 @@ const AssessmentDialog: React.FC<{
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[640px]">
                 <DialogHeader>
                     <DialogTitle>{draft.id ? 'Edit Assessment' : 'Add Assessment'}</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        {draft.id ? 'Edit the details of this assessment.' : 'Enter the details for the new assessment.'}
+                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-5">
+                <div className="space-y-4">
                     <div className="space-y-3">
                         <h3 className="text-sm font-medium text-foreground">Details</h3>
                         <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="space-y-2 sm:col-span-2">
-                                <span className="text-sm font-medium text-foreground">Title</span>
+                            <div className="space-y-2 sm:col-span-2">
+                                <Label>Title</Label>
                                 <Input value={draft.title} onChange={(event) => setField('title', event.target.value)} placeholder="Final exam" />
-                            </label>
-                            <label className="space-y-2">
-                                <span className="text-sm font-medium text-foreground">Category</span>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Category</Label>
                                 <Select value={draft.category_id ?? 'none'} onValueChange={(value) => setField('category_id', value === 'none' ? null : value)}>
                                     <SelectTrigger className="w-full">
                                         <SelectValue placeholder="Select a category" />
@@ -212,9 +201,9 @@ const AssessmentDialog: React.FC<{
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            </label>
-                            <label className="space-y-2">
-                                <span className="text-sm font-medium text-foreground">Due date</span>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Due date</Label>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button
@@ -247,7 +236,7 @@ const AssessmentDialog: React.FC<{
                                         ) : null}
                                     </PopoverContent>
                                 </Popover>
-                            </label>
+                            </div>
                         </div>
                     </div>
 
@@ -256,14 +245,14 @@ const AssessmentDialog: React.FC<{
                     <div className="space-y-3">
                         <h3 className="text-sm font-medium text-foreground">Grading</h3>
                         <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="space-y-2">
-                                <span className="text-sm font-medium text-foreground">Weight (%)</span>
+                            <div className="space-y-2">
+                                <Label>Weight (%)</Label>
                                 <Input value={draft.weight} inputMode="decimal" onChange={(event) => setField('weight', event.target.value)} placeholder="20" />
-                            </label>
-                            <label className="space-y-2">
-                                <span className="text-sm font-medium text-foreground">Score (%)</span>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Score (%)</Label>
                                 <Input value={draft.score} inputMode="decimal" onChange={(event) => setField('score', event.target.value)} placeholder="Optional" />
-                            </label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -365,7 +354,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         ),
         [whatIfDrafts],
     );
-    const planResult = React.useMemo(() => {
+
+    // Derive what-if projected values for the stat strip (never persisted).
+    // Must live before any early returns to satisfy the Rules of Hooks.
+    const whatIfResult = React.useMemo(() => {
         if (!gradebook || !planMode || Object.keys(parsedWhatIfScores).length === 0) return null;
         const parsed = Number(targetGpaDraft);
         if (!Number.isFinite(parsed)) return null;
@@ -510,83 +502,102 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const hasActiveAssessmentFilters = deferredSearchQuery.trim().length > 0;
     const canManageAssessments = !planMode;
     const planModeSwitchLabel = 'Plan Mode';
-    const toolbarSecondarySlotClassName = 'flex h-11 w-[156px] shrink-0 items-center transition-all duration-300 relative';
-    const toolbarPrimarySlotClassName = 'flex h-11 w-[220px] shrink-0 items-center justify-end transition-all duration-300 relative overflow-hidden';
+    const toolbarSecondarySlotClassName = cn(
+        'flex h-11 shrink-0 items-center transition-all duration-300 relative z-10',
+        planMode ? 'flex-1 min-w-[130px]' : 'w-0 flex-none overflow-hidden opacity-0 p-0 m-0 border-0'
+    );
+    const toolbarPrimarySlotClassName = cn(
+        'flex h-11 flex-1 min-w-[200px] shrink-0 items-center justify-end transition-all duration-300 relative overflow-hidden z-10'
+    );
 
     return (
         <div className="space-y-4">
             {course ? (
-                <WorkspaceOverviewStats
-                    items={[
-                        {
-                            label: 'Credits',
-                            icon: <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />,
-                            value: (
-                                <span className={cn(course.credits === 0 && 'text-destructive')}>
+                <section className="mb-2.5">
+                    <div className={cn(
+                        'grid rounded-lg border overflow-hidden transition-colors duration-300',
+                        planMode
+                            ? 'border-amber-300/60 dark:border-amber-500/30'
+                            : 'border-border/70',
+                    )} style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                        {/* Grade */}
+                        <div className={cn(
+                            'min-w-0 px-3.5 py-2.5 transition-colors duration-300',
+                            planMode ? 'bg-amber-50/60 dark:bg-amber-950/25' : '',
+                        )}>
+                            <div className="flex items-center gap-1.5">
+                                {planMode
+                                    ? <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+                                    : <Percent className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />}
+                                <p className={cn(
+                                    'truncate text-xs font-medium transition-colors duration-300',
+                                    planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
+                                )}>
+                                    {planMode ? 'Grade · What If' : 'Grade'}
+                                </p>
+                            </div>
+                            <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
+                                {course.hide_gpa ? '****' : planMode && whatIfResult ? (
+                                    <span className="text-amber-600 dark:text-amber-400">
+                                        <AnimatedNumber
+                                            value={whatIfResult.projected_percentage}
+                                            format={(v) => `${v.toFixed(1)}%`}
+                                        />
+                                    </span>
+                                ) : (
                                     <AnimatedNumber
-                                        value={course.credits}
-                                        format={(value) => value.toFixed(2)}
+                                        value={course.grade_percentage}
+                                        format={(v) => `${v.toFixed(1)}%`}
                                     />
-                                </span>
-                            ),
-                        },
-                        {
-                            label: 'Grade',
-                            icon: <Percent className="h-3.5 w-3.5" aria-hidden="true" />,
-                            value: course.hide_gpa ? '****' : (
-                                <AnimatedNumber
-                                    value={course.grade_percentage}
-                                    format={(value) => `${value.toFixed(1)}%`}
-                                />
-                            ),
-                        },
-                        {
-                            label: 'GPA (Scaled)',
-                            icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />,
-                            value: course.hide_gpa ? '****' : (
-                                <AnimatedNumber
-                                    value={course.grade_scaled}
-                                    format={(value) => value.toFixed(2)}
-                                    rainbowThreshold={3.8}
-                                />
-                            ),
-                        },
-                    ]}
-                />
-            ) : null}
+                                )}
+                            </div>
+                        </div>
 
-
-
-            {planMode && planResult ? (
-                <Card className="border-border/60 bg-card shadow-none">
-                    <CardHeader>
-                        <CardTitle className="text-base font-semibold">Plan Result</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-3 md:grid-cols-3">
-                        <StatCard
-                            label="Projected"
-                            value={`${formatPercent(planResult.projected_percentage)} · ${formatGpa(planResult.projected_gpa)} GPA`}
-                            hint={planResult.is_feasible ? 'You can still tune any What If value.' : 'Target is not reachable with the remaining weight.'}
-                        />
-                        <StatCard
-                            label="Needed Avg"
-                            value={formatPercent(planResult.required_average)}
-                            hint={gradebook.forecast_model === 'simple_minimum_needed' ? 'Simple minimum-needed mode' : 'Likelihood-weighted recommendation'}
-                        />
-                        <StatCard
-                            label="Target"
-                            value={planResult.target_percentage === null ? 'Unavailable' : formatPercent(planResult.target_percentage)}
-                            hint={`${formatGpa(planResult.target_gpa)} GPA threshold`}
-                        />
-                    </CardContent>
-                </Card>
+                        {/* GPA */}
+                        <div className={cn(
+                            'min-w-0 border-l px-3.5 py-2.5 transition-colors duration-300',
+                            planMode
+                                ? 'border-amber-300/60 bg-amber-50/60 dark:border-amber-500/30 dark:bg-amber-950/25'
+                                : 'border-border/70',
+                        )}>
+                            <div className="flex items-center gap-1.5">
+                                {planMode
+                                    ? <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+                                    : <GraduationCap className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />}
+                                <p className={cn(
+                                    'truncate text-xs font-medium transition-colors duration-300',
+                                    planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
+                                )}>
+                                    {planMode ? 'GPA · What If' : 'GPA (Scaled)'}
+                                </p>
+                            </div>
+                            <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
+                                {course.hide_gpa ? '****' : planMode && whatIfResult ? (
+                                    <span className="text-amber-600 dark:text-amber-400">
+                                        <AnimatedNumber
+                                            value={whatIfResult.projected_gpa}
+                                            format={(v) => v.toFixed(2)}
+                                            rainbowThreshold={3.8}
+                                        />
+                                    </span>
+                                ) : (
+                                    <AnimatedNumber
+                                        value={course.grade_scaled}
+                                            format={(v) => v.toFixed(2)}
+                                            rainbowThreshold={3.8}
+                                        />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </section>
             ) : null}
 
             <section className="space-y-3">
                 <h2 className="text-lg font-semibold tracking-tight">Assessments</h2>
 
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="relative w-full max-w-xl min-w-0">
+                    <div className="relative w-full lg:max-w-xl min-w-0">
                         <Search className={cn(
                             'pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2',
                             planMode ? 'text-amber-600/80 dark:text-amber-300/80' : 'text-muted-foreground',
@@ -612,9 +623,12 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         ) : null}
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-end gap-3 lg:flex-nowrap">
+                    <div className={cn(
+                        "flex w-full lg:flex-1 items-center justify-end gap-2 lg:gap-3",
+                        planMode ? "flex-wrap lg:flex-nowrap" : "flex-nowrap"
+                    )}>
                         <div className={cn(
-                            'flex h-11 shrink-0 items-center gap-3 rounded-md border px-3',
+                            'flex h-11 flex-1 min-w-[140px] shrink-0 items-center justify-between gap-2 lg:gap-3 rounded-md border px-3',
                             planMode ? 'border-amber-400/50 bg-amber-100/50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100' : 'border-border/60 bg-background/80',
                         )}>
                             <div className="flex items-center gap-2 text-sm font-medium tracking-tight whitespace-nowrap">
@@ -632,14 +646,14 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
                         <div className={toolbarSecondarySlotClassName}>
                             <div className={cn(
-                                "absolute inset-0 flex h-11 w-full items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-3 transition-all duration-300 dark:border-amber-500/40 dark:bg-amber-950/20",
-                                planMode ? "opacity-100 visible translate-x-0" : "opacity-0 invisible -translate-x-2"
+                                "absolute left-0 top-0 flex h-11 w-full items-center gap-1.5 sm:gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-2 sm:px-3 transition-all duration-300 dark:border-amber-500/40 dark:bg-amber-950/20",
+                                planMode ? "opacity-100 visible z-10 translate-x-0" : "opacity-0 invisible -z-10 -translate-x-2"
                             )}>
                                 <Target className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
-                                <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground">Target</Label>
+                                <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground whitespace-nowrap">Target GPA</Label>
                                 <Input
                                     id="gradebook-target-gpa"
-                                    className="h-8 w-20 border-0 bg-transparent px-0 text-right tabular-nums shadow-none focus-visible:ring-0"
+                                    className="h-8 flex-1 min-w-0 border-0 bg-transparent px-0 text-right tabular-nums shadow-none focus-visible:ring-0 text-amber-950 dark:text-amber-50 font-medium"
                                     value={targetGpaDraft}
                                     inputMode="decimal"
                                     onChange={(event) => setTargetGpaDraft(event.target.value)}
@@ -668,14 +682,14 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 <Button
                                     type="button"
                                     disabled={isMutating || planMode}
-                                    className="h-11 w-full rounded-md whitespace-nowrap"
+                                    className="h-11 w-full rounded-md px-3 sm:px-4"
                                     onClick={() => {
                                         setAssessmentDraft(createAssessmentDraft(gradebook));
                                         setAssessmentDialogOpen(true);
                                     }}
                                 >
                                     <Plus className="mr-2 h-4 w-4 shrink-0" />
-                                    Add Assessment
+                                    <span className="truncate">Add Assessment</span>
                                 </Button>
                             </div>
 
@@ -687,10 +701,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     type="button"
                                     onClick={() => void handleRunPlan()}
                                     disabled={isMutating || !planMode}
-                                    className="h-11 w-full rounded-md bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground whitespace-nowrap"
+                                    className="h-11 w-full rounded-md bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground px-3 sm:px-4"
                                 >
                                     <Sparkles className="mr-2 h-4 w-4 shrink-0" />
-                                    Generate What If Scores
+                                    <span className="truncate">Auto-fill</span>
                                 </Button>
                             </div>
                         </div>
@@ -901,24 +915,24 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             ) : null}
 
             <Dialog open={planModeIntroOpen} onOpenChange={setPlanModeIntroOpen}>
-                <DialogContent className="sm:max-w-[460px]">
+                <DialogContent className="sm:max-w-[440px]">
                     <DialogHeader>
                         <DialogTitle>Enter Plan Mode</DialogTitle>
                         <DialogDescription>
-                            Plan Mode turns the Score column into temporary What If inputs for ungraded assessments only.
+                            Simulate <strong>What If</strong> scores on ungraded assessments to forecast your GPA — no real data is modified.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-3 text-sm text-muted-foreground">
-                        <p>Released scores stay locked so you always plan from real results.</p>
-                        <p>Assessment add, edit, and delete actions are disabled until you leave Plan Mode.</p>
-                        <p>What If values never overwrite saved course scores unless you manually enter them later.</p>
-                    </div>
+                    <ul className="space-y-1.5 text-sm text-muted-foreground list-disc pl-4">
+                        <li><strong>Graded</strong> assessments stay locked to keep results accurate.</li>
+                        <li><strong>Add / Edit / Delete</strong> is disabled until you leave Plan Mode.</li>
+                        <li>Set a <strong>Target GPA</strong> and tap <strong>Auto-fill</strong>.</li>
+                    </ul>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setPlanModeIntroOpen(false)}>
                             Cancel
                         </Button>
                         <Button type="button" className="bg-amber-500 text-amber-950 hover:bg-amber-400" onClick={enterPlanMode}>
-                            Continue
+                            Enter Plan Mode
                         </Button>
                     </DialogFooter>
                 </DialogContent>

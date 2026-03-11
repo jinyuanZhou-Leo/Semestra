@@ -1,6 +1,6 @@
 // input:  [React icon factory, plugin metadata helpers, and builtin-gradebook shared constants]
 // output: [default-exported builtin-gradebook plugin metadata declaration]
-// pos:    [plugin catalog entry describing the builtin-gradebook course tab and summary widget]
+// pos:    [plugin catalog entry describing the builtin-gradebook course tab and compact summary widget]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -33,9 +33,9 @@ const widgetCatalog: WidgetCatalogItem[] = [
         pluginId: BUILTIN_GRADEBOOK_PLUGIN_ID,
         type: BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE,
         name: 'Gradebook Summary',
-        description: 'Compact snapshot of real progress, forecast availability, and the next due assessment.',
+        description: 'Responsive course metrics showing credits, GPA, and GPA percentage.',
         icon: createElement(BookOpenCheck, { className: 'h-4 w-4' }),
-        layout: { w: 4, h: 3, minW: 3, minH: 3, maxW: 6, maxH: 6 },
+        layout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4 },
         maxInstances: 1,
         allowedContexts: ['course'],
     },
