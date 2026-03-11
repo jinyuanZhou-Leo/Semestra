@@ -19,7 +19,7 @@ import api, {
     type GradebookAssessmentCategory,
 } from '@/services/api';
 import type { TabDefinition, TabProps } from '@/services/tabRegistry';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+
 import {
     AlertDialog,
     AlertDialogAction,
@@ -84,7 +84,6 @@ import {
     getCategoryById,
     getRelativeDueText,
     isAssessmentOverdue,
-    resolveTargetPercentageForGpa,
     sortAssessments,
     type GradebookSortDirection,
     type GradebookSortKey,
@@ -507,15 +506,12 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         );
     }
 
-    const targetPercentage = resolveTargetPercentageForGpa(Number(targetGpaDraft), gradebook.scaling_table);
+
     const hasActiveAssessmentFilters = deferredSearchQuery.trim().length > 0;
     const canManageAssessments = !planMode;
-    const showTargetControl = planMode;
-    const showPlanGeneration = planMode;
-    const showAddAssessment = !planMode;
     const planModeSwitchLabel = 'Plan Mode';
-    const toolbarSecondarySlotClassName = 'flex h-11 w-[156px] items-center';
-    const toolbarPrimarySlotClassName = 'flex h-11 w-[210px] items-center justify-end';
+    const toolbarSecondarySlotClassName = 'flex h-11 w-[156px] shrink-0 items-center transition-all duration-300 relative';
+    const toolbarPrimarySlotClassName = 'flex h-11 w-[220px] shrink-0 items-center justify-end transition-all duration-300 relative overflow-hidden';
 
     return (
         <div className="space-y-4">
@@ -559,64 +555,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 />
             ) : null}
 
-            <Card className="border-border/60 bg-card shadow-none">
-                <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                        <CardTitle className="text-lg font-semibold">Course Gradebook</CardTitle>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Keep one assessment table with saved scores, then switch into Plan Mode for temporary What If scenarios.
-                        </p>
-                    </div>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <StatCard
-                        label="Current"
-                        value={`${formatPercent(summary.current_real_percentage)} · ${formatGpa(summary.current_real_gpa)} GPA`}
-                        hint={`${summary.graded_count} graded`}
-                    />
-                    <StatCard
-                        label="Forecast"
-                        value={summary.forecast_percentage === null
-                            ? 'Unavailable'
-                            : `${formatPercent(summary.forecast_percentage)} · ${formatGpa(summary.forecast_gpa)} GPA`}
-                        hint={summary.forecast_percentage === null
-                            ? gradebook.forecast_model === 'simple_minimum_needed'
-                                ? 'Simple mode skips statistical forecasting.'
-                                : summary.missing_history_categories.length > 0
-                                    ? 'Need at least one graded sample for each remaining category.'
-                                    : 'No forecast yet.'
-                            : 'Projected from category history'}
-                    />
-                    <StatCard
-                        label="Remaining Weight"
-                        value={formatPercent(summary.remaining_weight)}
-                        hint={`${summary.ungraded_count} assessments pending`}
-                    />
-                    <StatCard
-                        label={planMode ? 'Plan Target' : 'Next Due'}
-                        value={planMode
-                            ? targetPercentage === null
-                                ? 'Unavailable'
-                                : `${formatPercent(targetPercentage)} threshold`
-                            : summary.upcoming_due_items[0]
-                                ? summary.upcoming_due_items[0].title
-                                : 'No due date'}
-                        hint={planMode
-                            ? `${formatGpa(Number(targetGpaDraft) || gradebook.target_gpa)} GPA target`
-                            : summary.upcoming_due_items[0]?.due_date
-                                ? formatGradebookDate(summary.upcoming_due_items[0].due_date)
-                                : 'Nothing scheduled'}
-                    />
-                </CardContent>
-            </Card>
 
-            {summary.missing_history_categories.length > 0 && gradebook.forecast_model === 'auto' ? (
-                <Alert className="border-amber-200/60 bg-amber-50/70 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
-                    <AlertDescription>
-                        Forecast is blank because some remaining categories have no released scores yet.
-                    </AlertDescription>
-                </Alert>
-            ) : null}
 
             {planMode && planResult ? (
                 <Card className="border-border/60 bg-card shadow-none">
@@ -643,124 +582,124 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 </Card>
             ) : null}
 
-            <section className="space-y-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <h2 className="text-lg font-semibold tracking-tight">Assessments</h2>
-                    <div className="hidden items-center gap-2 text-xs text-muted-foreground tabular-nums md:flex">
-                        <span>{hasActiveAssessmentFilters ? `${filteredAssessments.length} shown` : `${gradebook.assessments.length} total`}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{summary.graded_count} graded</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{summary.ungraded_count} ungraded</span>
-                    </div>
-                </div>
+            <section className="space-y-3">
+                <h2 className="text-lg font-semibold tracking-tight">Assessments</h2>
 
-                <div className="rounded-md border border-border/70 bg-muted/[0.28] p-3 sm:p-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="relative w-full max-w-xl min-w-0">
-                            <Search className={cn(
-                                'pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2',
-                                planMode ? 'text-amber-600/80 dark:text-amber-300/80' : 'text-muted-foreground',
-                            )} />
-                            <Input
-                                value={searchQuery}
-                                onChange={(event) => setSearchQuery(event.target.value)}
-                                placeholder="Search assessments..."
-                                className={cn(
-                                    'h-11 w-full rounded-md border-border/60 bg-background pl-9 pr-10',
-                                    planMode && 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/40 dark:bg-amber-950/20',
-                                )}
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="relative w-full max-w-xl min-w-0">
+                        <Search className={cn(
+                            'pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2',
+                            planMode ? 'text-amber-600/80 dark:text-amber-300/80' : 'text-muted-foreground',
+                        )} />
+                        <Input
+                            value={searchQuery}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            placeholder="Search assessments..."
+                            className={cn(
+                                'h-11 w-full rounded-md border-border/60 bg-background pl-9 pr-10',
+                                planMode && 'border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/30',
+                            )}
+                        />
+                        {searchQuery ? (
+                            <button
+                                type="button"
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                                onClick={() => setSearchQuery('')}
+                                aria-label="Clear assessment search"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-end gap-3 lg:flex-nowrap">
+                        <div className={cn(
+                            'flex h-11 shrink-0 items-center gap-3 rounded-md border px-3',
+                            planMode ? 'border-amber-400/50 bg-amber-100/50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100' : 'border-border/60 bg-background/80',
+                        )}>
+                            <div className="flex items-center gap-2 text-sm font-medium tracking-tight whitespace-nowrap">
+                                <Sparkles className={cn('h-4 w-4', planMode ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground')} />
+                                <span>{planModeSwitchLabel}</span>
+                            </div>
+                            <Switch
+                                checked={planMode}
+                                onCheckedChange={handlePlanModeCheckedChange}
+                                disabled={isMutating}
+                                className="data-checked:bg-amber-500 data-unchecked:bg-slate-300/80 dark:data-unchecked:bg-slate-700"
+                                aria-label="Toggle Plan Mode"
                             />
-                            {searchQuery ? (
-                                <button
-                                    type="button"
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                                    onClick={() => setSearchQuery('')}
-                                    aria-label="Clear assessment search"
-                                >
-                                    <X className="h-3.5 w-3.5" />
-                                </button>
-                            ) : null}
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-end gap-3 lg:flex-nowrap">
+                        <div className={toolbarSecondarySlotClassName}>
                             <div className={cn(
-                                'flex h-11 items-center gap-3 rounded-md border px-3',
-                                planMode ? 'border-amber-400/70 bg-amber-100/70 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50' : 'border-border/60 bg-background/80',
+                                "absolute inset-0 flex h-11 w-full items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-3 transition-all duration-300 dark:border-amber-500/40 dark:bg-amber-950/20",
+                                planMode ? "opacity-100 visible translate-x-0" : "opacity-0 invisible -translate-x-2"
                             )}>
-                                <div className="flex items-center gap-2 text-sm font-medium tracking-tight">
-                                    <Sparkles className={cn('h-4 w-4', planMode ? 'text-amber-600 dark:text-amber-300' : 'text-muted-foreground')} />
-                                    <span>{planModeSwitchLabel}</span>
-                                </div>
-                                <Switch
-                                    checked={planMode}
-                                    onCheckedChange={handlePlanModeCheckedChange}
-                                    disabled={isMutating}
-                                    className="data-checked:bg-amber-500 data-unchecked:bg-slate-300/80 dark:data-unchecked:bg-slate-700"
-                                    aria-label="Toggle Plan Mode"
+                                <Target className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+                                <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground">Target</Label>
+                                <Input
+                                    id="gradebook-target-gpa"
+                                    className="h-8 w-20 border-0 bg-transparent px-0 text-right tabular-nums shadow-none focus-visible:ring-0"
+                                    value={targetGpaDraft}
+                                    inputMode="decimal"
+                                    onChange={(event) => setTargetGpaDraft(event.target.value)}
+                                    onBlur={() => void handlePersistTargetGpa()}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                            void handlePersistTargetGpa();
+                                        }
+                                    }}
+                                    disabled={!planMode}
+                                    tabIndex={planMode ? 0 : -1}
                                 />
                             </div>
+                            <div aria-hidden="true" className={cn(
+                                "absolute inset-0 h-11 w-full rounded-md border border-transparent transition-all duration-300",
+                                planMode ? "opacity-0 invisible" : "opacity-100 visible"
+                            )} />
+                        </div>
 
-                            <div className={toolbarSecondarySlotClassName}>
-                                {showTargetControl ? (
-                                    <div className="flex h-11 w-full items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-3 dark:border-amber-500/40 dark:bg-amber-950/20">
-                                        <Target className="h-4 w-4 text-amber-600 dark:text-amber-300" />
-                                        <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground">Target</Label>
-                                        <Input
-                                            id="gradebook-target-gpa"
-                                            className="h-8 w-20 border-0 bg-transparent px-0 text-right tabular-nums shadow-none focus-visible:ring-0"
-                                            value={targetGpaDraft}
-                                            inputMode="decimal"
-                                            onChange={(event) => setTargetGpaDraft(event.target.value)}
-                                            onBlur={() => void handlePersistTargetGpa()}
-                                            onKeyDown={(event) => {
-                                                if (event.key === 'Enter') {
-                                                    event.preventDefault();
-                                                    void handlePersistTargetGpa();
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                ) : (
-                                    <div aria-hidden="true" className="h-11 w-full rounded-md border border-transparent" />
-                                )}
+                        <div className={toolbarPrimarySlotClassName}>
+                            <div className={cn(
+                                "absolute inset-0 transition-all duration-300",
+                                planMode ? "opacity-0 invisible translate-y-2" : "opacity-100 visible translate-y-0"
+                            )}>
+                                <Button
+                                    type="button"
+                                    disabled={isMutating || planMode}
+                                    className="h-11 w-full rounded-md whitespace-nowrap"
+                                    onClick={() => {
+                                        setAssessmentDraft(createAssessmentDraft(gradebook));
+                                        setAssessmentDialogOpen(true);
+                                    }}
+                                >
+                                    <Plus className="mr-2 h-4 w-4 shrink-0" />
+                                    Add Assessment
+                                </Button>
                             </div>
 
-                            <div className={toolbarPrimarySlotClassName}>
-                                {showAddAssessment ? (
-                                    <Button
-                                        type="button"
-                                        disabled={isMutating}
-                                        className="h-11 w-full rounded-md"
-                                        onClick={() => {
-                                            setAssessmentDraft(createAssessmentDraft(gradebook));
-                                            setAssessmentDialogOpen(true);
-                                        }}
-                                    >
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Add Assessment
-                                    </Button>
-                                ) : null}
-
-                                {showPlanGeneration ? (
-                                    <Button
-                                        type="button"
-                                        onClick={() => void handleRunPlan()}
-                                        disabled={isMutating}
-                                        className="h-11 w-full rounded-md bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground"
-                                    >
-                                        <Sparkles className="mr-2 h-4 w-4" />
-                                        Generate What If Scores
-                                    </Button>
-                                ) : null}
+                            <div className={cn(
+                                "absolute inset-0 transition-all duration-300",
+                                planMode ? "opacity-100 visible translate-y-0" : "opacity-0 invisible -translate-y-2"
+                            )}>
+                                <Button
+                                    type="button"
+                                    onClick={() => void handleRunPlan()}
+                                    disabled={isMutating || !planMode}
+                                    className="h-11 w-full rounded-md bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground whitespace-nowrap"
+                                >
+                                    <Sparkles className="mr-2 h-4 w-4 shrink-0" />
+                                    Generate What If Scores
+                                </Button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="min-h-[300px] rounded-md border bg-card flex flex-col overflow-hidden">
+                <div className="min-h-[400px] rounded-md border bg-card flex flex-col overflow-hidden">
                     {filteredAssessments.length === 0 ? (
-                        <Empty className="min-h-[300px] border-0 rounded-md">
+                        <Empty className="min-h-[400px] border-0 rounded-md">
                             <EmptyHeader>
                                 <EmptyTitle>{hasActiveAssessmentFilters ? 'No assessments found' : 'No assessments added yet'}</EmptyTitle>
                                 <EmptyDescription>
@@ -779,7 +718,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                         Clear Search
                                     </Button>
                                 ) : null}
-                                {showAddAssessment ? (
+                                {!planMode ? (
                                     <Button
                                         type="button"
                                         disabled={isMutating}
@@ -795,8 +734,9 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             </EmptyContent>
                         </Empty>
                     ) : (
-                        <Table>
-                            <TableHeader>
+                            <div className="max-h-[600px] overflow-hidden">
+                                <Table>
+                                    <TableHeader className="sticky top-0 bg-card">
                                     <TableRow className="hover:bg-transparent">
                                         <SortableHead label="Assessment" sortKey="title" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} />
                                         <SortableHead label="Category" sortKey="category" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} />
@@ -811,132 +751,134 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 <TableBody>
                                     {filteredAssessments.map((assessment) => {
                                         const category = getCategoryById(gradebook.categories, assessment.category_id);
-                                    const overdue = isAssessmentOverdue(assessment);
-                                    const isRealOnly = assessment.score !== null;
-                                    return (
-                                        <TableRow key={assessment.id} className="group">
-                                            <TableCell className="py-3">
-                                                <div className="font-medium text-foreground">{assessment.title}</div>
-                                            </TableCell>
-                                            <TableCell className="py-3">
-                                                {category ? (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className={cn('border-0 px-2.5 py-0.5 text-xs font-medium', getCategoryBadgeClassName(category.color_token))}
-                                                        style={getCategoryBadgeStyle(category.color_token)}
-                                                    >
-                                                        {category.name}
-                                                    </Badge>
-                                                ) : (
-                                                    <span className="text-xs text-muted-foreground/60">Uncategorized</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="py-3">
-                                                {assessment.due_date ? (
-                                                    <div className="space-y-0.5">
-                                                        <div className={cn('text-sm', overdue ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-foreground')}>
-                                                            {formatGradebookDate(assessment.due_date)}
-                                                        </div>
-                                                        <div className="text-[11px] text-muted-foreground">{getRelativeDueText(assessment.due_date)}</div>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-xs text-muted-foreground/60">No due date</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="py-3 text-right tabular-nums">{formatPercent(assessment.weight)}</TableCell>
-                                            <TableCell className="py-3 text-right">
-                                                <Input
-                                                    className={cn(
-                                                        'ml-auto h-8 w-24 text-right tabular-nums focus-visible:bg-background',
-                                                        planMode
-                                                            ? isRealOnly
-                                                                ? 'border-border/60 bg-muted/30 text-muted-foreground'
-                                                                : 'border-amber-400/80 bg-amber-50/80 text-amber-950 dark:border-amber-500/50 dark:bg-amber-950/20 dark:text-amber-50'
-                                                            : 'border-border/60 bg-muted/20',
+                                        const overdue = isAssessmentOverdue(assessment);
+                                        const isRealOnly = assessment.score !== null;
+                                        return (
+                                            <TableRow key={assessment.id} className="group">
+                                                <TableCell className="py-3">
+                                                    <div className="font-medium text-foreground">{assessment.title}</div>
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    {category ? (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={cn('border-0 px-2.5 py-0.5 text-xs font-medium', getCategoryBadgeClassName(category.color_token))}
+                                                            style={getCategoryBadgeStyle(category.color_token)}
+                                                        >
+                                                            {category.name}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground/60">Uncategorized</span>
                                                     )}
-                                                    value={planMode
-                                                        ? isRealOnly
-                                                            ? (scoreDrafts[assessment.id] ?? '')
-                                                            : (whatIfDrafts[assessment.id] ?? '')
-                                                        : (scoreDrafts[assessment.id] ?? '')}
-                                                    inputMode="decimal"
-                                                    disabled={isMutating || (planMode && isRealOnly)}
-                                                    placeholder={planMode ? 'What if' : '--'}
-                                                    onChange={(event) => {
-                                                        const nextValue = event.target.value;
-                                                        if (planMode) {
-                                                            setWhatIfDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
-                                                            return;
-                                                        }
-                                                        setScoreDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
-                                                    }}
-                                                    onBlur={() => {
-                                                        if (!planMode) {
-                                                            void handleSaveScore(assessment);
-                                                        }
-                                                    }}
-                                                    onKeyDown={(event) => {
-                                                        if (event.key === 'Enter' && !planMode) {
-                                                            event.preventDefault();
-                                                            void handleSaveScore(assessment);
-                                                        }
-                                                    }}
-                                                />
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-1">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        aria-label={`Edit assessment ${assessment.title}`}
-                                                        disabled={!canManageAssessments}
-                                                        onClick={() => {
-                                                            setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
-                                                            setAssessmentDialogOpen(true);
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    {assessment.due_date ? (
+                                                        <div className="space-y-0.5">
+                                                            <div className={cn('text-sm', overdue ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-foreground')}>
+                                                                {formatGradebookDate(assessment.due_date)}
+                                                            </div>
+                                                            <div className="text-[11px] text-muted-foreground">{getRelativeDueText(assessment.due_date)}</div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground/60">No due date</span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="py-3 text-right tabular-nums">{formatPercent(assessment.weight)}</TableCell>
+                                                <TableCell className="py-3 text-right">
+                                                    <Input
+                                                        className={cn(
+                                                            'ml-auto h-8 w-24 text-right tabular-nums focus-visible:bg-background',
+                                                            planMode
+                                                                ? isRealOnly
+                                                                    ? 'border-border/60 bg-muted/30 text-muted-foreground'
+                                                                    : 'border-amber-400/80 bg-amber-50/80 text-amber-950 dark:border-amber-500/50 dark:bg-amber-950/20 dark:text-amber-50'
+                                                                : 'border-border/60 bg-muted/20',
+                                                        )}
+                                                        value={planMode
+                                                            ? isRealOnly
+                                                                ? (scoreDrafts[assessment.id] ?? '')
+                                                                : (whatIfDrafts[assessment.id] ?? '')
+                                                            : (scoreDrafts[assessment.id] ?? '')}
+                                                        inputMode="decimal"
+                                                        disabled={isMutating || (planMode && isRealOnly)}
+                                                        placeholder={planMode ? 'What if' : '--'}
+                                                        onChange={(event) => {
+                                                            const nextValue = event.target.value;
+                                                            if (planMode) {
+                                                                setWhatIfDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
+                                                                return;
+                                                            }
+                                                            setScoreDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
                                                         }}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="destructive"
-                                                                size="icon"
-                                                                aria-label={`Delete assessment ${assessment.title}`}
-                                                                disabled={!canManageAssessments}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent size="sm">
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Delete assessment {assessment.title}?</AlertDialogTitle>
-                                                                <AlertDialogDescription>
-                                                                    This action cannot be undone.
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                <AlertDialogAction
-                                                                    onClick={() => {
-                                                                        setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
-                                                                        void commitGradebook(api.deleteCourseGradebookAssessment(courseId, assessment.id));
-                                                                    }}
+                                                        onBlur={() => {
+                                                            if (!planMode) {
+                                                                void handleSaveScore(assessment);
+                                                            }
+                                                        }}
+                                                        onKeyDown={(event) => {
+                                                            if (event.key === 'Enter' && !planMode) {
+                                                                event.preventDefault();
+                                                                void handleSaveScore(assessment);
+                                                            }
+                                                        }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-1">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            aria-label={`Edit assessment ${assessment.title}`}
+                                                            disabled={!canManageAssessments}
+                                                            onClick={() => {
+                                                                setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
+                                                                setAssessmentDialogOpen(true);
+                                                            }}
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="destructive"
+                                                                    size="icon"
+                                                                    aria-label={`Delete assessment ${assessment.title}`}
+                                                                    disabled={!canManageAssessments}
                                                                 >
-                                                                    Delete
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent size="sm">
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Delete assessment {assessment.title}?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        This action cannot be undone.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction
+                                                                        variant="destructive"
+                                                                        onClick={() => {
+                                                                            setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
+                                                                            void commitGradebook(api.deleteCourseGradebookAssessment(courseId, assessment.id));
+                                                                        }}
+                                                                    >
+                                                                        Delete
+                                                                    </AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                    </TableBody>
+                                </Table>
+                            </div>
                     )}
                 </div>
             </section>
@@ -991,10 +933,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Keep Planning</AlertDialogCancel>
-                        <AlertDialogAction onClick={exitPlanMode}>
+                        <AlertDialogAction>Keep Planning</AlertDialogAction>
+                        <AlertDialogCancel onClick={exitPlanMode}>
                             Leave Plan Mode
-                        </AlertDialogAction>
+                        </AlertDialogCancel>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

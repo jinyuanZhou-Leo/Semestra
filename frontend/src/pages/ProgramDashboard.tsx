@@ -1081,14 +1081,14 @@ const ProgramDashboardContent: React.FC = () => {
                                         </Popover>
                                     </div>
                                 </div>
-                                <div className="rounded-md border bg-card min-h-[300px] flex flex-col">
+                                <div className="rounded-md border bg-card min-h-[300px] flex flex-col overflow-hidden">
                                     {filteredAndSortedCourses.length === 0 ? (
                                         <div className="flex-1 flex items-center justify-center text-muted-foreground">
                                             {courseSearchQuery || activeFilters.length > 0 ? "No courses found matching your search." : "No courses added yet."}
                                         </div>
                                     ) : (
                                     <Table>
-                                        <TableHeader>
+                                                <TableHeader className="sticky top-0 bg-card">
                                             <TableRow className="hover:bg-transparent">
                                                 <TableHead
                                                     className="cursor-pointer hover:bg-muted/50 transition-colors"
