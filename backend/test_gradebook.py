@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy session setup, gradebook domain service, and backend schemas/models]
-# output: [unit tests covering gradebook initialization, category guards, due-date sorting, solver math, and non-overwriting course grade behavior]
-# pos:    [backend regression tests for the built-in gradebook fact service and derived-summary helpers]
+# output: [unit tests covering gradebook initialization, category reassignment, preference updates, and score-first assessment behavior]
+# pos:    [backend regression tests for the simplified built-in gradebook service and import-safe payload helpers]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -27,9 +27,9 @@ from database import Base
 class GradebookServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         Base.metadata.create_all(bind=self.engine)
-        self.db = TestingSessionLocal()
+        self.db = testing_session_local()
 
         user = models.User(email="gradebook@example.com", hashed_password="hashed", user_setting="{}")
         self.db.add(user)
@@ -66,158 +66,104 @@ class GradebookServiceTests(unittest.TestCase):
     def _payload(self) -> schemas.CourseGradebook:
         return gradebook.get_course_gradebook_payload(self.db, self.course_id)
 
-    def _summary(self) -> schemas.GradebookSummary:
-        db_gradebook = gradebook.get_course_gradebook_or_404(self.db, self.course_id)
-        return gradebook._build_gradebook_summary(db_gradebook)
-
     def test_builtin_categories_are_initialized(self) -> None:
         payload = self._payload()
-        self.assertEqual(payload.scenarios[0].name, "Expected")
+        self.assertEqual(payload.target_gpa, 4.0)
+        self.assertEqual(payload.forecast_model, schemas.GradebookForecastModel.AUTO)
         self.assertEqual(
             [category.name for category in payload.categories],
             ["Quiz", "Exam", "Assignment", "Project", "Lab", "Presentation", "Participation"],
         )
 
-    def test_cannot_delete_category_in_use(self) -> None:
+    def test_delete_category_reassigns_assessments_to_uncategorized(self) -> None:
         payload = self._payload()
         custom = gradebook.create_category(
             self.db,
             self.course_id,
-            schemas.GradebookCategoryCreate(
-                name="Reflection",
-                color_token="rose",
-            ),
+            schemas.GradebookCategoryCreate(name="Reflection", color_token="rose"),
         )
         reflection_category = next(category for category in custom.categories if category.name == "Reflection")
-        gradebook.create_assessment(
+
+        created = gradebook.create_assessment(
             self.db,
             self.course_id,
             schemas.GradebookAssessmentCreate(
                 category_id=reflection_category.id,
-                title="Quiz 1",
+                title="Journal",
                 due_date=date(2026, 2, 10),
                 weight=20.0,
-                status=schemas.GradebookAssessmentStatus.PLANNED,
-                forecast_mode=schemas.GradebookForecastMode.MANUAL,
-                scenario_scores=[schemas.GradebookAssessmentScenarioScore(scenario_id=custom.scenarios[0].id, forecast_score=88.0)],
+                score=None,
             ),
         )
+        assessment_id = created.assessments[0].id
 
-        with self.assertRaises(gradebook.GradebookConflictError):
-            gradebook.delete_category(
-                self.db,
-                self.course_id,
-                reflection_category.id,
-            )
+        updated = gradebook.delete_category(self.db, self.course_id, reflection_category.id)
+        reassigned = next(assessment for assessment in updated.assessments if assessment.id == assessment_id)
 
-    def test_upcoming_due_items_are_sorted_and_ignore_completed_or_excluded(self) -> None:
+        self.assertIsNone(reassigned.category_id)
+
+    def test_delete_builtin_category_reassigns_assessments_to_uncategorized(self) -> None:
         payload = self._payload()
-        scenario_id = payload.scenarios[0].id
-        category_id = payload.categories[0].id
+        builtin_category = payload.categories[0]
 
-        def create_item(title: str, due_date: date, status: schemas.GradebookAssessmentStatus) -> None:
-            gradebook.create_assessment(
-                self.db,
-                self.course_id,
-                schemas.GradebookAssessmentCreate(
-                    category_id=category_id,
-                    title=title,
-                    due_date=due_date,
-                    weight=25.0,
-                    status=status,
-                    forecast_mode=schemas.GradebookForecastMode.MANUAL,
-                    scenario_scores=[schemas.GradebookAssessmentScenarioScore(scenario_id=scenario_id, forecast_score=80.0)],
-                ),
-            )
-
-        create_item("Essay", date(2026, 4, 2), schemas.GradebookAssessmentStatus.PLANNED)
-        create_item("Completed Quiz", date(2026, 3, 1), schemas.GradebookAssessmentStatus.COMPLETED)
-        create_item("Midterm", date(2026, 3, 15), schemas.GradebookAssessmentStatus.PLANNED)
-        create_item("Dropped Lab", date(2026, 3, 10), schemas.GradebookAssessmentStatus.EXCLUDED)
-
-        summary = self._summary()
-        self.assertEqual([item.title for item in summary.upcoming_due_items], ["Midterm", "Essay"])
-
-    def test_category_and_due_date_changes_do_not_change_projection(self) -> None:
-        payload = self._payload()
-        scenario_id = payload.scenarios[0].id
-        quiz_category = next(category for category in payload.categories if category.name == "Quiz")
-        exam_category = next(category for category in payload.categories if category.name == "Exam")
-
-        latest = gradebook.create_assessment(
+        created = gradebook.create_assessment(
             self.db,
             self.course_id,
             schemas.GradebookAssessmentCreate(
-                category_id=quiz_category.id,
-                title="Final",
-                due_date=date(2026, 4, 20),
-                weight=100.0,
-                status=schemas.GradebookAssessmentStatus.PLANNED,
-                forecast_mode=schemas.GradebookForecastMode.MANUAL,
-                scenario_scores=[schemas.GradebookAssessmentScenarioScore(scenario_id=scenario_id, forecast_score=87.0)],
+                category_id=builtin_category.id,
+                title="Quiz 1",
+                due_date=date(2026, 2, 3),
+                weight=10.0,
+                score=None,
             ),
         )
-        assessment_id = latest.assessments[0].id
-        before_projection = self._summary().baseline_projected_percentage
+        assessment_id = created.assessments[0].id
 
-        updated = gradebook.update_assessment(
-            self.db,
-            self.course_id,
-            assessment_id,
-            schemas.GradebookAssessmentUpdate(
-                category_id=exam_category.id,
-                due_date=date(2026, 4, 25),
-            ),
-        )
+        updated = gradebook.delete_category(self.db, self.course_id, builtin_category.id)
+        reassigned = next(assessment for assessment in updated.assessments if assessment.id == assessment_id)
 
-        self.assertEqual(before_projection, self._summary().baseline_projected_percentage)
-        self.assertEqual(updated.assessments[0].category_id, exam_category.id)
+        self.assertIsNone(reassigned.category_id)
 
-    def test_solver_required_score_respects_gpa_target_threshold(self) -> None:
+    def test_score_is_persisted_as_percentage(self) -> None:
         payload = self._payload()
-        scenario_id = payload.scenarios[0].id
         category_id = payload.categories[0].id
 
-        gradebook.create_assessment(
+        created = gradebook.create_assessment(
             self.db,
             self.course_id,
             schemas.GradebookAssessmentCreate(
                 category_id=category_id,
                 title="Midterm",
                 due_date=date(2026, 2, 15),
-                weight=50.0,
-                status=schemas.GradebookAssessmentStatus.COMPLETED,
-                forecast_mode=schemas.GradebookForecastMode.MANUAL,
-                actual_score=80.0,
-                scenario_scores=[schemas.GradebookAssessmentScenarioScore(scenario_id=scenario_id, forecast_score=80.0)],
+                weight=30.0,
+                score=82.5,
             ),
         )
 
-        after_completed = gradebook.create_assessment(
+        self.assertEqual(created.assessments[0].score, 82.5)
+
+    def test_update_preferences_persists_target_gpa_and_model(self) -> None:
+        updated = gradebook.update_preferences(
             self.db,
             self.course_id,
-            schemas.GradebookAssessmentCreate(
-                category_id=category_id,
-                title="Final",
-                due_date=date(2026, 4, 21),
-                weight=50.0,
-                status=schemas.GradebookAssessmentStatus.PLANNED,
-                forecast_mode=schemas.GradebookForecastMode.SOLVER,
-                scenario_scores=[schemas.GradebookAssessmentScenarioScore(scenario_id=scenario_id, forecast_score=None)],
+            schemas.GradebookPreferencesUpdate(
+                target_gpa=3.7,
+                forecast_model=schemas.GradebookForecastModel.SIMPLE_MINIMUM_NEEDED,
             ),
         )
 
-        updated_target = gradebook.update_target(
+        self.assertEqual(updated.target_gpa, 3.7)
+        self.assertEqual(updated.forecast_model, schemas.GradebookForecastModel.SIMPLE_MINIMUM_NEEDED)
+
+    def test_custom_hex_category_color_is_preserved(self) -> None:
+        created = gradebook.create_category(
             self.db,
             self.course_id,
-            schemas.GradebookTargetUpdate(
-                target_mode=schemas.GradebookTargetMode.GPA,
-                target_value=4.0,
-            ),
+            schemas.GradebookCategoryCreate(name="Reflection", color_token="#123abc"),
         )
 
-        self.assertEqual(updated_target.target_mode, schemas.GradebookTargetMode.GPA)
-        self.assertAlmostEqual(self._summary().baseline_required_score or 0.0, 90.0, places=2)
+        category = next(category for category in created.categories if category.name == "Reflection")
+        self.assertEqual(category.color_token, "#123abc")
 
     def test_gradebook_mutations_do_not_overwrite_course_grade_fields(self) -> None:
         course = self.db.query(models.Course).filter(models.Course.id == self.course_id).first()
@@ -228,7 +174,6 @@ class GradebookServiceTests(unittest.TestCase):
         self.db.commit()
 
         payload = self._payload()
-        scenario_id = payload.scenarios[0].id
         category_id = payload.categories[0].id
 
         gradebook.create_assessment(
@@ -239,9 +184,7 @@ class GradebookServiceTests(unittest.TestCase):
                 title="Final",
                 due_date=date(2026, 4, 21),
                 weight=100.0,
-                status=schemas.GradebookAssessmentStatus.PLANNED,
-                forecast_mode=schemas.GradebookForecastMode.MANUAL,
-                scenario_scores=[schemas.GradebookAssessmentScenarioScore(scenario_id=scenario_id, forecast_score=95.0)],
+                score=None,
             ),
         )
 

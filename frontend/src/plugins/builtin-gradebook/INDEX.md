@@ -1,16 +1,17 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
-`builtin-gradebook/` provides the course-scoped grade planning tab and read-only summary widget.
-The tab now opens with a table-first assessment workspace, explicit target saves, and setup tabs for scenarios/categories.
-Shared helpers now derive projections, validation, and deadline summaries on the client from fact-only gradebook API responses.
+`builtin-gradebook/` provides the course-scoped Gradebook V2 tab and summary widget.
+The tab centers a Course List-style assessment workspace with percentage scores, category-based forecasts, and a temporary Plan mode for What If scores.
+Runtime UI consumes a slim fact-only API while shared helpers derive summaries, forecasts, and plan recommendations on the client.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local architecture summary and file map for the builtin-gradebook plugin. |
 | index.ts | Runtime entry | Registers the builtin-gradebook tab and summary widget with the plugin runtime loader. |
 | metadata.ts | Plugin metadata | Declares the course builtin tab and summary widget catalog entries. |
-| shared.ts | Shared helpers | Exposes plugin constants, view-state defaults, client-side projection/validation calculators, and shared formatters. |
-| tab.tsx | Tab runtime | Renders the streamlined gradebook command center with a table-first assessment list, summary cards, and setup tabs. |
-| widget.tsx | Widget runtime | Renders the summary widget from client-derived baseline projection, progress coverage, and upcoming deadlines. |
-| shared.test.ts | Test file | Covers shared gradebook settings normalization, scenario selection, and client-side summary math. |
+| settings.tsx | Plugin settings | Provides course-level forecast-model selection and an Event-types-style category management table for the Gradebook plugin. |
+| shared.ts | Shared helpers | Exposes plugin constants, client-side forecast/plan calculators, sorting, and shared formatters. |
+| shared.test.ts | Test file | Covers client-side gradebook summary, forecast, and plan-mode helper math. |
+| tab.tsx | Tab runtime | Renders the assessment-first Gradebook tab with a Course List-style management shell, section-form-style assessment dialogs, shadcn date picking, summary cards, and temporary Plan mode What If drafts. |
 | widget.test.tsx | Test file | Covers summary widget rendering against fact-only gradebook payloads and open-tab event dispatch. |
+| widget.tsx | Widget runtime | Renders the compact summary widget with current results, forecast readiness, and next due assessments. |

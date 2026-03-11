@@ -132,22 +132,13 @@ class CourseGradebook(Base):
 
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     course_id = Column(String, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
-    target_mode = Column(String, nullable=False, default="percentage")
-    target_value = Column(Float, nullable=False, default=85.0)
-    baseline_scenario_id = Column(String, ForeignKey("gradebook_scenarios.id", ondelete="SET NULL"), nullable=True)
+    target_gpa = Column(Float, nullable=False, default=4.0)
+    forecast_model = Column(String, nullable=False, default="auto")
     revision = Column(Integer, nullable=False, default=1)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
 
     course = relationship("Course", back_populates="gradebook")
-    baseline_scenario = relationship("GradebookScenario", foreign_keys=[baseline_scenario_id], post_update=True)
-    scenarios = relationship(
-        "GradebookScenario",
-        back_populates="gradebook",
-        cascade="all, delete-orphan",
-        order_by="GradebookScenario.order_index.asc()",
-        foreign_keys="GradebookScenario.gradebook_id",
-    )
     categories = relationship(
         "GradebookAssessmentCategory",
         back_populates="gradebook",
@@ -160,24 +151,6 @@ class CourseGradebook(Base):
         cascade="all, delete-orphan",
         order_by="GradebookAssessment.order_index.asc()",
     )
-
-class GradebookScenario(Base):
-    __tablename__ = "gradebook_scenarios"
-    __table_args__ = (
-        Index("ix_gradebook_scenarios_gradebook_order", "gradebook_id", "order_index"),
-    )
-
-    id = Column(String, primary_key=True, index=True, default=generate_uuid)
-    gradebook_id = Column(String, ForeignKey("course_gradebooks.id", ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(String, nullable=False)
-    color_token = Column(String, nullable=False, default="emerald")
-    order_index = Column(Integer, nullable=False, default=0)
-    is_baseline = Column(Boolean, nullable=False, default=False)
-    created_at = Column(String, nullable=False, default="")
-    updated_at = Column(String, nullable=False, default="")
-
-    gradebook = relationship("CourseGradebook", back_populates="scenarios", foreign_keys=[gradebook_id])
-    scenario_scores = relationship("GradebookScenarioScore", back_populates="scenario", cascade="all, delete-orphan")
 
 class GradebookAssessmentCategory(Base):
     __tablename__ = "gradebook_assessment_categories"
@@ -210,36 +183,13 @@ class GradebookAssessment(Base):
     title = Column(String, nullable=False)
     due_date = Column(Date, nullable=True)
     weight = Column(Float, nullable=False, default=0.0)
-    status = Column(String, nullable=False, default="planned")
-    forecast_mode = Column(String, nullable=False, default="manual")
-    actual_score = Column(Float, nullable=True)
-    notes = Column(Text, nullable=True)
+    score = Column(Float, nullable=True)
     order_index = Column(Integer, nullable=False, default=0)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
 
     gradebook = relationship("CourseGradebook", back_populates="assessments")
     category = relationship("GradebookAssessmentCategory", back_populates="assessments")
-    scenario_scores = relationship(
-        "GradebookScenarioScore",
-        back_populates="assessment",
-        cascade="all, delete-orphan",
-        order_by="GradebookScenarioScore.id.asc()",
-    )
-
-class GradebookScenarioScore(Base):
-    __tablename__ = "gradebook_scenario_scores"
-    __table_args__ = (
-        UniqueConstraint("assessment_id", "scenario_id", name="uq_gradebook_scenario_scores_assessment_scenario"),
-    )
-
-    id = Column(String, primary_key=True, index=True, default=generate_uuid)
-    assessment_id = Column(String, ForeignKey("gradebook_assessments.id", ondelete="CASCADE"), nullable=False, index=True)
-    scenario_id = Column(String, ForeignKey("gradebook_scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
-    forecast_score = Column(Float, nullable=True)
-
-    assessment = relationship("GradebookAssessment", back_populates="scenario_scores")
-    scenario = relationship("GradebookScenario", back_populates="scenario_scores")
 
 class CourseEventType(Base):
     __tablename__ = "course_event_types"

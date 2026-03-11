@@ -86,6 +86,108 @@ def ensure_schema_compatibility():
             with engine.begin() as connection:
                 connection.execute(text("UPDATE tabs SET is_draggable = 1 WHERE is_draggable IS NULL"))
 
+    if inspector.has_table("course_gradebooks"):
+        gradebook_columns = {column["name"] for column in inspector.get_columns("course_gradebooks")}
+        with engine.begin() as connection:
+            if "target_gpa" not in gradebook_columns:
+                connection.execute(text("ALTER TABLE course_gradebooks ADD COLUMN target_gpa FLOAT"))
+            if "forecast_model" not in gradebook_columns:
+                connection.execute(text("ALTER TABLE course_gradebooks ADD COLUMN forecast_model VARCHAR"))
+
+            if "target_mode" in gradebook_columns and "target_value" in gradebook_columns:
+                connection.execute(text("""
+                    UPDATE course_gradebooks
+                    SET target_gpa = CASE
+                        WHEN target_gpa IS NOT NULL THEN target_gpa
+                        WHEN target_mode = 'gpa' THEN target_value
+                        ELSE 4.0
+                    END
+                """))
+            else:
+                connection.execute(text("UPDATE course_gradebooks SET target_gpa = 4.0 WHERE target_gpa IS NULL"))
+
+            connection.execute(text("""
+                UPDATE course_gradebooks
+                SET forecast_model = CASE
+                    WHEN forecast_model IS NOT NULL AND forecast_model != '' THEN forecast_model
+                    ELSE 'auto'
+                END
+            """))
+
+    if inspector.has_table("gradebook_assessments"):
+        assessment_columns = {column["name"] for column in inspector.get_columns("gradebook_assessments")}
+        with engine.begin() as connection:
+            desired_columns = {
+                "id",
+                "gradebook_id",
+                "category_id",
+                "title",
+                "due_date",
+                "weight",
+                "score",
+                "order_index",
+                "created_at",
+                "updated_at",
+            }
+            if assessment_columns != desired_columns:
+                score_expression = "score"
+                if "score" not in assessment_columns:
+                    if "real_score" in assessment_columns:
+                        score_expression = "real_score"
+                    elif "actual_score" in assessment_columns:
+                        score_expression = "actual_score"
+                    else:
+                        score_expression = "NULL"
+
+                connection.execute(text("""
+                    CREATE TABLE gradebook_assessments__new (
+                        id VARCHAR NOT NULL PRIMARY KEY,
+                        gradebook_id VARCHAR NOT NULL,
+                        category_id VARCHAR,
+                        title VARCHAR NOT NULL,
+                        due_date DATE,
+                        weight FLOAT NOT NULL DEFAULT 0.0,
+                        score FLOAT,
+                        order_index INTEGER NOT NULL DEFAULT 0,
+                        created_at VARCHAR NOT NULL DEFAULT '',
+                        updated_at VARCHAR NOT NULL DEFAULT '',
+                        FOREIGN KEY(gradebook_id) REFERENCES course_gradebooks (id) ON DELETE CASCADE,
+                        FOREIGN KEY(category_id) REFERENCES gradebook_assessment_categories (id) ON DELETE SET NULL
+                    )
+                """))
+                connection.execute(text(f"""
+                    INSERT INTO gradebook_assessments__new (
+                        id,
+                        gradebook_id,
+                        category_id,
+                        title,
+                        due_date,
+                        weight,
+                        score,
+                        order_index,
+                        created_at,
+                        updated_at
+                    )
+                    SELECT
+                        id,
+                        gradebook_id,
+                        category_id,
+                        title,
+                        due_date,
+                        weight,
+                        {score_expression},
+                        COALESCE(order_index, 0),
+                        COALESCE(created_at, ''),
+                        COALESCE(updated_at, '')
+                    FROM gradebook_assessments
+                """))
+                connection.execute(text("DROP TABLE gradebook_assessments"))
+                connection.execute(text("ALTER TABLE gradebook_assessments__new RENAME TO gradebook_assessments"))
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_gradebook_assessments_gradebook_order "
+                    "ON gradebook_assessments (gradebook_id, order_index)"
+                ))
+
 ensure_schema_compatibility()
 
 from fastapi import UploadFile, File
@@ -100,7 +202,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 # CORS configuration
 origins = [
     FRONTEND_URL,
-    "https://semestrauni.vercel.app",
+    "https://semestra.jyleo.cc",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
@@ -1490,59 +1592,16 @@ def read_course_gradebook(
         raise_gradebook_http_error(exc)
 
 
-@app.put("/courses/{course_id}/gradebook/target", response_model=schemas.CourseGradebook)
-def update_course_gradebook_target(
+@app.patch("/courses/{course_id}/gradebook/preferences", response_model=schemas.CourseGradebook)
+def update_course_gradebook_preferences(
     course_id: str,
-    payload: schemas.GradebookTargetUpdate,
+    payload: schemas.GradebookPreferencesUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     course = get_owned_course(db, current_user, course_id)
     try:
-        return gradebook.update_target(db, course.id, payload)
-    except Exception as exc:
-        raise_gradebook_http_error(exc)
-
-
-@app.post("/courses/{course_id}/gradebook/scenarios", response_model=schemas.CourseGradebook)
-def create_course_gradebook_scenario(
-    course_id: str,
-    payload: schemas.GradebookScenarioCreate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    course = get_owned_course(db, current_user, course_id)
-    try:
-        return gradebook.create_scenario(db, course.id, payload)
-    except Exception as exc:
-        raise_gradebook_http_error(exc)
-
-
-@app.patch("/courses/{course_id}/gradebook/scenarios/{scenario_id}", response_model=schemas.CourseGradebook)
-def update_course_gradebook_scenario(
-    course_id: str,
-    scenario_id: str,
-    payload: schemas.GradebookScenarioUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    course = get_owned_course(db, current_user, course_id)
-    try:
-        return gradebook.update_scenario(db, course.id, scenario_id, payload)
-    except Exception as exc:
-        raise_gradebook_http_error(exc)
-
-
-@app.delete("/courses/{course_id}/gradebook/scenarios/{scenario_id}", response_model=schemas.CourseGradebook)
-def delete_course_gradebook_scenario(
-    course_id: str,
-    scenario_id: str,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    course = get_owned_course(db, current_user, course_id)
-    try:
-        return gradebook.delete_scenario(db, course.id, scenario_id)
+        return gradebook.update_preferences(db, course.id, payload)
     except Exception as exc:
         raise_gradebook_http_error(exc)
 
@@ -1646,47 +1705,6 @@ def reorder_course_gradebook_assessments(
     except Exception as exc:
         raise_gradebook_http_error(exc)
 
-
-@app.put("/courses/{course_id}/gradebook/scenario-scores", response_model=schemas.CourseGradebook)
-def update_course_gradebook_scenario_scores(
-    course_id: str,
-    payload: schemas.GradebookScenarioScoresUpdateRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    course = get_owned_course(db, current_user, course_id)
-    try:
-        return gradebook.update_scenario_scores(db, course.id, payload)
-    except Exception as exc:
-        raise_gradebook_http_error(exc)
-
-
-@app.post("/courses/{course_id}/gradebook/actions/convert-to-solver", response_model=schemas.CourseGradebook)
-def convert_course_gradebook_to_solver(
-    course_id: str,
-    payload: schemas.GradebookConvertToSolverRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    course = get_owned_course(db, current_user, course_id)
-    try:
-        return gradebook.convert_to_solver(db, course.id, payload)
-    except Exception as exc:
-        raise_gradebook_http_error(exc)
-
-
-@app.post("/courses/{course_id}/gradebook/actions/apply-solved-score", response_model=schemas.CourseGradebook)
-def apply_course_gradebook_solved_score(
-    course_id: str,
-    payload: schemas.GradebookApplySolvedScoreRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    course = get_owned_course(db, current_user, course_id)
-    try:
-        return gradebook.apply_solved_score(db, course.id, payload)
-    except Exception as exc:
-        raise_gradebook_http_error(exc)
 
 # --- Event Types ---
 @app.get("/courses/{course_id}/event-types", response_model=list[schemas.CourseEventType])

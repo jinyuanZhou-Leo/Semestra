@@ -1,13 +1,13 @@
-// input:  [course gradebook APIs, plugin settings contracts, and shared category/scenario helpers]
-// output: [builtin-gradebook shared settings section for scenarios and categories]
-// pos:    [course-scoped gradebook settings surface that edits fact data outside the main planning tab]
+// input:  [course gradebook APIs, plugin settings contracts, and shared category helpers]
+// output: [builtin-gradebook shared settings section for forecast preferences and categories]
+// pos:    [course-scoped gradebook settings surface for gradebook preferences and category management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Edit, Star, Trash2, Plus } from 'lucide-react';
+import { Edit, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { definePluginSettings } from '@/plugin-system/contracts';
@@ -18,8 +18,6 @@ import { SettingsSection } from '@/components/SettingsSection';
 import { CrudPanel } from '@/components/CrudPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import { ColorPicker, type ColorPickerPreset } from '@/components/ui/color-picker';
@@ -35,9 +33,16 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { getScenarioSwatchClassName, CATEGORY_COLOR_OPTIONS, getApiErrorMessage } from './shared';
+import { CATEGORY_COLOR_OPTIONS, getApiErrorMessage } from './shared';
 
 // ── colour helpers ────────────────────────────────────────────────────────────
 
@@ -64,6 +69,19 @@ const getCategorySwatchStyle = (
     const named = CATEGORY_COLOR_OPTIONS.find((o) => o.value === colorToken);
     return { className: named?.swatchClassName ?? CATEGORY_COLOR_OPTIONS[CATEGORY_COLOR_OPTIONS.length - 1].swatchClassName };
 };
+
+const FORECAST_MODEL_OPTIONS = [
+    {
+        value: 'auto',
+        label: 'Auto',
+        description: 'Use category history whenever at least one graded item exists.',
+    },
+    {
+        value: 'simple_minimum_needed',
+        label: 'Simple minimum needed',
+        description: 'Skip category modeling and use a uniform required-average fallback.',
+    },
+] as const;
 
 // ── CategoryFormDialog ────────────────────────────────────────────────────────
 
@@ -179,11 +197,6 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [isMutating, setIsMutating] = useState(false);
 
-    // scenario state
-    const [newScenarioName, setNewScenarioName] = useState('');
-    const [editingScenarioId, setEditingScenarioId] = useState<string | null>(null);
-    const [editingScenarioName, setEditingScenarioName] = useState('');
-
     // category dialog state
     const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<GradebookAssessmentCategory | null>(null);
@@ -262,152 +275,41 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
 
     return (
         <div className="space-y-6">
-
-            {/* ── Scenarios ──────────────────────────────────────────────── */}
-            <SettingsSection title="Scenarios" description="Manage grading prediction scenarios and baseline status.">
-                <div className="space-y-4">
-                    {gradebook.scenarios.map(scenario => (
-                        <div key={scenario.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                {editingScenarioId === scenario.id ? (
-                                    <Input
-                                        value={editingScenarioName}
-                                        onChange={(e) => setEditingScenarioName(e.target.value)}
-                                        className="h-8 max-w-[200px]"
-                                                onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                void commitGradebook(api.updateCourseGradebookScenario(courseId, scenario.id, {
-                                                    name: editingScenarioName.trim(),
-                                                }));
-                                                setEditingScenarioId(null);
-                                                setEditingScenarioName('');
-                                            }
-                                        }}
-                                        autoFocus
-                                    />
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <span className={cn('h-2.5 w-2.5 rounded-full', getScenarioSwatchClassName(scenario.color_token))} />
-                                        <span className="text-sm font-medium text-foreground">{scenario.name}</span>
-                                    </div>
-                                )}
-                                {scenario.is_baseline && (
-                                    <Badge variant="secondary" className="h-5 rounded-sm px-1.5 text-[10px] uppercase tracking-wider">
-                                        Baseline
-                                    </Badge>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-1 sm:justify-end">
-                                {editingScenarioId === scenario.id ? (
-                                    <Button
-                                        type="button" size="sm" variant="ghost" disabled={isMutating}
-                                        onClick={() => {
-                                            void commitGradebook(api.updateCourseGradebookScenario(courseId, scenario.id, {
-                                                name: editingScenarioName.trim(),
-                                            }));
-                                            setEditingScenarioId(null);
-                                            setEditingScenarioName('');
-                                        }}
-                                    >
-                                        Save
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        type="button" size="icon" variant="ghost" disabled={isMutating}
-                                        onClick={() => {
-                                            setEditingScenarioId(scenario.id);
-                                            setEditingScenarioName(scenario.name);
-                                        }}
-                                    ><Edit className="h-4 w-4" /></Button>
-                                )}
-
-                                {!scenario.is_baseline && (
-                                    <Button
-                                        type="button" size="icon" variant="ghost" disabled={isMutating}
-                                        onClick={() => void commitGradebook(api.updateCourseGradebookScenario(courseId, scenario.id, {
-                                            is_baseline: true,
-                                        }))}
-                                    ><Star className="h-4 w-4 text-muted-foreground hover:text-foreground" /></Button>
-                                )}
-
-                                {gradebook.scenarios.length > 1 && (
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button
-                                                type="button" size="icon" variant="ghost"
-                                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                disabled={isMutating}
-                                            ><Trash2 className="h-4 w-4" /></Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent size="sm">
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Delete scenario "{scenario.name}"?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This action cannot be undone. All forecast data for this scenario will be lost.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                    variant="destructive"
-                                                    onClick={() => void commitGradebook(
-                                                        api.deleteCourseGradebookScenario(courseId, scenario.id)
-                                                    )}
-                                                >Delete</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                <Separator className="my-4" />
-
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                        <span className="text-sm font-medium">Add Scenario</span>
-                        <p className="text-sm text-muted-foreground">Create a new projection track.</p>
-                    </div>
-                    <div className="flex w-full sm:w-auto items-center gap-2">
-                        <Input
-                            value={newScenarioName}
-                            onChange={(e) => setNewScenarioName(e.target.value)}
-                            placeholder="Expected +5"
-                            className="h-9 w-full sm:w-[160px]"
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && newScenarioName.trim()) {
-                                    void commitGradebook(api.createCourseGradebookScenario(courseId, {
-                                        name: newScenarioName.trim(),
-                                        color_token: CATEGORY_COLOR_OPTIONS[(gradebook.scenarios.length + 1) % CATEGORY_COLOR_OPTIONS.length].value,
-                                    }));
-                                    setNewScenarioName('');
-                                }
-                            }}
-                        />
-                        <Button
-                            type="button" size="sm" disabled={isMutating || !newScenarioName.trim()}
-                            onClick={() => {
-                                void commitGradebook(api.createCourseGradebookScenario(courseId, {
-                                    name: newScenarioName.trim(),
-                                    color_token: CATEGORY_COLOR_OPTIONS[(gradebook.scenarios.length + 1) % CATEGORY_COLOR_OPTIONS.length].value,
-                                }));
-                                setNewScenarioName('');
-                            }}
+            <SettingsSection title="Forecast Model" description="Choose how course forecasts and plan suggestions should behave.">
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="gradebook-forecast-model">Model</Label>
+                        <Select
+                            value={gradebook.forecast_model}
+                            onValueChange={(value) => void commitGradebook(api.updateCourseGradebookPreferences(courseId, {
+                                forecast_model: value as CourseGradebook['forecast_model'],
+                            }))}
                         >
-                            <Plus className="mr-2 h-4 w-4" /> Add
-                        </Button>
+                            <SelectTrigger id="gradebook-forecast-model" className="w-full md:max-w-sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {FORECAST_MODEL_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3">
+                        <div className="text-sm font-medium text-foreground">
+                            {FORECAST_MODEL_OPTIONS.find((option) => option.value === gradebook.forecast_model)?.label}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                            {FORECAST_MODEL_OPTIONS.find((option) => option.value === gradebook.forecast_model)?.description}
+                        </div>
                     </div>
                 </div>
             </SettingsSection>
 
-            {/* ── Categories ─────────────────────────────────────────────── */}
-            <SettingsSection title="Categories" description="Organize groupings for the assessments.">
+            <SettingsSection title="Categories" description="Organize the assessment labels used by the table and forecast model.">
                 <CrudPanel
                     title="Categories"
-                    description="All assessment categories for this course."
+                    description="Manage the category labels available to this course."
                     minWidthClassName="min-w-[480px]"
                     items={gradebook.categories}
                     actionButton={(
@@ -468,8 +370,8 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                     <AlertDialogAction
-                                                    variant="destructive"
-                                                    onClick={() => void commitGradebook(
+                                                        variant="destructive"
+                                                        onClick={() => void commitGradebook(
                                                             api.deleteCourseGradebookCategory(courseId, category.id)
                                                         )}
                                                     >Delete</AlertDialogAction>
@@ -498,7 +400,7 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
 export default definePluginSettings({
     pluginSettings: [
         {
-            id: 'gradebook-scenarios-categories',
+            id: 'gradebook-forecast-and-categories',
             component: GradebookSettings,
             allowedContexts: ['course'],
         },

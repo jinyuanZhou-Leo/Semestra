@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, and widget delete options]
-// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Gradebook fact types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, and note-free fact-oriented course gradebook APIs]
+// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Gradebook contract types and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, and fact-oriented course gradebook APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -77,19 +77,8 @@ export interface PluginSetting {
     course_id?: string;
 }
 
-export type GradebookTargetMode = 'percentage' | 'gpa';
-export type GradebookAssessmentStatus = 'planned' | 'completed' | 'excluded';
-export type GradebookForecastMode = 'manual' | 'solver';
-export type GradebookFeasibility = 'on_track' | 'already_secured' | 'needs_perfection' | 'infeasible' | 'invalid';
+export type GradebookForecastModel = 'auto' | 'simple_minimum_needed';
 export type GradebookScalingTable = Record<string, number>;
-
-export interface GradebookScenario {
-    id: string;
-    name: string;
-    color_token: string;
-    order_index: number;
-    is_baseline: boolean;
-}
 
 export interface GradebookAssessmentCategory {
     id: string;
@@ -101,31 +90,21 @@ export interface GradebookAssessmentCategory {
     is_archived: boolean;
 }
 
-export interface GradebookAssessmentScenarioScore {
-    scenario_id: string;
-    forecast_score: number | null;
-}
-
 export interface GradebookAssessment {
     id: string;
     category_id: string | null;
     title: string;
     due_date: string | null;
     weight: number;
-    status: GradebookAssessmentStatus;
-    forecast_mode: GradebookForecastMode;
-    actual_score: number | null;
+    score: number | null;
     order_index: number;
-    scenario_scores: GradebookAssessmentScenarioScore[];
 }
 
 export interface CourseGradebook {
     course_id: string;
-    target_mode: GradebookTargetMode;
-    target_value: number;
-    baseline_scenario_id: string | null;
+    target_gpa: number;
+    forecast_model: GradebookForecastModel;
     scaling_table: GradebookScalingTable;
-    scenarios: GradebookScenario[];
     categories: GradebookAssessmentCategory[];
     assessments: GradebookAssessment[];
 }
@@ -315,34 +294,11 @@ const api = {
             return response.data;
         });
     },
-    updateCourseGradebookTarget: async (
+    updateCourseGradebookPreferences: async (
         courseId: string,
-        data: { target_mode: GradebookTargetMode; target_value: number }
+        data: { target_gpa?: number; forecast_model?: GradebookForecastModel }
     ) => {
-        const response = await axios.put<CourseGradebook>(`/api/courses/${courseId}/gradebook/target`, data);
-        return response.data;
-    },
-    createCourseGradebookScenario: async (
-        courseId: string,
-        data: { name: string; color_token?: string; duplicate_from_scenario_id?: string | null }
-    ) => {
-        const response = await axios.post<CourseGradebook>(`/api/courses/${courseId}/gradebook/scenarios`, data);
-        return response.data;
-    },
-    updateCourseGradebookScenario: async (
-        courseId: string,
-        scenarioId: string,
-        data: { name?: string; color_token?: string; is_baseline?: boolean }
-    ) => {
-        const response = await axios.patch<CourseGradebook>(`/api/courses/${courseId}/gradebook/scenarios/${scenarioId}`, data);
-        return response.data;
-    },
-    deleteCourseGradebookScenario: async (
-        courseId: string,
-        scenarioId: string,
-        data?: Record<string, never>
-    ) => {
-        const response = await axios.delete<CourseGradebook>(`/api/courses/${courseId}/gradebook/scenarios/${scenarioId}`, { data });
+        const response = await axios.patch<CourseGradebook>(`/api/courses/${courseId}/gradebook/preferences`, data);
         return response.data;
     },
     createCourseGradebookCategory: async (
@@ -375,10 +331,7 @@ const api = {
             title: string;
             due_date?: string | null;
             weight: number;
-            status: GradebookAssessmentStatus;
-            forecast_mode: GradebookForecastMode;
-            actual_score?: number | null;
-            scenario_scores?: GradebookAssessmentScenarioScore[];
+            score?: number | null;
         }
     ) => {
         const response = await axios.post<CourseGradebook>(`/api/courses/${courseId}/gradebook/assessments`, data);
@@ -392,10 +345,7 @@ const api = {
             title?: string;
             due_date?: string | null;
             weight?: number;
-            status?: GradebookAssessmentStatus;
-            forecast_mode?: GradebookForecastMode;
-            actual_score?: number | null;
-            scenario_scores?: GradebookAssessmentScenarioScore[];
+            score?: number | null;
         }
     ) => {
         const response = await axios.patch<CourseGradebook>(`/api/courses/${courseId}/gradebook/assessments/${assessmentId}`, data);
@@ -414,27 +364,6 @@ const api = {
         data: { assessment_ids: string[] }
     ) => {
         const response = await axios.put<CourseGradebook>(`/api/courses/${courseId}/gradebook/assessments/reorder`, data);
-        return response.data;
-    },
-    updateCourseGradebookScenarioScores: async (
-        courseId: string,
-        data: { updates: Array<{ assessment_id: string; scenario_id: string; forecast_score: number | null }> }
-    ) => {
-        const response = await axios.put<CourseGradebook>(`/api/courses/${courseId}/gradebook/scenario-scores`, data);
-        return response.data;
-    },
-    convertCourseGradebookToSolver: async (
-        courseId: string,
-        data: { assessment_ids?: string[] }
-    ) => {
-        const response = await axios.post<CourseGradebook>(`/api/courses/${courseId}/gradebook/actions/convert-to-solver`, data);
-        return response.data;
-    },
-    applyCourseGradebookSolvedScore: async (
-        courseId: string,
-        data: { scenario_id: string; assessment_ids?: string[] }
-    ) => {
-        const response = await axios.post<CourseGradebook>(`/api/courses/${courseId}/gradebook/actions/apply-solved-score`, data);
         return response.data;
     },
 

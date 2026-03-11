@@ -1,6 +1,6 @@
-// input:  [Vitest + Testing Library, builtin-gradebook widget runtime, and mocked gradebook fact responses]
-// output: [test suite validating builtin-gradebook summary loading and open-tab dispatch behavior]
-// pos:    [plugin-level regression tests for the read-only gradebook summary widget and its client-side projections]
+// input:  [Vitest + Testing Library, builtin-gradebook widget runtime, and mocked simplified gradebook responses]
+// output: [test suite validating rebuilt gradebook widget loading and open-tab dispatch behavior]
+// pos:    [plugin-level regression tests for the gradebook summary widget after the real-score-first refactor]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,25 +13,21 @@ import { BuiltinGradebookSummaryWidgetDefinition } from './widget';
 
 const gradebookResponse: CourseGradebook = {
     course_id: 'course-1',
-    target_mode: 'percentage',
-    target_value: 89,
-    baseline_scenario_id: 'scenario-expected',
+    target_gpa: 4,
+    forecast_model: 'auto',
     scaling_table: {
         '90-100': 4.0,
         '80-89': 3.7,
         '70-79': 3.0,
         '0-69': 0.0,
     },
-    scenarios: [
-        { id: 'scenario-expected', name: 'Expected', color_token: 'emerald', order_index: 0, is_baseline: true },
-    ],
     categories: [
         {
-            id: 'category-exam',
-            name: 'Exam',
-            key: 'exam',
+            id: 'category-assignment',
+            name: 'Assignment',
+            key: 'assignment',
             is_builtin: true,
-            color_token: 'amber',
+            color_token: 'emerald',
             order_index: 0,
             is_archived: false,
         },
@@ -39,31 +35,21 @@ const gradebookResponse: CourseGradebook = {
     assessments: [
         {
             id: 'assessment-1',
-            category_id: 'category-exam',
-            title: 'Final Exam',
+            category_id: 'category-assignment',
+            title: 'Essay 1',
             due_date: '2026-03-22',
-            weight: 35,
-            status: 'planned',
-            forecast_mode: 'solver',
-            actual_score: null,
+            weight: 40,
+            score: 88,
             order_index: 0,
-            scenario_scores: [
-                { scenario_id: 'scenario-expected', forecast_score: null },
-            ],
         },
         {
-            id: 'assessment-completed',
-            category_id: 'category-exam',
-            title: 'Midterm',
-            due_date: '2026-02-20',
-            weight: 65,
-            status: 'completed',
-            forecast_mode: 'manual',
-            actual_score: 84.4,
+            id: 'assessment-2',
+            category_id: 'category-assignment',
+            title: 'Essay 2',
+            due_date: '2026-04-02',
+            weight: 60,
+            score: null,
             order_index: 1,
-            scenario_scores: [
-                { scenario_id: 'scenario-expected', forecast_score: 84.4 },
-            ],
         },
     ],
 };
@@ -73,7 +59,7 @@ describe('BuiltinGradebookSummaryWidget', () => {
         vi.restoreAllMocks();
     });
 
-    it('loads and renders projected summary details', async () => {
+    it('loads and renders rebuilt summary details', async () => {
         vi.spyOn(api, 'getCourseGradebook').mockResolvedValue(gradebookResponse);
 
         const WidgetComponent = BuiltinGradebookSummaryWidgetDefinition.component;
@@ -86,11 +72,11 @@ describe('BuiltinGradebookSummaryWidget', () => {
             />,
         );
 
-        expect(await screen.findByText('Projected')).toBeInTheDocument();
-        expect(screen.getByText('Remaining')).toBeInTheDocument();
-        expect(screen.getByText('35.00%')).toBeInTheDocument();
-        expect(screen.getByText('Final Exam')).toBeInTheDocument();
-        expect(screen.getByText('On Track')).toBeInTheDocument();
+        expect(await screen.findByText('Gradebook Snapshot')).toBeInTheDocument();
+        expect(screen.getAllByText('Current').length).toBeGreaterThan(0);
+        expect(screen.getByText('Forecast Ready')).toBeInTheDocument();
+        expect(screen.getByText('Next Due')).toBeInTheDocument();
+        expect(screen.getByText('Essay 2')).toBeInTheDocument();
     });
 
     it('dispatches the open-gradebook event from the CTA button', async () => {
@@ -107,7 +93,7 @@ describe('BuiltinGradebookSummaryWidget', () => {
             />,
         );
 
-        const button = await screen.findByRole('button', { name: 'Open Gradebook' });
+        const button = await screen.findByRole('button', { name: /open gradebook/i });
         fireEvent.click(button);
 
         expect(dispatchSpy).toHaveBeenCalledTimes(1);
