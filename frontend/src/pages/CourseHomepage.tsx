@@ -1,6 +1,6 @@
 // input:  [course context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, and active tab selection state]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, dashboard-only overview stats, plugin-global settings, unavailable-widget cleanup, and per-switch tab fade transitions]
+// pos:    [Course workspace page with workspace navigation, gradebook-owned course stats, plugin-global settings, unavailable-widget cleanup, and per-switch tab fade transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -19,7 +19,6 @@ import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { CardSkeleton } from '../components/skeletons';
-import { AnimatedNumber } from '../components/AnimatedNumber';
 import api from '../services/api';
 import { reportError } from '../services/appStatus';
 import { Container } from '../components/Container';
@@ -30,8 +29,6 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPreload';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
-import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
-import { BookOpen, GraduationCap, Percent } from 'lucide-react';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
@@ -69,7 +66,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
@@ -250,51 +246,6 @@ const CourseHomepageContent: React.FC = () => {
             </BreadcrumbList>
         </Breadcrumb>
     );
-
-    const courseOverview = useMemo(() => {
-        if (!course) return null;
-
-        return (
-            <WorkspaceOverviewStats
-                items={[
-                    {
-                        label: 'Credits',
-                        icon: <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />,
-                        value: (
-                            <span className={cn(course.credits === 0 && 'text-destructive')}>
-                                <AnimatedNumber
-                                    value={course.credits}
-                                    format={(value) => value.toFixed(2)}
-                                />
-                            </span>
-                        ),
-                    },
-                    {
-                        label: 'Grade',
-                        icon: <Percent className="h-3.5 w-3.5" aria-hidden="true" />,
-                        value: course.hide_gpa ? '****' : (
-                            <AnimatedNumber
-                                value={course.grade_percentage}
-                                format={(value) => `${value.toFixed(1)}%`}
-                            />
-                        ),
-                    },
-                    {
-                        label: 'GPA (Scaled)',
-                        icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />,
-                        value: course.hide_gpa ? '****' : (
-                            <AnimatedNumber
-                                value={course.grade_scaled}
-                                format={(value) => value.toFixed(2)}
-                                rainbowThreshold={3.8}
-                            />
-                        ),
-                    },
-                ]}
-            />
-        );
-    }, [course]);
-
 
     const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
@@ -545,7 +496,6 @@ const CourseHomepageContent: React.FC = () => {
         isLoading,
         dashboard: {
             widgets,
-            overview: courseOverview,
             onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
             onRemoveUnavailableWidget: handleRemoveUnavailableWidget,
@@ -587,7 +537,6 @@ const CourseHomepageContent: React.FC = () => {
         handleUpdateWidgetDebounced,
         handleLayoutChange,
         handleLayoutCommit,
-        courseOverview,
         course?.id,
         course?.name,
         course?.alias,

@@ -1,5 +1,5 @@
-// input:  [Tabs component, Testing Library render helpers, DOM layout mocks, and Vitest matchers]
-// output: [regression tests for workspace-tab alignment, overflow cues, and tab actions]
+// input:  [Tabs component, Testing Library render helpers, DOM layout mocks, wheel events, and Vitest matchers]
+// output: [regression tests for workspace-tab alignment, overflow cues, wheel-driven horizontal scrolling, and tab actions]
 // pos:    [component-level regression coverage for shared dashboard tab shell behavior]
 //
 // ⚠️ When this file is updated:
@@ -104,5 +104,54 @@ describe('Tabs component', () => {
 
         expect(leftShadow).toHaveClass('opacity-100');
         expect(rightShadow).toHaveClass('opacity-0');
+    });
+
+    it('maps vertical wheel movement to horizontal tablist scrolling when tabs overflow', () => {
+        render(
+            <Tabs
+                items={[
+                    { id: 'dashboard', label: 'Dashboard' },
+                    { id: 'calendar', label: 'Calendar' },
+                    { id: 'tasks', label: 'Tasks' },
+                ]}
+                activeId="calendar"
+                onSelect={() => {}}
+            />
+        );
+
+        const tablist = screen.getByRole('tablist', { name: 'Dashboard Tabs' });
+        Object.defineProperty(tablist, 'clientWidth', { configurable: true, value: 120 });
+        Object.defineProperty(tablist, 'scrollWidth', { configurable: true, value: 360 });
+        Object.defineProperty(tablist, 'scrollLeft', { configurable: true, writable: true, value: 40 });
+
+        fireEvent.wheel(tablist, { deltaY: 60 });
+        expect(tablist.scrollLeft).toBe(100);
+
+        fireEvent.wheel(tablist, { deltaY: -30 });
+        expect(tablist.scrollLeft).toBe(70);
+    });
+
+    it('prevents page scrolling for vertical wheel input while the tablist is horizontally scrollable', () => {
+        render(
+            <Tabs
+                items={[
+                    { id: 'dashboard', label: 'Dashboard' },
+                    { id: 'calendar', label: 'Calendar' },
+                    { id: 'tasks', label: 'Tasks' },
+                ]}
+                activeId="calendar"
+                onSelect={() => {}}
+            />
+        );
+
+        const tablist = screen.getByRole('tablist', { name: 'Dashboard Tabs' });
+        Object.defineProperty(tablist, 'clientWidth', { configurable: true, value: 120 });
+        Object.defineProperty(tablist, 'scrollWidth', { configurable: true, value: 360 });
+        Object.defineProperty(tablist, 'scrollLeft', { configurable: true, writable: true, value: 240 });
+
+        const wheelEvent = new WheelEvent('wheel', { deltaY: 40, bubbles: true, cancelable: true });
+        tablist.dispatchEvent(wheelEvent);
+
+        expect(wheelEvent.defaultPrevented).toBe(true);
     });
 });

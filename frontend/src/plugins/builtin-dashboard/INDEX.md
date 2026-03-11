@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Built-in dashboard plugin renders the default Dashboard tab for semester and course workspaces.
-It owns the floating action controls for edit mode, optional overview stat strips, and widget layout/runtime delegation.
+It owns the floating action controls for edit mode, optional semester overview stat strips, and widget layout/runtime delegation.
 Metadata and entry files expose this tab to the plugin-system catalog and wire split layout sync/commit callbacks.
 
 | File | Role | Description |

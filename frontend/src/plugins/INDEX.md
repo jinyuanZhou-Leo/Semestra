@@ -18,7 +18,7 @@ The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, an
 | builtin-event-core/ | Built-in domain plugin | Core calendar/course/todo tab suite and shared schedule logic. |
 | builtin-event-core/INDEX.md | Plugin architecture index | File map for event-core plugin entries, shared domain primitives, scoped refresh payloads, retrying todo sync, and tab/widget runtime responsibilities. |
 | builtin-gradebook/ | Built-in grade domain plugin | Course gradebook tab and read-only summary widget backed by fact-only gradebook APIs with client-derived projections and validation. |
-| builtin-gradebook/INDEX.md | Plugin architecture index | File map for the builtin-gradebook command-center tab, refreshed summary widget, shared client-side gradebook calculators, and backend gradebook integration. |
+| builtin-gradebook/INDEX.md | Plugin architecture index | File map for the builtin-gradebook command-center tab, moved course stat strip, stable fixed-height Plan Mode toolbar layout, clarified forecast settings UI, refreshed summary widget, grade-calculator-style dashboard-stat syncing after gradebook saves, shared client-side gradebook calculators, and backend gradebook integration. |
 | builtin-settings/ | Built-in tab plugin | Default settings tab plugin implementation and settings entry. |
 | builtin-settings/INDEX.md | Plugin architecture index | File map for the built-in Settings tab runtime and its dynamic sticky-title offset behavior. |
 | counter/ | Widget plugin | Numeric counter widget with inline controls and per-instance settings. |

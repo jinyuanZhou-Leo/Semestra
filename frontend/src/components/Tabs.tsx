@@ -1,6 +1,6 @@
-// input:  [tab items, active selection, add/remove/reorder callbacks, drag/confirm UI events, and workspace-nav width constraints]
+// input:  [tab items, active selection, add/remove/reorder callbacks, drag/confirm UI events, non-passive wheel-to-horizontal-scroll gestures, and workspace-nav width constraints]
 // output: [`Tabs` component and `TabItem` interface]
-// pos:    [Dashboard tab bar handling select, drag-sort, add, delete-confirm actions, overflow shadow affordances, and stable right-aligned workspace tab layout]
+// pos:    [Dashboard tab bar handling select, non-passive wheel-driven horizontal scrolling, drag-sort, add, delete-confirm actions, overflow shadow affordances, and stable right-aligned workspace tab layout]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -51,6 +51,7 @@ const reorderIds = (ids: string[], fromId: string, toId: string) => {
 export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove, onReorder, onAdd }) => {
     const dragIdRef = React.useRef<string | null>(null);
     const scrollRef = React.useRef<HTMLDivElement | null>(null);
+    const wheelHandlerRef = React.useRef<(event: WheelEvent) => void>(() => {});
     const [draggingId, setDraggingId] = React.useState<string | null>(null);
     const [dragOverId, setDragOverId] = React.useState<string | null>(null);
     const [pendingRemoveId, setPendingRemoveId] = React.useState<string | null>(null);
@@ -71,8 +72,8 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
         const nextLeftShadow = hasOverflow && container.scrollLeft > 2;
         const nextRightShadow = hasOverflow && container.scrollLeft < maxScrollLeft - 2;
 
-        setShowLeftShadow(nextLeftShadow);
-        setShowRightShadow(nextRightShadow);
+        setShowLeftShadow((current) => (current === nextLeftShadow ? current : nextLeftShadow));
+        setShowRightShadow((current) => (current === nextRightShadow ? current : nextRightShadow));
     }, []);
 
     React.useEffect(() => {
@@ -112,6 +113,54 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
             setIsRemoving(false);
         }
     }, [isRemoving, onRemove, pendingRemoveId]);
+
+    const handleWheel = React.useCallback((event: WheelEvent) => {
+        const container = scrollRef.current;
+        if (!container) {
+            return;
+        }
+
+        const maxScrollLeft = container.scrollWidth - container.clientWidth;
+        if (maxScrollLeft <= 1) {
+            return;
+        }
+
+        const isVerticalDominant = Math.abs(event.deltaY) >= Math.abs(event.deltaX);
+        const delta = isVerticalDominant ? event.deltaY : event.deltaX;
+        if (Math.abs(delta) < 1) {
+            return;
+        }
+
+        if (isVerticalDominant) {
+            event.preventDefault();
+        }
+
+        const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, container.scrollLeft + delta));
+        if (nextScrollLeft === container.scrollLeft) {
+            return;
+        }
+
+        container.scrollLeft = nextScrollLeft;
+        updateScrollShadows();
+    }, [updateScrollShadows]);
+
+    React.useEffect(() => {
+        wheelHandlerRef.current = handleWheel;
+    }, [handleWheel]);
+
+    React.useEffect(() => {
+        const container = scrollRef.current;
+        if (!container) return;
+
+        const handleNativeWheel = (event: WheelEvent) => {
+            wheelHandlerRef.current(event);
+        };
+
+        container.addEventListener('wheel', handleNativeWheel, { passive: false });
+        return () => {
+            container.removeEventListener('wheel', handleNativeWheel);
+        };
+    }, []);
 
     const handleDragStart = (id: string) => (event: React.DragEvent) => {
         dragIdRef.current = id;

@@ -1,6 +1,6 @@
-// input:  [DashboardGrid component, mocked RGL v2 runtime hooks, registry fixtures, resize-frequency guards, and layout callbacks]
+// input:  [DashboardGrid component, mocked RGL v2 runtime hooks, registry fixtures, empty-to-first-widget transition coverage, resize-frequency guards, and layout callbacks]
 // output: [test suite covering dashboard resize throttling, layout normalization, and split local-sync/commit behavior]
-// pos:    [Regression tests for dashboard grid drag/resize/reflow rules with stabilized width updates]
+// pos:    [Regression tests for dashboard grid drag/resize/reflow rules, empty-state-first-widget visibility, and stabilized width updates]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -93,6 +93,32 @@ describe('DashboardGrid', () => {
             />
         );
         expect(screen.getByText('No Widgets')).toBeInTheDocument();
+    });
+
+    it('renders the first widget immediately after leaving the empty state', () => {
+        const { rerender } = render(
+            <DashboardGrid
+                widgets={[]}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(screen.getByText('No Widgets')).toBeInTheDocument();
+
+        rerender(
+            <DashboardGrid
+                widgets={[{ id: '1', type: 'counter', title: 'Counter 1' }] as any}
+                onLayoutChange={() => { }}
+                semesterId={'1'}
+                isEditMode
+            />
+        );
+
+        expect(screen.getByTestId('rgl-grid')).toBeInTheDocument();
+        expect(screen.getByTestId('counter-widget')).toBeInTheDocument();
+        expect(screen.queryByText('No Widgets')).not.toBeInTheDocument();
     });
 
     it('renders widgets', () => {

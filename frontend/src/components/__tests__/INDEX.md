@@ -7,4 +7,4 @@ They run inside the jsdom test environment.
 | File | Role | Description |
 |------|------|-------------|
 | Button.test.tsx | Test file | Test coverage for button.test behavior. |
-| Tabs.test.tsx | Test file | Regression coverage for shared dashboard tab-shell alignment, horizontal overflow edge shadows, and core tab actions. |
+| Tabs.test.tsx | Test file | Regression coverage for shared dashboard tab-shell alignment, horizontal overflow edge shadows, wheel-driven horizontal scrolling, and core tab actions. |

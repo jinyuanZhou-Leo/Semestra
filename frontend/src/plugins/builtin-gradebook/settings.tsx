@@ -1,6 +1,6 @@
 // input:  [course gradebook APIs, plugin settings contracts, and shared category helpers]
-// output: [builtin-gradebook shared settings section for forecast preferences and categories]
-// pos:    [course-scoped gradebook settings surface for gradebook preferences and category management]
+// output: [builtin-gradebook shared settings sections for forecast preferences and categories]
+// pos:    [course-scoped gradebook settings surface for forecast-mode selection and category management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import { ColorPicker, type ColorPickerPreset } from '@/components/ui/color-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -33,13 +34,6 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { CATEGORY_COLOR_OPTIONS, getApiErrorMessage } from './shared';
@@ -74,12 +68,12 @@ const FORECAST_MODEL_OPTIONS = [
     {
         value: 'auto',
         label: 'Auto',
-        description: 'Use category history whenever at least one graded item exists.',
+        description: 'Project each remaining category from its released scores when history exists.',
     },
     {
         value: 'simple_minimum_needed',
         label: 'Simple minimum needed',
-        description: 'Skip category modeling and use a uniform required-average fallback.',
+        description: 'Skip category modeling and focus on the average you still need across remaining weight.',
     },
 ] as const;
 
@@ -275,34 +269,47 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
 
     return (
         <div className="space-y-6">
-            <SettingsSection title="Forecast Model" description="Choose how course forecasts and plan suggestions should behave.">
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label htmlFor="gradebook-forecast-model">Model</Label>
-                        <Select
-                            value={gradebook.forecast_model}
-                            onValueChange={(value) => void commitGradebook(api.updateCourseGradebookPreferences(courseId, {
-                                forecast_model: value as CourseGradebook['forecast_model'],
-                            }))}
-                        >
-                            <SelectTrigger id="gradebook-forecast-model" className="w-full md:max-w-sm">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {FORECAST_MODEL_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3">
-                        <div className="text-sm font-medium text-foreground">
-                            {FORECAST_MODEL_OPTIONS.find((option) => option.value === gradebook.forecast_model)?.label}
-                        </div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                            {FORECAST_MODEL_OPTIONS.find((option) => option.value === gradebook.forecast_model)?.description}
-                        </div>
-                    </div>
+            <SettingsSection title="Forecast" description="Choose how the Gradebook tab projects outcomes and powers Plan mode recommendations.">
+                <div className="space-y-4">
+                    <RadioGroup
+                        value={gradebook.forecast_model}
+                        onValueChange={(value) => void commitGradebook(api.updateCourseGradebookPreferences(courseId, {
+                            forecast_model: value as CourseGradebook['forecast_model'],
+                        }))}
+                        className="space-y-3"
+                    >
+                        {FORECAST_MODEL_OPTIONS.map((option) => {
+                            const id = `gradebook-forecast-model-${option.value}`;
+                            const isSelected = gradebook.forecast_model === option.value;
+                            return (
+                                <label
+                                    key={option.value}
+                                    htmlFor={id}
+                                    className={cn(
+                                        'flex cursor-pointer items-start justify-between gap-4 rounded-xl border px-4 py-3 transition-colors',
+                                        isSelected ? 'border-primary/60 bg-primary/5' : 'border-border/60',
+                                        isMutating && 'cursor-wait opacity-70',
+                                    )}
+                                >
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium text-foreground">{option.label}</div>
+                                        <p className="text-sm text-muted-foreground">{option.description}</p>
+                                    </div>
+                                    <RadioGroupItem
+                                        id={id}
+                                        value={option.value}
+                                        aria-label={option.label}
+                                        disabled={isMutating}
+                                        className="mt-0.5 shrink-0"
+                                    />
+                                </label>
+                            );
+                        })}
+                    </RadioGroup>
+
+                    <p className="text-sm text-muted-foreground">
+                        Auto is best when you already have some released grades in each remaining category. Use Simple minimum needed when you only want a target-based requirement without category assumptions.
+                    </p>
                 </div>
             </SettingsSection>
 

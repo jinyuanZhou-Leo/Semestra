@@ -1,6 +1,6 @@
-// input:  [course gradebook APIs, shadcn UI primitives, and builtin-gradebook shared forecast/plan helpers]
+// input:  [course gradebook APIs, course data update context, shared animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, and builtin-gradebook shared forecast/plan helpers]
 // output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI and tab definition]
-// pos:    [course-scoped gradebook surface for assessment scores, statistical forecasts, and temporary plan-mode what-if drafts]
+// pos:    [course-scoped gradebook surface for assessment scores, moved course stat strip, and a mode-aware plan workflow with stable toolbar layout and temporary what-if editing]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { format, isValid, parseISO } from 'date-fns';
-import { ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, Pencil, Plus, Search, Sparkles, Target, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, BookOpen, CalendarDays, GraduationCap, Pencil, Percent, Plus, Search, Sparkles, Target, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api, {
@@ -35,9 +35,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
+import { AnimatedNumber } from '@/components/AnimatedNumber';
+import { WorkspaceOverviewStats } from '@/components/WorkspaceOverviewStats';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -47,6 +50,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import {
     Select,
     SelectContent,
@@ -64,9 +68,9 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { useCourseData } from '@/contexts/CourseDataContext';
 import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
-    DEFAULT_GRADEBOOK_VIEW_SETTINGS,
     buildComputedGradebookSummary,
     buildPlanModeResult,
     buildSuggestedWhatIfScores,
@@ -98,12 +102,6 @@ type AssessmentDraft = {
 const DEFAULT_SORT_KEY: GradebookSortKey = 'due_date';
 const DEFAULT_SORT_DIRECTION: GradebookSortDirection = 'none';
 
-const ASSESSMENT_FILTER_OPTIONS = [
-    { value: 'all', label: 'All Assessments' },
-    { value: 'graded', label: 'Graded' },
-    { value: 'ungraded', label: 'Ungraded' },
-] as const;
-
 const parseOptionalNumber = (value: string): number | null => {
     if (!value.trim()) return null;
     const parsed = Number(value);
@@ -133,8 +131,8 @@ const StatCard: React.FC<{
     value: string;
     hint?: string;
 }> = ({ label, value, hint }) => (
-    <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</div>
+    <div className="rounded-md border border-border/60 bg-background/85 px-4 py-3">
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
         <div className="mt-1 text-xl font-semibold tracking-tight text-foreground">{value}</div>
         {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
     </div>
@@ -285,6 +283,7 @@ const AssessmentDialog: React.FC<{
 };
 
 const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
+    const { course, updateCourse } = useCourseData();
     const [gradebook, setGradebook] = React.useState<CourseGradebook | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -294,9 +293,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const [searchQuery, setSearchQuery] = React.useState('');
     const [sortKey, setSortKey] = React.useState<GradebookSortKey>(DEFAULT_SORT_KEY);
     const [sortDirection, setSortDirection] = React.useState<GradebookSortDirection>(DEFAULT_SORT_DIRECTION);
-    const [filterKey, setFilterKey] = React.useState(DEFAULT_GRADEBOOK_VIEW_SETTINGS.filter);
     const [scoreDrafts, setScoreDrafts] = React.useState<Record<string, string>>({});
     const [planMode, setPlanMode] = React.useState(false);
+    const [planModeIntroOpen, setPlanModeIntroOpen] = React.useState(false);
+    const [planModeExitOpen, setPlanModeExitOpen] = React.useState(false);
     const [targetGpaDraft, setTargetGpaDraft] = React.useState('');
     const [whatIfDrafts, setWhatIfDrafts] = React.useState<Record<string, string>>({});
     const deferredSearchQuery = React.useDeferredValue(searchQuery);
@@ -336,13 +336,18 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         try {
             const response = await promise;
             setGradebook(response);
+            const nextSummary = buildComputedGradebookSummary(response);
+            updateCourse({
+                grade_percentage: nextSummary.current_real_percentage,
+                grade_scaled: nextSummary.current_real_gpa,
+            });
         } catch (error: unknown) {
             console.error('Failed to update gradebook', error);
             toast.error(getApiErrorMessage(error));
         } finally {
             setIsMutating(false);
         }
-    }, []);
+    }, [updateCourse]);
 
     const categoriesById = React.useMemo(
         () => new Map((gradebook?.categories ?? []).map((category) => [category.id, category])),
@@ -373,24 +378,12 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
         const filtered = gradebook.assessments.filter((assessment) => {
             const categoryName = categoriesById.get(assessment.category_id ?? '')?.name.toLowerCase() ?? '';
-            const matchesSearch = !normalizedQuery
+            return !normalizedQuery
                 || assessment.title.toLowerCase().includes(normalizedQuery)
                 || categoryName.includes(normalizedQuery);
-
-            if (!matchesSearch) return false;
-
-            switch (filterKey) {
-                case 'graded':
-                    return assessment.score !== null;
-                case 'ungraded':
-                    return assessment.score === null;
-                case 'all':
-                default:
-                    return true;
-            }
         });
         return sortAssessments(filtered, categoriesById, sortKey, sortDirection);
-    }, [categoriesById, deferredSearchQuery, filterKey, gradebook, sortDirection, sortKey]);
+    }, [categoriesById, deferredSearchQuery, gradebook, sortDirection, sortKey]);
 
     const requestSort = React.useCallback((nextSortKey: GradebookSortKey) => {
         if (sortKey === nextSortKey) {
@@ -400,6 +393,25 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         setSortKey(nextSortKey);
         setSortDirection('asc');
     }, [sortKey]);
+
+    const enterPlanMode = React.useCallback(() => {
+        setPlanMode(true);
+        setPlanModeIntroOpen(false);
+    }, []);
+
+    const exitPlanMode = React.useCallback(() => {
+        setPlanMode(false);
+        setWhatIfDrafts({});
+        setPlanModeExitOpen(false);
+    }, []);
+
+    const handlePlanModeCheckedChange = React.useCallback((checked: boolean) => {
+        if (checked) {
+            setPlanModeIntroOpen(true);
+            return;
+        }
+        setPlanModeExitOpen(true);
+    }, []);
 
     const handleSaveAssessment = async () => {
         if (!courseId || !assessmentDraft) return;
@@ -453,13 +465,13 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     }, [gradebook, handlePersistTargetGpa, targetGpaDraft]);
 
     const handleSaveScore = React.useCallback(async (assessment: GradebookAssessment) => {
-        if (!courseId) return;
+        if (!courseId || planMode) return;
         const nextValue = parseOptionalNumber(scoreDrafts[assessment.id] ?? '');
         if (nextValue === assessment.score) return;
         await commitGradebook(api.updateCourseGradebookAssessment(courseId, assessment.id, {
             score: nextValue,
         }));
-    }, [commitGradebook, courseId, scoreDrafts]);
+    }, [commitGradebook, courseId, planMode, scoreDrafts]);
 
     if (!courseId) {
         return (
@@ -496,60 +508,64 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     }
 
     const targetPercentage = resolveTargetPercentageForGpa(Number(targetGpaDraft), gradebook.scaling_table);
-    const hasActiveAssessmentFilters = filterKey !== 'all' || deferredSearchQuery.trim().length > 0;
+    const hasActiveAssessmentFilters = deferredSearchQuery.trim().length > 0;
+    const canManageAssessments = !planMode;
+    const showTargetControl = planMode;
+    const showPlanGeneration = planMode;
+    const showAddAssessment = !planMode;
+    const planModeSwitchLabel = 'Plan Mode';
+    const toolbarSecondarySlotClassName = 'flex h-11 w-[156px] items-center';
+    const toolbarPrimarySlotClassName = 'flex h-11 w-[210px] items-center justify-end';
 
     return (
         <div className="space-y-4">
+            {course ? (
+                <WorkspaceOverviewStats
+                    items={[
+                        {
+                            label: 'Credits',
+                            icon: <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />,
+                            value: (
+                                <span className={cn(course.credits === 0 && 'text-destructive')}>
+                                    <AnimatedNumber
+                                        value={course.credits}
+                                        format={(value) => value.toFixed(2)}
+                                    />
+                                </span>
+                            ),
+                        },
+                        {
+                            label: 'Grade',
+                            icon: <Percent className="h-3.5 w-3.5" aria-hidden="true" />,
+                            value: course.hide_gpa ? '****' : (
+                                <AnimatedNumber
+                                    value={course.grade_percentage}
+                                    format={(value) => `${value.toFixed(1)}%`}
+                                />
+                            ),
+                        },
+                        {
+                            label: 'GPA (Scaled)',
+                            icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />,
+                            value: course.hide_gpa ? '****' : (
+                                <AnimatedNumber
+                                    value={course.grade_scaled}
+                                    format={(value) => value.toFixed(2)}
+                                    rainbowThreshold={3.8}
+                                />
+                            ),
+                        },
+                    ]}
+                />
+            ) : null}
+
             <Card className="border-border/60 bg-card shadow-none">
                 <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <CardTitle className="text-lg font-semibold">Course Gradebook</CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Keep one assessment table with saved scores, then open Plan mode only when you want a what-if path.
+                            Keep one assessment table with saved scores, then switch into Plan Mode for temporary What If scenarios.
                         </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {planMode ? (
-                            <>
-                                <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-muted/20 px-3 py-2">
-                                    <Target className="h-4 w-4 text-muted-foreground" />
-                                    <Label htmlFor="gradebook-target-gpa" className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Target GPA</Label>
-                                    <Input
-                                        id="gradebook-target-gpa"
-                                        className="h-8 w-20"
-                                        value={targetGpaDraft}
-                                        inputMode="decimal"
-                                        onChange={(event) => setTargetGpaDraft(event.target.value)}
-                                        onBlur={() => void handlePersistTargetGpa()}
-                                        onKeyDown={(event) => {
-                                            if (event.key === 'Enter') {
-                                                event.preventDefault();
-                                                void handlePersistTargetGpa();
-                                            }
-                                        }}
-                                    />
-                                </div>
-                                <Button type="button" onClick={() => void handleRunPlan()} disabled={isMutating}>
-                                    <Sparkles className="mr-2 h-4 w-4" />
-                                    Run Plan
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                        setPlanMode(false);
-                                        setWhatIfDrafts({});
-                                    }}
-                                >
-                                    Exit Plan
-                                </Button>
-                            </>
-                        ) : (
-                            <Button type="button" onClick={() => setPlanMode(true)}>
-                                <Target className="mr-2 h-4 w-4" />
-                                Enter Plan Mode
-                            </Button>
-                        )}
                     </div>
                 </CardHeader>
                 <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -630,36 +646,30 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             <section className="space-y-6">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <h2 className="text-lg font-semibold tracking-tight">Assessments</h2>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                        <div className="hidden items-center gap-2 text-xs text-muted-foreground tabular-nums md:flex">
-                            <span>{hasActiveAssessmentFilters ? `${filteredAssessments.length} shown` : `${gradebook.assessments.length} total`}</span>
-                            <span aria-hidden="true">·</span>
-                            <span>{summary.graded_count} graded</span>
-                            <span aria-hidden="true">·</span>
-                            <span>{summary.ungraded_count} ungraded</span>
-                        </div>
-                        <Button
-                            type="button"
-                            onClick={() => {
-                                setAssessmentDraft(createAssessmentDraft(gradebook));
-                                setAssessmentDialogOpen(true);
-                            }}
-                        >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Assessment
-                        </Button>
+                    <div className="hidden items-center gap-2 text-xs text-muted-foreground tabular-nums md:flex">
+                        <span>{hasActiveAssessmentFilters ? `${filteredAssessments.length} shown` : `${gradebook.assessments.length} total`}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{summary.graded_count} graded</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{summary.ungraded_count} ungraded</span>
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <div className="relative w-full max-w-sm">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <div className="rounded-md border border-border/70 bg-muted/[0.28] p-3 sm:p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="relative w-full max-w-xl min-w-0">
+                            <Search className={cn(
+                                'pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2',
+                                planMode ? 'text-amber-600/80 dark:text-amber-300/80' : 'text-muted-foreground',
+                            )} />
                             <Input
                                 value={searchQuery}
                                 onChange={(event) => setSearchQuery(event.target.value)}
                                 placeholder="Search assessments..."
-                                className="h-10 pl-9"
+                                className={cn(
+                                    'h-11 w-full rounded-md border-border/60 bg-background pl-9 pr-10',
+                                    planMode && 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/40 dark:bg-amber-950/20',
+                                )}
                             />
                             {searchQuery ? (
                                 <button
@@ -672,30 +682,90 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 </button>
                             ) : null}
                         </div>
-                        <Select value={filterKey} onValueChange={(value) => setFilterKey(value as typeof filterKey)}>
-                            <SelectTrigger className={cn(
-                                'h-10 w-[170px] text-sm',
-                                filterKey !== 'all' ? 'border-primary/50 bg-primary/5 text-primary' : '',
+
+                        <div className="flex flex-wrap items-center justify-end gap-3 lg:flex-nowrap">
+                            <div className={cn(
+                                'flex h-11 items-center gap-3 rounded-md border px-3',
+                                planMode ? 'border-amber-400/70 bg-amber-100/70 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50' : 'border-border/60 bg-background/80',
                             )}>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {ASSESSMENT_FILTER_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                                <div className="flex items-center gap-2 text-sm font-medium tracking-tight">
+                                    <Sparkles className={cn('h-4 w-4', planMode ? 'text-amber-600 dark:text-amber-300' : 'text-muted-foreground')} />
+                                    <span>{planModeSwitchLabel}</span>
+                                </div>
+                                <Switch
+                                    checked={planMode}
+                                    onCheckedChange={handlePlanModeCheckedChange}
+                                    disabled={isMutating}
+                                    className="data-checked:bg-amber-500 data-unchecked:bg-slate-300/80 dark:data-unchecked:bg-slate-700"
+                                    aria-label="Toggle Plan Mode"
+                                />
+                            </div>
+
+                            <div className={toolbarSecondarySlotClassName}>
+                                {showTargetControl ? (
+                                    <div className="flex h-11 w-full items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-3 dark:border-amber-500/40 dark:bg-amber-950/20">
+                                        <Target className="h-4 w-4 text-amber-600 dark:text-amber-300" />
+                                        <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground">Target</Label>
+                                        <Input
+                                            id="gradebook-target-gpa"
+                                            className="h-8 w-20 border-0 bg-transparent px-0 text-right tabular-nums shadow-none focus-visible:ring-0"
+                                            value={targetGpaDraft}
+                                            inputMode="decimal"
+                                            onChange={(event) => setTargetGpaDraft(event.target.value)}
+                                            onBlur={() => void handlePersistTargetGpa()}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') {
+                                                    event.preventDefault();
+                                                    void handlePersistTargetGpa();
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div aria-hidden="true" className="h-11 w-full rounded-md border border-transparent" />
+                                )}
+                            </div>
+
+                            <div className={toolbarPrimarySlotClassName}>
+                                {showAddAssessment ? (
+                                    <Button
+                                        type="button"
+                                        disabled={isMutating}
+                                        className="h-11 w-full rounded-md"
+                                        onClick={() => {
+                                            setAssessmentDraft(createAssessmentDraft(gradebook));
+                                            setAssessmentDialogOpen(true);
+                                        }}
+                                    >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add Assessment
+                                    </Button>
+                                ) : null}
+
+                                {showPlanGeneration ? (
+                                    <Button
+                                        type="button"
+                                        onClick={() => void handleRunPlan()}
+                                        disabled={isMutating}
+                                        className="h-11 w-full rounded-md bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground"
+                                    >
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        Generate What If Scores
+                                    </Button>
+                                ) : null}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="min-h-[300px] rounded-md border bg-card flex flex-col">
+                <div className="min-h-[300px] rounded-md border bg-card flex flex-col overflow-hidden">
                     {filteredAssessments.length === 0 ? (
                         <Empty className="min-h-[300px] border-0 rounded-md">
                             <EmptyHeader>
                                 <EmptyTitle>{hasActiveAssessmentFilters ? 'No assessments found' : 'No assessments added yet'}</EmptyTitle>
                                 <EmptyDescription>
                                     {hasActiveAssessmentFilters
-                                        ? 'Try clearing the search or filter to see more assessments.'
+                                        ? 'Try clearing the search to see more assessments.'
                                         : 'Add your first assessment to start tracking this course.'}
                                 </EmptyDescription>
                             </EmptyHeader>
@@ -704,24 +774,24 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        onClick={() => {
-                                            setSearchQuery('');
-                                            setFilterKey('all');
-                                        }}
+                                        onClick={() => setSearchQuery('')}
                                     >
-                                        Clear Filters
+                                        Clear Search
                                     </Button>
                                 ) : null}
-                                <Button
-                                    type="button"
-                                    onClick={() => {
-                                        setAssessmentDraft(createAssessmentDraft(gradebook));
-                                        setAssessmentDialogOpen(true);
-                                    }}
-                                >
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Add Assessment
-                                </Button>
+                                {showAddAssessment ? (
+                                    <Button
+                                        type="button"
+                                        disabled={isMutating}
+                                        onClick={() => {
+                                            setAssessmentDraft(createAssessmentDraft(gradebook));
+                                            setAssessmentDialogOpen(true);
+                                        }}
+                                    >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add Assessment
+                                    </Button>
+                                ) : null}
                             </EmptyContent>
                         </Empty>
                     ) : (
@@ -732,12 +802,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                         <SortableHead label="Category" sortKey="category" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} />
                                         <SortableHead label="Due" sortKey="due_date" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} />
                                         <SortableHead label="Weight" sortKey="weight" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} align="right" />
-                                        <SortableHead label="Score" sortKey="score" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} align="right" />
-                                        {planMode ? (
-                                            <TableHead className="text-right">
-                                                <div className="flex items-center justify-end">What If</div>
-                                            </TableHead>
-                                        ) : null}
+                                        <SortableHead label={planMode ? 'What If' : 'Score'} sortKey="score" currentSortKey={sortKey} currentDirection={sortDirection} onRequestSort={requestSort} align="right" />
                                         <TableHead className="text-right">
                                             <div className="flex items-center justify-end">Actions</div>
                                         </TableHead>
@@ -781,42 +846,43 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                             <TableCell className="py-3 text-right tabular-nums">{formatPercent(assessment.weight)}</TableCell>
                                             <TableCell className="py-3 text-right">
                                                 <Input
-                                                    className="ml-auto h-8 w-24 border-border/60 bg-muted/20 text-right tabular-nums focus-visible:bg-background"
-                                                    value={scoreDrafts[assessment.id] ?? ''}
+                                                    className={cn(
+                                                        'ml-auto h-8 w-24 text-right tabular-nums focus-visible:bg-background',
+                                                        planMode
+                                                            ? isRealOnly
+                                                                ? 'border-border/60 bg-muted/30 text-muted-foreground'
+                                                                : 'border-amber-400/80 bg-amber-50/80 text-amber-950 dark:border-amber-500/50 dark:bg-amber-950/20 dark:text-amber-50'
+                                                            : 'border-border/60 bg-muted/20',
+                                                    )}
+                                                    value={planMode
+                                                        ? isRealOnly
+                                                            ? (scoreDrafts[assessment.id] ?? '')
+                                                            : (whatIfDrafts[assessment.id] ?? '')
+                                                        : (scoreDrafts[assessment.id] ?? '')}
                                                     inputMode="decimal"
-                                                    disabled={isMutating}
-                                                    placeholder="--"
+                                                    disabled={isMutating || (planMode && isRealOnly)}
+                                                    placeholder={planMode ? 'What if' : '--'}
                                                     onChange={(event) => {
                                                         const nextValue = event.target.value;
+                                                        if (planMode) {
+                                                            setWhatIfDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
+                                                            return;
+                                                        }
                                                         setScoreDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
                                                     }}
-                                                    onBlur={() => void handleSaveScore(assessment)}
+                                                    onBlur={() => {
+                                                        if (!planMode) {
+                                                            void handleSaveScore(assessment);
+                                                        }
+                                                    }}
                                                     onKeyDown={(event) => {
-                                                        if (event.key === 'Enter') {
+                                                        if (event.key === 'Enter' && !planMode) {
                                                             event.preventDefault();
                                                             void handleSaveScore(assessment);
                                                         }
                                                     }}
                                                 />
                                             </TableCell>
-                                            {planMode ? (
-                                                <TableCell className="py-3 text-right">
-                                                    {isRealOnly ? (
-                                                        <span className="text-xs text-muted-foreground/60">Scored</span>
-                                                    ) : (
-                                                        <Input
-                                                            className="ml-auto h-8 w-24 border-border/60 bg-primary/[0.04] text-right tabular-nums focus-visible:bg-background"
-                                                            value={whatIfDrafts[assessment.id] ?? ''}
-                                                            inputMode="decimal"
-                                                            placeholder="Run plan"
-                                                            onChange={(event) => {
-                                                                const nextValue = event.target.value;
-                                                                setWhatIfDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
-                                                            }}
-                                                        />
-                                                    )}
-                                                </TableCell>
-                                            ) : null}
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-1">
                                                     <Button
@@ -824,6 +890,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                                         variant="ghost"
                                                         size="icon"
                                                         aria-label={`Edit assessment ${assessment.title}`}
+                                                        disabled={!canManageAssessments}
                                                         onClick={() => {
                                                             setAssessmentDraft(createAssessmentDraft(gradebook, assessment));
                                                             setAssessmentDialogOpen(true);
@@ -838,6 +905,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                                                 variant="destructive"
                                                                 size="icon"
                                                                 aria-label={`Delete assessment ${assessment.title}`}
+                                                                disabled={!canManageAssessments}
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
@@ -889,6 +957,47 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                     onSave={handleSaveAssessment}
                 />
             ) : null}
+
+            <Dialog open={planModeIntroOpen} onOpenChange={setPlanModeIntroOpen}>
+                <DialogContent className="sm:max-w-[460px]">
+                    <DialogHeader>
+                        <DialogTitle>Enter Plan Mode</DialogTitle>
+                        <DialogDescription>
+                            Plan Mode turns the Score column into temporary What If inputs for ungraded assessments only.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 text-sm text-muted-foreground">
+                        <p>Released scores stay locked so you always plan from real results.</p>
+                        <p>Assessment add, edit, and delete actions are disabled until you leave Plan Mode.</p>
+                        <p>What If values never overwrite saved course scores unless you manually enter them later.</p>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setPlanModeIntroOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="button" className="bg-amber-500 text-amber-950 hover:bg-amber-400" onClick={enterPlanMode}>
+                            Continue
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <AlertDialog open={planModeExitOpen} onOpenChange={setPlanModeExitOpen}>
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Leave Plan Mode?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            What If scores are temporary and will not be saved after you leave Plan Mode.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Keep Planning</AlertDialogCancel>
+                        <AlertDialogAction onClick={exitPlanMode}>
+                            Leave Plan Mode
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };
