@@ -46,7 +46,6 @@ import {
 } from './shared';
 import type {
   TaskDraft,
-  TodoComposerTarget,
   TodoCourseOption,
   TodoListModel,
   TodoListStorage,
@@ -116,8 +115,6 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   const [taskDialogOpen, setTaskDialogOpen] = React.useState(false);
   const [taskDialogEditingId, setTaskDialogEditingId] = React.useState<string | null>(null);
   const [taskDraft, setTaskDraft] = React.useState<TaskDraft>(createTaskDraft());
-  const [composerTarget, setComposerTarget] = React.useState<TodoComposerTarget | null>(null);
-  const [inlineDraft, setInlineDraft] = React.useState<TaskDraft>(createTaskDraft());
   const [sectionTitleDraft, setSectionTitleDraft] = React.useState('');
   const [sectionTitleTargetId, setSectionTitleTargetId] = React.useState<string | null>(null);
   const [showCompleted, setShowCompleted] = React.useState(false);
@@ -342,7 +339,6 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   React.useEffect(() => {
     resetTaskDragState();
     setSelectedTaskId(null);
-    setComposerTarget(null);
   }, [activeList.id, resetTaskDragState]);
 
   React.useEffect(() => {
@@ -452,12 +448,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     setTaskDialogEditingId(null);
   }, [saveTaskDraft, taskDialogEditingId, taskDraft]);
 
-  const handleSaveInlineTask = React.useCallback(async () => {
-    const saved = await saveTaskDraft(inlineDraft, null);
-    if (!saved) return;
-    setComposerTarget(null);
-    setInlineDraft(createTaskDraft('', courseId ?? ''));
-  }, [courseId, inlineDraft, saveTaskDraft]);
+  const handleSaveInlineTask = React.useCallback(async (draft: TaskDraft) => {
+    return await saveTaskDraft(draft, null);
+  }, [saveTaskDraft]);
 
   const handleToggleTaskCompleted = React.useCallback((taskId: string, completed: boolean) => {
     if (!semesterId) return;
@@ -571,30 +564,18 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   }, [courseId, pendingDeleteTarget, runMutation, semesterId]);
 
   const renderComposer = React.useCallback((sectionId: string, placeholder: string) => {
-    const normalizedSectionId = sectionId === UNSECTIONED_TASK_BUCKET_ID ? '' : sectionId;
-    const isOpen = composerTarget?.sectionId === sectionId;
-
     return (
       <TodoInlineCreateRow
         mode={mode}
-        open={isOpen}
-        draft={inlineDraft}
+        sectionId={sectionId}
+        initialCourseId={courseId ?? ''}
         courseOptions={courseOptions}
         priorityOptions={PRIORITY_OPTIONS}
         placeholder={placeholder}
-        onOpen={() => {
-          setComposerTarget({ sectionId });
-          setInlineDraft(createTaskDraft(normalizedSectionId, courseId ?? ''));
-        }}
-        onDraftChange={(updater) => setInlineDraft((previous) => updater(previous))}
-        onCancel={() => {
-          setComposerTarget(null);
-          setInlineDraft(createTaskDraft('', courseId ?? ''));
-        }}
         onSave={handleSaveInlineTask}
       />
     );
-  }, [composerTarget?.sectionId, courseId, courseOptions, handleSaveInlineTask, inlineDraft, mode]);
+  }, [courseId, courseOptions, handleSaveInlineTask, mode]);
 
   const renderTaskCard = React.useCallback((task: TodoTask, sectionId: string) => {
     return (

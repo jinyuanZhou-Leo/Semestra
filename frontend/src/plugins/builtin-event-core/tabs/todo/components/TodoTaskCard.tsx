@@ -1,6 +1,6 @@
-// input:  [Todo task item data, inline quick-edit callbacks, drag state, and display helpers]
+// input:  [Todo task item data, shared todo row shell/meta chips, inline quick-edit callbacks, drag state, and display helpers]
 // output: [TodoTaskCard React component]
-// pos:    [Reminder-inspired task row with inline title/meta editing, selection, swipe delete, and drag handle affordances]
+// pos:    [Reminder-inspired task row that reuses the shared todo row shell for view/edit alignment, selection, swipe delete, and drag handle affordances]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { getCourseBadgeStyle, getDistinctCourseBadgeClassName } from '@/utils/courseCategoryBadge';
 import { TodoMetaEditorChips } from './TodoMetaEditorChips';
+import { TODO_ROW_NOTE_CLASSNAME, TODO_ROW_TITLE_CLASSNAME, TodoRowShell, type TodoRowMode } from './TodoRowShell';
 import { getPriorityMeta } from '../utils/todoData';
 import type { TodoCourseOption, TodoPriorityOption, TodoTabMode, TodoTask } from '../types';
 
@@ -82,6 +83,7 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
   const pointerStateRef = React.useRef<{ pointerId: number; startX: number; startY: number; swiping: boolean } | null>(null);
   const isOverdue = !task.completed && Boolean(task.dueDate) && new Date(`${task.dueDate}T${task.dueTime || '23:59'}:00`).getTime() < Date.now();
   const isExpanded = editorOpen;
+  const rowMode: TodoRowMode = isExpanded ? 'editing' : 'view';
   const compactDescription = task.note.trim();
   const completedTextClassName = 'text-[14px] leading-[1.25] text-muted-foreground/88';
   const distinctCourseIds = React.useMemo(() => courseOptions.map((course) => course.id), [courseOptions]);
@@ -269,196 +271,198 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
           dragOverTaskId === task.id && 'before:absolute before:-top-1 before:left-4 before:right-4 before:h-0.5 before:rounded-full before:bg-primary',
         )}
       >
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={task.completed}
-            aria-label={`Mark ${task.title} as completed`}
+        <TodoRowShell
+          mode={rowMode}
+          contentRef={editorRef}
+          className="p-0 sm:p-0"
+          onBlurCapture={(event) => {
+            const nextTarget = event.relatedTarget as HTMLElement | null;
+            if (nextTarget && editorRef.current?.contains(nextTarget)) return;
+            if (nextTarget?.closest('[data-slot="popover-content"],[data-slot="select-content"]')) return;
+            setEditingTitle(false);
+            setEditorOpen(false);
+          }}
+          leading={(
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={task.completed}
+              aria-label={`Mark ${task.title} as completed`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleTaskCompleted(task.id, !task.completed);
+              }}
+              className="mt-0.5 flex size-5 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              data-no-swipe="true"
+            >
+              <motion.span
+                initial={false}
+                animate={{
+                  scale: task.completed ? [1, 1.12, 1] : 1,
+                }}
+                transition={{ duration: 0.24, ease: 'easeOut' }}
+                className={cn(
+                  'block size-5 rounded-full border transition-colors',
+                  completionRingClassName,
+                )}
+              />
+            </button>
+          )}
+          trailing={(
+            <div className="flex items-start gap-1">
+              <div
+                draggable={!task.completed}
+                onDragStart={() => onTaskDragStart(task)}
+                onDragEnd={onTaskDragEnd}
+                className={cn(
+                  'hidden cursor-grab rounded-full p-1.5 text-muted-foreground/75 transition-colors md:flex',
+                  task.completed ? 'pointer-events-none opacity-30 grayscale' : 'hover:bg-muted/50 hover:text-foreground active:cursor-grabbing',
+                )}
+                aria-label={`Drag ${task.title}`}
+                data-no-swipe="true"
+              >
+                <GripVertical className="h-4 w-4" />
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className={cn('h-7 w-7 text-muted-foreground', task.completed ? 'opacity-45 hover:text-muted-foreground' : 'hover:text-foreground')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenDetails(task);
+                }}
+                aria-label={`Open details for ${task.title}`}
+                data-no-swipe="true"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+        >
+          <input
+            ref={titleInputRef}
+            type="text"
+            value={titleDraft}
+            size={Math.max(titleDraft.length, task.title.length, 1)}
+            readOnly={!editingTitle}
+            onChange={(event) => setTitleDraft(event.target.value)}
+            onFocus={() => {
+              focusTitleEditor();
+            }}
+            onBlur={commitTitle}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                commitTitle();
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setEditingTitle(false);
+                setTitleDraft(task.title);
+              }
+            }}
             onClick={(event) => {
               event.stopPropagation();
-              onToggleTaskCompleted(task.id, !task.completed);
+              onSelect(task.id);
             }}
-            className="mt-0.5 flex size-5 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            data-no-swipe="true"
-          >
-            <motion.span
-              initial={false}
-              animate={{
-                scale: task.completed ? [1, 1.12, 1] : 1,
-              }}
-              transition={{ duration: 0.24, ease: 'easeOut' }}
-              className={cn(
-                'block size-5 rounded-full border transition-colors',
-                completionRingClassName,
-              )}
-            />
-          </button>
+            className={cn(
+              TODO_ROW_TITLE_CLASSNAME,
+              task.completed ? 'text-muted-foreground/88' : 'text-foreground',
+              !editingTitle && 'pointer-events-auto cursor-text select-text',
+              task.completed && 'line-through decoration-muted-foreground/60',
+            )}
+            style={{ width: `${Math.max(titleDraft.length, task.title.length, 1)}ch` }}
+          />
 
-          <div
-            ref={editorRef}
-            className="min-w-0 flex-1 space-y-0.5"
-            onBlurCapture={(event) => {
-              const nextTarget = event.relatedTarget as HTMLElement | null;
-              if (nextTarget && editorRef.current?.contains(nextTarget)) return;
-              if (nextTarget?.closest('[data-slot="popover-content"],[data-slot="select-content"]')) return;
-              setEditingTitle(false);
-              setEditorOpen(false);
-            }}
-          >
-            <input
-              ref={titleInputRef}
-              type="text"
-              value={titleDraft}
-              size={Math.max(titleDraft.length, task.title.length, 1)}
-              readOnly={!editingTitle}
-              onChange={(event) => setTitleDraft(event.target.value)}
-              onFocus={() => {
-                focusTitleEditor();
-              }}
-              onBlur={commitTitle}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  commitTitle();
-                }
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  setEditingTitle(false);
-                  setTitleDraft(task.title);
-                }
-              }}
-              onClick={(event) => {
-                event.stopPropagation();
-                onSelect(task.id);
-              }}
-              className={cn(
-                'block max-w-full border-0 bg-transparent p-0 text-[16px] font-medium leading-6 outline-none',
-                task.completed ? 'text-muted-foreground/88' : 'text-foreground',
-                !editingTitle && 'pointer-events-auto cursor-text select-text',
-                task.completed && 'line-through decoration-muted-foreground/60',
-              )}
-              style={{ width: `${Math.max(titleDraft.length, task.title.length, 1)}ch` }}
-            />
+          {isExpanded ? (
+            <>
+              <textarea
+                ref={noteInputRef}
+                value={noteDraft}
+                onChange={(event) => setNoteDraft(event.target.value)}
+                onBlur={commitNote}
+                placeholder="Notes"
+                rows={noteDraft ? Math.min(Math.max(noteDraft.split('\n').length, 1), 4) : 1}
+                className={cn(
+                  TODO_ROW_NOTE_CLASSNAME,
+                  'min-h-0 w-full resize-none px-0 py-0 shadow-none placeholder:text-muted-foreground/80',
+                  completedTextClassName,
+                )}
+              />
 
-            {isExpanded ? (
-              <>
-                <textarea
-                  ref={noteInputRef}
-                  value={noteDraft}
-                  onChange={(event) => setNoteDraft(event.target.value)}
-                  onBlur={commitNote}
-                  placeholder="Notes"
-                  rows={noteDraft ? Math.min(Math.max(noteDraft.split('\n').length, 1), 4) : 1}
+              <div className="pt-1">
+                <TodoMetaEditorChips
+                  mode={showCourseTag ? mode : 'course'}
+                  dueDate={task.dueDate}
+                  dueTime={task.dueTime}
+                  priority={task.priority}
+                  courseId={task.courseId}
+                  courseOptions={courseOptions}
+                  priorityOptions={priorityOptions}
+                  isOverdue={isOverdue}
+                  completed={task.completed}
+                  onChange={(patch) => {
+                    const selectedCourse = patch.courseId
+                      ? courseOptions.find((course) => course.id === patch.courseId)
+                      : undefined;
+
+                    onPatchTask(task.id, {
+                      ...patch,
+                      courseName: selectedCourse?.name ?? '',
+                      courseCategory: selectedCourse?.category ?? '',
+                    });
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {compactDescription ? (
+                <input
+                  type="text"
+                  readOnly
+                  value={compactDescription}
+                  size={Math.max(compactDescription.length, 1)}
+                  tabIndex={0}
+                  onFocus={focusNoteEditor}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    focusNoteEditor();
+                  }}
                   className={cn(
-                    'min-h-0 w-full resize-none border-0 bg-transparent px-0 py-0 shadow-none outline-none placeholder:text-muted-foreground/80',
+                    TODO_ROW_NOTE_CLASSNAME,
                     completedTextClassName,
                   )}
+                  style={{ width: `${Math.max(compactDescription.length, 1)}ch` }}
                 />
-
-                <div className="pt-1">
-                  <TodoMetaEditorChips
-                    mode={showCourseTag ? mode : 'course'}
-                    dueDate={task.dueDate}
-                    dueTime={task.dueTime}
-                    priority={task.priority}
-                    courseId={task.courseId}
-                    courseOptions={courseOptions}
-                    priorityOptions={priorityOptions}
-                    isOverdue={isOverdue}
-                    completed={task.completed}
-                    onChange={(patch) => {
-                      const selectedCourse = patch.courseId
-                        ? courseOptions.find((course) => course.id === patch.courseId)
-                        : undefined;
-
-                      onPatchTask(task.id, {
-                        ...patch,
-                        courseName: selectedCourse?.name ?? '',
-                        courseCategory: selectedCourse?.category ?? '',
-                      });
-                    }}
-                  />
+              ) : null}
+              {compactMeta.length > 0 ? (
+                <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] leading-[1.25]', task.completed ? 'text-muted-foreground/88' : 'text-muted-foreground/92')}>
+                  {compactMeta.map((item) => (
+                    item.kind === 'course' ? (
+                      <span
+                        key={item.key}
+                        className={cn(
+                          'inline-flex h-4.5 max-w-[8rem] items-center rounded-full px-1.5 text-[11px] font-medium leading-none',
+                          item.className,
+                        )}
+                        style={item.style}
+                      >
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                    ) : (
+                      <span key={item.key} className={cn('truncate', task.completed ? 'text-muted-foreground/88' : item.className)}>
+                        {item.label}
+                      </span>
+                    )
+                  ))}
                 </div>
-              </>
-            ) : (
-              <>
-                {compactDescription ? (
-                  <input
-                    type="text"
-                    readOnly
-                    value={compactDescription}
-                    size={Math.max(compactDescription.length, 1)}
-                    tabIndex={0}
-                    onFocus={focusNoteEditor}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      focusNoteEditor();
-                    }}
-                    className={cn(
-                      'block max-w-full border-0 bg-transparent p-0 outline-none',
-                      completedTextClassName,
-                    )}
-                    style={{ width: `${Math.max(compactDescription.length, 1)}ch` }}
-                  />
-                ) : null}
-                {compactMeta.length > 0 ? (
-                  <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] leading-[1.25]', task.completed ? 'text-muted-foreground/88' : 'text-muted-foreground/92')}>
-                    {compactMeta.map((item) => (
-                      item.kind === 'course' ? (
-                        <span
-                          key={item.key}
-                          className={cn(
-                            'inline-flex h-4.5 max-w-[8rem] items-center rounded-full px-1.5 text-[11px] font-medium leading-none',
-                            item.className,
-                          )}
-                          style={item.style}
-                        >
-                          <span className="truncate">{item.label}</span>
-                        </span>
-                      ) : (
-                        <span key={item.key} className={cn('truncate', task.completed ? 'text-muted-foreground/88' : item.className)}>
-                          {item.label}
-                        </span>
-                      )
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            )}
-          </div>
-
-          <div className="flex items-start gap-1">
-            <div
-              draggable={!task.completed}
-              onDragStart={() => onTaskDragStart(task)}
-              onDragEnd={onTaskDragEnd}
-              className={cn(
-                'hidden cursor-grab rounded-full p-1.5 text-muted-foreground/75 transition-colors md:flex',
-                task.completed ? 'pointer-events-none opacity-30 grayscale' : 'hover:bg-muted/50 hover:text-foreground active:cursor-grabbing',
-              )}
-              aria-label={`Drag ${task.title}`}
-              data-no-swipe="true"
-            >
-              <GripVertical className="h-4 w-4" />
-            </div>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className={cn('h-7 w-7 text-muted-foreground', task.completed ? 'opacity-45 hover:text-muted-foreground' : 'hover:text-foreground')}
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenDetails(task);
-              }}
-              aria-label={`Open details for ${task.title}`}
-              data-no-swipe="true"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
+              ) : null}
+            </>
+          )}
+        </TodoRowShell>
       </motion.div>
     </motion.div>
   );

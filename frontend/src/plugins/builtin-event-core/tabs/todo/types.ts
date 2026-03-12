@@ -74,10 +74,6 @@ export interface TaskDraft {
   priority: TodoPriority;
 }
 
-export interface TodoComposerTarget {
-  sectionId: string;
-}
-
 export type TodoInlineEditorField = 'title' | 'dueDate' | 'dueTime' | 'priority' | 'course';
 
 export interface TodoPendingDeleteTarget {

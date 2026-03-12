@@ -1,6 +1,6 @@
 // input:  [program context state, semester/course CRUD APIs, Program subject-color settings, settings/course-manager modal flows, and responsive overlay wrapper]
 // output: [`ProgramDashboard` and local semester create/delete confirmation plus responsive create surface components]
-// pos:    [Program-level workspace page for semester management, subject-code color defaults, and progress tracking with compact mobile overview stat-strip and drawer semester creation]
+// pos:    [Program-level workspace page for semester management, subject-code color defaults, progress tracking, and tri-state course-list sorting with compact mobile overview stat-strip and drawer semester creation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -74,6 +74,7 @@ const extractCourseLevel = (courseName: string): number | null => {
 };
 
 type ShowAlert = ReturnType<typeof useDialog>['alert'];
+type CourseSortConfig = { key: string; direction: 'asc' | 'desc' };
 
 type CreateSemesterDialogButtonProps = {
     programId: string;
@@ -330,7 +331,7 @@ const ProgramDashboardContent: React.FC = () => {
     const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [courseSearchQuery, setCourseSearchQuery] = useState('');
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
+    const [sortConfig, setSortConfig] = useState<CourseSortConfig | null>(null);
     const [activeFilters, setActiveFilters] = useState<Array<{ type: string; value: string; label: string }>>([]);
     const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
@@ -452,7 +453,7 @@ const ProgramDashboardContent: React.FC = () => {
             (sem.courses || []).map(course => ({
                 ...course,
                 semesterName: sem.name,
-                semesterId: sem.id
+                semesterId: sem.id,
             }))
         );
 
@@ -539,11 +540,15 @@ const ProgramDashboardContent: React.FC = () => {
     );
 
     const requestSort = (key: string) => {
-        let direction: 'asc' | 'desc' = 'asc';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
+        if (!sortConfig || sortConfig.key !== key) {
+            setSortConfig({ key, direction: 'asc' });
+            return;
         }
-        setSortConfig({ key, direction });
+        if (sortConfig.direction === 'asc') {
+            setSortConfig({ key, direction: 'desc' });
+            return;
+        }
+        setSortConfig(null);
     };
 
     const getSortIcon = (key: string) => {

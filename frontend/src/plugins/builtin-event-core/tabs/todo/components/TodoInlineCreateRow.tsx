@@ -1,6 +1,6 @@
-// input:  [Inline task draft state, semester course options, shared chip editors, and create/cancel callbacks]
+// input:  [Inline task target metadata, semester course options, shared todo row shell/chip editors, and save callbacks]
 // output: [TodoInlineCreateRow React component]
-// pos:    [Compact section-scoped inline composer used for Apple Reminders-style task creation]
+// pos:    [Compact section-scoped inline composer that keeps per-instance draft state local while reusing the shared todo row shell]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,91 +10,181 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { TodoMetaEditorChips } from './TodoMetaEditorChips';
+import { TODO_ROW_NOTE_CLASSNAME, TODO_ROW_TITLE_CLASSNAME, TodoRowShell, type TodoRowMode } from './TodoRowShell';
 import type { TaskDraft, TodoCourseOption, TodoPriorityOption, TodoTabMode } from '../types';
+import { createTaskDraft } from '../utils/todoData';
 
 interface TodoInlineCreateRowProps {
   mode: TodoTabMode;
-  open: boolean;
-  draft: TaskDraft;
+  sectionId: string;
+  initialCourseId?: string;
   courseOptions: TodoCourseOption[];
   priorityOptions: TodoPriorityOption[];
   placeholder?: string;
-  onOpen: () => void;
-  onDraftChange: (updater: (previous: TaskDraft) => TaskDraft) => void;
-  onCancel: () => void;
-  onSave: () => void;
+  onSave: (draft: TaskDraft) => Promise<boolean> | boolean;
 }
 
 export const TodoInlineCreateRow: React.FC<TodoInlineCreateRowProps> = ({
   mode,
-  open,
-  draft,
+  sectionId,
+  initialCourseId = '',
   courseOptions,
   priorityOptions,
   placeholder = 'Add a todo',
-  onOpen,
-  onDraftChange,
-  onCancel,
   onSave,
 }) => {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const titleInputRef = React.useRef<HTMLInputElement | null>(null);
+  const shouldFocusTitleRef = React.useRef(false);
+  const savingRef = React.useRef(false);
+  const normalizedSectionId = sectionId === '__unsectioned__' ? '' : sectionId;
+  const createLocalDraft = React.useCallback(
+    () => createTaskDraft(normalizedSectionId, initialCourseId),
+    [initialCourseId, normalizedSectionId],
+  );
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState<TaskDraft>(() => createLocalDraft());
+  const draftRef = React.useRef(draft);
+  const rowMode: TodoRowMode = open ? 'creating' : 'placeholder';
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={onOpen}
-        className="flex min-h-10 w-full items-center gap-3 rounded-[18px] px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/25 hover:text-foreground sm:px-2"
-      >
-        <span className="mt-0.5 block size-5 shrink-0 rounded-full border border-dashed border-current/55" />
-        <span className="truncate text-[15px] leading-6">{placeholder}</span>
-      </button>
-    );
-  }
+  const resetComposer = React.useCallback(() => {
+    setOpen(false);
+    setDraft(createLocalDraft());
+    shouldFocusTitleRef.current = false;
+  }, [createLocalDraft]);
+
+  const activateComposer = React.useCallback((focusTitle: boolean) => {
+    if (focusTitle) {
+      shouldFocusTitleRef.current = true;
+    }
+    setOpen(true);
+  }, []);
+
+  React.useEffect(() => {
+    if (open) return;
+    setDraft(createLocalDraft());
+  }, [createLocalDraft, open]);
+
+  React.useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  React.useLayoutEffect(() => {
+    if (!open || !shouldFocusTitleRef.current) return;
+    shouldFocusTitleRef.current = false;
+    titleInputRef.current?.focus();
+  }, [open]);
+
+  const commitDraft = React.useCallback(async () => {
+    const nextDraft = draftRef.current;
+    if (!nextDraft.title.trim()) {
+      resetComposer();
+      return;
+    }
+    if (savingRef.current) return;
+
+    savingRef.current = true;
+    try {
+      const saved = await onSave(nextDraft);
+      if (saved) {
+        resetComposer();
+      }
+    } finally {
+      savingRef.current = false;
+    }
+  }, [onSave, resetComposer]);
 
   return (
-    <div
+    <TodoRowShell
       ref={rootRef}
-      className="rounded-[18px] px-3 py-2.5 sm:px-2"
+      mode={rowMode}
+      data-todo-inline-create-root="true"
+      className="w-full"
+      onPointerDownCapture={(event) => {
+        if (open) return;
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (target.closest('input,textarea,button,[role="button"]')) return;
+        activateComposer(true);
+      }}
       onBlurCapture={(event) => {
+        if (!open) return;
         const nextTarget = event.relatedTarget as HTMLElement | null;
         if (nextTarget && rootRef.current?.contains(nextTarget)) return;
         if (nextTarget?.closest('[data-slot="popover-content"],[data-slot="select-content"]')) return;
-        onCancel();
+        void commitDraft();
       }}
+      leading={(
+        <span
+          className={cn(
+            'mt-0.5 block size-5 shrink-0 rounded-full border border-dashed',
+            open ? 'border-muted-foreground/50' : 'border-current/55',
+          )}
+        />
+      )}
     >
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 block size-5 shrink-0 rounded-full border border-dashed border-muted-foreground/50" />
+      <input
+        ref={titleInputRef}
+        type="text"
+        value={draft.title}
+        readOnly={!open}
+        aria-label="Todo title"
+        placeholder={placeholder}
+        onFocus={() => {
+          if (!open) {
+            activateComposer(false);
+          }
+        }}
+        onPointerDown={() => {
+          if (!open) {
+            activateComposer(false);
+          }
+        }}
+        onChange={(event) => setDraft((previous) => ({ ...previous, title: event.target.value }))}
+        onKeyDown={(event) => {
+          if (!open && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            activateComposer(true);
+            return;
+          }
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            void commitDraft();
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            resetComposer();
+          }
+        }}
+        className={cn(
+          TODO_ROW_TITLE_CLASSNAME,
+          open
+            ? 'text-foreground placeholder:text-muted-foreground'
+            : 'cursor-text text-muted-foreground placeholder:text-muted-foreground',
+        )}
+      />
 
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <input
-            type="text"
-            value={draft.title}
-            onChange={(event) => onDraftChange((previous) => ({ ...previous, title: event.target.value }))}
+      {open ? (
+        <>
+          <textarea
+            value={draft.note}
+            onChange={(event) => setDraft((previous) => ({ ...previous, note: event.target.value }))}
+            rows={draft.note ? Math.min(Math.max(draft.note.split('\n').length, 1), 4) : 1}
+            placeholder="Notes"
+            className={cn(
+              TODO_ROW_NOTE_CLASSNAME,
+              'min-h-0 w-full resize-none text-muted-foreground/88 placeholder:text-muted-foreground/80',
+            )}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
                 event.preventDefault();
-                onSave();
+                void commitDraft();
               }
               if (event.key === 'Escape') {
                 event.preventDefault();
-                onCancel();
+                titleInputRef.current?.focus();
               }
             }}
-            placeholder="Title"
-            autoFocus
-            className={cn(
-              'block h-auto max-w-full border-0 bg-transparent p-0 text-[16px] font-medium leading-6 text-foreground outline-none placeholder:text-muted-foreground',
-            )}
-          />
-
-          <input
-            type="text"
-            value=""
-            readOnly
-            tabIndex={-1}
-            placeholder="Notes"
-            className="block h-auto max-w-full border-0 bg-transparent p-0 text-[14px] leading-[1.25] text-muted-foreground/88 outline-none placeholder:text-muted-foreground/80"
           />
 
           <div className="pt-1">
@@ -107,11 +197,11 @@ export const TodoInlineCreateRow: React.FC<TodoInlineCreateRowProps> = ({
               courseOptions={courseOptions}
               priorityOptions={priorityOptions}
               compact
-              onChange={(patch) => onDraftChange((previous) => ({ ...previous, ...patch }))}
+              onChange={(patch) => setDraft((previous) => ({ ...previous, ...patch }))}
             />
           </div>
-        </div>
-      </div>
-    </div>
+        </>
+      ) : null}
+    </TodoRowShell>
   );
 };

@@ -1,6 +1,6 @@
 // input:  [Todo tag values, semester course options, shadcn popover/calendar/select primitives, overdue state, and change callbacks]
 // output: [TodoMetaEditorChips React component]
-// pos:    [Reusable inline date/time/priority/course chip editor shared by todo create and quick-edit flows with value-driven styling]
+// pos:    [Reusable inline date/time/priority/course chip editor shared by todo create and quick-edit flows with value-driven styling and compact edit-state alignment]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -115,6 +115,10 @@ export const TodoMetaEditorChips: React.FC<TodoMetaEditorChipsProps> = ({
         : 'border-border/70 bg-muted/35 text-muted-foreground hover:bg-muted/55',
     'min-w-0',
   );
+  const timeEditorChipClassName = cn(
+    timeChipClassName,
+    compact && 'min-w-0 justify-start',
+  );
   const priorityChipClassName = cn(
     baseChipClassName,
     completed
@@ -206,7 +210,7 @@ export const TodoMetaEditorChips: React.FC<TodoMetaEditorChipsProps> = ({
         {editingTime ? (
           <div
             className={cn(
-              timeChipClassName,
+              timeEditorChipClassName,
               'flex items-center gap-1.5 px-2.5 pr-2',
             )}
             onClick={(event) => event.stopPropagation()}

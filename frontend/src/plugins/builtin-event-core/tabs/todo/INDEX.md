@@ -7,10 +7,10 @@ The UI stays Apple Reminder-inspired while keeping course views filtered and pre
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for the todo tab module and its main responsibilities. |
-| TodoTab.tsx | Runtime entry | Main container that loads semester todo API state, restores local per-list sorting preferences, drives task/section mutations through dedicated endpoints, reacts to Calendar-originated todo updates, and renders completed-summary plus inline-edit/list interaction flows. |
-| TodoTab.test.tsx | Interaction tests | Covers compact inline create behavior, local sort bucketing, and persisted view-preference restoration. |
+| TodoTab.tsx | Runtime entry | Main container that loads semester todo API state, restores local per-list sorting preferences, drives task/section mutations through dedicated endpoints, reacts to Calendar-originated todo updates, and lets each inline composer own its local draft while the tab only handles persistence. |
+| TodoTab.test.tsx | Interaction tests | Covers per-composer inline draft isolation, stable compact inline create shell reuse, blur-triggered quick-create commits, compact time-chip editing alignment, local sort bucketing, and persisted view-preference restoration. |
 | TodoSettingsSection.tsx | Settings panel | Todo behavior settings UI exposed in tab settings, including hidden completed-bucket storage behavior. |
-| components/ | UI components | Aggregate header/task/section rendering, compact section composers, completed summary, inline meta-chip editing, and dialog composition for todo flows. |
+| components/ | UI components | Aggregate header/task/section rendering, compact section composers with blur-to-save quick creation, completed summary, inline meta-chip editing, and dialog composition for todo flows. |
 | hooks/ | State hooks | Local hooks for drag/drop state, section open state, and completed-aware display bucketing. |
 | hooks/INDEX.md | Hooks architecture index | File-level map for todo interaction hooks. |
 | preferences.ts | Settings helpers | Normalization and patch helpers for todo behavior settings. |

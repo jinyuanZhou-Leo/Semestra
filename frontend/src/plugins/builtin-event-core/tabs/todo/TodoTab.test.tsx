@@ -1,6 +1,6 @@
 // input:  [Testing Library render helpers, todo interaction hooks/components, and normalized todo runtime fixtures]
-// output: [Vitest coverage for inline todo creation, local sort persistence, and completed-task display behavior]
-// pos:    [Regression test file for todo runtime helpers that protect local sorting, persisted view preferences, and completion bucketing behavior]
+// output: [Vitest coverage for local inline todo creation state, compact time-chip editing, local sort persistence, and completed-task display behavior]
+// pos:    [Regression test file for todo runtime helpers that protect per-composer inline drafts, stable shell reuse, persisted view preferences, and completion bucketing behavior]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -20,72 +20,169 @@ import { toggleTodoTaskCompletedInStorage } from './utils/todoMutations';
 
 describe('TodoInlineCreateRow', () => {
   it('opens from the placeholder and saves with Enter without showing action buttons', () => {
-    const onOpen = vi.fn();
-    const onSave = vi.fn();
-
     render(
       <TodoInlineCreateRow
         mode="semester"
-        open={false}
-        draft={{
-          title: '',
-          note: '',
-          sectionId: '',
-          courseId: '',
-          dueDate: '',
-          dueTime: '',
-          priority: 'MEDIUM',
-        }}
+        sectionId=""
         courseOptions={[]}
         priorityOptions={PRIORITY_OPTIONS}
-        onOpen={onOpen}
-        onDraftChange={vi.fn()}
-        onCancel={vi.fn()}
-        onSave={onSave}
+        onSave={vi.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /add a todo/i }));
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    fireEvent.focus(screen.getByPlaceholderText('Add a todo'));
+    expect(screen.getByRole('button', { name: /time/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /create/i })).not.toBeInTheDocument();
   });
 
-  it('cancels on blur outside the composer and saves on Enter while open', () => {
-    const onCancel = vi.fn();
+  it('reuses the same row shell and title field when opening from the placeholder state', () => {
+    const { container } = render(
+      <TodoInlineCreateRow
+        mode="semester"
+        sectionId=""
+        courseOptions={[]}
+        priorityOptions={PRIORITY_OPTIONS}
+        onSave={vi.fn()}
+      />,
+    );
+
+    const shellBeforeOpen = container.querySelector('[data-todo-inline-create-root="true"]');
+    const titleFieldBeforeOpen = screen.getByPlaceholderText('Add a todo');
+
+    fireEvent.focus(titleFieldBeforeOpen);
+
+    const shellAfterOpen = container.querySelector('[data-todo-inline-create-root="true"]');
+    const titleFieldAfterOpen = screen.getByLabelText('Todo title');
+
+    expect(shellAfterOpen).toBe(shellBeforeOpen);
+    expect(titleFieldAfterOpen).toBe(titleFieldBeforeOpen);
+  });
+
+  it('saves the entered title on Enter while open', async () => {
     const onSave = vi.fn();
 
     render(
       <>
         <TodoInlineCreateRow
           mode="semester"
-          open
-          draft={{
-            title: 'Draft task',
-            note: '',
-            sectionId: '',
-            courseId: '',
-            dueDate: '',
-            dueTime: '',
-            priority: 'MEDIUM',
-          }}
+          sectionId=""
           courseOptions={[]}
           priorityOptions={PRIORITY_OPTIONS}
-          onOpen={vi.fn()}
-          onDraftChange={vi.fn()}
-          onCancel={onCancel}
           onSave={onSave}
         />
         <button type="button">Outside</button>
       </>,
     );
 
-    const input = screen.getByPlaceholderText('Title');
+    const input = screen.getByPlaceholderText('Add a todo');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'Draft task' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'Draft task' }));
+  });
 
+  it('creates the task on blur when the draft already has a title', () => {
+    const onSave = vi.fn();
+
+    render(
+      <>
+        <TodoInlineCreateRow
+          mode="semester"
+          sectionId=""
+          courseOptions={[]}
+          priorityOptions={PRIORITY_OPTIONS}
+          onSave={onSave}
+        />
+        <button type="button">Outside</button>
+      </>,
+    );
+
+    const input = screen.getByPlaceholderText('Add a todo');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'Draft task' } });
+    fireEvent.focus(input);
     fireEvent.blur(input, { relatedTarget: screen.getByRole('button', { name: 'Outside' }) });
-    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'Draft task' }));
+  });
+
+  it('drops the composer on blur when the draft is still empty', () => {
+    const onSave = vi.fn();
+
+    render(
+      <>
+        <TodoInlineCreateRow
+          mode="semester"
+          sectionId=""
+          courseOptions={[]}
+          priorityOptions={PRIORITY_OPTIONS}
+          onSave={onSave}
+        />
+        <button type="button">Outside</button>
+      </>,
+    );
+
+    const input = screen.getByPlaceholderText('Add a todo');
+    fireEvent.focus(input);
+    fireEvent.blur(input, { relatedTarget: screen.getByRole('button', { name: 'Outside' }) });
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText('Add a todo')).toBeInTheDocument();
+  });
+
+  it('keeps the compact time editor left-aligned while editing', () => {
+    render(
+      <TodoInlineCreateRow
+        mode="semester"
+        sectionId=""
+        courseOptions={[]}
+        priorityOptions={PRIORITY_OPTIONS}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.focus(screen.getByPlaceholderText('Add a todo'));
+    fireEvent.click(screen.getByRole('button', { name: /time/i }));
+
+    const timeInput = document.querySelector('input[type="time"]');
+    expect(timeInput).not.toBeNull();
+
+    const timeEditor = timeInput?.parentElement;
+    expect(timeEditor).not.toBeNull();
+    expect(timeEditor).toHaveClass('justify-start');
+    expect(timeEditor).not.toHaveClass('justify-between');
+    expect(timeEditor).not.toHaveClass('min-w-[92px]');
+  });
+
+  it('keeps drafts isolated between multiple inline composers', () => {
+    render(
+      <>
+        <TodoInlineCreateRow
+          mode="semester"
+          sectionId=""
+          placeholder="Add first todo"
+          courseOptions={[]}
+          priorityOptions={PRIORITY_OPTIONS}
+          onSave={vi.fn()}
+        />
+        <TodoInlineCreateRow
+          mode="semester"
+          sectionId="section-b"
+          placeholder="Add second todo"
+          courseOptions={[]}
+          priorityOptions={PRIORITY_OPTIONS}
+          onSave={vi.fn()}
+        />
+      </>,
+    );
+
+    const firstInput = screen.getByPlaceholderText('Add first todo');
+    fireEvent.focus(firstInput);
+    fireEvent.change(firstInput, { target: { value: 'First draft' } });
+
+    const secondInput = screen.getByPlaceholderText('Add second todo');
+    expect(secondInput).toHaveValue('');
   });
 });
 
