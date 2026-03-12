@@ -59,7 +59,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, X, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
 import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
-import { getCourseCategoryBadgeClassName } from '@/utils/courseCategoryBadge';
+import { getCourseBadgeStyle, getCourseCategoryBadgeClassName } from '@/utils/courseCategoryBadge';
 
 // Helper function to extract course level from course name
 const extractCourseLevel = (courseName: string): number | null => {
@@ -1134,6 +1134,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                                 <Badge
                                                                     variant="outline"
                                                                         className={`border-0 font-medium ${getCourseCategoryBadgeClassName(course.category)}`}
+                                                                        style={getCourseBadgeStyle(course.color)}
                                                                 >
                                                                     {course.category}
                                                                 </Badge>

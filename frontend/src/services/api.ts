@@ -37,6 +37,7 @@ export interface Course {
     name: string;
     alias?: string;
     category?: string;
+    color?: string | null;
     credits: number;
     grade_scaled: number;
     grade_percentage: number;

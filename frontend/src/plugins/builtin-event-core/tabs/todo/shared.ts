@@ -14,7 +14,7 @@ export const COMPLETED_SECTION_ID = '__completed__';
 export const COMPLETED_SECTION_NAME = 'Completed';
 export const UNSECTIONED_TASK_BUCKET_ID = '__unsectioned__';
 export const UNSECTIONED_TASK_BUCKET_NAME = 'No Section';
-export const COMPLETED_MOVE_TIMEOUT_MS = 1500;
+export const COMPLETED_MOVE_TIMEOUT_MS = 3000;
 export const SEMESTER_TODO_SETTINGS_KEY = 'semesterTodo';
 
 export const PRIORITY_OPTIONS: TodoPriorityOption[] = [

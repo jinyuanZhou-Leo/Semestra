@@ -29,6 +29,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import type { TaskDraft, TodoCourseOption, TodoPriority, TodoPriorityOption, TodoSection } from '../../types';
 
+const EMPTY_PRIORITY_VALUE = '__todo-priority-none__';
+
 interface TodoTaskDialogProps {
   open: boolean;
   editingTaskId: string | null;
@@ -154,13 +156,14 @@ export const TodoTaskDialog: React.FC<TodoTaskDialogProps> = ({
           <div className="grid gap-2">
             <Label>Priority</Label>
             <Select
-              value={taskDraft.priority}
-              onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, priority: value as TodoPriority }))}
+              value={taskDraft.priority || EMPTY_PRIORITY_VALUE}
+              onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, priority: value === EMPTY_PRIORITY_VALUE ? '' : value as TodoPriority }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Priority" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={EMPTY_PRIORITY_VALUE}>No Priority</SelectItem>
                 {priorityOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}

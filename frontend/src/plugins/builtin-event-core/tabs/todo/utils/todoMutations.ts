@@ -22,7 +22,6 @@ export const toggleTodoTaskCompletedInStorage = (
 ): TodoListStorage => {
   let changed = false;
   const users = userSectionsOf(current.sections);
-  const fallbackSectionId = users[0]?.id ?? '';
 
   const nextTasks = current.tasks.map((task) => {
     if (task.id !== taskId) return task;
@@ -32,7 +31,7 @@ export const toggleTodoTaskCompletedInStorage = (
       const restoreSectionId = task.sectionId === COMPLETED_SECTION_ID
         ? (task.originSectionId && users.some((section) => section.id === task.originSectionId)
           ? task.originSectionId
-          : fallbackSectionId)
+          : '')
         : task.sectionId;
 
       return {

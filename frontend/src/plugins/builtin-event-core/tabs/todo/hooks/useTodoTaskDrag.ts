@@ -19,10 +19,12 @@ interface UseTodoTaskDragParams {
 export const useTodoTaskDrag = ({ onTaskDrop }: UseTodoTaskDragParams) => {
   const [draggingTaskId, setDraggingTaskId] = React.useState<string | null>(null);
   const [dragOverSectionId, setDragOverSectionId] = React.useState<string | null>(null);
+  const [dragOverTaskId, setDragOverTaskId] = React.useState<string | null>(null);
 
   const resetTaskDragState = React.useCallback(() => {
     setDraggingTaskId(null);
     setDragOverSectionId(null);
+    setDragOverTaskId(null);
   }, []);
 
   const handleTaskDragStart = React.useCallback((task: TodoTask) => {
@@ -41,6 +43,18 @@ export const useTodoTaskDrag = ({ onTaskDrop }: UseTodoTaskDragParams) => {
     if (!draggingTaskId) return;
     event.preventDefault();
     setDragOverSectionId(targetSectionId);
+    setDragOverTaskId(null);
+  }, [draggingTaskId]);
+
+  const handleTaskDragOverItem = React.useCallback((
+    event: React.DragEvent<HTMLElement>,
+    targetSectionId: string,
+    beforeTaskId: string,
+  ) => {
+    if (!draggingTaskId) return;
+    event.preventDefault();
+    setDragOverSectionId(targetSectionId);
+    setDragOverTaskId(beforeTaskId);
   }, [draggingTaskId]);
 
   const handleTaskDropToSection = React.useCallback((
@@ -62,10 +76,12 @@ export const useTodoTaskDrag = ({ onTaskDrop }: UseTodoTaskDragParams) => {
   return {
     draggingTaskId,
     dragOverSectionId,
+    dragOverTaskId,
     resetTaskDragState,
     handleTaskDragStart,
     handleTaskDragEnd,
     handleTaskDragOverSection,
+    handleTaskDragOverItem,
     handleTaskDropToSection,
   };
 };

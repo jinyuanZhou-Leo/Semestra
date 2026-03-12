@@ -19,7 +19,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
 | CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
 | CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation. |
-| CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, pending-save feedback, and draft-safe sync against backend refreshes. |
+| CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, persisted course-color configuration, pending-save feedback, and draft-safe sync against backend refreshes. |
 | GPAScalingTable.tsx | UI component | Reusable component for g p a scaling table UI/interaction flow. |
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |
 | GradientBlinds.tsx | UI component | Reusable component for gradient blinds UI/interaction flow. |

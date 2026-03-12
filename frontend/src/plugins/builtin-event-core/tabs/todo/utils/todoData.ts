@@ -31,6 +31,7 @@ type CourseSnapshot = {
   courseId: string;
   courseName: string;
   courseCategory: string;
+  courseColor: string;
   todoTab?: ApiTab;
 };
 
@@ -152,10 +153,12 @@ const normalizeTasks = (
       const title = readString(item.title, '').trim();
       if (!title) return null;
 
-      const priorityValue = readString(item.priority, 'MEDIUM');
-      const priority = PRIORITY_OPTIONS.some((option) => option.value === priorityValue as TodoPriority)
+      const priorityValue = readString(item.priority, '');
+      const priority = priorityValue === ''
+        ? ''
+        : PRIORITY_OPTIONS.some((option) => option.value === priorityValue as TodoPriority)
         ? (priorityValue as TodoPriority)
-        : 'MEDIUM';
+        : '';
 
       const rawSectionId = readString(item.sectionId, '').trim();
       const safeSectionId = rawSectionId === COMPLETED_SECTION_ID
@@ -180,7 +183,7 @@ const normalizeTasks = (
         description: readString(item.description, ''),
         sectionId: safeSectionId,
         originSectionId: completed
-          ? (safeOriginSectionId ?? (safeSectionId !== COMPLETED_SECTION_ID ? safeSectionId : fallbackUserSectionId))
+          ? (safeSectionId === COMPLETED_SECTION_ID ? safeOriginSectionId : (safeOriginSectionId ?? safeSectionId))
           : undefined,
         courseId,
         courseName,
@@ -289,6 +292,7 @@ const migrateLegacyTodoState = (
       id: course.courseId,
       name: course.courseName,
       category: course.courseCategory,
+      color: course.courseColor,
     });
 
     return legacyStorage.tasks.map((task, index) => ({
@@ -354,6 +358,7 @@ export const normalizeSemesterTodoState = (
     id: course.courseId,
     name: course.courseName,
     category: course.courseCategory,
+    color: course.courseColor,
   }));
   const source = isRecord(settings[SEMESTER_TODO_SETTINGS_KEY]) ? settings[SEMESTER_TODO_SETTINGS_KEY] : null;
 
@@ -442,15 +447,15 @@ export const createTaskDraft = (
   courseId,
   dueDate: '',
   dueTime: '',
-  priority: 'MEDIUM',
+  priority: '',
 });
 
 export const getPriorityMeta = (priority: TodoPriority) => {
-  return PRIORITY_OPTIONS.find((option) => option.value === priority) ?? PRIORITY_OPTIONS[1];
+  return PRIORITY_OPTIONS.find((option) => option.value === priority) ?? null;
 };
 
 const priorityWeightOf = (priority: TodoPriority) => {
-  return getPriorityMeta(priority).weight;
+  return getPriorityMeta(priority)?.weight ?? 0;
 };
 
 const dueWeight = (task: TodoTask) => {

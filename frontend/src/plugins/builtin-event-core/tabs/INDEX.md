@@ -10,4 +10,4 @@ This layer keeps tab concerns isolated (calendar, course schedule, todo) while t
 | calendar/ | Calendar tab module | FullCalendar-backed week/month views, configurable week-view horizontal scroll width, standalone registry-backed source orchestration, Reading Week-aware week numbering and event suppression, toolbar/editor flows, settings, export actions, and month overflow reveal affordances. |
 | course-schedule/INDEX.md | Course schedule module architecture index | File map for section management, event-type settings, and keyboard-accessible section expansion. |
 | course-schedule/ | Course schedule tab module | Course timetable rendering with keyboard-accessible section expansion, atomic section toggles, and schedule-specific settings/actions. |
-| todo/ | Todo tab module | Semester-first Apple Reminder-style aggregate todo UI with inline tag-based quick create, mirrored course sync, preferences, and safer section deletion. |
+| todo/ | Todo tab module | Semester-first Apple Reminder-style aggregate todo UI with section-scoped compact inline create, inline title/tag editing, completed-summary controls, mirrored course sync, and safer destructive flows. |

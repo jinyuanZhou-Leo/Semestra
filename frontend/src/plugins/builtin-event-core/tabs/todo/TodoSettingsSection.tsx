@@ -18,10 +18,10 @@ export const TodoSettingsSection: React.FC<TabSettingsProps> = ({ settings, upda
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-0.5">
             <Label htmlFor="todo-settings-move-completed" className="cursor-pointer text-base">
-              Move completed tasks to Completed section
+              Store completed tasks in the hidden completed bucket
             </Label>
             <p className="text-xs text-muted-foreground">
-              When disabled, completed tasks stay in their section and are sorted at the end.
+              When disabled, completed tasks stay attached to their original section records.
             </p>
           </div>
           <Switch

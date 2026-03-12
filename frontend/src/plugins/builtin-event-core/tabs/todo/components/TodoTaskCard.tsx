@@ -1,6 +1,6 @@
-// input:  [Todo task item data, optional drag handlers, mutation callbacks, course badge styles, and display formatters]
+// input:  [Todo task item data, inline quick-edit callbacks, drag state, and display helpers]
 // output: [TodoTaskCard React component]
-// pos:    [Reminder-inspired task row used across semester aggregate and course-filtered todo views]
+// pos:    [Reminder-inspired task row with inline title/meta editing, selection, swipe delete, and drag handle affordances]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,255 +8,458 @@
 "use no memo";
 
 import React from 'react';
+import { addDays, format, isSameDay } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarClock, Flag, Pencil, Tag, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import type { TodoTask } from '../types';
-
-interface PriorityMeta {
-  className: string;
-  label: string;
-}
+import { getCourseBadgeStyle, getDistinctCourseBadgeClassName } from '@/utils/courseCategoryBadge';
+import { TodoMetaEditorChips } from './TodoMetaEditorChips';
+import { getPriorityMeta } from '../utils/todoData';
+import type { TodoCourseOption, TodoPriorityOption, TodoTabMode, TodoTask } from '../types';
 
 interface TodoTaskCardProps {
+  mode: TodoTabMode;
   task: TodoTask;
   sectionId: string;
-  completedSectionId: string;
   draggingTaskId: string | null;
+  dragOverTaskId: string | null;
   showCourseTag: boolean;
-  getCourseTagClassName: (category: string) => string;
+  isSelected: boolean;
+  courseOptions: TodoCourseOption[];
+  priorityOptions: TodoPriorityOption[];
   onTaskDragStart: (task: TodoTask) => void;
   onTaskDragEnd: () => void;
-  onTaskDragOverSection: (event: React.DragEvent<HTMLElement>, targetSectionId: string) => void;
+  onTaskDragOverItem: (event: React.DragEvent<HTMLElement>, targetSectionId: string, beforeTaskId: string) => void;
   onTaskDropToSection: (
     event: React.DragEvent<HTMLElement>,
     targetSectionId: string,
     beforeTaskId: string | null,
   ) => void;
   onToggleTaskCompleted: (taskId: string, completed: boolean) => void;
-  onOpenEditTaskDialog: (task: TodoTask) => void;
-  onDeleteTask: (taskId: string) => void;
-  getPriorityMeta: (priority: TodoTask['priority']) => PriorityMeta;
-  formatTaskDue: (task: TodoTask) => string;
+  onPatchTask: (
+    taskId: string,
+    patch: Partial<Pick<TodoTask, 'title' | 'description' | 'dueDate' | 'dueTime' | 'priority' | 'courseId' | 'courseName' | 'courseCategory'>>,
+  ) => void;
+  onOpenDetails: (task: TodoTask) => void;
+  onRequestDelete: (task: TodoTask) => void;
+  onSelect: (taskId: string) => void;
 }
 
+const isInteractiveTarget = (target: EventTarget | null) => {
+  return target instanceof HTMLElement
+    && Boolean(target.closest('button,input,textarea,[role="button"],[data-slot="select-trigger"],[data-slot="popover-trigger"],[data-no-swipe="true"]'));
+};
+
 export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
+  mode,
   task,
   sectionId,
-  completedSectionId,
   draggingTaskId,
+  dragOverTaskId,
   showCourseTag,
-  getCourseTagClassName,
+  isSelected,
+  courseOptions,
+  priorityOptions,
   onTaskDragStart,
   onTaskDragEnd,
-  onTaskDragOverSection,
+  onTaskDragOverItem,
   onTaskDropToSection,
   onToggleTaskCompleted,
-  onOpenEditTaskDialog,
-  onDeleteTask,
-  getPriorityMeta,
-  formatTaskDue,
+  onPatchTask,
+  onOpenDetails,
+  onRequestDelete,
+  onSelect,
 }) => {
-  const priorityMeta = getPriorityMeta(task.priority);
-  const isCompletedSection = sectionId === completedSectionId;
-  const canEditViaBadge = !isCompletedSection;
-  const [nowTimestamp, setNowTimestamp] = React.useState(0);
-  const [celebrateChecked, setCelebrateChecked] = React.useState(false);
-  const wasCompletedRef = React.useRef(task.completed);
-  const celebrateTimerRef = React.useRef<number | null>(null);
+  const editorRef = React.useRef<HTMLDivElement | null>(null);
+  const titleInputRef = React.useRef<HTMLInputElement | null>(null);
+  const descriptionInputRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const [editorOpen, setEditorOpen] = React.useState(false);
+  const [editingTitle, setEditingTitle] = React.useState(false);
+  const [titleDraft, setTitleDraft] = React.useState(task.title);
+  const [descriptionDraft, setDescriptionDraft] = React.useState(task.description);
+  const [swipeOffset, setSwipeOffset] = React.useState(0);
+  const pointerStateRef = React.useRef<{ pointerId: number; startX: number; startY: number; swiping: boolean } | null>(null);
+  const isOverdue = !task.completed && Boolean(task.dueDate) && new Date(`${task.dueDate}T${task.dueTime || '23:59'}:00`).getTime() < Date.now();
+  const isExpanded = editorOpen;
+  const compactDescription = task.description.trim();
+  const completedTextClassName = 'text-[14px] leading-[1.25] text-muted-foreground/88';
+  const distinctCourseIds = React.useMemo(() => courseOptions.map((course) => course.id), [courseOptions]);
+  const compactMeta = React.useMemo(() => {
+    const parts: Array<{ key: string; label: string; className?: string; kind?: 'course'; style?: React.CSSProperties }> = [];
 
-  React.useEffect(() => {
-    setNowTimestamp(Date.now());
-  }, []);
-
-  React.useEffect(() => {
-    const wasCompleted = wasCompletedRef.current;
-    if (!wasCompleted && task.completed) {
-      setCelebrateChecked(true);
-      if (celebrateTimerRef.current !== null) {
-        window.clearTimeout(celebrateTimerRef.current);
-      }
-      celebrateTimerRef.current = window.setTimeout(() => {
-        setCelebrateChecked(false);
-        celebrateTimerRef.current = null;
-      }, 430);
+    if (task.dueDate) {
+      const parsedDate = new Date(`${task.dueDate}T12:00:00`);
+      const today = new Date();
+      const tomorrow = addDays(today, 1);
+      const dateLabel = isSameDay(parsedDate, today)
+        ? 'Today'
+        : isSameDay(parsedDate, tomorrow)
+          ? 'Tomorrow'
+          : format(parsedDate, 'yyyy-MM-dd');
+      parts.push({
+        key: 'due',
+        label: task.dueTime ? `${dateLabel}, ${task.dueTime}` : dateLabel,
+        className: task.completed ? 'text-muted-foreground/88' : (isOverdue ? 'text-destructive' : 'text-muted-foreground'),
+      });
     }
-    wasCompletedRef.current = task.completed;
-  }, [task.completed]);
+
+    if (task.courseId && showCourseTag) {
+      const selectedCourse = courseOptions.find((course) => course.id === task.courseId);
+      parts.push({
+        key: 'course',
+        label: `#${task.courseName}`,
+        className: getDistinctCourseBadgeClassName(task.courseId, distinctCourseIds, task.courseCategory),
+        kind: 'course',
+        style: getCourseBadgeStyle(selectedCourse?.color),
+      });
+    }
+
+    const priorityMeta = getPriorityMeta(task.priority);
+    if (priorityMeta) {
+      parts.push({
+        key: 'priority',
+        label: priorityMeta.label,
+        className: priorityMeta.className.split(' ').find((token) => token.startsWith('text-')) ?? 'text-muted-foreground',
+      });
+    }
+
+    return parts;
+  }, [courseOptions, distinctCourseIds, isOverdue, showCourseTag, task.courseCategory, task.courseId, task.courseName, task.dueDate, task.dueTime, task.priority]);
 
   React.useEffect(() => {
-    return () => {
-      if (celebrateTimerRef.current !== null) {
-        window.clearTimeout(celebrateTimerRef.current);
-      }
-    };
-  }, []);
+    if (!editingTitle) {
+      setTitleDraft(task.title);
+    }
+  }, [editingTitle, task.title]);
 
-  const isOverdue = React.useMemo(() => {
-    if (task.completed || !task.dueDate || nowTimestamp === 0) return false;
-    const dueAt = new Date(`${task.dueDate}T${task.dueTime || '23:59'}:00`);
-    if (!Number.isFinite(dueAt.getTime())) return false;
-    return dueAt.getTime() < nowTimestamp;
-  }, [nowTimestamp, task.completed, task.dueDate, task.dueTime]);
+  React.useEffect(() => {
+    setDescriptionDraft(task.description);
+  }, [task.description]);
 
-  const handleOpenBadgeSettings = () => {
-    if (!canEditViaBadge) return;
-    onOpenEditTaskDialog(task);
-  };
+  React.useEffect(() => {
+    if (isSelected) return;
+    setEditingTitle(false);
+    setEditorOpen(false);
+  }, [isSelected]);
+
+  const commitTitle = React.useCallback(() => {
+    const nextTitle = titleDraft.trim();
+    setEditingTitle(false);
+    if (!nextTitle || nextTitle === task.title) return;
+    onPatchTask(task.id, { title: nextTitle });
+  }, [onPatchTask, task.id, task.title, titleDraft]);
+
+  const commitDescription = React.useCallback(() => {
+    if (descriptionDraft === task.description) return;
+    onPatchTask(task.id, { description: descriptionDraft });
+  }, [descriptionDraft, onPatchTask, task.description, task.id]);
+
+  const focusTitleEditor = React.useCallback(() => {
+    onSelect(task.id);
+    setEditorOpen(true);
+    setEditingTitle(true);
+    requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+    });
+  }, [onSelect, task.id]);
+
+  const focusDescriptionEditor = React.useCallback(() => {
+    onSelect(task.id);
+    setEditorOpen(true);
+    setEditingTitle(false);
+    requestAnimationFrame(() => {
+      descriptionInputRef.current?.focus();
+    });
+  }, [onSelect, task.id]);
+
+  const completionRingClassName = task.completed
+    ? 'border-primary/80 bg-primary'
+    : 'border-muted-foreground/45 bg-transparent group-hover/task:border-primary/45';
 
   return (
     <motion.div
+      layout="position"
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
-      draggable={!task.completed}
-      onDragStart={() => onTaskDragStart(task)}
-      onDragEnd={onTaskDragEnd}
-      onDragOver={(event) => onTaskDragOverSection(event, sectionId)}
-      onDrop={(event) => onTaskDropToSection(event, sectionId, task.id)}
-      className={cn(
-        'group/task rounded-2xl border border-border/65 bg-background/95 px-3 py-3 shadow-[0_1px_0_hsl(var(--border)/0.45)] transition-all sm:px-4',
-        task.completed ? 'bg-muted/25' : 'hover:border-border hover:bg-card',
-        draggingTaskId === task.id && 'opacity-55 blur-[1px]',
-      )}
+      className="relative"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+      <AnimatePresence initial={false}>
+        {swipeOffset < -8 ? (
           <motion.div
-            animate={celebrateChecked ? { scale: [1, 1.2, 1.2, 0.9, 1] } : { scale: 1 }}
-            whileTap={{ scale: 0.84 }}
-            transition={{ duration: 0.44, ease: ['easeOut', 'linear', 'easeIn', 'easeOut'], times: [0, 0.3, 0.66, 0.86, 1] }}
-            className="relative mt-0.5"
+            key="swipe-delete"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-y-0 right-0 flex w-20 items-center justify-center"
           >
-            <AnimatePresence>
-              {celebrateChecked ? (
-                <motion.span
-                  key="checkbox-burst-ring"
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-[-7px] rounded-full bg-[conic-gradient(from_0deg,#fb7185,#f59e0b,#22c55e,#3b82f6,#a855f7,#fb7185)] [mask:radial-gradient(farthest-side,transparent_calc(100%-3px),#000_0)]"
-                  initial={{ opacity: 0.95, scale: 0.72, rotate: 0 }}
-                  animate={{
-                    opacity: [0.95, 0.45, 0.08, 0],
-                    scale: [0.72, 1.08, 1.26, 1.38],
-                    rotate: [0, 90, 150, 180],
-                  }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.32, ease: ['easeOut', 'easeOut', 'easeIn'], times: [0, 0.45, 0.8, 1] }}
-                />
-              ) : null}
-            </AnimatePresence>
-            <Checkbox
-              checked={task.completed}
-              onCheckedChange={(checked) => onToggleTaskCompleted(task.id, checked === true)}
-              aria-label={`Mark ${task.title} as completed`}
+            <div className="flex h-full w-full items-center justify-center rounded-[18px] bg-destructive/14 text-destructive">
+              <Trash2 className="h-4 w-4" />
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <motion.div
+        layout="position"
+        animate={{ x: swipeOffset }}
+        transition={{ type: 'spring', stiffness: 360, damping: 34, mass: 0.7 }}
+        draggable={false}
+        onDragOver={(event) => onTaskDragOverItem(event, sectionId, task.id)}
+        onDrop={(event) => onTaskDropToSection(event, sectionId, task.id)}
+        onPointerDown={(event) => {
+          if (event.button !== 0 || isInteractiveTarget(event.target)) return;
+          pointerStateRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            swiping: false,
+          };
+        }}
+        onPointerMove={(event) => {
+          const pointerState = pointerStateRef.current;
+          if (!pointerState || pointerState.pointerId !== event.pointerId) return;
+
+          const deltaX = event.clientX - pointerState.startX;
+          const deltaY = event.clientY - pointerState.startY;
+
+          if (!pointerState.swiping) {
+            if (Math.abs(deltaX) < 6 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+            pointerState.swiping = true;
+          }
+
+          if (deltaX > 0) {
+            setSwipeOffset(0);
+            return;
+          }
+
+          setSwipeOffset(Math.max(deltaX, -84));
+        }}
+        onPointerUp={(event) => {
+          const pointerState = pointerStateRef.current;
+          if (!pointerState || pointerState.pointerId !== event.pointerId) return;
+          if (pointerState.swiping && swipeOffset <= -58) {
+            onRequestDelete(task);
+          } else if (!pointerState.swiping && !isInteractiveTarget(event.target)) {
+            onSelect(task.id);
+          }
+          pointerStateRef.current = null;
+          setSwipeOffset(0);
+        }}
+        onPointerCancel={() => {
+          pointerStateRef.current = null;
+          setSwipeOffset(0);
+        }}
+        onClick={(event) => {
+          if (isInteractiveTarget(event.target)) return;
+          onSelect(task.id);
+        }}
+        onFocus={(event) => {
+          if (isInteractiveTarget(event.target)) return;
+          onSelect(task.id);
+        }}
+        tabIndex={0}
+        className={cn(
+          'group/task rounded-[18px] px-3 py-2.5 transition-colors outline-none sm:px-2',
+          task.completed ? 'text-muted-foreground' : 'hover:bg-muted/28',
+          isSelected && 'bg-muted/40 ring-1 ring-primary/20',
+          draggingTaskId === task.id && 'opacity-45',
+          dragOverTaskId === task.id && 'before:absolute before:-top-1 before:left-4 before:right-4 before:h-0.5 before:rounded-full before:bg-primary',
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={task.completed}
+            aria-label={`Mark ${task.title} as completed`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleTaskCompleted(task.id, !task.completed);
+            }}
+            className="mt-0.5 flex size-5 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            data-no-swipe="true"
+          >
+            <motion.span
+              initial={false}
+              animate={{
+                scale: task.completed ? [1, 1.12, 1] : 1,
+              }}
+              transition={{ duration: 0.24, ease: 'easeOut' }}
               className={cn(
-                'relative z-10 mt-0.5 size-5 rounded-full',
-                celebrateChecked && 'shadow-[0_0_0_4px_hsl(var(--primary)/0.18)]',
+                'block size-5 rounded-full border transition-colors',
+                completionRingClassName,
               )}
             />
-          </motion.div>
+          </button>
 
-          <div className={cn('min-w-0 flex-1 space-y-1.5', task.completed && 'grayscale')}>
-            <div className="relative inline-flex max-w-full align-top">
-              <p className={cn('truncate text-[17px] font-medium leading-6', task.completed && 'text-muted-foreground')}>
-                {task.title}
-              </p>
-              <motion.span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 bg-muted-foreground/70"
-                initial={false}
-                animate={{
-                  scaleX: task.completed ? 1 : 0,
-                  opacity: task.completed ? 1 : 0.5,
-                }}
-                transition={{ duration: 0.24, ease: 'easeOut' }}
-                style={{ transformOrigin: 'left center' }}
-              />
-            </div>
+          <div
+            ref={editorRef}
+            className="min-w-0 flex-1 space-y-0.5"
+            onBlurCapture={(event) => {
+              const nextTarget = event.relatedTarget as HTMLElement | null;
+              if (nextTarget && editorRef.current?.contains(nextTarget)) return;
+              if (nextTarget?.closest('[data-slot="popover-content"],[data-slot="select-content"]')) return;
+              setEditingTitle(false);
+              setEditorOpen(false);
+            }}
+          >
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={titleDraft}
+              size={Math.max(titleDraft.length, task.title.length, 1)}
+              readOnly={!editingTitle}
+              onChange={(event) => setTitleDraft(event.target.value)}
+              onFocus={() => {
+                focusTitleEditor();
+              }}
+              onBlur={commitTitle}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  commitTitle();
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  setEditingTitle(false);
+                  setTitleDraft(task.title);
+                }
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect(task.id);
+              }}
+              className={cn(
+                'block max-w-full border-0 bg-transparent p-0 text-[16px] font-medium leading-6 outline-none',
+                task.completed ? 'text-muted-foreground/88' : 'text-foreground',
+                !editingTitle && 'pointer-events-auto cursor-text select-text',
+                task.completed && 'line-through decoration-muted-foreground/60',
+              )}
+              style={{ width: `${Math.max(titleDraft.length, task.title.length, 1)}ch` }}
+            />
 
-            {task.description ? (
-              <p
-                className="overflow-hidden text-sm text-muted-foreground"
-                title={task.description}
-                style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical',
-                }}
-              >
-                {task.description}
-              </p>
-            ) : null}
+            {isExpanded ? (
+              <>
+                <textarea
+                  ref={descriptionInputRef}
+                  value={descriptionDraft}
+                  onChange={(event) => setDescriptionDraft(event.target.value)}
+                  onBlur={commitDescription}
+                  placeholder="Notes"
+                  rows={descriptionDraft ? Math.min(Math.max(descriptionDraft.split('\n').length, 1), 4) : 1}
+                  className={cn(
+                    'min-h-0 w-full resize-none border-0 bg-transparent px-0 py-0 shadow-none outline-none placeholder:text-muted-foreground/80',
+                    completedTextClassName,
+                  )}
+                />
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                asChild
-                variant="outline"
-                className={cn(
-                  'rounded-full border-border/70 bg-muted/40 text-[11px]',
-                  isOverdue && 'border-destructive/35 bg-destructive/10 text-destructive',
-                  canEditViaBadge && 'cursor-pointer hover:bg-muted',
-                )}
-              >
-                <button type="button" onClick={handleOpenBadgeSettings} aria-label={`Edit due date for ${task.title}`}>
-                  <CalendarClock className="mr-1 h-3 w-3" />
-                  {formatTaskDue(task)}
-                </button>
-              </Badge>
+                <div className="pt-1">
+                  <TodoMetaEditorChips
+                    mode={showCourseTag ? mode : 'course'}
+                    dueDate={task.dueDate}
+                    dueTime={task.dueTime}
+                    priority={task.priority}
+                    courseId={task.courseId}
+                    courseOptions={courseOptions}
+                    priorityOptions={priorityOptions}
+                    isOverdue={isOverdue}
+                    completed={task.completed}
+                    onChange={(patch) => {
+                      const selectedCourse = patch.courseId
+                        ? courseOptions.find((course) => course.id === patch.courseId)
+                        : undefined;
 
-              <Badge
-                asChild
-                className={cn(
-                  'rounded-full border text-[11px]',
-                  priorityMeta.className,
-                  canEditViaBadge && 'cursor-pointer',
-                )}
-              >
-                <button type="button" onClick={handleOpenBadgeSettings} aria-label={`Edit priority for ${task.title}`}>
-                  <Flag className="mr-1 h-3 w-3" />
-                  {priorityMeta.label}
-                </button>
-              </Badge>
-
-              {showCourseTag && task.courseId ? (
-                <Badge className={cn('rounded-full border-0 text-[11px]', getCourseTagClassName(task.courseCategory))}>
-                  <Tag className="mr-1 h-3 w-3" />
-                  {task.courseName}
-                </Badge>
-              ) : null}
-            </div>
+                      onPatchTask(task.id, {
+                        ...patch,
+                        courseName: selectedCourse?.name ?? '',
+                        courseCategory: selectedCourse?.category ?? '',
+                      });
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {compactDescription ? (
+                  <input
+                    type="text"
+                    readOnly
+                    value={compactDescription}
+                    size={Math.max(compactDescription.length, 1)}
+                    tabIndex={0}
+                    onFocus={focusDescriptionEditor}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      focusDescriptionEditor();
+                    }}
+                    className={cn(
+                      'block max-w-full border-0 bg-transparent p-0 outline-none',
+                      completedTextClassName,
+                    )}
+                    style={{ width: `${Math.max(compactDescription.length, 1)}ch` }}
+                  />
+                ) : null}
+                {compactMeta.length > 0 ? (
+                  <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] leading-[1.25]', task.completed ? 'text-muted-foreground/88' : 'text-muted-foreground/92')}>
+                    {compactMeta.map((item) => (
+                      item.kind === 'course' ? (
+                        <span
+                          key={item.key}
+                          className={cn(
+                            'inline-flex h-4.5 max-w-[8rem] items-center rounded-full px-1.5 text-[11px] font-medium leading-none',
+                            item.className,
+                          )}
+                          style={item.style}
+                        >
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                      ) : (
+                        <span key={item.key} className={cn('truncate', task.completed ? 'text-muted-foreground/88' : item.className)}>
+                          {item.label}
+                        </span>
+                      )
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
-        </div>
 
-        <div className="flex items-center gap-1 opacity-100 md:pointer-events-none md:opacity-0 md:transition-opacity md:group-hover/task:pointer-events-auto md:group-hover/task:opacity-100 md:group-focus-within/task:pointer-events-auto md:group-focus-within/task:opacity-100">
-          {!isCompletedSection ? (
+          <div className="flex items-start gap-1">
+            <div
+              draggable={!task.completed}
+              onDragStart={() => onTaskDragStart(task)}
+              onDragEnd={onTaskDragEnd}
+              className={cn(
+                'hidden cursor-grab rounded-full p-1.5 text-muted-foreground/75 transition-colors md:flex',
+                task.completed ? 'pointer-events-none opacity-30 grayscale' : 'hover:bg-muted/50 hover:text-foreground active:cursor-grabbing',
+              )}
+              aria-label={`Drag ${task.title}`}
+              data-no-swipe="true"
+            >
+              <GripVertical className="h-4 w-4" />
+            </div>
+
             <Button
               type="button"
               variant="ghost"
               size="icon-xs"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={() => onOpenEditTaskDialog(task)}
-              aria-label={`Edit ${task.title}`}
+              className={cn('h-7 w-7 text-muted-foreground', task.completed ? 'opacity-45 hover:text-muted-foreground' : 'hover:text-foreground')}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenDetails(task);
+              }}
+              aria-label={`Open details for ${task.title}`}
+              data-no-swipe="true"
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-            onClick={() => onDeleteTask(task.id)}
-            aria-label={`Delete ${task.title}`}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          </div>
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 };

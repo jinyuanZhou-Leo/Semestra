@@ -41,6 +41,7 @@ export const syncCalendarTodoCompletion = async ({
     id: course.id,
     name: course.name,
     category: course.category ?? '',
+    color: course.color ?? '',
   }));
   const courseDetails = await Promise.all(
     courseOptions.map(async (course) => {
@@ -61,6 +62,7 @@ export const syncCalendarTodoCompletion = async ({
       courseId: course.id,
       courseName: course.name,
       courseCategory: course.category,
+      courseColor: course.color,
       todoTab: course.detail?.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE),
     })),
   );

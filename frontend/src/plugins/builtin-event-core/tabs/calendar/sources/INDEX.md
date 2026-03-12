@@ -11,4 +11,4 @@ The registration module wires schedule, todo, and gradebook due-date sources int
 | gradebookSource.ts | Gradebook source | Loads course gradebook assessments with due dates and maps them into all-day Calendar events. |
 | registerBuiltinCalendarSources.ts | Registration bridge | Safely registers built-in Calendar sources into the standalone registry. |
 | scheduleSource.ts | Schedule source | Loads semester schedule data and maps it to Calendar events with edit support. |
-| todoSource.ts | Todo source | Loads semester-synchronized todo items and maps them to Calendar events without duplicating mirrored course entries. |
+| todoSource.ts | Todo source | Loads semester-synchronized todo items, carries persisted course-color snapshots into todo normalization, and maps them to Calendar events without duplicating mirrored course entries. |

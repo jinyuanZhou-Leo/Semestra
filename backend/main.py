@@ -86,6 +86,12 @@ def ensure_schema_compatibility():
             with engine.begin() as connection:
                 connection.execute(text("UPDATE tabs SET is_draggable = 1 WHERE is_draggable IS NULL"))
 
+    if inspector.has_table("courses"):
+        course_columns = {column["name"] for column in inspector.get_columns("courses")}
+        if "color" not in course_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE courses ADD COLUMN color VARCHAR"))
+
     if inspector.has_table("course_gradebooks"):
         gradebook_columns = {column["name"] for column in inspector.get_columns("course_gradebooks")}
         with engine.begin() as connection:

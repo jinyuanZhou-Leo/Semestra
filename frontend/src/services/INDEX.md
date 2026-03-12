@@ -6,7 +6,7 @@ Central place for retry policy, cookie-auth HTTP defaults, schedule API calls, p
 
 | File | Role | Description |
 |------|------|-------------|
-| api.ts | Service module | REST gateway for program/semester/course CRUD, plugin shared settings, score-based course gradebook endpoints, and widget/tab contracts including force-aware widget deletion. |
+| api.ts | Service module | REST gateway for program/semester/course CRUD including persisted course colors, plugin shared settings, score-based course gradebook endpoints, and widget/tab contracts including force-aware widget deletion. |
 | appStatus.ts | Service module | Service abstraction handling app status domain logic. |
 | http.ts | Service module | Axios bootstrap that applies API base URL overrides and enables credentialed cookie-auth requests. |
 | pluginSettingsRegistry.tsx | Service module | Registry for plugin-global settings sections plus framework-managed shared-settings prop types, with cached per-context snapshots, per-plugin replacement, and `useSyncExternalStore`-safe subscriptions. |

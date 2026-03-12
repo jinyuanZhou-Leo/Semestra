@@ -98,6 +98,7 @@ export const builtinTodoCalendarSource: CalendarSourceDefinition = {
             courseId: course.id,
             courseName: course.name,
             courseCategory: course.category ?? '',
+            courseColor: course.color ?? '',
             todoTab: detail.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE),
           };
         } catch {
@@ -105,6 +106,7 @@ export const builtinTodoCalendarSource: CalendarSourceDefinition = {
             courseId: course.id,
             courseName: course.name,
             courseCategory: course.category ?? '',
+            courseColor: course.color ?? '',
             todoTab: undefined,
           };
         }

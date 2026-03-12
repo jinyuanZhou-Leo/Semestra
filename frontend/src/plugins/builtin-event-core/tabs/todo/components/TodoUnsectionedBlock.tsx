@@ -1,6 +1,6 @@
-// input:  [Unsectioned task collection, drag state, drop handlers, and task renderer]
+// input:  [Unsectioned active/completed tasks, drag state, drop handlers, and task/composer renderers]
 // output: [TodoUnsectionedBlock React component]
-// pos:    [Top-level task bucket shown before explicit section groups]
+// pos:    [Top-level unsectioned bucket shown before explicit section groups with inline creation at the bottom]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,7 +14,7 @@ import type { TodoTask } from '../types';
 
 interface TodoUnsectionedBlockProps {
   sectionId: string;
-  tasks: TodoTask[];
+  visibleTasks: TodoTask[];
   dragOverSectionId: string | null;
   onDragOverSection: (event: React.DragEvent<HTMLElement>, targetSectionId: string) => void;
   onDropToSection: (
@@ -23,35 +23,39 @@ interface TodoUnsectionedBlockProps {
     beforeTaskId: string | null,
   ) => void;
   renderTaskCard: (task: TodoTask, sectionId: string) => React.ReactNode;
+  composer: React.ReactNode;
 }
 
 export const TodoUnsectionedBlock: React.FC<TodoUnsectionedBlockProps> = ({
   sectionId,
-  tasks,
+  visibleTasks,
   dragOverSectionId,
   onDragOverSection,
   onDropToSection,
   renderTaskCard,
+  composer,
 }) => {
   return (
     <motion.div
       layout
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className={cn(
-        'rounded-md px-0.5 py-1 sm:px-1.5',
+        'px-0.5 py-1 sm:px-1.5',
         dragOverSectionId === sectionId && 'bg-primary/5',
       )}
       onDragOver={(event) => onDragOverSection(event, sectionId)}
       onDrop={(event) => onDropToSection(event, sectionId, null)}
     >
       <div className="space-y-1.5 pb-1 pr-0.5 sm:pr-1">
-        {tasks.length === 0 ? (
+        {visibleTasks.length === 0 ? (
           <p className="py-1 text-xs text-muted-foreground">No tasks</p>
-        ) : (
-          <AnimatePresence initial={false}>
-            {tasks.map((task) => renderTaskCard(task, sectionId))}
-          </AnimatePresence>
-        )}
+        ) : null}
+
+        <AnimatePresence initial={false}>
+          {visibleTasks.map((task) => renderTaskCard(task, sectionId))}
+        </AnimatePresence>
+
+        {composer}
       </div>
     </motion.div>
   );

@@ -8,5 +8,5 @@ Calendar-side todo completion reuses this folder so Todo and Calendar stay behav
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for todo utility modules. |
 | todoCalendarSync.ts | Calendar sync helper | Persists Calendar-side todo completion toggles into semester aggregate storage and mirrored course tabs, then broadcasts sync payloads. |
-| todoData.ts | Data utilities | Migration, normalization, serialization, parsing, and formatting helpers for synchronized semester/course todo state. |
+| todoData.ts | Data utilities | Migration, normalization, serialization, parsing, and formatting helpers for synchronized semester/course todo state, including optional empty-priority persistence. |
 | todoMutations.ts | Mutation helpers | Shared task-completion mutation logic reused by Todo and Calendar flows. |

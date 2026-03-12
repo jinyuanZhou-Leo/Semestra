@@ -26,7 +26,6 @@ import type { TodoSortDirection, TodoSortMode, TodoSortOption, TodoTabMode } fro
 interface TodoMainHeaderProps {
   mode: TodoTabMode;
   title: string;
-  subtitle: string;
   sortMode: TodoSortMode;
   sortDirection: TodoSortDirection;
   sortOptions: TodoSortOption[];
@@ -39,7 +38,6 @@ interface TodoMainHeaderProps {
 export const TodoMainHeader: React.FC<TodoMainHeaderProps> = ({
   mode,
   title,
-  subtitle,
   sortMode,
   sortDirection,
   sortOptions,
@@ -50,9 +48,8 @@ export const TodoMainHeader: React.FC<TodoMainHeaderProps> = ({
 }) => {
   return (
     <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 sm:flex-1">
-        <CardTitle className="truncate text-2xl font-semibold tracking-tight">{title}</CardTitle>
-        <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+      <div className="flex min-w-0 items-center sm:flex-1">
+        <CardTitle className="truncate text-2xl font-semibold leading-none tracking-tight">{title}</CardTitle>
       </div>
 
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">

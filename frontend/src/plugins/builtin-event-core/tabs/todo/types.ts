@@ -5,7 +5,7 @@
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
-export type TodoPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type TodoPriority = '' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 export type TodoSortMode = 'created' | 'due-date' | 'priority' | 'title';
 export type TodoSortDirection = 'asc' | 'desc';
@@ -48,6 +48,7 @@ export interface TodoCourseOption {
   id: string;
   name: string;
   category: string;
+  color: string;
 }
 
 export interface TodoListModel extends TodoListStorage {
@@ -71,6 +72,26 @@ export interface TaskDraft {
   dueDate: string;
   dueTime: string;
   priority: TodoPriority;
+}
+
+export interface TodoComposerTarget {
+  sectionId: string;
+}
+
+export type TodoInlineEditorField = 'title' | 'dueDate' | 'dueTime' | 'priority' | 'course';
+
+export interface TodoPendingDeleteTarget {
+  kind: 'task' | 'section' | 'completed';
+  taskId?: string;
+  taskTitle?: string;
+  sectionId?: string;
+  sectionName?: string;
+}
+
+export interface TodoSectionTaskBuckets {
+  active: TodoTask[];
+  completed: TodoTask[];
+  visible: TodoTask[];
 }
 
 export interface TodoPriorityOption {

@@ -1,6 +1,6 @@
-// input:  [Todo section/task data plus drag-and-drop, confirmation-request, and section action callbacks]
+// input:  [Todo section/task data plus drag targets, inline rename state, and section actions]
 // output: [TodoSectionBlock React component]
-// pos:    [Collapsible section wrapper that lays out section header, nested task cards, and guarded destructive actions]
+// pos:    [Collapsible section wrapper that lays out title editing, task buckets, and section-scoped inline creation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,18 +9,20 @@
 
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Input } from '@/components/ui/input';
 import type { TodoSection, TodoTask } from '../types';
 
 interface TodoSectionBlockProps {
   section: TodoSection;
-  tasks: TodoTask[];
-  completedSectionId: string;
+  visibleTasks: TodoTask[];
   isOpen: boolean;
   canDeleteSection: boolean;
+  isEditingTitle: boolean;
+  titleDraft: string;
   dragOverSectionId: string | null;
   onOpenChange: (open: boolean) => void;
   onDragOverSection: (event: React.DragEvent<HTMLElement>, targetSectionId: string) => void;
@@ -29,27 +31,34 @@ interface TodoSectionBlockProps {
     targetSectionId: string,
     beforeTaskId: string | null,
   ) => void;
-  onOpenSectionTitleEditor: (section: TodoSection) => void;
+  onStartEditingTitle: (section: TodoSection) => void;
+  onTitleDraftChange: (value: string) => void;
+  onSubmitTitle: () => void;
+  onCancelTitle: () => void;
   onRequestDeleteSection: (section: TodoSection) => void;
   renderTaskCard: (task: TodoTask, sectionId: string) => React.ReactNode;
+  composer: React.ReactNode;
 }
 
 export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
   section,
-  tasks,
-  completedSectionId,
+  visibleTasks,
   isOpen,
   canDeleteSection,
+  isEditingTitle,
+  titleDraft,
   dragOverSectionId,
   onOpenChange,
   onDragOverSection,
   onDropToSection,
-  onOpenSectionTitleEditor,
+  onStartEditingTitle,
+  onTitleDraftChange,
+  onSubmitTitle,
+  onCancelTitle,
   onRequestDeleteSection,
   renderTaskCard,
+  composer,
 }) => {
-  const isCompletedSection = section.id === completedSectionId;
-
   return (
     <motion.div layout transition={{ duration: 0.2, ease: 'easeInOut' }}>
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
@@ -59,8 +68,7 @@ export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
           onDragOver={(event) => onDragOverSection(event, section.id)}
           onDrop={(event) => onDropToSection(event, section.id, null)}
           className={cn(
-            'rounded-md px-0 py-1 sm:px-1.5',
-            isCompletedSection && 'opacity-85',
+            'border-t border-border/70 px-0 py-3 first:border-t-0 sm:px-1.5',
             dragOverSectionId === section.id && 'bg-primary/5',
           )}
         >
@@ -70,39 +78,49 @@ export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="hover:bg-transparent dark:hover:bg-transparent aria-expanded:bg-transparent"
+                className="size-8 text-foreground/90 hover:bg-transparent dark:hover:bg-transparent aria-expanded:bg-transparent"
                 aria-label={`Toggle ${section.name}`}
               >
                 {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </Button>
             </CollapsibleTrigger>
 
-            <div className="min-w-0 flex flex-1 items-center">
-              {isCompletedSection ? (
-                <p className="truncate text-sm font-medium text-muted-foreground">{section.name}</p>
+            <div className="min-w-0 flex-1">
+              {isEditingTitle ? (
+                <Input
+                  value={titleDraft}
+                  onChange={(event) => onTitleDraftChange(event.target.value)}
+                  onBlur={onSubmitTitle}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      onSubmitTitle();
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      onCancelTitle();
+                    }
+                  }}
+                  autoFocus
+                  className="h-10 border-0 px-0 text-[20px] font-semibold shadow-none focus-visible:ring-0"
+                />
               ) : (
-                <p className="truncate text-sm font-medium">{section.name}</p>
+                <button
+                  type="button"
+                  className="truncate text-left text-[20px] font-semibold tracking-tight hover:text-foreground"
+                  onClick={() => onStartEditingTitle(section)}
+                >
+                  {section.name}
+                </button>
               )}
             </div>
-
-            {!isCompletedSection ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => onOpenSectionTitleEditor(section)}
-                aria-label={`Edit section ${section.name}`}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            ) : null}
 
             {canDeleteSection ? (
               <Button
                 type="button"
-                variant="destructive"
+                variant="ghost"
                 size="icon-xs"
+                className="text-muted-foreground hover:text-destructive"
                 onClick={() => onRequestDeleteSection(section)}
                 aria-label={`Delete section ${section.name}`}
               >
@@ -117,13 +135,15 @@ export const TodoSectionBlock: React.FC<TodoSectionBlockProps> = ({
               onDragOver={(event) => onDragOverSection(event, section.id)}
               onDrop={(event) => onDropToSection(event, section.id, null)}
             >
-              {tasks.length === 0 ? (
+              {visibleTasks.length === 0 ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">No tasks</p>
-              ) : (
-                <AnimatePresence initial={false}>
-                  {tasks.map((task) => renderTaskCard(task, section.id))}
-                </AnimatePresence>
-              )}
+              ) : null}
+
+              <AnimatePresence initial={false}>
+                {visibleTasks.map((task) => renderTaskCard(task, section.id))}
+              </AnimatePresence>
+
+              {composer}
             </div>
           </CollapsibleContent>
         </motion.div>

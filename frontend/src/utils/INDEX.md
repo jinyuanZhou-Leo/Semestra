@@ -7,7 +7,7 @@ Also contains homepage builtin-tab configuration and widget layout normalization
 | File | Role | Description |
 |------|------|-------------|
 | __tests__/ | Subdirectory | Test cases for modules in this folder. |
-| courseCategoryBadge.ts | Utility module | Shared hashed category-to-badge-color helper reused by ProgramDashboard and Todo course tags. |
+| courseCategoryBadge.ts | Utility module | Shared course badge helper that supports persisted per-course hex colors plus distinct fallback colors reused by ProgramDashboard and Todo course tags. |
 | googleIdentity.ts | Utility module | Lazy loader for Google Identity Services script. |
 | gpaUtils.ts | Utility module | GPA conversion helpers and default scaling table constants. |
 | homepageBuiltinTabs.ts | Utility module | Builtin homepage tab ordering/config constants, including the course Gradebook tab position. |

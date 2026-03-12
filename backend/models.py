@@ -94,6 +94,7 @@ class Course(Base):
     name = Column(String, index=True)
     alias = Column(String, nullable=True)  # Optional alias to help identify the course
     category = Column(String, nullable=True) # Course category (e.g. "MIE", "ECE")
+    color = Column(String, nullable=True)
     program_id = Column(String, ForeignKey("programs.id"), nullable=True) # Should be NOT NULL eventually
     semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
     
