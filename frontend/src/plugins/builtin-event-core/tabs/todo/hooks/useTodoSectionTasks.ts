@@ -40,11 +40,16 @@ export const useTodoSectionTasks = ({ activeList, sortMode, sortDirection, showC
     });
 
     map.forEach((tasks, sectionId) => {
+      const sortedActiveTasks = sortTasksForDisplay(tasks.active, false, sortMode, sortDirection);
+      const sortedCompletedTasks = sortTasksForDisplay(tasks.completed, true, 'created', 'asc');
       const visibleCompletedTasks = tasks.completed.filter((task) => showCompleted || recentCompletedTaskIds.has(task.id));
+      const sortedVisibleCompletedTasks = sortedCompletedTasks.filter((task) => showCompleted || recentCompletedTaskIds.has(task.id));
       map.set(sectionId, {
-        active: sortTasksForDisplay(tasks.active, false, sortMode, sortDirection),
-        completed: sortTasksForDisplay(tasks.completed, true, 'created', 'asc'),
-        visible: [...tasks.active, ...visibleCompletedTasks].sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt)),
+        active: sortedActiveTasks,
+        completed: sortedCompletedTasks,
+        visible: visibleCompletedTasks.length > 0
+          ? [...sortedActiveTasks, ...sortedVisibleCompletedTasks]
+          : sortedActiveTasks,
       });
     });
 

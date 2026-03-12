@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings, and widget delete query flags]
 # output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence, semester todo APIs, and fact-oriented gradebook endpoints]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, persisted todo APIs, fact-only gradebook APIs, and force-aware widget deletion]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, persisted todo APIs, fact-only gradebook APIs, force-aware widget deletion, and no runtime schema rewrite helpers]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -10,7 +10,6 @@ from fastapi import FastAPI, Depends, HTTPException, Response, status, Form, Que
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -43,159 +42,6 @@ if ENVIRONMENT == "development":
         load_dotenv(env_local_path)
 
 models.Base.metadata.create_all(bind=engine)
-
-def ensure_schema_compatibility():
-    inspector = inspect(engine)
-
-    if inspector.has_table("programs"):
-        program_columns = {column["name"] for column in inspector.get_columns("programs")}
-        if "program_timezone" not in program_columns:
-            with engine.begin() as connection:
-                connection.execute(text("ALTER TABLE programs ADD COLUMN program_timezone VARCHAR DEFAULT 'UTC'"))
-                connection.execute(text("UPDATE programs SET program_timezone = 'UTC' WHERE program_timezone IS NULL OR program_timezone = ''"))
-        else:
-            with engine.begin() as connection:
-                connection.execute(text("UPDATE programs SET program_timezone = 'UTC' WHERE program_timezone IS NULL OR program_timezone = ''"))
-
-    if inspector.has_table("semesters"):
-        semester_columns = {column["name"] for column in inspector.get_columns("semesters")}
-        if "start_date" not in semester_columns:
-            with engine.begin() as connection:
-                connection.execute(text("ALTER TABLE semesters ADD COLUMN start_date DATE"))
-                connection.execute(text("UPDATE semesters SET start_date = DATE('now') WHERE start_date IS NULL"))
-        if "end_date" not in semester_columns:
-            with engine.begin() as connection:
-                connection.execute(text("ALTER TABLE semesters ADD COLUMN end_date DATE"))
-                connection.execute(text("UPDATE semesters SET end_date = DATE(start_date, '+111 day') WHERE end_date IS NULL"))
-        else:
-            with engine.begin() as connection:
-                connection.execute(text("UPDATE semesters SET end_date = DATE(start_date, '+111 day') WHERE end_date IS NULL"))
-        if "reading_week_start" not in semester_columns:
-            with engine.begin() as connection:
-                connection.execute(text("ALTER TABLE semesters ADD COLUMN reading_week_start DATE"))
-        if "reading_week_end" not in semester_columns:
-            with engine.begin() as connection:
-                connection.execute(text("ALTER TABLE semesters ADD COLUMN reading_week_end DATE"))
-
-    if inspector.has_table("tabs"):
-        tab_columns = {column["name"] for column in inspector.get_columns("tabs")}
-        if "is_draggable" not in tab_columns:
-            with engine.begin() as connection:
-                connection.execute(text("ALTER TABLE tabs ADD COLUMN is_draggable BOOLEAN DEFAULT 1"))
-                connection.execute(text("UPDATE tabs SET is_draggable = 1 WHERE is_draggable IS NULL"))
-        else:
-            with engine.begin() as connection:
-                connection.execute(text("UPDATE tabs SET is_draggable = 1 WHERE is_draggable IS NULL"))
-
-    if inspector.has_table("courses"):
-        course_columns = {column["name"] for column in inspector.get_columns("courses")}
-        if "color" not in course_columns:
-            with engine.begin() as connection:
-                connection.execute(text("ALTER TABLE courses ADD COLUMN color VARCHAR"))
-
-    if inspector.has_table("course_gradebooks"):
-        gradebook_columns = {column["name"] for column in inspector.get_columns("course_gradebooks")}
-        with engine.begin() as connection:
-            if "target_gpa" not in gradebook_columns:
-                connection.execute(text("ALTER TABLE course_gradebooks ADD COLUMN target_gpa FLOAT"))
-            if "forecast_model" not in gradebook_columns:
-                connection.execute(text("ALTER TABLE course_gradebooks ADD COLUMN forecast_model VARCHAR"))
-
-            if "target_mode" in gradebook_columns and "target_value" in gradebook_columns:
-                connection.execute(text("""
-                    UPDATE course_gradebooks
-                    SET target_gpa = CASE
-                        WHEN target_gpa IS NOT NULL THEN target_gpa
-                        WHEN target_mode = 'gpa' THEN target_value
-                        ELSE 4.0
-                    END
-                """))
-            else:
-                connection.execute(text("UPDATE course_gradebooks SET target_gpa = 4.0 WHERE target_gpa IS NULL"))
-
-            connection.execute(text("""
-                UPDATE course_gradebooks
-                SET forecast_model = CASE
-                    WHEN forecast_model IS NOT NULL AND forecast_model != '' THEN forecast_model
-                    ELSE 'auto'
-                END
-            """))
-
-    if inspector.has_table("gradebook_assessments"):
-        assessment_columns = {column["name"] for column in inspector.get_columns("gradebook_assessments")}
-        with engine.begin() as connection:
-            desired_columns = {
-                "id",
-                "gradebook_id",
-                "category_id",
-                "title",
-                "due_date",
-                "weight",
-                "score",
-                "order_index",
-                "created_at",
-                "updated_at",
-            }
-            if assessment_columns != desired_columns:
-                score_expression = "score"
-                if "score" not in assessment_columns:
-                    if "real_score" in assessment_columns:
-                        score_expression = "real_score"
-                    elif "actual_score" in assessment_columns:
-                        score_expression = "actual_score"
-                    else:
-                        score_expression = "NULL"
-
-                connection.execute(text("""
-                    CREATE TABLE gradebook_assessments__new (
-                        id VARCHAR NOT NULL PRIMARY KEY,
-                        gradebook_id VARCHAR NOT NULL,
-                        category_id VARCHAR,
-                        title VARCHAR NOT NULL,
-                        due_date DATE,
-                        weight FLOAT NOT NULL DEFAULT 0.0,
-                        score FLOAT,
-                        order_index INTEGER NOT NULL DEFAULT 0,
-                        created_at VARCHAR NOT NULL DEFAULT '',
-                        updated_at VARCHAR NOT NULL DEFAULT '',
-                        FOREIGN KEY(gradebook_id) REFERENCES course_gradebooks (id) ON DELETE CASCADE,
-                        FOREIGN KEY(category_id) REFERENCES gradebook_assessment_categories (id) ON DELETE SET NULL
-                    )
-                """))
-                connection.execute(text(f"""
-                    INSERT INTO gradebook_assessments__new (
-                        id,
-                        gradebook_id,
-                        category_id,
-                        title,
-                        due_date,
-                        weight,
-                        score,
-                        order_index,
-                        created_at,
-                        updated_at
-                    )
-                    SELECT
-                        id,
-                        gradebook_id,
-                        category_id,
-                        title,
-                        due_date,
-                        weight,
-                        {score_expression},
-                        COALESCE(order_index, 0),
-                        COALESCE(created_at, ''),
-                        COALESCE(updated_at, '')
-                    FROM gradebook_assessments
-                """))
-                connection.execute(text("DROP TABLE gradebook_assessments"))
-                connection.execute(text("ALTER TABLE gradebook_assessments__new RENAME TO gradebook_assessments"))
-                connection.execute(text(
-                    "CREATE INDEX IF NOT EXISTS ix_gradebook_assessments_gradebook_order "
-                    "ON gradebook_assessments (gradebook_id, order_index)"
-                ))
-
-ensure_schema_compatibility()
 
 from fastapi import UploadFile, File
 import utils
@@ -1550,19 +1396,6 @@ def delete_semester_todo_section(
     except Exception as exc:
         raise_todo_http_error(exc)
 
-@app.put("/semesters/{semester_id}/todo/sections/reorder", response_model=schemas.TodoSemesterState)
-def reorder_semester_todo_sections(
-    semester_id: str,
-    payload: schemas.TodoSectionReorderRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    semester = get_owned_semester(db, current_user, semester_id)
-    try:
-        return todo.reorder_sections(db, semester, payload)
-    except Exception as exc:
-        raise_todo_http_error(exc)
-
 @app.post("/semesters/{semester_id}/todo/tasks", response_model=schemas.TodoSemesterState)
 def create_semester_todo_task(
     semester_id: str,
@@ -1612,19 +1445,6 @@ def clear_completed_semester_todo_tasks(
     semester = get_owned_semester(db, current_user, semester_id)
     try:
         return todo.clear_completed_tasks(db, semester)
-    except Exception as exc:
-        raise_todo_http_error(exc)
-
-@app.put("/semesters/{semester_id}/todo/tasks/reorder", response_model=schemas.TodoSemesterState)
-def reorder_semester_todo_tasks(
-    semester_id: str,
-    payload: schemas.TodoTaskReorderRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    semester = get_owned_semester(db, current_user, semester_id)
-    try:
-        return todo.reorder_tasks(db, semester, payload)
     except Exception as exc:
         raise_todo_http_error(exc)
 

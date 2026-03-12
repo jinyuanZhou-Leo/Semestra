@@ -1,14 +1,14 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 `todo/` implements the built-in Todo tab for course and semester contexts.
-It now orchestrates a semester-first aggregate todo view backed by the dedicated semester todo API instead of `tab.settings`, with local-only sorting, note-based task details, inline editing, and keyboard-safe destructive flows.
+It now orchestrates a semester-first aggregate todo view backed by the dedicated semester todo API instead of `tab.settings`, with local-only sorting persisted per list in browser storage, note-based task details, inline editing, and keyboard-safe destructive flows.
 The UI stays Apple Reminder-inspired while keeping course views filtered and preserving semester-as-source semantics.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for the todo tab module and its main responsibilities. |
-| TodoTab.tsx | Runtime entry | Main container that loads semester todo API state, drives task/section mutations through dedicated endpoints, reacts to Calendar-originated refresh signals, and renders completed-summary plus inline-edit/list interaction flows. |
-| TodoTab.test.tsx | Interaction tests | Covers compact inline create behavior and completed-task bucketing rules while keeping sort local-only. |
+| TodoTab.tsx | Runtime entry | Main container that loads semester todo API state, restores local per-list sorting preferences, drives task/section mutations through dedicated endpoints, reacts to Calendar-originated todo updates, and renders completed-summary plus inline-edit/list interaction flows. |
+| TodoTab.test.tsx | Interaction tests | Covers compact inline create behavior, local sort bucketing, and persisted view-preference restoration. |
 | TodoSettingsSection.tsx | Settings panel | Todo behavior settings UI exposed in tab settings, including hidden completed-bucket storage behavior. |
 | components/ | UI components | Aggregate header/task/section rendering, compact section composers, completed summary, inline meta-chip editing, and dialog composition for todo flows. |
 | hooks/ | State hooks | Local hooks for drag/drop state, section open state, and completed-aware display bucketing. |

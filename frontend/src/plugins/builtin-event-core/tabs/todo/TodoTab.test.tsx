@@ -1,6 +1,6 @@
 // input:  [Testing Library render helpers, todo interaction hooks/components, and normalized todo runtime fixtures]
-// output: [Vitest coverage for inline todo creation and completed-task display behavior]
-// pos:    [Regression test file for todo runtime helpers that protect local sorting and completion bucketing behavior]
+// output: [Vitest coverage for inline todo creation, local sort persistence, and completed-task display behavior]
+// pos:    [Regression test file for todo runtime helpers that protect local sorting, persisted view preferences, and completion bucketing behavior]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,9 +8,11 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
+import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { TodoInlineCreateRow } from './components/TodoInlineCreateRow';
 import { useTodoSectionTasks } from './hooks/useTodoSectionTasks';
+import { useTodoViewPreferences } from './hooks/useTodoViewPreferences';
 import { PRIORITY_OPTIONS } from './shared';
 import type { TodoListModel } from './types';
 import { normalizeListStorage } from './utils/todoData';
@@ -88,7 +90,7 @@ describe('TodoInlineCreateRow', () => {
 });
 
 describe('useTodoSectionTasks', () => {
-  it('keeps completed tasks in their original bucket and preserves default completed ordering', () => {
+  it('sorts visible active tasks with the selected view order while keeping completed tasks in their original bucket', () => {
     const activeList: TodoListModel = {
       id: 'semester:test',
       name: 'Todo',
@@ -117,6 +119,23 @@ describe('useTodoSectionTasks', () => {
           order: 0,
           createdAt: '2026-03-11T10:00:00.000Z',
           updatedAt: '2026-03-11T10:00:00.000Z',
+        },
+        {
+          id: 'task-4',
+          title: 'Alpha',
+          note: '',
+          sectionId: 'section-a',
+          originSectionId: undefined,
+          courseId: '',
+          courseName: '',
+          courseCategory: '',
+          dueDate: '',
+          dueTime: '',
+          priority: 'LOW',
+          completed: false,
+          order: 2,
+          createdAt: '2026-03-11T10:05:00.000Z',
+          updatedAt: '2026-03-11T10:05:00.000Z',
         },
         {
           id: 'task-2',
@@ -164,9 +183,28 @@ describe('useTodoSectionTasks', () => {
     }));
 
     const sectionBBuckets = result.current.sectionTasksMap.get('section-b');
+    const sectionABuckets = result.current.sectionTasksMap.get('section-a');
+    expect(sectionABuckets?.visible.map((task) => task.id)).toEqual(['task-1', 'task-4']);
     expect(sectionBBuckets?.active).toEqual([]);
     expect(sectionBBuckets?.completed.map((task) => task.id)).toEqual(['task-3', 'task-2']);
     expect(result.current.unsectionedTasks.completed).toEqual([]);
+  });
+});
+
+describe('useTodoViewPreferences', () => {
+  it('persists sort preferences in localStorage for the current list scope', () => {
+    const { result, unmount } = renderHook(() => useTodoViewPreferences('semester:test'));
+
+    act(() => {
+      result.current.setSortMode('priority');
+      result.current.setSortDirection('desc');
+    });
+
+    unmount();
+
+    const restored = renderHook(() => useTodoViewPreferences('semester:test'));
+    expect(restored.result.current.sortMode).toBe('priority');
+    expect(restored.result.current.sortDirection).toBe('desc');
   });
 });
 

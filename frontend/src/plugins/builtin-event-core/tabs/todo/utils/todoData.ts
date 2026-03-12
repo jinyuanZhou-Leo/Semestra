@@ -456,7 +456,6 @@ export const fromTodoApiState = (
 ): TodoSemesterState => {
   const sections = [
     ...state.sections
-      .sort((a, b) => a.order_index - b.order_index)
       .map((section, index) => ({
         id: section.id,
         name: section.name,
@@ -468,8 +467,6 @@ export const fromTodoApiState = (
   const validSectionIds = new Set(sections.map((section) => section.id));
 
   const tasks = state.tasks
-    .slice()
-    .sort((a, b) => a.order_index - b.order_index)
     .map((task, index) => {
       const baseSectionId = task.section_id ?? '';
       const safeSectionId = baseSectionId && validSectionIds.has(baseSectionId) ? baseSectionId : '';
@@ -555,13 +552,13 @@ export const sortTasksForDisplay = (
       }
       case 'created':
       default: {
-        const result = a.order - b.order;
+        const result = a.createdAt.localeCompare(b.createdAt);
         if (result !== 0) return result * direction;
         break;
       }
     }
 
-    return a.createdAt.localeCompare(b.createdAt);
+    return a.title.localeCompare(b.title) || a.id.localeCompare(b.id);
   });
 };
 

@@ -307,13 +307,11 @@ class TodoSection(Base):
     __tablename__ = "todo_sections"
     __table_args__ = (
         UniqueConstraint("semester_id", "name", name="uq_todo_sections_semester_name"),
-        Index("ix_todo_sections_semester_order", "semester_id", "order_index"),
     )
 
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     semester_id = Column(String, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String, nullable=False)
-    order_index = Column(Integer, nullable=False, default=0)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
 
@@ -334,8 +332,6 @@ class TodoTask(Base):
     __tablename__ = "todo_tasks"
     __table_args__ = (
         CheckConstraint("priority IN ('', 'LOW', 'MEDIUM', 'HIGH', 'URGENT')", name="ck_todo_tasks_priority"),
-        Index("ix_todo_tasks_semester_order", "semester_id", "order_index"),
-        Index("ix_todo_tasks_semester_section_order", "semester_id", "section_id", "order_index"),
         Index("ix_todo_tasks_semester_course", "semester_id", "course_id"),
     )
 
@@ -350,7 +346,6 @@ class TodoTask(Base):
     due_time = Column(String, nullable=True)
     priority = Column(String, nullable=False, default="")
     completed = Column(Boolean, nullable=False, default=False)
-    order_index = Column(Integer, nullable=False, default=0)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
 

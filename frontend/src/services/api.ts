@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, and widget delete options]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, persisted todo APIs, and fact-oriented course gradebook APIs]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -84,7 +84,6 @@ export interface TodoSectionRecord {
     id: string;
     semester_id: string;
     name: string;
-    order_index: number;
     created_at: string;
     updated_at: string;
 }
@@ -104,7 +103,6 @@ export interface TodoTaskRecord {
     course_color: string | null;
     section_id: string | null;
     origin_section_id: string | null;
-    order_index: number;
     created_at: string;
     updated_at: string;
 }
@@ -256,10 +254,6 @@ const api = {
         const response = await axios.delete<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/sections/${sectionId}`);
         return response.data;
     },
-    reorderSemesterTodoSections: async (semesterId: string, data: { section_ids: string[] }) => {
-        const response = await axios.put<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/sections/reorder`, data);
-        return response.data;
-    },
     createSemesterTodoTask: async (
         semesterId: string,
         data: {
@@ -303,14 +297,6 @@ const api = {
         const response = await axios.delete<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/tasks/completed`);
         return response.data;
     },
-    reorderSemesterTodoTasks: async (
-        semesterId: string,
-        data: { items: Array<{ task_id: string; sectionId: string | null; orderIndex: number }> },
-    ) => {
-        const response = await axios.put<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/tasks/reorder`, data);
-        return response.data;
-    },
-
     // Courses
     createCourseForProgram: async (programId: string, data: any) => {
         const response = await axios.post<Course>(`/api/programs/${programId}/courses/`, data);

@@ -10,6 +10,7 @@ fastapi
 uvicorn
 sqlalchemy
 pydantic
+alembic
 icalendar
 python-multipart
 python-jose[cryptography]

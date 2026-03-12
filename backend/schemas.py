@@ -227,15 +227,11 @@ class TodoSectionUpdate(BaseModel):
 class TodoSection(TodoSectionBase):
     id: str
     semester_id: str
-    order_index: int = 0
     created_at: str
     updated_at: str
 
     class Config:
         from_attributes = True
-
-class TodoSectionReorderRequest(BaseModel):
-    section_ids: List[str]
 
 class TodoTaskBase(BaseModel):
     title: str
@@ -280,7 +276,6 @@ class TodoTaskUpdate(BaseModel):
     course_id: Optional[str] = None
     section_id: Optional[str] = None
     origin_section_id: Optional[str] = None
-    order_index: Optional[int] = None
 
     @validator("title")
     def validate_optional_title(cls, value: Optional[str]) -> Optional[str]:
@@ -319,20 +314,8 @@ class TodoTask(BaseModel):
     course_color: Optional[str] = None
     section_id: Optional[str] = None
     origin_section_id: Optional[str] = None
-    order_index: int = 0
     created_at: str
     updated_at: str
-
-class TodoTaskReorderEntry(BaseModel):
-    task_id: str
-    section_id: Optional[str] = Field(default=None, alias="sectionId")
-    order_index: int = Field(alias="orderIndex")
-
-    class Config:
-        populate_by_name = True
-
-class TodoTaskReorderRequest(BaseModel):
-    items: List[TodoTaskReorderEntry]
 
 class TodoCourseOption(BaseModel):
     id: str

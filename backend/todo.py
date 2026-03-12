@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, backend ORM/schema modules, and legacy builtin-event-core todo tab settings]
 # output: [semester-scoped todo domain helpers for migration, CRUD mutations, validation, and API payload assembly]
-# pos:    [Backend domain service that owns persisted Todo tables and bridges legacy tab.settings storage into the new semester-level model]
+# pos:    [Backend domain service that owns persisted Todo tables, stores task data without backend ordering, and bridges legacy tab.settings storage into the semester-level model]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -323,11 +323,11 @@ def _get_section_map(semester: models.Semester) -> dict[str, models.TodoSection]
 
 
 def _sort_sections(semester: models.Semester) -> list[models.TodoSection]:
-    return sorted(semester.todo_sections, key=lambda item: (item.order_index, item.name.lower(), item.id))
+    return sorted(semester.todo_sections, key=lambda item: (item.created_at, item.name.lower(), item.id))
 
 
 def _sort_tasks(semester: models.Semester) -> list[models.TodoTask]:
-    return sorted(semester.todo_tasks, key=lambda item: (item.order_index, item.created_at, item.id))
+    return sorted(semester.todo_tasks, key=lambda item: (item.created_at, item.id))
 
 
 def _serialize_state(semester: models.Semester) -> schemas.TodoSemesterState:
@@ -336,7 +336,6 @@ def _serialize_state(semester: models.Semester) -> schemas.TodoSemesterState:
             id=section.id,
             semester_id=section.semester_id,
             name=section.name,
-            order_index=int(section.order_index or 0),
             created_at=section.created_at,
             updated_at=section.updated_at,
         )
@@ -360,7 +359,6 @@ def _serialize_state(semester: models.Semester) -> schemas.TodoSemesterState:
             course_color=(course_map[task.course_id].color or "" if task.course_id and task.course_id in course_map else ""),
             section_id=task.section_id,
             origin_section_id=task.origin_section_id,
-            order_index=int(task.order_index or 0),
             created_at=task.created_at,
             updated_at=task.updated_at,
         )
@@ -400,7 +398,6 @@ def ensure_migrated(db: Session, semester: models.Semester) -> None:
             id=section["id"],
             semester_id=semester.id,
             name=section["name"],
-            order_index=section["order_index"],
         )
         _touch_row(row)
         db.add(row)
@@ -423,7 +420,6 @@ def ensure_migrated(db: Session, semester: models.Semester) -> None:
             due_time=task["due_time"],
             priority=task["priority"],
             completed=task["completed"],
-            order_index=task["order_index"],
             created_at=task["created_at"] or "",
             updated_at=task["updated_at"] or "",
         )
@@ -458,7 +454,6 @@ def create_section(db: Session, semester: models.Semester, payload: schemas.Todo
     row = models.TodoSection(
         semester_id=semester.id,
         name=normalized_name,
-        order_index=max((int(section.order_index or 0) for section in semester.todo_sections), default=-1) + 1,
     )
     _touch_row(row)
     db.add(row)
@@ -510,35 +505,6 @@ def delete_section(db: Session, semester: models.Semester, section_id: str) -> s
             db.add(task)
 
     db.delete(section)
-    for index, item in enumerate(remaining_sections):
-        item.order_index = index
-        _touch_row(item)
-        db.add(item)
-
-    db.commit()
-    db.refresh(semester)
-    return _serialize_state(semester)
-
-
-def reorder_sections(
-    db: Session,
-    semester: models.Semester,
-    payload: schemas.TodoSectionReorderRequest,
-) -> schemas.TodoSemesterState:
-    ensure_migrated(db, semester)
-    section_map = _get_section_map(semester)
-    requested_ids = list(payload.section_ids)
-    if set(requested_ids) != set(section_map.keys()) or len(requested_ids) != len(section_map):
-        raise TodoValidationError(
-            "INVALID_TODO_SECTION_ORDER",
-            "Section reorder payload must include every section exactly once.",
-        )
-
-    for index, section_id in enumerate(requested_ids):
-        section = section_map[section_id]
-        section.order_index = index
-        _touch_row(section)
-        db.add(section)
 
     db.commit()
     db.refresh(semester)
@@ -565,7 +531,6 @@ def create_task(db: Session, semester: models.Semester, payload: schemas.TodoTas
         due_time=payload.due_time,
         priority=str(payload.priority.value if hasattr(payload.priority, "value") else payload.priority),
         completed=payload.completed,
-        order_index=max((int(task.order_index or 0) for task in semester.todo_tasks), default=-1) + 1,
     )
     _touch_row(row)
     db.add(row)
@@ -585,7 +550,7 @@ def update_task(
     if task is None:
         raise TodoNotFoundError("task")
 
-    updates = payload.dict(exclude_unset=True)
+    updates = payload.model_dump(exclude_unset=True)
     section_map = _get_section_map(semester)
 
     if "course_id" in updates:
@@ -635,37 +600,6 @@ def clear_completed_tasks(db: Session, semester: models.Semester) -> schemas.Tod
     for task in list(semester.todo_tasks):
         if task.completed:
             db.delete(task)
-    db.commit()
-    db.refresh(semester)
-    return _serialize_state(semester)
-
-
-def reorder_tasks(
-    db: Session,
-    semester: models.Semester,
-    payload: schemas.TodoTaskReorderRequest,
-) -> schemas.TodoSemesterState:
-    ensure_migrated(db, semester)
-    task_map = {task.id: task for task in semester.todo_tasks}
-    requested_ids = [item.task_id for item in payload.items]
-    if set(requested_ids) != set(task_map.keys()) or len(requested_ids) != len(task_map):
-        raise TodoValidationError(
-            "INVALID_TODO_TASK_ORDER",
-            "Task reorder payload must include every task exactly once.",
-        )
-
-    section_map = _get_section_map(semester)
-    for item in payload.items:
-        if item.section_id and item.section_id not in section_map:
-            raise TodoValidationError("INVALID_TODO_SECTION", "The selected section does not exist.")
-        task = task_map[item.task_id]
-        task.section_id = item.section_id or None
-        task.order_index = item.order_index
-        if task.completed:
-            task.origin_section_id = task.origin_section_id or task.section_id
-        _touch_row(task)
-        db.add(task)
-
     db.commit()
     db.refresh(semester)
     return _serialize_state(semester)
