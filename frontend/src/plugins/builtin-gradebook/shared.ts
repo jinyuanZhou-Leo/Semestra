@@ -1,5 +1,5 @@
 // input:  [gradebook API contracts, date-fns helpers, and builtin-gradebook table view preferences]
-// output: [builtin-gradebook constants, forecast/plan calculators, and shared formatters]
+// output: [builtin-gradebook constants, forecast/plan calculators, shared formatters, and stable category badge color helpers]
 // pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, and settings surface]
 //
 // ⚠️ When this file is updated:
@@ -17,6 +17,7 @@ import type {
     GradebookForecastModel,
     GradebookScalingTable,
 } from '@/services/api';
+import { getHexBadgeStyle } from '@/utils/courseCategoryBadge';
 
 export const BUILTIN_GRADEBOOK_PLUGIN_ID = 'builtin-gradebook';
 export const BUILTIN_GRADEBOOK_TAB_TYPE = 'builtin-gradebook';
@@ -100,6 +101,7 @@ export const CATEGORY_COLOR_OPTIONS = [
     { value: 'slate', label: 'Slate', badgeClassName: 'bg-slate-200/80 text-slate-800 border-slate-300 dark:bg-slate-800/80 dark:text-slate-100 dark:border-slate-700', swatchClassName: 'bg-slate-500' },
     { value: 'cyan', label: 'Cyan', badgeClassName: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-100 dark:border-cyan-800/60', swatchClassName: 'bg-cyan-500' },
 ] as const;
+const DEFAULT_CATEGORY_COLOR_OPTION = CATEGORY_COLOR_OPTIONS.find((option) => option.value === 'slate') ?? CATEGORY_COLOR_OPTIONS[0];
 
 const roundValue = (value: number, digits: number = 4): number => Number(value.toFixed(digits));
 const clampScore = (value: number): number => Math.max(0, Math.min(100, value));
@@ -443,7 +445,7 @@ export const formatGradebookDateInput = (value: string | null | undefined): stri
 
 export const getCategoryBadgeClassName = (colorToken: string | null | undefined): string => {
     return CATEGORY_COLOR_OPTIONS.find((option) => option.value === colorToken)?.badgeClassName
-        ?? CATEGORY_COLOR_OPTIONS[CATEGORY_COLOR_OPTIONS.length - 1].badgeClassName;
+        ?? DEFAULT_CATEGORY_COLOR_OPTION.badgeClassName;
 };
 
 export const isHexCategoryColor = (colorToken: string | null | undefined): boolean => (
@@ -451,17 +453,12 @@ export const isHexCategoryColor = (colorToken: string | null | undefined): boole
 );
 
 export const getCategoryBadgeStyle = (colorToken: string | null | undefined): React.CSSProperties | undefined => {
-    if (!isHexCategoryColor(colorToken)) return undefined;
-    const resolvedColor = colorToken as string;
-    return {
-        backgroundColor: `${resolvedColor}22`,
-        color: resolvedColor,
-    };
+    return getHexBadgeStyle(colorToken);
 };
 
 export const getCategorySwatchClassName = (colorToken: string | null | undefined): string => {
     return CATEGORY_COLOR_OPTIONS.find((option) => option.value === colorToken)?.swatchClassName
-        ?? CATEGORY_COLOR_OPTIONS[CATEGORY_COLOR_OPTIONS.length - 1].swatchClassName;
+        ?? DEFAULT_CATEGORY_COLOR_OPTION.swatchClassName;
 };
 
 export const getCategoryById = (

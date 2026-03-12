@@ -1,6 +1,6 @@
 // input:  [Vitest assertions, builtin-gradebook shared helpers, and simplified gradebook fixtures]
-// output: [test suite validating builtin-gradebook forecast summaries, category-history logic, and plan-mode recommendations]
-// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers and temporary what-if calculations]
+// output: [test suite validating builtin-gradebook forecast summaries, category-history logic, plan-mode recommendations, and stable badge color fallbacks]
+// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, and category badge helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,6 +12,8 @@ import {
     buildPlanModeResult,
     buildSuggestedWhatIfScores,
     formatGradebookDate,
+    getCategoryBadgeClassName,
+    getCategoryBadgeStyle,
     resolveTargetPercentageForGpa,
 } from './shared';
 import type { CourseGradebook } from '@/services/api';
@@ -94,5 +96,17 @@ describe('builtin-gradebook shared helpers', () => {
         expect(result.target_percentage).toBe(90);
         expect(result.projected_percentage).toBe(90);
         expect(result.is_feasible).toBe(true);
+    });
+
+    it('falls back unknown category tokens to the slate badge treatment', () => {
+        expect(getCategoryBadgeClassName('unknown-token')).toContain('slate');
+    });
+
+    it('renders custom hex category badges with adaptive tinted styles', () => {
+        expect(getCategoryBadgeStyle('#facc15')).toEqual({
+            backgroundColor: 'color-mix(in srgb, #facc15 16%, var(--background))',
+            borderColor: 'color-mix(in srgb, #facc15 28%, var(--background))',
+            color: 'color-mix(in srgb, #facc15 82%, var(--foreground))',
+        });
     });
 });

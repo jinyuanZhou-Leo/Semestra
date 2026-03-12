@@ -1,6 +1,6 @@
 // input:  [course names/aliases/categories, optional custom hex colors, optional Program subject-color JSON, and course-id collections]
 // output: [subject-code parsing helpers, stable automatic/default course color resolvers, and badge/text style helpers for course UI]
-// pos:    [Shared course-color utility layer that keeps Program Dashboard, Course List, Course Settings, and Todo course tags on one color-resolution rule]
+// pos:    [Shared course-color utility layer that keeps Program Dashboard, Course List, Course Settings, and Todo course tags on one stable persisted color-resolution rule]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -123,11 +123,12 @@ export const parseSubjectColorMap = (rawValue: string | null | undefined): Recor
 
     return Object.entries(parsed).reduce<Record<string, string>>((accumulator, [key, value]) => {
       const normalizedCode = normalizeSubjectCode(key);
-      if (!normalizedCode || typeof value !== 'string' || !isHexCourseColor(value.trim())) {
+      const normalizedColor = typeof value === 'string' ? value.trim().toLowerCase() : '';
+      if (!normalizedCode || !isHexCourseColor(normalizedColor)) {
         return accumulator;
       }
 
-      accumulator[normalizedCode] = value.trim();
+      accumulator[normalizedCode] = normalizedColor;
       return accumulator;
     }, {});
   } catch {
@@ -141,13 +142,63 @@ export const serializeSubjectColorMap = (value: Record<string, string>) => {
       .filter(([key, color]) => normalizeSubjectCode(key) && isHexCourseColor(color))
       .sort(([left], [right]) => left.localeCompare(right))
       .reduce<Record<string, string>>((accumulator, [key, color]) => {
-        accumulator[normalizeSubjectCode(key)] = color;
+        accumulator[normalizeSubjectCode(key)] = color.trim().toLowerCase();
         return accumulator;
       }, {}),
   );
 };
 
-export const getAutomaticSubjectColor = (subjectCode: string) => {
+export const resolveSubjectColorAssignments = (
+  subjectCodes: string[],
+  explicitSubjectColorMap: Record<string, string> = {},
+  lockedAutomaticAssignments: Record<string, string> = {},
+) => {
+  const normalizedCodes = Array.from(new Set(subjectCodes.map((code) => normalizeSubjectCode(code)).filter(Boolean)))
+    .sort((left, right) => left.localeCompare(right));
+  const resolvedMap: Record<string, string> = {};
+  const occupiedColors = new Set<string>([
+    ...Object.entries(explicitSubjectColorMap)
+      .filter(([code, color]) => !normalizedCodes.includes(code) && isHexCourseColor(color))
+      .map(([, color]) => color.toLowerCase()),
+    ...Object.entries(lockedAutomaticAssignments)
+      .filter(([code, color]) => !normalizedCodes.includes(code) && isHexCourseColor(color))
+      .map(([, color]) => color.toLowerCase()),
+  ]);
+
+  normalizedCodes.forEach((code) => {
+    const explicitColor = explicitSubjectColorMap[code];
+    if (!isHexCourseColor(explicitColor)) return;
+
+    resolvedMap[code] = explicitColor;
+    occupiedColors.add(explicitColor.toLowerCase());
+  });
+
+  normalizedCodes.forEach((code) => {
+    if (resolvedMap[code]) return;
+
+    const lockedColor = lockedAutomaticAssignments[code];
+    if (!isHexCourseColor(lockedColor)) return;
+    if (occupiedColors.has(lockedColor.toLowerCase())) return;
+
+    resolvedMap[code] = lockedColor;
+    occupiedColors.add(lockedColor.toLowerCase());
+  });
+
+  normalizedCodes.forEach((code) => {
+    if (resolvedMap[code]) return;
+
+    const nextColor = getAutomaticSubjectColor(code, Array.from(occupiedColors));
+    resolvedMap[code] = nextColor;
+    occupiedColors.add(nextColor.toLowerCase());
+  });
+
+  return resolvedMap;
+};
+
+export const getAutomaticSubjectColor = (
+  subjectCode: string,
+  occupiedColors: string[] = [],
+) => {
   const normalizedCode = normalizeSubjectCode(subjectCode);
   if (!normalizedCode) return '#3b82f6';
 
@@ -156,7 +207,26 @@ export const getAutomaticSubjectColor = (subjectCode: string) => {
     hash = normalizedCode.charCodeAt(index) + ((hash << 5) - hash);
   }
 
-  return DEFAULT_SUBJECT_COLORS[Math.abs(hash) % DEFAULT_SUBJECT_COLORS.length];
+  const preferredIndex = Math.abs(hash) % DEFAULT_SUBJECT_COLORS.length;
+  const normalizedOccupiedColors = new Set(
+    occupiedColors
+      .filter(isHexCourseColor)
+      .map((color) => color.toLowerCase()),
+  );
+  const preferredColor = DEFAULT_SUBJECT_COLORS[preferredIndex];
+
+  if (!normalizedOccupiedColors.has(preferredColor.toLowerCase())) {
+    return preferredColor;
+  }
+
+  for (let offset = 1; offset < DEFAULT_SUBJECT_COLORS.length; offset += 1) {
+    const candidate = DEFAULT_SUBJECT_COLORS[(preferredIndex + offset) % DEFAULT_SUBJECT_COLORS.length];
+    if (!normalizedOccupiedColors.has(candidate.toLowerCase())) {
+      return candidate;
+    }
+  }
+
+  return preferredColor;
 };
 
 export const resolveCourseColor = (
@@ -202,12 +272,17 @@ export const getDistinctCourseTextClassName = (courseId: string, courseIds: stri
   return CATEGORY_TEXT_COLORS[distinctIndex % CATEGORY_TEXT_COLORS.length];
 };
 
-export const getCourseBadgeStyle = (color: string | null | undefined): React.CSSProperties | undefined => {
+export const getHexBadgeStyle = (color: string | null | undefined): React.CSSProperties | undefined => {
   if (!isHexCourseColor(color)) return undefined;
   return {
-    backgroundColor: `${color}22`,
-    color,
+    backgroundColor: `color-mix(in srgb, ${color} 16%, var(--background))`,
+    borderColor: `color-mix(in srgb, ${color} 28%, var(--background))`,
+    color: `color-mix(in srgb, ${color} 82%, var(--foreground))`,
   };
+};
+
+export const getCourseBadgeStyle = (color: string | null | undefined): React.CSSProperties | undefined => {
+  return getHexBadgeStyle(color);
 };
 
 export const getCourseTextStyle = (color: string | null | undefined): React.CSSProperties | undefined => {

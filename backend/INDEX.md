@@ -3,7 +3,7 @@
 Backend exposes FastAPI endpoints and coordinates auth, CRUD, and domain logic.
 Data contracts are defined in Pydantic schemas and persisted through SQLAlchemy models, with Alembic now owning schema evolution instead of startup-time compatibility rewrites.
 Auth now signs JWTs from env-backed secrets and ships browser sessions via HttpOnly cookies while still validating bearer tokens server-side.
-Program-level subject-code color maps now persist in the backend so Course List, Program Dashboard, Course Settings, Todo, and backups share the same automatic/default course colors.
+Program-level subject-code color maps now persist in the backend as stable locked assignments so Course List, Program Dashboard, Course Settings, Todo, and backups share the same automatic/default course colors while new subject codes avoid collisions when palette room remains.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -12,6 +12,7 @@ Program-level subject-code color maps now persist in the backend so Course List,
 | alembic/ | Migration workspace | Alembic environment and revision history for backend schema changes. |
 | alembic.ini | Migration config | Alembic CLI configuration pointing at the backend migration workspace. |
 | auth.py | Auth utility | Handles JWT creation/validation, secure auth-cookie helpers, and current-user resolution from cookie or bearer token. |
+| color_utils.py | Color utility | Shared subject-code parsing, automatic color assignment, and Program subject-color-map serialization helpers used by CRUD and Todo flows. |
 | crud.py | Data access | Implements database CRUD for users, tasks, courses, widgets, plugin shared settings, and user settings. |
 | database.py | DB bootstrap | Configures SQLAlchemy engine/session and database base metadata. |
 | gradebook.py | Gradebook domain service | Owns built-in gradebook initialization, fact-only preference/category/assessment mutations, percentage-score persistence, and import/export mapping without persisting forecast or plan results onto the course. |
@@ -25,12 +26,12 @@ Program-level subject-code color maps now persist in the backend so Course List,
 | prod.sh | Ops script | Production bootstrap script for backend service process startup. |
 | requirements.txt | Dependency manifest | Lists Python runtime dependencies required by backend. |
 | schemas.py | API schema layer | Defines request/response validation models, including Program subject-color settings, semester todo payloads, persisted course-color fields, plugin shared settings payloads, strict widget `layout_config` shape/range validation, and fact-oriented gradebook contracts. |
-| todo.py | Todo domain service | Owns semester-scoped todo migration from legacy tab settings plus task/section CRUD and API payload assembly without backend order persistence, while resolving Program default course colors for Todo tags. |
+| todo.py | Todo domain service | Owns semester-scoped todo migration from legacy tab settings plus task/section CRUD and API payload assembly without backend order persistence, while resolving stable Program default course colors for Todo tags. |
 | test_crud.py | Integration test script | Verifies CRUD workflows against a running local API. |
 | test_gradebook.py | Unit test script | Verifies builtin gradebook initialization, category reassignment, preference updates, percentage-score persistence, and that gradebook mutations no longer overwrite course grade fields. |
 | test_logic.py | Integration test script | Verifies academic logic flows against API endpoints. |
 | test_nickname.py | Integration test script | Validates nickname update and retrieval API behavior. |
-| test_todo.py | Unit test script | Verifies table-backed todo payloads no longer expose persisted order fields, Program subject-color defaults flow into Todo course options, and section moves are handled through regular task updates. |
+| test_todo.py | Unit test script | Verifies table-backed todo payloads no longer expose persisted order fields, Program subject-color defaults flow into Todo course options, locked subject-color assignments stay stable for new codes, and section moves are handled through regular task updates. |
 | test_widget_delete.py | Integration test script | Validates widget deletion endpoint behavior. |
 | test_widget_update.py | Integration test script | Validates widget update endpoint behavior. |
 | utils.py | Shared utility | Provides timetable parsing, ICS conversion, and date helpers. |

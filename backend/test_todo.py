@@ -1,5 +1,5 @@
-# input:  [unittest, in-memory SQLAlchemy session setup, backend todo service, and backend schemas/models]
-# output: [unit tests covering todo serialization without backend order persistence, Program-derived course colors, and section reassignment updates]
+# input:  [unittest, in-memory SQLAlchemy session setup, backend todo service, CRUD helpers, and backend schemas/models]
+# output: [unit tests covering todo serialization without backend order persistence, Program-derived course colors, stable Program subject-color locking, and section reassignment updates]
 # pos:    [backend regression tests for the table-backed todo service after removing persisted todo ordering and adding Program subject-code color defaults]
 #
 # ⚠️ When this file is updated:
@@ -20,6 +20,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 import models
 import schemas
+import crud
 import todo
 from database import Base
 
@@ -34,6 +35,7 @@ class TodoServiceTests(unittest.TestCase):
         user = models.User(email="todo@example.com", hashed_password="hashed", user_setting="{}")
         self.db.add(user)
         self.db.flush()
+        self.user_id = user.id
 
         program = models.Program(name="Engineering", owner_id=user.id, program_timezone="America/Toronto")
         self.db.add(program)
@@ -130,6 +132,39 @@ class TodoServiceTests(unittest.TestCase):
         payload = todo.get_semester_state(self.db, self.semester)
 
         self.assertEqual(payload.course_options[0].color, "#111111")
+
+    def test_program_subject_color_map_keeps_existing_assignments_stable_for_new_codes(self) -> None:
+        crud.create_course(
+            self.db,
+            schemas.CourseCreate(
+                name="AAA100",
+                category="AAA",
+                credits=0.5,
+            ),
+            program_id=self.program.id,
+            semester_id=self.semester.id,
+        )
+        synced_program = crud.get_program(self.db, self.program.id, self.user_id)
+        assert synced_program is not None
+        first_map = todo.parse_subject_color_map(synced_program.subject_color_map)
+        first_color = first_map["AAA"]
+
+        crud.create_course(
+            self.db,
+            schemas.CourseCreate(
+                name="AAM100",
+                category="AAM",
+                credits=0.5,
+            ),
+            program_id=self.program.id,
+            semester_id=self.semester.id,
+        )
+        synced_program = crud.get_program(self.db, self.program.id, self.user_id)
+        assert synced_program is not None
+        next_map = todo.parse_subject_color_map(synced_program.subject_color_map)
+
+        self.assertEqual(next_map["AAA"], first_color)
+        self.assertNotEqual(next_map["AAM"], first_color)
 
 
 if __name__ == "__main__":

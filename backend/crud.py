@@ -1,5 +1,5 @@
-# input:  [SQLAlchemy session, models, schemas, timezone/date helpers]
-# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, user settings, and gradebook initialization]
+# input:  [SQLAlchemy session, models, schemas, shared color helpers, and timezone/date helpers]
+# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, user settings, gradebook initialization, and stable Program subject-color synchronization]
 # pos:    [Database access layer for backend services and gradebook-backed course creation]
 #
 # ⚠️ When this file is updated:
@@ -11,6 +11,7 @@ from sqlalchemy import func
 import json
 from datetime import date, timedelta
 from zoneinfo import ZoneInfo
+from color_utils import parse_subject_color_map, resolve_subject_code, resolve_subject_color_assignments, serialize_subject_color_map
 import models
 import schemas
 import bcrypt
@@ -71,6 +72,22 @@ def normalize_user_setting_dict(settings: dict | None) -> dict:
 def get_user_setting_dict(user: models.User | None) -> dict:
     settings = parse_user_setting(getattr(user, "user_setting", None)) if user else {}
     return normalize_user_setting_dict(settings)
+
+
+def _sync_program_subject_color_map(program: models.Program) -> bool:
+    discovered_subject_codes = [
+        resolve_subject_code(category=course.category, alias=course.alias, name=course.name)
+        for course in program.courses
+    ]
+    persisted_assignments = parse_subject_color_map(program.subject_color_map)
+    resolved_assignments = resolve_subject_color_assignments(discovered_subject_codes, persisted_assignments)
+    next_assignments = dict(persisted_assignments)
+    next_assignments.update(resolved_assignments)
+    serialized_assignments = serialize_subject_color_map(next_assignments)
+    if serialized_assignments == (program.subject_color_map or "{}"):
+        return False
+    program.subject_color_map = serialized_assignments
+    return True
 
 def verify_password(plain_password, hashed_password):
     if not hashed_password:
@@ -157,7 +174,15 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):
 
 # --- Program CRUD ---
 def get_programs(db: Session, user_id: str, skip: int = 0, limit: int = 100):
-    return db.query(models.Program).filter(models.Program.owner_id == user_id).offset(skip).limit(limit).all()
+    programs = db.query(models.Program).filter(models.Program.owner_id == user_id).offset(skip).limit(limit).all()
+    did_change = False
+    for program in programs:
+        did_change = _sync_program_subject_color_map(program) or did_change
+    if did_change:
+        db.commit()
+        for program in programs:
+            db.refresh(program)
+    return programs
 
 def create_program(db: Session, program: schemas.ProgramCreate, user_id: str):
     payload = program.dict()
@@ -169,7 +194,14 @@ def create_program(db: Session, program: schemas.ProgramCreate, user_id: str):
     return db_program
 
 def get_program(db: Session, program_id: str, user_id: str):
-    return db.query(models.Program).filter(models.Program.id == program_id, models.Program.owner_id == user_id).first()
+    program = db.query(models.Program).filter(models.Program.id == program_id, models.Program.owner_id == user_id).first()
+    if program is None:
+        return None
+    if _sync_program_subject_color_map(program):
+        db.add(program)
+        db.commit()
+        db.refresh(program)
+    return program
 
 def update_program(db: Session, program_id: str, program_update: schemas.ProgramUpdate, user_id: str):
     db_program = db.query(models.Program).filter(models.Program.id == program_id, models.Program.owner_id == user_id).first()
@@ -180,6 +212,7 @@ def update_program(db: Session, program_id: str, program_update: schemas.Program
         update_data["program_timezone"] = normalize_timezone(update_data["program_timezone"])
     for key, value in update_data.items():
         setattr(db_program, key, value)
+    _sync_program_subject_color_map(db_program)
     db.add(db_program)
     db.commit()
     db.refresh(db_program)
@@ -283,6 +316,9 @@ def create_course(db: Session, course: schemas.CourseCreate, program_id: str, se
     db.commit()
     db.refresh(db_course)
     gradebook.ensure_course_gradebook(db, db_course)
+    if db_course.program and _sync_program_subject_color_map(db_course.program):
+        db.add(db_course.program)
+        db.commit()
     db.refresh(db_course)
 
     # Trigger logic
@@ -298,7 +334,8 @@ def update_course(db: Session, course_id: str, course_update: schemas.CourseUpda
     
     for key, value in course_update.dict(exclude_unset=True).items():
         setattr(db_course, key, value)
-    
+    if db_course.program:
+        _sync_program_subject_color_map(db_course.program)
     db.add(db_course)
     db.commit()
     db.refresh(db_course)

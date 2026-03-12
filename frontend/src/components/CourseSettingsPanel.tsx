@@ -7,6 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { SettingsSection } from "./SettingsSection";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { cn } from "@/lib/utils";
+import { normalizeSubjectCode, resolveCourseSubjectCode } from "@/utils/courseCategoryBadge";
 
 const COURSE_COLOR_PRESETS: readonly ColorPickerPreset[] = [
   { name: 'Blue', value: '#2563eb' },
@@ -47,6 +49,7 @@ interface CourseSettingsPanelProps {
     include_in_gpa: boolean;
     hide_gpa: boolean;
   }) => Promise<void>;
+  registerFlush?: (flush: () => Promise<void>) => void;
 }
 
 export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
@@ -54,6 +57,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   initialSettings,
   resolvedDefaultColor,
   onSave,
+  registerFlush,
 }) => {
   const automaticColor = resolvedDefaultColor || "#3b82f6";
   const [name, setName] = useState(initialName);
@@ -158,7 +162,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
     setColor(automaticColor);
   }, [automaticColor, useCustomColor]);
 
-  useAutoSave({
+  const { flush } = useAutoSave({
     value: draftSnapshot,
     savedValue: savedSnapshot,
     onSave: async (snapshot) => {
@@ -176,6 +180,34 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       console.error("Failed to save settings", error);
     },
   });
+
+  const flushRef = useRef(flush);
+
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
+
+  useEffect(() => {
+    registerFlush?.(flush);
+  }, [flush, registerFlush]);
+
+  useEffect(() => {
+    return () => {
+      void flushRef.current();
+    };
+  }, []);
+
+  const suggestedCategory = useMemo(
+    () => resolveCourseSubjectCode({ name, alias: "", category: "" }),
+    [name],
+  );
+  const normalizedCurrentCategory = useMemo(
+    () => normalizeSubjectCode(category),
+    [category],
+  );
+  const shouldShowCategoryUpdate = Boolean(
+    suggestedCategory && suggestedCategory !== normalizedCurrentCategory,
+  );
 
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
@@ -201,7 +233,26 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
         </div>
 
         <div className="grid max-w-sm gap-2 pt-2">
-          <Label htmlFor={`${fieldId}-category`}>Category (optional)</Label>
+          <div className="flex min-h-9 items-center justify-between gap-3">
+            <Label htmlFor={`${fieldId}-category`}>Category (optional)</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "transition-opacity",
+                !shouldShowCategoryUpdate && "pointer-events-none opacity-0",
+              )}
+              onClick={() => {
+                if (!suggestedCategory) return;
+                setCategory(suggestedCategory);
+              }}
+              aria-hidden={!shouldShowCategoryUpdate}
+              tabIndex={shouldShowCategoryUpdate ? 0 : -1}
+            >
+              Update to {suggestedCategory || "CODE"}
+            </Button>
+          </div>
           <Input
             id={`${fieldId}-category`}
             value={category}

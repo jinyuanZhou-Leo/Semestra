@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getAutomaticSubjectColor,
   parseSubjectColorMap,
+  resolveSubjectColorAssignments,
   resolveCourseColor,
   resolveCourseSubjectCode,
   serializeSubjectColorMap,
@@ -81,5 +82,37 @@ describe('courseCategoryBadge utilities', () => {
       },
       {},
     )).toBe(getAutomaticSubjectColor('MAT'));
+  });
+
+  it('avoids occupied palette colors when another automatic color is available', () => {
+    const preferredColor = getAutomaticSubjectColor('APS');
+    const reassignedColor = getAutomaticSubjectColor('APS', [preferredColor]);
+
+    expect(reassignedColor).not.toBe(preferredColor);
+    expect(reassignedColor).toMatch(/^#[0-9a-fA-F]{6}$/);
+  });
+
+  it('assigns distinct automatic colors across a visible subject-code set', () => {
+    const resolved = resolveSubjectColorAssignments(['APS', 'MAT', 'CSC'], {});
+    const colors = Object.values(resolved);
+
+    expect(new Set(colors).size).toBe(colors.length);
+  });
+
+  it('keeps existing automatic assignments stable when a new code is added', () => {
+    const initialResolved = resolveSubjectColorAssignments(['APS', 'MAT'], {});
+    const nextResolved = resolveSubjectColorAssignments(['APS', 'MAT', 'CSC'], {}, initialResolved);
+
+    expect(nextResolved.APS).toBe(initialResolved.APS);
+    expect(nextResolved.MAT).toBe(initialResolved.MAT);
+  });
+
+  it('reserves persisted hidden assignments so a new visible code does not steal that color', () => {
+    const reservedAssignments = {
+      AAA: getAutomaticSubjectColor('AAA'),
+    };
+    const nextResolved = resolveSubjectColorAssignments(['AAM'], {}, reservedAssignments);
+
+    expect(nextResolved.AAM).not.toBe(reservedAssignments.AAA);
   });
 });

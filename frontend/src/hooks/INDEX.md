@@ -7,7 +7,7 @@ Includes stale-request-safe fetch primitives, framework-managed plugin shared-se
 | File | Role | Description |
 |------|------|-------------|
 | __tests__/ | Subdirectory | Test cases for modules in this folder. |
-| useAutoSave.ts | Hook module | Shared settings auto-save scheduler with debounce, max-wait throttling, validation gates, and save-state feedback. |
+| useAutoSave.ts | Hook module | Shared settings auto-save scheduler with structural snapshot comparison, debounce/max-wait throttling, validation gates, and save-state feedback. |
 | use-mobile.ts | Hook module | Mobile breakpoint hook (640px) with immediate client-side width initialization to avoid first-frame responsive surface mismatches. |
 | useAppStatus.ts | Hook module | Custom hook implementing use app status behavior. |
 | useDashboardTabs.ts | Hook module | Orchestrates tab CRUD with optimistic state, debounced settings sync, context-key reset safeguards, and parallelized order persistence retries. |

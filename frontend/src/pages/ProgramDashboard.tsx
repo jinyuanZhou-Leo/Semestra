@@ -59,7 +59,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, X, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
 import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
-import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode } from '@/utils/courseCategoryBadge';
+import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
 
 // Helper function to extract course level from course name
 const extractCourseLevel = (courseName: string): number | null => {
@@ -335,6 +335,7 @@ const ProgramDashboardContent: React.FC = () => {
     const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const settingsFlushRef = useRef<(() => Promise<void>) | null>(null);
 
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -348,7 +349,6 @@ const ProgramDashboardContent: React.FC = () => {
         () => parseSubjectColorMap(program?.subject_color_map),
         [program?.subject_color_map],
     );
-
     const totalCredits = React.useMemo(() => {
         if (!program) return 0;
         return program.semesters.reduce(
@@ -533,6 +533,10 @@ const ProgramDashboardContent: React.FC = () => {
                 .filter(Boolean),
         )).sort((left, right) => left.localeCompare(right));
     }, [program]);
+    const resolvedSubjectColorMap = useMemo(
+        () => resolveSubjectColorAssignments(discoveredSubjectCodes, subjectColorMap),
+        [discoveredSubjectCodes, subjectColorMap],
+    );
 
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -1145,11 +1149,11 @@ const ProgramDashboardContent: React.FC = () => {
                                                             </div>
                                                         </TableCell>
                                                         <TableCell>
-                                                            {course.category && (
+                                                                    {course.category && (
                                                                 <Badge
                                                                     variant="outline"
                                                                     className={`border-0 font-medium ${getCourseCategoryBadgeClassName(course.category)}`}
-                                                                    style={getCourseBadgeStyle(resolveCourseColor(course, subjectColorMap))}
+                                                                    style={getCourseBadgeStyle(resolveCourseColor(course, resolvedSubjectColorMap))}
                                                                 >
                                                                     {course.category}
                                                                 </Badge>
@@ -1190,7 +1194,10 @@ const ProgramDashboardContent: React.FC = () => {
             {program && (
                 <SettingsModal
                     isOpen={isSettingsOpen}
-                    onClose={() => setIsSettingsOpen(false)}
+                    onClose={async () => {
+                        await settingsFlushRef.current?.();
+                        setIsSettingsOpen(false);
+                    }}
                     title="Program Settings"
                 >
                     <ProgramSettingsPanel
@@ -1203,8 +1210,16 @@ const ProgramDashboardContent: React.FC = () => {
                         }}
                         subjectCodes={discoveredSubjectCodes}
                         onSave={handleUpdateProgram}
+                        registerFlush={(flush) => {
+                            settingsFlushRef.current = flush;
+                        }}
                         showCancel
-                        onCancel={() => setIsSettingsOpen(false)}
+                        onCancel={() => {
+                            void (async () => {
+                                await settingsFlushRef.current?.();
+                                setIsSettingsOpen(false);
+                            })();
+                        }}
                     />
                 </SettingsModal>
             )}

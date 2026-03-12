@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 interface SettingsModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: () => void | Promise<void>;
   title: string;
   children: React.ReactNode;
 }
@@ -22,16 +22,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   title,
   children,
 }) => {
+  const handleOpenChange = async (open: boolean) => {
+    if (open) return;
+    await onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="p-0 sm:max-w-[520px]">
-        <DialogHeader className="border-b px-6 py-4">
+    <Dialog open={isOpen} onOpenChange={(open) => { void handleOpenChange(open); }}>
+      <DialogContent className="flex h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl lg:max-w-6xl">
+        <DialogHeader className="shrink-0 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
           <DialogDescription className="sr-only">
             Configure settings for {title}.
           </DialogDescription>
         </DialogHeader>
-        <div className="p-6">
+        <div className="min-h-0 overflow-y-auto px-6 py-5">
           {children}
         </div>
       </DialogContent>

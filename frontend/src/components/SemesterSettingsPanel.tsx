@@ -43,12 +43,14 @@ interface SemesterSettingsPanelProps {
     reading_week_start: string | null;
     reading_week_end: string | null;
   }) => Promise<void>;
+  registerFlush?: (flush: () => Promise<void>) => void;
 }
 
 export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   initialName,
   initialSettings,
   onSave,
+  registerFlush,
 }) => {
   const isMobile = useIsMobile();
   const startDateRaw = initialSettings?.start_date;
@@ -206,7 +208,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
     setFormError("");
   }, [endDate, readingWeekEnd, readingWeekStart, startDate]);
 
-  useAutoSave({
+  const { flush } = useAutoSave({
     value: draftSnapshot,
     savedValue: savedSnapshot,
     validate: () => isValid,
@@ -223,6 +225,22 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
       console.error("Failed to save settings", error);
     },
   });
+
+  const flushRef = useRef(flush);
+
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
+
+  useEffect(() => {
+    registerFlush?.(flush);
+  }, [flush, registerFlush]);
+
+  useEffect(() => {
+    return () => {
+      void flushRef.current();
+    };
+  }, []);
 
   return (
     <SettingsSection title="General" description="Update the name and key settings.">

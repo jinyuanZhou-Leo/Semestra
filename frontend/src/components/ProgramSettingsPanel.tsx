@@ -1,39 +1,55 @@
 // input:  [program name/credits/GPA defaults, discovered subject codes, course color-picker presets, and auto-save lifecycle callbacks]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form rendered inside program dashboard modal with debounced auto-save persistence plus Program-scoped subject-color management]
+// pos:    [Program-level settings form rendered inside program dashboard modal with debounced auto-save persistence plus Program-scoped stable subject-color management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { RotateCcw } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { GPAScalingTable } from "./GPAScalingTable";
+import { Switch } from "@/components/ui/switch";
 import { useAutoSave } from "@/hooks/useAutoSave";
-import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
 import {
-  getAutomaticSubjectColor,
   normalizeSubjectCode,
   parseSubjectColorMap,
+  resolveSubjectColorAssignments,
   serializeSubjectColorMap,
 } from "@/utils/courseCategoryBadge";
 
+import { CrudPanel } from "./CrudPanel";
+import { GPAScalingTable } from "./GPAScalingTable";
+import { SettingsSection } from "./SettingsSection";
+import { TableCell, TableHead, TableRow } from "@/components/ui/table";
+
 const SUBJECT_COLOR_PRESETS: readonly ColorPickerPreset[] = [
-  { name: 'Blue', value: '#2563eb' },
-  { name: 'Red', value: '#dc2626' },
-  { name: 'Green', value: '#16a34a' },
-  { name: 'Orange', value: '#ea580c' },
-  { name: 'Cyan', value: '#0891b2' },
-  { name: 'Violet', value: '#7c3aed' },
-  { name: 'Amber', value: '#ca8a04' },
-  { name: 'Pink', value: '#db2777' },
-  { name: 'Teal', value: '#0f766e' },
-  { name: 'Indigo', value: '#4f46e5' },
-  { name: 'Lime', value: '#65a30d' },
-  { name: 'Burnt Orange', value: '#c2410c' },
+  { name: "Blue", value: "#2563eb" },
+  { name: "Red", value: "#dc2626" },
+  { name: "Green", value: "#16a34a" },
+  { name: "Orange", value: "#ea580c" },
+  { name: "Cyan", value: "#0891b2" },
+  { name: "Violet", value: "#7c3aed" },
+  { name: "Amber", value: "#ca8a04" },
+  { name: "Pink", value: "#db2777" },
+  { name: "Teal", value: "#0f766e" },
+  { name: "Indigo", value: "#4f46e5" },
+  { name: "Lime", value: "#65a30d" },
+  { name: "Burnt Orange", value: "#c2410c" },
 ] as const;
 
 interface ProgramSettingsPanelProps {
@@ -52,6 +68,7 @@ interface ProgramSettingsPanelProps {
     subject_color_map: string;
     hide_gpa: boolean;
   }) => Promise<void>;
+  registerFlush?: (flush: () => Promise<void>) => void;
   showCancel?: boolean;
   onCancel?: () => void;
 }
@@ -61,6 +78,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   initialSettings,
   subjectCodes = [],
   onSave,
+  registerFlush,
   showCancel = false,
   onCancel,
 }) => {
@@ -71,7 +89,6 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   const [subjectColorMap, setSubjectColorMap] = useState<Record<string, string>>(
     parseSubjectColorMap(initialSettings?.subject_color_map),
   );
-  const [subjectCodeDraft, setSubjectCodeDraft] = useState("");
   const [jsonError, setJsonError] = useState("");
   const fieldId = useId();
   const initialGradCredits = String(initialSettings?.grad_requirement_credits || "");
@@ -90,12 +107,31 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
     [subjectCodes],
   );
   const visibleSubjectCodes = useMemo(
-    () => Array.from(new Set([...normalizedSubjectCodes, ...Object.keys(subjectColorMap)])).sort((left, right) => left.localeCompare(right)),
-    [normalizedSubjectCodes, subjectColorMap],
+    () => normalizedSubjectCodes,
+    [normalizedSubjectCodes],
+  );
+  const persistedAndVisibleSubjectCodes = useMemo(
+    () => Array.from(new Set([...Object.keys(subjectColorMap), ...visibleSubjectCodes])),
+    [subjectColorMap, visibleSubjectCodes],
+  );
+  const resolvedSubjectColorMap = useMemo(
+    () => resolveSubjectColorAssignments(persistedAndVisibleSubjectCodes, subjectColorMap),
+    [persistedAndVisibleSubjectCodes, subjectColorMap],
+  );
+  const persistedSubjectColorMap = useMemo(
+    () => ({
+      ...subjectColorMap,
+      ...Object.fromEntries(
+        visibleSubjectCodes
+          .map((code) => [code, resolvedSubjectColorMap[code]])
+          .filter((entry): entry is [string, string] => Boolean(entry[1])),
+      ),
+    }),
+    [resolvedSubjectColorMap, subjectColorMap, visibleSubjectCodes],
   );
   const subjectColorMapJson = useMemo(
-    () => serializeSubjectColorMap(subjectColorMap),
-    [subjectColorMap],
+    () => serializeSubjectColorMap(persistedSubjectColorMap),
+    [persistedSubjectColorMap],
   );
   const savedSnapshot = useMemo(
     () => ({
@@ -152,7 +188,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
     setJsonError("");
   }, [draftSnapshot, initialSubjectColorMap, savedSnapshot]);
 
-  const { isValid } = useAutoSave({
+  const { isValid, flush } = useAutoSave({
     value: draftSnapshot,
     savedValue: savedSnapshot,
     validate: (snapshot) => {
@@ -188,124 +224,150 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
     setJsonError("Invalid JSON in program settings");
   }, [isValid]);
 
-  const addSubjectCode = () => {
-    const normalizedCode = normalizeSubjectCode(subjectCodeDraft);
-    if (!normalizedCode) return;
-    setSubjectColorMap((current) => ({
-      ...current,
-      [normalizedCode]: current[normalizedCode] ?? getAutomaticSubjectColor(normalizedCode),
-    }));
-    setSubjectCodeDraft("");
-  };
+  const flushRef = useRef(flush);
+
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
+
+  useEffect(() => {
+    registerFlush?.(flush);
+  }, [flush, registerFlush]);
+
+  useEffect(() => {
+    return () => {
+      void flushRef.current();
+    };
+  }, []);
 
   return (
-    <div className="grid gap-6">
-      <div className="grid gap-2">
-        <Label htmlFor={`${fieldId}-name`}>Name</Label>
-        <Input
-          id={`${fieldId}-name`}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-      </div>
-
-      <div className="grid gap-2">
-        <Label htmlFor={`${fieldId}-grad-credits`}>Graduation Requirement (Credits)</Label>
-        <Input
-          id={`${fieldId}-grad-credits`}
-          type="number"
-          step="0.5"
-          value={gradCredits}
-          onChange={(e) => setGradCredits(e.target.value)}
-          required
-        />
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Checkbox
-          id={`${fieldId}-hide-gpa`}
-          checked={hideGpa}
-          onCheckedChange={(checked) => {
-            if (checked === "indeterminate") return;
-            setHideGpa(checked);
-          }}
-        />
-        <Label htmlFor={`${fieldId}-hide-gpa`} className="text-sm text-muted-foreground">
-          Hide GPA Info
-        </Label>
-      </div>
-
-      <div className="grid gap-3">
-        <div className="space-y-1">
-          <Label>Subject Colors</Label>
-          <p className="text-sm text-muted-foreground">
-            Set default colors for course codes such as APS or MAT. Courses still can override this in Course Settings.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3 rounded-xl border border-border/70 p-4">
-          <div className="flex flex-col gap-2 sm:flex-row">
+    <div className="space-y-4">
+      <SettingsSection
+        title="General"
+        description="Update core Program details and visibility preferences."
+        contentClassName="space-y-6"
+      >
+        <div className="grid gap-5">
+          <div className="grid max-w-sm gap-2">
+            <Label htmlFor={`${fieldId}-name`}>Program Name</Label>
             <Input
-              value={subjectCodeDraft}
-              onChange={(event) => setSubjectCodeDraft(event.target.value.toUpperCase())}
-              placeholder="Add subject code (e.g. APS)"
-              className="sm:max-w-[220px]"
+              id={`${fieldId}-name`}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
             />
-            <Button type="button" variant="outline" onClick={addSubjectCode}>
-              Add Subject Code
-            </Button>
           </div>
 
-          {visibleSubjectCodes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Subject codes will appear here after courses such as APS105 or MAT180 are detected.
-            </p>
-          ) : (
-            <div className="grid gap-4">
-              {visibleSubjectCodes.map((subjectCode) => {
-                const automaticColor = getAutomaticSubjectColor(subjectCode);
-                const selectedColor = subjectColorMap[subjectCode] ?? automaticColor;
-                const isCustomized = Boolean(subjectColorMap[subjectCode]);
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor={`${fieldId}-grad-credits`} className="text-sm font-medium">
+                Graduation Credits
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                The total credits required to complete this Program.
+              </p>
+            </div>
+            <div className="w-full sm:w-[140px] sm:shrink-0">
+              <Input
+                id={`${fieldId}-grad-credits`}
+                type="number"
+                step="0.5"
+                value={gradCredits}
+                onChange={(event) => setGradCredits(event.target.value)}
+                required
+              />
+            </div>
+          </div>
 
-                return (
-                  <div key={subjectCode} className="rounded-xl border border-border/60 p-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-semibold">{subjectCode}</span>
-                          <span
-                            className="h-3 w-3 rounded-full border border-border/70"
-                            style={{ backgroundColor: selectedColor }}
-                            aria-hidden="true"
-                          />
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {isCustomized ? "Using a Program-level custom color." : "Using the stable automatic color."}
-                        </p>
-                      </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor={`${fieldId}-hide-gpa`} className="text-sm font-medium">
+                Hide GPA Info
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Remove GPA details from Program-level views.
+              </p>
+            </div>
+            <div className="sm:shrink-0">
+              <Switch
+                id={`${fieldId}-hide-gpa`}
+                checked={hideGpa}
+                onCheckedChange={setHideGpa}
+                aria-label="Hide GPA Info"
+              />
+            </div>
+          </div>
+        </div>
+      </SettingsSection>
 
-                      <div className="flex flex-col gap-2 lg:w-[320px]">
-                        <ColorPicker
-                          id={`${fieldId}-subject-color-${subjectCode}`}
-                          label="Default Color"
-                          value={selectedColor}
-                          onChange={(color) => {
-                            setSubjectColorMap((current) => ({
-                              ...current,
-                              [subjectCode]: color,
-                            }));
-                          }}
-                          defaultColor={automaticColor}
-                          presetColors={SUBJECT_COLOR_PRESETS}
-                          triggerAriaLabel={`Choose Program default color for ${subjectCode}`}
-                          resetLabel="Use automatic color"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="justify-start px-0 text-muted-foreground"
+      <SettingsSection
+        title="Course Code Colors"
+        description="Set the default color for each course code prefix in this Program. Courses can still use their own custom override when needed."
+        contentClassName="space-y-5"
+      >
+        <CrudPanel
+          title="Course Code Colors"
+          description="Manage the default color used for each course code prefix in this Program."
+          minWidthClassName="min-w-[720px]"
+          items={visibleSubjectCodes}
+          emptyMessage="Subject codes appear here after courses such as APS105 or MAT180 are detected."
+          renderHeader={() => (
+            <TableRow>
+              <TableHead>Code</TableHead>
+              <TableHead className="w-[420px]">Color</TableHead>
+              <TableHead className="w-[88px] text-right">Action</TableHead>
+            </TableRow>
+          )}
+          renderRow={(subjectCode) => {
+            const automaticColor = resolvedSubjectColorMap[subjectCode];
+            const selectedColor = subjectColorMap[subjectCode] ?? automaticColor;
+
+            return (
+              <TableRow key={subjectCode}>
+                <TableCell>
+                  <span className="font-mono text-sm font-semibold tracking-[0.12em]">
+                    {subjectCode}
+                  </span>
+                </TableCell>
+                <TableCell className="py-3">
+                  <div className="w-full min-w-[240px]">
+                    <ColorPicker
+                      id={`${fieldId}-subject-color-${subjectCode}`}
+                      value={selectedColor}
+                      onChange={(color) => {
+                        setSubjectColorMap((current) => ({
+                          ...current,
+                          [subjectCode]: color,
+                        }));
+                      }}
+                      presetColors={SUBJECT_COLOR_PRESETS}
+                      triggerAriaLabel={`Choose Program default color for ${subjectCode}`}
+                    />
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        aria-label={`Reset ${subjectCode} to automatic color`}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent size="sm">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reset {subjectCode} color?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This removes the Program override and restores the automatic default color for {subjectCode}.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          variant="destructive"
                           onClick={() => {
                             setSubjectColorMap((current) => {
                               const next = { ...current };
@@ -314,20 +376,23 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
                             });
                           }}
                         >
-                          Reset to automatic
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+                          Reset
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </TableCell>
+              </TableRow>
+            );
+          }}
+        />
+      </SettingsSection>
 
-      <div className="grid gap-3">
-        <Label>GPA Scaling Table</Label>
+      <SettingsSection
+        title="GPA Scaling"
+        description="Define the score-to-GPA conversion table used by this Program."
+        contentClassName="space-y-3"
+      >
         <GPAScalingTable
           value={gpaTableJson}
           onChange={(newValue) => {
@@ -335,20 +400,16 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
             setJsonError("");
           }}
         />
-        {jsonError && <p className="text-sm text-destructive">{jsonError}</p>}
-      </div>
+        {jsonError ? <p className="text-sm text-destructive">{jsonError}</p> : null}
+      </SettingsSection>
 
-      <div className="flex items-center justify-end gap-3">
-        {showCancel && (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onCancel}
-          >
+      {showCancel ? (
+        <div className="flex items-center justify-end">
+          <Button type="button" variant="secondary" onClick={onCancel}>
             Cancel
           </Button>
-        )}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 };

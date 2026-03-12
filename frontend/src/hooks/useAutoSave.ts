@@ -27,11 +27,37 @@ const DEFAULT_DEBOUNCE_MS = 900;
 const DEFAULT_MAX_WAIT_MS = 4000;
 const DEFAULT_SUCCESS_MS = 900;
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> => (
+  Object.prototype.toString.call(value) === "[object Object]"
+);
+
+const defaultIsEqual = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true;
+
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) return false;
+    return left.every((entry, index) => defaultIsEqual(entry, right[index]));
+  }
+
+  if (isPlainObject(left) && isPlainObject(right)) {
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    if (leftKeys.length !== rightKeys.length) return false;
+
+    return leftKeys.every((key) => (
+      Object.prototype.hasOwnProperty.call(right, key)
+      && defaultIsEqual(left[key], right[key])
+    ));
+  }
+
+  return false;
+};
+
 export const useAutoSave = <T>({
   value,
   savedValue,
   onSave,
-  isEqual = Object.is,
+  isEqual = defaultIsEqual as (a: T, b: T) => boolean,
   validate,
   debounceMs = DEFAULT_DEBOUNCE_MS,
   maxWaitMs = DEFAULT_MAX_WAIT_MS,
@@ -170,6 +196,8 @@ export const useAutoSave = <T>({
     isValid,
     maxWaitMs,
     runSave,
+    value,
+    savedValue,
   ]);
 
   useEffect(() => {
