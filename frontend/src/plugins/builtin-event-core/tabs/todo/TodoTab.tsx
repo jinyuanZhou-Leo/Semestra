@@ -1,6 +1,6 @@
-// input:  [Todo tab settings payload, semester/course APIs, synchronized todo data helpers, shared UI primitives, and event bus refresh signals]
-// output: [TodoTab React component for semester-first Apple Reminder-style todo management with mirrored course sync]
-// pos:    [Todo tab orchestration layer that loads semester aggregate state, mirrors course-specific task snapshots, drives task/section mutations, and renders the unified list UI]
+// input:  [Todo tab settings payload, semester todo APIs, runtime mapping helpers, shared UI primitives, and event bus refresh signals]
+// output: [TodoTab React component for semester-first Apple Reminder-style todo management backed by the semester todo API]
+// pos:    [Todo tab orchestration layer that loads semester todo state, issues domain mutations through dedicated APIs, and renders the unified list UI]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../shared/constants';
 import { timetableEventBus, useEventBus } from '../../shared/eventBus';
 import { TodoCompletedSummary } from './components/TodoCompletedSummary';
 import { TodoInlineCreateRow } from './components/TodoInlineCreateRow';
@@ -51,47 +50,24 @@ import type {
   TodoListModel,
   TodoListStorage,
   TodoPendingDeleteTarget,
-  TodoSection,
   TodoSortDirection,
   TodoSortMode,
   TodoTabMode,
   TodoTask,
 } from './types';
 import {
-  buildCourseMirrorStorage,
-  completedSection,
   createSectionName,
   createTaskDraft,
-  ensureDateValue,
-  ensureTimeValue,
-  isRecord,
-  makeId,
-  normalizeListStorage,
-  normalizeSemesterTodoState,
+  fromTodoApiState,
   nowIso,
-  parseJsonObject,
-  serializeCourseTodoSettings,
-  serializeSemesterTodoSettings,
   userSectionsOf,
 } from './utils/todoData';
-import { toggleTodoTaskCompletedInStorage } from './utils/todoMutations';
 
 interface TodoTabProps {
   settings: unknown;
   updateSettings: (nextSettings: unknown) => void | Promise<void>;
   courseId?: string;
   semesterId?: string;
-}
-
-interface SemesterTabMeta {
-  tabId?: string;
-  baseSettings: Record<string, unknown>;
-}
-
-interface CourseMirrorMeta {
-  tabId?: string;
-  baseSettings: Record<string, unknown>;
-  course: TodoCourseOption;
 }
 
 type RecentCompletedMap = Record<string, true>;
@@ -134,8 +110,8 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
       ? 'semester'
       : 'unsupported';
 
-  const [semesterStorage, setSemesterStorage] = React.useState<TodoListStorage>(() => normalizeListStorage(undefined));
-  const semesterStorageRef = React.useRef<TodoListStorage>(normalizeListStorage(undefined));
+  const [semesterStorage, setSemesterStorage] = React.useState<TodoListStorage>({ sections: [], tasks: [] });
+  const semesterStorageRef = React.useRef<TodoListStorage>({ sections: [], tasks: [] });
   const [courseOptions, setCourseOptions] = React.useState<TodoCourseOption[]>([]);
   const courseOptionsRef = React.useRef<TodoCourseOption[]>([]);
   const [loading, setLoading] = React.useState(mode !== 'unsupported');
@@ -153,113 +129,87 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   const [pendingDeleteTarget, setPendingDeleteTarget] = React.useState<TodoPendingDeleteTarget | null>(null);
   const [recentCompletedTaskIds, setRecentCompletedTaskIds] = React.useState<RecentCompletedMap>({});
   const [semesterSettingsSnapshot, setSemesterSettingsSnapshot] = React.useState<Record<string, unknown>>(
-    isRecord(settings) ? settings : {},
+    settings && typeof settings === 'object' && !Array.isArray(settings) ? settings as Record<string, unknown> : {},
   );
-  const [, startTransition] = React.useTransition();
 
-  const semesterMetaRef = React.useRef<SemesterTabMeta>({ baseSettings: {} });
-  const courseMetaRef = React.useRef<Record<string, CourseMirrorMeta>>({});
   const completionTimeoutsRef = React.useRef<Record<string, ReturnType<typeof window.setTimeout>>>({});
 
   const behavior = React.useMemo(() => normalizeTodoBehaviorSettings(semesterSettingsSnapshot), [semesterSettingsSnapshot]);
+
+  React.useEffect(() => {
+    if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+      setSemesterSettingsSnapshot(settings as Record<string, unknown>);
+      return;
+    }
+    setSemesterSettingsSnapshot({});
+  }, [settings]);
 
   const courseDisplayName = React.useMemo(() => {
     if (!courseId) return 'Todo';
     return courseOptions.find((course) => course.id === courseId)?.name ?? 'Course Todo';
   }, [courseId, courseOptions]);
 
-  const normalizedRuntimeStorage = React.useCallback((input: TodoListStorage) => {
-    return normalizeListStorage(input, courseOptionsRef.current);
-  }, []);
-
-  const persistSynchronizedStorage = React.useCallback(async (
+  const applyServerState = React.useCallback((
     nextStorage: TodoListStorage,
     publishSource: 'course' | 'semester',
     targetCourseId?: string,
   ) => {
-    if (!semesterId) return;
-
-    const normalized = normalizedRuntimeStorage(nextStorage);
-    const nextSemesterSettings = serializeSemesterTodoSettings(semesterMetaRef.current.baseSettings, normalized);
-    setSemesterSettingsSnapshot(nextSemesterSettings);
-
-    try {
-      let nextSemesterTabId = semesterMetaRef.current.tabId;
-
-      if (nextSemesterTabId) {
-        const updated = await api.updateTab(nextSemesterTabId, { settings: JSON.stringify(nextSemesterSettings) });
-        semesterMetaRef.current = {
-          tabId: updated.id,
-          baseSettings: parseJsonObject(updated.settings),
-        };
-      } else {
-        const created = await api.createTab(semesterId, {
-          tab_type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
-          title: 'Todo',
-          settings: JSON.stringify(nextSemesterSettings),
-        });
-        nextSemesterTabId = created.id;
-        semesterMetaRef.current = {
-          tabId: created.id,
-          baseSettings: parseJsonObject(created.settings),
-        };
-      }
-
-      await Promise.all(Object.values(courseMetaRef.current).map(async (meta) => {
-        const mirroredStorage = buildCourseMirrorStorage(normalized, meta.course);
-        const nextCourseSettings = serializeCourseTodoSettings(meta.baseSettings, mirroredStorage);
-
-        if (meta.tabId) {
-          const updated = await api.updateTab(meta.tabId, { settings: JSON.stringify(nextCourseSettings) });
-          courseMetaRef.current[meta.course.id] = {
-            ...meta,
-            tabId: updated.id,
-            baseSettings: parseJsonObject(updated.settings),
-          };
-          return;
-        }
-
-        const created = await api.createTabForCourse(meta.course.id, {
-          tab_type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
-          title: 'Todo',
-          settings: JSON.stringify(nextCourseSettings),
-        });
-        courseMetaRef.current[meta.course.id] = {
-          ...meta,
-          tabId: created.id,
-          baseSettings: parseJsonObject(created.settings),
-        };
-      }));
-
-      timetableEventBus.publish('timetable:todo-storage-changed', {
-        semesterId,
-        source: 'semester',
-        listId: semesterId,
-        storage: normalized,
-      });
+    semesterStorageRef.current = nextStorage;
+    setSemesterStorage(nextStorage);
+    timetableEventBus.publish('timetable:todo-storage-changed', {
+      semesterId: semesterId ?? '',
+      source: 'semester',
+      listId: semesterId ?? '',
+      storage: nextStorage,
+    });
+    if (semesterId) {
       timetableEventBus.publish('timetable:schedule-data-changed', {
         semesterId,
         source: publishSource,
         courseId: publishSource === 'course' ? targetCourseId : undefined,
         reason: 'events-updated',
       });
-    } catch (error: any) {
-      toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save todo changes.');
     }
-  }, [normalizedRuntimeStorage, semesterId]);
+  }, [semesterId]);
 
-  const applyStorageMutation = React.useCallback((
-    updater: (current: TodoListStorage) => TodoListStorage,
+  const runMutation = React.useCallback(async (
+    runner: () => Promise<Awaited<ReturnType<typeof api.getSemesterTodo>>>,
     publishSource: 'course' | 'semester',
     targetCourseId?: string,
   ) => {
-    const nextStorage = normalizedRuntimeStorage(updater(semesterStorageRef.current));
+    try {
+      const response = await runner();
+      const nextState = fromTodoApiState(response, behavior.moveCompletedToCompletedSection);
+      applyServerState(
+        {
+          sections: nextState.sections,
+          tasks: nextState.tasks,
+        },
+        publishSource,
+        targetCourseId,
+      );
+      courseOptionsRef.current = nextState.courseOptions;
+      setCourseOptions(nextState.courseOptions);
+      return true;
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save todo changes.');
+      return false;
+    }
+  }, [applyServerState, behavior.moveCompletedToCompletedSection]);
+
+  const loadTodoState = React.useCallback(async () => {
+    if (!semesterId || mode === 'unsupported') return;
+    const response = await api.getSemesterTodo(semesterId);
+    const semesterState = fromTodoApiState(response, behavior.moveCompletedToCompletedSection);
+    const nextStorage = {
+      sections: semesterState.sections,
+      tasks: semesterState.tasks,
+    };
     semesterStorageRef.current = nextStorage;
-    startTransition(() => {
-      setSemesterStorage(nextStorage);
-    });
-    void persistSynchronizedStorage(nextStorage, publishSource, targetCourseId);
-  }, [normalizedRuntimeStorage, persistSynchronizedStorage, startTransition]);
+    setSemesterStorage(nextStorage);
+    courseOptionsRef.current = semesterState.courseOptions;
+    setCourseOptions(semesterState.courseOptions);
+  }, [behavior.moveCompletedToCompletedSection, mode, semesterId]);
 
   React.useEffect(() => {
     if (!semesterId || mode === 'unsupported') return;
@@ -269,65 +219,18 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
 
     const load = async () => {
       try {
-        const semester = await api.getSemester(semesterId);
-        const courseSnapshots = await Promise.all(
-          (semester.courses ?? []).map(async (course) => {
-            try {
-              const detail = Array.isArray(course.tabs) ? course : await api.getCourse(course.id);
-              return {
-                courseId: course.id,
-                courseName: course.name,
-                courseCategory: course.category ?? '',
-                courseColor: course.color ?? '',
-                todoTab: detail.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE),
-              };
-            } catch {
-              return {
-                courseId: course.id,
-                courseName: course.name,
-                courseCategory: course.category ?? '',
-                courseColor: course.color ?? '',
-                todoTab: undefined,
-              };
-            }
-          }),
-        );
-        const semesterTodoTab = semester.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
-        const semesterSettings = parseJsonObject(semesterTodoTab?.settings);
-        const semesterState = normalizeSemesterTodoState(semesterSettings, courseSnapshots);
-
+        const response = await api.getSemesterTodo(semesterId);
+        const semesterState = fromTodoApiState(response, behavior.moveCompletedToCompletedSection);
         if (cancelled) return;
 
-        const nextStorage = normalizedRuntimeStorage({
+        const nextStorage = {
           sections: semesterState.sections,
           tasks: semesterState.tasks,
-        });
+        };
         semesterStorageRef.current = nextStorage;
         setSemesterStorage(nextStorage);
         courseOptionsRef.current = semesterState.courseOptions;
         setCourseOptions(semesterState.courseOptions);
-        setSemesterSettingsSnapshot(semesterSettings);
-        semesterMetaRef.current = {
-          tabId: semesterTodoTab?.id,
-          baseSettings: semesterSettings,
-        };
-        courseMetaRef.current = Object.fromEntries(courseSnapshots.map((course) => [
-          course.courseId,
-          {
-            tabId: course.todoTab?.id,
-            baseSettings: parseJsonObject(course.todoTab?.settings),
-            course: {
-              id: course.courseId,
-              name: course.courseName,
-              category: course.courseCategory,
-              color: course.courseColor,
-            },
-          } satisfies CourseMirrorMeta,
-        ]));
-
-        if (!isRecord(semesterSettings.semesterTodo)) {
-          void persistSynchronizedStorage(nextStorage, 'semester');
-        }
       } catch (error: any) {
         if (!cancelled) {
           toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to load todo data.');
@@ -344,14 +247,45 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     return () => {
       cancelled = true;
     };
-  }, [mode, persistSynchronizedStorage, semesterId, normalizedRuntimeStorage]);
+  }, [behavior.moveCompletedToCompletedSection, mode, semesterId]);
 
   useEventBus('timetable:todo-storage-changed', (payload) => {
     if (!semesterId || payload.semesterId !== semesterId) return;
-    const normalized = normalizedRuntimeStorage(payload.storage);
-    semesterStorageRef.current = normalized;
-    setSemesterStorage(normalized);
+    semesterStorageRef.current = payload.storage;
+    setSemesterStorage(payload.storage);
   });
+
+  useEventBus('timetable:schedule-data-changed', (payload) => {
+    if (!semesterId || payload.semesterId !== semesterId) return;
+    if (payload.reason !== 'events-updated') return;
+    void loadTodoState();
+  });
+
+  const persistReorderedStorage = React.useCallback(async (
+    nextStorage: TodoListStorage,
+    publishSource: 'course' | 'semester',
+    targetCourseId?: string,
+  ) => {
+    if (!semesterId) return;
+    semesterStorageRef.current = nextStorage;
+    setSemesterStorage(nextStorage);
+    await runMutation(
+      () => api.reorderSemesterTodoTasks(semesterId, {
+        items: nextStorage.tasks
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((task, index) => ({
+            task_id: task.id,
+            sectionId: task.completed && task.sectionId === COMPLETED_SECTION_ID
+              ? (task.originSectionId ?? '')
+              : task.sectionId,
+            orderIndex: index,
+          })),
+      }),
+      publishSource,
+      targetCourseId,
+    );
+  }, [runMutation, semesterId]);
 
   const activeList = React.useMemo<TodoListModel>(() => {
     const tasks = courseId
@@ -401,7 +335,8 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     handleTaskDropToSection,
   } = useTodoTaskDrag({
     onTaskDrop: (sourceTaskId, targetSectionId, beforeTaskId) => {
-      applyStorageMutation((current) => {
+      const nextStorage = (() => {
+        const current = semesterStorageRef.current;
         const ordered = [...current.tasks].sort((a, b) => a.order - b.order);
         const sourceIndex = ordered.findIndex((task) => task.id === sourceTaskId);
         if (sourceIndex < 0) return current;
@@ -447,7 +382,8 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
           ...current,
           tasks: merged.map((task, index) => ({ ...task, order: index })),
         };
-      }, courseId ? 'course' : 'semester', courseId);
+      })();
+      void persistReorderedStorage(nextStorage, courseId ? 'course' : 'semester', courseId);
     },
   });
 
@@ -500,7 +436,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     setTaskDialogEditingId(task.id);
     setTaskDraft({
       title: task.title,
-      description: task.description,
+      note: task.note,
       sectionId: task.completed && task.sectionId === COMPLETED_SECTION_ID ? (task.originSectionId ?? '') : task.sectionId,
       courseId: task.courseId,
       dueDate: task.dueDate,
@@ -510,7 +446,8 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     setTaskDialogOpen(true);
   }, []);
 
-  const saveTaskDraft = React.useCallback((draft: TaskDraft, editingTaskId: string | null) => {
+  const saveTaskDraft = React.useCallback(async (draft: TaskDraft, editingTaskId: string | null) => {
+    if (!semesterId) return false;
     const title = draft.title.trim();
     if (!title) {
       toast.message('Task title is required.');
@@ -524,81 +461,54 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
       ? draft.sectionId
       : '';
 
-    applyStorageMutation((current) => {
-      if (editingTaskId) {
-        return {
-          ...current,
-          tasks: current.tasks.map((task) => {
-            if (task.id !== editingTaskId) return task;
+    const didSave = editingTaskId
+      ? await runMutation(
+        () => api.updateSemesterTodoTask(semesterId, editingTaskId, {
+          title,
+          note: draft.note,
+          section_id: safeSectionId || null,
+          origin_section_id: safeSectionId || null,
+          course_id: selectedCourse?.id || null,
+          due_date: draft.dueDate || null,
+          due_time: draft.dueTime || null,
+          priority: draft.priority,
+        }),
+        draft.courseId || courseId ? 'course' : 'semester',
+        draft.courseId || courseId,
+      )
+      : await runMutation(
+        () => api.createSemesterTodoTask(semesterId, {
+          title,
+          note: draft.note,
+          section_id: safeSectionId || null,
+          course_id: selectedCourse?.id || null,
+          due_date: draft.dueDate || null,
+          due_time: draft.dueTime || null,
+          priority: draft.priority,
+        }),
+        draft.courseId || courseId ? 'course' : 'semester',
+        draft.courseId || courseId,
+      );
 
-            const nextCourse = selectedCourse ?? {
-              id: '',
-              name: '',
-              category: '',
-            };
+    return didSave;
+  }, [courseId, courseOptions, runMutation, semesterId]);
 
-            return {
-              ...task,
-              title,
-              description: draft.description,
-              sectionId: task.completed && behavior.moveCompletedToCompletedSection ? COMPLETED_SECTION_ID : safeSectionId,
-              originSectionId: task.completed ? (safeSectionId || undefined) : undefined,
-              courseId: nextCourse.id,
-              courseName: nextCourse.name,
-              courseCategory: nextCourse.category,
-              dueDate: ensureDateValue(draft.dueDate),
-              dueTime: ensureTimeValue(draft.dueTime),
-              priority: draft.priority,
-              updatedAt: nowIso(),
-            };
-          }),
-        };
-      }
-
-      const createdAt = nowIso();
-      const nextCourse = selectedCourse ?? { id: '', name: '', category: '' };
-      const nextTask: TodoTask = {
-        id: makeId('task'),
-        title,
-        description: draft.description,
-        sectionId: safeSectionId,
-        originSectionId: undefined,
-        courseId: nextCourse.id,
-        courseName: nextCourse.name,
-        courseCategory: nextCourse.category,
-        dueDate: ensureDateValue(draft.dueDate),
-        dueTime: ensureTimeValue(draft.dueTime),
-        priority: draft.priority,
-        completed: false,
-        order: current.tasks.length,
-        createdAt,
-        updatedAt: createdAt,
-      };
-
-      return {
-        ...current,
-        tasks: [...current.tasks, nextTask],
-      };
-    }, draft.courseId || courseId ? 'course' : 'semester', draft.courseId || courseId);
-
-    return true;
-  }, [applyStorageMutation, behavior.moveCompletedToCompletedSection, courseId, courseOptions]);
-
-  const handleSaveDialogTask = React.useCallback(() => {
-    const saved = saveTaskDraft(taskDraft, taskDialogEditingId);
+  const handleSaveDialogTask = React.useCallback(async () => {
+    const saved = await saveTaskDraft(taskDraft, taskDialogEditingId);
     if (!saved) return;
     setTaskDialogOpen(false);
     setTaskDialogEditingId(null);
   }, [saveTaskDraft, taskDialogEditingId, taskDraft]);
 
-  const handleSaveInlineTask = React.useCallback(() => {
-    const saved = saveTaskDraft(inlineDraft, null);
+  const handleSaveInlineTask = React.useCallback(async () => {
+    const saved = await saveTaskDraft(inlineDraft, null);
     if (!saved) return;
     setComposerTarget(null);
     setInlineDraft(createTaskDraft('', courseId ?? ''));
   }, [courseId, inlineDraft, saveTaskDraft]);
 
   const handleToggleTaskCompleted = React.useCallback((taskId: string, completed: boolean) => {
+    if (!semesterId) return;
     if (completionTimeoutsRef.current[taskId]) {
       window.clearTimeout(completionTimeoutsRef.current[taskId]);
       delete completionTimeoutsRef.current[taskId];
@@ -623,100 +533,90 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
       });
     }
 
-    applyStorageMutation(
-      (current) => toggleTodoTaskCompletedInStorage(current, taskId, completed, {
-        moveCompletedToCompletedSection: behavior.moveCompletedToCompletedSection,
-      }),
+    void runMutation(
+      () => api.updateSemesterTodoTask(semesterId, taskId, { completed }),
       courseId ? 'course' : 'semester',
       courseId,
     );
-  }, [applyStorageMutation, behavior.moveCompletedToCompletedSection, courseId]);
+  }, [courseId, runMutation, semesterId]);
 
   const handlePatchTask = React.useCallback((
     taskId: string,
-    patch: Partial<Pick<TodoTask, 'title' | 'dueDate' | 'dueTime' | 'priority' | 'courseId' | 'courseName' | 'courseCategory'>>,
+    patch: Partial<Pick<TodoTask, 'title' | 'note' | 'dueDate' | 'dueTime' | 'priority' | 'courseId' | 'courseName' | 'courseCategory'>>,
   ) => {
-    applyStorageMutation((current) => ({
-      ...current,
-      tasks: current.tasks.map((task) => {
-        if (task.id !== taskId) return task;
-        return {
-          ...task,
-          ...patch,
-          updatedAt: nowIso(),
-        };
+    if (!semesterId) return;
+    void runMutation(
+      () => api.updateSemesterTodoTask(semesterId, taskId, {
+        title: patch.title,
+        note: patch.note,
+        due_date: patch.dueDate === undefined ? undefined : (patch.dueDate || null),
+        due_time: patch.dueTime === undefined ? undefined : (patch.dueTime || null),
+        priority: patch.priority,
+        course_id: patch.courseId === undefined ? undefined : (patch.courseId || null),
       }),
-    }), courseId ? 'course' : 'semester', courseId);
-  }, [applyStorageMutation, courseId]);
+      courseId ? 'course' : 'semester',
+      patch.courseId || courseId,
+    );
+  }, [courseId, runMutation, semesterId]);
 
   const handleAddSection = React.useCallback(() => {
-    if (mode !== 'semester') return;
-    applyStorageMutation((current) => {
-      const users = userSectionsOf(current.sections);
-      const nextSection: TodoSection = {
-        id: makeId('section'),
-        name: createSectionName(current),
-        order: users.length,
-        isSystem: false,
-      };
-      const nextUsers = [...users, nextSection].map((section, index) => ({ ...section, order: index, isSystem: false }));
-      return {
-        ...current,
-        sections: [...nextUsers, completedSection(nextUsers.length)],
-      };
-    }, 'semester');
-  }, [applyStorageMutation, mode]);
+    if (mode !== 'semester' || !semesterId) return;
+    void runMutation(
+      () => api.createSemesterTodoSection(semesterId, { name: createSectionName(semesterStorageRef.current) }),
+      'semester',
+    );
+  }, [mode, runMutation, semesterId]);
 
   const confirmDelete = React.useCallback(() => {
     if (!pendingDeleteTarget) return;
 
     if (pendingDeleteTarget.kind === 'task' && pendingDeleteTarget.taskId) {
+      const taskId = pendingDeleteTarget.taskId;
       const deletedTask = semesterStorageRef.current.tasks.find((task) => task.id === pendingDeleteTarget.taskId);
-      applyStorageMutation(
-        (current) => ({
-          ...current,
-          tasks: current.tasks.filter((task) => task.id !== pendingDeleteTarget.taskId),
-        }),
-        deletedTask?.courseId ? 'course' : 'semester',
-        deletedTask?.courseId || undefined,
-      );
+      if (semesterId) {
+        void runMutation(
+          () => api.deleteSemesterTodoTask(semesterId, taskId),
+          deletedTask?.courseId ? 'course' : 'semester',
+          deletedTask?.courseId || undefined,
+        );
+      }
     }
 
     if (pendingDeleteTarget.kind === 'completed') {
-      applyStorageMutation(
-        (current) => ({
-          ...current,
-          tasks: current.tasks.filter((task) => !task.completed),
-        }),
-        courseId ? 'course' : 'semester',
-        courseId,
-      );
+      if (semesterId) {
+        if (courseId) {
+          const completedTaskIds = semesterStorageRef.current.tasks
+            .filter((task) => task.courseId === courseId && task.completed)
+            .map((task) => task.id);
+          void runMutation(
+            async () => {
+              await Promise.all(completedTaskIds.map((taskId) => api.deleteSemesterTodoTask(semesterId, taskId)));
+              return api.getSemesterTodo(semesterId);
+            },
+            'course',
+            courseId,
+          );
+        } else {
+          void runMutation(
+            () => api.clearCompletedSemesterTodoTasks(semesterId),
+            'semester',
+          );
+        }
+      }
     }
 
     if (pendingDeleteTarget.kind === 'section' && pendingDeleteTarget.sectionId) {
-      applyStorageMutation((current) => {
-        const nextUsers = userSectionsOf(current.sections)
-          .filter((section) => section.id !== pendingDeleteTarget.sectionId)
-          .map((section, index) => ({ ...section, order: index, isSystem: false }));
-        const fallbackSectionId = nextUsers[0]?.id ?? '';
-
-        return {
-          sections: [...nextUsers, completedSection(nextUsers.length)],
-          tasks: current.tasks.map((task) => {
-            if (task.sectionId !== pendingDeleteTarget.sectionId) return task;
-            return {
-              ...task,
-              sectionId: task.completed && behavior.moveCompletedToCompletedSection ? COMPLETED_SECTION_ID : fallbackSectionId,
-              originSectionId: task.completed ? (fallbackSectionId || undefined) : undefined,
-              updatedAt: nowIso(),
-            };
-          }),
-        };
-      }, 'semester');
+      const sectionId = pendingDeleteTarget.sectionId;
+      if (semesterId) {
+        void runMutation(
+          () => api.deleteSemesterTodoSection(semesterId, sectionId),
+          'semester',
+        );
+      }
     }
 
     setPendingDeleteTarget(null);
-  }, [applyStorageMutation, behavior.moveCompletedToCompletedSection, courseId, pendingDeleteTarget]);
+  }, [courseId, pendingDeleteTarget, runMutation, semesterId]);
 
   const renderComposer = React.useCallback((sectionId: string, placeholder: string) => {
     const normalizedSectionId = sectionId === UNSECTIONED_TASK_BUCKET_ID ? '' : sectionId;
@@ -878,17 +778,12 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
                     }}
                     onTitleDraftChange={setSectionTitleDraft}
                     onSubmitTitle={() => {
-                      if (!sectionTitleTargetId) return;
+                      if (!sectionTitleTargetId || !semesterId) return;
                       const nextTitle = sectionTitleDraft.trim() || DEFAULT_SECTION_NAME;
-                      applyStorageMutation((current) => {
-                        const nextUsers = userSectionsOf(current.sections)
-                          .map((item) => (item.id === sectionTitleTargetId ? { ...item, name: nextTitle } : item))
-                          .map((item, index) => ({ ...item, order: index, isSystem: false }));
-                        return {
-                          ...current,
-                          sections: [...nextUsers, completedSection(nextUsers.length)],
-                        };
-                      }, 'semester');
+                      void runMutation(
+                        () => api.updateSemesterTodoSection(semesterId, sectionTitleTargetId, { name: nextTitle }),
+                        'semester',
+                      );
                       setSectionTitleTargetId(null);
                     }}
                     onCancelTitle={() => {

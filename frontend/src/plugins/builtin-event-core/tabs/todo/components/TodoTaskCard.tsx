@@ -39,7 +39,7 @@ interface TodoTaskCardProps {
   onToggleTaskCompleted: (taskId: string, completed: boolean) => void;
   onPatchTask: (
     taskId: string,
-    patch: Partial<Pick<TodoTask, 'title' | 'description' | 'dueDate' | 'dueTime' | 'priority' | 'courseId' | 'courseName' | 'courseCategory'>>,
+    patch: Partial<Pick<TodoTask, 'title' | 'note' | 'dueDate' | 'dueTime' | 'priority' | 'courseId' | 'courseName' | 'courseCategory'>>,
   ) => void;
   onOpenDetails: (task: TodoTask) => void;
   onRequestDelete: (task: TodoTask) => void;
@@ -73,16 +73,16 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
 }) => {
   const editorRef = React.useRef<HTMLDivElement | null>(null);
   const titleInputRef = React.useRef<HTMLInputElement | null>(null);
-  const descriptionInputRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const noteInputRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [editorOpen, setEditorOpen] = React.useState(false);
   const [editingTitle, setEditingTitle] = React.useState(false);
   const [titleDraft, setTitleDraft] = React.useState(task.title);
-  const [descriptionDraft, setDescriptionDraft] = React.useState(task.description);
+  const [noteDraft, setNoteDraft] = React.useState(task.note);
   const [swipeOffset, setSwipeOffset] = React.useState(0);
   const pointerStateRef = React.useRef<{ pointerId: number; startX: number; startY: number; swiping: boolean } | null>(null);
   const isOverdue = !task.completed && Boolean(task.dueDate) && new Date(`${task.dueDate}T${task.dueTime || '23:59'}:00`).getTime() < Date.now();
   const isExpanded = editorOpen;
-  const compactDescription = task.description.trim();
+  const compactDescription = task.note.trim();
   const completedTextClassName = 'text-[14px] leading-[1.25] text-muted-foreground/88';
   const distinctCourseIds = React.useMemo(() => courseOptions.map((course) => course.id), [courseOptions]);
   const compactMeta = React.useMemo(() => {
@@ -134,8 +134,8 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
   }, [editingTitle, task.title]);
 
   React.useEffect(() => {
-    setDescriptionDraft(task.description);
-  }, [task.description]);
+    setNoteDraft(task.note);
+  }, [task.note]);
 
   React.useEffect(() => {
     if (isSelected) return;
@@ -150,10 +150,10 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
     onPatchTask(task.id, { title: nextTitle });
   }, [onPatchTask, task.id, task.title, titleDraft]);
 
-  const commitDescription = React.useCallback(() => {
-    if (descriptionDraft === task.description) return;
-    onPatchTask(task.id, { description: descriptionDraft });
-  }, [descriptionDraft, onPatchTask, task.description, task.id]);
+  const commitNote = React.useCallback(() => {
+    if (noteDraft === task.note) return;
+    onPatchTask(task.id, { note: noteDraft });
+  }, [noteDraft, onPatchTask, task.id, task.note]);
 
   const focusTitleEditor = React.useCallback(() => {
     onSelect(task.id);
@@ -164,12 +164,12 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
     });
   }, [onSelect, task.id]);
 
-  const focusDescriptionEditor = React.useCallback(() => {
+  const focusNoteEditor = React.useCallback(() => {
     onSelect(task.id);
     setEditorOpen(true);
     setEditingTitle(false);
     requestAnimationFrame(() => {
-      descriptionInputRef.current?.focus();
+      noteInputRef.current?.focus();
     });
   }, [onSelect, task.id]);
 
@@ -344,12 +344,12 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
             {isExpanded ? (
               <>
                 <textarea
-                  ref={descriptionInputRef}
-                  value={descriptionDraft}
-                  onChange={(event) => setDescriptionDraft(event.target.value)}
-                  onBlur={commitDescription}
+                  ref={noteInputRef}
+                  value={noteDraft}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  onBlur={commitNote}
                   placeholder="Notes"
-                  rows={descriptionDraft ? Math.min(Math.max(descriptionDraft.split('\n').length, 1), 4) : 1}
+                  rows={noteDraft ? Math.min(Math.max(noteDraft.split('\n').length, 1), 4) : 1}
                   className={cn(
                     'min-h-0 w-full resize-none border-0 bg-transparent px-0 py-0 shadow-none outline-none placeholder:text-muted-foreground/80',
                     completedTextClassName,
@@ -390,10 +390,10 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
                     value={compactDescription}
                     size={Math.max(compactDescription.length, 1)}
                     tabIndex={0}
-                    onFocus={focusDescriptionEditor}
+                    onFocus={focusNoteEditor}
                     onClick={(event) => {
                       event.stopPropagation();
-                      focusDescriptionEditor();
+                      focusNoteEditor();
                     }}
                     className={cn(
                       'block max-w-full border-0 bg-transparent p-0 outline-none',

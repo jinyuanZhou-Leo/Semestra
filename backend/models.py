@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions, including context-scoped plugin shared settings]
-# pos:    [Persistent data model layer for academic data, dashboard instances, and plugin-shared settings]
+# output: [ORM model classes and table definitions, including context-scoped plugin shared settings and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -85,6 +85,8 @@ class Semester(Base):
     widgets = relationship("Widget", back_populates="semester_context", cascade="all, delete-orphan")
     tabs = relationship("Tab", back_populates="semester_context", cascade="all, delete-orphan")
     plugin_settings = relationship("PluginSetting", back_populates="semester_context", cascade="all, delete-orphan")
+    todo_sections = relationship("TodoSection", back_populates="semester", cascade="all, delete-orphan")
+    todo_tasks = relationship("TodoTask", back_populates="semester", cascade="all, delete-orphan")
 
 
 class Course(Base):
@@ -114,6 +116,7 @@ class Course(Base):
     sections = relationship("CourseSection", back_populates="course", cascade="all, delete-orphan")
     events = relationship("CourseEvent", back_populates="course", cascade="all, delete-orphan")
     gradebook = relationship("CourseGradebook", back_populates="course", uselist=False, cascade="all, delete-orphan")
+    todo_tasks = relationship("TodoTask", back_populates="course")
 
     @property
     def has_gradebook(self) -> bool:
@@ -299,6 +302,62 @@ class CourseEvent(Base):
     updated_at = Column(String, nullable=False, default="")
 
     course = relationship("Course", back_populates="events")
+
+class TodoSection(Base):
+    __tablename__ = "todo_sections"
+    __table_args__ = (
+        UniqueConstraint("semester_id", "name", name="uq_todo_sections_semester_name"),
+        Index("ix_todo_sections_semester_order", "semester_id", "order_index"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    semester_id = Column(String, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    order_index = Column(Integer, nullable=False, default=0)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+    semester = relationship("Semester", back_populates="todo_sections")
+    tasks = relationship(
+        "TodoTask",
+        back_populates="section",
+        cascade="all",
+        foreign_keys="TodoTask.section_id",
+    )
+    origin_tasks = relationship(
+        "TodoTask",
+        back_populates="origin_section",
+        foreign_keys="TodoTask.origin_section_id",
+    )
+
+class TodoTask(Base):
+    __tablename__ = "todo_tasks"
+    __table_args__ = (
+        CheckConstraint("priority IN ('', 'LOW', 'MEDIUM', 'HIGH', 'URGENT')", name="ck_todo_tasks_priority"),
+        Index("ix_todo_tasks_semester_order", "semester_id", "order_index"),
+        Index("ix_todo_tasks_semester_section_order", "semester_id", "section_id", "order_index"),
+        Index("ix_todo_tasks_semester_course", "semester_id", "course_id"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    semester_id = Column(String, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False, index=True)
+    course_id = Column(String, ForeignKey("courses.id", ondelete="SET NULL"), nullable=True, index=True)
+    section_id = Column(String, ForeignKey("todo_sections.id", ondelete="SET NULL"), nullable=True, index=True)
+    origin_section_id = Column(String, ForeignKey("todo_sections.id", ondelete="SET NULL"), nullable=True, index=True)
+    title = Column(String, nullable=False)
+    note = Column(Text, nullable=False, default="")
+    due_date = Column(Date, nullable=True)
+    due_time = Column(String, nullable=True)
+    priority = Column(String, nullable=False, default="")
+    completed = Column(Boolean, nullable=False, default=False)
+    order_index = Column(Integer, nullable=False, default=0)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+    semester = relationship("Semester", back_populates="todo_tasks")
+    course = relationship("Course", back_populates="todo_tasks")
+    section = relationship("TodoSection", back_populates="tasks", foreign_keys=[section_id])
+    origin_section = relationship("TodoSection", back_populates="origin_tasks", foreign_keys=[origin_section_id])
 
 class Widget(Base):
     __tablename__ = "widgets"

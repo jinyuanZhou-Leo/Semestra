@@ -1,3 +1,11 @@
+// input:  [Testing Library render helpers, todo interaction hooks/components, and normalized todo runtime fixtures]
+// output: [Vitest coverage for inline todo creation and completed-task display behavior]
+// pos:    [Regression test file for todo runtime helpers that protect local sorting and completion bucketing behavior]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { fireEvent, render, screen } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -19,7 +27,7 @@ describe('TodoInlineCreateRow', () => {
         open={false}
         draft={{
           title: '',
-          description: '',
+          note: '',
           sectionId: '',
           courseId: '',
           dueDate: '',
@@ -52,7 +60,7 @@ describe('TodoInlineCreateRow', () => {
           open
           draft={{
             title: 'Draft task',
-            description: '',
+            note: '',
             sectionId: '',
             courseId: '',
             dueDate: '',
@@ -96,7 +104,7 @@ describe('useTodoSectionTasks', () => {
         {
           id: 'task-1',
           title: 'Bravo',
-          description: '',
+          note: '',
           sectionId: 'section-a',
           originSectionId: undefined,
           courseId: '',
@@ -113,7 +121,7 @@ describe('useTodoSectionTasks', () => {
         {
           id: 'task-2',
           title: 'Alpha completed later',
-          description: '',
+          note: '',
           sectionId: '__completed__',
           originSectionId: 'section-b',
           courseId: '',
@@ -130,7 +138,7 @@ describe('useTodoSectionTasks', () => {
         {
           id: 'task-3',
           title: 'Zulu completed earlier',
-          description: '',
+          note: '',
           sectionId: '__completed__',
           originSectionId: 'section-b',
           courseId: '',
@@ -170,7 +178,7 @@ describe('normalizeListStorage', () => {
         {
           id: 'task-empty-priority',
           title: 'Task',
-          description: '',
+          note: '',
           sectionId: '',
           originSectionId: undefined,
           courseId: '',
@@ -199,7 +207,7 @@ describe('normalizeListStorage', () => {
         {
           id: 'task-unsectioned-completed',
           title: 'Task',
-          description: '',
+          note: '',
           sectionId: '__completed__',
           originSectionId: undefined,
           courseId: '',

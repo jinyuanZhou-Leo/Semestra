@@ -10,7 +10,7 @@ Semestra is a full-stack scheduling and academic planner with a Python backend a
 | .vscode | Editor workspace config | VS Code workspace settings aligned with Tailwind v4 CSS linting and the frontend-local TypeScript SDK. |
 | README.md | Product overview | Main project introduction, setup, and usage guide. |
 | README.zh-CN.md | Product overview (CN) | Chinese version of project introduction and setup notes. |
-| backend | Service backend | FastAPI service, SQLAlchemy models, business logic, migrations, widget payload validation, auth-cookie session issuance, and context-scoped plugin shared-settings persistence. |
+| backend | Service backend | FastAPI service, SQLAlchemy models, business logic, migrations, widget payload validation, semester todo APIs with legacy migration, auth-cookie session issuance, and context-scoped plugin shared-settings persistence. |
 | docs | Project docs | Supplemental product, API, and workflow documentation. |
 | docs/INDEX.md | Docs architecture index | File-level map for planning docs, refactor checklists, and plugin PRDs. |
 | docs/auth-security-explained.md | Security note | Plain-language explanation of JWT secret handling, HttpOnly cookie sessions, and how the March 2026 auth hardening works. |
@@ -27,7 +27,7 @@ Semestra is a full-stack scheduling and academic planner with a Python backend a
 | frontend/src/plugins/builtin-event-core/INDEX.md | Plugin architecture index | File map for event-core plugin entries, shared domain primitives, tab modules, and widget runtime responsibilities. |
 | frontend/src/plugins/builtin-event-core/tabs/INDEX.md | Tab architecture index | File map for event-core tab module folders (calendar/course-schedule/todo). |
 | frontend/src/plugins/builtin-event-core/tabs/calendar/INDEX.md | Calendar module architecture index | File map for calendar tab runtime, settings, export workflow, and helper components. |
-| frontend/src/plugins/builtin-event-core/tabs/todo/INDEX.md | Todo module architecture index | File map for todo tab runtime, hooks, settings, and responsive interaction flows. |
+| frontend/src/plugins/builtin-event-core/tabs/todo/INDEX.md | Todo module architecture index | File map for the table-backed todo tab runtime, hooks, settings, and responsive interaction flows. |
 | frontend/src/plugins/builtin-event-core/tabs/todo/components/INDEX.md | Todo components architecture index | File map for todo sidebar/header/task card components and dialog grouping. |
 | frontend/src/plugins/counter/INDEX.md | Plugin architecture index | File map for counter plugin runtime, settings, and accessibility-focused controls. |
 | frontend/src/plugins/course-list/INDEX.md | Plugin architecture index | File map for course-list plugin runtime, global settings, and guarded async loading. |

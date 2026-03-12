@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Backend exposes FastAPI endpoints and coordinates auth, CRUD, and domain logic.
-Data contracts are defined in Pydantic schemas and persisted through SQLAlchemy models, including context-scoped plugin shared settings.
+Data contracts are defined in Pydantic schemas and persisted through SQLAlchemy models, including context-scoped plugin shared settings and semester-scoped todo tables.
 Auth now signs JWTs from env-backed secrets and ships browser sessions via HttpOnly cookies while still validating bearer tokens server-side.
 
 | File | Role | Description |
@@ -13,15 +13,16 @@ Auth now signs JWTs from env-backed secrets and ships browser sessions via HttpO
 | database.py | DB bootstrap | Configures SQLAlchemy engine/session and database base metadata. |
 | gradebook.py | Gradebook domain service | Owns built-in gradebook initialization, fact-only preference/category/assessment mutations, percentage-score persistence, and import/export mapping without persisting forecast or plan results onto the course. |
 | logic.py | Domain logic | Provides GPA and grading-related business logic helpers. |
-| main.py | API entry point | Defines FastAPI app, middleware, HTTP route handlers, auth login/logout cookie issuance, semester Reading Week validation/schema compatibility shims, course-color schema compatibility, plugin shared settings endpoints, gradebook APIs, and force-aware widget deletion. |
+| main.py | API entry point | Defines FastAPI app, middleware, HTTP route handlers, auth login/logout cookie issuance, semester Reading Week validation/schema compatibility shims, course-color schema compatibility, semester todo APIs, plugin shared settings endpoints, gradebook APIs, and force-aware widget deletion. |
 | migrate_add_category.py | Migration script | Adds widget category support to existing database schema. |
 | migrate_add_program_id_to_course.py | Migration script | Adds `program_id` to courses and related constraints. |
 | migrate_user_settings.py | Migration script | Creates and backfills user settings columns and defaults. |
 | migrate_week_pattern_to_alternating.py | Migration script | Migrates week pattern model to alternating-week structure. |
-| models.py | ORM models | Defines SQLAlchemy table models and relational constraints, including persisted course colors, optional semester Reading Week dates, context-scoped plugin shared settings records, and gradebook domain tables. |
+| models.py | ORM models | Defines SQLAlchemy table models and relational constraints, including persisted course colors, optional semester Reading Week dates, context-scoped plugin shared settings records, semester todo tables, and gradebook domain tables. |
 | prod.sh | Ops script | Production bootstrap script for backend service process startup. |
 | requirements.txt | Dependency manifest | Lists Python runtime dependencies required by backend. |
-| schemas.py | API schema layer | Defines request/response validation models, including persisted course-color fields, semester Reading Week fields, plugin shared settings payloads, strict widget `layout_config` shape/range validation, and fact-oriented gradebook contracts built around percentage scores. |
+| schemas.py | API schema layer | Defines request/response validation models, including semester todo payloads, persisted course-color fields, plugin shared settings payloads, strict widget `layout_config` shape/range validation, and fact-oriented gradebook contracts. |
+| todo.py | Todo domain service | Owns semester-scoped todo migration from legacy tab settings, table-backed task/section CRUD, reordering, and API payload assembly. |
 | test_crud.py | Integration test script | Verifies CRUD workflows against a running local API. |
 | test_gradebook.py | Unit test script | Verifies builtin gradebook initialization, category reassignment, preference updates, percentage-score persistence, and that gradebook mutations no longer overwrite course grade fields. |
 | test_logic.py | Integration test script | Verifies academic logic flows against API endpoints. |

@@ -24,7 +24,7 @@ export interface TodoSection {
 export interface TodoTask {
   id: string;
   title: string;
-  description: string;
+  note: string;
   sectionId: string;
   originSectionId: string | undefined;
   courseId: string;
@@ -66,7 +66,7 @@ export interface TodoSemesterState extends TodoListStorage {
 
 export interface TaskDraft {
   title: string;
-  description: string;
+  note: string;
   sectionId: string;
   courseId: string;
   dueDate: string;

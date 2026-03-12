@@ -1,12 +1,12 @@
-// input:  [raw todo tab settings payloads, API tab records, shared constants, and todo domain types]
-// output: [todo normalization, migration, serialization, formatting, and id/timestamp helper utilities]
-// pos:    [Todo data utility layer that shapes persisted semester/course settings into runtime-safe synchronized todo state]
+// input:  [Todo API records, legacy todo settings payloads, shared constants, and todo domain types]
+// output: [todo normalization, API-to-runtime mapping, formatting, and id/timestamp helper utilities]
+// pos:    [Todo data utility layer that shapes persisted semester todo payloads into runtime-safe UI state while keeping a narrow legacy fallback parser]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import type { Tab as ApiTab } from '@/services/api';
+import type { Tab as ApiTab, TodoSemesterStateRecord } from '@/services/api';
 import {
   COMPLETED_SECTION_ID,
   COMPLETED_SECTION_NAME,
@@ -180,7 +180,7 @@ const normalizeTasks = (
       return {
         id,
         title,
-        description: readString(item.description, ''),
+        note: readString(item.note, readString(item.description, '')),
         sectionId: safeSectionId,
         originSectionId: completed
           ? (safeSectionId === COMPLETED_SECTION_ID ? safeOriginSectionId : (safeOriginSectionId ?? safeSectionId))
@@ -442,13 +442,72 @@ export const createTaskDraft = (
   courseId = '',
 ): TaskDraft => ({
   title: '',
-  description: '',
+  note: '',
   sectionId,
   courseId,
   dueDate: '',
   dueTime: '',
   priority: '',
 });
+
+export const fromTodoApiState = (
+  state: TodoSemesterStateRecord,
+  moveCompletedToCompletedSection: boolean,
+): TodoSemesterState => {
+  const sections = [
+    ...state.sections
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((section, index) => ({
+        id: section.id,
+        name: section.name,
+        order: index,
+        isSystem: false,
+      })),
+    completedSection(state.sections.length),
+  ];
+  const validSectionIds = new Set(sections.map((section) => section.id));
+
+  const tasks = state.tasks
+    .slice()
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((task, index) => {
+      const baseSectionId = task.section_id ?? '';
+      const safeSectionId = baseSectionId && validSectionIds.has(baseSectionId) ? baseSectionId : '';
+      const originSectionId = task.origin_section_id ?? (task.completed ? safeSectionId || undefined : undefined);
+      const runtimeSectionId = task.completed && moveCompletedToCompletedSection
+        ? COMPLETED_SECTION_ID
+        : safeSectionId;
+
+      return {
+        id: task.id,
+        title: task.title,
+        note: task.note ?? '',
+        sectionId: runtimeSectionId,
+        originSectionId,
+        courseId: task.course_id ?? '',
+        courseName: task.course_name,
+        courseCategory: task.course_category,
+        dueDate: task.due_date ?? '',
+        dueTime: task.due_time ?? '',
+        priority: task.priority,
+        completed: task.completed,
+        order: index,
+        createdAt: task.created_at,
+        updatedAt: task.updated_at,
+      } satisfies TodoTask;
+    });
+
+  return {
+    sections,
+    tasks,
+    courseOptions: state.course_options.map((course) => ({
+      id: course.id,
+      name: course.name,
+      category: course.category,
+      color: course.color ?? '',
+    })),
+  };
+};
 
 export const getPriorityMeta = (priority: TodoPriority) => {
   return PRIORITY_OPTIONS.find((option) => option.value === priority) ?? null;

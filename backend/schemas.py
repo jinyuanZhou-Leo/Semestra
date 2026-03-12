@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums]
-# output: [Request/response schema classes for API contracts, including plugin-shared settings payloads and fact-oriented course gradebooks]
-# pos:    [Serialization and validation layer between API and domain services, including fact-only gradebook wire contracts]
+# output: [Request/response schema classes for API contracts, including plugin-shared settings payloads, semester todo domain payloads, and fact-oriented course gradebooks]
+# pos:    [Serialization and validation layer between API and domain services, including todo and fact-only gradebook wire contracts]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -191,6 +191,160 @@ class PluginSetting(PluginSettingBase):
 
     class Config:
         from_attributes = True
+
+class TodoPriority(str, Enum):
+    NONE = ""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+class TodoSectionBase(BaseModel):
+    name: str
+
+    @validator("name")
+    def validate_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Section name is required.")
+        return normalized
+
+class TodoSectionCreate(TodoSectionBase):
+    pass
+
+class TodoSectionUpdate(BaseModel):
+    name: Optional[str] = None
+
+    @validator("name")
+    def validate_optional_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Section name is required.")
+        return normalized
+
+class TodoSection(TodoSectionBase):
+    id: str
+    semester_id: str
+    order_index: int = 0
+    created_at: str
+    updated_at: str
+
+    class Config:
+        from_attributes = True
+
+class TodoSectionReorderRequest(BaseModel):
+    section_ids: List[str]
+
+class TodoTaskBase(BaseModel):
+    title: str
+    note: str = ""
+    due_date: Optional[date] = None
+    due_time: Optional[str] = None
+    priority: TodoPriority = TodoPriority.NONE
+    completed: bool = False
+    course_id: Optional[str] = None
+    section_id: Optional[str] = None
+    origin_section_id: Optional[str] = None
+    @validator("title")
+    def validate_title(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Task title is required.")
+        return normalized
+
+    @validator("due_time")
+    def validate_due_time(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value == "":
+            return None
+        if len(value) != 5:
+            raise ValueError("due_time must use HH:MM format.")
+        hour, minute = value.split(":", 1)
+        if not hour.isdigit() or not minute.isdigit():
+            raise ValueError("due_time must use HH:MM format.")
+        if int(hour) < 0 or int(hour) > 23 or int(minute) < 0 or int(minute) > 59:
+            raise ValueError("due_time must use HH:MM format.")
+        return value
+
+class TodoTaskCreate(TodoTaskBase):
+    pass
+
+class TodoTaskUpdate(BaseModel):
+    title: Optional[str] = None
+    note: Optional[str] = None
+    due_date: Optional[date] = None
+    due_time: Optional[str] = None
+    priority: Optional[TodoPriority] = None
+    completed: Optional[bool] = None
+    course_id: Optional[str] = None
+    section_id: Optional[str] = None
+    origin_section_id: Optional[str] = None
+    order_index: Optional[int] = None
+
+    @validator("title")
+    def validate_optional_title(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Task title is required.")
+        return normalized
+
+    @validator("due_time")
+    def validate_optional_due_time(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value == "":
+            return None
+        if len(value) != 5:
+            raise ValueError("due_time must use HH:MM format.")
+        hour, minute = value.split(":", 1)
+        if not hour.isdigit() or not minute.isdigit():
+            raise ValueError("due_time must use HH:MM format.")
+        if int(hour) < 0 or int(hour) > 23 or int(minute) < 0 or int(minute) > 59:
+            raise ValueError("due_time must use HH:MM format.")
+        return value
+
+class TodoTask(BaseModel):
+    id: str
+    semester_id: str
+    title: str
+    note: str
+    due_date: Optional[date] = None
+    due_time: Optional[str] = None
+    priority: TodoPriority = TodoPriority.NONE
+    completed: bool = False
+    course_id: Optional[str] = None
+    course_name: str = ""
+    course_category: str = ""
+    course_color: Optional[str] = None
+    section_id: Optional[str] = None
+    origin_section_id: Optional[str] = None
+    order_index: int = 0
+    created_at: str
+    updated_at: str
+
+class TodoTaskReorderEntry(BaseModel):
+    task_id: str
+    section_id: Optional[str] = Field(default=None, alias="sectionId")
+    order_index: int = Field(alias="orderIndex")
+
+    class Config:
+        populate_by_name = True
+
+class TodoTaskReorderRequest(BaseModel):
+    items: List[TodoTaskReorderEntry]
+
+class TodoCourseOption(BaseModel):
+    id: str
+    name: str
+    category: str = ""
+    color: Optional[str] = None
+
+class TodoSemesterState(BaseModel):
+    semester_id: str
+    sections: List[TodoSection]
+    tasks: List[TodoTask]
+    course_options: List[TodoCourseOption] = []
 
 # --- Course Schemas ---
 class CourseBase(BaseModel):

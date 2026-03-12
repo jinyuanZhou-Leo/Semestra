@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence and fact-oriented gradebook endpoints]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, fact-only gradebook APIs, and force-aware widget deletion]
+# output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence, semester todo APIs, and fact-oriented gradebook endpoints]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, persisted todo APIs, fact-only gradebook APIs, and force-aware widget deletion]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -29,6 +29,7 @@ import models
 import schemas
 import crud
 import gradebook
+import todo
 import auth
 from database import engine, get_db
 
@@ -243,6 +244,13 @@ def raise_gradebook_http_error(exc: Exception) -> None:
         raise HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, gradebook.GradebookValidationError):
         raise HTTPException(status_code=422, detail=str(exc))
+    raise exc
+
+def raise_todo_http_error(exc: Exception) -> None:
+    if isinstance(exc, todo.TodoNotFoundError):
+        raise HTTPException(status_code=404, detail=error_detail("TODO_NOT_FOUND", f"{exc.resource} not found."))
+    if isinstance(exc, todo.TodoValidationError):
+        raise HTTPException(status_code=422, detail=error_detail(exc.code, exc.message))
     raise exc
 
 def validate_time_range(start_time: str, end_time: str):
@@ -1489,6 +1497,136 @@ def delete_semester(semester_id: str, db: Session = Depends(get_db), current_use
     
     crud.delete_semester(db, semester_id=semester_id)
     return {"ok": True}
+
+@app.get("/semesters/{semester_id}/todo", response_model=schemas.TodoSemesterState)
+def read_semester_todo(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.get_semester_state(db, semester)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.post("/semesters/{semester_id}/todo/sections", response_model=schemas.TodoSemesterState)
+def create_semester_todo_section(
+    semester_id: str,
+    payload: schemas.TodoSectionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.create_section(db, semester, payload)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.patch("/semesters/{semester_id}/todo/sections/{section_id}", response_model=schemas.TodoSemesterState)
+def update_semester_todo_section(
+    semester_id: str,
+    section_id: str,
+    payload: schemas.TodoSectionUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.update_section(db, semester, section_id, payload)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.delete("/semesters/{semester_id}/todo/sections/{section_id}", response_model=schemas.TodoSemesterState)
+def delete_semester_todo_section(
+    semester_id: str,
+    section_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.delete_section(db, semester, section_id)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.put("/semesters/{semester_id}/todo/sections/reorder", response_model=schemas.TodoSemesterState)
+def reorder_semester_todo_sections(
+    semester_id: str,
+    payload: schemas.TodoSectionReorderRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.reorder_sections(db, semester, payload)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.post("/semesters/{semester_id}/todo/tasks", response_model=schemas.TodoSemesterState)
+def create_semester_todo_task(
+    semester_id: str,
+    payload: schemas.TodoTaskCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.create_task(db, semester, payload)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.patch("/semesters/{semester_id}/todo/tasks/{task_id}", response_model=schemas.TodoSemesterState)
+def update_semester_todo_task(
+    semester_id: str,
+    task_id: str,
+    payload: schemas.TodoTaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.update_task(db, semester, task_id, payload)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.delete("/semesters/{semester_id}/todo/tasks/{task_id}", response_model=schemas.TodoSemesterState)
+def delete_semester_todo_task(
+    semester_id: str,
+    task_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.delete_task(db, semester, task_id)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.delete("/semesters/{semester_id}/todo/tasks/completed", response_model=schemas.TodoSemesterState)
+def clear_completed_semester_todo_tasks(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.clear_completed_tasks(db, semester)
+    except Exception as exc:
+        raise_todo_http_error(exc)
+
+@app.put("/semesters/{semester_id}/todo/tasks/reorder", response_model=schemas.TodoSemesterState)
+def reorder_semester_todo_tasks(
+    semester_id: str,
+    payload: schemas.TodoTaskReorderRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    try:
+        return todo.reorder_tasks(db, semester, payload)
+    except Exception as exc:
+        raise_todo_http_error(exc)
 
 # --- Courses ---
 @app.post("/semesters/{semester_id}/courses/", response_model=schemas.Course)

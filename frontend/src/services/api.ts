@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, and widget delete options]
-// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Gradebook contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, and fact-oriented course gradebook APIs]
+// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook contract types and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, persisted todo APIs, and fact-oriented course gradebook APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -76,6 +76,51 @@ export interface PluginSetting {
     settings: string;
     semester_id?: string;
     course_id?: string;
+}
+
+export type TodoPriority = '' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export interface TodoSectionRecord {
+    id: string;
+    semester_id: string;
+    name: string;
+    order_index: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface TodoTaskRecord {
+    id: string;
+    semester_id: string;
+    title: string;
+    note: string;
+    due_date: string | null;
+    due_time: string | null;
+    priority: TodoPriority;
+    completed: boolean;
+    course_id: string | null;
+    course_name: string;
+    course_category: string;
+    course_color: string | null;
+    section_id: string | null;
+    origin_section_id: string | null;
+    order_index: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface TodoCourseOptionRecord {
+    id: string;
+    name: string;
+    category: string;
+    color: string | null;
+}
+
+export interface TodoSemesterStateRecord {
+    semester_id: string;
+    sections: TodoSectionRecord[];
+    tasks: TodoTaskRecord[];
+    course_options: TodoCourseOptionRecord[];
 }
 
 export type GradebookForecastModel = 'auto' | 'simple_minimum_needed';
@@ -192,6 +237,78 @@ const api = {
     },
     deleteSemester: async (id: string) => {
         await axios.delete(`/api/semesters/${id}`);
+    },
+    getSemesterTodo: async (semesterId: string) => {
+        return dedupeGet(`GET:/api/semesters/${semesterId}/todo`, async () => {
+            const response = await axios.get<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo`);
+            return response.data;
+        });
+    },
+    createSemesterTodoSection: async (semesterId: string, data: { name: string }) => {
+        const response = await axios.post<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/sections`, data);
+        return response.data;
+    },
+    updateSemesterTodoSection: async (semesterId: string, sectionId: string, data: { name?: string }) => {
+        const response = await axios.patch<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/sections/${sectionId}`, data);
+        return response.data;
+    },
+    deleteSemesterTodoSection: async (semesterId: string, sectionId: string) => {
+        const response = await axios.delete<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/sections/${sectionId}`);
+        return response.data;
+    },
+    reorderSemesterTodoSections: async (semesterId: string, data: { section_ids: string[] }) => {
+        const response = await axios.put<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/sections/reorder`, data);
+        return response.data;
+    },
+    createSemesterTodoTask: async (
+        semesterId: string,
+        data: {
+            title: string;
+            note?: string;
+            due_date?: string | null;
+            due_time?: string | null;
+            priority?: TodoPriority;
+            completed?: boolean;
+            course_id?: string | null;
+            section_id?: string | null;
+            origin_section_id?: string | null;
+        },
+    ) => {
+        const response = await axios.post<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/tasks`, data);
+        return response.data;
+    },
+    updateSemesterTodoTask: async (
+        semesterId: string,
+        taskId: string,
+        data: {
+            title?: string;
+            note?: string;
+            due_date?: string | null;
+            due_time?: string | null;
+            priority?: TodoPriority;
+            completed?: boolean;
+            course_id?: string | null;
+            section_id?: string | null;
+            origin_section_id?: string | null;
+        },
+    ) => {
+        const response = await axios.patch<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/tasks/${taskId}`, data);
+        return response.data;
+    },
+    deleteSemesterTodoTask: async (semesterId: string, taskId: string) => {
+        const response = await axios.delete<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/tasks/${taskId}`);
+        return response.data;
+    },
+    clearCompletedSemesterTodoTasks: async (semesterId: string) => {
+        const response = await axios.delete<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/tasks/completed`);
+        return response.data;
+    },
+    reorderSemesterTodoTasks: async (
+        semesterId: string,
+        data: { items: Array<{ task_id: string; sectionId: string | null; orderIndex: number }> },
+    ) => {
+        const response = await axios.put<TodoSemesterStateRecord>(`/api/semesters/${semesterId}/todo/tasks/reorder`, data);
+        return response.data;
     },
 
     // Courses

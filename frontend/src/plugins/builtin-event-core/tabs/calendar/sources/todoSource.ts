@@ -1,6 +1,6 @@
-// input:  [calendar-core source contracts, semester APIs, todo storage parsers, and calendar date helpers]
+// input:  [calendar-core source contracts, semester todo APIs, and calendar date helpers]
 // output: [built-in todo Calendar source definition]
-// pos:    [built-in Calendar source adapter that maps semester-synchronized todo tasks into calendar events]
+// pos:    [built-in Calendar source adapter that maps persisted semester todo records into calendar events]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,7 @@
 
 import api from '@/services/api';
 import type { CalendarEventData, CalendarSourceDefinition } from '@/calendar-core';
-import { BUILTIN_CALENDAR_SOURCE_TODO, BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE, BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../../shared/constants';
+import { BUILTIN_CALENDAR_SOURCE_TODO, BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../../shared/constants';
 import {
   addDays,
   getWeekFromSemesterDate,
@@ -18,7 +18,7 @@ import {
   startOfWeekMonday,
   toMinutes,
 } from '../../../shared/utils';
-import { normalizeSemesterTodoState, parseJsonObject } from '../../todo/utils/todoData';
+import { fromTodoApiState } from '../../todo/utils/todoData';
 import type { TodoTask } from '../../todo/types';
 
 const TODO_EVENT_DURATION_MINUTES = 30;
@@ -73,7 +73,7 @@ const buildTodoEvent = (
     isConflict: false,
     conflictGroupId: null,
     enable: true,
-    note: task.description || null,
+    note: task.note || null,
     todoState: {
       completed: task.completed,
       listSource: task.courseId ? 'course' : 'semester',
@@ -89,31 +89,8 @@ export const builtinTodoCalendarSource: CalendarSourceDefinition = {
   defaultColor: '#10b981',
   priority: 200,
   load: async (context) => {
-    const semester = await api.getSemester(context.semesterId);
-    const courseDetails = await Promise.all(
-      (semester.courses ?? []).map(async (course) => {
-        try {
-          const detail = await api.getCourse(course.id);
-          return {
-            courseId: course.id,
-            courseName: course.name,
-            courseCategory: course.category ?? '',
-            courseColor: course.color ?? '',
-            todoTab: detail.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE),
-          };
-        } catch {
-          return {
-            courseId: course.id,
-            courseName: course.name,
-            courseCategory: course.category ?? '',
-            courseColor: course.color ?? '',
-            todoTab: undefined,
-          };
-        }
-      }),
-    );
-    const semesterTodoTab = semester.tabs?.find((tab) => tab.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
-    const semesterState = normalizeSemesterTodoState(parseJsonObject(semesterTodoTab?.settings), courseDetails);
+    const response = await api.getSemesterTodo(context.semesterId);
+    const semesterState = fromTodoApiState(response, false);
 
     return semesterState.tasks
       .map((task) => buildTodoEvent(task, context.semesterId, context.semesterRange.startDate, context.semesterRange.endDate))

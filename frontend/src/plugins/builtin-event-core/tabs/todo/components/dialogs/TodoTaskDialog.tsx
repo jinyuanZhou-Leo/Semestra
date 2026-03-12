@@ -79,11 +79,11 @@ export const TodoTaskDialog: React.FC<TodoTaskDialogProps> = ({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="todo-task-description">Description</Label>
+            <Label htmlFor="todo-task-note">Note</Label>
             <Textarea
-              id="todo-task-description"
-              value={taskDraft.description}
-              onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, description: event.target.value }))}
+              id="todo-task-note"
+              value={taskDraft.note}
+              onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, note: event.target.value }))}
               className="max-h-32 resize-none overflow-y-auto"
               rows={3}
             />

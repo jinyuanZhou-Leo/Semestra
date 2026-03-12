@@ -7,4 +7,4 @@ It stays small on purpose to keep the inline-first interaction model easy to rea
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for todo dialog components. |
-| TodoTaskDialog.tsx | Full-detail task dialog | Secondary editor for task description, section assignment, and structured task fields when inline editing is not enough. |
+| TodoTaskDialog.tsx | Full-detail task dialog | Secondary editor for task note, section assignment, and structured task fields when inline editing is not enough. |
