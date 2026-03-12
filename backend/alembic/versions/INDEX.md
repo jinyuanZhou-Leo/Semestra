@@ -8,3 +8,4 @@ Keep downgrade steps practical, but prioritize accurate forward migrations for a
 |------|------|-------------|
 | INDEX.md | Folder architecture | Local map for backend Alembic revision files. |
 | 20260312_0001_drop_todo_order_columns.py | Schema migration | Removes Todo section/task order columns and related indexes now that Todo ordering is local-only in the frontend. |
+| 20260312_0002_add_program_subject_color_map.py | Schema migration | Adds Program-level persisted subject-code color maps used for automatic/default course colors across the UI. |

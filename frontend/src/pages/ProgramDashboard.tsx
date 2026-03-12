@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, settings/course-manager modal flows, responsive overlay wrapper]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, settings/course-manager modal flows, and responsive overlay wrapper]
 // output: [`ProgramDashboard` and local semester create/delete confirmation plus responsive create surface components]
-// pos:    [Program-level workspace page for semester management and progress tracking with compact mobile overview stat-strip and drawer semester creation]
+// pos:    [Program-level workspace page for semester management, subject-code color defaults, and progress tracking with compact mobile overview stat-strip and drawer semester creation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -59,7 +59,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, X, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
 import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
-import { getCourseBadgeStyle, getCourseCategoryBadgeClassName } from '@/utils/courseCategoryBadge';
+import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode } from '@/utils/courseCategoryBadge';
 
 // Helper function to extract course level from course name
 const extractCourseLevel = (courseName: string): number | null => {
@@ -344,6 +344,11 @@ const ProgramDashboardContent: React.FC = () => {
         updateProgram(data);
     };
 
+    const subjectColorMap = useMemo(
+        () => parseSubjectColorMap(program?.subject_color_map),
+        [program?.subject_color_map],
+    );
+
     const totalCredits = React.useMemo(() => {
         if (!program) return 0;
         return program.semesters.reduce(
@@ -518,6 +523,16 @@ const ProgramDashboardContent: React.FC = () => {
 
         return courses;
     }, [program, courseSearchQuery, sortConfig, activeFilters]);
+
+    const discoveredSubjectCodes = useMemo(() => {
+        if (!program) return [];
+        return Array.from(new Set(
+            program.semesters
+                .flatMap((semester) => semester.courses || [])
+                .map((course) => resolveCourseSubjectCode(course))
+                .filter(Boolean),
+        )).sort((left, right) => left.localeCompare(right));
+    }, [program]);
 
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -1133,8 +1148,8 @@ const ProgramDashboardContent: React.FC = () => {
                                                             {course.category && (
                                                                 <Badge
                                                                     variant="outline"
-                                                                        className={`border-0 font-medium ${getCourseCategoryBadgeClassName(course.category)}`}
-                                                                        style={getCourseBadgeStyle(course.color)}
+                                                                    className={`border-0 font-medium ${getCourseCategoryBadgeClassName(course.category)}`}
+                                                                    style={getCourseBadgeStyle(resolveCourseColor(course, subjectColorMap))}
                                                                 >
                                                                     {course.category}
                                                                 </Badge>
@@ -1183,8 +1198,10 @@ const ProgramDashboardContent: React.FC = () => {
                         initialSettings={{
                             grad_requirement_credits: program.grad_requirement_credits,
                             gpa_scaling_table: program.gpa_scaling_table,
+                            subject_color_map: program.subject_color_map,
                             hide_gpa: program.hide_gpa
                         }}
+                        subjectCodes={discoveredSubjectCodes}
                         onSave={handleUpdateProgram}
                         showCancel
                         onCancel={() => setIsSettingsOpen(false)}

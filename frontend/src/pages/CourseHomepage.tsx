@@ -1,6 +1,6 @@
-// input:  [course context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, and active tab selection state]
+// input:  [course context, parent Program subject-color settings, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, and active tab selection state]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, gradebook-owned course stats, plugin-global settings, unavailable-widget cleanup, and per-switch tab fade transitions]
+// pos:    [Course workspace page with workspace navigation, Program-derived default course colors, gradebook-owned course stats, plugin-global settings, unavailable-widget cleanup, and per-switch tab fade transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -49,6 +49,7 @@ import {
     HOMEPAGE_DASHBOARD_TAB_TYPE,
     HOMEPAGE_SETTINGS_TAB_TYPE,
 } from '../utils/homepageBuiltinTabs';
+import { parseSubjectColorMap, resolveCourseColor } from '../utils/courseCategoryBadge';
 
 import {
     Breadcrumb,
@@ -76,6 +77,7 @@ const CourseHomepageContent: React.FC = () => {
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('');
     const [programName, setProgramName] = useState<string | null>(null);
+    const [programSubjectColorMapJson, setProgramSubjectColorMapJson] = useState<string>('{}');
     const [semesterName, setSemesterName] = useState<string | null>(null);
     const openAddWidgetModal = useCallback(() => {
         const activeElement = document.activeElement;
@@ -102,6 +104,7 @@ const CourseHomepageContent: React.FC = () => {
         const programId = course?.program_id;
         if (!programId) {
             setProgramName(null);
+            setProgramSubjectColorMapJson('{}');
             return () => {
                 isActive = false;
             };
@@ -110,17 +113,28 @@ const CourseHomepageContent: React.FC = () => {
             .then((program) => {
                 if (isActive) {
                     setProgramName(program.name);
+                    setProgramSubjectColorMapJson(program.subject_color_map || '{}');
                 }
             })
             .catch(() => {
                 if (isActive) {
                     setProgramName(null);
+                    setProgramSubjectColorMapJson('{}');
                 }
             });
         return () => {
             isActive = false;
         };
     }, [course?.program_id]);
+
+    const programSubjectColorMap = useMemo(
+        () => parseSubjectColorMap(programSubjectColorMapJson),
+        [programSubjectColorMapJson],
+    );
+    const resolvedDefaultColor = useMemo(() => {
+        if (!course) return null;
+        return resolveCourseColor({ ...course, color: null }, programSubjectColorMap);
+    }, [course, programSubjectColorMap]);
 
     useEffect(() => {
         let isActive = true;
@@ -521,6 +535,7 @@ const CourseHomepageContent: React.FC = () => {
                         include_in_gpa: course?.include_in_gpa,
                         hide_gpa: course?.hide_gpa
                     }}
+                    resolvedDefaultColor={resolvedDefaultColor}
                     onSave={handleUpdateCourse}
                 />
             ),
@@ -545,8 +560,10 @@ const CourseHomepageContent: React.FC = () => {
         course?.alias,
         course?.category,
         course?.credits,
+        course?.color,
         course?.include_in_gpa,
         course?.hide_gpa,
+        resolvedDefaultColor,
         updateCourse,
         handleUpdateCourse,
         hasPluginSettings,

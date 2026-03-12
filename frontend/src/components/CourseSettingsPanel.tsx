@@ -1,27 +1,29 @@
-// input:  [initial course fields (name/alias/category/color/credits/GPA flags), color picker UI, and auto-save callback]
+// input:  [initial course fields (name/alias/category/custom color/credits/GPA flags), resolved Program default color metadata, color picker UI, and auto-save callback]
 // output: [`CourseSettingsPanel` component]
-// pos:    [Settings form section for editing per-course metadata, color, and GPA participation with debounced auto-save]
+// pos:    [Settings form section for editing per-course metadata, a stable-layout optional custom color override, and GPA participation with debounced auto-save]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useMemo, useRef, useState, useId } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
+import { Switch } from "@/components/ui/switch";
 import { SettingsSection } from "./SettingsSection";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import { cn } from "@/lib/utils";
 
 const COURSE_COLOR_PRESETS: readonly ColorPickerPreset[] = [
-  { name: 'Blue', value: '#3b82f6' },
-  { name: 'Green', value: '#10b981' },
-  { name: 'Orange', value: '#f59e0b' },
+  { name: 'Blue', value: '#2563eb' },
+  { name: 'Green', value: '#16a34a' },
+  { name: 'Orange', value: '#ea580c' },
   { name: 'Rose', value: '#f43f5e' },
-  { name: 'Violet', value: '#8b5cf6' },
-  { name: 'Teal', value: '#14b8a6' },
-  { name: 'Amber', value: '#f59e0b' },
+  { name: 'Violet', value: '#7c3aed' },
+  { name: 'Teal', value: '#0f766e' },
+  { name: 'Amber', value: '#ca8a04' },
   { name: 'Sky', value: '#0ea5e9' },
 ];
 
@@ -35,6 +37,7 @@ interface CourseSettingsPanelProps {
     include_in_gpa?: boolean;
     hide_gpa?: boolean;
   };
+  resolvedDefaultColor?: string | null;
   onSave: (data: {
     name: string;
     alias: string | null;
@@ -49,19 +52,23 @@ interface CourseSettingsPanelProps {
 export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   initialName,
   initialSettings,
+  resolvedDefaultColor,
   onSave,
 }) => {
+  const automaticColor = resolvedDefaultColor || "#3b82f6";
   const [name, setName] = useState(initialName);
   const [alias, setAlias] = useState(initialSettings?.alias || "");
   const [category, setCategory] = useState(initialSettings?.category || "");
-  const [color, setColor] = useState(initialSettings?.color || "#3b82f6");
+  const [useCustomColor, setUseCustomColor] = useState(Boolean(initialSettings?.color));
+  const [color, setColor] = useState(initialSettings?.color || automaticColor);
   const [credits, setCredits] = useState(String(initialSettings?.credits || ""));
   const [includeInGpa, setIncludeInGpa] = useState(initialSettings?.include_in_gpa ?? true);
   const [hideGpa, setHideGpa] = useState(initialSettings?.hide_gpa ?? false);
   const fieldId = useId();
   const initialAlias = initialSettings?.alias || "";
   const initialCategory = initialSettings?.category || "";
-  const initialColor = initialSettings?.color || "#3b82f6";
+  const initialColor = initialSettings?.color || automaticColor;
+  const initialUseCustomColor = Boolean(initialSettings?.color);
   const initialCredits = String(initialSettings?.credits || "");
   const initialIncludeInGpa = initialSettings?.include_in_gpa ?? true;
   const initialHideGpa = initialSettings?.hide_gpa ?? false;
@@ -70,6 +77,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       name: initialName,
       alias: initialAlias,
       category: initialCategory,
+      useCustomColor: initialUseCustomColor,
       color: initialColor,
       credits: initialCredits,
       includeInGpa: initialIncludeInGpa,
@@ -83,6 +91,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       initialHideGpa,
       initialIncludeInGpa,
       initialName,
+      initialUseCustomColor,
     ]
   );
   const draftSnapshot = useMemo(
@@ -90,12 +99,13 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       name,
       alias,
       category,
+      useCustomColor,
       color,
       credits,
       includeInGpa,
       hideGpa,
     }),
-    [alias, category, color, credits, hideGpa, includeInGpa, name]
+    [alias, category, color, credits, hideGpa, includeInGpa, name, useCustomColor]
   );
   const lastLoadedSnapshotRef = useRef(savedSnapshot);
 
@@ -105,6 +115,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       previousSnapshot.name !== savedSnapshot.name ||
       previousSnapshot.alias !== savedSnapshot.alias ||
       previousSnapshot.category !== savedSnapshot.category ||
+      previousSnapshot.useCustomColor !== savedSnapshot.useCustomColor ||
       previousSnapshot.color !== savedSnapshot.color ||
       previousSnapshot.credits !== savedSnapshot.credits ||
       previousSnapshot.includeInGpa !== savedSnapshot.includeInGpa ||
@@ -113,6 +124,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       previousSnapshot.name !== draftSnapshot.name ||
       previousSnapshot.alias !== draftSnapshot.alias ||
       previousSnapshot.category !== draftSnapshot.category ||
+      previousSnapshot.useCustomColor !== draftSnapshot.useCustomColor ||
       previousSnapshot.color !== draftSnapshot.color ||
       previousSnapshot.credits !== draftSnapshot.credits ||
       previousSnapshot.includeInGpa !== draftSnapshot.includeInGpa ||
@@ -121,6 +133,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       savedSnapshot.name === draftSnapshot.name &&
       savedSnapshot.alias === draftSnapshot.alias &&
       savedSnapshot.category === draftSnapshot.category &&
+      savedSnapshot.useCustomColor === draftSnapshot.useCustomColor &&
       savedSnapshot.color === draftSnapshot.color &&
       savedSnapshot.credits === draftSnapshot.credits &&
       savedSnapshot.includeInGpa === draftSnapshot.includeInGpa &&
@@ -133,11 +146,17 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
     setName(savedSnapshot.name);
     setAlias(savedSnapshot.alias);
     setCategory(savedSnapshot.category);
+    setUseCustomColor(savedSnapshot.useCustomColor);
     setColor(savedSnapshot.color);
     setCredits(savedSnapshot.credits);
     setIncludeInGpa(savedSnapshot.includeInGpa);
     setHideGpa(savedSnapshot.hideGpa);
   }, [draftSnapshot, savedSnapshot]);
+
+  useEffect(() => {
+    if (useCustomColor) return;
+    setColor(automaticColor);
+  }, [automaticColor, useCustomColor]);
 
   useAutoSave({
     value: draftSnapshot,
@@ -147,7 +166,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
         name: snapshot.name,
         alias: snapshot.alias || null,
         category: snapshot.category || null,
-        color: snapshot.color || null,
+        color: snapshot.useCustomColor ? snapshot.color : null,
         credits: parseFloat(snapshot.credits) || 0,
         include_in_gpa: snapshot.includeInGpa,
         hide_gpa: snapshot.hideGpa,
@@ -161,7 +180,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
       <div className="grid gap-6">
-        <div className="grid gap-2 max-w-sm">
+        <div className="grid max-w-sm gap-2">
           <Label htmlFor={`${fieldId}-name`}>Name</Label>
           <Input
             id={`${fieldId}-name`}
@@ -171,7 +190,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
           />
         </div>
 
-        <div className="grid gap-2 max-w-sm pt-2">
+        <div className="grid max-w-sm gap-2 pt-2">
           <Label htmlFor={`${fieldId}-alias`}>Alias (optional)</Label>
           <Input
             id={`${fieldId}-alias`}
@@ -181,30 +200,52 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
           />
         </div>
 
-        <div className="grid gap-2 max-w-sm pt-2">
+        <div className="grid max-w-sm gap-2 pt-2">
           <Label htmlFor={`${fieldId}-category`}>Category (optional)</Label>
           <Input
             id={`${fieldId}-category`}
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            placeholder="e.g. CS"
+            placeholder="e.g. APS"
           />
         </div>
 
-        <div className="grid gap-2 max-w-sm pt-2">
-          <ColorPicker
-            id={`${fieldId}-color`}
-            label="Course Color"
-            value={color}
-            onChange={setColor}
-            defaultColor="#3b82f6"
-            presetColors={COURSE_COLOR_PRESETS}
-            triggerAriaLabel="Choose course color"
-            resetLabel="Reset to default color"
-          />
+        <div className="grid gap-4 pt-2">
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">
+              Course Color
+            </Label>
+            <div className="flex min-h-11 items-center gap-3">
+              <Switch
+                id={`${fieldId}-custom-color`}
+                checked={useCustomColor}
+                onCheckedChange={setUseCustomColor}
+              />
+              <Label htmlFor={`${fieldId}-custom-color`} className="text-sm text-muted-foreground">
+                Use custom override
+              </Label>
+            </div>
+          </div>
+
+          <div className="grid max-w-sm gap-2">
+            <div className={cn("transition-opacity", !useCustomColor && "pointer-events-none opacity-55")}>
+              <ColorPicker
+                id={`${fieldId}-color`}
+                value={color}
+                onChange={(nextColor) => {
+                  setColor(nextColor);
+                  setUseCustomColor(true);
+                }}
+                defaultColor={automaticColor}
+                presetColors={COURSE_COLOR_PRESETS}
+                triggerAriaLabel="Choose custom course color"
+                resetLabel="Use Program default color"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-2 max-w-sm pt-2">
+        <div className="grid max-w-sm gap-2 pt-2">
           <Label htmlFor={`${fieldId}-credits`}>Credits</Label>
           <Input
             id={`${fieldId}-credits`}

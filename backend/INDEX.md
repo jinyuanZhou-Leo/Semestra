@@ -3,6 +3,7 @@
 Backend exposes FastAPI endpoints and coordinates auth, CRUD, and domain logic.
 Data contracts are defined in Pydantic schemas and persisted through SQLAlchemy models, with Alembic now owning schema evolution instead of startup-time compatibility rewrites.
 Auth now signs JWTs from env-backed secrets and ships browser sessions via HttpOnly cookies while still validating bearer tokens server-side.
+Program-level subject-code color maps now persist in the backend so Course List, Program Dashboard, Course Settings, Todo, and backups share the same automatic/default course colors.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -15,21 +16,21 @@ Auth now signs JWTs from env-backed secrets and ships browser sessions via HttpO
 | database.py | DB bootstrap | Configures SQLAlchemy engine/session and database base metadata. |
 | gradebook.py | Gradebook domain service | Owns built-in gradebook initialization, fact-only preference/category/assessment mutations, percentage-score persistence, and import/export mapping without persisting forecast or plan results onto the course. |
 | logic.py | Domain logic | Provides GPA and grading-related business logic helpers. |
-| main.py | API entry point | Defines FastAPI app, middleware, HTTP route handlers, auth login/logout cookie issuance, semester Reading Week validation, semester todo APIs, plugin shared settings endpoints, gradebook APIs, and force-aware widget deletion without runtime schema rewrite helpers. |
+| main.py | API entry point | Defines FastAPI app, middleware, HTTP route handlers, auth login/logout cookie issuance, Program subject-color-map persistence, backup import/export, semester Reading Week validation, semester todo APIs, plugin shared settings endpoints, gradebook APIs, and force-aware widget deletion without runtime schema rewrite helpers. |
 | migrate_add_category.py | Migration script | Adds widget category support to existing database schema. |
 | migrate_add_program_id_to_course.py | Migration script | Adds `program_id` to courses and related constraints. |
 | migrate_user_settings.py | Migration script | Creates and backfills user settings columns and defaults. |
 | migrate_week_pattern_to_alternating.py | Migration script | Migrates week pattern model to alternating-week structure. |
-| models.py | ORM models | Defines SQLAlchemy table models and relational constraints, including persisted course colors, optional semester Reading Week dates, context-scoped plugin shared settings records, semester todo tables, and gradebook domain tables. |
+| models.py | ORM models | Defines SQLAlchemy table models and relational constraints, including Program-level subject color maps, persisted course overrides, optional semester Reading Week dates, context-scoped plugin shared settings records, semester todo tables, and gradebook domain tables. |
 | prod.sh | Ops script | Production bootstrap script for backend service process startup. |
 | requirements.txt | Dependency manifest | Lists Python runtime dependencies required by backend. |
-| schemas.py | API schema layer | Defines request/response validation models, including semester todo payloads, persisted course-color fields, plugin shared settings payloads, strict widget `layout_config` shape/range validation, and fact-oriented gradebook contracts. |
-| todo.py | Todo domain service | Owns semester-scoped todo migration from legacy tab settings plus task/section CRUD and API payload assembly without backend order persistence. |
+| schemas.py | API schema layer | Defines request/response validation models, including Program subject-color settings, semester todo payloads, persisted course-color fields, plugin shared settings payloads, strict widget `layout_config` shape/range validation, and fact-oriented gradebook contracts. |
+| todo.py | Todo domain service | Owns semester-scoped todo migration from legacy tab settings plus task/section CRUD and API payload assembly without backend order persistence, while resolving Program default course colors for Todo tags. |
 | test_crud.py | Integration test script | Verifies CRUD workflows against a running local API. |
 | test_gradebook.py | Unit test script | Verifies builtin gradebook initialization, category reassignment, preference updates, percentage-score persistence, and that gradebook mutations no longer overwrite course grade fields. |
 | test_logic.py | Integration test script | Verifies academic logic flows against API endpoints. |
 | test_nickname.py | Integration test script | Validates nickname update and retrieval API behavior. |
-| test_todo.py | Unit test script | Verifies table-backed todo payloads no longer expose persisted order fields and that section moves are handled through regular task updates. |
+| test_todo.py | Unit test script | Verifies table-backed todo payloads no longer expose persisted order fields, Program subject-color defaults flow into Todo course options, and section moves are handled through regular task updates. |
 | test_widget_delete.py | Integration test script | Validates widget deletion endpoint behavior. |
 | test_widget_update.py | Integration test script | Validates widget update endpoint behavior. |
 | utils.py | Shared utility | Provides timetable parsing, ICS conversion, and date helpers. |

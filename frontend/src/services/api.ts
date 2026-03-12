@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, and widget delete options]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, Program subject-color persistence, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -16,6 +16,7 @@ export interface Program {
     cgpa_percentage: number;
     grad_requirement_credits: number;
     gpa_scaling_table?: string;
+    subject_color_map?: string;
     hide_gpa?: boolean;
 }
 

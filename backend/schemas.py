@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums]
-# output: [Request/response schema classes for API contracts, including plugin-shared settings payloads, semester todo domain payloads, and fact-oriented course gradebooks]
-# pos:    [Serialization and validation layer between API and domain services, including todo and fact-only gradebook wire contracts]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, plugin-shared settings payloads, semester todo domain payloads, and fact-oriented course gradebooks]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings plus todo and fact-only gradebook wire contracts]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -469,6 +469,7 @@ class ProgramBase(BaseModel):
     cgpa_scaled: float = 0.0
     cgpa_percentage: float = 0.0
     gpa_scaling_table: Optional[str] = None
+    subject_color_map: str = "{}"
     grad_requirement_credits: float = 0.0
     hide_gpa: bool = False
     program_timezone: str = "UTC"
@@ -481,6 +482,7 @@ class ProgramUpdate(BaseModel):
     cgpa_scaled: Optional[float] = None
     cgpa_percentage: Optional[float] = None
     gpa_scaling_table: Optional[str] = None
+    subject_color_map: Optional[str] = None
     grad_requirement_credits: Optional[float] = None
     hide_gpa: Optional[bool] = None
     program_timezone: Optional[str] = None
@@ -761,6 +763,7 @@ class CourseExport(BaseModel):
     name: str
     alias: Optional[str] = None
     category: Optional[str] = None
+    color: Optional[str] = None
     credits: float = 0.0
     grade_percentage: float = 0.0
     grade_scaled: float = 0.0
@@ -785,6 +788,7 @@ class ProgramExport(BaseModel):
     cgpa_scaled: float = 0.0
     cgpa_percentage: float = 0.0
     gpa_scaling_table: Optional[str] = None
+    subject_color_map: str = "{}"
     grad_requirement_credits: float = 0.0
     hide_gpa: bool = False
     semesters: List[SemesterExport] = []

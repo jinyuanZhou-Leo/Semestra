@@ -19,7 +19,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
 | CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
 | CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation. |
-| CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, persisted course-color configuration, pending-save feedback, and draft-safe sync against backend refreshes. |
+| CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, Program-derived default-color guidance, optional per-course override controls, and draft-safe sync against backend refreshes. |
 | GPAScalingTable.tsx | UI component | Reusable component for g p a scaling table UI/interaction flow. |
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |
 | GradientBlinds.tsx | UI component | Reusable component for gradient blinds UI/interaction flow. |
@@ -29,7 +29,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | Layout.tsx | UI component | Shared authenticated layout chrome, including header breadcrumb slot, fixed-height overflow handling, and server-backed sign-out actions. |
 | PageSkeleton.tsx | UI component | Reusable component for page skeleton UI/interaction flow. |
 | PluginSettingsCard.tsx | UI component | Reusable component for plugin settings card UI/interaction flow. |
-| ProgramSettingsPanel.tsx | UI component | Program settings panel with debounced auto-save, JSON validation feedback, and draft-safe sync against optimistic program updates. |
+| ProgramSettingsPanel.tsx | UI component | Program settings panel with debounced auto-save, Program subject-code color management, JSON validation feedback, and draft-safe sync against optimistic program updates. |
 | ResponsiveDialogDrawer.tsx | UI component | Shared responsive overlay wrapper that renders desktop dialog and mobile drawer, with unified header/footer slots and open-time focus handoff. |
 | RequireAuth.tsx | UI component | Reusable component for require auth UI/interaction flow. |
 | SaveSettingButton.tsx | UI component | Legacy animated save CTA retained for non-auto-save settings flows. |

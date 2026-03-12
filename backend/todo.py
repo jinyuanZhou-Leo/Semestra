@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, backend ORM/schema modules, and legacy builtin-event-core todo tab settings]
 # output: [semester-scoped todo domain helpers for migration, CRUD mutations, validation, and API payload assembly]
-# pos:    [Backend domain service that owns persisted Todo tables, stores task data without backend ordering, and bridges legacy tab.settings storage into the semester-level model]
+# pos:    [Backend domain service that owns persisted Todo tables, stores task data without backend ordering, bridges legacy tab.settings storage into the semester-level model, and resolves Program-derived course colors for Todo payloads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 import json
+import re
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -23,6 +24,20 @@ COMPLETED_SECTION_ID = "__completed__"
 DEFAULT_SECTION_NAME = "General"
 SEMESTER_TODO_SETTINGS_KEY = "semesterTodo"
 VALID_PRIORITIES = {"", "LOW", "MEDIUM", "HIGH", "URGENT"}
+DEFAULT_SUBJECT_COLORS = (
+    "#2563eb",
+    "#dc2626",
+    "#16a34a",
+    "#ea580c",
+    "#0891b2",
+    "#7c3aed",
+    "#ca8a04",
+    "#db2777",
+    "#0f766e",
+    "#4f46e5",
+    "#65a30d",
+    "#c2410c",
+)
 
 
 class TodoValidationError(ValueError):
@@ -69,6 +84,85 @@ def _parse_json_object(raw_value: str | None) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _is_hex_color(value: str | None) -> bool:
+    return bool(value and re.fullmatch(r"#[0-9a-fA-F]{6}", value))
+
+
+def _normalize_subject_code(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = re.sub(r"[^A-Za-z]", "", value).upper()
+    if 2 <= len(normalized) <= 5:
+        return normalized
+    return ""
+
+
+def _extract_subject_code_from_text(value: str | None) -> str:
+    if not value:
+        return ""
+    match = re.search(r"\b([A-Za-z]{2,5})[\s-]*\d{2,4}[A-Za-z0-9]*\b", value)
+    if not match:
+        return ""
+    return _normalize_subject_code(match.group(1))
+
+
+def _resolve_subject_code(*, category: str | None, alias: str | None, name: str | None) -> str:
+    direct = _normalize_subject_code(category)
+    if direct:
+        return direct
+
+    alias_code = _extract_subject_code_from_text(alias)
+    if alias_code:
+        return alias_code
+
+    return _extract_subject_code_from_text(name)
+
+
+def _parse_subject_color_map(raw_value: str | None) -> dict[str, str]:
+    parsed = _parse_json_object(raw_value)
+    normalized: dict[str, str] = {}
+    for key, value in parsed.items():
+        subject_code = _normalize_subject_code(str(key))
+        if not subject_code or not isinstance(value, str):
+            continue
+        color = value.strip()
+        if not _is_hex_color(color):
+            continue
+        normalized[subject_code] = color
+    return normalized
+
+
+def _get_automatic_subject_color(subject_code: str) -> str:
+    if not subject_code:
+        return "#3b82f6"
+
+    hash_value = 0
+    for character in subject_code:
+        hash_value = ord(character) + ((hash_value << 5) - hash_value)
+
+    return DEFAULT_SUBJECT_COLORS[abs(hash_value) % len(DEFAULT_SUBJECT_COLORS)]
+
+
+def _resolve_course_display_color(
+    course: models.Course,
+    *,
+    subject_color_map: dict[str, str],
+) -> str:
+    if _is_hex_color(course.color):
+        return str(course.color)
+
+    subject_code = _resolve_subject_code(
+        category=course.category,
+        alias=course.alias,
+        name=course.name,
+    )
+    if subject_code and subject_code in subject_color_map:
+        return subject_color_map[subject_code]
+    if subject_code:
+        return _get_automatic_subject_color(subject_code)
+    return ""
+
+
 def _read_string(value: Any, fallback: str = "") -> str:
     return value if isinstance(value, str) else fallback
 
@@ -107,12 +201,13 @@ def _parse_priority(value: Any) -> str:
 
 
 def _build_course_snapshots(semester: models.Semester) -> list[CourseSnapshot]:
+    subject_color_map = _parse_subject_color_map(semester.program.subject_color_map if semester.program else None)
     return [
         CourseSnapshot(
             course_id=course.id,
             course_name=course.name,
             course_category=course.category or "",
-            course_color=course.color or "",
+            course_color=_resolve_course_display_color(course, subject_color_map=subject_color_map),
             todo_tab=next((tab for tab in course.tabs if tab.tab_type == BUILTIN_TIMETABLE_TODO_TAB_TYPE), None),
         )
         for course in sorted(semester.courses, key=lambda item: (item.name or "").lower())
@@ -342,6 +437,7 @@ def _serialize_state(semester: models.Semester) -> schemas.TodoSemesterState:
         for section in _sort_sections(semester)
     ]
 
+    subject_color_map = _parse_subject_color_map(semester.program.subject_color_map if semester.program else None)
     course_map = {course.id: course for course in semester.courses}
     tasks = [
         schemas.TodoTask(
@@ -356,7 +452,11 @@ def _serialize_state(semester: models.Semester) -> schemas.TodoSemesterState:
             course_id=task.course_id,
             course_name=(course_map[task.course_id].name if task.course_id and task.course_id in course_map else ""),
             course_category=(course_map[task.course_id].category or "" if task.course_id and task.course_id in course_map else ""),
-            course_color=(course_map[task.course_id].color or "" if task.course_id and task.course_id in course_map else ""),
+            course_color=(
+                _resolve_course_display_color(course_map[task.course_id], subject_color_map=subject_color_map)
+                if task.course_id and task.course_id in course_map
+                else ""
+            ),
             section_id=task.section_id,
             origin_section_id=task.origin_section_id,
             created_at=task.created_at,
@@ -370,7 +470,7 @@ def _serialize_state(semester: models.Semester) -> schemas.TodoSemesterState:
             id=course.id,
             name=course.name,
             category=course.category or "",
-            color=course.color or "",
+            color=_resolve_course_display_color(course, subject_color_map=subject_color_map),
         )
         for course in sorted(semester.courses, key=lambda item: (item.name or "").lower())
     ]

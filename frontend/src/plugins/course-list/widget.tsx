@@ -1,6 +1,6 @@
-// input:  [semester context id, semester/course API service, router link navigation, and shared alert/button primitives]
+// input:  [semester context id, semester/program API service, router link navigation, and shared alert/button primitives]
 // output: [course-list widget component and plugin definition metadata]
-// pos:    [semester-scoped dashboard widget that fetches/render course cards with explicit loading and retry states]
+// pos:    [semester-scoped dashboard widget that fetches/render course cards with Program-derived subject-code colors plus explicit loading and retry states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,6 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { getCourseBadgeStyle, parseSubjectColorMap, resolveCourseColor } from '@/utils/courseCategoryBadge';
 
 const resolveErrorMessage = (error: unknown, fallback: string) => {
     if (error instanceof Error && error.message.trim().length > 0) {
@@ -32,6 +33,7 @@ const resolveErrorMessage = (error: unknown, fallback: string) => {
  */
 const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
     const [courses, setCourses] = useState<Course[]>([]);
+    const [programSubjectColorMap, setProgramSubjectColorMap] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const latestFetchRef = React.useRef(0);
@@ -53,10 +55,25 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
             const data = await api.getSemester(semesterId);
             if (fetchId !== latestFetchRef.current) return;
             setCourses(Array.isArray(data.courses) ? data.courses : []);
+
+            if (data.program_id) {
+                try {
+                    const program = await api.getProgram(data.program_id);
+                    if (fetchId !== latestFetchRef.current) return;
+                    setProgramSubjectColorMap(parseSubjectColorMap(program.subject_color_map));
+                } catch (programError) {
+                    if (fetchId !== latestFetchRef.current) return;
+                    console.warn('Failed to load Program subject colors for course list widget', programError);
+                    setProgramSubjectColorMap({});
+                }
+            } else {
+                setProgramSubjectColorMap({});
+            }
         } catch (error) {
             if (fetchId !== latestFetchRef.current) return;
             console.error('Failed to load course list widget data', error);
             setCourses([]);
+            setProgramSubjectColorMap({});
             setErrorMessage(resolveErrorMessage(error, 'Unable to load courses for this semester.'));
         } finally {
             if (fetchId === latestFetchRef.current) {
@@ -121,7 +138,11 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
                                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                                         <div className="flex items-center gap-1.5">
                                             {course.category && (
-                                                <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 border-transparent bg-muted text-muted-foreground hover:bg-muted">
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="text-[10px] px-1 py-0 h-4 border-transparent bg-muted text-muted-foreground hover:bg-muted"
+                                                    style={getCourseBadgeStyle(resolveCourseColor(course, programSubjectColorMap))}
+                                                >
                                                     {course.category}
                                                 </Badge>
                                             )}

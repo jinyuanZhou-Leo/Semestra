@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance and all HTTP route handlers, including plugin-shared settings persistence, semester todo APIs, and fact-oriented gradebook endpoints]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, persisted todo APIs, fact-only gradebook APIs, force-aware widget deletion, and no runtime schema rewrite helpers]
+# output: [FastAPI app instance and all HTTP route handlers, including Program subject-color-map persistence, plugin-shared settings persistence, semester todo APIs, and fact-oriented gradebook endpoints]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, persisted todo APIs, backup import/export, fact-only gradebook APIs, force-aware widget deletion, and no runtime schema rewrite helpers]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -878,6 +878,7 @@ async def export_user_data(
                     name=course.name,
                     alias=course.alias,
                     category=course.category,
+                    color=course.color,
                     credits=course.credits,
                     grade_percentage=course.grade_percentage,
                     grade_scaled=course.grade_scaled,
@@ -929,6 +930,7 @@ async def export_user_data(
             cgpa_scaled=program.cgpa_scaled,
             cgpa_percentage=program.cgpa_percentage,
             gpa_scaling_table=program.gpa_scaling_table,
+            subject_color_map=program.subject_color_map or "{}",
             grad_requirement_credits=program.grad_requirement_credits,
             hide_gpa=program.hide_gpa,
             semesters=semesters_export
@@ -1001,6 +1003,7 @@ async def import_user_data(
                 cgpa_scaled=program_data.cgpa_scaled,
                 cgpa_percentage=program_data.cgpa_percentage,
                 gpa_scaling_table=program_data.gpa_scaling_table,
+                subject_color_map=program_data.subject_color_map,
                 grad_requirement_credits=program_data.grad_requirement_credits,
                 hide_gpa=program_data.hide_gpa
             ),
@@ -1065,6 +1068,7 @@ async def import_user_data(
                         name=course_data.name,
                         alias=course_data.alias,
                         category=course_data.category,
+                        color=course_data.color,
                         credits=course_data.credits,
                         grade_percentage=course_data.grade_percentage,
                         grade_scaled=course_data.grade_scaled,

@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy session setup, backend todo service, and backend schemas/models]
-# output: [unit tests covering todo serialization without backend order persistence and section reassignment updates]
-# pos:    [backend regression tests for the table-backed todo service after removing persisted todo ordering]
+# output: [unit tests covering todo serialization without backend order persistence, Program-derived course colors, and section reassignment updates]
+# pos:    [backend regression tests for the table-backed todo service after removing persisted todo ordering and adding Program subject-code color defaults]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -60,6 +60,7 @@ class TodoServiceTests(unittest.TestCase):
 
         self.semester = semester
         self.course = course
+        self.program = program
 
     def tearDown(self) -> None:
         self.db.close()
@@ -107,6 +108,28 @@ class TodoServiceTests(unittest.TestCase):
 
         moved = next(task for task in updated.tasks if task.id == task_id)
         self.assertEqual(moved.section_id, section_id)
+
+    def test_semester_state_uses_program_subject_color_map_for_default_course_color(self) -> None:
+        self.program.subject_color_map = '{"MIE":"#2563eb"}'
+        self.db.add(self.program)
+        self.db.commit()
+        self.db.refresh(self.semester)
+
+        payload = todo.get_semester_state(self.db, self.semester)
+
+        self.assertEqual(payload.course_options[0].color, "#2563eb")
+
+    def test_semester_state_prefers_course_override_color(self) -> None:
+        self.program.subject_color_map = '{"MIE":"#2563eb"}'
+        self.course.color = "#111111"
+        self.db.add(self.program)
+        self.db.add(self.course)
+        self.db.commit()
+        self.db.refresh(self.semester)
+
+        payload = todo.get_semester_state(self.db, self.semester)
+
+        self.assertEqual(payload.course_options[0].color, "#111111")
 
 
 if __name__ == "__main__":

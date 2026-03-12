@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions, including context-scoped plugin shared settings and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, plugin-shared settings, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, context-scoped plugin shared settings, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -53,6 +53,7 @@ class Program(Base):
     cgpa_scaled = Column(Float, default=0.0)
     cgpa_percentage = Column(Float, default=0.0)
     gpa_scaling_table = Column(Text, nullable=True) # JSON: {"90-100": 4.0, ...}
+    subject_color_map = Column(Text, nullable=False, default="{}") # JSON: {"APS": "#2563eb", ...}
     grad_requirement_credits = Column(Float, default=0.0)
     hide_gpa = Column(Boolean, default=False)
     

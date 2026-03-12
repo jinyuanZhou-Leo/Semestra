@@ -1,10 +1,12 @@
-// input:  [Course category strings, optional custom course hex colors, and course-id collections from program, semester, and todo contexts]
-// output: [badge/text class helpers plus course-color style helpers for category and distinct per-course rendering]
-// pos:    [Shared visual helper that keeps course badges consistent across dashboard and todo surfaces while supporting custom persisted course colors and collision-free todo fallbacks]
+// input:  [course names/aliases/categories, optional custom hex colors, optional Program subject-color JSON, and course-id collections]
+// output: [subject-code parsing helpers, stable automatic/default course color resolvers, and badge/text style helpers for course UI]
+// pos:    [Shared course-color utility layer that keeps Program Dashboard, Course List, Course Settings, and Todo course tags on one color-resolution rule]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
+
+import type React from 'react';
 
 const CATEGORY_BADGE_COLORS = [
   'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
@@ -46,11 +48,33 @@ const CATEGORY_TEXT_COLORS = [
   'text-rose-500 dark:text-rose-300',
 ];
 
+export const DEFAULT_SUBJECT_COLORS = [
+  '#2563eb',
+  '#dc2626',
+  '#16a34a',
+  '#ea580c',
+  '#0891b2',
+  '#7c3aed',
+  '#ca8a04',
+  '#db2777',
+  '#0f766e',
+  '#4f46e5',
+  '#65a30d',
+  '#c2410c',
+] as const;
+
+type CourseColorSource = {
+  name?: string | null;
+  alias?: string | null;
+  category?: string | null;
+  color?: string | null;
+};
+
 const normalizeDistinctCourseIds = (courseIds: string[]) => {
   return [...new Set(courseIds.filter((value) => value.trim()))].sort((left, right) => left.localeCompare(right));
 };
 
-const isHexCourseColor = (value: string | null | undefined): value is string => (
+export const isHexCourseColor = (value: string | null | undefined): value is string => (
   Boolean(value && /^#[0-9a-fA-F]{6}$/.test(value))
 );
 
@@ -64,6 +88,86 @@ const hashCourseColor = (category: string, seed?: string) => {
   }
 
   return Math.abs(hash);
+};
+
+export const normalizeSubjectCode = (value: string | null | undefined) => {
+  if (!value) return '';
+  const normalized = value.replace(/[^A-Za-z]/g, '').toUpperCase();
+  if (normalized.length < 2 || normalized.length > 5) return '';
+  return normalized;
+};
+
+const extractSubjectCodeFromText = (value: string | null | undefined) => {
+  if (!value) return '';
+  const match = value.match(/\b([A-Za-z]{2,5})[\s-]*\d{2,4}[A-Za-z0-9]*\b/);
+  if (!match) return '';
+  return normalizeSubjectCode(match[1]);
+};
+
+export const resolveCourseSubjectCode = (course: Pick<CourseColorSource, 'name' | 'alias' | 'category'>) => {
+  const categoryCode = normalizeSubjectCode(course.category);
+  if (categoryCode) return categoryCode;
+
+  const aliasCode = extractSubjectCodeFromText(course.alias);
+  if (aliasCode) return aliasCode;
+
+  return extractSubjectCodeFromText(course.name);
+};
+
+export const parseSubjectColorMap = (rawValue: string | null | undefined): Record<string, string> => {
+  if (!rawValue) return {};
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
+    return Object.entries(parsed).reduce<Record<string, string>>((accumulator, [key, value]) => {
+      const normalizedCode = normalizeSubjectCode(key);
+      if (!normalizedCode || typeof value !== 'string' || !isHexCourseColor(value.trim())) {
+        return accumulator;
+      }
+
+      accumulator[normalizedCode] = value.trim();
+      return accumulator;
+    }, {});
+  } catch {
+    return {};
+  }
+};
+
+export const serializeSubjectColorMap = (value: Record<string, string>) => {
+  return JSON.stringify(
+    Object.entries(value)
+      .filter(([key, color]) => normalizeSubjectCode(key) && isHexCourseColor(color))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .reduce<Record<string, string>>((accumulator, [key, color]) => {
+        accumulator[normalizeSubjectCode(key)] = color;
+        return accumulator;
+      }, {}),
+  );
+};
+
+export const getAutomaticSubjectColor = (subjectCode: string) => {
+  const normalizedCode = normalizeSubjectCode(subjectCode);
+  if (!normalizedCode) return '#3b82f6';
+
+  let hash = 0;
+  for (let index = 0; index < normalizedCode.length; index += 1) {
+    hash = normalizedCode.charCodeAt(index) + ((hash << 5) - hash);
+  }
+
+  return DEFAULT_SUBJECT_COLORS[Math.abs(hash) % DEFAULT_SUBJECT_COLORS.length];
+};
+
+export const resolveCourseColor = (
+  course: CourseColorSource,
+  subjectColorMap: Record<string, string> = {},
+) => {
+  if (isHexCourseColor(course.color)) return course.color;
+
+  const subjectCode = resolveCourseSubjectCode(course);
+  if (!subjectCode) return null;
+  return subjectColorMap[subjectCode] ?? getAutomaticSubjectColor(subjectCode);
 };
 
 export const getCourseCategoryBadgeClassName = (category: string, seed?: string) => {
@@ -110,4 +214,3 @@ export const getCourseTextStyle = (color: string | null | undefined): React.CSSP
   if (!isHexCourseColor(color)) return undefined;
   return { color };
 };
-import type React from 'react';

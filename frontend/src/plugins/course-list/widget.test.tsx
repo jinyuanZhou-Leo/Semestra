@@ -1,6 +1,6 @@
 // input:  [CourseList widget runtime, MemoryRouter, mocked semester API responses, and testing-library helpers]
-// output: [test suite validating course-list loading, success, and retry/error states]
-// pos:    [Plugin-level regression tests for explicit course-list UX feedback behavior]
+// output: [test suite validating course-list loading, Program color fetch coordination, and retry/error states]
+// pos:    [Plugin-level regression tests for explicit course-list UX feedback behavior and subject-color fetches]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -59,6 +59,15 @@ describe('CourseList widget', () => {
         });
 
         vi.spyOn(api, 'getSemester').mockReturnValue(pendingSemester);
+        vi.spyOn(api, 'getProgram').mockResolvedValue({
+            id: 'program-1',
+            name: 'Engineering',
+            cgpa_scaled: 0,
+            cgpa_percentage: 0,
+            grad_requirement_credits: 20,
+            subject_color_map: '{"CORE":"#2563eb"}',
+            semesters: [],
+        });
 
         renderCourseList();
 
@@ -75,6 +84,15 @@ describe('CourseList widget', () => {
         const getSemester = vi.spyOn(api, 'getSemester')
             .mockRejectedValueOnce(new Error('Backend unavailable'))
             .mockResolvedValueOnce(semesterResponse);
+        vi.spyOn(api, 'getProgram').mockResolvedValue({
+            id: 'program-1',
+            name: 'Engineering',
+            cgpa_scaled: 0,
+            cgpa_percentage: 0,
+            grad_requirement_credits: 20,
+            subject_color_map: '{}',
+            semesters: [],
+        });
 
         renderCourseList();
 
