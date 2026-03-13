@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Reusable UI building blocks shared by pages and plugin containers.
-Includes modal workflows, settings panels, dashboard/tab shells, and theme helpers.
+Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, and business-layer empty-state wrappers.
 `ui/` holds shadcn primitives and is intentionally excluded from this documentation scope.
 
 | File | Role | Description |
@@ -12,13 +12,14 @@ Includes modal workflows, settings panels, dashboard/tab shells, and theme helpe
 | skeletons/ | Subdirectory | Loading skeleton component set. |
 | ui/ | Subdirectory | shadcn UI primitives (excluded from this documentation scope per request). |
 | widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome, edit-mode-only hover elevation, and forced delete affordances when plugin widgets become unavailable. |
+| AppEmptyState.tsx | UI component | Business-layer empty-state wrapper that standardizes scenario-based create, no-results, not-found, and unavailable states while composing shadcn `Empty` primitives without modifying `components/ui`. |
 | AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
 | AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation. |
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
 | BackButton.tsx | UI component | Reusable component for back button UI/interaction flow. |
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
 | CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
-| CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation. |
+| CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation, with split loading feedback and standardized modal no-results empty states. |
 | CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, close/unmount flush protection, Program-derived default-color guidance, optional per-course override controls, and a suggested category update action beside the Category field. |
 | GPAScalingTable.tsx | UI component | Reusable component for g p a scaling table UI/interaction flow. |
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |

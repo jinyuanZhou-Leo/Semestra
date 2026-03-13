@@ -1,6 +1,6 @@
-// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, and active tab selection state]
+// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, dashboard-only overview stats, plugin-global settings, unavailable-widget cleanup, and per-switch tab fade transitions]
+// pos:    [Semester workspace page with workspace navigation, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,9 +12,9 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
+import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { AddWidgetModal } from '../components/AddWidgetModal';
 import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
@@ -279,14 +279,12 @@ const SemesterHomepageContent: React.FC = () => {
         const TabComponent = activeTab ? getTabComponentByType(activeTab.type) : undefined;
         if (!activeTab) {
             return (
-                <Empty className="bg-muted/40">
-                    <EmptyHeader>
-                        <EmptyTitle>Tab not found</EmptyTitle>
-                        <EmptyDescription>
-                            The requested tab is unavailable.
-                        </EmptyDescription>
-                    </EmptyHeader>
-                </Empty>
+                <AppEmptyState
+                    scenario="unavailable"
+                    size="section"
+                    title="Tab not found"
+                    description="The requested tab is unavailable."
+                />
             );
         }
         if (!TabComponent) {
@@ -298,25 +296,21 @@ const SemesterHomepageContent: React.FC = () => {
             }
             if (activeTabLoadState.status === 'error') {
                 return (
-                    <Empty className="bg-muted/40">
-                        <EmptyHeader>
-                            <EmptyTitle>Plugin failed to load</EmptyTitle>
-                            <EmptyDescription>
-                                {activeTab.type}
-                            </EmptyDescription>
-                        </EmptyHeader>
-                    </Empty>
+                    <AppEmptyState
+                        scenario="unavailable"
+                        size="section"
+                        title="Plugin failed to load"
+                        description={activeTab.type}
+                    />
                 );
             }
             return (
-                <Empty className="bg-muted/40">
-                    <EmptyHeader>
-                        <EmptyTitle>Unknown tab type</EmptyTitle>
-                        <EmptyDescription>
-                            {activeTab.type}
-                        </EmptyDescription>
-                    </EmptyHeader>
-                </Empty>
+                <AppEmptyState
+                    scenario="unavailable"
+                    size="section"
+                    title="Unknown tab type"
+                    description={activeTab.type}
+                />
             );
         }
         return (
@@ -563,17 +557,17 @@ export const SemesterHomepage: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <Empty className="my-16">
-                        <EmptyHeader>
-                            <EmptyTitle>Semester not found</EmptyTitle>
-                            <EmptyDescription>No semester ID provided.</EmptyDescription>
-                        </EmptyHeader>
-                        <EmptyContent>
+                    <AppEmptyState
+                        scenario="not-found"
+                        size="page"
+                        title="Semester not found"
+                        description="No semester ID provided."
+                        primaryAction={(
                             <Link to="/">
                                 <Button>Back to Home</Button>
                             </Link>
-                        </EmptyContent>
-                    </Empty>
+                        )}
+                    />
                 </Container>
             </Layout>
         );

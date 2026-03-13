@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, settings/course-manager modal flows, and responsive overlay wrapper]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, settings/course-manager modal flows, responsive overlay wrapper, and shared business empty-state wrappers]
 // output: [`ProgramDashboard` and local semester create/delete confirmation plus responsive create surface components]
-// pos:    [Program-level workspace page for semester management, subject-code color defaults, progress tracking, and tri-state course-list sorting with compact mobile overview stat-strip and drawer semester creation]
+// pos:    [Program-level workspace page for semester management, subject-code color defaults, progress tracking, tri-state course-list sorting, and standardized not-found workspace fallbacks]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,12 +11,12 @@
 import React, { useCallback, useId, useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SettingsModal } from '../components/SettingsModal';
 import { ProgramSettingsPanel } from '../components/ProgramSettingsPanel';
 import { Badge } from '@/components/ui/badge';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -640,19 +640,17 @@ const ProgramDashboardContent: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <Empty className="my-16">
-                        <EmptyHeader>
-                            <EmptyTitle>Program not found</EmptyTitle>
-                            <EmptyDescription>
-                                The program you are looking for does not exist or has been deleted.
-                            </EmptyDescription>
-                        </EmptyHeader>
-                        <EmptyContent>
+                    <AppEmptyState
+                        scenario="not-found"
+                        size="page"
+                        title="Program not found"
+                        description="The program you are looking for does not exist or has been deleted."
+                        primaryAction={(
                             <Link to="/">
                                 <Button>Back to Home</Button>
                             </Link>
-                        </EmptyContent>
-                    </Empty>
+                        )}
+                    />
                 </Container>
             </Layout>
         );
@@ -1248,17 +1246,17 @@ export const ProgramDashboard: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <Empty className="my-16">
-                        <EmptyHeader>
-                            <EmptyTitle>Program not found</EmptyTitle>
-                            <EmptyDescription>No program ID provided.</EmptyDescription>
-                        </EmptyHeader>
-                        <EmptyContent>
+                    <AppEmptyState
+                        scenario="not-found"
+                        size="page"
+                        title="Program not found"
+                        description="No program ID provided."
+                        primaryAction={(
                             <Link to="/">
                                 <Button>Back to Home</Button>
                             </Link>
-                        </EmptyContent>
-                    </Empty>
+                        )}
+                    />
                 </Container>
             </Layout>
         );

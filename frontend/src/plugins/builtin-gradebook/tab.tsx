@@ -1,6 +1,6 @@
-// input:  [course gradebook APIs, course data update context, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, and builtin-gradebook shared forecast/plan helpers]
+// input:  [course gradebook APIs, course data update context, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers, and shared business empty-state wrappers]
 // output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI and tab definition]
-// pos:    [course-scoped gradebook surface for assessment scores, Calendar due-date sync, and a mode-aware plan workflow with stable toolbar layout and temporary what-if editing]
+// pos:    [course-scoped gradebook surface for assessment scores, Calendar due-date sync, temporary what-if editing, and semantic empty-state feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,6 +13,7 @@ import { format, isValid, parseISO } from 'date-fns';
 import { ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, FlaskConical, GraduationCap, Pencil, Percent, Plus, Search, Sparkles, Target, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { AppEmptyState } from '@/components/AppEmptyState';
 import api, {
     type CourseGradebook,
     type GradebookAssessment,
@@ -43,7 +44,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -481,12 +481,12 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
     if (!courseId) {
         return (
-            <Empty className="bg-muted/40">
-                <EmptyHeader>
-                    <EmptyTitle>Gradebook unavailable</EmptyTitle>
-                    <EmptyDescription>This tab requires a course context.</EmptyDescription>
-                </EmptyHeader>
-            </Empty>
+            <AppEmptyState
+                scenario="unavailable"
+                size="section"
+                title="Gradebook unavailable"
+                description="This tab requires a course context."
+            />
         );
     }
 
@@ -501,15 +501,17 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
     if (!gradebook || errorMessage || !summary) {
         return (
-            <Empty className="border-border/70 bg-muted/40">
-                <EmptyHeader>
-                    <EmptyTitle>Gradebook failed to load</EmptyTitle>
-                    <EmptyDescription>{errorMessage ?? 'Unknown error.'}</EmptyDescription>
-                </EmptyHeader>
-                <div className="px-6 pb-6">
-                    <Button type="button" onClick={() => void loadGradebook()}>Retry</Button>
-                </div>
-            </Empty>
+            <AppEmptyState
+                scenario="unavailable"
+                size="section"
+                title="Gradebook failed to load"
+                description={errorMessage ?? 'Unknown error.'}
+                primaryAction={(
+                    <Button type="button" onClick={() => void loadGradebook()}>
+                        Retry
+                    </Button>
+                )}
+            />
         );
     }
 
@@ -728,40 +730,52 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
                 <div className="min-h-[400px] rounded-md border bg-card flex flex-col overflow-hidden">
                     {filteredAssessments.length === 0 ? (
-                        <Empty className="min-h-[400px] border-0 rounded-md">
-                            <EmptyHeader>
-                                <EmptyTitle>{hasActiveAssessmentFilters ? 'No assessments found' : 'No assessments added yet'}</EmptyTitle>
-                                <EmptyDescription>
-                                    {hasActiveAssessmentFilters
-                                        ? 'Try clearing the search to see more assessments.'
-                                        : 'Add your first assessment to start tracking this course.'}
-                                </EmptyDescription>
-                            </EmptyHeader>
-                            <EmptyContent className="sm:flex-row sm:justify-center">
-                                {hasActiveAssessmentFilters ? (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setSearchQuery('')}
-                                    >
-                                        Clear Search
-                                    </Button>
-                                ) : null}
-                                {!planMode ? (
-                                    <Button
-                                        type="button"
-                                        disabled={isMutating}
-                                        onClick={() => {
-                                            setAssessmentDraft(createAssessmentDraft(gradebook));
-                                            setAssessmentDialogOpen(true);
-                                        }}
-                                    >
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Add Assessment
-                                    </Button>
-                                ) : null}
-                            </EmptyContent>
-                        </Empty>
+                        <AppEmptyState
+                            scenario={hasActiveAssessmentFilters ? 'no-results' : 'create'}
+                            size="section"
+                            surface="inherit"
+                            className="min-h-[400px] rounded-md"
+                            title={hasActiveAssessmentFilters ? 'No assessments found' : 'No assessments added yet'}
+                            description={
+                                hasActiveAssessmentFilters
+                                    ? 'Try clearing the search to see more assessments.'
+                                    : 'Add your first assessment to start tracking this course.'
+                            }
+                            primaryAction={hasActiveAssessmentFilters ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setSearchQuery('')}
+                                >
+                                    Clear Search
+                                </Button>
+                            ) : !planMode ? (
+                                <Button
+                                    type="button"
+                                    disabled={isMutating}
+                                    onClick={() => {
+                                        setAssessmentDraft(createAssessmentDraft(gradebook));
+                                        setAssessmentDialogOpen(true);
+                                    }}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Add Assessment
+                                </Button>
+                            ) : undefined}
+                            secondaryAction={hasActiveAssessmentFilters && !planMode ? (
+                                <Button
+                                    type="button"
+                                    disabled={isMutating}
+                                    onClick={() => {
+                                        setAssessmentDraft(createAssessmentDraft(gradebook));
+                                        setAssessmentDialogOpen(true);
+                                    }}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Add Assessment
+                                </Button>
+                            ) : undefined}
+                        />
                     ) : (
                             <div className="max-h-[600px] overflow-hidden">
                                 <Table>

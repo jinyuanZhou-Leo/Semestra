@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Application source root containing entrypoints, routing shell, and domain modules.
-Feature behavior is composed from components, contexts, hooks, services, and utilities with context-safe optimistic synchronization.
+Feature behavior is composed from components, contexts, hooks, services, and utilities with context-safe optimistic synchronization plus business-layer semantic empty-state wrappers.
 Auth boot now relies on credentialed cookie sessions instead of browser-stored bearer tokens, with central session refresh and sign-out handling.
 The standalone `calendar-core/` domain layer now sits beside `plugins/` so Calendar event contributions can register through a dedicated API rather than the plugin loader.
 The plugin-system now keeps host-coupled built-in behavior out of the public plugin contract by separating plugin-global settings from tab/widget instance settings, while semester/course settings pages now resolve missing tab-plugin settings to terminal unavailable states instead of endless loading placeholders.
@@ -13,7 +13,7 @@ Global styling uses a class-driven dark variant to stay consistent with `ThemePr
 |------|------|-------------|
 | assets/ | Subdirectory | Source-level static assets imported by TS/TSX modules. |
 | calendar-core/ | Subdirectory | Standalone Calendar source contracts and registry used by Calendar and external event contributors. |
-| components/ | Subdirectory | Reusable application components (excluding `components/ui` in this scope), including widget settings overlays that keep their payload mounted through dialog exit animations, settings-section wrappers with inherited sticky offsets, and homepage tab bars with overflow edge-shadow cues. |
+| components/ | Subdirectory | Reusable application components (excluding `components/ui` in this scope), including widget settings overlays that keep their payload mounted through dialog exit animations, settings-section wrappers with inherited sticky offsets, homepage tab bars with overflow edge-shadow cues, and business-layer semantic empty-state wrappers. |
 | contexts/ | Subdirectory | React context providers and related hooks. |
 | hooks/ | Subdirectory | Reusable custom React hooks for race-safe data fetching, context-guarded dashboard sync, debounced settings auto-save scheduling, plugin shared-settings persistence, visible-tab settings preloading, and unavailable-widget cleanup routing. |
 | layouts/ | Subdirectory | Reserved layout abstractions. |

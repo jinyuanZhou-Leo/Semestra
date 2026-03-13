@@ -9,7 +9,7 @@ Program-level subject-code color maps now persist in the backend as stable locke
 |------|------|-------------|
 | INDEX.md | Folder architecture | Backend folder architecture summary and file responsibility map. |
 | .env.example | Environment template | Example backend environment variables for local setup, including JWT secret and auth-cookie settings. |
-| alembic/ | Migration workspace | Alembic environment and revision history for backend schema changes. |
+| alembic/ | Migration workspace | Alembic environment and revision history for backend schema changes, including legacy SQLite backfills for missing `programs.subject_color_map` and `courses.color` columns on older deployments. |
 | alembic.ini | Migration config | Alembic CLI configuration pointing at the backend migration workspace. |
 | auth.py | Auth utility | Handles JWT creation/validation, secure auth-cookie helpers, and current-user resolution from cookie or bearer token. |
 | color_utils.py | Color utility | Shared subject-code parsing, automatic color assignment, and Program subject-color-map serialization helpers used by CRUD and Todo flows. |
@@ -23,7 +23,7 @@ Program-level subject-code color maps now persist in the backend as stable locke
 | migrate_user_settings.py | Migration script | Creates and backfills user settings columns and defaults. |
 | migrate_week_pattern_to_alternating.py | Migration script | Migrates week pattern model to alternating-week structure. |
 | models.py | ORM models | Defines SQLAlchemy table models and relational constraints, including Program-level subject color maps, persisted course overrides, optional semester Reading Week dates, context-scoped plugin shared settings records, semester todo tables, and gradebook domain tables. |
-| prod.sh | Ops script | Production bootstrap script for backend service process startup. |
+| prod.sh | Ops script | Production deploy script that updates code, installs dependencies, loads the systemd env file, runs Alembic against the service database, and restarts the backend service. |
 | requirements.txt | Dependency manifest | Lists Python runtime dependencies required by backend. |
 | schemas.py | API schema layer | Defines request/response validation models, including Program subject-color settings, semester todo payloads, persisted course-color fields, plugin shared settings payloads, strict widget `layout_config` shape/range validation, and fact-oriented gradebook contracts. |
 | todo.py | Todo domain service | Owns semester-scoped todo migration from legacy tab settings plus task/section CRUD and API payload assembly without backend order persistence, while resolving stable Program default course colors for Todo tags. |

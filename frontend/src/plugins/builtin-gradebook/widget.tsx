@@ -1,6 +1,6 @@
-// input:  [course API, widget runtime contracts, and dashboard stat iconography]
+// input:  [course API, widget runtime contracts, dashboard stat iconography, and shared business empty-state wrappers]
 // output: [builtin-gradebook summary widget component and widget definition]
-// pos:    [course-scoped read-only KPI widget using CSS-only responsive vertical layout with workspace-stat precision]
+// pos:    [course-scoped read-only KPI widget using CSS-only responsive vertical layout with standardized unavailable empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,9 +11,9 @@
 import React from 'react';
 import { BookOpen, GraduationCap, Percent } from 'lucide-react';
 
+import { AppEmptyState } from '@/components/AppEmptyState';
 import api, { type Course } from '@/services/api';
 import type { WidgetDefinition, WidgetProps } from '@/services/widgetRegistry';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE } from './shared';
 import { cn } from '@/lib/utils';
@@ -84,12 +84,12 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
 
     if (!courseId) {
         return (
-            <Empty className="h-full border-border/70 bg-muted/30">
-                <EmptyHeader>
-                    <EmptyTitle>Gradebook unavailable</EmptyTitle>
-                    <EmptyDescription>This widget requires a course context.</EmptyDescription>
-                </EmptyHeader>
-            </Empty>
+            <AppEmptyState
+                scenario="unavailable"
+                size="widget"
+                title="Gradebook unavailable"
+                description="This widget requires a course context."
+            />
         );
     }
 
@@ -105,12 +105,12 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
 
     if (!course) {
         return (
-            <Empty className="h-full bg-muted/30">
-                <EmptyHeader>
-                    <EmptyTitle>Gradebook unavailable</EmptyTitle>
-                    <EmptyDescription>Failed to load the latest course metrics.</EmptyDescription>
-                </EmptyHeader>
-            </Empty>
+            <AppEmptyState
+                scenario="unavailable"
+                size="widget"
+                title="Gradebook unavailable"
+                description="Failed to load the latest course metrics."
+            />
         );
     }
 

@@ -1,6 +1,6 @@
-// input:  [course context, parent Program subject-color settings, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, and active tab selection state]
+// input:  [course context, parent Program subject-color settings, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, Program-derived default course colors, gradebook-owned course stats, plugin-global settings, unavailable-widget cleanup, and per-switch tab fade transitions]
+// pos:    [Course workspace page with workspace navigation, Program-derived default course colors, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,8 +11,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { AddWidgetModal } from '../components/AddWidgetModal';
 import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
@@ -306,14 +306,12 @@ const CourseHomepageContent: React.FC = () => {
         const TabComponent = activeTab ? getTabComponentByType(activeTab.type) : undefined;
         if (!activeTab) {
             return (
-                <Empty className="bg-muted/40">
-                    <EmptyHeader>
-                        <EmptyTitle>Tab not found</EmptyTitle>
-                        <EmptyDescription>
-                            The requested tab is unavailable.
-                        </EmptyDescription>
-                    </EmptyHeader>
-                </Empty>
+                <AppEmptyState
+                    scenario="unavailable"
+                    size="section"
+                    title="Tab not found"
+                    description="The requested tab is unavailable."
+                />
             );
         }
         if (!TabComponent) {
@@ -325,25 +323,21 @@ const CourseHomepageContent: React.FC = () => {
             }
             if (activeTabLoadState.status === 'error') {
                 return (
-                    <Empty className="bg-muted/40">
-                        <EmptyHeader>
-                            <EmptyTitle>Plugin failed to load</EmptyTitle>
-                            <EmptyDescription>
-                                {activeTab.type}
-                            </EmptyDescription>
-                        </EmptyHeader>
-                    </Empty>
+                    <AppEmptyState
+                        scenario="unavailable"
+                        size="section"
+                        title="Plugin failed to load"
+                        description={activeTab.type}
+                    />
                 );
             }
             return (
-                <Empty className="bg-muted/40">
-                    <EmptyHeader>
-                        <EmptyTitle>Unknown tab type</EmptyTitle>
-                        <EmptyDescription>
-                            {activeTab.type}
-                        </EmptyDescription>
-                    </EmptyHeader>
-                </Empty>
+                <AppEmptyState
+                    scenario="unavailable"
+                    size="section"
+                    title="Unknown tab type"
+                    description={activeTab.type}
+                />
             );
         }
         return (
@@ -576,19 +570,17 @@ const CourseHomepageContent: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <Empty className="my-16">
-                        <EmptyHeader>
-                            <EmptyTitle>Course not found</EmptyTitle>
-                            <EmptyDescription>
-                                The course you are looking for does not exist or has been deleted.
-                            </EmptyDescription>
-                        </EmptyHeader>
-                        <EmptyContent>
+                    <AppEmptyState
+                        scenario="not-found"
+                        size="page"
+                        title="Course not found"
+                        description="The course you are looking for does not exist or has been deleted."
+                        primaryAction={(
                             <Link to="/">
                                 <Button>Back to Home</Button>
                             </Link>
-                        </EmptyContent>
-                    </Empty>
+                        )}
+                    />
                 </Container>
             </Layout>
         );
@@ -663,17 +655,17 @@ export const CourseHomepage: React.FC = () => {
         return (
             <Layout>
                 <Container>
-                    <Empty className="my-16">
-                        <EmptyHeader>
-                            <EmptyTitle>Course not found</EmptyTitle>
-                            <EmptyDescription>No course ID provided.</EmptyDescription>
-                        </EmptyHeader>
-                        <EmptyContent>
+                    <AppEmptyState
+                        scenario="not-found"
+                        size="page"
+                        title="Course not found"
+                        description="No course ID provided."
+                        primaryAction={(
                             <Link to="/">
                                 <Button>Back to Home</Button>
                             </Link>
-                        </EmptyContent>
-                    </Empty>
+                        )}
+                    />
                 </Container>
             </Layout>
         );

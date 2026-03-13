@@ -1,14 +1,14 @@
-// input:  [program/semester identifiers, course CRUD APIs, auth default credit, dialog state, responsive overlay wrapper]
+// input:  [program/semester identifiers, course CRUD APIs, auth default credit, dialog state, responsive overlay wrapper, and shared business empty-state wrappers]
 // output: [`CourseManagerModal` component]
-// pos:    [Program dashboard responsive add-course surface (desktop dialog + mobile drawer)]
+// pos:    [Program dashboard responsive add-course surface with split loading and semantic empty-state feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { Button } from '@/components/ui/button';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -178,22 +178,20 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
 
                     <div className="flex-1 -mr-4 pr-4 overflow-y-auto">
                         {isLoading ? (
-                            <Empty className="border-border/70 bg-muted/40">
-                                <EmptyHeader>
-                                    <EmptyTitle>Loading...</EmptyTitle>
-                                    <EmptyDescription>Fetching unassigned courses.</EmptyDescription>
-                                </EmptyHeader>
+                            <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border border-border/70 bg-muted/30 px-5 py-9 text-center">
                                 <Spinner className="size-5 text-muted-foreground" />
-                            </Empty>
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium text-foreground">Loading courses</p>
+                                    <p className="text-sm text-muted-foreground">Fetching unassigned courses.</p>
+                                </div>
+                            </div>
                         ) : filteredCourses.length === 0 ? (
-                            <Empty className="border-border/70 bg-muted/40">
-                                <EmptyHeader>
-                                    <EmptyTitle>No courses found</EmptyTitle>
-                                    <EmptyDescription>
-                                        {searchTerm ? 'Try a different search term.' : 'All courses are assigned to semesters.'}
-                                    </EmptyDescription>
-                                </EmptyHeader>
-                            </Empty>
+                            <AppEmptyState
+                                scenario="no-results"
+                                size="modal"
+                                title="No courses found"
+                                description={searchTerm ? 'Try a different search term.' : 'All courses are assigned to semesters.'}
+                            />
                         ) : (
                             <div className="space-y-3">
                                 {filteredCourses.map(course => (

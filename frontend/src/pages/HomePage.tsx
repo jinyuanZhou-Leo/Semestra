@@ -1,6 +1,6 @@
-// input:  [program list/create/delete APIs, dialog context, route links, loading skeletons, responsive overlay wrapper]
+// input:  [program list/create/delete APIs, dialog context, route links, loading skeletons, responsive overlay wrapper, and shared business empty-state wrappers]
 // output: [`HomePage` plus local create/delete program confirmation and responsive create surface components]
-// pos:    [Authenticated root workspace page showing programs and high-level progress with mobile drawer program creation]
+// pos:    [Authenticated root workspace page showing programs, standardized create-empty feedback, and mobile drawer program creation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,9 +10,9 @@ import React, { useCallback, useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 
+import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -346,21 +346,21 @@ export const HomePage: React.FC = () => {
                         ))}
 
                         {programs.length === 0 && (
-                            <Empty className="col-span-full py-12">
-                                <EmptyHeader>
-                                    <EmptyTitle>No programs yet</EmptyTitle>
-                                    <EmptyDescription>
-                                        Create your first academic program to get started.
-                                    </EmptyDescription>
-                                </EmptyHeader>
-                                <CreateProgramDialogButton
+                            <AppEmptyState
+                                scenario="create"
+                                size="section"
+                                className="col-span-full py-12"
+                                title="No programs yet"
+                                description="Create your first academic program to get started."
+                                primaryAction={(
+                                    <CreateProgramDialogButton
                                     showAlert={showAlert}
                                     onCreated={fetchPrograms}
-                                    className="mt-4"
-                                >
-                                    Create Program
-                                </CreateProgramDialogButton>
-                            </Empty>
+                                    >
+                                        Create Program
+                                    </CreateProgramDialogButton>
+                                )}
+                            />
                         )}
                     </div>
                 )}
