@@ -1,6 +1,6 @@
 // input:  [FullCalendar React adapter, schedule/todo-derived calendar events, week/view state, calendar navigation callbacks, and todo completion toggles]
-// output: [FullCalendarView React component backed by the FullCalendar library with Apple Calendar-inspired event hierarchy, all-day todo radios, and a custom current-time indicator]
-// pos:    [calendar renderer that bridges built-in event-core state into week/month views with all-day support, compact schedule metadata, todo completion toggles, and a labeled now line]
+// output: [FullCalendarView React component backed by the FullCalendar library with Apple Calendar-inspired week headers, event hierarchy, all-day todo radios, and a custom current-time indicator]
+// pos:    [calendar renderer that bridges built-in event-core state into week/month views with all-day support, compact schedule metadata, Apple-style header chrome, todo completion toggles, and a labeled now line]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -59,7 +59,6 @@ type EventExtendedProps = {
   highlightConflicts: boolean;
 };
 
-const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 const dayNumberFormatter = new Intl.DateTimeFormat(undefined, { day: 'numeric' });
 
@@ -169,21 +168,24 @@ const renderDayHeader = ({ date, text, view }: DayHeaderContentArg) => {
   }
 
   return (
-    <>
-      <span className={cn('block font-semibold', isToday ? 'text-foreground' : 'text-foreground')}>
+    <span className={cn(
+      'semestra-calendar-weekday-header inline-flex items-center justify-center',
+      isToday ? 'gap-1' : 'gap-[0.18rem]',
+    )}>
+      <span className="text-[0.93rem] font-medium leading-none tracking-[-0.03em] text-foreground/84">
         {weekdayFormatter.format(date)}
       </span>
       <span
         className={cn(
-          'mt-1 inline-flex items-center justify-center text-xs',
+          'inline-flex h-6.5 min-w-6.5 items-center justify-center rounded-full px-1.5 text-[0.93rem] font-medium leading-none tracking-[-0.03em]',
           isToday
-            ? 'semestra-calendar-today-badge h-8 min-w-8 rounded-full px-2 font-semibold text-white'
-            : 'text-muted-foreground',
+            ? 'semestra-calendar-today-badge text-white'
+            : 'text-foreground/84',
         )}
       >
-        {isToday ? dayNumberFormatter.format(date) : dayFormatter.format(date)}
+        {dayNumberFormatter.format(date)}
       </span>
-    </>
+    </span>
   );
 };
 
@@ -297,7 +299,7 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
     >
       <div
         data-slot={viewMode === 'week' ? 'calendar-week-scroll-frame' : 'calendar-frame'}
-        className="h-full min-h-0"
+        className="h-full min-h-0 w-full"
         style={viewMode === 'week' ? { minWidth: `${weekViewMinWidthPercent}%` } : undefined}
       >
         <FullCalendar

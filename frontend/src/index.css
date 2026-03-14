@@ -1,7 +1,7 @@
 /*
 input:  [Tailwind layers, design tokens, global reset/typography/theme variables, and FullCalendar event chrome requirements]
-output: [application-wide CSS variables, base utility layers, and Apple Calendar-inspired event-surface styling]
-pos:    [Root stylesheet shared by every frontend route/component, including event-core calendar presentation]
+output: [application-wide CSS variables, base utility layers, and Apple Calendar-inspired calendar/event styling]
+pos:    [Root stylesheet shared by every frontend route/component, including event-core calendar presentation and Apple-style week headers]
 
 ⚠️ When this file is updated:
    1. Update these header comments
@@ -128,7 +128,7 @@ body>div>div[role="dialog"][data-state] {
   --semestra-calendar-scrollbar-thumb: color-mix(in oklab, var(--color-muted-foreground) 32%, transparent);
   --semestra-calendar-scrollbar-thumb-hover: color-mix(in oklab, var(--color-muted-foreground) 48%, transparent);
   --semestra-calendar-scrollbar-thumb-active: color-mix(in oklab, var(--color-muted-foreground) 58%, transparent);
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--semestra-calendar-scrollbar-thumb) var(--semestra-calendar-scrollbar-track);
 }
@@ -188,6 +188,7 @@ body>div>div[role="dialog"][data-state] {
 
 .semestra-fullcalendar .fc .fc-view-harness {
   min-width: 100%;
+  width: 100%;
 }
 
 .semestra-fullcalendar .fc .fc-scrollgrid {
@@ -198,7 +199,7 @@ body>div>div[role="dialog"][data-state] {
 
 .semestra-fullcalendar .fc .fc-scroller,
 .semestra-fullcalendar .fc .fc-scroller-liquid-absolute {
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--semestra-calendar-scrollbar-thumb) var(--semestra-calendar-scrollbar-track);
 }
@@ -259,10 +260,98 @@ body>div>div[role="dialog"][data-state] {
   padding: 0.65rem 0.7rem;
 }
 
+.semestra-fullcalendar .fc .fc-daygrid-day-top {
+  align-items: flex-start;
+  padding-top: 0.18rem;
+}
+
+.semestra-fullcalendar .fc .fc-daygrid-day-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  margin-top: 0.12rem;
+  margin-right: 0.12rem;
+  border-radius: 999px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.semestra-fullcalendar .fc .fc-col-header-cell {
+  background: color-mix(in oklab, var(--color-background) 96%, transparent);
+}
+
+.semestra-fullcalendar .fc .fc-timegrid .fc-col-header-cell-cushion {
+  display: flex;
+  min-height: 3.05rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.18rem 0.32rem 0.22rem;
+}
+
+.semestra-fullcalendar .fc .fc-timegrid .fc-col-header-cell:first-child .fc-col-header-cell-cushion {
+  padding-left: 0.12rem;
+}
+
+.semestra-calendar-weekday-header {
+  min-width: 0;
+  transform: translateX(-0.03rem);
+  line-height: 1;
+}
+
 .semestra-fullcalendar .fc .fc-timegrid-axis-cushion,
 .semestra-fullcalendar .fc .fc-timegrid-slot-label-cushion {
-  color: var(--color-muted-foreground);
-  font-size: 0.75rem;
+  color: color-mix(in oklab, var(--color-muted-foreground) 88%, transparent);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.semestra-fullcalendar .fc .fc-timegrid-axis {
+  width: 7.4rem;
+  background: color-mix(in oklab, var(--color-background) 97%, transparent);
+}
+
+.semestra-fullcalendar .fc .fc-timegrid-axis-frame,
+.semestra-fullcalendar .fc .fc-timegrid-slot-label-frame {
+  justify-content: flex-end;
+  padding-right: 0.5rem;
+}
+
+.semestra-fullcalendar .fc .fc-timegrid-axis-cushion {
+  display: block;
+  width: 100%;
+  max-width: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.semestra-fullcalendar .fc .fc-timegrid-all-day .fc-timegrid-axis-cushion {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  font-size: 0.66rem;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-transform: none;
+}
+
+.semestra-fullcalendar .fc .fc-dayGridMonth-view,
+.semestra-fullcalendar .fc .fc-dayGridMonth-view > table,
+.semestra-fullcalendar .fc .fc-daygrid-body,
+.semestra-fullcalendar .fc .fc-daygrid-body table {
+  width: 100% !important;
+}
+
+.semestra-fullcalendar .fc .fc-timegrid-slot-label {
+  vertical-align: middle;
+}
+
+.semestra-fullcalendar .fc .fc-timegrid-axis-cushion {
+  text-transform: lowercase;
 }
 
 .semestra-fullcalendar .fc .fc-day-today {
@@ -270,22 +359,17 @@ body>div>div[role="dialog"][data-state] {
 }
 
 .semestra-fullcalendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
-  display: inline-flex;
-  align-items: center;
-  width: 1.9rem;
-  height: 1.9rem;
-  padding: 0;
-  justify-content: center;
-  border-radius: 999px;
   background: var(--semestra-calendar-today-badge);
   color: white;
-  font-weight: 600;
-  line-height: 1;
 }
 
 .semestra-calendar-today-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
   background: var(--semestra-calendar-today-badge);
-  box-shadow: 0 1px 2px color-mix(in oklab, var(--semestra-calendar-today-badge) 18%, transparent);
+  box-shadow: none;
 }
 
 .semestra-fullcalendar .fc .fc-timegrid-now-indicator-line {
@@ -328,25 +412,20 @@ body>div>div[role="dialog"][data-state] {
 .semestra-fullcalendar .fc .fc-event {
   border-radius: 0.45rem;
   border: 0;
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--color-background) 26%, transparent),
-    0 1px 1px color-mix(in oklab, var(--color-foreground) 4%, transparent);
+  box-shadow: none;
   cursor: pointer;
   overflow: hidden;
-  backdrop-filter: blur(14px);
+  backdrop-filter: none;
   transition:
     background-color 180ms ease,
     filter 180ms ease,
     background-size 180ms ease,
-    box-shadow 180ms ease,
     transform 140ms ease;
 }
 
 .semestra-fullcalendar .fc .fc-event:hover {
   filter: saturate(1.04) brightness(1.01);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--color-background) 34%, transparent),
-    0 6px 14px color-mix(in oklab, var(--color-foreground) 8%, transparent);
+  box-shadow: none;
 }
 
 .semestra-fullcalendar .fc .fc-event:active {
@@ -426,16 +505,32 @@ body>div>div[role="dialog"][data-state] {
 
 .semestra-fullcalendar .fc .fc-daygrid-event-harness {
   margin-right: 0.1rem;
-  margin-top: 0.02rem;
+  margin-top: 0;
   margin-bottom: 0;
 }
 
+.semestra-fullcalendar .fc .fc-daygrid-day-events {
+  margin-top: 0.08rem;
+}
+
 .semestra-fullcalendar .fc .fc-timegrid-event-harness {
-  margin-right: 0;
+  padding-right: 0.16rem;
+  padding-left: 0.08rem;
+}
+
+.semestra-fullcalendar .fc .fc-timegrid-event-harness > .fc-timegrid-event {
+  left: 0.14rem;
+  right: 0.14rem;
+}
+
+.semestra-fullcalendar .fc .fc-timegrid-event-harness.fc-timegrid-event-harness-inset > .fc-timegrid-event {
+  left: 0.2rem;
+  right: 0.2rem;
 }
 
 .semestra-fullcalendar .fc .fc-timegrid-event {
   min-width: 0;
+  box-shadow: none;
 }
 
 .semestra-fullcalendar .fc .fc-daygrid-event {
@@ -470,17 +565,19 @@ body>div>div[role="dialog"][data-state] {
 .semestra-fullcalendar .fc .fc-daygrid-event[data-semestra-all-day="true"],
 .semestra-fullcalendar .fc .fc-timegrid-event[data-semestra-all-day="true"] {
   border-radius: 999px;
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--color-background) 18%, transparent),
-    0 1px 1px color-mix(in oklab, var(--color-foreground) 3%, transparent);
+  box-shadow: none;
+  height: 1.1rem;
+  min-height: 1.1rem;
 }
 
 .semestra-fullcalendar .fc .fc-daygrid-event[data-semestra-all-day="true"] .fc-event-main,
 .semestra-fullcalendar .fc .fc-timegrid-event[data-semestra-all-day="true"] .fc-event-main {
   display: flex;
   align-items: center;
-  padding: 0.12rem 0.34rem;
-  min-height: 1.4rem;
+  padding: 0.06rem 0.3rem;
+  height: 1.1rem;
+  min-height: 1.1rem;
+  line-height: 1;
 }
 
 .semestra-fullcalendar .fc .fc-daygrid-event[data-semestra-all-day="true"] .fc-event-main::before,
@@ -490,7 +587,7 @@ body>div>div[role="dialog"][data-state] {
 
 .semestra-fullcalendar .fc .fc-daygrid-event[data-semestra-all-day="true"] .fc-event-main,
 .semestra-fullcalendar .fc .fc-timegrid-event[data-semestra-all-day="true"] .fc-event-main {
-  padding-left: 0.34rem;
+  padding-left: 0.28rem;
 }
 
 .semestra-fullcalendar .fc .fc-daygrid-event[data-semestra-all-day="true"] .fc-event-main,
@@ -545,6 +642,10 @@ body>div>div[role="dialog"][data-state] {
   height: 2.9rem;
 }
 
+.semestra-fullcalendar .fc .fc-timegrid-col-events {
+  margin: 0 0.08rem 0 0;
+}
+
 .semestra-fullcalendar .fc .fc-scroller {
   scrollbar-width: thin;
 }
@@ -558,6 +659,20 @@ body>div>div[role="dialog"][data-state] {
   .semestra-fullcalendar .fc .fc-col-header-cell-cushion,
   .semestra-fullcalendar .fc .fc-daygrid-day-number {
     padding: 0.55rem 0.45rem;
+  }
+
+  .semestra-fullcalendar .fc .fc-timegrid .fc-col-header-cell-cushion {
+    min-height: 2.8rem;
+    padding: 0.26rem 0.18rem 0.28rem;
+  }
+
+  .semestra-fullcalendar .fc .fc-timegrid-axis {
+    width: 6.2rem;
+  }
+
+  .semestra-fullcalendar .fc .fc-timegrid-axis-frame,
+  .semestra-fullcalendar .fc .fc-timegrid-slot-label-frame {
+    padding-right: 0.38rem;
   }
 
   .semestra-fullcalendar .fc .fc-event-main {

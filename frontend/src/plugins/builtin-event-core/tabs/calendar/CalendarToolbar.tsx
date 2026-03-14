@@ -1,6 +1,6 @@
 // input:  [calendar period state, display week metadata, and calendar navigation callbacks]
 // output: [`CalendarToolbar` control bar for calendar navigation, view switching, and stable period summary display]
-// pos:    [Calendar header controls that use a unified shadcn-style toolbar layout with a compact Reading Week-aware period summary]
+// pos:    [Calendar header controls that use a unified shadcn-style toolbar layout with a compact single-shell Reading Week-aware period summary]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,6 @@
 
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -121,18 +120,17 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
 
       <div
         data-slot="calendar-period-summary"
-        className="flex min-w-[220px] items-center justify-end gap-2 rounded-md border bg-background px-2.5 py-1.5 shadow-xs sm:ml-auto sm:min-w-[248px]"
+        className="flex min-w-[208px] items-center justify-end gap-1.5 rounded-md border bg-background px-3 py-1.5 shadow-xs sm:ml-auto sm:min-w-[236px]"
       >
-        <Badge
+        <span
           data-slot="calendar-period-badge"
-          variant="secondary"
-          className="min-w-[116px] justify-center tabular-nums"
+          className="shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums text-foreground"
         >
           {summaryBadgeLabel}
-        </Badge>
+        </span>
         <p
           data-slot="calendar-period-range"
-          className="min-w-0 flex-1 truncate text-right text-sm font-medium text-foreground"
+          className="min-w-0 flex-1 truncate text-right text-sm font-medium text-muted-foreground"
         >
           {dateRangeLabel}
         </p>

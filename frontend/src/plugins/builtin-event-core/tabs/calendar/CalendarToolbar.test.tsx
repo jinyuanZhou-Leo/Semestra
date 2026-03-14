@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CalendarToolbar } from './CalendarToolbar';
 
 describe('CalendarToolbar', () => {
-  it('renders a stable summary card with separate week badge and date range', () => {
+  it('renders a stable single-shell summary card with separate week label and date range', () => {
     const { container } = render(
       <CalendarToolbar
         week={9}
@@ -36,10 +36,9 @@ describe('CalendarToolbar', () => {
     expect(screen.getByText('Apr 27 - May 3')).toBeInTheDocument();
     expect(summaryCard).not.toBeNull();
     expect(summaryBadge).not.toBeNull();
-    expect(summaryCard).toHaveClass('min-w-[220px]');
+    expect(summaryCard).toHaveClass('min-w-[208px]');
     expect(summaryCard).toHaveClass('rounded-md', 'border', 'bg-background');
-    expect(summaryBadge).toHaveClass('min-w-[116px]', 'tabular-nums');
-    expect(summaryBadge).toHaveAttribute('data-variant', 'secondary');
+    expect(summaryBadge).toHaveClass('tabular-nums', 'text-sm', 'font-semibold');
     expect(screen.queryByText('Academic week')).not.toBeInTheDocument();
   });
 

@@ -1,6 +1,6 @@
 // input:  [all-day calendar event data, precomputed labels/colors, view-context flags, and optional todo completion callback]
 // output: [`CalendarAllDayEventContent` component for all-day events across month and week views, including todo completion radios and gradebook icons]
-// pos:    [Calendar event-content leaf component dedicated to all-day event presentation with view-specific month/week handling, todo toggle affordances, and gradebook iconography]
+// pos:    [Calendar event-content leaf component dedicated to all-day event presentation with view-specific month/week handling, tighter pill sizing, todo toggle affordances, and gradebook iconography]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -65,14 +65,14 @@ export const CalendarAllDayEventContent: React.FC<CalendarAllDayEventContentProp
 
   if (isTodoAllDayEvent) {
     return (
-      <div className="flex min-w-0 items-center gap-1.5 text-[11px] leading-tight">
+      <div className="flex h-full min-w-0 items-center gap-1 text-[11px] leading-none">
         <button
           type="button"
           role="checkbox"
           aria-checked={optimisticCompleted}
           aria-label={`Toggle completion for ${primaryLabel}`}
           data-calendar-todo-toggle="true"
-          className="-ml-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-1 disabled:cursor-progress disabled:opacity-70"
+          className="-ml-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-1 disabled:cursor-progress disabled:opacity-70"
           disabled={isSubmitting}
           onMouseDown={(domEvent) => {
             domEvent.stopPropagation();
@@ -80,11 +80,11 @@ export const CalendarAllDayEventContent: React.FC<CalendarAllDayEventContentProp
           onClick={handleTodoToggle}
         >
           <span
-            className="flex size-4 items-center justify-center rounded-full border-2 bg-white"
+            className="flex size-3.5 items-center justify-center rounded-full border-2 bg-white"
             style={{ borderColor: resolvedAccentColor }}
           >
             <span className={cn(
-              'size-2 rounded-full transition-opacity',
+              'size-1.5 rounded-full transition-opacity',
               optimisticCompleted ? 'opacity-100' : 'opacity-0',
             )}
               style={{ backgroundColor: resolvedAccentColor }}
@@ -94,7 +94,7 @@ export const CalendarAllDayEventContent: React.FC<CalendarAllDayEventContentProp
         <div className="min-w-0 flex-1">
           <span
             className={cn(
-              'block truncate text-[11px] font-semibold leading-tight',
+              'block truncate text-[11px] font-semibold leading-none',
               optimisticCompleted ? 'text-muted-foreground/85' : 'text-foreground',
               showConflictLabel ? 'text-destructive' : null,
             )}
@@ -107,10 +107,10 @@ export const CalendarAllDayEventContent: React.FC<CalendarAllDayEventContentProp
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5 text-[11px] leading-tight">
+    <div className="flex h-full min-w-0 items-center gap-1 text-[11px] leading-none">
       {isGradebookAllDayEvent ? (
         <span
-          className="-ml-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full"
+          className="-ml-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-full"
           style={{
             color: resolvedAccentColor,
             backgroundColor: `color-mix(in oklab, ${resolvedAccentColor} 16%, transparent)`,
@@ -118,7 +118,7 @@ export const CalendarAllDayEventContent: React.FC<CalendarAllDayEventContentProp
           aria-label="Gradebook event"
           role="img"
         >
-          <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+          <BookOpen className="h-2.5 w-2.5" aria-hidden="true" />
         </span>
       ) : !isMonthView ? (
         <span
@@ -130,7 +130,7 @@ export const CalendarAllDayEventContent: React.FC<CalendarAllDayEventContentProp
       <div className="min-w-0 flex-1">
         <span
           className={cn(
-            'semestra-calendar-event-title block truncate font-medium',
+            'semestra-calendar-event-title block truncate font-medium leading-none',
             showConflictLabel ? 'semestra-calendar-event-title--conflict text-destructive' : '',
           )}
           style={!showConflictLabel ? { ['--semestra-event-title-color' as string]: resolvedAccentColor } : undefined}

@@ -1,6 +1,6 @@
 // input:  [precomputed standard calendar event labels, colors, recurrence state, optional metadata, time text, and view-context flags]
 // output: [`CalendarStandardEventContent` component for non-all-day events across month and week views]
-// pos:    [Calendar event-content leaf component dedicated to standard timed events with month-chip and week-card variants]
+// pos:    [Calendar event-content leaf component dedicated to standard timed events with month-chip and week-card variants plus unified metadata rows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -78,9 +78,6 @@ export const CalendarStandardEventContent: React.FC<CalendarStandardEventContent
           {primaryLabel}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {showConflictLabel ? (
-            <AlertTriangle className="h-3 w-3 text-destructive" aria-hidden="true" />
-          ) : null}
           {isRecurring ? (
             <span
               className="inline-flex shrink-0"
@@ -95,20 +92,21 @@ export const CalendarStandardEventContent: React.FC<CalendarStandardEventContent
       </div>
       <div className="space-y-1">
         {showLocation && location ? (
-          <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium leading-none text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-1 text-[11px] font-medium leading-none text-muted-foreground">
             <MapPin className="h-3 w-3 shrink-0" style={{ color: resolvedAccentColor }} aria-hidden="true" />
             <span className="truncate" style={{ color: resolvedAccentColor }}>{location}</span>
           </div>
         ) : null}
-        {showTimeRange ? (
-          <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium leading-none text-muted-foreground">
-            <Clock3 className="h-3 w-3 shrink-0" style={{ color: resolvedAccentColor }} aria-hidden="true" />
-            <span className="truncate" style={{ color: resolvedAccentColor }}>{timeRangeLabel}</span>
+        {showConflictLabel ? (
+          <div className="flex min-w-0 items-center gap-1 text-[11px] font-medium leading-none text-muted-foreground">
+            <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" aria-hidden="true" />
+            <span className="truncate text-destructive">Conflict</span>
           </div>
         ) : null}
-        {showConflictLabel && !showTimeRange ? (
-          <div className="text-[10px] font-semibold text-destructive">
-            Conflict
+        {showTimeRange ? (
+          <div className="flex min-w-0 items-center gap-1 text-[11px] font-medium leading-none text-muted-foreground">
+            <Clock3 className="h-3 w-3 shrink-0" style={{ color: resolvedAccentColor }} aria-hidden="true" />
+            <span className="truncate" style={{ color: resolvedAccentColor }}>{timeRangeLabel}</span>
           </div>
         ) : null}
       </div>
