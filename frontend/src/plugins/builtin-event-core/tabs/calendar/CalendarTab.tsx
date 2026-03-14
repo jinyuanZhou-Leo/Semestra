@@ -15,7 +15,8 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import type { CalendarEventData, CalendarRefreshSignal } from '@/calendar-core';
 import { useCalendarSourceRegistry } from '@/calendar-core';
 import type { TabProps } from '@/services/tabRegistry';
-import { timetableEventBus, useEventBus } from '../../shared/eventBus';
+import { useEventBus } from '../../shared/eventBus';
+import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 import { isDateInReadingWeek } from '../../shared/utils';
 import { CalendarToolbar } from './CalendarToolbar';
 import { CalendarSkeleton } from './components/CalendarSkeleton';
@@ -127,7 +128,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
         semesterId,
       });
       skipNextRefreshRef.current = signal;
-      timetableEventBus.publish('timetable:schedule-data-changed', {
+      await publishTimetableScheduleChange({
         source: 'course',
         reason: 'event-updated',
         courseId: event.courseId,

@@ -10,6 +10,8 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import axios from 'axios';
 import { SessionExpiredModal } from '../components/SessionExpiredModal';
 import { DEFAULT_GPA_SCALING_TABLE_JSON } from '../utils/gpaUtils';
+import { queryClient } from '../services/queryClient';
+import { queryKeys } from '../services/queryKeys';
 
 const DEFAULT_COURSE_CREDIT = 0.5;
 
@@ -84,6 +86,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const clearSessionState = useCallback(() => {
         setUser(null);
+        queryClient.setQueryData(queryKeys.user.me(), null);
+        queryClient.clear();
     }, []);
 
     const logout = useCallback(async () => {
@@ -101,7 +105,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchUser = useCallback(async () => {
         try {
             const response = await axios.get<User>('/api/users/me');
-            setUser(normalizeUser(response.data));
+            const normalizedUser = normalizeUser(response.data);
+            setUser(normalizedUser);
+            queryClient.setQueryData(queryKeys.user.me(), normalizedUser);
         } catch (error) {
             const responseStatus = (error as any).response?.status;
             if (responseStatus === 401) {

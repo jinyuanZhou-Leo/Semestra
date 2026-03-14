@@ -9,6 +9,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import scheduleService from '@/services/schedule';
+import { createQueryClientWrapper } from '@/test/queryClientWrapper';
 import { useScheduleData } from './useScheduleData';
 
 vi.mock('@/services/schedule', () => ({
@@ -46,6 +47,7 @@ describe('useScheduleData', () => {
     });
 
     const transitions: Array<{ isLoading: boolean; isRefreshing: boolean; itemCount: number }> = [];
+    const { Wrapper } = createQueryClientWrapper();
 
     const { result } = renderHook(() => {
       const value = useScheduleData({
@@ -63,7 +65,7 @@ describe('useScheduleData', () => {
       });
 
       return value;
-    });
+    }, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(result.current.items).toHaveLength(1);

@@ -10,6 +10,7 @@ This layer now also exposes built-in Calendar source ids, timetable refresh payl
 | constants.ts | Shared constants | Built-in tab/widget ids, standalone Calendar source ids, and schedule/calendar cache and rendering constants. |
 | eventBus.ts | Event bus | Lightweight timetable event bus used to fan out scoped schedule mutations and todo storage sync payloads. |
 | hooks/ | Shared hooks | Event-core hooks including cached schedule loading helpers. |
+| publishTimetableScheduleChange.ts | Publisher helper | Shared schedule-change emitter that resolves missing semester context before broadcasting Calendar refresh signals. |
 | utils.test.ts | Test file | Guards timezone-safe semester date parsing, DST-safe Reading Week range validation, and week-number alignment helpers. |
 | types.ts | Shared types | Schedule/event payload types shared across tabs, widget, settings surfaces, todo storage sync, and external Calendar-source refresh wiring, including `calendar-core` event re-exports and week-view screen-width calendar settings state. |
 | utils.ts | Shared utilities | Date/time conversion, DST-safe semester week/date helpers, Reading Week-aware numbering/filtering helpers, recurring-event mapping, schedule grouping, filtering, and source-ready calendar/todo event mappers. |

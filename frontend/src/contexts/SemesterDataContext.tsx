@@ -10,6 +10,7 @@ import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Semester, Course, Widget, Tab } from '../services/api';
 import { useEntityContext } from '../hooks/useEntityContext';
+import { queryKeys } from '../services/queryKeys';
 
 export type SemesterWithDetails = Semester & {
     courses: Course[];
@@ -21,6 +22,7 @@ interface SemesterDataContextType {
     semester: SemesterWithDetails | null;
     setSemester: React.Dispatch<React.SetStateAction<SemesterWithDetails | null>>;
     updateSemester: (updates: Partial<Semester>) => void;
+    saveSemester: (updates: Partial<Semester>) => Promise<void>;
     refreshSemester: () => Promise<void>;
     isLoading: boolean;
 }
@@ -48,21 +50,25 @@ export const SemesterDataProvider: React.FC<SemesterDataProviderProps> = ({ seme
         data: semester,
         setData: setSemester,
         updateData: updateSemester,
+        commitData: saveSemester,
         refresh: refreshSemester,
         isLoading
     } = useEntityContext<SemesterWithDetails>({
         entityId: semesterId,
+        queryKey: queryKeys.semesters.detail(semesterId),
         fetchFn,
-        updateFn
+        updateFn,
+        staleTimeMs: 60_000,
     });
 
     const value: SemesterDataContextType = useMemo(() => ({
         semester,
         setSemester,
         updateSemester,
+        saveSemester,
         refreshSemester,
         isLoading
-    }), [semester, setSemester, updateSemester, refreshSemester, isLoading]);
+    }), [semester, setSemester, updateSemester, saveSemester, refreshSemester, isLoading]);
 
     return (
         <SemesterDataContext.Provider value={value}>

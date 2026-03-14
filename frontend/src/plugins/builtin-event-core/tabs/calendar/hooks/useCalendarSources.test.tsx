@@ -143,4 +143,28 @@ describe('useCalendarSources', () => {
     expect(scheduleLoad).toHaveBeenCalledTimes(2);
     expect(todoLoad).toHaveBeenCalledTimes(2);
   });
+
+  it('hydrates from cached source data without triggering a cold load', async () => {
+    const load = vi.fn(async () => [buildEvent('loaded-event', 'owner:cached')]);
+    const source: CalendarSourceDefinition = {
+      id: 'owner:cached',
+      ownerId: 'owner',
+      label: 'Cached',
+      defaultColor: '#3b82f6',
+      priority: 100,
+      getCached: () => [buildEvent('cached-event', 'owner:cached')],
+      load,
+      shouldRefresh: () => true,
+    };
+
+    const { result } = renderHook(() => useCalendarSources({
+      sources: [source],
+      context: calendarContext,
+    }));
+
+    expect(result.current.events).toHaveLength(1);
+    expect(result.current.events[0]?.id).toBe('cached-event');
+    expect(result.current.isLoading).toBe(false);
+    expect(load).not.toHaveBeenCalled();
+  });
 });

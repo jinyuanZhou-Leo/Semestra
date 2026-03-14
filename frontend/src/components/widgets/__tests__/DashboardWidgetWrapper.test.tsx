@@ -67,7 +67,7 @@ describe('DashboardWidgetWrapper', () => {
         );
 
         expect(screen.getByTestId('loaded-widget')).toBeInTheDocument();
-        expect(container.querySelector('.motion-safe\\:animate-in')).not.toBeNull();
+        expect(container.querySelector('.motion-safe\\:transition-opacity')).not.toBeNull();
     });
 
     it('keeps delete available for unavailable widgets even when the normal widget remove action is disabled', () => {

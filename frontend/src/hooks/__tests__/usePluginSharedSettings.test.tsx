@@ -9,6 +9,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createQueryClientWrapper } from '@/test/queryClientWrapper';
 import { usePluginSharedSettings } from '../usePluginSharedSettings';
 
 const { apiMock } = vi.hoisted(() => ({
@@ -54,10 +55,11 @@ describe('usePluginSharedSettings', () => {
       })
     );
 
+    const { Wrapper } = createQueryClientWrapper();
     const { result } = renderHook(() => usePluginSharedSettings({
       pluginId: 'course-list',
       semesterId: 'semester-1',
-    }));
+    }), { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -96,10 +98,11 @@ describe('usePluginSharedSettings', () => {
     );
 
     try {
+      const { Wrapper } = createQueryClientWrapper();
       const { result, rerender } = renderHook(() => usePluginSharedSettings({
         pluginId: 'course-list',
         semesterId: 'semester-1',
-      }));
+      }), { wrapper: Wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);

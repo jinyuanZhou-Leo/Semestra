@@ -12,6 +12,7 @@ import type { CalendarSourceDefinition } from '@/calendar-core';
 import { registerCalendarSources } from '@/calendar-core';
 import scheduleService from '@/services/schedule';
 import api from '@/services/api';
+import { createQueryClientWrapper } from '@/test/queryClientWrapper';
 import { CalendarTab } from './CalendarTab';
 
 vi.mock('@/services/schedule', () => ({
@@ -38,6 +39,10 @@ vi.mock('./FullCalendarView', () => ({
 
 vi.mock('./EventEditor', () => ({
   EventEditor: () => null,
+}));
+
+vi.mock('./sources/registerBuiltinCalendarSources', () => ({
+  ensureBuiltinCalendarSourcesRegistered: vi.fn(),
 }));
 
 beforeAll(() => {
@@ -87,6 +92,7 @@ describe('CalendarTab', () => {
     };
 
     const unregister = registerCalendarSources('test-owner', [externalSource]);
+    const { Wrapper } = createQueryClientWrapper();
 
     try {
       vi.mocked(api.getSemester).mockResolvedValue({
@@ -115,6 +121,7 @@ describe('CalendarTab', () => {
           settings={{}}
           updateSettings={vi.fn()}
         />,
+        { wrapper: Wrapper },
       );
 
       await waitFor(() => {

@@ -1,8 +1,8 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
-Service and registry layer for HTTP APIs, plugin registries, and app status.
-Defines frontend domain contracts mirroring backend schema responses.
-Central place for retry policy, cookie-auth HTTP defaults, semester todo APIs, plugin shared settings persistence, and plugin registration rules.
+Service and registry layer for HTTP APIs, TanStack Query infrastructure, plugin registries, and app status.
+Defines frontend domain contracts mirroring backend schema responses plus canonical cache keys for shared server-state resources.
+Central place for retry policy, cookie-auth HTTP defaults, semester todo APIs, plugin shared settings persistence, query cache setup, and plugin registration rules.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -11,6 +11,8 @@ Central place for retry policy, cookie-auth HTTP defaults, semester todo APIs, p
 | http.ts | Service module | Axios bootstrap that applies API base URL overrides and enables credentialed cookie-auth requests. |
 | pluginSettingsRegistry.tsx | Service module | Registry for plugin-global settings sections plus framework-managed shared-settings prop types, with cached per-context snapshots, per-plugin replacement, and `useSyncExternalStore`-safe subscriptions. |
 | pluginSettingsRegistry.test.tsx | Test file | Verifies plugin-global settings ordering, context filtering, replacement behavior, and stable cached snapshot references. |
+| queryClient.ts | Service module | Shared TanStack Query client singleton with app-wide query/mutation defaults for cache lifetime and retries. |
+| queryKeys.ts | Service module | Canonical query-key factory used by contexts, hooks, and plugin surfaces to share cached resources consistently. |
 | retryPolicy.ts | Service module | Service abstraction handling retry policy domain logic. |
 | schedule.ts | Service module | Service abstraction handling schedule domain logic. |
 | tabRegistry.tsx | Service module | Runtime tab registry that stores loaded tab components plus lifecycle hooks after the plugin facade resolves metadata and lazy runtime modules. |

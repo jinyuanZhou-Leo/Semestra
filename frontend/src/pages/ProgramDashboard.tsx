@@ -324,7 +324,7 @@ const DeleteSemesterButton: React.FC<DeleteSemesterButtonProps> = ({
 };
 
 const ProgramDashboardContent: React.FC = () => {
-    const { program, updateProgram, refreshProgram, isLoading } = useProgramData();
+    const { program, saveProgram, refreshProgram, isLoading } = useProgramData();
     const { alert: showAlert } = useDialog();
 
     // Modal State
@@ -343,7 +343,7 @@ const ProgramDashboardContent: React.FC = () => {
 
     const handleUpdateProgram = async (data: any) => {
         if (!program) return;
-        updateProgram(data);
+        await saveProgram(data);
     };
 
     const subjectColorMap = useMemo(

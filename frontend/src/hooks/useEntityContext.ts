@@ -1,26 +1,30 @@
-// input:  [entity ID, typed fetch/update functions, debounce interval, `useDataFetch`, stale-context guards]
-// output: [`useEntityContext<T>()` hook with optimistic `updateData`, refresh APIs, and context-safe sync]
-// pos:    [Reusable optimistic-sync engine behind course and semester data providers]
+// input:  [entity ID, typed fetch/update functions, debounce interval, TanStack Query key/client utilities, and stale-context guards]
+// output: [`useEntityContext<T>()` hook with query-cache-backed optimistic `updateData`, refresh APIs, and context-safe sync]
+// pos:    [Reusable optimistic-sync engine behind course, semester, and program data providers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { useCallback, useRef, useEffect } from 'react';
-import { useDataFetch } from './useDataFetch';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryKey } from '@tanstack/react-query';
 import { reportError } from '../services/appStatus';
 
 interface UseEntityContextOptions<T> {
     entityId: string;
+    queryKey: QueryKey;
     fetchFn: (id: string) => Promise<T>;
     updateFn: (id: string, updates: Partial<T>) => Promise<Partial<T>>;
     debounceMs?: number;
+    staleTimeMs?: number;
 }
 
 interface UseEntityContextResult<T> {
     data: T | null;
     setData: React.Dispatch<React.SetStateAction<T | null>>;
     updateData: (updates: Partial<T>) => void;
+    commitData: (updates: Partial<T>) => Promise<void>;
     refresh: () => Promise<void>;
     isLoading: boolean;
 }
@@ -41,25 +45,38 @@ interface UseEntityContextResult<T> {
  */
 export function useEntityContext<T extends object>({
     entityId,
+    queryKey,
     fetchFn,
     updateFn,
-    debounceMs = 1000
+    debounceMs = 1000,
+    staleTimeMs
 }: UseEntityContextOptions<T>): UseEntityContextResult<T> {
     const pendingUpdates = useRef<Partial<T>>({});
     const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const syncSeqRef = useRef(0);
     const entityIdRef = useRef(entityId);
+    const queryClient = useQueryClient();
 
-    const fetchEntityFn = useCallback(() => fetchFn(entityId), [entityId, fetchFn]);
+    const { data, isLoading } = useQuery<T>({
+        queryKey,
+        queryFn: () => fetchFn(entityId),
+        enabled: !!entityId,
+        staleTime: staleTimeMs,
+    });
 
-    const {
-        data,
-        setData,
-        isLoading,
-        silentRefresh
-    } = useDataFetch<T>({
-        fetchFn: fetchEntityFn,
-        enabled: !!entityId
+    const setData = useCallback<React.Dispatch<React.SetStateAction<T | null>>>((updater) => {
+        queryClient.setQueryData<T | null>(queryKey, (current) => {
+            const baseValue = current ?? null;
+            return typeof updater === 'function'
+                ? (updater as (prevState: T | null) => T | null)(baseValue)
+                : updater;
+        });
+    }, [queryClient, queryKey]);
+
+    const mutation = useMutation({
+        mutationFn: async ({ targetEntityId, updates }: { targetEntityId: string; updates: Partial<T> }) => (
+            updateFn(targetEntityId, updates)
+        ),
     });
 
     const syncToBackend = useCallback(async () => {
@@ -71,7 +88,7 @@ export function useEntityContext<T extends object>({
         const syncSeq = ++syncSeqRef.current;
 
         try {
-            const result = await updateFn(targetEntityId, updates);
+            const result = await mutation.mutateAsync({ targetEntityId, updates });
             if (entityIdRef.current !== targetEntityId) return;
             // Apply server-authoritative data only if no newer updates are pending.
             if (syncSeq === syncSeqRef.current && Object.keys(pendingUpdates.current).length === 0) {
@@ -87,7 +104,7 @@ export function useEntityContext<T extends object>({
             pendingUpdates.current = { ...updates, ...pendingUpdates.current };
             reportError('Failed to sync changes. Will retry.');
         }
-    }, [updateFn, setData]);
+    }, [mutation, setData]);
 
     const updateData = useCallback((updates: Partial<T>) => {
         // Optimistic update: apply changes to local state immediately
@@ -105,6 +122,39 @@ export function useEntityContext<T extends object>({
         }
         syncTimerRef.current = setTimeout(syncToBackend, debounceMs);
     }, [syncToBackend, setData, debounceMs]);
+
+    const commitData = useCallback(async (updates: Partial<T>) => {
+        const targetEntityId = entityIdRef.current;
+        if (!targetEntityId) return;
+
+        if (syncTimerRef.current) {
+            clearTimeout(syncTimerRef.current);
+            syncTimerRef.current = null;
+        }
+        pendingUpdates.current = {};
+        syncSeqRef.current += 1;
+
+        setData(prev => {
+            if (!prev) return prev;
+            return { ...prev, ...updates };
+        });
+
+        try {
+            const result = await mutation.mutateAsync({ targetEntityId, updates });
+            if (entityIdRef.current !== targetEntityId) return;
+
+            setData(prev => {
+                if (!prev) return result as T;
+                return { ...prev, ...result };
+            });
+        } catch (error) {
+            console.error(`Failed to commit entity ${targetEntityId} to backend`, error);
+            reportError('Failed to sync changes. Please retry.');
+            await queryClient.invalidateQueries({ queryKey });
+            await queryClient.refetchQueries({ queryKey, type: 'active' });
+            throw error;
+        }
+    }, [mutation, queryClient, queryKey, setData]);
 
     useEffect(() => {
         entityIdRef.current = entityId;
@@ -127,20 +177,25 @@ export function useEntityContext<T extends object>({
                 const targetEntityId = entityIdRef.current;
                 const pending = { ...pendingUpdates.current };
                 pendingUpdates.current = {};
-                void updateFn(targetEntityId, pending)
+                void mutation.mutateAsync({ targetEntityId, updates: pending })
                     .catch((error) => {
                         console.error(`Failed to flush entity ${targetEntityId} updates`, error);
                         reportError('Failed to sync changes. Please retry.');
                     });
             }
         };
-    }, [updateFn]);
+    }, [mutation]);
 
     return {
-        data,
+        data: data ?? null,
         setData,
         updateData,
-        refresh: silentRefresh,
+        commitData,
+        refresh: async () => {
+            if (!entityId) return;
+            await queryClient.invalidateQueries({ queryKey });
+            await queryClient.refetchQueries({ queryKey, type: 'active' });
+        },
         isLoading
     };
 }

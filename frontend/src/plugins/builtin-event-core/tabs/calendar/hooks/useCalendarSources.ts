@@ -33,8 +33,31 @@ interface UseCalendarSourcesOptions {
   context: CalendarSourceContext | null;
 }
 
+const buildCachedState = (
+  sources: CalendarSourceDefinition[],
+  context: CalendarSourceContext,
+): CalendarSourcesState => {
+  const dataBySourceId = new Map<string, CalendarEventData[]>();
+
+  for (const source of sources) {
+    const cachedEvents = source.getCached?.(context);
+    if (cachedEvents) {
+      dataBySourceId.set(source.id, cachedEvents);
+    }
+  }
+
+  return {
+    dataBySourceId,
+    loadingSourceIds: new Set(),
+    errorBySourceId: new Map(),
+  };
+};
+
 export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptions) => {
-  const [state, setState] = React.useState<CalendarSourcesState>(EMPTY_STATE);
+  const [state, setState] = React.useState<CalendarSourcesState>(() => {
+    if (!context) return EMPTY_STATE;
+    return buildCachedState(sources, context);
+  });
   const requestCounterRef = React.useRef(0);
 
   const replaceSourceState = React.useCallback((
@@ -126,7 +149,13 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       return;
     }
 
-    void loadSources(sources);
+    const cachedState = buildCachedState(sources, context);
+    setState(cachedState);
+
+    const uncachedSources = sources.filter((source) => !cachedState.dataBySourceId.has(source.id));
+    if (uncachedSources.length === 0) return;
+
+    void loadSources(uncachedSources);
   }, [context, loadSources, sources]);
 
   const reloadMatchingSources = React.useCallback(async (signal: CalendarRefreshSignal) => {
@@ -134,6 +163,7 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
     const targetSources = signal.type === 'manual'
       ? sources
       : sources.filter((source) => source.shouldRefresh(signal, context));
+    await Promise.all(targetSources.map((source) => source.invalidate?.(signal, context)));
     await loadSources(targetSources);
   }, [context, loadSources, sources]);
 

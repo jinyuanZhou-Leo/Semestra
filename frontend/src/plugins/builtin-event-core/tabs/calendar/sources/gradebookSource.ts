@@ -10,6 +10,8 @@
 
 import api, { type Course, type GradebookAssessment } from '@/services/api';
 import type { CalendarEventData, CalendarSourceDefinition } from '@/calendar-core';
+import { queryClient } from '@/services/queryClient';
+import { queryKeys } from '@/services/queryKeys';
 import {
   BUILTIN_CALENDAR_SOURCE_GRADEBOOK,
   BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
@@ -108,20 +110,66 @@ const buildGradebookEvent = (
   };
 };
 
+const buildCachedGradebookEvents = (context: Parameters<NonNullable<CalendarSourceDefinition['getCached']>>[0]) => {
+  const semester = queryClient.getQueryData<Awaited<ReturnType<typeof api.getSemester>>>(
+    queryKeys.semesters.detail(context.semesterId),
+  );
+  if (!semester) return undefined;
+
+  const courses = (semester.courses ?? []) as Course[];
+  const gradebookCourses = courses.filter((course) => course.has_gradebook);
+  const cachedEntries = gradebookCourses.map((course) => {
+    const gradebook = queryClient.getQueryData<Awaited<ReturnType<typeof api.getCourseGradebook>>>(
+      queryKeys.courses.gradebook(course.id),
+    );
+    if (!gradebook) return null;
+    return { course, gradebook };
+  }).filter((entry): entry is { course: Course; gradebook: Awaited<ReturnType<typeof api.getCourseGradebook>> } => entry !== null);
+
+  if (gradebookCourses.length > 0 && cachedEntries.length === 0) {
+    return undefined;
+  }
+
+  return cachedEntries.flatMap((entry) => (
+    entry.gradebook.assessments
+      .map((assessment) => (
+        buildGradebookEvent(
+          assessment,
+          context.semesterRange.startDate,
+          context.semesterRange.endDate,
+          entry.course.id,
+          entry.course.name,
+        )
+      ))
+      .filter((event): event is CalendarEventData => event !== null)
+  ));
+};
+
 export const builtinGradebookCalendarSource: CalendarSourceDefinition = {
   id: BUILTIN_CALENDAR_SOURCE_GRADEBOOK,
   ownerId: BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
   label: 'Gradebook',
   defaultColor: '#f59e0b',
   priority: 300,
+  getCached: buildCachedGradebookEvents,
   load: async (context) => {
-    const semester = await api.getSemester(context.semesterId);
+    const semester = await queryClient.ensureQueryData({
+      queryKey: queryKeys.semesters.detail(context.semesterId),
+      queryFn: () => api.getSemester(context.semesterId),
+      staleTime: Infinity,
+      gcTime: Infinity,
+    });
     const courses = (semester.courses ?? []) as Course[];
     const gradebookCourses = courses.filter((course) => course.has_gradebook);
     const gradebookResponses = await runWithConcurrencyLimit(
       gradebookCourses.map((course) => async () => {
         try {
-          const gradebook = await api.getCourseGradebook(course.id);
+          const gradebook = await queryClient.ensureQueryData({
+            queryKey: queryKeys.courses.gradebook(course.id),
+            queryFn: () => api.getCourseGradebook(course.id),
+            staleTime: Infinity,
+            gcTime: Infinity,
+          });
           return { course, gradebook };
         } catch {
           return null;
@@ -144,6 +192,29 @@ export const builtinGradebookCalendarSource: CalendarSourceDefinition = {
         ))
         .filter((event): event is CalendarEventData => event !== null);
     });
+  },
+  invalidate: async (signal, context) => {
+    if (
+      signal.type === 'manual'
+      || signal.source === 'semester'
+      || signal.reason === 'course-updated'
+    ) {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.semesters.detail(context.semesterId) });
+    }
+
+    if (signal.type === 'timetable' && signal.courseId) {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.courses.gradebook(signal.courseId) });
+      return;
+    }
+
+    const semester = queryClient.getQueryData<{ courses?: Course[] }>(queryKeys.semesters.detail(context.semesterId));
+    const courseIds = (semester?.courses ?? [])
+      .filter((course) => course.has_gradebook)
+      .map((course) => course.id);
+
+    await Promise.all(courseIds.map((courseId) => (
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.gradebook(courseId) })
+    )));
   },
   shouldRefresh: (signal, context) => {
     if (signal.type !== 'timetable') return true;

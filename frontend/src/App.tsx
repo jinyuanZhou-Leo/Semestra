@@ -1,6 +1,6 @@
-// input:  [router primitives, global providers, route guards, lazily imported page modules]
+// input:  [router primitives, global providers, route guards, lazily imported page modules, and TanStack Query client provider]
 // output: [default `App` component and `RootGate` product-first root entry resolver]
-// pos:    [Root composition module that defines the app route tree and provider stack]
+// pos:    [Root composition module that defines the app route tree, query cache boundary, and provider stack]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,6 +8,7 @@
 
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { useAuth } from './contexts/AuthContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -16,6 +17,7 @@ import { RequireAuth } from './components/RequireAuth';
 import { PageSkeleton } from './components/PageSkeleton';
 import { DialogProvider } from './contexts/DialogContext';
 import { Toaster } from "sonner"
+import { queryClient } from './services/queryClient';
 
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));
@@ -46,80 +48,82 @@ const RootGate = () => {
 
 function App() {
   return (
-    <Router>
-      <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
-        <AuthProvider>
-          <DialogProvider>
-            <Routes>
-              <Route path="/login" element={
-                <Suspense fallback={null}>
-                  <LoginPage />
-                </Suspense>
-              } />
-              <Route path="/register" element={
-                <Suspense fallback={null}>
-                  <RegisterPage />
-                </Suspense>
-              } />
-              <Route
-                path="/"
-                element={<RootGate />}
-              />
-              <Route
-                path="/landing"
-                element={
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+          <AuthProvider>
+            <DialogProvider>
+              <Routes>
+                <Route path="/login" element={
                   <Suspense fallback={null}>
-                    <LandingPage />
+                    <LoginPage />
                   </Suspense>
-                }
-              />
-              <Route
-                path="/programs/:id"
-                element={
-                  <RequireAuth>
-                    <Suspense fallback={<PageSkeleton />}>
-                      <ProgramDashboard />
+                } />
+                <Route path="/register" element={
+                  <Suspense fallback={null}>
+                    <RegisterPage />
+                  </Suspense>
+                } />
+                <Route
+                  path="/"
+                  element={<RootGate />}
+                />
+                <Route
+                  path="/landing"
+                  element={
+                    <Suspense fallback={null}>
+                      <LandingPage />
                     </Suspense>
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/semesters/:id"
-                element={
-                  <RequireAuth>
-                    <Suspense fallback={<PageSkeleton />}>
-                      <SemesterHomepage />
-                    </Suspense>
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/courses/:id"
-                element={
-                  <RequireAuth>
-                    <Suspense fallback={<PageSkeleton />}>
-                      <CourseHomepage />
-                    </Suspense>
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <RequireAuth>
-                    <Suspense fallback={<PageSkeleton />}>
-                      <SettingsPage />
-                    </Suspense>
-                  </RequireAuth>
-                }
-              />
-            </Routes>
-            <Toaster />
-            <SpeedInsights />
-          </DialogProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </Router>
+                  }
+                />
+                <Route
+                  path="/programs/:id"
+                  element={
+                    <RequireAuth>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <ProgramDashboard />
+                      </Suspense>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/semesters/:id"
+                  element={
+                    <RequireAuth>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <SemesterHomepage />
+                      </Suspense>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/courses/:id"
+                  element={
+                    <RequireAuth>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <CourseHomepage />
+                      </Suspense>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <RequireAuth>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <SettingsPage />
+                      </Suspense>
+                    </RequireAuth>
+                  }
+                />
+              </Routes>
+              <Toaster />
+              <SpeedInsights />
+            </DialogProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </Router>
+    </QueryClientProvider>
   );
 }
 

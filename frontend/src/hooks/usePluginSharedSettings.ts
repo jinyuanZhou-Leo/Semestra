@@ -1,6 +1,6 @@
-// input:  [plugin id/context ids, plugin settings REST APIs, auto-save scheduler, and JSON equality helpers]
-// output: [`usePluginSharedSettings()` hook exposing framework-managed plugin-global settings state and debounced sync]
-// pos:    [Shared plugin-settings persistence hook that loads one plugin/context record and syncs it through framework autosave]
+// input:  [plugin id/context ids, plugin settings REST APIs, TanStack Query cache/mutations, auto-save scheduler, and JSON equality helpers]
+// output: [`usePluginSharedSettings()` hook exposing framework-managed plugin-global settings state, shared caching, and debounced sync]
+// pos:    [Shared plugin-settings persistence hook that loads one plugin/context record from query cache and syncs it through framework autosave]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,11 +9,13 @@
 "use no memo";
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { jsonDeepEqual } from '@/plugin-system/utils';
 import api from '@/services/api';
 import { reportError } from '@/services/appStatus';
 import type { PluginSettingsSaveState } from '@/services/pluginSettingsRegistry';
+import { queryKeys } from '@/services/queryKeys';
 
 import { useAutoSave } from './useAutoSave';
 
@@ -45,79 +47,121 @@ export const usePluginSharedSettings = ({
   semesterId,
   courseId,
 }: UsePluginSharedSettingsOptions) => {
+  const queryClient = useQueryClient();
+  const queryKey = semesterId
+    ? queryKeys.semesters.pluginSettings(semesterId)
+    : courseId
+      ? queryKeys.courses.pluginSettings(courseId)
+      : ['plugin-settings', 'disabled'] as const;
+
   const [settings, setSettings] = useState<Record<string, unknown>>(EMPTY_SETTINGS);
   const [savedSettings, setSavedSettings] = useState<Record<string, unknown>>(EMPTY_SETTINGS);
-  const [isLoading, setIsLoading] = useState(false);
-  const requestSeqRef = useRef(0);
+  const [isDirty, setIsDirty] = useState(false);
+  const flushRef = useRef<() => Promise<void>>(async () => {});
+
+  const pluginSettingsQuery = useQuery({
+    queryKey,
+    queryFn: async () => (
+      semesterId
+        ? api.getPluginSettingsForSemester(semesterId)
+        : api.getPluginSettingsForCourse(courseId!)
+    ),
+    enabled: Boolean(pluginId) && Boolean(semesterId || courseId),
+    staleTime: 60_000,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (snapshot: Record<string, unknown>) => {
+      const payload = { settings: JSON.stringify(snapshot ?? EMPTY_SETTINGS) };
+      return semesterId
+        ? api.upsertPluginSettingsForSemester(semesterId, pluginId, payload)
+        : api.upsertPluginSettingsForCourse(courseId!, pluginId, payload);
+    },
+  });
 
   useEffect(() => {
     if (!pluginId || (!semesterId && !courseId)) {
-      requestSeqRef.current += 1;
       setSettings(EMPTY_SETTINGS);
       setSavedSettings(EMPTY_SETTINGS);
-      setIsLoading(false);
+      setIsDirty(false);
       return;
     }
 
-    const requestSeq = requestSeqRef.current + 1;
-    requestSeqRef.current = requestSeq;
-    setIsLoading(true);
+    if (!pluginSettingsQuery.data) return;
 
-    const loadSettings = async () => {
-      try {
-        const records = semesterId
-          ? await api.getPluginSettingsForSemester(semesterId)
-          : await api.getPluginSettingsForCourse(courseId!);
-        if (requestSeqRef.current !== requestSeq) return;
-        const match = records.find((record) => record.plugin_id === pluginId);
-        const parsed = parsePluginSettings(match?.settings);
-        setSettings(parsed);
-        setSavedSettings(parsed);
-      } catch (error) {
-        if (requestSeqRef.current !== requestSeq) return;
-        console.error(`Failed to load plugin shared settings for ${pluginId}`, error);
-        reportError('Failed to load plugin settings. Please retry.');
-        setSettings(EMPTY_SETTINGS);
-        setSavedSettings(EMPTY_SETTINGS);
-      } finally {
-        if (requestSeqRef.current === requestSeq) {
-          setIsLoading(false);
-        }
+    const match = pluginSettingsQuery.data.find((record) => record.plugin_id === pluginId);
+    const parsed = parsePluginSettings(match?.settings);
+
+    if (isDirty) return;
+
+    setSavedSettings(parsed);
+    setSettings(parsed);
+  }, [courseId, isDirty, pluginId, pluginSettingsQuery.data, semesterId]);
+
+  useEffect(() => {
+    if (pluginSettingsQuery.error) {
+      console.error(`Failed to load plugin shared settings for ${pluginId}`, pluginSettingsQuery.error);
+      reportError('Failed to load plugin settings. Please retry.');
+    }
+  }, [pluginId, pluginSettingsQuery.error]);
+
+  const updateQueryCache = useCallback((nextSettings: Record<string, unknown>) => {
+    queryClient.setQueryData<Awaited<ReturnType<typeof api.getPluginSettingsForSemester>>>(queryKey, (current = []) => {
+      const serialized = JSON.stringify(nextSettings ?? EMPTY_SETTINGS);
+      const matchIndex = current.findIndex((record) => record.plugin_id === pluginId);
+
+      if (matchIndex >= 0) {
+        return current.map((record, index) => (
+          index === matchIndex
+            ? { ...record, settings: serialized }
+            : record
+        ));
       }
-    };
 
-    void loadSettings();
-
-    return () => {
-      requestSeqRef.current += 1;
-    };
-  }, [courseId, pluginId, semesterId]);
+      return [
+        ...current,
+        {
+          id: `optimistic:${pluginId}:${semesterId ?? courseId ?? 'context'}`,
+          plugin_id: pluginId,
+          settings: serialized,
+          semester_id: semesterId,
+          course_id: courseId,
+        },
+      ];
+    });
+  }, [courseId, pluginId, queryClient, queryKey, semesterId]);
 
   const updateSettings = useCallback((nextSettings: Record<string, unknown>) => {
-    setSettings(nextSettings ?? EMPTY_SETTINGS);
-  }, []);
+    const normalized = nextSettings ?? EMPTY_SETTINGS;
+    setSettings(normalized);
+    setIsDirty(true);
+    updateQueryCache(normalized);
+  }, [updateQueryCache]);
 
   const { saveState, hasPendingChanges, flush } = useAutoSave({
     value: settings,
     savedValue: savedSettings,
     isEqual: jsonDeepEqual,
-    enabled: !isLoading && Boolean(pluginId) && Boolean(semesterId || courseId),
+    enabled: !pluginSettingsQuery.isLoading && Boolean(pluginId) && Boolean(semesterId || courseId),
     debounceMs: DEBOUNCE_MS,
     maxWaitMs: MAX_WAIT_MS,
     onSave: async (snapshot) => {
-      const payload = { settings: JSON.stringify(snapshot ?? EMPTY_SETTINGS) };
-      const response = semesterId
-        ? await api.upsertPluginSettingsForSemester(semesterId, pluginId, payload)
-        : await api.upsertPluginSettingsForCourse(courseId!, pluginId, payload);
+      const response = await mutation.mutateAsync(snapshot ?? EMPTY_SETTINGS);
+      queryClient.setQueryData<Awaited<ReturnType<typeof api.getPluginSettingsForSemester>>>(queryKey, (current = []) => {
+        const withoutOptimistic = current.filter((record) => record.plugin_id !== pluginId);
+        return [...withoutOptimistic, response].sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
+      });
       setSavedSettings(parsePluginSettings(response.settings));
+      setIsDirty(false);
     },
     onError: async (error) => {
       console.error(`Failed to sync plugin shared settings for ${pluginId}`, error);
+      updateQueryCache(savedSettings);
+      setSettings(savedSettings);
+      setIsDirty(false);
       reportError('Failed to sync plugin settings. Please retry.');
     },
   });
-
-  const flushRef = useRef(flush);
 
   useEffect(() => {
     flushRef.current = flush;
@@ -134,6 +178,6 @@ export const usePluginSharedSettings = ({
     updateSettings,
     saveState: saveState as PluginSettingsSaveState,
     hasPendingChanges,
-    isLoading,
+    isLoading: pluginSettingsQuery.isLoading,
   };
 };

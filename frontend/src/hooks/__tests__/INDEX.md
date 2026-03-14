@@ -2,7 +2,7 @@
 
 Hook-level unit tests for low-level environment/reactivity behavior.
 Current coverage targets centralized touch-device detection logic plus dashboard widget deletion and settings-page runtime/plugin-shared-settings preloading/sync behavior.
-Prevents regressions in shared global listener management, unavailable-widget force deletion, inactive-tab settings availability, and debounced plugin settings persistence.
+Prevents regressions in shared global listener management, unavailable-widget force deletion, inactive-tab settings availability, debounced plugin settings persistence, and Query-backed provider wiring for hook tests.
 
 | File | Role | Description |
 |------|------|-------------|

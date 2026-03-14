@@ -48,7 +48,7 @@ import {
   type SectionFormData,
   type SectionSlotDraft,
 } from '../../components/SectionFormDialog';
-import { timetableEventBus } from '../../shared/eventBus';
+import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 import { asChecked, extractLocationFromNote, getDayLabel, groupCourseEventsBySection } from '../../shared/utils';
 
 const dayLabel = (value: number) => DAY_OF_WEEK_OPTIONS.find((item) => item.value === value)?.label ?? String(value);
@@ -136,8 +136,8 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
   const eventsBySectionId = React.useMemo(() => groupCourseEventsBySection(events), [events]);
 
   const publishScheduleChange = React.useCallback(
-    (reason: 'section-created' | 'section-updated' | 'section-deleted' | 'event-updated' | 'events-updated' | 'event-type-created') => {
-      timetableEventBus.publish('timetable:schedule-data-changed', {
+    async (reason: 'section-created' | 'section-updated' | 'section-deleted' | 'event-updated' | 'events-updated' | 'event-type-created') => {
+      await publishTimetableScheduleChange({
         source: 'course',
         reason,
         courseId,
@@ -209,7 +209,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
   const handleDeleteSection = React.useCallback(async (sectionId: string) => {
     try {
       await scheduleService.deleteCourseSection(courseId, sectionId);
-      publishScheduleChange('section-deleted');
+      await publishScheduleChange('section-deleted');
       await reloadAll();
     } catch (err: any) {
       toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete section.');
@@ -219,7 +219,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
   const handleToggleEventEnable = React.useCallback(async (event: CourseEvent, checked: boolean) => {
     try {
       await scheduleService.updateCourseEvent(courseId, event.id, { enable: checked });
-      publishScheduleChange('event-updated');
+      await publishScheduleChange('event-updated');
       await reloadAll();
     } catch (err: any) {
       toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update event.');
@@ -239,7 +239,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
           data: { enable },
         })),
       });
-      publishScheduleChange('events-updated');
+      await publishScheduleChange('events-updated');
       await reloadAll();
     } catch (err: any) {
       toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update section events.');
@@ -439,7 +439,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
         existingEvents={events}
         onOpenQuickAddType={() => setIsQuickAddTypeOpen(true)}
         onSuccess={async () => {
-          publishScheduleChange(editingSectionId ? 'section-updated' : 'section-created');
+          await publishScheduleChange(editingSectionId ? 'section-updated' : 'section-created');
           await reloadAll();
         }}
       />
@@ -452,7 +452,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
         description="Define a new event type. Manage all types in Settings."
         onSubmit={async (data) => {
           const created = await scheduleService.createCourseEventType(courseId, data);
-          publishScheduleChange('event-type-created');
+          await publishScheduleChange('event-type-created');
           await reloadAll();
           setFormSection((previous) => ({ ...previous, eventTypeCode: created.code }));
         }}

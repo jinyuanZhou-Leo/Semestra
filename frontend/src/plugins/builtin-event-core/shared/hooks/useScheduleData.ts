@@ -1,13 +1,17 @@
-// input:  [semester schedule service APIs, cache constants, hook options, and shared schedule mappers]
-// output: [`useScheduleData` hook for cached single-week/all-weeks schedule snapshots]
-// pos:    [Shared event-core data hook that deduplicates schedule requests and exposes refresh state]
+// input:  [semester schedule service APIs, TanStack Query cache primitives, cache constants, hook options, and shared schedule mappers]
+// output: [`useScheduleData` hook for query-cached single-week/all-weeks schedule snapshots]
+// pos:    [Shared event-core data hook that centralizes schedule caching, deduplication, and refresh state]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { queryKeys } from '@/services/queryKeys';
 import scheduleService from '@/services/schedule';
+
 import {
   DEFAULT_WEEK,
   SCHEDULE_CACHE_TTL_MS,
@@ -19,11 +23,6 @@ import {
   mapScheduleItemsByWeek,
   sortScheduleItemsByTime,
 } from '../utils';
-
-interface ScheduleCacheEntry {
-  snapshot: ScheduleDataSnapshot;
-  expiresAt: number;
-}
 
 interface UseScheduleDataOptions {
   semesterId?: string;
@@ -56,9 +55,6 @@ const EMPTY_SNAPSHOT: ScheduleDataSnapshot = {
   fetchedAt: 0,
 };
 
-const scheduleCache = new Map<string, ScheduleCacheEntry>();
-const inflightRequests = new Map<string, Promise<ScheduleDataSnapshot>>();
-
 const normalizeError = (value: unknown) => {
   if (value instanceof Error) return value;
   return new Error(typeof value === 'string' ? value : 'Unknown error');
@@ -67,15 +63,6 @@ const normalizeError = (value: unknown) => {
 const clampPositiveInteger = (value: number, fallback: number) => {
   if (!Number.isFinite(value) || value <= 0) return fallback;
   return Math.floor(value);
-};
-
-const buildCacheKey = (options: Required<Pick<UseScheduleDataOptions, 'semesterId' | 'mode' | 'week' | 'withConflicts'>>) => {
-  return [
-    options.semesterId,
-    options.mode,
-    options.week,
-    options.withConflicts ? 'conflicts:1' : 'conflicts:0',
-  ].join('|');
 };
 
 const runWithConcurrencyLimit = async <T,>(tasks: Array<() => Promise<T>>, maxParallelRequests: number) => {
@@ -150,62 +137,6 @@ const loadAllWeeksSnapshot = async (
   };
 };
 
-const readCachedSnapshot = (cacheKey: string) => {
-  const cachedEntry = scheduleCache.get(cacheKey);
-  if (!cachedEntry) return null;
-  if (cachedEntry.expiresAt < Date.now()) {
-    scheduleCache.delete(cacheKey);
-    return null;
-  }
-  return cachedEntry.snapshot;
-};
-
-const saveCachedSnapshot = (cacheKey: string, snapshot: ScheduleDataSnapshot, ttlMs: number) => {
-  scheduleCache.set(cacheKey, {
-    snapshot,
-    expiresAt: Date.now() + ttlMs,
-  });
-};
-
-const loadScheduleSnapshot = async (
-  cacheKey: string,
-  options: Required<Pick<UseScheduleDataOptions, 'semesterId' | 'mode' | 'week' | 'withConflicts' | 'cacheTtlMs' | 'maxParallelRequests'>>,
-  forceRefresh: boolean,
-) => {
-  if (!forceRefresh) {
-    const cachedSnapshot = readCachedSnapshot(cacheKey);
-    if (cachedSnapshot) return cachedSnapshot;
-  }
-
-  const inflightRequest = inflightRequests.get(cacheKey);
-  if (inflightRequest) {
-    return inflightRequest;
-  }
-
-  const requestPromise = (async () => {
-    const snapshot = options.mode === 'all-weeks'
-      ? await loadAllWeeksSnapshot(options.semesterId, options.withConflicts, options.maxParallelRequests)
-      : await loadSingleWeekSnapshot(options.semesterId, options.week, options.withConflicts);
-
-    saveCachedSnapshot(cacheKey, snapshot, options.cacheTtlMs);
-    return snapshot;
-  })();
-
-  inflightRequests.set(cacheKey, requestPromise);
-
-  try {
-    return await requestPromise;
-  } finally {
-    inflightRequests.delete(cacheKey);
-  }
-};
-
-const invalidateScheduleCache = (semesterId: string, mode: ScheduleDataMode, withConflicts: boolean, week: number) => {
-  const cacheKey = buildCacheKey({ semesterId, mode, week, withConflicts });
-  scheduleCache.delete(cacheKey);
-  inflightRequests.delete(cacheKey);
-};
-
 export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDataResult => {
   const {
     semesterId,
@@ -217,99 +148,41 @@ export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDat
     maxParallelRequests = SCHEDULE_MAX_PARALLEL_REQUESTS,
   } = options;
 
+  const queryClient = useQueryClient();
   const safeWeek = clampPositiveInteger(week, DEFAULT_WEEK);
   const safeCacheTtlMs = clampPositiveInteger(cacheTtlMs, SCHEDULE_CACHE_TTL_MS);
   const safeMaxParallelRequests = clampPositiveInteger(maxParallelRequests, SCHEDULE_MAX_PARALLEL_REQUESTS);
+  const queryKey = semesterId
+    ? queryKeys.semesters.schedule(semesterId, { mode, week: safeWeek, withConflicts })
+    : ['semesters', 'schedule', 'disabled'];
 
-  const [snapshot, setSnapshot] = React.useState<ScheduleDataSnapshot>(EMPTY_SNAPSHOT);
-  const [error, setError] = React.useState<Error | null>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const scheduleQuery = useQuery<ScheduleDataSnapshot>({
+    queryKey,
+    queryFn: async () => (
+      mode === 'all-weeks'
+        ? loadAllWeeksSnapshot(semesterId!, withConflicts, safeMaxParallelRequests)
+        : loadSingleWeekSnapshot(semesterId!, safeWeek, withConflicts)
+    ),
+    enabled: Boolean(semesterId) && enabled,
+    staleTime: safeCacheTtlMs,
+  });
 
-  const requestCounterRef = React.useRef(0);
-  const hasSnapshotRef = React.useRef(false);
-
-  const load = React.useCallback(async (forceRefresh: boolean) => {
-    if (!semesterId || !enabled) {
-      setSnapshot(EMPTY_SNAPSHOT);
-      setError(null);
-      setIsLoading(false);
-      setIsRefreshing(false);
-      hasSnapshotRef.current = false;
-      return;
-    }
-
-    const cacheKey = buildCacheKey({
-      semesterId,
-      mode,
-      week: safeWeek,
-      withConflicts,
-    });
-
-    const requestId = requestCounterRef.current + 1;
-    requestCounterRef.current = requestId;
-
-    if (hasSnapshotRef.current) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
-
-    try {
-      const nextSnapshot = await loadScheduleSnapshot(
-        cacheKey,
-        {
-          semesterId,
-          mode,
-          week: safeWeek,
-          withConflicts,
-          cacheTtlMs: safeCacheTtlMs,
-          maxParallelRequests: safeMaxParallelRequests,
-        },
-        forceRefresh,
-      );
-
-      if (requestCounterRef.current !== requestId) {
-        return;
-      }
-
-      setSnapshot(nextSnapshot);
-      setError(null);
-      hasSnapshotRef.current = true;
-    } catch (loadError) {
-      if (requestCounterRef.current !== requestId) {
-        return;
-      }
-
-      setError(normalizeError(loadError));
-    } finally {
-      if (requestCounterRef.current === requestId) {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    }
-  }, [enabled, mode, safeWeek, semesterId, withConflicts, safeCacheTtlMs, safeMaxParallelRequests]);
-
-  React.useEffect(() => {
-    void load(false);
-
-    return () => {
-      requestCounterRef.current += 1;
-    };
-  }, [load]);
-
-  const reload = React.useCallback(async () => {
-    await load(true);
-  }, [load]);
-
-  const invalidate = React.useCallback(() => {
-    if (!semesterId) return;
-    invalidateScheduleCache(semesterId, mode, withConflicts, safeWeek);
-  }, [mode, safeWeek, semesterId, withConflicts]);
+  const snapshot = scheduleQuery.data ?? EMPTY_SNAPSHOT;
 
   const itemsForWeek = React.useMemo(() => {
     return snapshot.itemsByWeek.get(safeWeek) ?? [];
   }, [snapshot.itemsByWeek, safeWeek]);
+
+  const reload = React.useCallback(async () => {
+    if (!semesterId) return;
+    await queryClient.invalidateQueries({ queryKey });
+    await queryClient.refetchQueries({ queryKey, type: 'active' });
+  }, [queryClient, queryKey, semesterId]);
+
+  const invalidate = React.useCallback(() => {
+    if (!semesterId) return;
+    queryClient.removeQueries({ queryKey });
+  }, [queryClient, queryKey, semesterId]);
 
   return {
     items: snapshot.items,
@@ -317,9 +190,9 @@ export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDat
     itemsForWeek,
     maxWeek: snapshot.maxWeek,
     loadedWeeks: snapshot.loadedWeeks,
-    isLoading,
-    isRefreshing,
-    error,
+    isLoading: scheduleQuery.isLoading,
+    isRefreshing: scheduleQuery.isFetching && !scheduleQuery.isLoading,
+    error: scheduleQuery.error ? normalizeError(scheduleQuery.error) : null,
     reload,
     invalidate,
   };

@@ -34,7 +34,7 @@ import {
 import scheduleService, { type CourseEventType } from '@/services/schedule';
 import { CrudPanel } from '@/components/CrudPanel';
 import { EventTypeFormDialog } from '../../components/EventTypeFormDialog';
-import { timetableEventBus } from '../../shared/eventBus';
+import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 
 interface CourseScheduleSettingsProps {
   courseId: string;
@@ -93,10 +93,10 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
     };
   }, [courseId]);
 
-  const publishScheduleChange = React.useCallback((
+  const publishScheduleChange = React.useCallback(async (
     reason: 'event-type-created' | 'event-type-updated' | 'event-type-deleted',
   ) => {
-    timetableEventBus.publish('timetable:schedule-data-changed', {
+    await publishTimetableScheduleChange({
       source: 'course',
       reason,
       courseId,
@@ -112,10 +112,10 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
           abbreviation: data.abbreviation,
           trackAttendance: data.track_attendance,
         });
-        publishScheduleChange('event-type-updated');
+        await publishScheduleChange('event-type-updated');
       } else {
         await scheduleService.createCourseEventType(courseId, data);
-        publishScheduleChange('event-type-created');
+        await publishScheduleChange('event-type-created');
       }
 
       await loadEventTypes();
@@ -139,7 +139,7 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
   const handleDeleteEventType = React.useCallback(async (eventTypeCode: string) => {
     try {
       await scheduleService.deleteCourseEventType(courseId, eventTypeCode);
-      publishScheduleChange('event-type-deleted');
+      await publishScheduleChange('event-type-deleted');
       await loadEventTypes();
     } catch (err: any) {
       toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete event type.');

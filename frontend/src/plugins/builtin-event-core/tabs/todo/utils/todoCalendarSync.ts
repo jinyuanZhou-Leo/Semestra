@@ -9,6 +9,7 @@
 import api from '@/services/api';
 import type { CalendarEventData } from '@/calendar-core';
 import { timetableEventBus } from '../../../shared/eventBus';
+import { publishTimetableScheduleChange } from '../../../shared/publishTimetableScheduleChange';
 import { fromTodoApiState } from './todoData';
 
 interface SyncCalendarTodoCompletionParams {
@@ -39,7 +40,7 @@ export const syncCalendarTodoCompletion = async ({
       tasks: runtimeState.tasks,
     },
   });
-  timetableEventBus.publish('timetable:schedule-data-changed', {
+  await publishTimetableScheduleChange({
     semesterId,
     source: toggledTask?.courseId ? 'course' : 'semester',
     courseId: toggledTask?.courseId || undefined,

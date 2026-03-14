@@ -11,6 +11,7 @@ import { Edit, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { definePluginSettings } from '@/plugin-system/contracts';
+import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
 import type { PluginSettingsProps } from '@/services/pluginSettingsRegistry';
 import api, { type CourseGradebook, type GradebookAssessmentCategory } from '@/services/api';
 
@@ -187,37 +188,20 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
     courseId,
     onRefresh,
 }) => {
-    const [gradebook, setGradebook] = useState<CourseGradebook | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [isMutating, setIsMutating] = useState(false);
+    const gradebookQuery = useCourseGradebookQuery(courseId);
+    const gradebookMutation = useCourseGradebookMutation(courseId);
+    const gradebook = gradebookQuery.data ?? null;
 
     // category dialog state
     const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<GradebookAssessmentCategory | null>(null);
 
-    const loadGradebook = useCallback(async () => {
-        if (!courseId) return;
-        setIsLoading(true);
-        try {
-            const response = await api.getCourseGradebook(courseId);
-            setGradebook(response);
-        } catch (error) {
-            console.error('Failed to load gradebook settings', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [courseId]);
-
-    useEffect(() => {
-        void loadGradebook();
-    }, [loadGradebook]);
-
     /** Commits a gradebook mutation and refreshes the host settings shell after success. */
     const commitGradebook = useCallback(async (promise: Promise<CourseGradebook>) => {
         setIsMutating(true);
         try {
-            const response = await promise;
-            setGradebook(response);
+            await gradebookMutation.mutateAsync(() => promise);
             onRefresh();
         } catch (error: unknown) {
             console.error('Failed to update gradebook', error);
@@ -225,7 +209,7 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
         } finally {
             setIsMutating(false);
         }
-    }, [onRefresh]);
+    }, [gradebookMutation, onRefresh]);
 
     const handleOpenCreate = useCallback(() => {
         setEditingCategory(null);
@@ -254,7 +238,7 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
 
     if (!courseId) return null;
 
-    if (isLoading) {
+    if (gradebookQuery.isLoading) {
         return (
             <div className="space-y-6">
                 <Skeleton className="h-48 w-full rounded-2xl" />

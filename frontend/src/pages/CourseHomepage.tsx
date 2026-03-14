@@ -42,7 +42,7 @@ import {
     useTabPluginLoadState,
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
-import { timetableEventBus } from '../plugins/builtin-event-core/shared/eventBus';
+import { publishTimetableScheduleChange } from '../plugins/builtin-event-core/shared/publishTimetableScheduleChange';
 import { BUILTIN_GRADEBOOK_TAB_TYPE, OPEN_GRADEBOOK_TAB_EVENT } from '../plugins/builtin-gradebook/shared';
 import {
     COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
@@ -70,7 +70,7 @@ import {
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
-    const { course, updateCourse, refreshCourse, isLoading } = useCourseData();
+    const { course, updateCourse, saveCourse, refreshCourse, isLoading } = useCourseData();
     const navigate = useNavigate();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
@@ -488,19 +488,18 @@ const CourseHomepageContent: React.FC = () => {
     const handleUpdateCourse = useCallback(async (data: any) => {
         if (!course) return;
         try {
-            await api.updateCourse(course.id, data);
-            timetableEventBus.publish('timetable:schedule-data-changed', {
+            await saveCourse(data);
+            await publishTimetableScheduleChange({
                 source: 'course',
                 reason: 'course-updated',
                 courseId: course.id,
                 semesterId: course.semester_id,
             });
-            await refreshCourse();
         } catch (error) {
             console.error("Failed to update course", error);
             reportError('Failed to update course. Please retry.');
         }
-    }, [course, refreshCourse]);
+    }, [course, saveCourse]);
 
     const builtinTabContext = useMemo(() => ({
         isLoading,

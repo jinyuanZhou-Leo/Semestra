@@ -20,7 +20,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
 | CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
 | CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation, with split loading feedback and standardized modal no-results empty states. |
-| CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, close/unmount flush protection, Program-derived default-color guidance, optional per-course override controls, and a suggested category update action beside the Category field. |
+| CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, close/unmount flush protection, Program-derived default-color guidance, optional per-course override controls, a suggested category update action beside the Category field, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | GPAScalingTable.tsx | UI component | Reusable component for g p a scaling table UI/interaction flow. |
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |
 | GradientBlinds.tsx | UI component | Reusable component for gradient blinds UI/interaction flow. |
@@ -30,11 +30,11 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | Layout.tsx | UI component | Shared authenticated layout chrome, including header breadcrumb slot, fixed-height overflow handling, and server-backed sign-out actions. |
 | PageSkeleton.tsx | UI component | Reusable component for page skeleton UI/interaction flow. |
 | PluginSettingsCard.tsx | UI component | Reusable component for plugin settings card UI/interaction flow. |
-| ProgramSettingsPanel.tsx | UI component | Program settings panel with debounced auto-save, close/unmount flush protection, discovered-code CRUD-style color management, persisted stable subject-color assignments that reserve existing colors for future codes, JSON validation feedback, and draft-safe sync against optimistic program updates. |
+| ProgramSettingsPanel.tsx | UI component | Program settings panel with debounced auto-save, close/unmount flush protection, discovered-code CRUD-style color management, persisted stable subject-color assignments that reserve existing colors for future codes, JSON validation feedback, draft-safe sync against optimistic program updates, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | ResponsiveDialogDrawer.tsx | UI component | Shared responsive overlay wrapper that renders desktop dialog and mobile drawer, with unified header/footer slots and open-time focus handoff. |
 | RequireAuth.tsx | UI component | Reusable component for require auth UI/interaction flow. |
 | SaveSettingButton.tsx | UI component | Legacy animated save CTA retained for non-auto-save settings flows. |
-| SemesterSettingsPanel.tsx | UI component | Semester settings panel with debounced auto-save, close/unmount flush protection, Reading Week validation, and draft-safe sync against refreshed semester payloads. |
+| SemesterSettingsPanel.tsx | UI component | Semester settings panel with debounced auto-save, close/unmount flush protection, Reading Week validation, draft-safe sync against refreshed semester payloads, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | SessionExpiredModal.tsx | UI component | Reusable component for session expired modal UI/interaction flow. |
 | SettingsModal.tsx | UI component | Generic settings modal container with a wider desktop surface, fixed header, scrollable body, and async close handling so settings editors can flush pending autosaves before dismissing. |
 | SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles that can inherit a page-level offset provider. |

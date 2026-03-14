@@ -80,7 +80,12 @@ export interface CalendarSourceDefinition {
   label: string;
   defaultColor: string;
   priority: number;
+  getCached?: (context: CalendarSourceContext) => CalendarEventData[] | undefined;
   load: (context: CalendarSourceContext) => Promise<CalendarEventData[]>;
+  invalidate?: (
+    signal: CalendarRefreshSignal,
+    context: CalendarSourceContext,
+  ) => Promise<void> | void;
   shouldRefresh: (signal: CalendarRefreshSignal, context: CalendarSourceContext) => boolean;
   applyEventPatch?: (
     event: CalendarEventData,

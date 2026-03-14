@@ -8,9 +8,11 @@
 
 "use no memo";
 
-import React from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import api from '@/services/api';
 import type { SemesterDateRange } from '@/calendar-core';
+import { queryKeys } from '@/services/queryKeys';
 import { getWeekFromSemesterDate, resolveSemesterDateRange } from '../../../shared/utils';
 
 const FALLBACK_MAX_WEEK = 16;
@@ -19,89 +21,53 @@ const getMaxWeekFromRange = (range: SemesterDateRange) => {
   return Math.max(1, getWeekFromSemesterDate(range.startDate, range.endDate));
 };
 
-interface SemesterCalendarContextState {
-  semesterRange: SemesterDateRange;
-  maxWeek: number;
-  error: Error | null;
-  isLoading: boolean;
-  isReady: boolean;
-}
-
 export const useSemesterCalendarContext = (semesterId?: string) => {
-  const [state, setState] = React.useState<SemesterCalendarContextState>({
-    semesterRange: FALLBACK_RANGE,
-    maxWeek: FALLBACK_MAX_WEEK,
-    error: null,
-    isLoading: false,
-    isReady: false,
+  const queryClient = useQueryClient();
+  const semesterQuery = useQuery({
+    queryKey: semesterId ? queryKeys.semesters.detail(semesterId) : ['semesters', 'detail', 'disabled'],
+    queryFn: () => api.getSemester(semesterId!),
+    enabled: Boolean(semesterId),
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 
-  const requestCounterRef = React.useRef(0);
-
-  const load = React.useCallback(async () => {
-    if (!semesterId) {
-      setState({
-        semesterRange: FALLBACK_RANGE,
-        maxWeek: FALLBACK_MAX_WEEK,
-        error: null,
-        isLoading: false,
-        isReady: false,
-      });
-      return;
-    }
-
-    const requestId = requestCounterRef.current + 1;
-    requestCounterRef.current = requestId;
-
-    setState((current) => ({
-      ...current,
-      isLoading: true,
-      error: null,
-    }));
-
-    try {
-      const semester = await api.getSemester(semesterId);
-      if (requestCounterRef.current !== requestId) return;
-
-      const semesterRange = resolveSemesterDateRange(
-        semester.start_date,
-        semester.end_date,
+  const semesterRange = useMemo(() => (
+    semesterQuery.data
+      ? resolveSemesterDateRange(
+        semesterQuery.data.start_date,
+        semesterQuery.data.end_date,
         FALLBACK_MAX_WEEK,
-        semester.reading_week_start,
-        semester.reading_week_end,
-      );
-      setState({
-        semesterRange,
-        maxWeek: getMaxWeekFromRange(semesterRange),
-        error: null,
-        isLoading: false,
-        isReady: true,
-      });
-    } catch (error) {
-      if (requestCounterRef.current !== requestId) return;
-      setState((current) => ({
-        ...current,
-        error: error instanceof Error ? error : new Error(String(error)),
-        isLoading: false,
-        isReady: current.isReady,
-      }));
-    }
-  }, [semesterId]);
+        semesterQuery.data.reading_week_start,
+        semesterQuery.data.reading_week_end,
+      )
+      : FALLBACK_RANGE
+  ), [
+    semesterQuery.data?.end_date,
+    semesterQuery.data?.reading_week_end,
+    semesterQuery.data?.reading_week_start,
+    semesterQuery.data?.start_date,
+  ]);
+  const maxWeek = useMemo(() => (
+    semesterQuery.data ? getMaxWeekFromRange(semesterRange) : FALLBACK_MAX_WEEK
+  ), [semesterQuery.data, semesterRange]);
+  const error = useMemo(() => (
+    semesterQuery.error instanceof Error ? semesterQuery.error : (
+      semesterQuery.error ? new Error(String(semesterQuery.error)) : null
+    )
+  ), [semesterQuery.error]);
 
-  React.useEffect(() => {
-    void load();
-
-    return () => {
-      requestCounterRef.current += 1;
-    };
-  }, [load]);
-
-  const reload = React.useCallback(async () => {
-    await load();
-  }, [load]);
+  const reload = async () => {
+    if (!semesterId) return;
+    await queryClient.invalidateQueries({ queryKey: queryKeys.semesters.detail(semesterId) });
+    await semesterQuery.refetch();
+  };
 
   return {
-    ...state,
+    semesterRange,
+    maxWeek,
+    error,
+    isLoading: semesterQuery.isLoading,
+    isReady: Boolean(semesterId) && Boolean(semesterQuery.data),
     reload,
   };
 };

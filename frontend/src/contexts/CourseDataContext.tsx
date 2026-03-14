@@ -10,6 +10,7 @@ import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Course, Widget, Tab } from '../services/api';
 import { useEntityContext } from '../hooks/useEntityContext';
+import { queryKeys } from '../services/queryKeys';
 
 export type CourseWithDetails = Course & {
     widgets?: Widget[];
@@ -21,6 +22,7 @@ interface CourseDataContextType {
     course: CourseWithDetails | null;
     setCourse: React.Dispatch<React.SetStateAction<CourseWithDetails | null>>;
     updateCourse: (updates: Partial<CourseWithDetails>) => void;
+    saveCourse: (updates: Partial<CourseWithDetails>) => Promise<void>;
     refreshCourse: () => Promise<void>;
     isLoading: boolean;
 }
@@ -48,21 +50,25 @@ export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId
         data: course,
         setData: setCourse,
         updateData: updateCourse,
+        commitData: saveCourse,
         refresh: refreshCourse,
         isLoading
     } = useEntityContext<CourseWithDetails>({
         entityId: courseId,
+        queryKey: queryKeys.courses.detail(courseId),
         fetchFn,
-        updateFn
+        updateFn,
+        staleTimeMs: 60_000,
     });
 
     const value: CourseDataContextType = useMemo(() => ({
         course,
         setCourse,
         updateCourse,
+        saveCourse,
         refreshCourse,
         isLoading
-    }), [course, setCourse, updateCourse, refreshCourse, isLoading]);
+    }), [course, setCourse, updateCourse, saveCourse, refreshCourse, isLoading]);
 
     return (
         <CourseDataContext.Provider value={value}>

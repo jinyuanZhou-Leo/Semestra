@@ -10,6 +10,8 @@
 
 import api from '@/services/api';
 import type { CalendarEventData, CalendarSourceDefinition } from '@/calendar-core';
+import { queryClient } from '@/services/queryClient';
+import { queryKeys } from '@/services/queryKeys';
 import { BUILTIN_CALENDAR_SOURCE_TODO, BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../../shared/constants';
 import {
   addDays,
@@ -88,17 +90,41 @@ export const builtinTodoCalendarSource: CalendarSourceDefinition = {
   label: 'Todo',
   defaultColor: '#10b981',
   priority: 200,
+  getCached: (context) => {
+    const cachedResponse = queryClient.getQueryData<Awaited<ReturnType<typeof api.getSemesterTodo>>>(
+      queryKeys.semesters.todo(context.semesterId),
+    );
+    if (!cachedResponse) return undefined;
+
+    const semesterState = fromTodoApiState(cachedResponse, false);
+    return semesterState.tasks
+      .map((task) => buildTodoEvent(task, context.semesterId, context.semesterRange.startDate, context.semesterRange.endDate))
+      .filter((event): event is CalendarEventData => event !== null);
+  },
   load: async (context) => {
-    const response = await api.getSemesterTodo(context.semesterId);
+    const response = await queryClient.ensureQueryData({
+      queryKey: queryKeys.semesters.todo(context.semesterId),
+      queryFn: () => api.getSemesterTodo(context.semesterId),
+      staleTime: Infinity,
+      gcTime: Infinity,
+    });
     const semesterState = fromTodoApiState(response, false);
 
     return semesterState.tasks
       .map((task) => buildTodoEvent(task, context.semesterId, context.semesterRange.startDate, context.semesterRange.endDate))
       .filter((event): event is CalendarEventData => event !== null);
   },
+  invalidate: async (signal, context) => {
+    void signal;
+    await queryClient.invalidateQueries({ queryKey: queryKeys.semesters.todo(context.semesterId) });
+  },
   shouldRefresh: (signal, context) => {
     if (signal.type !== 'timetable') return true;
     if (!signal.semesterId || signal.semesterId !== context.semesterId) return false;
-    return signal.reason === 'events-updated' || signal.source === 'semester';
+    return (
+      signal.reason === 'events-updated'
+      || signal.reason === 'course-updated'
+      || signal.source === 'semester'
+    );
   },
 };

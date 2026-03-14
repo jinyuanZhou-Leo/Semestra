@@ -10,6 +10,7 @@
 import React from 'react';
 import { toast } from 'sonner';
 import api from '@/services/api';
+import { useSemesterTodoCache, useSemesterTodoQuery } from '@/hooks/useSemesterTodoQuery';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +24,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { timetableEventBus, useEventBus } from '../../shared/eventBus';
+import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 import { TodoCompletedSummary } from './components/TodoCompletedSummary';
 import { TodoInlineCreateRow } from './components/TodoInlineCreateRow';
 import { TodoMainHeader } from './components/TodoMainHeader';
@@ -124,6 +126,8 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   const [semesterSettingsSnapshot, setSemesterSettingsSnapshot] = React.useState<Record<string, unknown>>(
     settings && typeof settings === 'object' && !Array.isArray(settings) ? settings as Record<string, unknown> : {},
   );
+  const semesterTodoQuery = useSemesterTodoQuery(semesterId);
+  const { setTodoState } = useSemesterTodoCache(semesterId);
 
   const completionTimeoutsRef = React.useRef<Record<string, ReturnType<typeof window.setTimeout>>>({});
 
@@ -152,7 +156,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     return courseOptions.find((course) => course.id === courseId)?.name ?? 'Course Todo';
   }, [courseId, courseOptions]);
 
-  const applyServerState = React.useCallback((
+  const applyServerState = React.useCallback(async (
     nextStorage: TodoListStorage,
     publishSource: 'course' | 'semester',
     targetCourseId?: string,
@@ -166,7 +170,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
       storage: nextStorage,
     });
     if (semesterId) {
-      timetableEventBus.publish('timetable:schedule-data-changed', {
+      await publishTimetableScheduleChange({
         semesterId,
         source: publishSource,
         courseId: publishSource === 'course' ? targetCourseId : undefined,
@@ -182,8 +186,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   ) => {
     try {
       const response = await runner();
+      setTodoState(response);
       const nextState = fromTodoApiState(response, behavior.moveCompletedToCompletedSection);
-      applyServerState(
+      await applyServerState(
         {
           sections: nextState.sections,
           tasks: nextState.tasks,
@@ -197,44 +202,42 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
       toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save todo changes.');
       return false;
     }
-  }, [applyServerState, behavior.moveCompletedToCompletedSection]);
+  }, [applyServerState, behavior.moveCompletedToCompletedSection, setTodoState]);
 
   React.useEffect(() => {
-    if (!semesterId || mode === 'unsupported') return;
+    if (!semesterId || mode === 'unsupported') {
+      setLoading(false);
+      return;
+    }
 
-    let cancelled = false;
-    setLoading(true);
+    if (semesterTodoQuery.error) {
+      toast.error((semesterTodoQuery.error as any)?.response?.data?.detail?.message ?? semesterTodoQuery.error.message ?? 'Failed to load todo data.');
+      setLoading(false);
+      return;
+    }
 
-    const load = async () => {
-      try {
-        const response = await api.getSemesterTodo(semesterId);
-        const semesterState = fromTodoApiState(response, behavior.moveCompletedToCompletedSection);
-        if (cancelled) return;
+    if (!semesterTodoQuery.data) {
+      setLoading(semesterTodoQuery.isLoading);
+      return;
+    }
 
-        const nextStorage = {
-          sections: semesterState.sections,
-          tasks: semesterState.tasks,
-        };
-        semesterStorageRef.current = nextStorage;
-        setSemesterStorage(nextStorage);
-        setCourseOptions(semesterState.courseOptions);
-      } catch (error: any) {
-        if (!cancelled) {
-          toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to load todo data.');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    const semesterState = fromTodoApiState(semesterTodoQuery.data, behavior.moveCompletedToCompletedSection);
+    const nextStorage = {
+      sections: semesterState.sections,
+      tasks: semesterState.tasks,
     };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [behavior.moveCompletedToCompletedSection, mode, semesterId]);
+    semesterStorageRef.current = nextStorage;
+    setSemesterStorage(nextStorage);
+    setCourseOptions(semesterState.courseOptions);
+    setLoading(false);
+  }, [
+    behavior.moveCompletedToCompletedSection,
+    mode,
+    semesterId,
+    semesterTodoQuery.data,
+    semesterTodoQuery.error,
+    semesterTodoQuery.isLoading,
+  ]);
 
   useEventBus('timetable:todo-storage-changed', (payload) => {
     if (!semesterId || payload.semesterId !== semesterId) return;

@@ -67,7 +67,8 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useCourseData } from '@/contexts/CourseDataContext';
-import { timetableEventBus } from '../builtin-event-core/shared/eventBus';
+import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
+import { publishTimetableScheduleChange } from '../builtin-event-core/shared/publishTimetableScheduleChange';
 import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
     buildComputedGradebookSummary,
@@ -99,9 +100,8 @@ type AssessmentDraft = {
 const DEFAULT_SORT_KEY: GradebookSortKey = 'due_date';
 const DEFAULT_SORT_DIRECTION: GradebookSortDirection = 'none';
 
-const publishGradebookAssessmentCalendarRefresh = (courseId: string, semesterId?: string) => {
-    if (!semesterId) return;
-    timetableEventBus.publish('timetable:schedule-data-changed', {
+const publishGradebookAssessmentCalendarRefresh = async (courseId: string, semesterId?: string) => {
+    await publishTimetableScheduleChange({
         source: 'course',
         reason: 'gradebook-assessments-updated',
         courseId,
@@ -283,8 +283,6 @@ const AssessmentDialog: React.FC<{
 
 const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const { course, updateCourse } = useCourseData();
-    const [gradebook, setGradebook] = React.useState<CourseGradebook | null>(null);
-    const [isLoading, setIsLoading] = React.useState(true);
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
     const [isMutating, setIsMutating] = React.useState(false);
     const [assessmentDraft, setAssessmentDraft] = React.useState<AssessmentDraft | null>(null);
@@ -299,25 +297,18 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const [targetGpaDraft, setTargetGpaDraft] = React.useState('');
     const [whatIfDrafts, setWhatIfDrafts] = React.useState<Record<string, string>>({});
     const deferredSearchQuery = React.useDeferredValue(searchQuery);
-
-    const loadGradebook = React.useCallback(async () => {
-        if (!courseId) return;
-        setIsLoading(true);
-        setErrorMessage(null);
-        try {
-            const response = await api.getCourseGradebook(courseId);
-            setGradebook(response);
-        } catch (error) {
-            console.error('Failed to load gradebook tab', error);
-            setErrorMessage('Failed to load the course gradebook.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [courseId]);
+    const gradebookQuery = useCourseGradebookQuery(courseId);
+    const gradebookMutation = useCourseGradebookMutation(courseId);
+    const gradebook = gradebookQuery.data ?? null;
 
     React.useEffect(() => {
-        void loadGradebook();
-    }, [loadGradebook]);
+        if (gradebookQuery.error) {
+            console.error('Failed to load gradebook tab', gradebookQuery.error);
+            setErrorMessage('Failed to load the course gradebook.');
+            return;
+        }
+        setErrorMessage(null);
+    }, [gradebookQuery.error]);
 
     React.useEffect(() => {
         if (!gradebook) return;
@@ -333,8 +324,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const commitGradebook = React.useCallback(async (promise: Promise<CourseGradebook>) => {
         setIsMutating(true);
         try {
-            const response = await promise;
-            setGradebook(response);
+            const response = await gradebookMutation.mutateAsync(() => promise);
             const nextSummary = buildComputedGradebookSummary(response);
             updateCourse({
                 grade_percentage: nextSummary.current_real_percentage,
@@ -348,7 +338,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         } finally {
             setIsMutating(false);
         }
-    }, [updateCourse]);
+    }, [gradebookMutation, updateCourse]);
 
     const categoriesById = React.useMemo(
         () => new Map((gradebook?.categories ?? []).map((category) => [category.id, category])),
@@ -490,7 +480,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         );
     }
 
-    if (isLoading) {
+    if (gradebookQuery.isLoading) {
         return (
             <div className="space-y-4">
                 <Skeleton className="h-44 w-full rounded-2xl" />
@@ -507,7 +497,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 title="Gradebook failed to load"
                 description={errorMessage ?? 'Unknown error.'}
                 primaryAction={(
-                    <Button type="button" onClick={() => void loadGradebook()}>
+                    <Button type="button" onClick={() => void gradebookQuery.refetch()}>
                         Retry
                     </Button>
                 )}

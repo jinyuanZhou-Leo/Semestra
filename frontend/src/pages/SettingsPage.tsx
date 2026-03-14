@@ -7,6 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy, useId } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Layout } from "../components/Layout";
 import { Button } from "@/components/ui/button";
 import { GPAScalingTable } from "../components/GPAScalingTable";
@@ -207,17 +208,16 @@ export const SettingsPage: React.FC = () => {
         }
     }, [gpaTableJson]);
 
-    const saveSettings = useCallback(async () => {
-        await api.updateUser({
-            gpa_scaling_table: gpaTableJson,
-            nickname: nickname,
-            default_course_credit: defaultCourseCredit
-        });
-        await refreshUser();
-
-        setInitialState({ nickname, gpaTableJson, defaultCourseCredit });
-        setIsDirty(false);
-    }, [defaultCourseCredit, gpaTableJson, nickname, refreshUser]);
+    const updateUserMutation = useMutation({
+        mutationFn: async (snapshot: typeof settingsSnapshot) => {
+            await api.updateUser({
+                gpa_scaling_table: snapshot.gpaTableJson,
+                nickname: snapshot.nickname,
+                default_course_credit: snapshot.defaultCourseCredit
+            });
+            await refreshUser();
+        },
+    });
 
     const { saveState } = useAutoSave({
         value: settingsSnapshot,
@@ -228,7 +228,11 @@ export const SettingsPage: React.FC = () => {
             && left.gpaTableJson === right.gpaTableJson
             && left.defaultCourseCredit === right.defaultCourseCredit,
         validate: () => isSettingsValid,
-        onSave: saveSettings,
+        onSave: async (snapshot) => {
+            await updateUserMutation.mutateAsync(snapshot);
+            setInitialState(snapshot);
+            setIsDirty(false);
+        },
         onError: async () => {
             await showAlert({
                 title: "Save failed",
