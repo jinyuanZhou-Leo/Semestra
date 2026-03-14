@@ -1,6 +1,6 @@
 // input:  [semester initial fields, date pickers, date-fns parse/format helpers, and auto-save callback]
 // output: [`SemesterSettingsPanel` component]
-// pos:    [Semester settings form for term title, semester duration, and optional Reading Week management with debounced auto-save]
+// pos:    [Semester settings form for term title, semester duration, and optional Reading Week management with debounced auto-save plus shadcn Field-based form structure]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,7 +8,6 @@
 
 import React, { useEffect, useMemo, useRef, useState, useId } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,6 +17,14 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+} from "@/components/ui/field";
 
 const parseDateOrUndefined = (value?: string | null) => {
   if (typeof value !== "string" || value.length === 0) {
@@ -244,111 +251,113 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
 
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
-      <div className="grid gap-6">
-        <div className="grid gap-2 max-w-sm">
-          <Label htmlFor={`${fieldId}-name`}>Name</Label>
-          <Input
-            id={`${fieldId}-name`}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </div>
+      <FieldSet>
+        <FieldGroup className="max-w-sm">
+          <Field>
+            <FieldLabel htmlFor={`${fieldId}-name`}>Name</FieldLabel>
+            <Input
+              id={`${fieldId}-name`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </Field>
 
-        <div className="grid gap-2 max-w-sm pt-2">
-          <Label>Semester Duration</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id={`${fieldId}-date`}
-                type="button"
-                variant="outline"
-                className={cn(
-                  "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
-                  !startDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarDays className="mr-2 h-4 w-4" />
-                <span className="truncate">{dateRangeLabel}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                autoFocus
-                mode="range"
-                defaultMonth={startDate}
-                selected={{
-                  from: startDate,
-                  to: endDate,
-                }}
-                onSelect={(range) => {
-                  setStartDate(range?.from);
-                  setEndDate(range?.to);
-                }}
-                numberOfMonths={isMobile ? 1 : 2}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="grid gap-2 max-w-sm">
-          <div className="space-y-1">
-            <Label>Reading Week</Label>
-            <p className="text-sm text-muted-foreground">
-              Optional. Select the full Reading Week date range. It must span exactly one Monday-to-Sunday week.
-            </p>
-          </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id={`${fieldId}-reading-week`}
-                type="button"
-                variant="outline"
-                className={cn(
-                  "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
-                  !readingWeekStart && "text-muted-foreground"
-                )}
-              >
-                <CalendarDays className="mr-2 h-4 w-4" />
-                <span className="truncate">{readingWeekLabel}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                autoFocus
-                mode="range"
-                defaultMonth={readingWeekStart ?? startDate}
-                selected={{
-                  from: readingWeekStart,
-                  to: readingWeekEnd,
-                }}
-                onSelect={(range) => {
-                  setReadingWeekStart(range?.from);
-                  setReadingWeekEnd(range?.to);
-                }}
-                disabled={isReadingWeekDateDisabled}
-                numberOfMonths={isMobile ? 1 : 2}
-              />
-              <div className="flex justify-end border-t px-3 py-2">
+          <Field data-invalid={Boolean(formError)}>
+            <FieldLabel htmlFor={`${fieldId}-date`}>Semester Duration</FieldLabel>
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
+                  id={`${fieldId}-date`}
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setReadingWeekStart(undefined);
-                    setReadingWeekEnd(undefined);
-                  }}
-                  disabled={!readingWeekStart && !readingWeekEnd}
+                  variant="outline"
+                  aria-invalid={Boolean(formError)}
+                  className={cn(
+                    "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
+                    !startDate && "text-muted-foreground"
+                  )}
                 >
-                  Clear Reading Week
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  <span className="truncate">{dateRangeLabel}</span>
                 </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  autoFocus
+                  mode="range"
+                  defaultMonth={startDate}
+                  selected={{
+                    from: startDate,
+                    to: endDate,
+                  }}
+                  onSelect={(range) => {
+                    setStartDate(range?.from);
+                    setEndDate(range?.to);
+                  }}
+                  numberOfMonths={isMobile ? 1 : 2}
+                />
+              </PopoverContent>
+            </Popover>
+            <FieldDescription>Select the full semester date range.</FieldDescription>
+          </Field>
 
-        {formError && <p className="text-sm text-destructive">{formError}</p>}
-      </div>
+          <Field data-invalid={Boolean(formError)}>
+            <FieldLabel htmlFor={`${fieldId}-reading-week`}>Reading Week</FieldLabel>
+            <FieldDescription>
+              Optional. Select the full Reading Week date range. It must span exactly one Monday-to-Sunday week.
+            </FieldDescription>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id={`${fieldId}-reading-week`}
+                  type="button"
+                  variant="outline"
+                  aria-invalid={Boolean(formError)}
+                  className={cn(
+                    "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
+                    !readingWeekStart && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  <span className="truncate">{readingWeekLabel}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  autoFocus
+                  mode="range"
+                  defaultMonth={readingWeekStart ?? startDate}
+                  selected={{
+                    from: readingWeekStart,
+                    to: readingWeekEnd,
+                  }}
+                  onSelect={(range) => {
+                    setReadingWeekStart(range?.from);
+                    setReadingWeekEnd(range?.to);
+                  }}
+                  disabled={isReadingWeekDateDisabled}
+                  numberOfMonths={isMobile ? 1 : 2}
+                />
+                <div className="flex justify-end border-t px-3 py-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setReadingWeekStart(undefined);
+                      setReadingWeekEnd(undefined);
+                    }}
+                    disabled={!readingWeekStart && !readingWeekEnd}
+                  >
+                    Clear Reading Week
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+            {formError ? <FieldError>{formError}</FieldError> : null}
+          </Field>
+        </FieldGroup>
+      </FieldSet>
     </SettingsSection>
   );
 };

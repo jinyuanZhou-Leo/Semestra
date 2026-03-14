@@ -1,6 +1,6 @@
 // input:  [initial course fields (name/alias/category/custom color/credits/GPA flags), resolved Program default color metadata, color picker UI, and auto-save callback]
 // output: [`CourseSettingsPanel` component]
-// pos:    [Settings form section for editing per-course metadata, a stable-layout optional custom color override, and GPA participation with debounced auto-save]
+// pos:    [Settings form section for editing per-course metadata, a stable-layout optional custom color override, GPA participation, and shadcn Field-based form structure with debounced auto-save]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,7 +9,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
 import { Switch } from "@/components/ui/switch";
@@ -17,6 +16,14 @@ import { SettingsSection } from "./SettingsSection";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { cn } from "@/lib/utils";
 import { normalizeSubjectCode, resolveCourseSubjectCode } from "@/utils/courseCategoryBadge";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+} from "@/components/ui/field";
 
 const COURSE_COLOR_PRESETS: readonly ColorPickerPreset[] = [
   { name: 'Blue', value: '#2563eb' },
@@ -211,132 +218,135 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
 
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
-      <div className="grid gap-6">
-        <div className="grid max-w-sm gap-2">
-          <Label htmlFor={`${fieldId}-name`}>Name</Label>
-          <Input
-            id={`${fieldId}-name`}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </div>
+      <FieldSet>
+        <FieldGroup>
+          <Field className="max-w-sm">
+            <FieldLabel htmlFor={`${fieldId}-name`}>Name</FieldLabel>
+            <Input
+              id={`${fieldId}-name`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </Field>
 
-        <div className="grid max-w-sm gap-2 pt-2">
-          <Label htmlFor={`${fieldId}-alias`}>Alias (optional)</Label>
-          <Input
-            id={`${fieldId}-alias`}
-            value={alias}
-            onChange={(e) => setAlias(e.target.value)}
-            placeholder="e.g. CS101 - Prof. Smith"
-          />
-        </div>
+          <Field className="max-w-sm">
+            <FieldLabel htmlFor={`${fieldId}-alias`}>Alias</FieldLabel>
+            <Input
+              id={`${fieldId}-alias`}
+              value={alias}
+              onChange={(e) => setAlias(e.target.value)}
+              placeholder="e.g. CS101 - Prof. Smith"
+            />
+            <FieldDescription>Optional short label shown alongside the course name.</FieldDescription>
+          </Field>
 
-        <div className="grid max-w-sm gap-2 pt-2">
-          <div className="flex min-h-9 items-center justify-between gap-3">
-            <Label htmlFor={`${fieldId}-category`}>Category (optional)</Label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "transition-opacity",
-                !shouldShowCategoryUpdate && "pointer-events-none opacity-0",
-              )}
-              onClick={() => {
-                if (!suggestedCategory) return;
-                setCategory(suggestedCategory);
-              }}
-              aria-hidden={!shouldShowCategoryUpdate}
-              tabIndex={shouldShowCategoryUpdate ? 0 : -1}
-            >
-              Update to {suggestedCategory || "CODE"}
-            </Button>
-          </div>
-          <Input
-            id={`${fieldId}-category`}
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            placeholder="e.g. APS"
-          />
-        </div>
+          <Field className="max-w-sm">
+            <div className="flex min-h-9 items-center justify-between gap-3">
+              <FieldLabel htmlFor={`${fieldId}-category`}>Category</FieldLabel>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "transition-opacity",
+                  !shouldShowCategoryUpdate && "pointer-events-none opacity-0",
+                )}
+                onClick={() => {
+                  if (!suggestedCategory) return;
+                  setCategory(suggestedCategory);
+                }}
+                aria-hidden={!shouldShowCategoryUpdate}
+                tabIndex={shouldShowCategoryUpdate ? 0 : -1}
+              >
+                Update to {suggestedCategory || "CODE"}
+              </Button>
+            </div>
+            <Input
+              id={`${fieldId}-category`}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. APS"
+            />
+            <FieldDescription>Optional subject code used for grouping and default colors.</FieldDescription>
+          </Field>
 
-        <div className="grid gap-4 pt-2">
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">
-              Course Color
-            </Label>
-            <div className="flex min-h-11 items-center gap-3">
+          <FieldGroup>
+            <Field orientation="responsive">
+              <FieldContent>
+                <FieldLabel htmlFor={`${fieldId}-custom-color`}>Course Color</FieldLabel>
+                <FieldDescription>Use a per-course color override instead of the Program default.</FieldDescription>
+              </FieldContent>
               <Switch
                 id={`${fieldId}-custom-color`}
                 checked={useCustomColor}
                 onCheckedChange={setUseCustomColor}
+                className="shrink-0"
               />
-              <Label htmlFor={`${fieldId}-custom-color`} className="text-sm text-muted-foreground">
-                Use custom override
-              </Label>
-            </div>
-          </div>
+            </Field>
 
-          <div className="grid max-w-sm gap-2">
-            <div className={cn("transition-opacity", !useCustomColor && "pointer-events-none opacity-55")}>
-              <ColorPicker
-                id={`${fieldId}-color`}
-                value={color}
-                onChange={(nextColor) => {
-                  setColor(nextColor);
-                  setUseCustomColor(true);
+            <Field className="max-w-sm">
+              <div className={cn("transition-opacity", !useCustomColor && "pointer-events-none opacity-55")}>
+                <ColorPicker
+                  id={`${fieldId}-color`}
+                  value={color}
+                  onChange={(nextColor) => {
+                    setColor(nextColor);
+                    setUseCustomColor(true);
+                  }}
+                  defaultColor={automaticColor}
+                  presetColors={COURSE_COLOR_PRESETS}
+                  triggerAriaLabel="Choose custom course color"
+                  resetLabel="Use Program default color"
+                />
+              </div>
+            </Field>
+          </FieldGroup>
+
+          <Field className="max-w-sm">
+            <FieldLabel htmlFor={`${fieldId}-credits`}>Credits</FieldLabel>
+            <Input
+              id={`${fieldId}-credits`}
+              type="number"
+              step="0.5"
+              value={credits}
+              onChange={(e) => setCredits(e.target.value)}
+              required
+            />
+          </Field>
+
+          <FieldGroup className="sm:grid sm:grid-cols-2">
+            <Field orientation="horizontal">
+              <Checkbox
+                id={`${fieldId}-include-gpa`}
+                checked={includeInGpa}
+                onCheckedChange={(checked) => {
+                  if (checked === "indeterminate") return;
+                  setIncludeInGpa(checked);
                 }}
-                defaultColor={automaticColor}
-                presetColors={COURSE_COLOR_PRESETS}
-                triggerAriaLabel="Choose custom course color"
-                resetLabel="Use Program default color"
               />
-            </div>
-          </div>
-        </div>
-
-        <div className="grid max-w-sm gap-2 pt-2">
-          <Label htmlFor={`${fieldId}-credits`}>Credits</Label>
-          <Input
-            id={`${fieldId}-credits`}
-            type="number"
-            step="0.5"
-            value={credits}
-            onChange={(e) => setCredits(e.target.value)}
-            required
-          />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex items-center gap-3">
-            <Checkbox
-              id={`${fieldId}-include-gpa`}
-              checked={includeInGpa}
-              onCheckedChange={(checked) => {
-                if (checked === "indeterminate") return;
-                setIncludeInGpa(checked);
-              }}
-            />
-            <Label htmlFor={`${fieldId}-include-gpa`} className="text-sm text-muted-foreground">
-              Include in GPA
-            </Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <Checkbox
-              id={`${fieldId}-hide-gpa`}
-              checked={hideGpa}
-              onCheckedChange={(checked) => {
-                if (checked === "indeterminate") return;
-                setHideGpa(checked);
-              }}
-            />
-            <Label htmlFor={`${fieldId}-hide-gpa`} className="text-sm text-muted-foreground">
-              Hide GPA Info
-            </Label>
-          </div>
-        </div>
-      </div>
+              <FieldContent>
+                <FieldLabel htmlFor={`${fieldId}-include-gpa`}>Include in GPA</FieldLabel>
+                <FieldDescription>Use this course when calculating GPA.</FieldDescription>
+              </FieldContent>
+            </Field>
+            <Field orientation="horizontal">
+              <Checkbox
+                id={`${fieldId}-hide-gpa`}
+                checked={hideGpa}
+                onCheckedChange={(checked) => {
+                  if (checked === "indeterminate") return;
+                  setHideGpa(checked);
+                }}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor={`${fieldId}-hide-gpa`}>Hide GPA Info</FieldLabel>
+                <FieldDescription>Hide GPA details in course-level views.</FieldDescription>
+              </FieldContent>
+            </Field>
+          </FieldGroup>
+        </FieldGroup>
+      </FieldSet>
     </SettingsSection>
   );
 };

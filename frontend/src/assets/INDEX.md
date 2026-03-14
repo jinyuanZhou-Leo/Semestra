@@ -1,9 +1,9 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
-Reserved space for source-level static assets imported by code.
-Currently no tracked files are required in this folder.
-Keep future media assets here when they are module-imported by TS/TSX.
+Source-level static assets imported by frontend code.
+Keep shared media here when they are module-imported by TS/TSX.
+This folder now stores LMS/provider branding assets used by settings UI.
 
 | File | Role | Description |
 |------|------|-------------|
-| (empty) | Placeholder | No tracked files in this folder yet. |
+| canvas-icon.png | Brand asset | Canvas logo imported by the settings UI LMS integration section. |

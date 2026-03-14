@@ -1,6 +1,6 @@
-// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks, and responsive dialog wrapper]
+// input:  [auth context/actions, user settings/import-export APIs, dialog helpers, theme hooks, switch controls, responsive dialog wrapper, and LMS branding assets]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, GPA rules, and data transfer with mobile-safe responsive layout, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
+// pos:    [Global settings workspace for profile defaults, LMS integration cards, plugin preload preferences, GPA rules, and data transfer with mobile-safe responsive layout, shadcn Field-based form structure, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -23,10 +23,18 @@ import api from "../services/api";
 import versionInfo from "../version.json";
 import type { ImportData, ConflictMode } from "../components/ImportPreviewModal";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+    Field,
+    FieldContent,
+    FieldDescription,
+    FieldGroup,
+    FieldLabel,
+    FieldSet,
+} from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
@@ -41,6 +49,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Upload } from "lucide-react";
 import { ResponsiveDialogDrawer } from "../components/ResponsiveDialogDrawer";
+import canvasLogo from "@/assets/canvas-icon.png";
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
@@ -65,9 +74,15 @@ export const SettingsPage: React.FC = () => {
     const [gpaTableJson, setGpaTableJson] = useState('{}');
     const [nickname, setNickname] = useState('');
     const [defaultCourseCredit, setDefaultCourseCredit] = useState(0.5);
+    const [backgroundPluginPreload, setBackgroundPluginPreload] = useState(true);
 
     // Dirty checking
-    const [initialState, setInitialState] = useState<{ nickname: string, gpaTableJson: string, defaultCourseCredit: number } | null>(null);
+    const [initialState, setInitialState] = useState<{
+        nickname: string;
+        gpaTableJson: string;
+        defaultCourseCredit: number;
+        backgroundPluginPreload: boolean;
+    } | null>(null);
     const [isDirty, setIsDirty] = useState(false);
 
     // Import modal state
@@ -93,11 +108,18 @@ export const SettingsPage: React.FC = () => {
             const initialGpa = user.gpa_scaling_table ?? DEFAULT_GPA_SCALING_TABLE_JSON;
             const initialNick = user.nickname || '';
             const initialCredit = user.default_course_credit ?? 0.5;
+            const initialBackgroundPluginPreload = user.background_plugin_preload ?? true;
 
             setGpaTableJson(initialGpa);
             setNickname(initialNick);
             setDefaultCourseCredit(initialCredit);
-            setInitialState({ nickname: initialNick, gpaTableJson: initialGpa, defaultCourseCredit: initialCredit });
+            setBackgroundPluginPreload(initialBackgroundPluginPreload);
+            setInitialState({
+                nickname: initialNick,
+                gpaTableJson: initialGpa,
+                defaultCourseCredit: initialCredit,
+                backgroundPluginPreload: initialBackgroundPluginPreload,
+            });
         }
     }, [user]);
 
@@ -105,10 +127,11 @@ export const SettingsPage: React.FC = () => {
         if (initialState) {
             const hasChanged = nickname !== initialState.nickname ||
                 gpaTableJson !== initialState.gpaTableJson ||
-                defaultCourseCredit !== initialState.defaultCourseCredit;
+                defaultCourseCredit !== initialState.defaultCourseCredit ||
+                backgroundPluginPreload !== initialState.backgroundPluginPreload;
             setIsDirty(hasChanged);
         }
-    }, [nickname, gpaTableJson, defaultCourseCredit, initialState]);
+    }, [nickname, gpaTableJson, defaultCourseCredit, backgroundPluginPreload, initialState]);
 
     useEffect(() => {
         setGoogleLinkError('');
@@ -197,8 +220,9 @@ export const SettingsPage: React.FC = () => {
     const settingsSnapshot = useMemo(() => ({
         nickname,
         gpaTableJson,
-        defaultCourseCredit
-    }), [defaultCourseCredit, gpaTableJson, nickname]);
+        defaultCourseCredit,
+        backgroundPluginPreload
+    }), [backgroundPluginPreload, defaultCourseCredit, gpaTableJson, nickname]);
     const isSettingsValid = useMemo(() => {
         try {
             JSON.parse(gpaTableJson);
@@ -213,7 +237,8 @@ export const SettingsPage: React.FC = () => {
             await api.updateUser({
                 gpa_scaling_table: snapshot.gpaTableJson,
                 nickname: snapshot.nickname,
-                default_course_credit: snapshot.defaultCourseCredit
+                default_course_credit: snapshot.defaultCourseCredit,
+                background_plugin_preload: snapshot.backgroundPluginPreload
             });
             await refreshUser();
         },
@@ -226,7 +251,8 @@ export const SettingsPage: React.FC = () => {
         isEqual: (left, right) =>
             left.nickname === right.nickname
             && left.gpaTableJson === right.gpaTableJson
-            && left.defaultCourseCredit === right.defaultCourseCredit,
+            && left.defaultCourseCredit === right.defaultCourseCredit
+            && left.backgroundPluginPreload === right.backgroundPluginPreload,
         validate: () => isSettingsValid,
         onSave: async (snapshot) => {
             await updateUserMutation.mutateAsync(snapshot);
@@ -381,16 +407,20 @@ export const SettingsPage: React.FC = () => {
                             </div>
 
                             {/* Display Name */}
-                            <div className="grid gap-2 max-w-sm">
-                                <Label htmlFor="nickname-input">Display Name</Label>
-                                <Input
-                                    id="nickname-input"
-                                    type="text"
-                                    value={nickname}
-                                    onChange={(e) => setNickname(e.target.value)}
-                                    placeholder="Enter a nickname"
-                                />
-                            </div>
+                            <FieldSet className="max-w-sm">
+                                <FieldGroup>
+                                    <Field>
+                                        <FieldLabel htmlFor="nickname-input">Display Name</FieldLabel>
+                                        <Input
+                                            id="nickname-input"
+                                            type="text"
+                                            value={nickname}
+                                            onChange={(e) => setNickname(e.target.value)}
+                                            placeholder="Enter a nickname"
+                                        />
+                                    </Field>
+                                </FieldGroup>
+                            </FieldSet>
 
                             <Separator />
 
@@ -399,7 +429,7 @@ export const SettingsPage: React.FC = () => {
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="space-y-0.5">
                                         <div className="flex items-center gap-2">
-                                            <Label className="text-sm font-medium">Google Account</Label>
+                                            <p className="text-sm font-medium">Google Account</p>
                                             {googleClientId && user?.google_sub ? (
                                                 <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-xs">Linked</Badge>
                                             ) : (
@@ -438,8 +468,6 @@ export const SettingsPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <Separator />
-
                             {/* Session Management */}
                             <div className="space-y-4">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -462,34 +490,105 @@ export const SettingsPage: React.FC = () => {
                     </SettingsSection>
 
                     <SettingsSection
+                        title="LMS Integration"
+                        description="Connect learning platforms."
+                    >
+                        <div className="space-y-5">
+                            <div className="flex min-w-0 items-center gap-4">
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-background p-2">
+                                    <img
+                                        src={canvasLogo}
+                                        alt="Canvas"
+                                        className="h-8 w-8 object-contain"
+                                    />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium">Canvas</p>
+                                </div>
+                            </div>
+
+                            <FieldSet className="max-w-md">
+                                <FieldGroup>
+                                    <Field>
+                                        <FieldLabel htmlFor="input-canvas-instance-url">Canvas Instance URL</FieldLabel>
+                                        <Input id="input-canvas-instance-url" type="url" placeholder="https://canvas.instructure.com/" />
+                                        <FieldDescription>
+                                            Enter the full base URL of your school&apos;s Canvas site.
+                                        </FieldDescription>
+                                    </Field>
+                                    <Field>
+                                        <FieldLabel htmlFor="input-canvas-api-key">API Key</FieldLabel>
+                                        <Input id="input-canvas-api-key" type="password" placeholder="sk-..." />
+                                        <FieldDescription>
+                                            Your API key is encrypted and stored securely.
+                                        </FieldDescription>
+                                    </Field>
+                                    <Field>
+                                        <div className="flex flex-wrap gap-3">
+                                            <Button type="reset" variant="outline">
+                                                Validate
+                                            </Button>
+                                        </div>
+                                    </Field>
+                                </FieldGroup>
+                            </FieldSet>
+                        </div>
+                    </SettingsSection>
+
+                    <SettingsSection
                         title="Preferences"
                         description="Customize the application appearance and set default behaviors."
                     >
                         <div className="space-y-6">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div className="space-y-0.5">
-                                    <Label htmlFor="theme-select" className="text-sm font-medium">Theme</Label>
-                                    <p className="text-sm text-muted-foreground">Select your preferred color scheme.</p>
-                                </div>
-                                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                                    {themeOptions.map((option) => (
-                                        <Button
-                                            key={option.value}
-                                            variant={themeMode === option.value ? "default" : "outline"}
-                                            size="sm"
-                                            onClick={() => handleThemeChange(option.value)}
-                                            className="min-w-[80px] flex-1 sm:flex-none"
-                                        >
-                                            {option.label}
-                                        </Button>
-                                    ))}
-                                </div>
-                            </div>
+                            <FieldSet>
+                                <FieldGroup>
+                                    <Field>
+                                        <FieldLabel>Theme</FieldLabel>
+                                        <FieldDescription>Select your preferred color scheme.</FieldDescription>
+                                        <div className="flex w-full flex-wrap items-center gap-2">
+                                            {themeOptions.map((option) => (
+                                                <Button
+                                                    key={option.value}
+                                                    variant={themeMode === option.value ? "default" : "outline"}
+                                                    size="sm"
+                                                    onClick={() => handleThemeChange(option.value)}
+                                                    className="min-w-[80px] flex-1 sm:flex-none"
+                                                >
+                                                    {option.label}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </Field>
+                                </FieldGroup>
+                            </FieldSet>
+
+                            <Separator />
+
+                            <FieldSet>
+                                <FieldGroup>
+                                    <Field orientation="responsive">
+                                        <FieldContent>
+                                            <FieldLabel htmlFor="background-plugin-preload">
+                                                Preload plugins in the background
+                                            </FieldLabel>
+                                            <FieldDescription>
+                                                After the page finishes loading, use browser idle time to warm up the remaining plugins.
+                                            </FieldDescription>
+                                        </FieldContent>
+                                        <Switch
+                                            id="background-plugin-preload"
+                                            checked={backgroundPluginPreload}
+                                            onCheckedChange={setBackgroundPluginPreload}
+                                            className="shrink-0"
+                                        />
+                                    </Field>
+                                </FieldGroup>
+                            </FieldSet>
 
                             <Separator />
 
                             <div className="grid gap-4">
-                                <Label className="text-base">Default GPA Scaling Table</Label>
+                                <p className="text-base font-medium">Default GPA Scaling Table</p>
                                 <GPAScalingTable
                                     value={gpaTableJson}
                                     onChange={(newValue) => {
@@ -503,24 +602,28 @@ export const SettingsPage: React.FC = () => {
 
                             <Separator />
 
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div className="space-y-0.5">
-                                    <Label htmlFor="default-credit" className="text-sm font-medium">Default Course Credit</Label>
-                                    <p className="text-sm text-muted-foreground">
-                                        The default number of credits assigned to new courses.
-                                    </p>
-                                </div>
-                                <Input
-                                    id="default-credit"
-                                    type="number"
-                                    step="0.5"
-                                    value={defaultCourseCredit}
-                                    onChange={(e) =>
-                                        setDefaultCourseCredit(parseFloat(e.target.value) || 0)
-                                    }
-                                    className="w-full sm:w-[120px] shrink-0"
-                                />
-                            </div>
+                            <FieldSet>
+                                <FieldGroup>
+                                    <Field orientation="responsive">
+                                        <FieldContent>
+                                            <FieldLabel htmlFor="default-credit">Default Course Credit</FieldLabel>
+                                            <FieldDescription>
+                                                The default number of credits assigned to new courses.
+                                            </FieldDescription>
+                                        </FieldContent>
+                                        <Input
+                                            id="default-credit"
+                                            type="number"
+                                            step="0.5"
+                                            value={defaultCourseCredit}
+                                            onChange={(e) =>
+                                                setDefaultCourseCredit(parseFloat(e.target.value) || 0)
+                                            }
+                                            className="w-full @md/field-group:w-[120px] shrink-0"
+                                        />
+                                    </Field>
+                                </FieldGroup>
+                            </FieldSet>
 
                         </div>
                     </SettingsSection>
@@ -629,7 +732,7 @@ export const SettingsPage: React.FC = () => {
                                     className="space-y-4 overflow-y-auto px-4 pb-4 sm:space-y-4 sm:px-0 sm:py-4 sm:pb-0"
                                 >
                                     <div className="space-y-2">
-                                        <Label htmlFor={restoreBackupFileInputId}>Backup File</Label>
+                                        <p className="text-sm font-medium">Backup File</p>
                                         <div
                                             className={cn(
                                                 "cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all",

@@ -1,6 +1,6 @@
 // input:  [calendar settings state, settings update callback, schedule data hooks, shadcn settings/time-input UI primitives]
 // output: [`CalendarSettingsSection` settings UI for calendar behavior, Reading Week week-number controls, colors, export, and reset actions]
-// pos:    [Calendar tab settings panel entry that normalizes state and applies granular patches]
+// pos:    [Calendar tab settings panel entry that normalizes state, applies granular patches, and uses shadcn Field-based form structure for standard controls]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -23,8 +23,15 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+} from '@/components/ui/field';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
@@ -121,127 +128,132 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
         description="Configure visibility and source colors for the calendar tab."
       >
         <div className="space-y-5">
-          <div className="space-y-2">
-            <div className="space-y-2">
-              <Label htmlFor="calendar-settings-week-view-day-count">Days per screen</Label>
-              <Select
-                value={String(normalizedSettings.weekViewDayCount)}
-                onValueChange={(value) => patchSettings({ weekViewDayCount: Number(value) })}
-              >
-                <SelectTrigger id="calendar-settings-week-view-day-count" className="w-full">
-                  <SelectValue placeholder="Select visible days" />
-                </SelectTrigger>
-                <SelectContent>
-                  {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
-                    <SelectItem key={dayCount} value={String(dayCount)}>
-                      {dayCount} day{dayCount === 1 ? '' : 's'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                Keep the full week visible and enable horizontal scrolling when this is smaller than the week width.
-              </p>
-            </div>
-          </div>
+          <FieldSet>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="calendar-settings-week-view-day-count">Days per screen</FieldLabel>
+                <Select
+                  value={String(normalizedSettings.weekViewDayCount)}
+                  onValueChange={(value) => patchSettings({ weekViewDayCount: Number(value) })}
+                >
+                  <SelectTrigger id="calendar-settings-week-view-day-count" className="w-full">
+                    <SelectValue placeholder="Select visible days" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
+                      <SelectItem key={dayCount} value={String(dayCount)}>
+                        {dayCount} day{dayCount === 1 ? '' : 's'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  Keep the full week visible and enable horizontal scrolling when this is smaller than the week width.
+                </FieldDescription>
+              </Field>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="calendar-settings-day-start">Day start time</Label>
-              <InputGroup>
-                <InputGroupInput
-                  id="calendar-settings-day-start"
-                  type="time"
-                  step={CALENDAR_TIME_INPUT_STEP_SECONDS}
-                  value={dayStartDraft}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    setDayStartDraft(nextValue);
-                    if (parseTimeInputValue(nextValue) !== null) {
-                      commitDayStartTime(nextValue);
-                    }
-                  }}
-                  onBlur={(event) => commitDayStartTime(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter') return;
-                    commitDayStartTime(event.currentTarget.value);
-                    event.currentTarget.blur();
-                  }}
-                  className={timeInputClassName}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="calendar-settings-day-start">Day start time</FieldLabel>
+                  <InputGroup>
+                    <InputGroupInput
+                      id="calendar-settings-day-start"
+                      type="time"
+                      step={CALENDAR_TIME_INPUT_STEP_SECONDS}
+                      value={dayStartDraft}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setDayStartDraft(nextValue);
+                        if (parseTimeInputValue(nextValue) !== null) {
+                          commitDayStartTime(nextValue);
+                        }
+                      }}
+                      onBlur={(event) => commitDayStartTime(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') return;
+                        commitDayStartTime(event.currentTarget.value);
+                        event.currentTarget.blur();
+                      }}
+                      className={timeInputClassName}
+                    />
+                    <InputGroupAddon align="inline-end" className="pr-2">
+                      <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+                    </InputGroupAddon>
+                  </InputGroup>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="calendar-settings-day-end">Day end time</FieldLabel>
+                  <InputGroup>
+                    <InputGroupInput
+                      id="calendar-settings-day-end"
+                      type="time"
+                      step={CALENDAR_TIME_INPUT_STEP_SECONDS}
+                      value={dayEndDraft}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setDayEndDraft(nextValue);
+                        if (parseTimeInputValue(nextValue) !== null) {
+                          commitDayEndTime(nextValue);
+                        }
+                      }}
+                      onBlur={(event) => commitDayEndTime(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') return;
+                        commitDayEndTime(event.currentTarget.value);
+                        event.currentTarget.blur();
+                      }}
+                      className={timeInputClassName}
+                    />
+                    <InputGroupAddon align="inline-end" className="pr-2">
+                      <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+                    </InputGroupAddon>
+                  </InputGroup>
+                </Field>
+              </div>
+
+              <Field orientation="responsive">
+                <FieldContent>
+                  <FieldLabel htmlFor="calendar-settings-highlight-conflicts">Highlight conflicts</FieldLabel>
+                  <FieldDescription>Use stronger visual emphasis for conflict events.</FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="calendar-settings-highlight-conflicts"
+                  checked={normalizedSettings.highlightConflicts}
+                  onCheckedChange={(checked) => patchSettings({ highlightConflicts: checked })}
+                  className="shrink-0"
                 />
-                <InputGroupAddon align="inline-end" className="pr-2">
-                  <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-                </InputGroupAddon>
-              </InputGroup>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="calendar-settings-day-end">Day end time</Label>
-              <InputGroup>
-                <InputGroupInput
-                  id="calendar-settings-day-end"
-                  type="time"
-                  step={CALENDAR_TIME_INPUT_STEP_SECONDS}
-                  value={dayEndDraft}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    setDayEndDraft(nextValue);
-                    if (parseTimeInputValue(nextValue) !== null) {
-                      commitDayEndTime(nextValue);
-                    }
-                  }}
-                  onBlur={(event) => commitDayEndTime(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter') return;
-                    commitDayEndTime(event.currentTarget.value);
-                    event.currentTarget.blur();
-                  }}
-                  className={timeInputClassName}
+              </Field>
+
+              <Field orientation="responsive">
+                <FieldContent>
+                  <FieldLabel htmlFor="calendar-settings-show-weekends">Show weekends</FieldLabel>
+                  <FieldDescription>Display Saturday and Sunday columns in calendar views.</FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="calendar-settings-show-weekends"
+                  checked={normalizedSettings.showWeekends}
+                  onCheckedChange={(checked) => patchSettings({ showWeekends: checked })}
+                  className="shrink-0"
                 />
-                <InputGroupAddon align="inline-end" className="pr-2">
-                  <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-                </InputGroupAddon>
-              </InputGroup>
-            </div>
-          </div>
+              </Field>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="calendar-settings-highlight-conflicts" className="cursor-pointer text-base">Highlight conflicts</Label>
-              <p className="text-sm text-muted-foreground">Use stronger visual emphasis for conflict events.</p>
-            </div>
-            <Switch
-              id="calendar-settings-highlight-conflicts"
-              checked={normalizedSettings.highlightConflicts}
-              onCheckedChange={(checked) => patchSettings({ highlightConflicts: checked })}
-            />
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="calendar-settings-show-weekends" className="cursor-pointer text-base">Show weekends</Label>
-              <p className="text-sm text-muted-foreground">Display Saturday and Sunday columns in calendar views.</p>
-            </div>
-            <Switch
-              id="calendar-settings-show-weekends"
-              checked={normalizedSettings.showWeekends}
-              onCheckedChange={(checked) => patchSettings({ showWeekends: checked })}
-            />
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="calendar-settings-count-reading-week" className="cursor-pointer text-base">Count Reading Week in week number</Label>
-              <p className="text-sm text-muted-foreground">When disabled, weeks after Reading Week keep their academic numbering without counting the break week.</p>
-            </div>
-            <Switch
-              id="calendar-settings-count-reading-week"
-              checked={normalizedSettings.countReadingWeekInWeekNumber}
-              onCheckedChange={(checked) => patchSettings({ countReadingWeekInWeekNumber: checked })}
-            />
-          </div>
+              <Field orientation="responsive">
+                <FieldContent>
+                  <FieldLabel htmlFor="calendar-settings-count-reading-week">Count Reading Week in week number</FieldLabel>
+                  <FieldDescription>When disabled, weeks after Reading Week keep their academic numbering without counting the break week.</FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="calendar-settings-count-reading-week"
+                  checked={normalizedSettings.countReadingWeekInWeekNumber}
+                  onCheckedChange={(checked) => patchSettings({ countReadingWeekInWeekNumber: checked })}
+                  className="shrink-0"
+                />
+              </Field>
+            </FieldGroup>
+          </FieldSet>
 
           <div className="space-y-2 pt-2">
-            <Label>Event source colors</Label>
+            <p className="text-sm font-medium">Event source colors</p>
             <div className="grid gap-3 lg:grid-cols-3">
               {calendarSources.map((source) => (
                 <EventColorPicker

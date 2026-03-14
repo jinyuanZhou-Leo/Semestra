@@ -1,6 +1,6 @@
 // input:  [course gradebook APIs, plugin settings contracts, and shared category helpers]
 // output: [builtin-gradebook shared settings sections for forecast preferences and categories]
-// pos:    [course-scoped gradebook settings surface for forecast-mode selection and category management]
+// pos:    [course-scoped gradebook settings surface for forecast-mode selection, Field-based category dialog inputs, and category management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,9 +18,9 @@ import api, { type CourseGradebook, type GradebookAssessmentCategory } from '@/s
 import { SettingsSection } from '@/components/SettingsSection';
 import { CrudPanel } from '@/components/CrudPanel';
 import { Button } from '@/components/ui/button';
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Label } from '@/components/ui/label';
 import { ColorPicker, type ColorPickerPreset } from '@/components/ui/color-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -141,29 +141,32 @@ const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-4 pt-2">
-                    <div className="space-y-2">
-                        <Label htmlFor="cat-name">Name</Label>
-                        <Input
-                            id="cat-name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. Homework"
-                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleSubmit(); } }}
-                            autoFocus
-                        />
-                    </div>
+                <FieldSet className="pt-2">
+                    <FieldGroup>
+                        <Field>
+                            <FieldLabel htmlFor="cat-name">Name</FieldLabel>
+                            <Input
+                                id="cat-name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="e.g. Homework"
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleSubmit(); } }}
+                                autoFocus
+                            />
+                        </Field>
 
-                    <div className="space-y-2">
-                        <Label>Colour</Label>
-                        <ColorPicker
-                            value={color}
-                            onChange={setColor}
-                            presetColors={CATEGORY_COLOR_PRESETS}
-                            triggerAriaLabel="Choose category colour"
-                        />
-                    </div>
-                </div>
+                        <Field>
+                            <FieldLabel>Colour</FieldLabel>
+                            <FieldDescription>Choose the default color used for this assessment category.</FieldDescription>
+                            <ColorPicker
+                                value={color}
+                                onChange={setColor}
+                                presetColors={CATEGORY_COLOR_PRESETS}
+                                triggerAriaLabel="Choose category colour"
+                            />
+                        </Field>
+                    </FieldGroup>
+                </FieldSet>
 
                 <div className="flex justify-end gap-2 pt-2">
                     <Button variant="ghost" type="button" onClick={() => onOpenChange(false)}>

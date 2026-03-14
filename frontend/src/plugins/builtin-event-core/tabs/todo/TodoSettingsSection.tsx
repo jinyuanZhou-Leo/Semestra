@@ -1,8 +1,16 @@
+// input:  [tab settings props, todo behavior normalization helpers, and shadcn Field/Switch primitives]
+// output: [`TodoSettingsSection` component]
+// pos:    [Todo settings panel that edits hidden-completed-bucket behavior using shadcn Field-based switch layout]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
 import { SettingsSection } from '@/components/SettingsSection';
-import { Label } from '@/components/ui/label';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
 import { Switch } from '@/components/ui/switch';
 import type { TabSettingsProps } from '@/services/tabRegistry';
 import { patchTodoBehaviorSettings, normalizeTodoBehaviorSettings } from './preferences';
@@ -15,27 +23,32 @@ export const TodoSettingsSection: React.FC<TabSettingsProps> = ({ settings, upda
       title="Todo"
       description="Task completion behavior"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <Label htmlFor="todo-settings-move-completed" className="cursor-pointer text-base">
-              Store completed tasks in the hidden completed bucket
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              When disabled, completed tasks stay attached to their original section records.
-            </p>
-          </div>
-          <Switch
-            id="todo-settings-move-completed"
-            checked={behavior.moveCompletedToCompletedSection}
-            onCheckedChange={(checked) => {
-              void Promise.resolve(
-                updateSettings(
-                  patchTodoBehaviorSettings(settings, { moveCompletedToCompletedSection: checked }),
-                ),
-              );
-            }}
-          />
-      </div>
+      <FieldSet>
+        <FieldGroup>
+          <Field orientation="responsive">
+            <FieldContent>
+              <FieldLabel htmlFor="todo-settings-move-completed">
+                Store completed tasks in the hidden completed bucket
+              </FieldLabel>
+              <FieldDescription>
+                When disabled, completed tasks stay attached to their original section records.
+              </FieldDescription>
+            </FieldContent>
+            <Switch
+              id="todo-settings-move-completed"
+              checked={behavior.moveCompletedToCompletedSection}
+              onCheckedChange={(checked) => {
+                void Promise.resolve(
+                  updateSettings(
+                    patchTodoBehaviorSettings(settings, { moveCompletedToCompletedSection: checked }),
+                  ),
+                );
+              }}
+              className="shrink-0"
+            />
+          </Field>
+        </FieldGroup>
+      </FieldSet>
     </SettingsSection>
   );
 };

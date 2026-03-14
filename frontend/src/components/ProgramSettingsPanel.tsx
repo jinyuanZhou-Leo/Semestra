@@ -1,6 +1,6 @@
 // input:  [program name/credits/GPA defaults, discovered subject codes, course color-picker presets, and auto-save lifecycle callbacks]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form rendered inside program dashboard modal with debounced auto-save persistence plus Program-scoped stable subject-color management]
+// pos:    [Program-level settings form rendered inside program dashboard modal with debounced auto-save persistence, shadcn Field-based layout, and Program-scoped stable subject-color management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,9 +22,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+} from "@/components/ui/field";
 import {
   normalizeSubjectCode,
   parseSubjectColorMap,
@@ -247,57 +255,54 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         description="Update core Program details and visibility preferences."
         contentClassName="space-y-6"
       >
-        <div className="grid gap-5">
-          <div className="grid max-w-sm gap-2">
-            <Label htmlFor={`${fieldId}-name`}>Program Name</Label>
-            <Input
-              id={`${fieldId}-name`}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor={`${fieldId}-grad-credits`} className="text-sm font-medium">
-                Graduation Credits
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                The total credits required to complete this Program.
-              </p>
-            </div>
-            <div className="w-full sm:w-[140px] sm:shrink-0">
+        <FieldSet>
+          <FieldGroup>
+            <Field className="max-w-sm">
+              <FieldLabel htmlFor={`${fieldId}-name`}>Program Name</FieldLabel>
               <Input
-                id={`${fieldId}-grad-credits`}
-                type="number"
-                step="0.5"
-                value={gradCredits}
-                onChange={(event) => setGradCredits(event.target.value)}
+                id={`${fieldId}-name`}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
                 required
               />
-            </div>
-          </div>
+            </Field>
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor={`${fieldId}-hide-gpa`} className="text-sm font-medium">
-                Hide GPA Info
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                Remove GPA details from Program-level views.
-              </p>
-            </div>
-            <div className="sm:shrink-0">
+            <Field orientation="responsive">
+              <FieldContent>
+                <FieldLabel htmlFor={`${fieldId}-grad-credits`}>Graduation Credits</FieldLabel>
+                <FieldDescription>
+                  The total credits required to complete this Program.
+                </FieldDescription>
+              </FieldContent>
+              <div className="w-full @md/field-group:w-[140px] @md/field-group:shrink-0">
+                <Input
+                  id={`${fieldId}-grad-credits`}
+                  type="number"
+                  step="0.5"
+                  value={gradCredits}
+                  onChange={(event) => setGradCredits(event.target.value)}
+                  required
+                />
+              </div>
+            </Field>
+
+            <Field orientation="responsive">
+              <FieldContent>
+                <FieldLabel htmlFor={`${fieldId}-hide-gpa`}>Hide GPA Info</FieldLabel>
+                <FieldDescription>
+                  Remove GPA details from Program-level views.
+                </FieldDescription>
+              </FieldContent>
               <Switch
                 id={`${fieldId}-hide-gpa`}
                 checked={hideGpa}
                 onCheckedChange={setHideGpa}
                 aria-label="Hide GPA Info"
+                className="shrink-0"
               />
-            </div>
-          </div>
-        </div>
+            </Field>
+          </FieldGroup>
+        </FieldSet>
       </SettingsSection>
 
       <SettingsSection
@@ -400,7 +405,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
             setJsonError("");
           }}
         />
-        {jsonError ? <p className="text-sm text-destructive">{jsonError}</p> : null}
+        {jsonError ? <FieldError>{jsonError}</FieldError> : null}
       </SettingsSection>
 
       {showCancel ? (
