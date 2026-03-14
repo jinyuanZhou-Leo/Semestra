@@ -1,6 +1,6 @@
-// input:  [plugin facade helpers, lazy runtime loading, and Vitest assertions]
-// output: [test suite covering runtime instance settings resolution and eager plugin-global settings exposure]
-// pos:    [integration tests for the decoupled plugin-system public settings API]
+// input:  [plugin facade helpers, lazy runtime loading, idle background preloading, and Vitest assertions]
+// output: [test suite covering runtime instance settings resolution, eager plugin-global settings exposure, and idle preload behavior]
+// pos:    [integration tests for the decoupled plugin-system public settings API and idle runtime warmup path]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,9 +13,11 @@ import {
   ensureTabPluginByTypeLoaded,
   ensureWidgetPluginByTypeLoaded,
   getPluginSettingsSections,
+  getTabComponentByType,
   getTabSettingsComponentByType,
   getTabCatalog,
   getWidgetSettingsComponentByType,
+  preloadRemainingPluginsWhenIdle,
 } from './index';
 
 describe('plugin-system settings API', () => {
@@ -42,5 +44,16 @@ describe('plugin-system settings API', () => {
     expect(gradebookItem).toBeDefined();
     expect(canAddTabCatalogItem(gradebookItem!, 'course', 0)).toBe(true);
     expect(canAddTabCatalogItem(gradebookItem!, 'course', 1)).toBe(false);
+  });
+
+  it('preloads still-idle plugin runtimes after the page becomes idle', async () => {
+    expect(getTabComponentByType('dashboard')).toBeUndefined();
+
+    const stopPreloading = preloadRemainingPluginsWhenIdle();
+    window.dispatchEvent(new Event('load'));
+    await new Promise<void>((resolve) => setTimeout(resolve, 600));
+    stopPreloading();
+
+    expect(getTabComponentByType('dashboard')).toBeTruthy();
   });
 });

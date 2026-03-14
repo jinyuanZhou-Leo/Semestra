@@ -69,6 +69,9 @@ export type WidgetContext = 'semester' | 'course';
 export type { MaxInstances } from '../plugin-system/utils';
 
 export interface WidgetSettingsProps<S = any> {
+    widgetId?: string;
+    semesterId?: string;
+    courseId?: string;
     settings: S;
     onSettingsChange: (newSettings: S) => void;
 }

@@ -1,5 +1,5 @@
-// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, settings registry, and Vite HMR updates]
-// output: [plugin facade helpers for catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, and lazy runtime registration]
+// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, settings registry, browser idle callbacks, and Vite HMR updates]
+// output: [plugin facade helpers for catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, lazy runtime registration, and idle background preloading]
 // pos:    [Central plugin manager facade that validates plugin declarations, keeps metadata/plugin settings eager, and exposes runtime load-state-aware registration helpers]
 //
 // ⚠️ When this file is updated:
@@ -67,6 +67,11 @@ export interface PluginLoadState {
     error: Error | null;
 }
 
+type BrowserIdleWindow = Window & {
+    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+    cancelIdleCallback?: (handle: number) => void;
+};
+
 interface PluginEntry {
     id: string;
     directoryName: string;
@@ -116,6 +121,34 @@ const runtimeHmrModulePaths = Object.keys(
 });
 
 const isDev = import.meta.env.DEV;
+
+const scheduleBrowserIdleTask = (callback: () => void, timeout = 1500) => {
+    if (typeof window === 'undefined') {
+        return globalThis.setTimeout(callback, 0);
+    }
+
+    const browserWindow = window as BrowserIdleWindow;
+    if (typeof browserWindow.requestIdleCallback === 'function') {
+        return browserWindow.requestIdleCallback(() => callback(), { timeout });
+    }
+
+    return globalThis.setTimeout(callback, 250);
+};
+
+const cancelBrowserIdleTask = (handle: number) => {
+    if (typeof window === 'undefined') {
+        globalThis.clearTimeout(handle);
+        return;
+    }
+
+    const browserWindow = window as BrowserIdleWindow;
+    if (typeof browserWindow.cancelIdleCallback === 'function') {
+        browserWindow.cancelIdleCallback(handle);
+        return;
+    }
+
+    globalThis.clearTimeout(handle);
+};
 
 const getDirectoryName = (path: string, suffixPattern: string): string | null => {
     const match = path.match(new RegExp(`^\\.\\.\\/plugins\\/([^/]+)\\/${suffixPattern}$`));
@@ -446,6 +479,64 @@ export const ensureWidgetPluginByTypeLoaded = async (type: string): Promise<bool
     if (!pluginId) return false;
     const entry = pluginsById.get(pluginId);
     return entry ? loadPluginEntry(entry) : false;
+};
+
+export const preloadRemainingPluginsWhenIdle = (): (() => void) => {
+    if (typeof window === 'undefined') {
+        return () => {};
+    }
+
+    let cancelled = false;
+    let idleHandle: number | null = null;
+    let cleanupLoadListener: (() => void) | null = null;
+
+    const scheduleNext = () => {
+        if (cancelled) return;
+
+        const nextEntry = pluginEntries.find((entry) => entry.loadState.status === 'idle');
+        if (!nextEntry) return;
+
+        idleHandle = scheduleBrowserIdleTask(() => {
+            idleHandle = null;
+            if (cancelled) return;
+
+            void loadPluginEntry(nextEntry)
+                .catch((error) => {
+                    console.error(`[plugin-system] Failed to preload plugin while idle: ${nextEntry.id}`, error);
+                })
+                .finally(() => {
+                    scheduleNext();
+                });
+        });
+    };
+
+    const start = () => {
+        if (cancelled) return;
+        scheduleNext();
+    };
+
+    if (document.readyState === 'complete') {
+        start();
+    } else {
+        const onLoad = () => {
+            cleanupLoadListener?.();
+            start();
+        };
+        window.addEventListener('load', onLoad, { once: true });
+        cleanupLoadListener = () => {
+            window.removeEventListener('load', onLoad);
+            cleanupLoadListener = null;
+        };
+    }
+
+    return () => {
+        cancelled = true;
+        if (idleHandle !== null) {
+            cancelBrowserIdleTask(idleHandle);
+            idleHandle = null;
+        }
+        cleanupLoadListener?.();
+    };
 };
 
 export const getTabCatalog = (context?: TabContext): TabCatalogItem[] => {

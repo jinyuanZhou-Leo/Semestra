@@ -1,12 +1,12 @@
-// input:  [router primitives, global providers, route guards, lazily imported page modules, and TanStack Query client provider]
+// input:  [router primitives, auth/user-preference context, plugin idle-preload controller, global providers, route guards, lazily imported page modules, and TanStack Query client provider]
 // output: [default `App` component and `RootGate` product-first root entry resolver]
-// pos:    [Root composition module that defines the app route tree, query cache boundary, and provider stack]
+// pos:    [Root composition module that defines the app route tree, query cache boundary, provider stack, and authenticated idle plugin preload wiring]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { SpeedInsights } from '@vercel/speed-insights/react';
@@ -18,6 +18,7 @@ import { PageSkeleton } from './components/PageSkeleton';
 import { DialogProvider } from './contexts/DialogContext';
 import { Toaster } from "sonner"
 import { queryClient } from './services/queryClient';
+import { preloadRemainingPluginsWhenIdle } from './plugin-system';
 
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));
@@ -46,6 +47,20 @@ const RootGate = () => {
   return <Navigate to="/login" replace />;
 };
 
+const PluginIdlePreloadController = () => {
+  const { user, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (isLoading || !user || user.background_plugin_preload === false) {
+      return;
+    }
+
+    return preloadRemainingPluginsWhenIdle();
+  }, [isLoading, user, user?.background_plugin_preload]);
+
+  return null;
+};
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -53,6 +68,7 @@ function App() {
         <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
           <AuthProvider>
             <DialogProvider>
+              <PluginIdlePreloadController />
               <Routes>
                 <Route path="/login" element={
                   <Suspense fallback={null}>

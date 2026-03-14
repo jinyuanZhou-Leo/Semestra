@@ -22,6 +22,8 @@ interface WidgetSettingsModalProps {
   onClose: () => void;
   widget: any;
   onSave: (id: string, data: any) => Promise<void>;
+  semesterId?: string;
+  courseId?: string;
 }
 
 export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
@@ -29,6 +31,8 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
   onClose,
   widget,
   onSave,
+  semesterId,
+  courseId,
 }) => {
   const [renderedWidget, setRenderedWidget] = useState(widget);
   const activeWidget = widget ?? renderedWidget;
@@ -116,6 +120,9 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
         <form onSubmit={handleSave} className="p-6">
           <div className="space-y-4">
             <SettingsComponent
+              widgetId={activeWidget?.id}
+              semesterId={semesterId}
+              courseId={courseId}
               settings={draftSettings}
               onSettingsChange={setDraftSettings}
             />

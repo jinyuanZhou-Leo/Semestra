@@ -43,6 +43,6 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | TabSwitch.tsx | UI component | Reusable component for tab switch UI/interaction flow. |
 | ThemeProvider.tsx | UI component | Reusable component for theme provider UI/interaction flow. |
 | ThemeToggle.tsx | UI component | Reusable component for theme toggle UI/interaction flow. |
-| WidgetSettingsModal.tsx | UI component | Widget-settings modal that preserves the active widget payload through close animations and commits edits on explicit save. |
+| WidgetSettingsModal.tsx | UI component | Widget-settings modal that preserves the active widget payload through close animations, passes course/semester context into widget settings UIs, and commits edits on explicit save. |
 | WorkspaceNav.tsx | UI component | Shared sticky workspace navigation row that pairs semester/course context with the homepage tab switcher and extra-large mobile workspace titles. |
 | WorkspaceOverviewStats.tsx | UI component | Compact dashboard-only stat strip using normal labels and optional icons after workspace titles move out of page heroes, with tighter mobile card height. |

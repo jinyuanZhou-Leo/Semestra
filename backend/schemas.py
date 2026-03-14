@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, plugin-shared settings payloads, semester todo domain payloads, and fact-oriented course gradebooks]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings plus todo and fact-only gradebook wire contracts]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, user preferences, plus todo and fact-only gradebook wire contracts]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -8,6 +8,7 @@
 
 import json
 import math
+from urllib.parse import urlparse
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Any, Literal
 from enum import Enum
@@ -117,6 +118,7 @@ class UserUpdate(BaseModel):
     # Backward-compatible fields that are merged into user_setting.
     gpa_scaling_table: Optional[str] = None
     default_course_credit: Optional[float] = None
+    background_plugin_preload: Optional[bool] = None
 
 class GoogleAuthRequest(BaseModel):
     id_token: str
@@ -191,6 +193,69 @@ class PluginSetting(PluginSettingBase):
 
     class Config:
         from_attributes = True
+
+class CourseResourceFile(BaseModel):
+    id: str
+    course_id: str
+    filename_original: str
+    filename_display: str
+    resource_kind: str
+    external_url: Optional[str] = None
+    mime_type: str
+    size_bytes: int
+    storage_path: str
+    created_at: str
+    updated_at: str
+
+    class Config:
+        from_attributes = True
+
+class CourseResourceRenameRequest(BaseModel):
+    filename_display: str
+
+    @validator("filename_display")
+    def validate_filename_display(cls, value: str) -> str:
+        normalized = " ".join(value.split()).strip()
+        if not normalized:
+            raise ValueError("filename_display is required.")
+        return normalized
+
+class CourseResourceLinkCreate(BaseModel):
+    url: str
+    filename_display: Optional[str] = None
+
+    @validator("url")
+    def validate_url(cls, value: str) -> str:
+        normalized = value.strip()
+        parsed = urlparse(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("url must be a valid http or https URL.")
+        return normalized
+
+    @validator("filename_display")
+    def validate_optional_filename_display(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = " ".join(value.split()).strip()
+        return normalized or None
+
+class CourseResourceUploadFailure(BaseModel):
+    filename: str
+    code: str
+    message: str
+
+class CourseResourceListResponse(BaseModel):
+    files: List[CourseResourceFile] = []
+    total_bytes_used: int = 0
+    total_bytes_limit: int = 0
+    remaining_bytes: int = 0
+
+class CourseResourceUploadResponse(BaseModel):
+    uploaded_files: List[CourseResourceFile] = []
+    failed_files: List[CourseResourceUploadFailure] = []
+    total_bytes_used: int = 0
+    total_bytes_limit: int = 0
+    remaining_bytes: int = 0
 
 class TodoPriority(str, Enum):
     NONE = ""

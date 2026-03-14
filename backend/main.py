@@ -8,6 +8,7 @@
 
 from fastapi import FastAPI, Depends, HTTPException, Response, status, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -29,6 +30,7 @@ import schemas
 import crud
 import gradebook
 import todo
+import course_resources
 import auth
 from database import engine, get_db
 
@@ -184,6 +186,16 @@ def get_owned_semester(db: Session, current_user: models.User, semester_id: str)
     if semester is None:
         raise HTTPException(status_code=404, detail="Semester not found")
     return semester
+
+def build_course_resource_list_response(db: Session, current_user: models.User, course_id: str) -> schemas.CourseResourceListResponse:
+    quota = course_resources.get_user_quota_snapshot(db, current_user.id)
+    files = course_resources.list_course_resources(db, course_id)
+    return schemas.CourseResourceListResponse(
+        files=files,
+        total_bytes_used=quota.total_bytes_used,
+        total_bytes_limit=quota.total_bytes_limit,
+        remaining_bytes=quota.remaining_bytes,
+    )
 
 def get_event_type_or_404(db: Session, course_id: str, event_type_code: str) -> models.CourseEventType:
     event_type = (
@@ -1518,6 +1530,154 @@ def upsert_course_plugin_setting(
     get_owned_course(db, current_user, course_id)
     payload = plugin_setting.copy(update={"plugin_id": plugin_id})
     return crud.upsert_plugin_setting(db, payload, course_id=course_id)
+
+@app.get("/courses/{course_id}/resources", response_model=schemas.CourseResourceListResponse)
+def read_course_resources(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_course(db, current_user, course_id)
+    return build_course_resource_list_response(db, current_user, course_id)
+
+@app.post("/courses/{course_id}/resources/upload", response_model=schemas.CourseResourceUploadResponse)
+async def upload_course_resources(
+    course_id: str,
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_course(db, current_user, course_id)
+
+    quota = course_resources.get_user_quota_snapshot(db, current_user.id)
+    running_total = quota.total_bytes_used
+    uploaded_files: list[models.CourseResourceFile] = []
+    failed_files: list[schemas.CourseResourceUploadFailure] = []
+
+    for file in files:
+        filename = (file.filename or "").strip() or "untitled"
+        try:
+            course_resources.validate_upload_filename(filename)
+            content = await file.read()
+            projected_total = running_total + len(content)
+            if projected_total > quota.total_bytes_limit:
+                failed_files.append(schemas.CourseResourceUploadFailure(
+                    filename=filename,
+                    code="ACCOUNT_STORAGE_LIMIT_EXCEEDED",
+                    message="Uploading this file would exceed the 50MB account resource limit.",
+                ))
+                continue
+
+            uploaded = course_resources.create_course_resource(
+                db,
+                base_dir=BASE_DIR,
+                user_id=current_user.id,
+                course_id=course_id,
+                filename_original=filename,
+                filename_display=filename,
+                mime_type=file.content_type,
+                content=content,
+            )
+            uploaded_files.append(uploaded)
+            running_total += uploaded.size_bytes
+        except course_resources.CourseResourceStorageError as error:
+            failed_files.append(schemas.CourseResourceUploadFailure(
+                filename=filename,
+                code="INVALID_FILE_NAME",
+                message=str(error),
+            ))
+        except Exception as error:
+            print(f"Failed to upload course resource '{filename}': {error}")
+            failed_files.append(schemas.CourseResourceUploadFailure(
+                filename=filename,
+                code="UPLOAD_FAILED",
+                message="Failed to store this file.",
+            ))
+
+    return schemas.CourseResourceUploadResponse(
+        uploaded_files=uploaded_files,
+        failed_files=failed_files,
+        total_bytes_used=running_total,
+        total_bytes_limit=quota.total_bytes_limit,
+        remaining_bytes=max(0, quota.total_bytes_limit - running_total),
+    )
+
+@app.post("/courses/{course_id}/resources/links", response_model=schemas.CourseResourceFile)
+def create_course_resource_link(
+    course_id: str,
+    payload: schemas.CourseResourceLinkCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_course(db, current_user, course_id)
+    return course_resources.create_external_course_resource(
+        db,
+        course_id=course_id,
+        external_url=payload.url,
+        filename_display=payload.filename_display,
+    )
+
+@app.patch("/courses/{course_id}/resources/{resource_id}", response_model=schemas.CourseResourceFile)
+def rename_course_resource(
+    course_id: str,
+    resource_id: str,
+    payload: schemas.CourseResourceRenameRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_course(db, current_user, course_id)
+    resource = course_resources.get_course_resource(db, course_id, resource_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Course resource not found")
+    try:
+        return course_resources.rename_course_resource(db, resource, payload.filename_display)
+    except course_resources.CourseResourceStorageError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail("INVALID_RESOURCE_FILENAME", str(error)),
+        ) from error
+
+@app.delete("/courses/{course_id}/resources/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_course_resource(
+    course_id: str,
+    resource_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_course(db, current_user, course_id)
+    resource = course_resources.get_course_resource(db, course_id, resource_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Course resource not found")
+    course_resources.delete_course_resource(db, base_dir=BASE_DIR, resource=resource)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@app.get("/courses/{course_id}/resources/{resource_id}/download")
+def download_course_resource(
+    course_id: str,
+    resource_id: str,
+    download: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_course(db, current_user, course_id)
+    resource = course_resources.get_course_resource(db, course_id, resource_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Course resource not found")
+    if resource.resource_kind == "link" and resource.external_url:
+        return Response(status_code=status.HTTP_302_FOUND, headers={"Location": resource.external_url})
+    absolute_path = course_resources.resolve_absolute_path(BASE_DIR, resource)
+    if not absolute_path.exists():
+        raise HTTPException(status_code=404, detail="Stored file not found")
+    return FileResponse(
+        path=absolute_path,
+        media_type=resource.mime_type,
+        filename=resource.filename_display,
+        content_disposition_type=(
+            "attachment"
+            if download
+            else ("inline" if course_resources.should_open_inline(resource.mime_type) else "attachment")
+        ),
+    )
 
 @app.put("/courses/{course_id}", response_model=schemas.Course)
 def update_course(

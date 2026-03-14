@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, shared color helpers, and timezone/date helpers]
-# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, user settings, gradebook initialization, and stable Program subject-color synchronization]
-# pos:    [Database access layer for backend services and gradebook-backed course creation]
+# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, user settings including background plugin preload preference defaults, gradebook initialization, and stable Program subject-color synchronization]
+# pos:    [Database access layer for backend services, normalized user-setting persistence, and gradebook-backed course creation]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -43,6 +43,7 @@ def get_default_user_setting_dict() -> dict:
     return {
         "gpa_scaling_table": DEFAULT_GPA_SCALING,
         "default_course_credit": DEFAULT_COURSE_CREDIT,
+        "background_plugin_preload": True,
     }
 
 def parse_user_setting(raw_setting: str | None) -> dict:
@@ -66,6 +67,12 @@ def normalize_user_setting_dict(settings: dict | None) -> dict:
         normalized["default_course_credit"] = float(default_credit)
     else:
         normalized["default_course_credit"] = DEFAULT_COURSE_CREDIT
+
+    background_plugin_preload = normalized.get("background_plugin_preload")
+    if isinstance(background_plugin_preload, bool):
+        normalized["background_plugin_preload"] = background_plugin_preload
+    else:
+        normalized["background_plugin_preload"] = True
 
     return normalized
 
@@ -160,6 +167,10 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):
 
     if "default_course_credit" in update_data and update_data["default_course_credit"] is not None:
         merged_settings["default_course_credit"] = float(update_data["default_course_credit"])
+        has_settings_update = True
+
+    if "background_plugin_preload" in update_data and update_data["background_plugin_preload"] is not None:
+        merged_settings["background_plugin_preload"] = bool(update_data["background_plugin_preload"])
         has_settings_update = True
 
     merged_settings = normalize_user_setting_dict(merged_settings)

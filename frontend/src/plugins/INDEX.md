@@ -23,6 +23,7 @@ The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, an
 | builtin-settings/INDEX.md | Plugin architecture index | File map for the built-in Settings tab runtime and its dynamic sticky-title offset behavior. |
 | counter/ | Widget plugin | Numeric counter widget with inline controls and per-instance settings. |
 | counter/INDEX.md | Plugin architecture index | File map for counter plugin runtime, metadata, settings, bound validation, and design notes. |
+| course-resources/ | Course resource plugin | Course-only resource manager tab plus pinned quick-open widget backed by account-wide resource quota APIs. |
 | course-list/ | Widget plugin | Course list widget with plugin-level management settings panel. |
 | course-list/INDEX.md | Plugin architecture index | File map for course-list plugin runtime, metadata, plugin-global settings, explicit async loading/error feedback, and guarded course-manager entry behavior. |
 | habit-streak/ | Widget plugin | Habit streak dual-widget plugin with per-instance streak data, split Duolingo/ring widget definitions, mode-specific settings, reward bursts, and tests. |

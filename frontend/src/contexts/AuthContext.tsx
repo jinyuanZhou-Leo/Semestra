@@ -1,6 +1,6 @@
-// input:  [httpOnly-cookie auth session, axios `/api/users/me` + 401 interceptor, session modal]
-// output: [`AuthProvider` and `useAuth()` exposing user/login/logout/refresh/loading state]
-// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions]
+// input:  [httpOnly-cookie auth session, axios `/api/users/me` + 401 interceptor, normalized user-setting defaults, and session modal]
+// output: [`AuthProvider` and `useAuth()` exposing user/login/logout/refresh/loading state plus parsed global user preferences]
+// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions and normalized user-setting hydration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,16 +22,18 @@ interface User {
     user_setting?: string | null;
     gpa_scaling_table?: string;
     default_course_credit?: number;
+    background_plugin_preload?: boolean;
     google_sub?: string | null;
 }
 
-type UserSettings = Pick<User, 'gpa_scaling_table' | 'default_course_credit'>;
+type UserSettings = Pick<User, 'gpa_scaling_table' | 'default_course_credit' | 'background_plugin_preload'>;
 
 const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
     if (!rawSetting) {
         return {
             gpa_scaling_table: DEFAULT_GPA_SCALING_TABLE_JSON,
-            default_course_credit: DEFAULT_COURSE_CREDIT
+            default_course_credit: DEFAULT_COURSE_CREDIT,
+            background_plugin_preload: true
         };
     }
 
@@ -48,12 +50,17 @@ const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
 
         return {
             gpa_scaling_table: gpaScalingTable,
-            default_course_credit: defaultCourseCredit
+            default_course_credit: defaultCourseCredit,
+            background_plugin_preload:
+                typeof parsed.background_plugin_preload === 'boolean'
+                    ? parsed.background_plugin_preload
+                    : true
         };
     } catch {
         return {
             gpa_scaling_table: DEFAULT_GPA_SCALING_TABLE_JSON,
-            default_course_credit: DEFAULT_COURSE_CREDIT
+            default_course_credit: DEFAULT_COURSE_CREDIT,
+            background_plugin_preload: true
         };
     }
 };

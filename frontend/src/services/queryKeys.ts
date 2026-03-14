@@ -23,6 +23,7 @@ export const queryKeys = {
   courses: {
     detail: (courseId: string) => ['courses', 'detail', courseId] as const,
     pluginSettings: (courseId: string) => ['courses', courseId, 'plugin-settings'] as const,
+    resources: (courseId: string) => ['courses', courseId, 'resources'] as const,
     gradebook: (courseId: string) => ['courses', courseId, 'gradebook'] as const,
     eventTypes: (courseId: string) => ['courses', courseId, 'event-types'] as const,
     sections: (courseId: string) => ['courses', courseId, 'sections'] as const,

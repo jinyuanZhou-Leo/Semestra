@@ -541,6 +541,7 @@ const SemesterHomepageContent: React.FC = () => {
                             onClose={() => setEditingWidget(null)}
                             widget={editingWidget}
                             onSave={onUpdateWidgetInner}
+                            semesterId={semester.id}
                         />
                     </>
                 )}

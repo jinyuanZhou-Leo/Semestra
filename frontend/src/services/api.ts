@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, and widget delete options]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, Program subject-color persistence, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -77,6 +77,52 @@ export interface PluginSetting {
     settings: string;
     semester_id?: string;
     course_id?: string;
+}
+
+export interface CourseResourceFile {
+    id: string;
+    course_id: string;
+    filename_original: string;
+    filename_display: string;
+    resource_kind: string;
+    external_url?: string | null;
+    mime_type: string;
+    size_bytes: number;
+    storage_path: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CourseResourceUploadFailure {
+    filename: string;
+    code: string;
+    message: string;
+}
+
+export interface CourseResourceListResponse {
+    files: CourseResourceFile[];
+    total_bytes_used: number;
+    total_bytes_limit: number;
+    remaining_bytes: number;
+}
+
+export interface CourseResourceUploadResponse {
+    uploaded_files: CourseResourceFile[];
+    failed_files: CourseResourceUploadFailure[];
+    total_bytes_used: number;
+    total_bytes_limit: number;
+    remaining_bytes: number;
+}
+
+export interface User {
+    id: string;
+    email: string;
+    nickname?: string;
+    user_setting?: string | null;
+    gpa_scaling_table?: string;
+    default_course_credit?: number;
+    background_plugin_preload?: boolean;
+    google_sub?: string | null;
 }
 
 export type TodoPriority = '' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -327,6 +373,42 @@ const api = {
     deleteCourse: async (id: string) => {
         await axios.delete(`/api/courses/${id}`);
     },
+    getCourseResources: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/resources`, async () => {
+            const response = await axios.get<CourseResourceListResponse>(`/api/courses/${courseId}/resources`);
+            return response.data;
+        });
+    },
+    uploadCourseResources: async (courseId: string, files: File[]) => {
+        const formData = new FormData();
+        files.forEach((file) => {
+            formData.append('files', file);
+        });
+        const response = await axios.post<CourseResourceUploadResponse>(
+            `/api/courses/${courseId}/resources/upload`,
+            formData,
+            {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            }
+        );
+        return response.data;
+    },
+    renameCourseResource: async (courseId: string, resourceId: string, data: { filename_display: string }) => {
+        const response = await axios.patch<CourseResourceFile>(`/api/courses/${courseId}/resources/${resourceId}`, data);
+        return response.data;
+    },
+    createCourseResourceLink: async (courseId: string, data: { url: string; filename_display?: string }) => {
+        const response = await axios.post<CourseResourceFile>(`/api/courses/${courseId}/resources/links`, data);
+        return response.data;
+    },
+    deleteCourseResource: async (courseId: string, resourceId: string) => {
+        await axios.delete(`/api/courses/${courseId}/resources/${resourceId}`);
+    },
+    buildCourseResourceOpenUrl: (courseId: string, resourceId: string, options?: { download?: boolean }) => (
+        `/api/courses/${courseId}/resources/${resourceId}/download${options?.download ? '?download=true' : ''}`
+    ),
 
     // Widgets
     createWidget: async (semesterId: string, data: { widget_type: string; title: string }) => {
@@ -474,7 +556,7 @@ const api = {
 
     // Auth
     updateUser: async (data: any) => {
-        const response = await axios.put<{ id: string, email: string, gpa_scaling_table?: string, default_course_credit?: number }>('/api/users/me', data);
+        const response = await axios.put<User>('/api/users/me', data);
         return response.data;
     },
 

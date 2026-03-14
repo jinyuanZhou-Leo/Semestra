@@ -118,6 +118,7 @@ class Course(Base):
     events = relationship("CourseEvent", back_populates="course", cascade="all, delete-orphan")
     gradebook = relationship("CourseGradebook", back_populates="course", uselist=False, cascade="all, delete-orphan")
     todo_tasks = relationship("TodoTask", back_populates="course")
+    resource_files = relationship("CourseResourceFile", back_populates="course", cascade="all, delete-orphan")
 
     @property
     def has_gradebook(self) -> bool:
@@ -195,6 +196,26 @@ class GradebookAssessment(Base):
 
     gradebook = relationship("CourseGradebook", back_populates="assessments")
     category = relationship("GradebookAssessmentCategory", back_populates="assessments")
+
+class CourseResourceFile(Base):
+    __tablename__ = "course_resource_files"
+    __table_args__ = (
+        Index("ix_course_resource_files_course_updated", "course_id", "updated_at"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    course_id = Column(String, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    filename_original = Column(String, nullable=False)
+    filename_display = Column(String, nullable=False)
+    resource_kind = Column(String, nullable=False, default="file")
+    external_url = Column(String, nullable=True)
+    mime_type = Column(String, nullable=False, default="application/octet-stream")
+    size_bytes = Column(Integer, nullable=False, default=0)
+    storage_path = Column(String, nullable=False)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+    course = relationship("Course", back_populates="resource_files")
 
 class CourseEventType(Base):
     __tablename__ = "course_event_types"
