@@ -1,6 +1,6 @@
 // input:  [Testing Library render helpers, todo interaction hooks/components, and normalized todo runtime fixtures]
-// output: [Vitest coverage for local inline todo creation state, compact time-chip editing, local sort persistence, and completed-task display behavior]
-// pos:    [Regression test file for todo runtime helpers that protect per-composer inline drafts, stable shell reuse, persisted view preferences, and completion bucketing behavior]
+// output: [Vitest coverage for local inline todo creation state, canonical todo-state derivation, compact time-chip editing, local sort persistence, and completed-task display behavior]
+// pos:    [Regression test file for todo runtime helpers that protect per-composer inline drafts, canonical-to-UI derivation, stable shell reuse, persisted view preferences, and completion bucketing behavior]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,12 +10,13 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import type { TodoSemesterStateRecord } from '@/services/api';
 import { TodoInlineCreateRow } from './components/TodoInlineCreateRow';
 import { useTodoSectionTasks } from './hooks/useTodoSectionTasks';
 import { useTodoViewPreferences } from './hooks/useTodoViewPreferences';
 import { PRIORITY_OPTIONS } from './shared';
 import type { TodoListModel } from './types';
-import { normalizeListStorage } from './utils/todoData';
+import { fromTodoApiState, normalizeListStorage } from './utils/todoData';
 import { toggleTodoTaskCompletedInStorage } from './utils/todoMutations';
 
 describe('TodoInlineCreateRow', () => {
@@ -370,5 +371,57 @@ describe('normalizeListStorage', () => {
 
     expect(restored.tasks[0]?.sectionId).toBe('');
     expect(restored.tasks[0]?.originSectionId).toBeUndefined();
+  });
+});
+
+describe('fromTodoApiState', () => {
+  it('derives completed-task placement from the local moveCompleted setting instead of a publisher-chosen storage shape', () => {
+    const stateRecord: TodoSemesterStateRecord = {
+      semester_id: 'semester-1',
+      sections: [
+        {
+          id: 'section-a',
+          semester_id: 'semester-1',
+          name: 'Section A',
+          created_at: '2026-03-11T10:00:00.000Z',
+          updated_at: '2026-03-11T10:00:00.000Z',
+        },
+      ],
+      tasks: [
+        {
+          id: 'task-1',
+          semester_id: 'semester-1',
+          title: 'Task',
+          note: '',
+          due_date: null,
+          due_time: null,
+          priority: '',
+          completed: true,
+          course_id: null,
+          course_name: '',
+          course_category: '',
+          course_color: null,
+          section_id: 'section-a',
+          origin_section_id: null,
+          created_at: '2026-03-11T10:00:00.000Z',
+          updated_at: '2026-03-11T10:00:00.000Z',
+        },
+      ],
+      course_options: [],
+    };
+
+    const derivedWithoutCompletedBucket = fromTodoApiState(stateRecord, false);
+    const derivedWithCompletedBucket = fromTodoApiState(stateRecord, true);
+
+    expect(derivedWithoutCompletedBucket.tasks[0]).toEqual(expect.objectContaining({
+      id: 'task-1',
+      sectionId: 'section-a',
+      originSectionId: 'section-a',
+    }));
+    expect(derivedWithCompletedBucket.tasks[0]).toEqual(expect.objectContaining({
+      id: 'task-1',
+      sectionId: '__completed__',
+      originSectionId: 'section-a',
+    }));
   });
 });

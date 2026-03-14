@@ -1,6 +1,6 @@
 // input:  [Todo tab settings payload, semester todo APIs, runtime mapping helpers, shared UI primitives, and event bus refresh signals]
 // output: [TodoTab React component for semester-first Apple Reminder-style todo management backed by the semester todo API]
-// pos:    [Todo tab orchestration layer that loads semester todo state, persists local view preferences, issues domain mutations through dedicated APIs, and renders the unified list UI]
+// pos:    [Todo tab orchestration layer that derives local list state from canonical semester todo query data, persists local view preferences, issues domain mutations through dedicated APIs, and renders the unified list UI]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { toast } from 'sonner';
-import api from '@/services/api';
+import api, { type TodoSemesterStateRecord } from '@/services/api';
 import { useSemesterTodoCache, useSemesterTodoQuery } from '@/hooks/useSemesterTodoQuery';
 import {
   AlertDialog,
@@ -127,7 +127,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     settings && typeof settings === 'object' && !Array.isArray(settings) ? settings as Record<string, unknown> : {},
   );
   const semesterTodoQuery = useSemesterTodoQuery(semesterId);
-  const { setTodoState } = useSemesterTodoCache(semesterId);
+  const { getTodoState, setTodoState } = useSemesterTodoCache(semesterId);
 
   const completionTimeoutsRef = React.useRef<Record<string, ReturnType<typeof window.setTimeout>>>({});
 
@@ -151,32 +151,34 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     setSemesterSettingsSnapshot({});
   }, [settings]);
 
+  const applyTodoStateRecord = React.useCallback((stateRecord: TodoSemesterStateRecord) => {
+    const nextState = fromTodoApiState(stateRecord, behavior.moveCompletedToCompletedSection);
+    const nextStorage = {
+      sections: nextState.sections,
+      tasks: nextState.tasks,
+    };
+    semesterStorageRef.current = nextStorage;
+    setSemesterStorage(nextStorage);
+    setCourseOptions(nextState.courseOptions);
+  }, [behavior.moveCompletedToCompletedSection]);
+
   const courseDisplayName = React.useMemo(() => {
     if (!courseId) return 'Todo';
     return courseOptions.find((course) => course.id === courseId)?.name ?? 'Course Todo';
   }, [courseId, courseOptions]);
 
-  const applyServerState = React.useCallback(async (
-    nextStorage: TodoListStorage,
+  const publishTodoDataChange = React.useCallback((
     publishSource: 'course' | 'semester',
     targetCourseId?: string,
   ) => {
-    semesterStorageRef.current = nextStorage;
-    setSemesterStorage(nextStorage);
-    timetableEventBus.publish('timetable:todo-storage-changed', {
+    if (!semesterId) return;
+    timetableEventBus.publish('timetable:todo-data-changed', {
       semesterId: semesterId ?? '',
-      source: 'semester',
-      listId: semesterId ?? '',
-      storage: nextStorage,
+      source: publishSource,
+      listId: publishSource === 'course' ? (targetCourseId ?? semesterId) : semesterId,
+      courseId: publishSource === 'course' ? targetCourseId : undefined,
+      updatedAt: nowIso(),
     });
-    if (semesterId) {
-      await publishTimetableScheduleChange({
-        semesterId,
-        source: publishSource,
-        courseId: publishSource === 'course' ? targetCourseId : undefined,
-        reason: 'events-updated',
-      });
-    }
   }, [semesterId]);
 
   const runMutation = React.useCallback(async (
@@ -187,22 +189,22 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     try {
       const response = await runner();
       setTodoState(response);
-      const nextState = fromTodoApiState(response, behavior.moveCompletedToCompletedSection);
-      await applyServerState(
-        {
-          sections: nextState.sections,
-          tasks: nextState.tasks,
-        },
-        publishSource,
-        targetCourseId,
-      );
-      setCourseOptions(nextState.courseOptions);
+      applyTodoStateRecord(response);
+      publishTodoDataChange(publishSource, targetCourseId);
+      if (semesterId) {
+        await publishTimetableScheduleChange({
+          semesterId,
+          source: publishSource,
+          courseId: publishSource === 'course' ? targetCourseId : undefined,
+          reason: 'events-updated',
+        });
+      }
       return true;
     } catch (error: any) {
       toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save todo changes.');
       return false;
     }
-  }, [applyServerState, behavior.moveCompletedToCompletedSection, setTodoState]);
+  }, [applyTodoStateRecord, publishTodoDataChange, semesterId, setTodoState]);
 
   React.useEffect(() => {
     if (!semesterId || mode === 'unsupported') {
@@ -221,17 +223,10 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
       return;
     }
 
-    const semesterState = fromTodoApiState(semesterTodoQuery.data, behavior.moveCompletedToCompletedSection);
-    const nextStorage = {
-      sections: semesterState.sections,
-      tasks: semesterState.tasks,
-    };
-    semesterStorageRef.current = nextStorage;
-    setSemesterStorage(nextStorage);
-    setCourseOptions(semesterState.courseOptions);
+    applyTodoStateRecord(semesterTodoQuery.data);
     setLoading(false);
   }, [
-    behavior.moveCompletedToCompletedSection,
+    applyTodoStateRecord,
     mode,
     semesterId,
     semesterTodoQuery.data,
@@ -239,10 +234,14 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     semesterTodoQuery.isLoading,
   ]);
 
-  useEventBus('timetable:todo-storage-changed', (payload) => {
+  useEventBus('timetable:todo-data-changed', (payload) => {
     if (!semesterId || payload.semesterId !== semesterId) return;
-    semesterStorageRef.current = payload.storage;
-    setSemesterStorage(payload.storage);
+    const cachedState = getTodoState();
+    if (cachedState) {
+      applyTodoStateRecord(cachedState);
+      return;
+    }
+    void semesterTodoQuery.refetch();
   });
 
   const activeList = React.useMemo<TodoListModel>(() => {

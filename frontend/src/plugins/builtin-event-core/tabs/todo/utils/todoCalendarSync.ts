@@ -1,6 +1,6 @@
-// input:  [semester todo APIs, todo runtime mapping helpers, shared event bus, and Calendar todo events with completion metadata]
+// input:  [semester todo APIs, todo query cache keys, shared event bus, and Calendar todo events with completion metadata]
 // output: [`syncCalendarTodoCompletion` helper that persists Calendar-side todo completion toggles through the semester todo API]
-// pos:    [Todo/calendar integration helper that updates semester todo state from Calendar interactions without using tab.settings persistence]
+// pos:    [Todo/calendar integration helper that updates canonical semester todo cache from Calendar interactions before broadcasting domain refresh signals]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,9 +8,10 @@
 
 import api from '@/services/api';
 import type { CalendarEventData } from '@/calendar-core';
+import { queryClient } from '@/services/queryClient';
+import { queryKeys } from '@/services/queryKeys';
 import { timetableEventBus } from '../../../shared/eventBus';
 import { publishTimetableScheduleChange } from '../../../shared/publishTimetableScheduleChange';
-import { fromTodoApiState } from './todoData';
 
 interface SyncCalendarTodoCompletionParams {
   semesterId: string;
@@ -28,22 +29,20 @@ export const syncCalendarTodoCompletion = async ({
   }
 
   const response = await api.updateSemesterTodoTask(semesterId, event.eventId, { completed });
-  const runtimeState = fromTodoApiState(response, true);
-  const toggledTask = runtimeState.tasks.find((task) => task.id === event.eventId);
+  queryClient.setQueryData(queryKeys.semesters.todo(semesterId), response);
+  const toggledTask = response.tasks.find((task) => task.id === event.eventId);
 
-  timetableEventBus.publish('timetable:todo-storage-changed', {
+  timetableEventBus.publish('timetable:todo-data-changed', {
     semesterId,
-    source: 'semester',
-    listId: semesterId,
-    storage: {
-      sections: runtimeState.sections,
-      tasks: runtimeState.tasks,
-    },
+    source: toggledTask?.course_id ? 'course' : 'semester',
+    listId: toggledTask?.course_id || semesterId,
+    courseId: toggledTask?.course_id || undefined,
+    updatedAt: new Date().toISOString(),
   });
   await publishTimetableScheduleChange({
     semesterId,
-    source: toggledTask?.courseId ? 'course' : 'semester',
-    courseId: toggledTask?.courseId || undefined,
+    source: toggledTask?.course_id ? 'course' : 'semester',
+    courseId: toggledTask?.course_id || undefined,
     reason: 'events-updated',
   });
 };

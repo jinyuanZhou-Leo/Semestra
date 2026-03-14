@@ -19,7 +19,7 @@ Includes stale-request-safe fetch primitives, framework-managed plugin shared-se
 | usePluginSharedSettings.ts | Hook module | Loads one plugin-level shared-settings record from shared Query cache for the active semester/course context and syncs updates through framework autosave with debounce and max-wait forcing. |
 | usePrefersReducedMotion.ts | Hook module | Custom hook implementing use prefers reduced motion behavior. |
 | useScrollProgress.ts | Hook module | Custom hook implementing use scroll progress behavior. |
-| useSemesterTodoQuery.ts | Hook module | Shared TanStack Query hook pair for semester todo reads plus cache writes reused by Todo and Calendar-adjacent flows. |
+| useSemesterTodoQuery.ts | Hook module | Shared TanStack Query hook pair for semester todo reads plus cache lookups/writes reused by Todo and Calendar-adjacent flows. |
 | useStickyCollapse.ts | Hook module | Custom hook implementing use sticky collapse behavior. |
 | useTouchDevice.ts | Hook module | Custom hook implementing use touch device behavior. |
 | useVisibleTabSettingsPreload.ts | Hook module | Preloads visible tab runtimes so inactive tabs can still expose instance settings inside the Settings page. |
