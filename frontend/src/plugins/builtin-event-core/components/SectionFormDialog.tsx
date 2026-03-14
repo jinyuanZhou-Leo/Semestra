@@ -1,3 +1,11 @@
+// input:  [course section draft data, schedule/course APIs, shadcn dialog/form primitives, and slot row edit callbacks]
+// output: [`SectionFormDialog`, slot/time helpers, and shared section-slot constants/types for course-schedule flows]
+// pos:    [Shared course-schedule section editor that manages slot rows, validates time windows, and creates theme-safe native time inputs]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
@@ -38,6 +46,7 @@ export const DAY_OF_WEEK_OPTIONS = [
 const SLOT_PLANNER_STEP_MINUTES = 30;
 export const SLOT_LOCATION_NOTE_PREFIX = '[loc] ';
 const SEMESTER_SETTINGS_REQUIRED_MESSAGE = 'Semester dates are missing. Please complete them in Semester Settings first.';
+const timeInputClassName = '[color-scheme:light] dark:[color-scheme:dark]';
 
 export type SectionSlotDraft = {
     id: string;
@@ -138,6 +147,7 @@ const SectionSlotPlanner: React.FC<{
                                 step={SLOT_PLANNER_STEP_MINUTES * 60}
                                 value={slot.startTime}
                                 onChange={(event) => onUpdateSlot(slot.id, { startTime: toSafeTime(event.target.value) })}
+                                className={timeInputClassName}
                             />
                         </div>
                         <div className="space-y-1">
@@ -147,6 +157,7 @@ const SectionSlotPlanner: React.FC<{
                                 step={SLOT_PLANNER_STEP_MINUTES * 60}
                                 value={slot.endTime}
                                 onChange={(event) => onUpdateSlot(slot.id, { endTime: toSafeTime(event.target.value) })}
+                                className={timeInputClassName}
                             />
                         </div>
                         <div className="space-y-1">

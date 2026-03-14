@@ -2,7 +2,7 @@
 
 `course-schedule/` implements the per-course section management surface for event-core.
 It combines list rendering, section CRUD, event-type creation, semester-scoped refresh payloads, and event enable/disable controls.
-The tab now exposes explicit keyboard-accessible expand controls, atomic batch toggles for section details, and a dedicated Location column in the section list.
+The tab now exposes explicit keyboard-accessible expand controls, atomic batch toggles for section details, a dedicated Location column in the section list, and theme-safe native slot time pickers in the shared section dialog.
 
 | File | Role | Description |
 |------|------|-------------|
