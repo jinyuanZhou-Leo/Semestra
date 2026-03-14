@@ -1,6 +1,6 @@
 // input:  [timetable and builtin-gradebook tab-type constants plus homepage shell requirements]
 // output: [homepage builtin tab IDs, config interface, and semester/course config objects]
-// pos:    [central ordering and placement rules for fixed homepage tabs]
+// pos:    [central ordering and placement rules for required homepage tabs plus fixed leading/trailing shell tabs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -20,6 +20,7 @@ export const HOMEPAGE_SETTINGS_TAB_TYPE = 'settings';
 
 export interface HomepageBuiltinTabConfig {
     builtinTabTypes: readonly string[];
+    leadingBuiltinTabTypes?: readonly string[];
     trailingBuiltinTabTypes?: readonly string[];
 }
 
@@ -40,10 +41,12 @@ const COURSE_BUILTIN_TAB_IDS = [
 
 export const SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG: HomepageBuiltinTabConfig = {
     builtinTabTypes: SEMESTER_BUILTIN_TAB_IDS,
+    leadingBuiltinTabTypes: [HOMEPAGE_DASHBOARD_TAB_TYPE],
     trailingBuiltinTabTypes: [HOMEPAGE_SETTINGS_TAB_TYPE],
 };
 
 export const COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG: HomepageBuiltinTabConfig = {
     builtinTabTypes: COURSE_BUILTIN_TAB_IDS,
+    leadingBuiltinTabTypes: [HOMEPAGE_DASHBOARD_TAB_TYPE],
     trailingBuiltinTabTypes: [HOMEPAGE_SETTINGS_TAB_TYPE],
 };

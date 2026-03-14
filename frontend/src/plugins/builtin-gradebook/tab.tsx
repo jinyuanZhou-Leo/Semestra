@@ -1,6 +1,6 @@
 // input:  [course gradebook APIs, course data update context, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers, and shared business empty-state wrappers]
-// output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI and tab definition]
-// pos:    [course-scoped gradebook surface for assessment scores, Calendar due-date sync, temporary what-if editing, and semantic empty-state feedback]
+// output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, incomplete-weight warning stats, and tab definition]
+// pos:    [course-scoped gradebook surface for assessment scores, Calendar due-date sync, temporary what-if editing, incomplete-weight calculation gating, and semantic empty-state feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -74,6 +74,7 @@ import {
     buildComputedGradebookSummary,
     buildPlanModeResult,
     buildSuggestedWhatIfScores,
+    hasCompleteGradebookWeight,
     formatGradebookDate,
     formatGradebookDateInput,
     formatPercent,
@@ -154,7 +155,7 @@ const SortableHead: React.FC<{
     return (
         <TableHead
             className={cn(
-                'cursor-pointer transition-colors hover:bg-muted/50',
+                'cursor-pointer select-none transition-colors hover:bg-muted/50',
                 align === 'right' ? 'text-right' : '',
             )}
             onClick={() => onRequestSort(sortKey)}
@@ -326,10 +327,12 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         try {
             const response = await gradebookMutation.mutateAsync(() => promise);
             const nextSummary = buildComputedGradebookSummary(response);
-            updateCourse({
-                grade_percentage: nextSummary.current_real_percentage,
-                grade_scaled: nextSummary.current_real_gpa,
-            });
+            if (nextSummary.current_real_percentage !== null && nextSummary.current_real_gpa !== null) {
+                updateCourse({
+                    grade_percentage: nextSummary.current_real_percentage,
+                    grade_scaled: nextSummary.current_real_gpa,
+                });
+            }
             return true;
         } catch (error: unknown) {
             console.error('Failed to update gradebook', error);
@@ -348,6 +351,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         () => (gradebook ? buildComputedGradebookSummary(gradebook) : null),
         [gradebook],
     );
+    const hasCompleteWeight = summary?.has_complete_weight ?? false;
 
     const parsedWhatIfScores = React.useMemo(
         () => Object.fromEntries(
@@ -362,6 +366,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     // Must live before any early returns to satisfy the Rules of Hooks.
     const whatIfResult = React.useMemo(() => {
         if (!gradebook || !planMode || Object.keys(parsedWhatIfScores).length === 0) return null;
+        if (!hasCompleteGradebookWeight(gradebook)) return null;
         const parsed = Number(targetGpaDraft);
         if (!Number.isFinite(parsed)) return null;
         return buildPlanModeResult(gradebook, parsed, parsedWhatIfScores);
@@ -389,9 +394,13 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     }, [sortKey]);
 
     const enterPlanMode = React.useCallback(() => {
+        if (!hasCompleteWeight) {
+            toast.error('Gradebook calculations stay disabled until total assessment weight reaches 100%.');
+            return;
+        }
         setPlanMode(true);
         setPlanModeIntroOpen(false);
-    }, []);
+    }, [hasCompleteWeight]);
 
     const exitPlanMode = React.useCallback(() => {
         setPlanMode(false);
@@ -448,6 +457,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
     const handleRunPlan = React.useCallback(async () => {
         if (!gradebook) return;
+        if (!hasCompleteGradebookWeight(gradebook)) {
+            toast.error('Gradebook calculations stay disabled until total assessment weight reaches 100%.');
+            return;
+        }
         const parsed = Number(targetGpaDraft);
         if (!Number.isFinite(parsed)) {
             toast.error('Enter a valid GPA target before running the plan.');
@@ -517,34 +530,46 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         'flex h-11 flex-1 min-w-[200px] shrink-0 items-center justify-end transition-all duration-300 relative overflow-hidden z-10'
     );
 
+    const showWeightIncompleteState = Boolean(course && summary && !summary.has_complete_weight);
+
     return (
         <div className="space-y-4">
             {course ? (
                 <section className="mb-2.5">
                     <div className={cn(
-                        'grid rounded-lg border overflow-hidden transition-colors duration-300',
-                        planMode
+                        'grid select-none rounded-lg border overflow-hidden transition-colors duration-300',
+                        showWeightIncompleteState
+                            ? 'border-rose-300/80 bg-rose-50/40 dark:border-rose-500/40 dark:bg-rose-950/15'
+                            : planMode
                             ? 'border-amber-300/60 dark:border-amber-500/30'
                             : 'border-border/70',
                     )} style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
                         {/* Grade */}
                         <div className={cn(
                             'min-w-0 px-3.5 py-2.5 transition-colors duration-300',
-                            planMode ? 'bg-amber-50/60 dark:bg-amber-950/25' : '',
+                            showWeightIncompleteState
+                                ? 'bg-rose-50/80 dark:bg-rose-950/20'
+                                : planMode ? 'bg-amber-50/60 dark:bg-amber-950/25' : '',
                         )}>
                             <div className="flex items-center gap-1.5">
-                                {planMode
+                                {showWeightIncompleteState
+                                    ? <Percent className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+                                    : planMode
                                     ? <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
                                     : <Percent className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />}
                                 <p className={cn(
                                     'truncate text-xs font-medium transition-colors duration-300',
-                                    planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
+                                    showWeightIncompleteState
+                                        ? 'text-rose-700 dark:text-rose-300'
+                                        : planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
                                 )}>
-                                    {planMode ? 'Grade · What If' : 'Grade'}
+                                    {showWeightIncompleteState ? 'Grade · Incomplete Weight' : planMode ? 'Grade · What If' : 'Grade'}
                                 </p>
                             </div>
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
-                                {course.hide_gpa ? '****' : planMode && whatIfResult ? (
+                                {course.hide_gpa ? '****' : showWeightIncompleteState ? (
+                                    <span className="text-rose-600 dark:text-rose-400">Not calculated</span>
+                                ) : planMode && whatIfResult ? (
                                     <span className="text-amber-600 dark:text-amber-400">
                                         <AnimatedNumber
                                             value={whatIfResult.projected_percentage}
@@ -558,28 +583,41 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     />
                                 )}
                             </div>
+                            {!course.hide_gpa && showWeightIncompleteState ? (
+                                <p className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-300/90">
+                                    Total weight is {summary.total_weight.toFixed(1)}%. Reach 100% to calculate.
+                                </p>
+                            ) : null}
                         </div>
 
                         {/* GPA */}
                         <div className={cn(
                             'min-w-0 border-l px-3.5 py-2.5 transition-colors duration-300',
-                            planMode
+                            showWeightIncompleteState
+                                ? 'border-rose-300/80 bg-rose-50/80 dark:border-rose-500/40 dark:bg-rose-950/20'
+                                : planMode
                                 ? 'border-amber-300/60 bg-amber-50/60 dark:border-amber-500/30 dark:bg-amber-950/25'
                                 : 'border-border/70',
                         )}>
                             <div className="flex items-center gap-1.5">
-                                {planMode
+                                {showWeightIncompleteState
+                                    ? <GraduationCap className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+                                    : planMode
                                     ? <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
                                     : <GraduationCap className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />}
                                 <p className={cn(
                                     'truncate text-xs font-medium transition-colors duration-300',
-                                    planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
+                                    showWeightIncompleteState
+                                        ? 'text-rose-700 dark:text-rose-300'
+                                        : planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
                                 )}>
-                                    {planMode ? 'GPA · What If' : 'GPA (Scaled)'}
+                                    {showWeightIncompleteState ? 'GPA · Incomplete Weight' : planMode ? 'GPA · What If' : 'GPA (Scaled)'}
                                 </p>
                             </div>
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
-                                {course.hide_gpa ? '****' : planMode && whatIfResult ? (
+                                {course.hide_gpa ? '****' : showWeightIncompleteState ? (
+                                    <span className="text-rose-600 dark:text-rose-400">Not calculated</span>
+                                ) : planMode && whatIfResult ? (
                                     <span className="text-amber-600 dark:text-amber-400">
                                         <AnimatedNumber
                                             value={whatIfResult.projected_gpa}
@@ -595,6 +633,11 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                         />
                                 )}
                             </div>
+                            {!course.hide_gpa && showWeightIncompleteState ? (
+                                <p className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-300/90">
+                                    Gradebook math stays off while the configured weights are below 100%.
+                                </p>
+                            ) : null}
                         </div>
                     </div>
                 </section>
@@ -635,7 +678,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         planMode ? "flex-wrap lg:flex-nowrap" : "flex-nowrap"
                     )}>
                         <div className={cn(
-                            'flex h-11 flex-1 min-w-[140px] shrink-0 items-center justify-between gap-2 lg:gap-3 rounded-md border px-3',
+                            'flex h-11 flex-1 min-w-[140px] shrink-0 select-none items-center justify-between gap-2 lg:gap-3 rounded-md border px-3',
                             planMode ? 'border-amber-400/50 bg-amber-100/50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100' : 'border-border/60 bg-background/80',
                         )}>
                             <div className="flex items-center gap-2 text-sm font-medium tracking-tight whitespace-nowrap">
@@ -795,7 +838,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                                     {category ? (
                                                         <Badge
                                                             variant="outline"
-                                                            className={cn('border-0 px-2.5 py-0.5 text-xs font-medium', getCategoryBadgeClassName(category.color_token))}
+                                                            className={cn('select-none border-0 px-2.5 py-0.5 text-xs font-medium', getCategoryBadgeClassName(category.color_token))}
                                                             style={getCategoryBadgeStyle(category.color_token)}
                                                         >
                                                             {category.name}
@@ -862,6 +905,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                                             type="button"
                                                             variant="ghost"
                                                             size="icon"
+                                                            className="select-none"
                                                             aria-label={`Edit assessment ${assessment.title}`}
                                                             disabled={!canManageAssessments}
                                                             onClick={() => {
@@ -877,6 +921,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                                                     type="button"
                                                                     variant="destructive"
                                                                     size="icon"
+                                                                    className="select-none"
                                                                     aria-label={`Delete assessment ${assessment.title}`}
                                                                     disabled={!canManageAssessments}
                                                                 >

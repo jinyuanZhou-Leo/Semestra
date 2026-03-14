@@ -1,6 +1,6 @@
 // input:  [gradebook API contracts, date-fns helpers, and builtin-gradebook table view preferences]
-// output: [builtin-gradebook constants, forecast/plan calculators, shared formatters, and stable category badge color helpers]
-// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, and settings surface]
+// output: [builtin-gradebook constants, weight-gated forecast/plan calculators, shared formatters, and stable category badge color helpers]
+// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, and settings surface, including total-weight calculation gating]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -58,16 +58,18 @@ export interface ComputedGradebookUpcomingDueItem {
 }
 
 export interface ComputedGradebookSummary {
-    current_real_percentage: number;
-    current_real_gpa: number;
+    current_real_percentage: number | null;
+    current_real_gpa: number | null;
     forecast_percentage: number | null;
     forecast_gpa: number | null;
     minimum_required_average: number | null;
     target_gpa: number;
     target_percentage: number | null;
+    total_weight: number;
     remaining_weight: number;
     graded_count: number;
     ungraded_count: number;
+    has_complete_weight: boolean;
     forecast_model: GradebookForecastModel;
     missing_history_categories: string[];
     category_stats: GradebookCategoryStats[];
@@ -179,6 +181,15 @@ const getGradedAssessments = (gradebook: CourseGradebook): GradebookAssessment[]
     gradebook.assessments.filter((assessment) => assessment.score !== null)
 );
 
+export const calculateTotalWeight = (gradebook: CourseGradebook): number => roundValue(
+    gradebook.assessments.reduce((sum, assessment) => sum + assessment.weight, 0),
+    3,
+);
+
+export const hasCompleteGradebookWeight = (gradebook: CourseGradebook): boolean => (
+    calculateTotalWeight(gradebook) >= 100
+);
+
 export const buildCategoryStats = (gradebook: CourseGradebook): GradebookCategoryStats[] => {
     const categories = new Map(gradebook.categories.map((category) => [category.id, category]));
     const graded = getGradedAssessments(gradebook);
@@ -227,8 +238,12 @@ export const calculateRequiredAverage = (
 };
 
 export const buildComputedGradebookSummary = (gradebook: CourseGradebook): ComputedGradebookSummary => {
-    const currentRealPercentage = calculateCurrentScorePercentage(gradebook);
-    const currentRealGpa = calculateGradebookGpa(currentRealPercentage, gradebook.scaling_table) ?? 0;
+    const totalWeight = calculateTotalWeight(gradebook);
+    const hasCompleteWeight = hasCompleteGradebookWeight(gradebook);
+    const currentRealPercentage = hasCompleteWeight ? calculateCurrentScorePercentage(gradebook) : null;
+    const currentRealGpa = currentRealPercentage === null
+        ? null
+        : calculateGradebookGpa(currentRealPercentage, gradebook.scaling_table);
     const categoryStats = buildCategoryStats(gradebook);
     const categoryMap = new Map(categoryStats.map((stats) => [stats.categoryId, stats]));
     const pendingAssessments = getPendingAssessments(gradebook);
@@ -241,11 +256,11 @@ export const buildComputedGradebookSummary = (gradebook: CourseGradebook): Compu
     );
 
     let forecastPercentage: number | null = null;
-    if (gradebook.forecast_model === 'auto' && pendingAssessments.length > 0 && missingHistoryCategories.length === 0) {
+    if (hasCompleteWeight && gradebook.forecast_model === 'auto' && pendingAssessments.length > 0 && missingHistoryCategories.length === 0) {
         const projectedContribution = pendingAssessments.reduce((sum, assessment) => {
             const stats = categoryMap.get(assessment.category_id);
             return sum + (assessment.weight * (stats?.meanScore ?? 0)) / 100;
-        }, currentRealPercentage);
+        }, currentRealPercentage ?? 0);
         forecastPercentage = roundValue(projectedContribution, 3);
     }
 
@@ -255,12 +270,14 @@ export const buildComputedGradebookSummary = (gradebook: CourseGradebook): Compu
         current_real_gpa: currentRealGpa,
         forecast_percentage: forecastPercentage,
         forecast_gpa: forecastPercentage === null ? null : calculateGradebookGpa(forecastPercentage, gradebook.scaling_table),
-        minimum_required_average: calculateRequiredAverage(gradebook, gradebook.target_gpa),
+        minimum_required_average: hasCompleteWeight ? calculateRequiredAverage(gradebook, gradebook.target_gpa) : null,
         target_gpa: gradebook.target_gpa,
         target_percentage: resolveTargetPercentageForGpa(gradebook.target_gpa, gradebook.scaling_table),
+        total_weight: totalWeight,
         remaining_weight: roundValue(pendingAssessments.reduce((sum, assessment) => sum + assessment.weight, 0), 3),
         graded_count: getGradedAssessments(gradebook).length,
         ungraded_count: pendingAssessments.length,
+        has_complete_weight: hasCompleteWeight,
         forecast_model: gradebook.forecast_model,
         missing_history_categories: missingHistoryCategories,
         category_stats: categoryStats,

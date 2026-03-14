@@ -1,6 +1,6 @@
 // input:  [raw dashboard tabs, builtin-tab config, plugin metadata resolvers, tab registry updates]
 // output: [`useHomepageBuiltinTabs()` derived tab-bar state and reorder/filter helpers]
-// pos:    [Homepage-specific tab orchestration for builtin insertion, ordering, and lazy readiness]
+// pos:    [Homepage-specific tab orchestration for builtin insertion, lazy readiness, and fixed shell-tab placement without overriding user reorder]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -116,8 +116,11 @@ export const useHomepageBuiltinTabs = ({
 
     const visibleTabs = useMemo(() => {
         const tabsByType = new Map<string, DashboardTabItem[]>();
+        const leadingBuiltinTabTypes = config.leadingBuiltinTabTypes ?? [];
         const trailingBuiltinTabTypes = config.trailingBuiltinTabTypes ?? [];
+        const leadingBuiltinTypeSet = new Set(leadingBuiltinTabTypes);
         const trailingBuiltinTypeSet = new Set(trailingBuiltinTabTypes);
+
         tabs.forEach((tab) => {
             const group = tabsByType.get(tab.type);
             if (group) {
@@ -130,8 +133,7 @@ export const useHomepageBuiltinTabs = ({
         const ordered: DashboardTabItem[] = [];
         const consumedTabIds = new Set<string>();
 
-        config.builtinTabTypes.forEach((type) => {
-            if (trailingBuiltinTypeSet.has(type)) return;
+        leadingBuiltinTabTypes.forEach((type) => {
             const matchingTabs = tabsByType.get(type);
             if (!matchingTabs?.length) return;
             matchingTabs.forEach((tab) => {
@@ -142,8 +144,9 @@ export const useHomepageBuiltinTabs = ({
 
         tabs.forEach((tab) => {
             if (consumedTabIds.has(tab.id)) return;
-            if (trailingBuiltinTypeSet.has(tab.type)) return;
+            if (leadingBuiltinTypeSet.has(tab.type) || trailingBuiltinTypeSet.has(tab.type)) return;
             ordered.push(tab);
+            consumedTabIds.add(tab.id);
         });
 
         trailingBuiltinTabTypes.forEach((type) => {
@@ -157,7 +160,7 @@ export const useHomepageBuiltinTabs = ({
         });
 
         return ordered;
-    }, [config.builtinTabTypes, config.trailingBuiltinTabTypes, tabs]);
+    }, [config.leadingBuiltinTabTypes, config.trailingBuiltinTabTypes, tabs]);
 
     const tabBarItems: TabsBarItem[] = visibleTabs.map((tab) => {
         // Resolve basic display fields from metadata even when runtime component is still lazy.

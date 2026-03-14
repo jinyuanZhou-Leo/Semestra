@@ -1,6 +1,6 @@
 // input:  [Vitest assertions, builtin-gradebook shared helpers, and simplified gradebook fixtures]
-// output: [test suite validating builtin-gradebook forecast summaries, category-history logic, plan-mode recommendations, and stable badge color fallbacks]
-// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, and category badge helpers]
+// output: [test suite validating builtin-gradebook forecast summaries, incomplete-weight gating, plan-mode recommendations, and stable badge color fallbacks]
+// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, weight validation, and category badge helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,6 +14,7 @@ import {
     formatGradebookDate,
     getCategoryBadgeClassName,
     getCategoryBadgeStyle,
+    hasCompleteGradebookWeight,
     resolveTargetPercentageForGpa,
 } from './shared';
 import type { CourseGradebook } from '@/services/api';
@@ -77,6 +78,27 @@ describe('builtin-gradebook shared helpers', () => {
 
         expect(summary.forecast_percentage).toBeNull();
         expect(summary.missing_history_categories).toContain('Exam');
+    });
+
+    it('disables grade calculations when total weight is below 100%', () => {
+        const partialWeightFixture: CourseGradebook = {
+            ...fixture,
+            assessments: fixture.assessments.map((assessment, index) => (
+                index === 2
+                    ? { ...assessment, weight: 40 }
+                    : assessment
+            )),
+        };
+
+        const summary = buildComputedGradebookSummary(partialWeightFixture);
+
+        expect(hasCompleteGradebookWeight(partialWeightFixture)).toBe(false);
+        expect(summary.total_weight).toBe(90);
+        expect(summary.has_complete_weight).toBe(false);
+        expect(summary.current_real_percentage).toBeNull();
+        expect(summary.current_real_gpa).toBeNull();
+        expect(summary.minimum_required_average).toBeNull();
+        expect(summary.forecast_percentage).toBeNull();
     });
 
     it('fills auto what-if scores using history and fallback rules', () => {

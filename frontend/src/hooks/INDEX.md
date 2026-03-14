@@ -15,7 +15,7 @@ Includes stale-request-safe fetch primitives, framework-managed plugin shared-se
 | useDashboardWidgets.ts | Hook module | Orchestrates widget CRUD, unavailable-widget force cleanup, resilient settings/layout parsing, context-key reset safeguards, and split local layout sync with parallelized commit persistence. |
 | useDataFetch.ts | Hook module | Generic fetch hook with loading/error state plus stale-response guards to prevent older requests from overwriting newer state. |
 | useEntityContext.ts | Hook module | Generic optimistic entity-sync hook that now stores entity state in TanStack Query cache while keeping debounced persistence and entity-switch guards for pending update queues. |
-| useHomepageBuiltinTabs.ts | Hook module | Custom hook implementing use homepage builtin tabs behavior. |
+| useHomepageBuiltinTabs.ts | Hook module | Homepage tab orchestration that ensures required builtin tabs exist while pinning only shell tabs and preserving user reordering for Gradebook, Calendar, Schedule, Todo, and custom tabs. |
 | usePluginSharedSettings.ts | Hook module | Loads one plugin-level shared-settings record from shared Query cache for the active semester/course context and syncs updates through framework autosave with debounce and max-wait forcing. |
 | usePrefersReducedMotion.ts | Hook module | Custom hook implementing use prefers reduced motion behavior. |
 | useScrollProgress.ts | Hook module | Custom hook implementing use scroll progress behavior. |

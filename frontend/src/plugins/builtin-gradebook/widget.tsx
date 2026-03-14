@@ -1,6 +1,6 @@
 // input:  [course API, widget runtime contracts, dashboard stat iconography, and shared business empty-state wrappers]
 // output: [builtin-gradebook summary widget component and widget definition]
-// pos:    [course-scoped read-only KPI widget using CSS-only responsive vertical layout with standardized unavailable empty states]
+// pos:    [course-scoped read-only KPI widget using CSS-only responsive vertical layout, non-selectable stat tiles, and standardized unavailable empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -29,7 +29,7 @@ interface SummaryTileProps {
 
 const SummaryTile: React.FC<SummaryTileProps> = ({ label, icon, value, className, labelClassName, valueClassName }) => (
     <div className={cn(
-        'flex min-h-0 flex-1 items-center justify-between gap-3 rounded-2xl bg-muted/40',
+        'flex min-h-0 flex-1 select-none items-center justify-between gap-3 rounded-2xl bg-muted/40',
         className,
     )}>
         <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground/80">
