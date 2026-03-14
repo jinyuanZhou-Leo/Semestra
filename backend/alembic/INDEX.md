@@ -2,7 +2,7 @@
 
 `alembic/` contains the backend's versioned schema migration environment.
 It wires Alembic to the Semestra SQLAlchemy metadata and keeps individual revisions under `versions/`.
-Runtime code no longer owns ad-hoc schema rewrite steps; structural changes should land here first.
+Runtime code no longer owns ad-hoc schema rewrite steps; structural changes such as course resources and LMS integration storage should land here first.
 
 | File | Role | Description |
 |------|------|-------------|

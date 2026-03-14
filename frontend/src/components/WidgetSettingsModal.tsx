@@ -1,4 +1,4 @@
-// input:  [active widget payload, widget registry settings component lookup, save callback, and dialog open state]
+// input:  [active widget payload, widget registry settings component lookup, status-button feedback, save callback, and dialog open state]
 // output: [`WidgetSettingsModal` component]
 // pos:    [Per-widget settings editor modal that preserves the last widget payload through close animation and commits changes on explicit save]
 //
@@ -11,7 +11,7 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { SaveSettingButton } from "./SaveSettingButton";
+import { StatusButton } from "./StatusButton";
 import {
   getResolvedWidgetMetadataByType,
   getWidgetSettingsComponentByType,
@@ -136,10 +136,10 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
             >
               Cancel
             </Button>
-            <SaveSettingButton
+            <StatusButton
               type="submit"
               label="Save Settings"
-              saveState={saveState}
+              status={saveState}
               animated={false}
             />
           </div>

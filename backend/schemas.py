@@ -1,6 +1,6 @@
-# input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, user preferences, plus todo and fact-only gradebook wire contracts]
+# input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, and LMS URL normalization helpers]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, user preferences, plus todo and fact-only gradebook wire contracts]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -9,10 +9,12 @@
 import json
 import math
 from urllib.parse import urlparse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, model_validator, validator
 from typing import List, Optional, Any, Literal
 from enum import Enum
 from datetime import date
+
+from lms_canvas import normalize_canvas_base_url
 
 def _validate_single_widget_layout(value: Any, scope: str) -> None:
     if not isinstance(value, dict):
@@ -122,6 +124,128 @@ class UserUpdate(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     id_token: str
+
+
+def _validate_lms_provider(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized != "canvas":
+        raise ValueError("provider must currently be 'canvas'.")
+    return normalized
+
+
+def _validate_canvas_config_payload(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("config must be a JSON object.")
+    try:
+        base_url = normalize_canvas_base_url(str(value.get("base_url") or ""))
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+    return {"base_url": base_url}
+
+
+def _validate_canvas_credentials_payload(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("credentials must be a JSON object.")
+    token = str(value.get("personal_access_token") or "").strip()
+    if not token:
+        raise ValueError("credentials.personal_access_token is required.")
+    return {"personal_access_token": token}
+
+
+class LmsIntegrationError(BaseModel):
+    code: str
+    message: str
+
+
+class LmsConnectionSummary(BaseModel):
+    external_user_id: str
+    display_name: Optional[str] = None
+    login_id: Optional[str] = None
+    email: Optional[str] = None
+
+
+class LmsIntegrationUpsertRequest(BaseModel):
+    provider: str
+    config: dict[str, Any]
+    credentials: dict[str, Any]
+
+    @validator("provider")
+    def validate_provider(cls, value: str) -> str:
+        return _validate_lms_provider(value)
+
+    @validator("config")
+    def validate_config(cls, value: Any) -> dict[str, Any]:
+        return _validate_canvas_config_payload(value)
+
+    @validator("credentials")
+    def validate_credentials(cls, value: Any) -> dict[str, Any]:
+        return _validate_canvas_credentials_payload(value)
+
+
+class LmsIntegrationValidationRequest(BaseModel):
+    provider: str
+    config: Optional[dict[str, Any]] = None
+    credentials: Optional[dict[str, Any]] = None
+
+    @validator("provider")
+    def validate_provider(cls, value: str) -> str:
+        return _validate_lms_provider(value)
+
+    @validator("config")
+    def validate_optional_config(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
+        if value is None:
+            return value
+        return _validate_canvas_config_payload(value)
+
+    @validator("credentials")
+    def validate_optional_credentials(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
+        if value is None:
+            return value
+        return _validate_canvas_credentials_payload(value)
+
+    @model_validator(mode="after")
+    def validate_payload_pair(self) -> "LmsIntegrationValidationRequest":
+        has_config = self.config is not None
+        has_credentials = self.credentials is not None
+        if has_config != has_credentials:
+            raise ValueError("config and credentials must both be provided when validating an explicit LMS connection.")
+        if not has_config and not has_credentials:
+            raise ValueError("config and credentials are required when a validation payload is supplied.")
+        return self
+
+
+class LmsIntegrationResponse(BaseModel):
+    provider: str
+    status: str
+    config: dict[str, Any]
+    last_checked_at: Optional[str] = None
+    last_error: Optional[LmsIntegrationError] = None
+    summary: Optional[LmsConnectionSummary] = None
+
+
+class LmsIntegrationValidationResponse(BaseModel):
+    provider: str
+    status: str
+    last_checked_at: Optional[str] = None
+    last_error: Optional[LmsIntegrationError] = None
+    summary: Optional[LmsConnectionSummary] = None
+
+
+class LmsCourseSummary(BaseModel):
+    external_id: str
+    name: str
+    course_code: Optional[str] = None
+    workflow_state: Optional[str] = None
+    start_at: Optional[str] = None
+    end_at: Optional[str] = None
+
+
+class LmsCourseListResponse(BaseModel):
+    items: List[LmsCourseSummary] = []
+    page: int = 1
+    page_size: int = 50
+    has_more: bool = False
+    next_page: Optional[int] = None
 
 # --- Widget Schemas ---
 class WidgetBase(BaseModel):

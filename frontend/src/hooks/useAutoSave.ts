@@ -1,6 +1,6 @@
 // input:  [current draft value, saved snapshot value, async save callback, optional equality/validation/timing config]
 // output: [`useAutoSave()` hook exposing save state, pending-change status, and a manual flush action for auto-saving forms]
-// pos:    [Cross-page auto-save scheduler with debounce, max-wait throttling, and save-state feedback]
+// pos:    [Cross-page auto-save scheduler with debounce, max-wait throttling, save-state feedback, and retry pause after failed saves until the draft changes]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -75,12 +75,16 @@ export const useAutoSave = <T>({
   const pendingSinceRef = useRef<number | null>(null);
   const isSavingRef = useRef(false);
   const shouldRetryAfterSaveRef = useRef(false);
+  const failedValueRef = useRef<T | null>(null);
 
   latestValueRef.current = value;
   latestSavedValueRef.current = savedValue;
 
   useEffect(() => {
     acknowledgedSavedValueRef.current = savedValue;
+    if (isEqual(latestValueRef.current, savedValue)) {
+      failedValueRef.current = null;
+    }
   }, [savedValue]);
 
   const clearDebounceTimer = useCallback(() => {
@@ -123,12 +127,14 @@ export const useAutoSave = <T>({
     try {
       await onSave(snapshot);
       acknowledgedSavedValueRef.current = snapshot;
+      failedValueRef.current = null;
       setSaveState("success");
       clearSuccessTimer();
       successTimerRef.current = window.setTimeout(() => {
         setSaveState("idle");
       }, successMs);
     } catch (error) {
+      failedValueRef.current = snapshot;
       setSaveState("idle");
       await onError?.(error);
     } finally {
@@ -165,6 +171,7 @@ export const useAutoSave = <T>({
     if (!hasPendingChanges) {
       clearDebounceTimer();
       pendingSinceRef.current = null;
+      failedValueRef.current = null;
       return;
     }
 
@@ -172,6 +179,14 @@ export const useAutoSave = <T>({
       clearDebounceTimer();
       return;
     }
+
+    if (failedValueRef.current && isEqual(latestValueRef.current, failedValueRef.current)) {
+      clearDebounceTimer();
+      pendingSinceRef.current = null;
+      return;
+    }
+
+    failedValueRef.current = null;
 
     const now = Date.now();
     if (pendingSinceRef.current === null) {

@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, and widget delete options]
-// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, and widget delete options]
+// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, provider-neutral LMS validation, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -123,6 +123,35 @@ export interface User {
     default_course_credit?: number;
     background_plugin_preload?: boolean;
     google_sub?: string | null;
+}
+
+export interface LmsIntegrationError {
+    code: string;
+    message: string;
+}
+
+export interface LmsConnectionSummary {
+    external_user_id: string;
+    display_name?: string | null;
+    login_id?: string | null;
+    email?: string | null;
+}
+
+export interface LmsIntegrationValidationResponse {
+    provider: string;
+    status: string;
+    last_checked_at?: string | null;
+    last_error?: LmsIntegrationError | null;
+    summary?: LmsConnectionSummary | null;
+}
+
+export interface LmsIntegrationResponse {
+    provider: string;
+    status: string;
+    config: Record<string, unknown>;
+    last_checked_at?: string | null;
+    last_error?: LmsIntegrationError | null;
+    summary?: LmsConnectionSummary | null;
 }
 
 export type TodoPriority = '' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -557,6 +586,34 @@ const api = {
     // Auth
     updateUser: async (data: any) => {
         const response = await axios.put<User>('/api/users/me', data);
+        return response.data;
+    },
+    getLmsIntegration: async (provider: string) => {
+        return dedupeGet(`GET:/api/users/me/lms-integrations/${provider}`, async () => {
+            const response = await axios.get<LmsIntegrationResponse>(`/api/users/me/lms-integrations/${provider}`);
+            return response.data;
+        });
+    },
+    upsertLmsIntegration: async (
+        provider: string,
+        data: {
+            provider: string;
+            config: Record<string, unknown>;
+            credentials: Record<string, unknown>;
+        }
+    ) => {
+        const response = await axios.put<LmsIntegrationResponse>(`/api/users/me/lms-integrations/${provider}`, data);
+        return response.data;
+    },
+    validateLmsIntegration: async (
+        provider: string,
+        data: {
+            provider: string;
+            config: Record<string, unknown>;
+            credentials: Record<string, unknown>;
+        }
+    ) => {
+        const response = await axios.post<LmsIntegrationValidationResponse>(`/api/users/me/lms-integrations/${provider}/validate`, data);
         return response.data;
     },
 

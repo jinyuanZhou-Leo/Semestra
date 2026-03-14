@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, context-scoped plugin shared settings, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, plugin-shared settings, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, LMS integration records, context-scoped plugin shared settings, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, provider-neutral LMS connection storage, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -41,6 +41,28 @@ class User(Base):
     
     # Relationships
     programs = relationship("Program", back_populates="owner")
+    lms_integrations = relationship("LmsIntegration", back_populates="user", cascade="all, delete-orphan")
+
+class LmsIntegration(Base):
+    __tablename__ = "lms_integrations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", name="uq_lms_integrations_user_provider"),
+        Index("ix_lms_integrations_user_provider", "user_id", "provider"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="connected")
+    config_json = Column(Text, nullable=False, default="{}")
+    credentials_encrypted = Column(Text, nullable=False, default="")
+    last_checked_at = Column(String, nullable=True)
+    last_error_code = Column(String, nullable=True)
+    last_error_message = Column(Text, nullable=True)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+    user = relationship("User", back_populates="lms_integrations")
     
 class Program(Base):
     __tablename__ = "programs"

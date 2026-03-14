@@ -7,7 +7,7 @@ Includes stale-request-safe fetch primitives, framework-managed plugin shared-se
 | File | Role | Description |
 |------|------|-------------|
 | __tests__/ | Subdirectory | Test cases for modules in this folder. |
-| useAutoSave.ts | Hook module | Shared settings auto-save scheduler with structural snapshot comparison, debounce/max-wait throttling, validation gates, and save-state feedback. |
+| useAutoSave.ts | Hook module | Shared settings auto-save scheduler with structural snapshot comparison, debounce/max-wait throttling, validation gates, save-state feedback, and pause-after-error behavior until the draft changes again. |
 | useCourseGradebookQuery.ts | Hook module | Shared TanStack Query hook pair for course gradebook reads plus cache-updating mutations reused by Gradebook tab/settings surfaces. |
 | use-mobile.ts | Hook module | Mobile breakpoint hook (640px) with immediate client-side width initialization to avoid first-frame responsive surface mismatches. |
 | useAppStatus.ts | Hook module | Custom hook implementing use app status behavior. |

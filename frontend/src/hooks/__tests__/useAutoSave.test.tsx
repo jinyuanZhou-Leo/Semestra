@@ -1,6 +1,6 @@
 // input:  [React testing-library hook helpers, fake timers, and `useAutoSave` hook]
-// output: [regression tests for object equality and latest-value debounce behavior in `useAutoSave`]
-// pos:    [Hook-level autosave tests guarding settings forms against stalled or repeated saves]
+// output: [regression tests for object equality, latest-value debounce behavior, and pause-after-error behavior in `useAutoSave`]
+// pos:    [Hook-level autosave tests guarding settings forms against stalled, repeated, or stale retries]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -92,5 +92,52 @@ describe("useAutoSave", () => {
 
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave).toHaveBeenLastCalledWith({ name: "APS" });
+  });
+
+  it("does not retry a failed auto-save until the draft changes again", async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error("network"));
+    const { rerender } = renderHook(
+      ({ value, savedValue }: { value: { name: string }; savedValue: { name: string } }) => useAutoSave({
+        value,
+        savedValue,
+        onSave,
+        debounceMs: 50,
+        maxWaitMs: 200,
+        successMs: 50,
+      }),
+      {
+        initialProps: {
+          value: { name: "APS" },
+          savedValue: { name: "" },
+        },
+      },
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+      await Promise.resolve();
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+      await Promise.resolve();
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    rerender({
+      value: { name: "APS1" },
+      savedValue: { name: "" },
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+      await Promise.resolve();
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onSave).toHaveBeenLastCalledWith({ name: "APS1" });
   });
 });

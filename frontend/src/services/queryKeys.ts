@@ -32,5 +32,6 @@ export const queryKeys = {
   },
   user: {
     me: () => ['user', 'me'] as const,
+    lmsIntegration: (provider: string) => ['user', 'lms-integration', provider] as const,
   },
 };

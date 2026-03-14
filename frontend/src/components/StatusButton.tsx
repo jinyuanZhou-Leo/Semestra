@@ -1,21 +1,21 @@
-// input:  [save-state prop (`idle/saving/success`), button props, timer-driven visual transitions]
-// output: [`SaveSettingButton` component and `SaveButtonState` type]
-// pos:    [Reusable settings save CTA with animated status transitions]
+// input:  [button state prop (`idle/saving/success/error`), customizable status labels, button props, and timer-driven visual transitions]
+// output: [`StatusButton` component and `StatusButtonState` type]
+// pos:    [Reusable settings/action CTA with animated in-place status transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
-export type SaveButtonState = "idle" | "saving" | "success";
+export type StatusButtonState = "idle" | "saving" | "success" | "error";
 
-type SaveButtonVisualState =
+type StatusButtonVisualState =
   | "text"
   | "text-leaving"
   | "spinner-entering"
@@ -29,23 +29,29 @@ const SPINNER_DELAY_MS = 280;
 const SPINNER_SWAP_MS = 180;
 const TEXT_IN_MS = 200;
 
-interface SaveSettingButtonProps
+interface StatusButtonProps
   extends Omit<React.ComponentProps<typeof Button>, "children"> {
-  saveState: SaveButtonState;
-  label?: string;
+  status: StatusButtonState;
+  label: string;
+  savingLabel?: string;
+  successLabel?: string;
+  errorLabel?: string;
   animated?: boolean;
 }
 
-export const SaveSettingButton: React.FC<SaveSettingButtonProps> = ({
-  saveState,
-  label = "Save Settings",
+export const StatusButton: React.FC<StatusButtonProps> = ({
+  status,
+  label,
+  savingLabel = "Saving...",
+  successLabel = "Saved",
+  errorLabel = "Failed",
   animated = true,
   className,
   disabled,
   ...props
 }) => {
-  const [visualState, setVisualState] = useState<SaveButtonVisualState>("text");
-  const previousSaveStateRef = useRef<SaveButtonState>(saveState);
+  const [visualState, setVisualState] = useState<StatusButtonVisualState>("text");
+  const previousStatusRef = useRef<StatusButtonState>(status);
   const savingStartedAtRef = useRef<number>(0);
   const spinnerShownRef = useRef(false);
   const timersRef = useRef<Array<ReturnType<typeof window.setTimeout>>>([]);
@@ -69,16 +75,16 @@ export const SaveSettingButton: React.FC<SaveSettingButtonProps> = ({
   useEffect(() => {
     if (!animated) {
       clearTimers();
-      previousSaveStateRef.current = saveState;
+      previousStatusRef.current = status;
       return;
     }
 
-    const previousSaveState = previousSaveStateRef.current;
-    if (previousSaveState === saveState) return;
+    const previousStatus = previousStatusRef.current;
+    if (previousStatus === status) return;
 
     clearTimers();
 
-    if (saveState === "saving") {
+    if (status === "saving") {
       savingStartedAtRef.current = Date.now();
       spinnerShownRef.current = false;
       setVisualState("text-leaving");
@@ -87,7 +93,7 @@ export const SaveSettingButton: React.FC<SaveSettingButtonProps> = ({
         setVisualState("spinner-entering");
       }, SPINNER_DELAY_MS);
       schedule(() => setVisualState("spinner"), SPINNER_DELAY_MS + SPINNER_SWAP_MS);
-    } else if (saveState === "success") {
+    } else if (status === "success") {
       const savingDuration = Date.now() - savingStartedAtRef.current;
       const isFastSave = savingDuration < SPINNER_DELAY_MS && !spinnerShownRef.current;
       const spinnerVisible =
@@ -115,8 +121,8 @@ export const SaveSettingButton: React.FC<SaveSettingButtonProps> = ({
       schedule(() => setVisualState("text"), TEXT_IN_MS);
     }
 
-    previousSaveStateRef.current = saveState;
-  }, [saveState, visualState, animated]);
+    previousStatusRef.current = status;
+  }, [animated, status, visualState]);
 
   const textVisible =
     visualState === "text" ||
@@ -128,45 +134,41 @@ export const SaveSettingButton: React.FC<SaveSettingButtonProps> = ({
     visualState === "spinner" ||
     visualState === "spinner-leaving";
 
-  if (!animated) {
-    const plainLabel =
-      saveState === "saving"
-        ? "Saving..."
-        : saveState === "success"
-          ? "Saved"
+  const visibleLabel =
+    status === "saving"
+      ? savingLabel
+      : status === "success"
+        ? successLabel
+        : status === "error"
+          ? errorLabel
           : label;
+  const iconClassName = "size-4 shrink-0";
 
+  if (!animated) {
     return (
       <Button
-        disabled={disabled || saveState === "saving"}
+        disabled={disabled || status === "saving"}
         className={cn("min-w-[8.5rem]", className)}
         {...props}
       >
-        <span className="sr-only" aria-live="polite">
-          {saveState === "saving"
-            ? "Saving settings"
-            : saveState === "success"
-              ? "Settings saved"
-              : label}
+        <span className="sr-only" aria-live="polite">{visibleLabel}</span>
+        <span aria-hidden className="inline-flex items-center gap-2">
+          {status === "saving" ? <Spinner className={iconClassName} /> : null}
+          {status === "success" ? <Check className={iconClassName} /> : null}
+          {status === "error" ? <XCircle className={iconClassName} /> : null}
+          <span>{visibleLabel}</span>
         </span>
-        <span aria-hidden>{plainLabel}</span>
       </Button>
     );
   }
 
   return (
     <Button
-      disabled={disabled || saveState === "saving"}
+      disabled={disabled || status === "saving"}
       className={cn("min-w-[8.5rem]", className)}
       {...props}
     >
-      <span className="sr-only" aria-live="polite">
-        {saveState === "saving"
-          ? "Saving settings"
-          : saveState === "success"
-            ? "Settings saved"
-            : label}
-      </span>
+      <span className="sr-only" aria-live="polite">{visibleLabel}</span>
 
       <span
         aria-hidden
@@ -182,7 +184,7 @@ export const SaveSettingButton: React.FC<SaveSettingButtonProps> = ({
                 "animate-in fade-in-0 slide-in-from-bottom-1 duration-200"
             )}
           >
-            {label}
+            {visibleLabel}
           </span>
         )}
 

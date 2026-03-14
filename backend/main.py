@@ -1,12 +1,12 @@
-# input:  [FastAPI framework, schemas/models/crud/logic/utils/auth modules, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance and all HTTP route handlers, including Program subject-color-map persistence, plugin-shared settings persistence, semester todo APIs, and fact-oriented gradebook endpoints]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, persisted todo APIs, backup import/export, fact-only gradebook APIs, force-aware widget deletion, and no runtime schema rewrite helpers]
+# input:  [FastAPI framework, schemas/models/crud/logic/utils/auth/lms modules, env-backed runtime settings, and widget delete query flags]
+# output: [FastAPI app instance and all HTTP route handlers, including Program subject-color-map persistence, provider-neutral LMS integration endpoints, plugin-shared settings persistence, semester todo APIs, and fact-oriented gradebook endpoints]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, encrypted LMS connection APIs, persisted todo APIs, backup import/export, fact-only gradebook APIs, force-aware widget deletion, and no runtime schema rewrite helpers]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
 #    2. Update the INDEX.md of the folder this file belongs to
 
-from fastapi import FastAPI, Depends, HTTPException, Response, status, Form, Query
+from fastapi import Body, FastAPI, Depends, HTTPException, Response, status, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -32,6 +32,7 @@ import gradebook
 import todo
 import course_resources
 import auth
+import lms_service
 from database import engine, get_db
 
 BASE_DIR = Path(__file__).parent
@@ -100,6 +101,21 @@ def raise_todo_http_error(exc: Exception) -> None:
     if isinstance(exc, todo.TodoValidationError):
         raise HTTPException(status_code=422, detail=error_detail(exc.code, exc.message))
     raise exc
+
+def raise_lms_http_error(exc: Exception) -> None:
+    if isinstance(exc, lms_service.LmsServiceError):
+        raise HTTPException(status_code=exc.status_code, detail=error_detail(exc.code, exc.message))
+    raise exc
+
+def validate_lms_provider_match(provider: str, payload_provider: str) -> str:
+    normalized_path_provider = provider.strip().lower()
+    normalized_payload_provider = payload_provider.strip().lower()
+    if normalized_path_provider != normalized_payload_provider:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail("LMS_PROVIDER_MISMATCH", "Path provider must match payload.provider."),
+        )
+    return normalized_path_provider
 
 def validate_time_range(start_time: str, end_time: str):
     try:
@@ -847,6 +863,87 @@ async def read_users_me(current_user: models.User = Depends(auth.get_current_use
 @app.put("/users/me", response_model=schemas.User)
 async def update_user_me(user_update: schemas.UserUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     return crud.update_user(db, current_user.id, user_update)
+
+@app.get("/users/me/lms-integrations", response_model=list[schemas.LmsIntegrationResponse])
+async def list_user_lms_integrations(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    return lms_service.list_integrations(db, current_user.id)
+
+@app.get("/users/me/lms-integrations/{provider}", response_model=schemas.LmsIntegrationResponse)
+async def get_user_lms_integration(
+    provider: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.get_integration(db, current_user.id, provider.strip().lower())
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+@app.put("/users/me/lms-integrations/{provider}", response_model=schemas.LmsIntegrationResponse)
+async def upsert_user_lms_integration(
+    provider: str,
+    payload: schemas.LmsIntegrationUpsertRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    normalized_provider = validate_lms_provider_match(provider, payload.provider)
+    try:
+        return lms_service.upsert_integration(db, current_user.id, normalized_provider, payload)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+@app.post("/users/me/lms-integrations/{provider}/validate", response_model=schemas.LmsIntegrationValidationResponse)
+async def validate_user_lms_integration(
+    provider: str,
+    payload: Optional[schemas.LmsIntegrationValidationRequest] = Body(default=None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    normalized_provider = provider.strip().lower()
+    if payload is not None:
+        normalized_provider = validate_lms_provider_match(provider, payload.provider)
+    try:
+        return lms_service.validate_integration(db, current_user.id, normalized_provider, payload)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+@app.get("/users/me/lms-integrations/{provider}/courses", response_model=schemas.LmsCourseListResponse)
+async def list_user_lms_courses(
+    provider: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    workflow_state: Optional[str] = Query(default=None),
+    enrollment_state: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_courses(
+            db,
+            current_user.id,
+            provider.strip().lower(),
+            page=page,
+            page_size=page_size,
+            workflow_state=workflow_state,
+            enrollment_state=enrollment_state,
+        )
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+@app.delete("/users/me/lms-integrations/{provider}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_lms_integration(
+    provider: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        lms_service.delete_integration(db, current_user.id, provider.strip().lower())
+    except Exception as exc:
+        raise_lms_http_error(exc)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @app.get("/users/me/export", response_model=schemas.UserDataExport)
 async def export_user_data(
