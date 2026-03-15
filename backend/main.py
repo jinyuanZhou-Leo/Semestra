@@ -107,16 +107,6 @@ def raise_lms_http_error(exc: Exception) -> None:
         raise HTTPException(status_code=exc.status_code, detail=error_detail(exc.code, exc.message))
     raise exc
 
-def validate_lms_provider_match(provider: str, payload_provider: str) -> str:
-    normalized_path_provider = provider.strip().lower()
-    normalized_payload_provider = payload_provider.strip().lower()
-    if normalized_path_provider != normalized_payload_provider:
-        raise HTTPException(
-            status_code=422,
-            detail=error_detail("LMS_PROVIDER_MISMATCH", "Path provider must match payload.provider."),
-        )
-    return normalized_path_provider
-
 def validate_time_range(start_time: str, end_time: str):
     try:
         datetime.strptime(start_time, TIME_FORMAT)
@@ -871,48 +861,69 @@ async def list_user_lms_integrations(
 ):
     return lms_service.list_integrations(db, current_user.id)
 
-@app.get("/users/me/lms-integrations/{provider}", response_model=schemas.LmsIntegrationResponse)
+
+@app.post("/users/me/lms-integrations", response_model=schemas.LmsIntegrationResponse)
+async def create_user_lms_integration(
+    payload: schemas.LmsIntegrationCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.create_integration(db, current_user.id, payload)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.post("/users/me/lms-integrations/validate", response_model=schemas.LmsIntegrationValidationResponse)
+async def validate_user_lms_integration_draft(
+    payload: schemas.LmsIntegrationValidationRequest,
+):
+    try:
+        return lms_service.validate_integration_draft(payload)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/users/me/lms-integrations/{integration_id}", response_model=schemas.LmsIntegrationResponse)
 async def get_user_lms_integration(
-    provider: str,
+    integration_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     try:
-        return lms_service.get_integration(db, current_user.id, provider.strip().lower())
+        return lms_service.get_integration(db, current_user.id, integration_id)
     except Exception as exc:
         raise_lms_http_error(exc)
 
-@app.put("/users/me/lms-integrations/{provider}", response_model=schemas.LmsIntegrationResponse)
-async def upsert_user_lms_integration(
-    provider: str,
-    payload: schemas.LmsIntegrationUpsertRequest,
+
+@app.patch("/users/me/lms-integrations/{integration_id}", response_model=schemas.LmsIntegrationResponse)
+async def update_user_lms_integration(
+    integration_id: str,
+    payload: schemas.LmsIntegrationUpdateRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    normalized_provider = validate_lms_provider_match(provider, payload.provider)
     try:
-        return lms_service.upsert_integration(db, current_user.id, normalized_provider, payload)
+        return lms_service.update_integration(db, current_user.id, integration_id, payload)
     except Exception as exc:
         raise_lms_http_error(exc)
 
-@app.post("/users/me/lms-integrations/{provider}/validate", response_model=schemas.LmsIntegrationValidationResponse)
+
+@app.post("/users/me/lms-integrations/{integration_id}/validate", response_model=schemas.LmsIntegrationValidationResponse)
 async def validate_user_lms_integration(
-    provider: str,
-    payload: Optional[schemas.LmsIntegrationValidationRequest] = Body(default=None),
+    integration_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    normalized_provider = provider.strip().lower()
-    if payload is not None:
-        normalized_provider = validate_lms_provider_match(provider, payload.provider)
     try:
-        return lms_service.validate_integration(db, current_user.id, normalized_provider, payload)
+        return lms_service.validate_integration(db, current_user.id, integration_id)
     except Exception as exc:
         raise_lms_http_error(exc)
 
-@app.get("/users/me/lms-integrations/{provider}/courses", response_model=schemas.LmsCourseListResponse)
+
+@app.get("/users/me/lms-integrations/{integration_id}/courses", response_model=schemas.LmsCourseListResponse)
 async def list_user_lms_courses(
-    provider: str,
+    integration_id: str,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     workflow_state: Optional[str] = Query(default=None),
@@ -921,10 +932,10 @@ async def list_user_lms_courses(
     current_user: models.User = Depends(auth.get_current_user),
 ):
     try:
-        return lms_service.list_courses(
+        return lms_service.list_courses_for_integration(
             db,
             current_user.id,
-            provider.strip().lower(),
+            integration_id,
             page=page,
             page_size=page_size,
             workflow_state=workflow_state,
@@ -933,14 +944,15 @@ async def list_user_lms_courses(
     except Exception as exc:
         raise_lms_http_error(exc)
 
-@app.delete("/users/me/lms-integrations/{provider}", status_code=status.HTTP_204_NO_CONTENT)
+
+@app.delete("/users/me/lms-integrations/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_lms_integration(
-    provider: str,
+    integration_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     try:
-        lms_service.delete_integration(db, current_user.id, provider.strip().lower())
+        lms_service.delete_integration(db, current_user.id, integration_id)
     except Exception as exc:
         raise_lms_http_error(exc)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1280,6 +1292,11 @@ def create_program(program: schemas.ProgramCreate, db: Session = Depends(get_db)
             status_code=422,
             detail=error_detail("INVALID_TIMEZONE", "Invalid IANA timezone string."),
         )
+    except crud.ProgramLmsDependencyError:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail("PROGRAM_LMS_INTEGRATION_NOT_FOUND", "Selected LMS integration was not found."),
+        )
 
 @app.get("/programs/", response_model=list[schemas.Program])
 def read_programs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -1301,6 +1318,16 @@ def update_program(program_id: str, program: schemas.ProgramUpdate, db: Session 
             status_code=422,
             detail=error_detail("INVALID_TIMEZONE", "Invalid IANA timezone string."),
         )
+    except crud.ProgramLmsDependencyError as exc:
+        if str(exc) == "PROGRAM_LMS_DEPENDENCIES_EXIST":
+            raise HTTPException(
+                status_code=409,
+                detail=error_detail("PROGRAM_LMS_DEPENDENCIES_EXIST", "Program LMS cannot be changed while linked LMS courses still exist."),
+            )
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail("PROGRAM_LMS_INTEGRATION_NOT_FOUND", "Selected LMS integration was not found."),
+        )
     if not db_program:
         raise HTTPException(status_code=404, detail="Program not found")
     return db_program
@@ -1311,6 +1338,60 @@ def delete_program(program_id: str, db: Session = Depends(get_db), current_user:
     if not db_program:
         raise HTTPException(status_code=404, detail="Program not found")
     return {"ok": True}
+
+
+@app.get("/programs/{program_id}/lms/courses", response_model=schemas.LmsCourseListResponse)
+def list_program_lms_courses(
+    program_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    workflow_state: Optional[str] = Query(default=None),
+    enrollment_state: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_program_courses(
+            db,
+            current_user.id,
+            program_id,
+            page=page,
+            page_size=page_size,
+            workflow_state=workflow_state,
+            enrollment_state=enrollment_state,
+        )
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.post("/programs/{program_id}/lms/courses/import", response_model=schemas.LmsCourseImportResponse)
+def import_program_lms_courses(
+    program_id: str,
+    payload: schemas.LmsCourseImportRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.import_program_courses(db, current_user.id, program_id, payload)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.post("/programs/{program_id}/lms/semesters/import", response_model=schemas.LmsSemesterImportResponse)
+def import_program_lms_semester(
+    program_id: str,
+    payload: schemas.LmsSemesterImportRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        semester, import_response = lms_service.import_semester_with_courses(db, current_user.id, program_id, payload)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+    return {
+        "semester": semester,
+        "courses": import_response,
+    }
 
 # --- Semesters ---
 @app.post("/programs/{program_id}/semesters/", response_model=schemas.Semester)
@@ -1398,6 +1479,30 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
     if semester is None:
         raise HTTPException(status_code=404, detail="Semester not found")
     return semester
+
+
+@app.get("/semesters/{semester_id}/lms/assignments", response_model=schemas.LmsAssignmentListResponse)
+def read_semester_lms_assignments(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_semester_assignments(db, current_user.id, semester_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/semesters/{semester_id}/lms/calendar-events", response_model=schemas.LmsCalendarEventListResponse)
+def read_semester_lms_calendar_events(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_semester_calendar_events(db, current_user.id, semester_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
 
 @app.get("/semesters/{semester_id}/plugin-settings", response_model=list[schemas.PluginSetting])
 def read_semester_plugin_settings(
@@ -1606,6 +1711,69 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
         raise HTTPException(status_code=404, detail="Course not found")
     # SQLAlchemy relationships (widgets) are lazy loaded, so pydantic will fetch them if in schema
     return db_course
+
+
+@app.get("/courses/{course_id}/lms-link", response_model=Optional[schemas.LmsCourseLinkSummary])
+def read_course_lms_link(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.get_course_link(db, current_user.id, course_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.put("/courses/{course_id}/lms-link", response_model=schemas.LmsCourseLinkSummary)
+def upsert_course_lms_link(
+    course_id: str,
+    payload: schemas.LmsCourseLinkUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.upsert_course_link(db, current_user.id, course_id, payload)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.post("/courses/{course_id}/lms-link/sync", response_model=schemas.LmsCourseLinkSummary)
+def sync_course_lms_link(
+    course_id: str,
+    payload: Optional[schemas.LmsCourseLinkSyncRequest] = Body(default=None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.sync_course_link(db, current_user.id, course_id, payload)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.delete("/courses/{course_id}/lms-link", status_code=status.HTTP_204_NO_CONTENT)
+def delete_course_lms_link(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        lms_service.delete_course_link(db, current_user.id, course_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/courses/{course_id}/lms/assignments", response_model=schemas.LmsAssignmentListResponse)
+def read_course_lms_assignments(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_course_assignments(db, current_user.id, course_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
 
 @app.get("/courses/{course_id}/plugin-settings", response_model=list[schemas.PluginSetting])
 def read_course_plugin_settings(

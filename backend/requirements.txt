@@ -17,6 +17,5 @@ python-jose[cryptography]
 passlib[bcrypt]
 requests
 google-auth
-canvasapi
 
 python-dotenv

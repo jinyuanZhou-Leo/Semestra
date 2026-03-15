@@ -2,7 +2,7 @@
 
 `tabs/calendar/` implements the built-in Calendar runtime, settings, export flow, and extension wiring.
 The folder now centers on a source-driven Calendar shell that consumes the standalone `calendar-core` registry instead of hardcoding schedule/todo/gradebook loading into one component.
-Hooks and source adapters isolate semester context, navigation, editing, per-source refresh rules, and Query-cache-aware remount reuse so future modules can add Calendar events with lower coupling while preserving the existing grid during event refreshes.
+Hooks and source adapters isolate semester context, navigation, editing, per-source refresh rules, and Query-cache-aware remount reuse so future modules can add Calendar events, including LMS events, with lower coupling while preserving the existing grid during event refreshes.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -24,5 +24,5 @@ Hooks and source adapters isolate semester context, navigation, editing, per-sou
 | hooks/INDEX.md | Hooks architecture index | File map for Calendar runtime hook boundaries. |
 | index.ts | Calendar entry | Lazy-load entrypoint exports for calendar tab runtime/settings bindings. |
 | settings.ts | Settings utilities | Calendar defaults plus normalization/time conversion helpers, week-view screen-width settings, and dynamic source-color defaults. |
-| sources/ | Built-in source adapters | Registry-backed schedule, todo, and gradebook source definitions with Query-cache reuse plus registration wiring for Calendar. |
+| sources/ | Built-in source adapters | Registry-backed schedule, todo, gradebook, and LMS source definitions with Query-cache reuse plus registration wiring for Calendar. |
 | sources/INDEX.md | Source architecture index | File map for built-in Calendar source adapters and registration glue. |

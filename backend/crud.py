@@ -27,6 +27,10 @@ BUILTIN_EVENT_TYPES = [
     {"code": "PRACTICAL", "abbreviation": "PRA"},
 ]
 
+
+class ProgramLmsDependencyError(Exception):
+    pass
+
 def normalize_timezone(timezone_value: str | None) -> str:
     timezone = (timezone_value or DEFAULT_PROGRAM_TIMEZONE).strip()
     try:
@@ -147,7 +151,7 @@ def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):
     if not db_user:
         return None
 
-    update_data = user_update.dict(exclude_unset=True)
+    update_data = user_update.model_dump(exclude_unset=True)
 
     if "nickname" in update_data:
         db_user.nickname = update_data["nickname"]
@@ -196,8 +200,17 @@ def get_programs(db: Session, user_id: str, skip: int = 0, limit: int = 100):
     return programs
 
 def create_program(db: Session, program: schemas.ProgramCreate, user_id: str):
-    payload = program.dict()
+    payload = program.model_dump()
     payload["program_timezone"] = normalize_timezone(payload.get("program_timezone"))
+    lms_integration_id = payload.get("lms_integration_id")
+    if lms_integration_id:
+        integration = (
+            db.query(models.LmsIntegration)
+            .filter(models.LmsIntegration.id == lms_integration_id, models.LmsIntegration.user_id == user_id)
+            .first()
+        )
+        if integration is None:
+            raise ProgramLmsDependencyError("PROGRAM_LMS_INTEGRATION_NOT_FOUND")
     db_program = models.Program(**payload, owner_id=user_id)
     db.add(db_program)
     db.commit()
@@ -218,9 +231,21 @@ def update_program(db: Session, program_id: str, program_update: schemas.Program
     db_program = db.query(models.Program).filter(models.Program.id == program_id, models.Program.owner_id == user_id).first()
     if not db_program:
         return None
-    update_data = program_update.dict(exclude_unset=True)
+    update_data = program_update.model_dump(exclude_unset=True)
     if "program_timezone" in update_data:
         update_data["program_timezone"] = normalize_timezone(update_data["program_timezone"])
+    if "lms_integration_id" in update_data:
+        next_integration_id = update_data["lms_integration_id"]
+        if next_integration_id:
+            integration = (
+                db.query(models.LmsIntegration)
+                .filter(models.LmsIntegration.id == next_integration_id, models.LmsIntegration.user_id == user_id)
+                .first()
+            )
+            if integration is None:
+                raise ProgramLmsDependencyError("PROGRAM_LMS_INTEGRATION_NOT_FOUND")
+        if next_integration_id != db_program.lms_integration_id and db_program.has_lms_dependencies:
+            raise ProgramLmsDependencyError("PROGRAM_LMS_DEPENDENCIES_EXIST")
     for key, value in update_data.items():
         setattr(db_program, key, value)
     _sync_program_subject_color_map(db_program)
@@ -247,7 +272,7 @@ def get_semesters(db: Session, program_id: str):
     return db.query(models.Semester).filter(models.Semester.program_id == program_id).all()
 
 def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: str):
-    payload = semester.dict()
+    payload = semester.model_dump()
     start_date = payload.get("start_date")
     end_date = payload.get("end_date")
     if start_date is None or end_date is None:
@@ -271,7 +296,7 @@ def update_semester(db: Session, semester_id: str, semester_update: schemas.Seme
     db_semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
     if not db_semester:
         return None
-    update_data = semester_update.dict()
+    update_data = semester_update.model_dump()
     if update_data.get("start_date") is None:
         update_data["start_date"] = db_semester.start_date
     if update_data.get("end_date") is None:
@@ -310,7 +335,7 @@ def get_course(db: Session, course_id: str):
     return db.query(models.Course).filter(models.Course.id == course_id).first()
 
 def create_course(db: Session, course: schemas.CourseCreate, program_id: str, semester_id: str | None = None):
-    db_course = models.Course(**course.dict(), program_id=program_id, semester_id=semester_id)
+    db_course = models.Course(**course.model_dump(), program_id=program_id, semester_id=semester_id)
     db.add(db_course)
     db.commit()
     db.refresh(db_course)
@@ -343,7 +368,7 @@ def update_course(db: Session, course_id: str, course_update: schemas.CourseUpda
     if not db_course:
         return None
     
-    for key, value in course_update.dict(exclude_unset=True).items():
+    for key, value in course_update.model_dump(exclude_unset=True).items():
         setattr(db_course, key, value)
     if db_course.program:
         _sync_program_subject_color_map(db_course.program)
@@ -372,7 +397,7 @@ def _ensure_plugin_settings_context(semester_id: str | None, course_id: str | No
 # --- Widget CRUD ---
 def create_widget(db: Session, widget: schemas.WidgetCreate, semester_id: str | None = None, course_id: str | None = None):
     _ensure_widget_context(semester_id, course_id)
-    db_widget = models.Widget(**widget.dict(), semester_id=semester_id, course_id=course_id)
+    db_widget = models.Widget(**widget.model_dump(), semester_id=semester_id, course_id=course_id)
     db.add(db_widget)
     db.commit()
     db.refresh(db_widget)
@@ -389,7 +414,7 @@ def update_widget(db: Session, widget_id: str, widget_update: schemas.WidgetUpda
     db_widget = db.query(models.Widget).filter(models.Widget.id == widget_id).first()
     if not db_widget:
         return None
-    for key, value in widget_update.dict(exclude_unset=True).items():
+    for key, value in widget_update.model_dump(exclude_unset=True).items():
         setattr(db_widget, key, value)
     db.add(db_widget)
     db.commit()
@@ -408,7 +433,7 @@ def _get_next_tab_order(db: Session, semester_id: str | None, course_id: str | N
 
 def create_tab(db: Session, tab: schemas.TabCreate, semester_id: str | None = None, course_id: str | None = None):
     _ensure_tab_context(semester_id, course_id)
-    data = tab.dict()
+    data = tab.model_dump()
     order_index = data.pop("order_index", None)
     if order_index is None:
         order_index = _get_next_tab_order(db, semester_id, course_id)
@@ -430,7 +455,7 @@ def update_tab(db: Session, tab_id: str, tab_update: schemas.TabUpdate):
     db_tab = db.query(models.Tab).filter(models.Tab.id == tab_id).first()
     if not db_tab:
         return None
-    for key, value in tab_update.dict(exclude_unset=True).items():
+    for key, value in tab_update.model_dump(exclude_unset=True).items():
         setattr(db_tab, key, value)
     db.add(db_tab)
     db.commit()

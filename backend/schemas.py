@@ -164,7 +164,75 @@ class LmsConnectionSummary(BaseModel):
     email: Optional[str] = None
 
 
-class LmsIntegrationUpsertRequest(BaseModel):
+class LmsIntegrationSummary(BaseModel):
+    id: str
+    display_name: str
+    provider: str
+
+    class Config:
+        from_attributes = True
+
+
+class LmsIntegrationCreateRequest(BaseModel):
+    provider: str
+    display_name: str
+    config: dict[str, Any]
+    credentials: dict[str, Any]
+
+    @validator("provider")
+    def validate_provider(cls, value: str) -> str:
+        return _validate_lms_provider(value)
+
+    @validator("display_name")
+    def validate_display_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("display_name is required.")
+        return normalized
+
+    @validator("config")
+    def validate_config(cls, value: Any) -> dict[str, Any]:
+        return _validate_canvas_config_payload(value)
+
+    @validator("credentials")
+    def validate_credentials(cls, value: Any) -> dict[str, Any]:
+        return _validate_canvas_credentials_payload(value)
+
+
+class LmsIntegrationUpdateRequest(BaseModel):
+    display_name: Optional[str] = None
+    config: Optional[dict[str, Any]] = None
+    credentials: Optional[dict[str, Any]] = None
+
+    @validator("display_name")
+    def validate_optional_display_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("display_name cannot be empty.")
+        return normalized
+
+    @validator("config")
+    def validate_optional_config(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
+        if value is None:
+            return value
+        return _validate_canvas_config_payload(value)
+
+    @validator("credentials")
+    def validate_optional_credentials(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
+        if value is None:
+            return value
+        return _validate_canvas_credentials_payload(value)
+
+    @model_validator(mode="after")
+    def validate_update_pair(self) -> "LmsIntegrationUpdateRequest":
+        if self.display_name is None and self.config is None and self.credentials is None:
+            raise ValueError("At least one field must be provided.")
+        return self
+
+
+class LmsIntegrationValidationRequest(BaseModel):
     provider: str
     config: dict[str, Any]
     credentials: dict[str, Any]
@@ -182,42 +250,13 @@ class LmsIntegrationUpsertRequest(BaseModel):
         return _validate_canvas_credentials_payload(value)
 
 
-class LmsIntegrationValidationRequest(BaseModel):
-    provider: str
-    config: Optional[dict[str, Any]] = None
-    credentials: Optional[dict[str, Any]] = None
-
-    @validator("provider")
-    def validate_provider(cls, value: str) -> str:
-        return _validate_lms_provider(value)
-
-    @validator("config")
-    def validate_optional_config(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
-        if value is None:
-            return value
-        return _validate_canvas_config_payload(value)
-
-    @validator("credentials")
-    def validate_optional_credentials(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
-        if value is None:
-            return value
-        return _validate_canvas_credentials_payload(value)
-
-    @model_validator(mode="after")
-    def validate_payload_pair(self) -> "LmsIntegrationValidationRequest":
-        has_config = self.config is not None
-        has_credentials = self.credentials is not None
-        if has_config != has_credentials:
-            raise ValueError("config and credentials must both be provided when validating an explicit LMS connection.")
-        if not has_config and not has_credentials:
-            raise ValueError("config and credentials are required when a validation payload is supplied.")
-        return self
-
-
 class LmsIntegrationResponse(BaseModel):
+    id: str
+    display_name: str
     provider: str
     status: str
     config: dict[str, Any]
+    masked_api_key: Optional[str] = None
     last_checked_at: Optional[str] = None
     last_error: Optional[LmsIntegrationError] = None
     summary: Optional[LmsConnectionSummary] = None
@@ -241,11 +280,130 @@ class LmsCourseSummary(BaseModel):
 
 
 class LmsCourseListResponse(BaseModel):
+    integration_id: str
     items: List[LmsCourseSummary] = []
     page: int = 1
     page_size: int = 50
     has_more: bool = False
     next_page: Optional[int] = None
+
+
+class LmsCourseLinkSummary(BaseModel):
+    id: str
+    lms_integration_id: str
+    integration_display_name: str
+    provider: str
+    external_course_id: str
+    external_course_code: Optional[str] = None
+    external_name: Optional[str] = None
+    sync_enabled: bool = True
+    last_synced_at: Optional[str] = None
+    last_error: Optional[LmsIntegrationError] = None
+
+
+class LmsCourseLinkUpdateRequest(BaseModel):
+    external_course_id: str
+    sync_enabled: bool = True
+
+    @validator("external_course_id")
+    def validate_external_course_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("external_course_id is required.")
+        return normalized
+
+
+class LmsCourseLinkSyncRequest(BaseModel):
+    sync_enabled: Optional[bool] = None
+
+
+class LmsCourseImportRequest(BaseModel):
+    external_course_ids: List[str]
+    semester_id: Optional[str] = None
+
+    @validator("external_course_ids")
+    def validate_external_course_ids(cls, value: List[str]) -> List[str]:
+        normalized = [item.strip() for item in value if item and item.strip()]
+        if not normalized:
+            raise ValueError("external_course_ids must include at least one course id.")
+        return normalized
+
+
+class LmsCourseImportResult(BaseModel):
+    external_course_id: str
+    status: Literal["created", "skipped", "conflict"]
+    course: Optional["Course"] = None
+    error: Optional[LmsIntegrationError] = None
+
+
+class LmsCourseImportResponse(BaseModel):
+    integration_id: str
+    results: List[LmsCourseImportResult] = []
+
+
+class LmsSemesterImportRequest(BaseModel):
+    name: str
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    reading_week_start: Optional[date] = None
+    reading_week_end: Optional[date] = None
+    external_course_ids: List[str]
+
+    @validator("name")
+    def validate_semester_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name is required.")
+        return normalized
+
+    @validator("external_course_ids")
+    def validate_semester_external_course_ids(cls, value: List[str]) -> List[str]:
+        normalized = [item.strip() for item in value if item and item.strip()]
+        if not normalized:
+            raise ValueError("external_course_ids must include at least one course id.")
+        return normalized
+
+
+class LmsAssignmentSummary(BaseModel):
+    external_id: str
+    course_id: str
+    course_name: str
+    title: str
+    description: Optional[str] = None
+    due_at: Optional[str] = None
+    unlock_at: Optional[str] = None
+    lock_at: Optional[str] = None
+    html_url: Optional[str] = None
+    published: bool = False
+    submission_types: List[str] = []
+
+
+class LmsAssignmentListResponse(BaseModel):
+    items: List[LmsAssignmentSummary] = []
+
+
+class LmsCalendarEventSummary(BaseModel):
+    external_id: str
+    source_id: str
+    course_id: str
+    course_name: str
+    title: str
+    description: Optional[str] = None
+    location: Optional[str] = None
+    start_at: str
+    end_at: str
+    all_day: bool = False
+    html_url: Optional[str] = None
+    event_type_code: str = "LMS"
+
+
+class LmsCalendarEventListResponse(BaseModel):
+    items: List[LmsCalendarEventSummary] = []
+
+
+class LmsSemesterImportResponse(BaseModel):
+    semester: "Semester"
+    courses: LmsCourseImportResponse
 
 # --- Widget Schemas ---
 class WidgetBase(BaseModel):
@@ -551,6 +709,8 @@ class Course(CourseBase):
     semester_id: Optional[str] = None
     has_gradebook: bool = False
     gradebook_revision: int = 0
+    has_lms_link: bool = False
+    lms_link: Optional[LmsCourseLinkSummary] = None
     class Config:
         from_attributes = True
 
@@ -662,6 +822,7 @@ class ProgramBase(BaseModel):
     grad_requirement_credits: float = 0.0
     hide_gpa: bool = False
     program_timezone: str = "UTC"
+    lms_integration_id: Optional[str] = None
 
 class ProgramCreate(ProgramBase):
     pass
@@ -675,10 +836,13 @@ class ProgramUpdate(BaseModel):
     grad_requirement_credits: Optional[float] = None
     hide_gpa: Optional[bool] = None
     program_timezone: Optional[str] = None
+    lms_integration_id: Optional[str] = None
 
 class Program(ProgramBase):
     id: str
     owner_id: str
+    has_lms_dependencies: bool = False
+    lms_integration: Optional[LmsIntegrationSummary] = None
     class Config:
         from_attributes = True
 
@@ -997,3 +1161,7 @@ class UserDataImport(BaseModel):
     version: Optional[str] = None
     settings: Optional[UserSettingsExport] = None
     programs: List[ProgramExport] = []
+
+
+LmsCourseImportResult.model_rebuild()
+LmsSemesterImportResponse.model_rebuild()

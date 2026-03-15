@@ -1,6 +1,6 @@
-// input:  [open state + change callback, viewport breakpoint state, title/description metadata, dialog/drawer surface classes, body/footer content]
+// input:  [open state + change callback, viewport breakpoint state, title/description metadata, dialog/drawer surface classes, body/footer content, and optional close-button visibility flags]
 // output: [`ResponsiveDialogDrawer` component]
-// pos:    [Shared responsive overlay wrapper that renders Dialog on desktop and Drawer on mobile]
+// pos:    [Shared responsive overlay wrapper that renders Dialog on desktop and Drawer on mobile with configurable built-in close affordances]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -27,6 +27,7 @@ interface ResponsiveDialogDrawerProps {
     mobileFooterClassName?: string;
     titleClassName?: string;
     descriptionClassName?: string;
+    showDesktopCloseButton?: boolean;
 }
 
 export const ResponsiveDialogDrawer: React.FC<ResponsiveDialogDrawerProps> = ({
@@ -44,6 +45,7 @@ export const ResponsiveDialogDrawer: React.FC<ResponsiveDialogDrawerProps> = ({
     mobileFooterClassName,
     titleClassName,
     descriptionClassName,
+    showDesktopCloseButton = true,
 }) => {
     const isMobile = useIsMobile();
 
@@ -90,7 +92,7 @@ export const ResponsiveDialogDrawer: React.FC<ResponsiveDialogDrawerProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent tabIndex={-1} className={desktopContentClassName}>
+            <DialogContent tabIndex={-1} className={desktopContentClassName} showCloseButton={showDesktopCloseButton}>
                 <DialogHeader className={desktopHeaderClassName}>
                     <DialogTitle className={titleClassName}>{title}</DialogTitle>
                     {description ? (

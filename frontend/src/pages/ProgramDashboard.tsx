@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, settings/course-manager modal flows, responsive overlay wrapper, and shared business empty-state wrappers]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, course-manager modal flows, responsive overlay wrapper, and shared business empty-state wrappers]
 // output: [`ProgramDashboard` and local semester create/delete confirmation plus responsive create surface components]
-// pos:    [Program-level workspace page for semester management, subject-code color defaults, progress tracking, tri-state course-list sorting, and standardized not-found workspace fallbacks]
+// pos:    [Program-level workspace page for semester management, Program settings navigation, LMS-backed import flows, subject-code color defaults, progress tracking, tri-state course-list sorting, and standardized not-found workspace fallbacks]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,17 +8,16 @@
 
 "use no memo";
 
-import React, { useCallback, useId, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useId, useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { SettingsModal } from '../components/SettingsModal';
-import { ProgramSettingsPanel } from '../components/ProgramSettingsPanel';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -99,17 +98,58 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
     const [newSemesterName, setNewSemesterName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [programHasLms, setProgramHasLms] = useState(false);
+    const [availableLmsCourses, setAvailableLmsCourses] = useState<Array<{ external_id: string; name: string; course_code?: string | null }>>([]);
+    const [selectedLmsCourseIds, setSelectedLmsCourseIds] = useState<string[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const createSemesterFormId = useId();
     const semesterNameId = useId();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    useEffect(() => {
+        if (!open) return;
+        let active = true;
+        api.getProgram(programId)
+            .then(async (program) => {
+                if (!active) return;
+                const hasLms = Boolean(program.lms_integration_id);
+                setProgramHasLms(hasLms);
+                if (!hasLms) {
+                    setAvailableLmsCourses([]);
+                    return;
+                }
+                const response = await api.listProgramLmsCourses(programId, { page: 1, page_size: 100 });
+                if (!active) return;
+                setAvailableLmsCourses(response.items);
+            })
+            .catch(() => {
+                if (!active) return;
+                setProgramHasLms(false);
+                setAvailableLmsCourses([]);
+            });
+        return () => {
+            active = false;
+        };
+    }, [open, programId]);
+
     const submitCreateSemester = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
+            if (selectedFile && selectedLmsCourseIds.length > 0) {
+                await showAlert({
+                    title: "Choose one import source",
+                    description: "Create a semester from either an ICS file or LMS courses, not both at the same time.",
+                });
+                return;
+            }
             if (selectedFile) {
                 await api.uploadSemesterICS(programId, selectedFile, newSemesterName || undefined);
+            } else if (selectedLmsCourseIds.length > 0) {
+                await api.importProgramLmsSemester(programId, {
+                    name: newSemesterName,
+                    external_course_ids: selectedLmsCourseIds,
+                });
             } else {
                 await api.createSemester(programId, {
                     name: newSemesterName
@@ -118,6 +158,7 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
             setOpen(false);
             setNewSemesterName('');
             setSelectedFile(null);
+            setSelectedLmsCourseIds([]);
             await onCreated();
         } catch (error) {
             console.error("Failed to create semester", error);
@@ -128,7 +169,7 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
         } finally {
             setIsSubmitting(false);
         }
-    }, [newSemesterName, onCreated, programId, selectedFile, showAlert]);
+    }, [newSemesterName, onCreated, programId, selectedFile, selectedLmsCourseIds, showAlert]);
 
     const syncFileSelection = useCallback(async (file: File | null) => {
         if (!file) return;
@@ -173,7 +214,7 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
                             Cancel
                         </Button>
                         <Button type="submit" form={createSemesterFormId} disabled={isSubmitting}>
-                            {isSubmitting ? 'Creating...' : (selectedFile ? 'Upload & Create' : 'Create Semester')}
+                            {isSubmitting ? 'Creating...' : (selectedFile ? 'Upload & Create' : selectedLmsCourseIds.length > 0 ? 'Import & Create' : 'Create Semester')}
                         </Button>
                     </>
                 )}
@@ -247,6 +288,42 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
                             </div>
                         </div>
                     </div>
+
+                    {programHasLms ? (
+                        <div className="space-y-3">
+                            <Label>Import LMS Courses (Optional)</Label>
+                            <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-3">
+                                {availableLmsCourses.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">No LMS courses available for this Program.</p>
+                                ) : availableLmsCourses.map((course) => {
+                                    const checked = selectedLmsCourseIds.includes(course.external_id);
+                                    return (
+                                        <label key={course.external_id} className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-muted/40">
+                                            <Checkbox
+                                                checked={checked}
+                                                onCheckedChange={(nextChecked) => {
+                                                    setSelectedLmsCourseIds((current) => (
+                                                        nextChecked
+                                                            ? [...current, course.external_id]
+                                                            : current.filter((item) => item !== course.external_id)
+                                                    ));
+                                                }}
+                                            />
+                                            <div className="space-y-1">
+                                                <div className="text-sm font-medium">{course.name}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {course.course_code || course.external_id}
+                                                </div>
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                LMS import creates the Semester first, then imports the selected LMS courses directly into it.
+                            </p>
+                        </div>
+                    ) : null}
                 </form>
             </ResponsiveDialogDrawer>
         </>
@@ -336,15 +413,11 @@ const ProgramDashboardContent: React.FC = () => {
     const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
     const searchInputRef = useRef<HTMLInputElement>(null);
-    const settingsFlushRef = useRef<(() => Promise<void>) | null>(null);
 
-    // Settings Modal State
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-    const handleUpdateProgram = async (data: any) => {
+    const handleUpdateProgram = useCallback(async (data: any) => {
         if (!program) return;
         await saveProgram(data);
-    };
+    }, [program, saveProgram]);
 
     const subjectColorMap = useMemo(
         () => parseSubjectColorMap(program?.subject_color_map),
@@ -668,15 +741,14 @@ const ProgramDashboardContent: React.FC = () => {
                                     <h1 className="text-2xl font-bold tracking-tight md:text-3xl flex items-center gap-3">
                                         {program.name}
                                     <Button
-                                            variant="ghost"
+                                        variant="ghost"
                                         size="icon"
-                                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                            onClick={(e) => {
-                                                e.currentTarget.blur();
-                                                setIsSettingsOpen(true);
-                                            }}
+                                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                        asChild
                                     >
+                                        <Link to={`/programs/${program.id}/settings`} aria-label={`Open settings for ${program.name}`}>
                                             <Settings className="h-4 w-4" />
+                                        </Link>
                                     </Button>
                                     </h1>
                             )}
@@ -1193,39 +1265,6 @@ const ProgramDashboardContent: React.FC = () => {
                     </>
                 )}
             </Container>
-
-            {program && (
-                <SettingsModal
-                    isOpen={isSettingsOpen}
-                    onClose={async () => {
-                        await settingsFlushRef.current?.();
-                        setIsSettingsOpen(false);
-                    }}
-                    title="Program Settings"
-                >
-                    <ProgramSettingsPanel
-                        initialName={program.name}
-                        initialSettings={{
-                            grad_requirement_credits: program.grad_requirement_credits,
-                            gpa_scaling_table: program.gpa_scaling_table,
-                            subject_color_map: program.subject_color_map,
-                            hide_gpa: program.hide_gpa
-                        }}
-                        subjectCodes={discoveredSubjectCodes}
-                        onSave={handleUpdateProgram}
-                        registerFlush={(flush) => {
-                            settingsFlushRef.current = flush;
-                        }}
-                        showCancel
-                        onCancel={() => {
-                            void (async () => {
-                                await settingsFlushRef.current?.();
-                                setIsSettingsOpen(false);
-                            })();
-                        }}
-                    />
-                </SettingsModal>
-            )}
 
             {program && (
                 <CourseManagerModal

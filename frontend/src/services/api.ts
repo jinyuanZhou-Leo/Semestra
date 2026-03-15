@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, and widget delete options]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, provider-neutral LMS validation, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,6 +18,9 @@ export interface Program {
     gpa_scaling_table?: string;
     subject_color_map?: string;
     hide_gpa?: boolean;
+    lms_integration_id?: string | null;
+    has_lms_dependencies?: boolean;
+    lms_integration?: LmsIntegrationSummary | null;
 }
 
 export interface Semester {
@@ -48,6 +51,8 @@ export interface Course {
     hide_gpa?: boolean;
     has_gradebook?: boolean;
     gradebook_revision?: number;
+    has_lms_link?: boolean;
+    lms_link?: LmsCourseLinkSummary | null;
     widgets?: Widget[];
     tabs?: Tab[];
 }
@@ -137,6 +142,12 @@ export interface LmsConnectionSummary {
     email?: string | null;
 }
 
+export interface LmsIntegrationSummary {
+    id: string;
+    display_name: string;
+    provider: string;
+}
+
 export interface LmsIntegrationValidationResponse {
     provider: string;
     status: string;
@@ -146,12 +157,100 @@ export interface LmsIntegrationValidationResponse {
 }
 
 export interface LmsIntegrationResponse {
+    id: string;
+    display_name: string;
     provider: string;
     status: string;
     config: Record<string, unknown>;
+    masked_api_key?: string | null;
     last_checked_at?: string | null;
     last_error?: LmsIntegrationError | null;
     summary?: LmsConnectionSummary | null;
+}
+
+export interface LmsCourseSummary {
+    external_id: string;
+    name: string;
+    course_code?: string | null;
+    workflow_state?: string | null;
+    start_at?: string | null;
+    end_at?: string | null;
+}
+
+export interface LmsCourseListResponse {
+    integration_id: string;
+    items: LmsCourseSummary[];
+    page: number;
+    page_size: number;
+    has_more: boolean;
+    next_page?: number | null;
+}
+
+export interface LmsCourseLinkSummary {
+    id: string;
+    lms_integration_id: string;
+    integration_display_name: string;
+    provider: string;
+    external_course_id: string;
+    external_course_code?: string | null;
+    external_name?: string | null;
+    sync_enabled: boolean;
+    last_synced_at?: string | null;
+    last_error?: LmsIntegrationError | null;
+}
+
+export interface LmsCourseImportResult {
+    external_course_id: string;
+    status: 'created' | 'skipped' | 'conflict';
+    course?: Course | null;
+    error?: LmsIntegrationError | null;
+}
+
+export interface LmsCourseImportResponse {
+    integration_id: string;
+    results: LmsCourseImportResult[];
+}
+
+export interface LmsAssignmentSummary {
+    external_id: string;
+    course_id: string;
+    course_name: string;
+    title: string;
+    description?: string | null;
+    due_at?: string | null;
+    unlock_at?: string | null;
+    lock_at?: string | null;
+    html_url?: string | null;
+    published: boolean;
+    submission_types: string[];
+}
+
+export interface LmsAssignmentListResponse {
+    items: LmsAssignmentSummary[];
+}
+
+export interface LmsCalendarEventSummary {
+    external_id: string;
+    source_id: string;
+    course_id: string;
+    course_name: string;
+    title: string;
+    description?: string | null;
+    location?: string | null;
+    start_at: string;
+    end_at: string;
+    all_day: boolean;
+    html_url?: string | null;
+    event_type_code: string;
+}
+
+export interface LmsCalendarEventListResponse {
+    items: LmsCalendarEventSummary[];
+}
+
+export interface LmsSemesterImportResponse {
+    semester: Semester;
+    courses: LmsCourseImportResponse;
 }
 
 export type TodoPriority = '' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -588,33 +687,132 @@ const api = {
         const response = await axios.put<User>('/api/users/me', data);
         return response.data;
     },
-    getLmsIntegration: async (provider: string) => {
-        return dedupeGet(`GET:/api/users/me/lms-integrations/${provider}`, async () => {
-            const response = await axios.get<LmsIntegrationResponse>(`/api/users/me/lms-integrations/${provider}`);
+    listLmsIntegrations: async () => {
+        return dedupeGet('GET:/api/users/me/lms-integrations', async () => {
+            const response = await axios.get<LmsIntegrationResponse[]>('/api/users/me/lms-integrations');
             return response.data;
         });
     },
-    upsertLmsIntegration: async (
-        provider: string,
-        data: {
-            provider: string;
-            config: Record<string, unknown>;
-            credentials: Record<string, unknown>;
-        }
-    ) => {
-        const response = await axios.put<LmsIntegrationResponse>(`/api/users/me/lms-integrations/${provider}`, data);
+    getLmsIntegration: async (integrationId: string) => {
+        return dedupeGet(`GET:/api/users/me/lms-integrations/${integrationId}`, async () => {
+            const response = await axios.get<LmsIntegrationResponse>(`/api/users/me/lms-integrations/${integrationId}`);
+            return response.data;
+        });
+    },
+    createLmsIntegration: async (data: {
+        provider: string;
+        display_name: string;
+        config: Record<string, unknown>;
+        credentials: Record<string, unknown>;
+    }) => {
+        const response = await axios.post<LmsIntegrationResponse>('/api/users/me/lms-integrations', data);
         return response.data;
     },
-    validateLmsIntegration: async (
-        provider: string,
+    updateLmsIntegration: async (
+        integrationId: string,
         data: {
-            provider: string;
-            config: Record<string, unknown>;
-            credentials: Record<string, unknown>;
+            display_name?: string;
+            config?: Record<string, unknown>;
+            credentials?: Record<string, unknown>;
         }
     ) => {
-        const response = await axios.post<LmsIntegrationValidationResponse>(`/api/users/me/lms-integrations/${provider}/validate`, data);
+        const response = await axios.patch<LmsIntegrationResponse>(`/api/users/me/lms-integrations/${integrationId}`, data);
         return response.data;
+    },
+    validateLmsIntegrationDraft: async (data: {
+        provider: string;
+        config: Record<string, unknown>;
+        credentials: Record<string, unknown>;
+    }) => {
+        const response = await axios.post<LmsIntegrationValidationResponse>('/api/users/me/lms-integrations/validate', data);
+        return response.data;
+    },
+    validateSavedLmsIntegration: async (integrationId: string) => {
+        const response = await axios.post<LmsIntegrationValidationResponse>(`/api/users/me/lms-integrations/${integrationId}/validate`);
+        return response.data;
+    },
+    deleteLmsIntegration: async (integrationId: string) => {
+        await axios.delete(`/api/users/me/lms-integrations/${integrationId}`);
+    },
+    listProgramLmsCourses: async (
+        programId: string,
+        params?: { page?: number; page_size?: number; workflow_state?: string; enrollment_state?: string }
+    ) => {
+        const key = `GET:/api/programs/${programId}/lms/courses?${stableStringify(params)}`;
+        return dedupeGet(key, async () => {
+            const response = await axios.get<LmsCourseListResponse>(`/api/programs/${programId}/lms/courses`, { params });
+            return response.data;
+        });
+    },
+    importProgramLmsCourses: async (
+        programId: string,
+        data: {
+            external_course_ids: string[];
+            semester_id?: string;
+        }
+    ) => {
+        const response = await axios.post<LmsCourseImportResponse>(`/api/programs/${programId}/lms/courses/import`, data);
+        return response.data;
+    },
+    importProgramLmsSemester: async (
+        programId: string,
+        data: {
+            name: string;
+            start_date?: string;
+            end_date?: string;
+            reading_week_start?: string | null;
+            reading_week_end?: string | null;
+            external_course_ids: string[];
+        }
+    ) => {
+        const response = await axios.post<LmsSemesterImportResponse>(`/api/programs/${programId}/lms/semesters/import`, data);
+        return response.data;
+    },
+    getCourseLmsLink: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms-link`, async () => {
+            const response = await axios.get<LmsCourseLinkSummary | null>(`/api/courses/${courseId}/lms-link`);
+            return response.data;
+        });
+    },
+    upsertCourseLmsLink: async (
+        courseId: string,
+        data: {
+            external_course_id: string;
+            sync_enabled?: boolean;
+        }
+    ) => {
+        const response = await axios.put<LmsCourseLinkSummary>(`/api/courses/${courseId}/lms-link`, data);
+        return response.data;
+    },
+    syncCourseLmsLink: async (
+        courseId: string,
+        data?: {
+            sync_enabled?: boolean;
+        }
+    ) => {
+        const response = await axios.post<LmsCourseLinkSummary>(`/api/courses/${courseId}/lms-link/sync`, data ?? {});
+        return response.data;
+    },
+    deleteCourseLmsLink: async (courseId: string) => {
+        await axios.delete(`/api/courses/${courseId}/lms-link`);
+    },
+    getCourseLmsAssignments: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/assignments`, async () => {
+            const response = await axios.get<LmsAssignmentListResponse>(`/api/courses/${courseId}/lms/assignments`);
+            return response.data;
+        });
+    },
+    getSemesterLmsAssignments: async (semesterId: string) => {
+        return dedupeGet(`GET:/api/semesters/${semesterId}/lms/assignments`, async () => {
+            const response = await axios.get<LmsAssignmentListResponse>(`/api/semesters/${semesterId}/lms/assignments`);
+            return response.data;
+        });
+    },
+    getSemesterLmsCalendarEvents: async (semesterId: string) => {
+        return dedupeGet(`GET:/api/semesters/${semesterId}/lms/calendar-events`, async () => {
+            const response = await axios.get<LmsCalendarEventListResponse>(`/api/semesters/${semesterId}/lms/calendar-events`);
+            return response.data;
+        });
     },
 
     // Data Export/Import

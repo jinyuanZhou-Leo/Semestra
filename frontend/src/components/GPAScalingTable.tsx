@@ -1,6 +1,6 @@
-// input:  [serialized GPA mapping JSON, parse/coverage validation logic]
+// input:  [serialized GPA mapping JSON, parse/coverage validation logic, and shared business empty-state wrappers]
 // output: [`GPAScalingTable` component]
-// pos:    [Settings control for authoring percentage-to-GPA conversion rules; entries are
+// pos:    [Settings control for authoring percentage-to-GPA conversion rules with standardized create-empty feedback; entries are
 //          auto-sorted by min score descending; input uses explicit min/max/GPA fields]
 //
 // ⚠️ When this file is updated:
@@ -8,6 +8,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -160,9 +161,13 @@ export const GPAScalingTable: React.FC<GPAScalingTableProps> = ({ value, onChang
                     </div>
                 </div>
             ) : (
-                <div className="py-6 text-center text-sm text-muted-foreground">
-                    No scaling rules defined. Add a rule below to get started.
-                </div>
+                <AppEmptyState
+                    scenario="create"
+                    size="section"
+                    title="No scaling rules defined"
+                    description="Add a rule below to get started."
+                    className="min-h-[180px] px-5 py-8"
+                />
             )}
 
             {/* Coverage warning */}

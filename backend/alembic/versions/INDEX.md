@@ -12,4 +12,5 @@ Keep downgrade steps practical, but prioritize accurate forward migrations for a
 | 20260313_0003_add_course_color_column.py | Schema migration | Backfills the missing legacy `courses.color` override column so older SQLite databases match the current Course model. |
 | 20260314_0004_add_course_resource_files.py | Schema migration | Adds `course_resource_files` so course resources can persist file metadata while bytes stay on local disk. |
 | 20260314_0005_add_course_resource_links.py | Schema migration | Extends `course_resource_files` with link-only resource fields so Course Resources can store external URLs without local file bytes. |
-| 20260314_0006_add_lms_integrations.py | Schema migration | Adds provider-neutral `lms_integrations` rows so each user can store one encrypted LMS connection per provider. |
+| 20260314_0006_add_lms_integrations.py | Schema migration | Adds provider-neutral `lms_integrations` rows for encrypted LMS connection storage. |
+| 20260314_0007_expand_lms_integrations.py | Schema migration | Expands LMS support to multiple integrations per user, Program-level LMS selection, and dedicated `course_lms_links` metadata. |

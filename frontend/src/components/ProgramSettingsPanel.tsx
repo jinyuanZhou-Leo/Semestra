@@ -1,6 +1,6 @@
-// input:  [program name/credits/GPA defaults, discovered subject codes, course color-picker presets, and auto-save lifecycle callbacks]
+// input:  [program name/credits/GPA defaults, discovered subject codes, available LMS integrations, course color-picker presets, and auto-save lifecycle callbacks]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form rendered inside program dashboard modal with debounced auto-save persistence, shadcn Field-based layout, and Program-scoped stable subject-color management]
+// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, separated LMS/general sections, and stable subject-color management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,6 +22,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import {
@@ -67,7 +74,10 @@ interface ProgramSettingsPanelProps {
     gpa_scaling_table?: string;
     subject_color_map?: string;
     hide_gpa?: boolean;
+    lms_integration_id?: string | null;
+    has_lms_dependencies?: boolean;
   };
+  lmsIntegrations?: Array<{ id: string; display_name: string; provider: string }>;
   subjectCodes?: string[];
   onSave: (data: {
     name: string;
@@ -75,24 +85,23 @@ interface ProgramSettingsPanelProps {
     gpa_scaling_table: string;
     subject_color_map: string;
     hide_gpa: boolean;
+    lms_integration_id: string | null;
   }) => Promise<void>;
   registerFlush?: (flush: () => Promise<void>) => void;
-  showCancel?: boolean;
-  onCancel?: () => void;
 }
 
 export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   initialName,
   initialSettings,
+  lmsIntegrations = [],
   subjectCodes = [],
   onSave,
   registerFlush,
-  showCancel = false,
-  onCancel,
 }) => {
   const [name, setName] = useState(initialName);
   const [gradCredits, setGradCredits] = useState(String(initialSettings?.grad_requirement_credits || ""));
   const [hideGpa, setHideGpa] = useState(initialSettings?.hide_gpa ?? false);
+  const [lmsIntegrationId, setLmsIntegrationId] = useState(initialSettings?.lms_integration_id ?? "__none__");
   const [gpaTableJson, setGpaTableJson] = useState(initialSettings?.gpa_scaling_table || "{}");
   const [subjectColorMap, setSubjectColorMap] = useState<Record<string, string>>(
     parseSubjectColorMap(initialSettings?.subject_color_map),
@@ -101,6 +110,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   const fieldId = useId();
   const initialGradCredits = String(initialSettings?.grad_requirement_credits || "");
   const initialHideGpa = initialSettings?.hide_gpa ?? false;
+  const initialLmsIntegrationId = initialSettings?.lms_integration_id ?? "__none__";
   const initialGpaTableJson = initialSettings?.gpa_scaling_table || "{}";
   const initialSubjectColorMap = useMemo(
     () => parseSubjectColorMap(initialSettings?.subject_color_map),
@@ -146,20 +156,22 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
       name: initialName,
       gradCredits: initialGradCredits,
       hideGpa: initialHideGpa,
+      lmsIntegrationId: initialLmsIntegrationId,
       gpaTableJson: initialGpaTableJson,
       subjectColorMapJson: initialSubjectColorMapJson,
     }),
-    [initialGpaTableJson, initialGradCredits, initialHideGpa, initialName, initialSubjectColorMapJson],
+    [initialGpaTableJson, initialGradCredits, initialHideGpa, initialLmsIntegrationId, initialName, initialSubjectColorMapJson],
   );
   const draftSnapshot = useMemo(
     () => ({
       name,
       gradCredits,
       hideGpa,
+      lmsIntegrationId,
       gpaTableJson,
       subjectColorMapJson,
     }),
-    [gpaTableJson, gradCredits, hideGpa, name, subjectColorMapJson],
+    [gpaTableJson, gradCredits, hideGpa, lmsIntegrationId, name, subjectColorMapJson],
   );
   const lastLoadedSnapshotRef = useRef(savedSnapshot);
 
@@ -169,18 +181,21 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
       previousSnapshot.name !== savedSnapshot.name ||
       previousSnapshot.gradCredits !== savedSnapshot.gradCredits ||
       previousSnapshot.hideGpa !== savedSnapshot.hideGpa ||
+      previousSnapshot.lmsIntegrationId !== savedSnapshot.lmsIntegrationId ||
       previousSnapshot.gpaTableJson !== savedSnapshot.gpaTableJson ||
       previousSnapshot.subjectColorMapJson !== savedSnapshot.subjectColorMapJson;
     const draftHasLocalChanges =
       previousSnapshot.name !== draftSnapshot.name ||
       previousSnapshot.gradCredits !== draftSnapshot.gradCredits ||
       previousSnapshot.hideGpa !== draftSnapshot.hideGpa ||
+      previousSnapshot.lmsIntegrationId !== draftSnapshot.lmsIntegrationId ||
       previousSnapshot.gpaTableJson !== draftSnapshot.gpaTableJson ||
       previousSnapshot.subjectColorMapJson !== draftSnapshot.subjectColorMapJson;
     const incomingMatchesDraft =
       savedSnapshot.name === draftSnapshot.name &&
       savedSnapshot.gradCredits === draftSnapshot.gradCredits &&
       savedSnapshot.hideGpa === draftSnapshot.hideGpa &&
+      savedSnapshot.lmsIntegrationId === draftSnapshot.lmsIntegrationId &&
       savedSnapshot.gpaTableJson === draftSnapshot.gpaTableJson &&
       savedSnapshot.subjectColorMapJson === draftSnapshot.subjectColorMapJson;
 
@@ -191,6 +206,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
     setName(savedSnapshot.name);
     setGradCredits(savedSnapshot.gradCredits);
     setHideGpa(savedSnapshot.hideGpa);
+    setLmsIntegrationId(savedSnapshot.lmsIntegrationId);
     setGpaTableJson(savedSnapshot.gpaTableJson);
     setSubjectColorMap(initialSubjectColorMap);
     setJsonError("");
@@ -216,6 +232,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         gpa_scaling_table: snapshot.gpaTableJson,
         subject_color_map: snapshot.subjectColorMapJson,
         hide_gpa: snapshot.hideGpa,
+        lms_integration_id: snapshot.lmsIntegrationId === "__none__" ? null : snapshot.lmsIntegrationId,
       });
     },
     onError: (error) => {
@@ -267,23 +284,19 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
               />
             </Field>
 
-            <Field orientation="responsive">
-              <FieldContent>
-                <FieldLabel htmlFor={`${fieldId}-grad-credits`}>Graduation Credits</FieldLabel>
-                <FieldDescription>
-                  The total credits required to complete this Program.
-                </FieldDescription>
-              </FieldContent>
-              <div className="w-full @md/field-group:w-[140px] @md/field-group:shrink-0">
-                <Input
-                  id={`${fieldId}-grad-credits`}
-                  type="number"
-                  step="0.5"
-                  value={gradCredits}
-                  onChange={(event) => setGradCredits(event.target.value)}
-                  required
-                />
-              </div>
+            <Field className="max-w-sm">
+              <FieldLabel htmlFor={`${fieldId}-grad-credits`}>Graduation Credits</FieldLabel>
+              <FieldDescription>
+                The total credits required to complete this Program.
+              </FieldDescription>
+              <Input
+                id={`${fieldId}-grad-credits`}
+                type="number"
+                step="0.5"
+                value={gradCredits}
+                onChange={(event) => setGradCredits(event.target.value)}
+                required
+              />
             </Field>
 
             <Field orientation="responsive">
@@ -300,6 +313,42 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
                 aria-label="Hide GPA Info"
                 className="shrink-0"
               />
+            </Field>
+          </FieldGroup>
+        </FieldSet>
+      </SettingsSection>
+
+      <SettingsSection
+        title="LMS"
+        description="Choose which saved LMS integration this Program should use."
+        contentClassName="space-y-6"
+      >
+        <FieldSet>
+          <FieldGroup>
+            <Field className="max-w-sm">
+              <FieldLabel htmlFor={`${fieldId}-lms-integration`}>Program LMS</FieldLabel>
+              <Select
+                value={lmsIntegrationId}
+                onValueChange={setLmsIntegrationId}
+                disabled={Boolean(initialSettings?.has_lms_dependencies)}
+              >
+                <SelectTrigger id={`${fieldId}-lms-integration`} className="w-full">
+                  <SelectValue placeholder="Select an LMS integration" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No LMS</SelectItem>
+                {lmsIntegrations.map((integration) => (
+                  <SelectItem key={integration.id} value={integration.id}>
+                    {integration.display_name} ({integration.provider})
+                  </SelectItem>
+                ))}
+                </SelectContent>
+              </Select>
+              <FieldDescription>
+                {initialSettings?.has_lms_dependencies
+                  ? "This Program already has LMS-linked courses. Unlink them before switching integrations."
+                  : "Imports and course linking use the LMS integration selected here."}
+              </FieldDescription>
             </Field>
           </FieldGroup>
         </FieldSet>
@@ -407,14 +456,6 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         />
         {jsonError ? <FieldError>{jsonError}</FieldError> : null}
       </SettingsSection>
-
-      {showCancel ? (
-        <div className="flex items-center justify-end">
-          <Button type="button" variant="secondary" onClick={onCancel}>
-            Cancel
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 };

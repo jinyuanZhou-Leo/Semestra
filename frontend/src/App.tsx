@@ -25,6 +25,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ defau
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(module => ({ default: module.RegisterPage })));
 const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
 const ProgramDashboard = lazy(() => import('./pages/ProgramDashboard').then(module => ({ default: module.ProgramDashboard })));
+const ProgramSettingsPage = lazy(() => import('./pages/ProgramSettingsPage').then(module => ({ default: module.ProgramSettingsPage })));
 const SemesterHomepage = lazy(() => import('./pages/SemesterHomepage').then(module => ({ default: module.SemesterHomepage })));
 const CourseHomepage = lazy(() => import('./pages/CourseHomepage').then(module => ({ default: module.CourseHomepage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
@@ -98,6 +99,16 @@ function App() {
                     <RequireAuth>
                       <Suspense fallback={<PageSkeleton />}>
                         <ProgramDashboard />
+                      </Suspense>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/programs/:id/settings"
+                  element={
+                    <RequireAuth>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <ProgramSettingsPage />
                       </Suspense>
                     </RequireAuth>
                   }

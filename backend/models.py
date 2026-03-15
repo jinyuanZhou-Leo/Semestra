@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, LMS integration records, context-scoped plugin shared settings, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, provider-neutral LMS connection storage, plugin-shared settings, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, multi-integration LMS records, Program/Course LMS link metadata, context-scoped plugin shared settings, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, multi-integration LMS connection storage, Program/Course LMS link metadata, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -46,12 +46,12 @@ class User(Base):
 class LmsIntegration(Base):
     __tablename__ = "lms_integrations"
     __table_args__ = (
-        UniqueConstraint("user_id", "provider", name="uq_lms_integrations_user_provider"),
         Index("ix_lms_integrations_user_provider", "user_id", "provider"),
     )
 
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    display_name = Column(String, nullable=False, default="")
     provider = Column(String, nullable=False)
     status = Column(String, nullable=False, default="connected")
     config_json = Column(Text, nullable=False, default="{}")
@@ -63,6 +63,8 @@ class LmsIntegration(Base):
     updated_at = Column(String, nullable=False, default="")
 
     user = relationship("User", back_populates="lms_integrations")
+    programs = relationship("Program", back_populates="lms_integration")
+    course_links = relationship("CourseLmsLink", back_populates="lms_integration", cascade="all, delete-orphan")
     
 class Program(Base):
     __tablename__ = "programs"
@@ -70,6 +72,7 @@ class Program(Base):
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     name = Column(String, index=True)
     owner_id = Column(String, ForeignKey("users.id"))
+    lms_integration_id = Column(String, ForeignKey("lms_integrations.id", ondelete="SET NULL"), nullable=True, index=True)
     program_timezone = Column(String, nullable=False, default="UTC")
     
     cgpa_scaled = Column(Float, default=0.0)
@@ -81,8 +84,14 @@ class Program(Base):
     
     # Relationships
     owner = relationship("User", back_populates="programs")
+    lms_integration = relationship("LmsIntegration", back_populates="programs")
     semesters = relationship("Semester", back_populates="program", cascade="all, delete-orphan")
     courses = relationship("Course", back_populates="program")
+    lms_course_links = relationship("CourseLmsLink", back_populates="program", cascade="all, delete-orphan")
+
+    @property
+    def has_lms_dependencies(self) -> bool:
+        return len(self.lms_course_links) > 0
 
 
 class Semester(Base):
@@ -141,6 +150,7 @@ class Course(Base):
     gradebook = relationship("CourseGradebook", back_populates="course", uselist=False, cascade="all, delete-orphan")
     todo_tasks = relationship("TodoTask", back_populates="course")
     resource_files = relationship("CourseResourceFile", back_populates="course", cascade="all, delete-orphan")
+    lms_link = relationship("CourseLmsLink", back_populates="course", uselist=False, cascade="all, delete-orphan")
 
     @property
     def has_gradebook(self) -> bool:
@@ -151,6 +161,61 @@ class Course(Base):
         if self.gradebook is None:
             return 0
         return int(self.gradebook.revision or 0)
+
+    @property
+    def has_lms_link(self) -> bool:
+        return self.lms_link is not None
+
+
+class CourseLmsLink(Base):
+    __tablename__ = "course_lms_links"
+    __table_args__ = (
+        UniqueConstraint("course_id", name="uq_course_lms_links_course_id"),
+        UniqueConstraint(
+            "program_id",
+            "lms_integration_id",
+            "external_course_id",
+            name="uq_course_lms_links_program_external_course",
+        ),
+        Index("ix_course_lms_links_program", "program_id"),
+        Index("ix_course_lms_links_integration", "lms_integration_id"),
+        Index("ix_course_lms_links_external_course", "external_course_id"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    course_id = Column(String, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    program_id = Column(String, ForeignKey("programs.id", ondelete="CASCADE"), nullable=False)
+    lms_integration_id = Column(String, ForeignKey("lms_integrations.id", ondelete="CASCADE"), nullable=False)
+    external_course_id = Column(String, nullable=False)
+    external_course_code = Column(String, nullable=True)
+    external_name = Column(String, nullable=True)
+    sync_enabled = Column(Boolean, nullable=False, default=True)
+    last_synced_at = Column(String, nullable=True)
+    last_error_code = Column(String, nullable=True)
+    last_error_message = Column(Text, nullable=True)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+    course = relationship("Course", back_populates="lms_link")
+    program = relationship("Program", back_populates="lms_course_links")
+    lms_integration = relationship("LmsIntegration", back_populates="course_links")
+
+    @property
+    def integration_display_name(self) -> str:
+        return self.lms_integration.display_name if self.lms_integration is not None else ""
+
+    @property
+    def provider(self) -> str:
+        return self.lms_integration.provider if self.lms_integration is not None else ""
+
+    @property
+    def last_error(self):
+        if not self.last_error_code and not self.last_error_message:
+            return None
+        return {
+            "code": self.last_error_code or "LMS_UNKNOWN_ERROR",
+            "message": self.last_error_message or "Unknown LMS sync error.",
+        }
 
 class CourseGradebook(Base):
     __tablename__ = "course_gradebooks"

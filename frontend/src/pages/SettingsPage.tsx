@@ -1,13 +1,13 @@
-// input:  [auth context/actions, user settings/import-export/LMS persistence APIs, dialog helpers, theme hooks, switch controls, status-button feedback, responsive dialog wrapper, and LMS branding assets]
+// input:  [auth context/actions, user settings/import-export/LMS persistence APIs, dialog helpers, theme hooks, switch controls, responsive dialog wrapper, and LMS integration manager component]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, LMS integration fields with inline validate-then-save feedback, plugin preload preferences, GPA rules, and data transfer with mobile-safe responsive layout, shadcn Field-based form structure, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
+// pos:    [Global settings workspace for profile defaults, multi-integration LMS management, plugin preload preferences, GPA rules, and data transfer with mobile-safe responsive layout, shadcn Field-based form structure, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy, useId } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Layout } from "../components/Layout";
 import { Button } from "@/components/ui/button";
 import { GPAScalingTable } from "../components/GPAScalingTable";
@@ -20,10 +20,10 @@ import { Container } from "../components/Container";
 import { SettingsSection } from "../components/SettingsSection";
 import { loadGoogleIdentityScriptWhenIdle } from "../utils/googleIdentity";
 import api from "../services/api";
-import { queryKeys } from "../services/queryKeys";
 import versionInfo from "../version.json";
 import type { ImportData, ConflictMode } from "../components/ImportPreviewModal";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
     Field,
     FieldContent,
@@ -32,11 +32,9 @@ import {
     FieldLabel,
     FieldSet,
 } from "@/components/ui/field";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
-
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
 import { useTheme } from "../components/ThemeProvider";
@@ -50,67 +48,16 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Upload } from "lucide-react";
 import { ResponsiveDialogDrawer } from "../components/ResponsiveDialogDrawer";
-import { StatusButton, type StatusButtonState } from "../components/StatusButton";
-import canvasLogo from "@/assets/canvas-icon.png";
+import { LmsIntegrationManager } from "@/components/settings/LmsIntegrationManager";
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
-
-const resolveInlineApiErrorMessage = (error: unknown, fallback: string) => {
-    if (axios.isAxiosError(error)) {
-        const detail = error.response?.data?.detail;
-        if (typeof detail === "string" && detail.trim()) {
-            return detail;
-        }
-        if (detail && typeof detail === "object") {
-            const message = (detail as { message?: unknown }).message;
-            if (typeof message === "string" && message.trim()) {
-                return message;
-            }
-        }
-    }
-    return fallback;
-};
-
-const normalizeCanvasBaseUrl = (value: string) => {
-    const trimmedValue = value.trim();
-    if (!trimmedValue) return null;
-
-    const candidate = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmedValue)
-        ? trimmedValue
-        : `https://${trimmedValue}`;
-
-    try {
-        const parsed = new URL(candidate);
-        if (!["http:", "https:"].includes(parsed.protocol)) return null;
-        if (!parsed.hostname) return null;
-        if (parsed.search || parsed.hash) return null;
-        if (parsed.pathname.replace(/\/+$/, "") === "/api/v1") return null;
-
-        parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
-        return parsed.toString();
-    } catch {
-        return null;
-    }
-};
-
-const validateCanvasBaseUrl = (value: string) => {
-    if (!value) return false;
-    return normalizeCanvasBaseUrl(value) !== null;
-};
-
-const validateCanvasApiKey = (value: string) => {
-    if (!value) return false;
-    if (value.includes("@") || /\s/.test(value)) return false;
-    return value.length >= 8;
-};
 
 export const SettingsPage: React.FC = () => {
     const { user, logout, refreshUser } = useAuth();
     const navigate = useNavigate();
     const { alert: showAlert, confirm } = useDialog();
     const { theme: themeMode, setTheme } = useTheme();
-    const queryClient = useQueryClient();
 
     const themeOptions: Array<{ value: "light" | "dark" | "system"; label: string }> = [
         { value: "light", label: "Light" },
@@ -153,11 +100,6 @@ export const SettingsPage: React.FC = () => {
     const [googleLinkSuccess, setGoogleLinkSuccess] = useState(false);
     const [isGoogleLinking, setIsGoogleLinking] = useState(false);
     const [isGoogleLinkReady, setIsGoogleLinkReady] = useState(false);
-    const [canvasBaseUrl, setCanvasBaseUrl] = useState("");
-    const [canvasApiKey, setCanvasApiKey] = useState("");
-    const [canvasValidateState, setCanvasValidateState] = useState<StatusButtonState>("idle");
-    const [canvasValidateMessage, setCanvasValidateMessage] = useState("");
-    const [canvasTouched, setCanvasTouched] = useState(false);
     const googleLinkRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
     useEffect(() => {
@@ -301,73 +243,6 @@ export const SettingsPage: React.FC = () => {
         },
     });
 
-    const upsertCanvasIntegrationMutation = useMutation({
-        mutationFn: async (payload: { baseUrl: string; apiKey: string }) => {
-            return api.upsertLmsIntegration("canvas", {
-                provider: "canvas",
-                config: {
-                    base_url: payload.baseUrl,
-                },
-                credentials: {
-                    personal_access_token: payload.apiKey,
-                },
-            });
-        },
-    });
-
-    const canvasIntegrationQuery = useQuery({
-        queryKey: queryKeys.user.lmsIntegration("canvas"),
-        queryFn: async () => {
-            try {
-                return await api.getLmsIntegration("canvas");
-            } catch (error) {
-                if (axios.isAxiosError(error) && error.response?.status === 404) {
-                    return null;
-                }
-                throw error;
-            }
-        },
-        retry: false,
-    });
-
-    const canvasServerSnapshot = useMemo(
-        () => ({
-            baseUrl: typeof canvasIntegrationQuery.data?.config?.base_url === "string"
-                ? canvasIntegrationQuery.data.config.base_url
-                : "",
-            apiKey: "",
-        }),
-        [canvasIntegrationQuery.data],
-    );
-    const canvasDraftSnapshot = useMemo(
-        () => ({
-            baseUrl: canvasBaseUrl,
-            apiKey: canvasApiKey,
-        }),
-        [canvasApiKey, canvasBaseUrl],
-    );
-    const canvasIntegrationStatus = canvasIntegrationQuery.data?.status ?? "not_connected";
-    const canvasIsConnected = canvasIntegrationStatus === "connected";
-    const lastLoadedCanvasSnapshotRef = useRef(canvasServerSnapshot);
-
-    useEffect(() => {
-        const previousSnapshot = lastLoadedCanvasSnapshotRef.current;
-        const externalChanged = previousSnapshot.baseUrl !== canvasServerSnapshot.baseUrl;
-        const draftHasLocalChanges =
-            previousSnapshot.baseUrl !== canvasDraftSnapshot.baseUrl ||
-            previousSnapshot.apiKey !== canvasDraftSnapshot.apiKey;
-        const incomingMatchesDraft =
-            canvasServerSnapshot.baseUrl === canvasDraftSnapshot.baseUrl &&
-            canvasServerSnapshot.apiKey === canvasDraftSnapshot.apiKey;
-
-        lastLoadedCanvasSnapshotRef.current = canvasServerSnapshot;
-        if (!externalChanged) return;
-        if (draftHasLocalChanges && !incomingMatchesDraft) return;
-
-        setCanvasBaseUrl(canvasServerSnapshot.baseUrl);
-        setCanvasApiKey(canvasServerSnapshot.apiKey);
-    }, [canvasDraftSnapshot, canvasServerSnapshot]);
-
     const { saveState } = useAutoSave({
         value: settingsSnapshot,
         savedValue: initialState ?? settingsSnapshot,
@@ -483,56 +358,6 @@ export const SettingsPage: React.FC = () => {
         navigate('/login');
     };
 
-    const resetCanvasValidateFeedback = () => {
-        if (canvasValidateState === "idle" && !canvasValidateMessage) return;
-        setCanvasValidateState("idle");
-        setCanvasValidateMessage("");
-    };
-
-    const trimmedCanvasBaseUrl = canvasBaseUrl.trim();
-    const trimmedCanvasApiKey = canvasApiKey.trim();
-    const normalizedCanvasBaseUrl = normalizeCanvasBaseUrl(trimmedCanvasBaseUrl);
-    const canvasHasAnyInput = Boolean(trimmedCanvasBaseUrl || trimmedCanvasApiKey);
-    const canvasBaseUrlValid = validateCanvasBaseUrl(trimmedCanvasBaseUrl);
-    const canvasApiKeyValid = validateCanvasApiKey(trimmedCanvasApiKey);
-    const canvasBaseUrlInvalid = canvasTouched && canvasHasAnyInput && !canvasBaseUrlValid;
-    const canvasApiKeyInvalid = canvasTouched && canvasHasAnyInput && !canvasApiKeyValid;
-
-    const handleCanvasValidate = async () => {
-        const trimmedApiKey = trimmedCanvasApiKey;
-        setCanvasTouched(true);
-
-        if (!normalizedCanvasBaseUrl || !canvasApiKeyValid) {
-            setCanvasValidateState("error");
-            setCanvasValidateMessage("Check the Canvas URL and API key format.");
-            return;
-        }
-
-        setCanvasValidateState("saving");
-        setCanvasValidateMessage("");
-
-        try {
-            const response = await upsertCanvasIntegrationMutation.mutateAsync({
-                baseUrl: normalizedCanvasBaseUrl,
-                apiKey: trimmedApiKey,
-            });
-            queryClient.setQueryData(queryKeys.user.lmsIntegration("canvas"), response);
-            const resolvedIdentity =
-                response.summary?.display_name ||
-                response.summary?.email ||
-                response.summary?.login_id;
-            setCanvasValidateState("success");
-            setCanvasValidateMessage(
-                resolvedIdentity
-                    ? `Validated and saved as ${resolvedIdentity}.`
-                    : "Canvas connection validated and saved."
-            );
-        } catch (error) {
-            setCanvasValidateState("error");
-            setCanvasValidateMessage(resolveInlineApiErrorMessage(error, "Canvas validation failed."));
-        }
-    };
-
     const avatarInitial = (user?.email?.charAt(0).toUpperCase() || "U").trim();
 
     const breadcrumb = (
@@ -547,7 +372,7 @@ export const SettingsPage: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <Container className="max-w-5xl space-y-8 select-none py-8">
+            <Container className="space-y-8 select-none py-8">
                 <BackButton label="Back" onClick={handleBack} />
 
                 <div className="space-y-2">
@@ -667,109 +492,8 @@ export const SettingsPage: React.FC = () => {
                         title="LMS Integration"
                         description="Connect learning platforms."
                     >
-                        <div className="space-y-5">
-                            <div className="flex min-w-0 items-center gap-4">
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-background p-2">
-                                    <img
-                                        src={canvasLogo}
-                                        alt="Canvas"
-                                        className="h-8 w-8 object-contain"
-                                    />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="flex min-w-0 items-center gap-2">
-                                        <p className="text-sm font-medium">Canvas</p>
-                                        {canvasIntegrationQuery.isLoading ? (
-                                            <Badge variant="outline" className="text-xs">Loading</Badge>
-                                        ) : canvasIsConnected ? (
-                                            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-xs">Connected</Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="text-xs">Not Connected</Badge>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <FieldSet className="max-w-md">
-                                <FieldGroup>
-                                    <Field data-invalid={canvasBaseUrlInvalid ? "" : undefined}>
-                                        <FieldLabel htmlFor="input-canvas-instance-url">Canvas Instance URL</FieldLabel>
-                                        <Input
-                                            id="input-canvas-instance-url"
-                                            type="url"
-                                            name="canvas-instance-url"
-                                            autoComplete="url"
-                                            autoCorrect="off"
-                                            autoCapitalize="none"
-                                            spellCheck={false}
-                                            placeholder="https://canvas.instructure.com/"
-                                            value={canvasBaseUrl}
-                                            onChange={(event) => {
-                                                setCanvasBaseUrl(event.target.value);
-                                                setCanvasTouched(true);
-                                                resetCanvasValidateFeedback();
-                                            }}
-                                            aria-invalid={canvasBaseUrlInvalid}
-                                            data-invalid={canvasBaseUrlInvalid ? "" : undefined}
-                                        />
-                                        <FieldDescription>
-                                            Enter your school&apos;s Canvas domain or full base URL.
-                                        </FieldDescription>
-                                    </Field>
-                                    <Field data-invalid={canvasApiKeyInvalid ? "" : undefined}>
-                                        <FieldLabel htmlFor="input-canvas-api-key">API Key</FieldLabel>
-                                        <Input
-                                            id="input-canvas-api-key"
-                                            type="password"
-                                            name="canvas-api-key"
-                                            autoComplete="new-password"
-                                            autoCorrect="off"
-                                            autoCapitalize="none"
-                                            spellCheck={false}
-                                            placeholder="sk-..."
-                                            value={canvasApiKey}
-                                            onChange={(event) => {
-                                                setCanvasApiKey(event.target.value);
-                                                setCanvasTouched(true);
-                                                resetCanvasValidateFeedback();
-                                            }}
-                                            aria-invalid={canvasApiKeyInvalid}
-                                            data-invalid={canvasApiKeyInvalid ? "" : undefined}
-                                        />
-                                        <FieldDescription>
-                                            Your API key is encrypted and stored securely.
-                                        </FieldDescription>
-                                    </Field>
-                                    <Field>
-                                        <div className="flex min-w-0 items-center gap-3">
-                                            <StatusButton
-                                                type="button"
-                                                variant="outline"
-                                                label="Validate"
-                                                savingLabel="Validating..."
-                                                status={canvasValidateState === "saving" ? "saving" : "idle"}
-                                                animated={false}
-                                                disabled={upsertCanvasIntegrationMutation.isPending}
-                                                onClick={handleCanvasValidate}
-                                            />
-                                            {canvasValidateMessage ? (
-                                                <span
-                                                    className={cn(
-                                                        "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm",
-                                                        canvasValidateState === "success" && "text-emerald-600 dark:text-emerald-400",
-                                                        canvasValidateState === "error" && "text-destructive",
-                                                        canvasValidateState === "saving" && "text-muted-foreground"
-                                                    )}
-                                                    aria-live="polite"
-                                                    title={canvasValidateMessage}
-                                                >
-                                                    {canvasValidateMessage}
-                                                </span>
-                                            ) : null}
-                                        </div>
-                                    </Field>
-                                </FieldGroup>
-                            </FieldSet>
+                        <div className="w-full">
+                            <LmsIntegrationManager />
                         </div>
                     </SettingsSection>
 

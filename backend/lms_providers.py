@@ -1,6 +1,6 @@
 # input:  [Dataclasses, typing protocol helpers, and provider adapter implementations]
 # output: [Provider-neutral LMS DTOs, error types, and provider registry resolution helpers]
-# pos:    [Contract layer between LMS service orchestration and provider-specific adapters]
+# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integrations, course links, assignments, and calendar reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -37,6 +37,33 @@ class LmsCoursePageData:
     next_page: Optional[int]
 
 
+@dataclass
+class LmsAssignmentSummaryData:
+    external_id: str
+    title: str
+    description: Optional[str]
+    due_at: Optional[str]
+    unlock_at: Optional[str]
+    lock_at: Optional[str]
+    html_url: Optional[str]
+    published: bool
+    submission_types: list[str]
+
+
+@dataclass
+class LmsCalendarEventSummaryData:
+    external_id: str
+    external_course_id: str
+    title: str
+    description: Optional[str]
+    location: Optional[str]
+    start_at: str
+    end_at: str
+    all_day: bool
+    html_url: Optional[str]
+    event_type_code: str
+
+
 class LmsProviderError(Exception):
     def __init__(self, code: str, message: str, status_code: int = 422) -> None:
         super().__init__(message)
@@ -64,6 +91,33 @@ class LmsProvider(Protocol):
         workflow_state: Optional[str],
         enrollment_state: Optional[str],
     ) -> LmsCoursePageData:
+        ...
+
+    def get_course(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> LmsCourseSummaryData:
+        ...
+
+    def list_assignments(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> list[LmsAssignmentSummaryData]:
+        ...
+
+    def list_calendar_events(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        *,
+        context_codes: list[str],
+        start_at: Optional[str],
+        end_at: Optional[str],
+    ) -> list[LmsCalendarEventSummaryData]:
         ...
 
 

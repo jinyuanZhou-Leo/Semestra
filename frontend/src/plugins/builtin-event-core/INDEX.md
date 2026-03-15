@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 `builtin-event-core/` is the core domain plugin that bundles schedule, calendar, and todo experiences.
-It exposes plugin metadata/runtime entrypoints plus shared data/event primitives consumed by tab modules and now bridges built-in schedule, todo, and gradebook due-date data into the standalone `calendar-core` registry.
+It exposes plugin metadata/runtime entrypoints plus shared data/event primitives consumed by tab modules and now bridges built-in schedule, todo, gradebook due-date, and LMS calendar data into the standalone `calendar-core` registry.
 Subfolders split reusable dialogs/utilities from tab-specific UI to keep semester workflows cohesive while preserving keyboard access, scoped schedule refreshes, source-driven Calendar rendering, configurable week-view scroll width, DST-safe academic week math, inline-first Todo editing, and safer destructive flows.
 
 | File | Role | Description |
@@ -15,5 +15,5 @@ Subfolders split reusable dialogs/utilities from tab-specific UI to keep semeste
 | shared/ | Shared domain layer | Constants, event bus, hooks, types, and helpers shared by event-core tabs/widgets, including source ids, gradebook-aware refresh payloads, and Reading Week-aware calendar semantics. |
 | shared/INDEX.md | Shared architecture index | File map for shared schedule payloads, event bus contracts, and cache-aware hooks. |
 | tab.tsx | Tab definition entry | Exposes tab runtime definitions plus generic tab instance settings wiring for plugin-system consumption. |
-| tabs/ | Tab modules | Calendar, course-schedule, and todo feature implementations, including registry-backed Calendar source adapters for schedule/todo/gradebook overlays and configurable week-view scroll width. |
+| tabs/ | Tab modules | Calendar, course-schedule, and todo feature implementations, including registry-backed Calendar source adapters for schedule/todo/gradebook/LMS overlays and configurable week-view scroll width. |
 | widget.tsx | Widget runtime | Event-core widget card runtime and schedule summary presentation with DST-safe current-week lookup. |

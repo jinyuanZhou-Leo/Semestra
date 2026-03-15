@@ -1,6 +1,6 @@
-// input:  [course context, parent Program subject-color settings, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
+// input:  [course context, parent Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, Program-derived default course colors, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, Program-derived default course colors, Course LMS link/sync controls, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,7 @@
 "use no memo";
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { AppEmptyState } from '../components/AppEmptyState';
@@ -21,6 +22,7 @@ import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { CardSkeleton } from '../components/skeletons';
 import api from '../services/api';
 import { reportError } from '../services/appStatus';
+import { queryKeys } from '../services/queryKeys';
 import { Container } from '../components/Container';
 import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
@@ -72,12 +74,14 @@ import {
 const CourseHomepageContent: React.FC = () => {
     const { course, updateCourse, saveCourse, refreshCourse, isLoading } = useCourseData();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('');
     const [programName, setProgramName] = useState<string | null>(null);
     const [programSubjectColorMapJson, setProgramSubjectColorMapJson] = useState<string>('{}');
+    const [programLmsIntegrationId, setProgramLmsIntegrationId] = useState<string | null>(null);
     const [semesterName, setSemesterName] = useState<string | null>(null);
     const openAddWidgetModal = useCallback(() => {
         const activeElement = document.activeElement;
@@ -105,6 +109,7 @@ const CourseHomepageContent: React.FC = () => {
         if (!programId) {
             setProgramName(null);
             setProgramSubjectColorMapJson('{}');
+            setProgramLmsIntegrationId(null);
             return () => {
                 isActive = false;
             };
@@ -114,12 +119,14 @@ const CourseHomepageContent: React.FC = () => {
                 if (isActive) {
                     setProgramName(program.name);
                     setProgramSubjectColorMapJson(program.subject_color_map || '{}');
+                    setProgramLmsIntegrationId(program.lms_integration_id ?? null);
                 }
             })
             .catch(() => {
                 if (isActive) {
                     setProgramName(null);
                     setProgramSubjectColorMapJson('{}');
+                    setProgramLmsIntegrationId(null);
                 }
             });
         return () => {
@@ -135,6 +142,16 @@ const CourseHomepageContent: React.FC = () => {
         if (!course) return null;
         return resolveCourseColor({ ...course, color: null }, programSubjectColorMap);
     }, [course, programSubjectColorMap]);
+
+    const availableLmsCoursesQuery = useQuery({
+        queryKey: queryKeys.programs.lmsCourses(course?.program_id ?? 'unknown', { mode: 'link-picker' }),
+        queryFn: async () => {
+            if (!course?.program_id) return null;
+            return api.listProgramLmsCourses(course.program_id, { page: 1, page_size: 100 });
+        },
+        enabled: Boolean(course?.program_id && programLmsIntegrationId),
+        retry: false,
+    });
 
     useEffect(() => {
         let isActive = true;
@@ -501,6 +518,59 @@ const CourseHomepageContent: React.FC = () => {
         }
     }, [course, saveCourse]);
 
+    const refreshLmsCourseState = useCallback(async () => {
+        if (!course?.id) return;
+        await Promise.all([
+            refreshCourse(),
+            queryClient.invalidateQueries({ queryKey: queryKeys.courses.lmsLink(course.id) }),
+            course.program_id
+                ? queryClient.invalidateQueries({ queryKey: queryKeys.programs.lmsCourses(course.program_id, { mode: 'link-picker' }) })
+                : Promise.resolve(),
+            course.semester_id
+                ? queryClient.invalidateQueries({ queryKey: queryKeys.semesters.lmsCalendarEvents(course.semester_id) })
+                : Promise.resolve(),
+        ]);
+        await publishTimetableScheduleChange({
+            source: 'course',
+            reason: 'course-updated',
+            courseId: course.id,
+            semesterId: course.semester_id,
+        });
+    }, [course?.id, course?.program_id, course?.semester_id, queryClient, refreshCourse]);
+
+    const handleLinkCourse = useCallback(async (data: { external_course_id: string; sync_enabled: boolean }) => {
+        if (!course) return;
+        try {
+            await api.upsertCourseLmsLink(course.id, data);
+            await refreshLmsCourseState();
+        } catch (error) {
+            console.error('Failed to link LMS course', error);
+            reportError('Failed to link LMS course. Please retry.');
+        }
+    }, [course, refreshLmsCourseState]);
+
+    const handleSyncCourseLink = useCallback(async (data?: { sync_enabled?: boolean }) => {
+        if (!course) return;
+        try {
+            await api.syncCourseLmsLink(course.id, data);
+            await refreshLmsCourseState();
+        } catch (error) {
+            console.error('Failed to sync LMS course', error);
+            reportError('Failed to sync LMS course. Please retry.');
+        }
+    }, [course, refreshLmsCourseState]);
+
+    const handleUnlinkCourse = useCallback(async () => {
+        if (!course) return;
+        try {
+            await api.deleteCourseLmsLink(course.id);
+            await refreshLmsCourseState();
+        } catch (error) {
+            console.error('Failed to unlink LMS course', error);
+            reportError('Failed to unlink LMS course. Please retry.');
+        }
+    }, [course, refreshLmsCourseState]);
+
     const builtinTabContext = useMemo(() => ({
         isLoading,
         dashboard: {
@@ -529,6 +599,12 @@ const CourseHomepageContent: React.FC = () => {
                         hide_gpa: course?.hide_gpa
                     }}
                     resolvedDefaultColor={resolvedDefaultColor}
+                    lmsLink={course?.lms_link}
+                    lmsIntegrationEnabled={Boolean(programLmsIntegrationId)}
+                    availableLmsCourses={availableLmsCoursesQuery.data?.items ?? []}
+                    onLinkCourse={handleLinkCourse}
+                    onSyncCourseLink={handleSyncCourseLink}
+                    onUnlinkCourse={handleUnlinkCourse}
                     onSave={handleUpdateCourse}
                 />
             ),
@@ -556,7 +632,13 @@ const CourseHomepageContent: React.FC = () => {
         course?.color,
         course?.include_in_gpa,
         course?.hide_gpa,
+        course?.lms_link,
         resolvedDefaultColor,
+        programLmsIntegrationId,
+        availableLmsCoursesQuery.data?.items,
+        handleLinkCourse,
+        handleSyncCourseLink,
+        handleUnlinkCourse,
         updateCourse,
         handleUpdateCourse,
         hasPluginSettings,

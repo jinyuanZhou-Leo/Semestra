@@ -1,6 +1,6 @@
-// input:  [program/semester identifiers, course CRUD APIs, auth default credit, dialog state, responsive overlay wrapper, and shared business empty-state wrappers]
+// input:  [program/semester identifiers, course CRUD and LMS import APIs, auth default credit, dialog state, responsive overlay wrapper, and shared business empty-state wrappers]
 // output: [`CourseManagerModal` component]
-// pos:    [Program dashboard responsive add-course surface with split loading and semantic empty-state feedback]
+// pos:    [Program dashboard responsive add-course surface with manual creation, existing-course assignment, and LMS import feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,7 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import api, { type Course } from '../services/api';
+import { Checkbox } from '@/components/ui/checkbox';
+import api, { type Course, type LmsCourseSummary } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,10 +38,14 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     const { user } = useAuth();
     const defaultCredit = (user?.default_course_credit ?? 0.5).toString();
 
-    const [mode, setMode] = useState<'list' | 'create'>(semesterId ? 'list' : 'create');
+    const [mode, setMode] = useState<'list' | 'create' | 'import'>(semesterId ? 'list' : 'create');
     const [unassignedCourses, setUnassignedCourses] = useState<Course[]>([]);
+    const [availableLmsCourses, setAvailableLmsCourses] = useState<LmsCourseSummary[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [programHasLms, setProgramHasLms] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedLmsCourseIds, setSelectedLmsCourseIds] = useState<string[]>([]);
 
     // Create Form State
     const [newName, setNewName] = useState('');
@@ -61,9 +66,29 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
         }
     }, [programId]);
 
+    const fetchProgramLmsCourses = useCallback(async () => {
+        try {
+            const program = await api.getProgram(programId);
+            const hasIntegration = Boolean(program.lms_integration_id);
+            setProgramHasLms(hasIntegration);
+            if (!hasIntegration) {
+                setAvailableLmsCourses([]);
+                return;
+            }
+            const response = await api.listProgramLmsCourses(programId, { page: 1, page_size: 100 });
+            setAvailableLmsCourses(response.items);
+        } catch (error) {
+            console.error('Failed to fetch LMS courses', error);
+            setProgramHasLms(false);
+            setAvailableLmsCourses([]);
+        }
+    }, [programId]);
+
     useEffect(() => {
         if (isOpen) {
             setNewCredits(defaultCredit);
+            setSelectedLmsCourseIds([]);
+            void fetchProgramLmsCourses();
             if (semesterId) {
                 // If opening in a semester, default to list but fetch data
                 setMode('list');
@@ -73,7 +98,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 setMode('create');
             }
         }
-    }, [isOpen, semesterId, fetchUnassigned, defaultCredit]);
+    }, [isOpen, semesterId, fetchUnassigned, fetchProgramLmsCourses, defaultCredit]);
 
     const handleAddExisting = async (courseId: string) => {
         try {
@@ -118,14 +143,40 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
         }
     };
 
+    const handleImportFromLms = async () => {
+        if (selectedLmsCourseIds.length === 0) return;
+        setIsImporting(true);
+        try {
+            await api.importProgramLmsCourses(programId, {
+                external_course_ids: selectedLmsCourseIds,
+                semester_id: semesterId,
+            });
+            await onCourseAdded();
+            setSelectedLmsCourseIds([]);
+            await fetchProgramLmsCourses();
+            if (semesterId) {
+                await fetchUnassigned();
+            } else {
+                onClose();
+            }
+        } catch (error) {
+            console.error('Failed to import LMS courses', error);
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
     const filteredCourses = unassignedCourses.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+    const filteredLmsCourses = availableLmsCourses.filter((course) => (
+        `${course.name} ${course.course_code || ''}`.toLowerCase().includes(searchTerm.toLowerCase())
+    ));
 
     const dialogTitle = semesterId ? 'Manage Courses' : 'Add Course';
     const dialogDescription = semesterId
-        ? 'Add an existing course to the semester or create a new course.'
-        : 'Create a new course in this program.';
+        ? 'Add an existing course to the semester, create a new course, or import from LMS.'
+        : 'Create a new course in this program or import from LMS.';
     const desktopContentClassName = cn(
         "p-0 flex flex-col sm:max-w-[600px]",
         semesterId ? "h-[80vh] overflow-hidden" : "max-h-[85vh]"
@@ -143,22 +194,32 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     const modalBody = (
         <div className={surfaceBodyClassName}>
             {/* Mode Switcher (only if semesterId is present) */}
-            {semesterId && (
+            {(semesterId || programHasLms) && (
                 <div className="mb-4 flex-none">
-                    <Tabs value={mode} onValueChange={(value) => setMode(value as 'list' | 'create')}>
-                        <TabsList className="w-full grid grid-cols-2">
-                            <TabsTrigger
-                                value="list"
-                                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-                            >
-                                Select Existing
-                            </TabsTrigger>
+                    <Tabs value={mode} onValueChange={(value) => setMode(value as 'list' | 'create' | 'import')}>
+                        <TabsList className={cn("w-full grid", semesterId && programHasLms ? "grid-cols-3" : "grid-cols-2")}>
+                            {semesterId ? (
+                                <TabsTrigger
+                                    value="list"
+                                    className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                                >
+                                    Select Existing
+                                </TabsTrigger>
+                            ) : null}
                             <TabsTrigger
                                 value="create"
                                 className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
                             >
                                 Create New
                             </TabsTrigger>
+                            {programHasLms ? (
+                                <TabsTrigger
+                                    value="import"
+                                    className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                                >
+                                    Import LMS
+                                </TabsTrigger>
+                            ) : null}
                         </TabsList>
                     </Tabs>
                 </div>
@@ -228,6 +289,71 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+            ) : mode === 'import' ? (
+                <div className="flex flex-col flex-1 overflow-hidden gap-4">
+                    <div className="relative flex-none">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search LMS courses..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9"
+                        />
+                    </div>
+                    <div className="flex-1 -mr-4 pr-4 overflow-y-auto">
+                        {filteredLmsCourses.length === 0 ? (
+                            <AppEmptyState
+                                scenario="no-results"
+                                size="modal"
+                                title="No LMS courses found"
+                                description={searchTerm ? 'Try a different search term.' : 'This Program does not have available LMS courses.'}
+                            />
+                        ) : (
+                            <div className="space-y-3">
+                                {filteredLmsCourses.map((course) => {
+                                    const checked = selectedLmsCourseIds.includes(course.external_id);
+                                    return (
+                                        <label
+                                            key={course.external_id}
+                                            className={cn(
+                                                "flex cursor-pointer items-start gap-3 rounded-lg border bg-card px-4 py-3 transition-colors",
+                                                checked && "border-primary/60 bg-primary/5",
+                                            )}
+                                        >
+                                            <Checkbox
+                                                checked={checked}
+                                                onCheckedChange={(nextChecked) => {
+                                                    setSelectedLmsCourseIds((current) => (
+                                                        nextChecked
+                                                            ? [...current, course.external_id]
+                                                            : current.filter((item) => item !== course.external_id)
+                                                    ));
+                                                }}
+                                            />
+                                            <div className="min-w-0 space-y-1">
+                                                <div className="font-semibold">{course.name}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {course.course_code || course.external_id}
+                                                </div>
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                    <div className="mt-auto border-t pt-4">
+                        <Button
+                            type="button"
+                            className="w-full"
+                            disabled={selectedLmsCourseIds.length === 0 || isImporting}
+                            onClick={() => void handleImportFromLms()}
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            {isImporting ? 'Importing...' : `Import ${selectedLmsCourseIds.length || ''} LMS Course${selectedLmsCourseIds.length === 1 ? '' : 's'}`}
+                        </Button>
                     </div>
                 </div>
             ) : (
