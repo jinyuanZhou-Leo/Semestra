@@ -19,7 +19,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | BackButton.tsx | UI component | Reusable component for back button UI/interaction flow. |
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
 | CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
-| CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation, with manual create, existing-course attach, LMS import, split loading feedback, and standardized modal no-results empty states. |
+| CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation, with height-stable select/create/calendar/LMS tabs, searchable existing-course selection, duplicate-name confirmation before manual creation, ICS parsing import, reusable LMS search-plus-year-filter course selection, split loading feedback, and standardized modal no-results empty states. |
 | CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, close/unmount flush protection, shadcn `Field`-based standard form layout, right-aligned switch controls, Program-derived default-color guidance, optional per-course override controls, a clearer LMS status card with adjacent sync/disconnect actions, inline link-update controls, destructive disconnect confirmation, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | GPAScalingTable.tsx | UI component | GPA scaling-rule editor with descending range sorting, explicit min/max/GPA inputs, full-range coverage warnings, and standardized create-empty feedback when no rules exist yet. |
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |
@@ -28,6 +28,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | ImportPreviewModal.tsx | UI component | Reusable component for import preview modal UI/interaction flow. |
 | KeyValueTable.tsx | UI component | Reusable component for key value table UI/interaction flow. |
 | Layout.tsx | UI component | Shared authenticated layout chrome, including header breadcrumb slot, fixed-height overflow handling, and server-backed sign-out actions. |
+| LmsCourseSelectionList.tsx | UI component | Reusable LMS multi-select list with shadcn-native search/select chrome, linked-course disabled states with inline reasons, a single input-radius results shell, unclipped focus rings, and overflow-safe scrollable rows for Add Course/Add Semester flows. |
 | PageSkeleton.tsx | UI component | Reusable component for page skeleton UI/interaction flow. |
 | PluginSettingsCard.tsx | UI component | Reusable component for plugin settings card UI/interaction flow. |
 | ProgramSettingsPanel.tsx | UI component | Program settings panel with debounced auto-save, close/unmount flush protection, separated General and LMS sections, Program-level LMS integration selection/lock behavior, discovered-code CRUD-style color management, persisted stable subject-color assignments that reserve existing colors for future codes, JSON validation feedback, and draft-safe sync against optimistic program updates. |

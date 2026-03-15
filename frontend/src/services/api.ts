@@ -400,6 +400,19 @@ const api = {
         });
         return response.data;
     },
+    uploadProgramCourseICS: async (programId: string, file: File, semesterId?: string) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (semesterId) {
+            formData.append('semester_id', semesterId);
+        }
+        const response = await axios.post<Course[]>(`/api/programs/${programId}/courses/upload`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
     getSemester: async (id: string) => {
         return dedupeGet(`GET:/api/semesters/${id}`, async () => {
             // Requires backend to return widgets in response

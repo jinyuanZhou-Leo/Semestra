@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, course-manager modal flows, responsive overlay wrapper, and shared business empty-state wrappers]
-// output: [`ProgramDashboard` and local semester create/delete confirmation plus responsive create surface components]
-// pos:    [Program-level workspace page for semester management, Program settings navigation, LMS-backed import flows, subject-code color defaults, progress tracking, tri-state course-list sorting, and standardized not-found workspace fallbacks]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, course-manager modal flows, responsive overlay wrapper, shared business empty-state wrappers, and shadcn AlertDialog interactions]
+// output: [`ProgramDashboard` and local semester/course delete confirmation plus responsive create surface components]
+// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, LMS-backed import flows, a three-tab semester create/import surface, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, edit-mode course deletion, tri-state course-list sorting, and standardized not-found workspace fallbacks]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -29,7 +29,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
-import api from '../services/api';
+import api, { type Course } from '../services/api';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { AnimatedNumber } from '../components/AnimatedNumber';
@@ -56,8 +56,9 @@ import {
 } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, X, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
+import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, X, Tag, Calendar, Hash, TrendingUp, Layers, Pencil, CheckCheck } from 'lucide-react';
 import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
+import { LmsCourseSelectionList } from '../components/LmsCourseSelectionList';
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
 
 // Helper function to extract course level from course name
@@ -74,6 +75,7 @@ const extractCourseLevel = (courseName: string): number | null => {
 
 type ShowAlert = ReturnType<typeof useDialog>['alert'];
 type CourseSortConfig = { key: string; direction: 'asc' | 'desc' };
+type CourseWithProgramContext = Course & { semesterName: string; semesterId: string };
 
 type CreateSemesterDialogButtonProps = {
     programId: string;
@@ -95,11 +97,13 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
     children,
 }) => {
     const [open, setOpen] = useState(false);
+    const [mode, setMode] = useState<'create' | 'calendar' | 'lms'>('create');
     const [newSemesterName, setNewSemesterName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [programHasLms, setProgramHasLms] = useState(false);
     const [availableLmsCourses, setAvailableLmsCourses] = useState<Array<{ external_id: string; name: string; course_code?: string | null }>>([]);
+    const [programCourses, setProgramCourses] = useState<Course[]>([]);
     const [selectedLmsCourseIds, setSelectedLmsCourseIds] = useState<string[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const createSemesterFormId = useId();
@@ -118,6 +122,9 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
                     setAvailableLmsCourses([]);
                     return;
                 }
+                const courses = await api.getCoursesForProgram(programId);
+                if (!active) return;
+                setProgramCourses(courses);
                 const response = await api.listProgramLmsCourses(programId, { page: 1, page_size: 100 });
                 if (!active) return;
                 setAvailableLmsCourses(response.items);
@@ -126,36 +133,83 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
                 if (!active) return;
                 setProgramHasLms(false);
                 setAvailableLmsCourses([]);
+                setProgramCourses([]);
             });
         return () => {
             active = false;
         };
     }, [open, programId]);
 
+    useEffect(() => {
+        if (!open) {
+            setMode('create');
+        }
+    }, [open]);
+
+    const buildImportSummary = useCallback((results: Array<{ external_course_id: string; status: string; error?: { message?: string | null } | null }>) => {
+        const created = results.filter((item) => item.status === 'created');
+        const conflicts = results.filter((item) => item.status === 'conflict');
+        const skipped = results.filter((item) => item.status === 'skipped');
+        const lines = [
+            `Created: ${created.length}`,
+            conflicts.length > 0 ? `Conflicts: ${conflicts.length}` : null,
+            skipped.length > 0 ? `Skipped: ${skipped.length}` : null,
+        ].filter(Boolean) as string[];
+
+        if (conflicts.length > 0) {
+            lines.push('', 'Conflicts:');
+            conflicts.forEach((item) => {
+                lines.push(`- ${item.error?.message || item.external_course_id}`);
+            });
+        }
+
+        return {
+            createdCount: created.length,
+            conflictCount: conflicts.length,
+            skippedCount: skipped.length,
+            description: lines.join('\n'),
+        };
+    }, []);
+
     const submitCreateSemester = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            if (selectedFile && selectedLmsCourseIds.length > 0) {
-                await showAlert({
-                    title: "Choose one import source",
-                    description: "Create a semester from either an ICS file or LMS courses, not both at the same time.",
-                });
-                return;
-            }
-            if (selectedFile) {
+            if (mode === 'calendar') {
+                if (!selectedFile) {
+                    await showAlert({
+                        title: "Select a calendar file",
+                        description: "Upload an .ics file before creating a semester from calendar.",
+                    });
+                    return;
+                }
                 await api.uploadSemesterICS(programId, selectedFile, newSemesterName || undefined);
-            } else if (selectedLmsCourseIds.length > 0) {
-                await api.importProgramLmsSemester(programId, {
+            } else if (mode === 'lms') {
+                if (selectedLmsCourseIds.length === 0) {
+                    await showAlert({
+                        title: "Select LMS courses",
+                        description: "Choose at least one LMS course before importing a semester from LMS.",
+                    });
+                    return;
+                }
+                const response = await api.importProgramLmsSemester(programId, {
                     name: newSemesterName,
                     external_course_ids: selectedLmsCourseIds,
                 });
+                const summary = buildImportSummary(response.courses.results);
+                if (summary.conflictCount > 0 || summary.skippedCount > 0) {
+                    await showAlert({
+                        title: summary.createdCount > 0 ? 'Semester created with conflicts' : 'Semester created',
+                        description: summary.description,
+                    });
+                }
             } else {
                 await api.createSemester(programId, {
                     name: newSemesterName
                 });
             }
             setOpen(false);
+            setMode('create');
             setNewSemesterName('');
             setSelectedFile(null);
             setSelectedLmsCourseIds([]);
@@ -169,12 +223,13 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
         } finally {
             setIsSubmitting(false);
         }
-    }, [newSemesterName, onCreated, programId, selectedFile, selectedLmsCourseIds, showAlert]);
+    }, [buildImportSummary, mode, newSemesterName, onCreated, programId, selectedFile, selectedLmsCourseIds, showAlert]);
 
     const syncFileSelection = useCallback(async (file: File | null) => {
         if (!file) return;
         if (file.name.endsWith('.ics') || file.type === 'text/calendar') {
             setSelectedFile(file);
+            setSelectedLmsCourseIds([]);
             if (!newSemesterName) {
                 const name = file.name.replace('.ics', '').replace(/[_-]/g, ' ');
                 setNewSemesterName(name);
@@ -186,6 +241,25 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
             description: "Please upload a valid .ics file."
         });
     }, [newSemesterName, showAlert]);
+
+    const handleLmsSelectionChange = useCallback((courseIds: string[]) => {
+        setSelectedLmsCourseIds(courseIds);
+        if (courseIds.length > 0) {
+            setSelectedFile(null);
+        }
+    }, []);
+
+    const linkedLmsCourseReasons = useMemo<Record<string, string>>(() => {
+        return programCourses.reduce<Record<string, string>>((accumulator, course) => {
+            const externalCourseId = course.lms_link?.external_course_id;
+            if (!externalCourseId) {
+                return accumulator;
+            }
+            const localName = course.alias?.trim() ? `${course.name} (${course.alias.trim()})` : course.name;
+            accumulator[externalCourseId] = `Already linked to ${localName}.`;
+            return accumulator;
+        }, {});
+    }, [programCourses]);
 
     return (
         <>
@@ -203,127 +277,202 @@ const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProps> = ({
             </Button>
             <ResponsiveDialogDrawer
                 open={open}
-                onOpenChange={setOpen}
+                onOpenChange={(nextOpen) => {
+                    setOpen(nextOpen);
+                    if (!nextOpen) {
+                        setMode('create');
+                    }
+                }}
                 title="Create New Semester"
-                description="Enter a semester name and optionally import a calendar file."
-                desktopContentClassName="sm:max-w-[425px]"
-                mobileContentClassName="h-[85vh] max-h-[85vh]"
+                description="Create or import a semester."
+                desktopContentClassName="gap-0 p-0 sm:max-w-[640px] h-[85vh] max-h-[44rem] flex flex-col overflow-hidden"
+                mobileContentClassName="gap-0 p-0 h-[85vh] max-h-[85vh] flex flex-col overflow-hidden"
+                desktopHeaderClassName="border-b px-6 py-4 flex-none"
+                mobileHeaderClassName="border-b px-6 py-4 flex-none"
                 footer={(
                     <>
                         <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                             Cancel
                         </Button>
                         <Button type="submit" form={createSemesterFormId} disabled={isSubmitting}>
-                            {isSubmitting ? 'Creating...' : (selectedFile ? 'Upload & Create' : selectedLmsCourseIds.length > 0 ? 'Import & Create' : 'Create Semester')}
+                            {isSubmitting
+                                ? 'Creating...'
+                                : mode === 'calendar'
+                                    ? 'Upload & Create'
+                                    : mode === 'lms'
+                                        ? 'Import & Create'
+                                        : 'Create Semester'}
                         </Button>
                     </>
                 )}
-                desktopFooterClassName="pt-4"
-                mobileFooterClassName="px-0"
+                desktopFooterClassName="border-t px-6 py-4 flex-none"
+                mobileFooterClassName="border-t px-6 py-4 flex-none"
             >
                 <form
                     id={createSemesterFormId}
                     onSubmit={submitCreateSemester}
-                    className="space-y-4 px-4 pb-4 sm:px-0 sm:pb-0 sm:space-y-4 sm:py-4 overflow-y-auto"
+                    className="flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6"
                 >
-                    <div className="grid gap-2">
-                        <Label htmlFor={semesterNameId}>Semester Name</Label>
-                        <Input
-                            id={semesterNameId}
-                            placeholder="e.g. Fall 2025"
-                            value={newSemesterName}
-                            onChange={(e) => setNewSemesterName(e.target.value)}
-                            required={!selectedFile}
-                            autoFocus
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Import Schedule (Optional)</Label>
-                        <div
-                            className={`
-                                border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all
-                                ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
-                            `}
-                            onClick={() => fileInputRef.current?.click()}
-                            onDragOver={(e) => {
-                                e.preventDefault();
-                                setIsDragging(true);
-                            }}
-                            onDragLeave={(e) => {
-                                e.preventDefault();
-                                setIsDragging(false);
-                            }}
-                            onDrop={async (e) => {
-                                e.preventDefault();
-                                setIsDragging(false);
-                                const file = e.dataTransfer.files?.[0] ?? null;
-                                await syncFileSelection(file);
-                            }}
-                        >
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".ics"
-                                className="hidden"
-                                onChange={async (e) => {
-                                    const file = e.target.files?.[0] ?? null;
-                                    await syncFileSelection(file);
-                                }}
-                            />
-                            <div className="flex flex-col items-center gap-2">
-                                {selectedFile ? (
-                                    <div className="flex items-center gap-2 text-primary font-medium">
-                                        <Upload className="h-5 w-5" />
-                                        {selectedFile.name}
-                                    </div>
-                                ) : (
-                                    <>
-                                        <Upload className="h-8 w-8 text-muted-foreground/50" />
-                                        <div className="text-sm text-muted-foreground">
-                                            Click or drag .ics file to upload
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                    <Tabs
+                        value={mode}
+                        onValueChange={(value) => {
+                            const nextMode = value as 'create' | 'calendar' | 'lms';
+                            setMode(nextMode);
+                            if (nextMode === 'create') {
+                                setSelectedFile(null);
+                                setSelectedLmsCourseIds([]);
+                            }
+                            if (nextMode === 'calendar') {
+                                setSelectedLmsCourseIds([]);
+                            }
+                            if (nextMode === 'lms') {
+                                setSelectedFile(null);
+                            }
+                        }}
+                        className="flex min-h-0 flex-1 flex-col"
+                    >
+                        <div className="flex-none">
+                            <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="create">Create Empty</TabsTrigger>
+                                <TabsTrigger value="calendar">From Calendar</TabsTrigger>
+                                <TabsTrigger value="lms">From LMS</TabsTrigger>
+                            </TabsList>
                         </div>
-                    </div>
 
-                    {programHasLms ? (
-                        <div className="space-y-3">
-                            <Label>Import LMS Courses (Optional)</Label>
-                            <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-3">
-                                {availableLmsCourses.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground">No LMS courses available for this Program.</p>
-                                ) : availableLmsCourses.map((course) => {
-                                    const checked = selectedLmsCourseIds.includes(course.external_id);
-                                    return (
-                                        <label key={course.external_id} className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-muted/40">
-                                            <Checkbox
-                                                checked={checked}
-                                                onCheckedChange={(nextChecked) => {
-                                                    setSelectedLmsCourseIds((current) => (
-                                                        nextChecked
-                                                            ? [...current, course.external_id]
-                                                            : current.filter((item) => item !== course.external_id)
-                                                    ));
+                        <TabsContent value="create" className="mt-4 min-h-0 flex-1">
+                            <div className="flex h-full min-h-0 flex-col">
+                                <Card className="border-border/70 shadow-none">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base">Empty Semester</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="grid gap-4">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor={semesterNameId}>Semester Name</Label>
+                                            <Input
+                                                id={semesterNameId}
+                                                placeholder="e.g. Fall 2025"
+                                                value={newSemesterName}
+                                                onChange={(e) => setNewSemesterName(e.target.value)}
+                                                required={mode === 'create'}
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                            Start with an empty semester and add courses or schedule data later.
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="calendar" className="mt-4 min-h-0 flex-1">
+                            <div className="flex h-full min-h-0 flex-col gap-4">
+                                <div className="grid gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor={`${semesterNameId}-calendar`}>Semester Name</Label>
+                                        <Input
+                                            id={`${semesterNameId}-calendar`}
+                                            placeholder="e.g. Fall 2025"
+                                            value={newSemesterName}
+                                            onChange={(e) => setNewSemesterName(e.target.value)}
+                                            required={mode === 'calendar' && !selectedFile}
+                                        />
+                                    </div>
+                                    <div className="grid gap-3">
+                                        <Label>ICS File</Label>
+                                        <div
+                                            className={`
+                                                rounded-2xl border-2 border-dashed p-6 text-center transition-all
+                                                ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
+                                            `}
+                                            onClick={() => fileInputRef.current?.click()}
+                                            onDragOver={(e) => {
+                                                e.preventDefault();
+                                                setIsDragging(true);
+                                            }}
+                                            onDragLeave={(e) => {
+                                                e.preventDefault();
+                                                setIsDragging(false);
+                                            }}
+                                            onDrop={async (e) => {
+                                                e.preventDefault();
+                                                setIsDragging(false);
+                                                const file = e.dataTransfer.files?.[0] ?? null;
+                                                await syncFileSelection(file);
+                                            }}
+                                        >
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept=".ics"
+                                                className="hidden"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0] ?? null;
+                                                    await syncFileSelection(file);
                                                 }}
                                             />
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium">{course.name}</div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    {course.course_code || course.external_id}
-                                                </div>
+                                            <div className="flex flex-col items-center gap-2">
+                                                {selectedFile ? (
+                                                    <div className="flex items-center gap-2 font-medium text-primary">
+                                                        <Upload className="h-5 w-5" />
+                                                        {selectedFile.name}
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="h-8 w-8 text-muted-foreground/50" />
+                                                        <div className="text-sm text-muted-foreground">
+                                                            Click or drag an .ics file to upload
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
-                                        </label>
-                                    );
-                                })}
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Importing from calendar creates the semester first, then attaches the uploaded schedule.
+                                </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                LMS import creates the Semester first, then imports the selected LMS courses directly into it.
-                            </p>
-                        </div>
-                    ) : null}
+                        </TabsContent>
+
+                        <TabsContent value="lms" className="mt-4 min-h-0 flex-1">
+                            <div className="flex h-full min-h-0 min-w-0 flex-col gap-4">
+                                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor={`${semesterNameId}-lms`}>Semester Name</Label>
+                                        <Input
+                                            id={`${semesterNameId}-lms`}
+                                            placeholder="e.g. Fall 2025"
+                                            value={newSemesterName}
+                                            onChange={(e) => setNewSemesterName(e.target.value)}
+                                            required={mode === 'lms'}
+                                        />
+                                    </div>
+
+                                    {programHasLms ? (
+                                        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                                            <Label className="mb-2">Select LMS Courses</Label>
+                                            <LmsCourseSelectionList
+                                                className="min-h-0 min-w-0 flex-1"
+                                                courses={availableLmsCourses}
+                                                selectedCourseIds={selectedLmsCourseIds}
+                                                onSelectionChange={handleLmsSelectionChange}
+                                                disabledCourseReasons={linkedLmsCourseReasons}
+                                                noResultsDescription="Try a different keyword or year for LMS courses."
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                                            No LMS courses are available for this Program yet.
+                                            </div>
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    LMS import creates the semester first, then imports the selected LMS courses directly into it.
+                                </p>
+                            </div>
+                        </TabsContent>
+                    </Tabs>
                 </form>
             </ResponsiveDialogDrawer>
         </>
@@ -403,6 +552,10 @@ const DeleteSemesterButton: React.FC<DeleteSemesterButtonProps> = ({
 const ProgramDashboardContent: React.FC = () => {
     const { program, saveProgram, refreshProgram, isLoading } = useProgramData();
     const { alert: showAlert } = useDialog();
+    const [unassignedCourses, setUnassignedCourses] = useState<Array<CourseWithProgramContext>>([]);
+    const [isCourseEditMode, setIsCourseEditMode] = useState(false);
+    const [coursePendingDelete, setCoursePendingDelete] = useState<CourseWithProgramContext | null>(null);
+    const [isDeletingCourse, setIsDeletingCourse] = useState(false);
 
     // Modal State
     const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
@@ -413,6 +566,30 @@ const ProgramDashboardContent: React.FC = () => {
     const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const courseEditModeLabel = isCourseEditMode ? 'Exit course edit mode' : 'Enter course edit mode';
+
+    const refreshUnassignedCourses = useCallback(async () => {
+        if (!program?.id) {
+            setUnassignedCourses([]);
+            return;
+        }
+
+        const courses = await api.getCoursesForProgram(program.id, { unassigned: true });
+        setUnassignedCourses(
+            courses.map((course) => ({
+                ...course,
+                semesterName: 'Unassigned',
+                semesterId: '',
+            })),
+        );
+    }, [program?.id]);
+
+    const refreshDashboardData = useCallback(async () => {
+        await Promise.all([
+            refreshProgram(),
+            refreshUnassignedCourses(),
+        ]);
+    }, [refreshProgram, refreshUnassignedCourses]);
 
     const handleUpdateProgram = useCallback(async (data: any) => {
         if (!program) return;
@@ -423,13 +600,20 @@ const ProgramDashboardContent: React.FC = () => {
         () => parseSubjectColorMap(program?.subject_color_map),
         [program?.subject_color_map],
     );
-    const totalCredits = React.useMemo(() => {
-        if (!program) return 0;
-        return program.semesters.reduce(
-            (acc, sem: any) => acc + (sem.courses?.reduce((cAcc: number, c: any) => cAcc + c.credits, 0) || 0),
-            0
+    const programCourses = useMemo<Array<CourseWithProgramContext>>(() => {
+        if (!program) return [];
+        const semesterCourses = program.semesters.flatMap((semester) =>
+            (semester.courses || []).map((course) => ({
+                ...course,
+                semesterName: semester.name,
+                semesterId: semester.id,
+            })),
         );
-    }, [program]);
+        return [...semesterCourses, ...unassignedCourses];
+    }, [program, unassignedCourses]);
+    const totalCredits = React.useMemo(() => {
+        return programCourses.reduce((acc, course) => acc + (course.credits || 0), 0);
+    }, [programCourses]);
 
     const normalizedQuery = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery]);
 
@@ -441,17 +625,49 @@ const ProgramDashboardContent: React.FC = () => {
         );
     }, [program, normalizedQuery]);
 
+    useEffect(() => {
+        let active = true;
+
+        const loadUnassignedCourses = async () => {
+            try {
+                if (!program?.id) {
+                    if (active) {
+                        setUnassignedCourses([]);
+                    }
+                    return;
+                }
+                const courses = await api.getCoursesForProgram(program.id, { unassigned: true });
+                if (!active) {
+                    return;
+                }
+                setUnassignedCourses(
+                    courses.map((course) => ({
+                        ...course,
+                        semesterName: 'Unassigned',
+                        semesterId: '',
+                    })),
+                );
+            } catch (error) {
+                if (!active) {
+                    return;
+                }
+                console.error('Failed to fetch unassigned program courses', error);
+                setUnassignedCourses([]);
+            }
+        };
+
+        void loadUnassignedCourses();
+
+        return () => {
+            active = false;
+        };
+    }, [program?.id]);
+
     // Extract unique values for suggestions
     const suggestions = useMemo(() => {
         if (!program) return [];
 
-        const allCourses = program.semesters.flatMap(sem =>
-            (sem.courses || []).map(course => ({
-                ...course,
-                semesterName: sem.name,
-                semesterId: sem.id
-            }))
-        );
+        const allCourses = programCourses;
 
         const categories = Array.from(new Set(allCourses.map(c => c.category).filter(Boolean)));
         const semesters = Array.from(new Set(allCourses.map(c => c.semesterName)));
@@ -510,7 +726,7 @@ const ProgramDashboardContent: React.FC = () => {
         );
 
         return items;
-    }, [program]);
+    }, [program, programCourses]);
 
     // Filter suggestions based on search query
     const filteredSuggestions = useMemo(() => {
@@ -522,13 +738,7 @@ const ProgramDashboardContent: React.FC = () => {
     const filteredAndSortedCourses = useMemo(() => {
         if (!program) return [];
 
-        let courses = program.semesters.flatMap(sem =>
-            (sem.courses || []).map(course => ({
-                ...course,
-                semesterName: sem.name,
-                semesterId: sem.id,
-            }))
-        );
+        let courses = [...programCourses];
 
         // Apply active filters
         if (activeFilters.length > 0) {
@@ -596,17 +806,16 @@ const ProgramDashboardContent: React.FC = () => {
         }
 
         return courses;
-    }, [program, courseSearchQuery, sortConfig, activeFilters]);
+    }, [program, programCourses, courseSearchQuery, sortConfig, activeFilters]);
 
     const discoveredSubjectCodes = useMemo(() => {
         if (!program) return [];
         return Array.from(new Set(
-            program.semesters
-                .flatMap((semester) => semester.courses || [])
+            programCourses
                 .map((course) => resolveCourseSubjectCode(course))
                 .filter(Boolean),
         )).sort((left, right) => left.localeCompare(right));
-    }, [program]);
+    }, [programCourses]);
     const resolvedSubjectColorMap = useMemo(
         () => resolveSubjectColorAssignments(discoveredSubjectCodes, subjectColorMap),
         [discoveredSubjectCodes, subjectColorMap],
@@ -684,6 +893,27 @@ const ProgramDashboardContent: React.FC = () => {
         }
     };
 
+    const submitDeleteCourse = useCallback(async () => {
+        if (!coursePendingDelete) {
+            return;
+        }
+
+        setIsDeletingCourse(true);
+        try {
+            await api.deleteCourse(coursePendingDelete.id);
+            setCoursePendingDelete(null);
+            await refreshDashboardData();
+        } catch (error) {
+            console.error('Failed to delete course', error);
+            await showAlert({
+                title: 'Delete failed',
+                description: 'Failed to delete course.',
+            });
+        } finally {
+            setIsDeletingCourse(false);
+        }
+    }, [coursePendingDelete, refreshDashboardData, showAlert]);
+
     const creditsProgressPercent = useMemo(() => {
         if (!program) return 0;
         const maxCredits = program.grad_requirement_credits || 0;
@@ -738,22 +968,19 @@ const ProgramDashboardContent: React.FC = () => {
                             {isLoading || !program ? (
                                 <Skeleton className="h-8 w-48" />
                             ) : (
-                                    <h1 className="text-2xl font-bold tracking-tight md:text-3xl flex items-center gap-3">
+                                    <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
                                         {program.name}
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                        asChild
-                                    >
-                                        <Link to={`/programs/${program.id}/settings`} aria-label={`Open settings for ${program.name}`}>
-                                            <Settings className="h-4 w-4" />
-                                        </Link>
-                                    </Button>
                                     </h1>
                             )}
                         </div>
                         <div className="flex items-center gap-2">
+                            {program && (
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link to={`/programs/${program.id}/settings`}>
+                                        <Settings />
+                                    </Link>
+                                </Button>
+                            )}
                             <Button
                                 onClick={(e) => {
                                     e.currentTarget.blur();
@@ -768,7 +995,7 @@ const ProgramDashboardContent: React.FC = () => {
                             {program && (
                                 <CreateSemesterDialogButton
                                     programId={program.id}
-                                    onCreated={refreshProgram}
+                                    onCreated={refreshDashboardData}
                                     showAlert={showAlert}
                                     size="sm"
                                 >
@@ -1021,7 +1248,7 @@ const ProgramDashboardContent: React.FC = () => {
                                             <DeleteSemesterButton
                                                 semesterId={semester.id}
                                                 semesterName={semester.name}
-                                                onDeleted={refreshProgram}
+                                                onDeleted={refreshDashboardData}
                                                 showAlert={showAlert}
                                             />
                                         </div>
@@ -1033,7 +1260,7 @@ const ProgramDashboardContent: React.FC = () => {
                                             {program && (
                                                 <CreateSemesterDialogButton
                                                     programId={program.id}
-                                                    onCreated={refreshProgram}
+                                                    onCreated={refreshDashboardData}
                                                     showAlert={showAlert}
                                                     variant="link"
                                                     className="mt-2 text-primary"
@@ -1049,9 +1276,34 @@ const ProgramDashboardContent: React.FC = () => {
                             {/* All Courses Section */}
                             <section className="space-y-6">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <h2 className="text-lg font-semibold tracking-tight md:mt-auto">
-                                        All Courses
-                                    </h2>
+                                    <div className="flex items-center gap-2 md:mt-auto">
+                                        <h2 className="text-lg font-semibold tracking-tight">
+                                            All Courses
+                                        </h2>
+                                        <Button
+                                            type="button"
+                                            variant={isCourseEditMode ? 'secondary' : 'ghost'}
+                                            size="icon"
+                                            className={isCourseEditMode ? 'text-foreground' : 'text-muted-foreground'}
+                                            aria-label={courseEditModeLabel}
+                                            title={courseEditModeLabel}
+                                            aria-pressed={isCourseEditMode}
+                                            onClick={() => {
+                                                setIsCourseEditMode((current) => {
+                                                    if (current) {
+                                                        setCoursePendingDelete(null);
+                                                    }
+                                                    return !current;
+                                                });
+                                            }}
+                                        >
+                                            {isCourseEditMode ? (
+                                                <CheckCheck className="h-4 w-4" />
+                                            ) : (
+                                                <Pencil className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
                                     <div className="flex-1 max-w-sm space-y-1.5">
                                         {/* Active Filters */}
                                         <div className="min-h-6">
@@ -1211,11 +1463,15 @@ const ProgramDashboardContent: React.FC = () => {
                                                         {getSortIcon('grade_scaled')}
                                                     </div>
                                                 </TableHead>
+                                                <TableHead
+                                                    className="w-[52px] text-right"
+                                                    aria-label="Row actions"
+                                                />
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                                     {filteredAndSortedCourses.map(course => (
-                                                    <TableRow key={course.id}>
+                                                    <TableRow key={course.id} className="h-12">
                                                         <TableCell className="font-medium">
                                                             <div className="flex flex-col">
                                                                 <Link to={`/courses/${course.id}`} className="hover:underline">
@@ -1235,9 +1491,13 @@ const ProgramDashboardContent: React.FC = () => {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-muted-foreground">
-                                                            <Link to={`/semesters/${course.semesterId}`} className="hover:underline">
-                                                                {course.semesterName}
-                                                            </Link>
+                                                            {course.semesterId ? (
+                                                                <Link to={`/semesters/${course.semesterId}`} className="hover:underline">
+                                                                    {course.semesterName}
+                                                                </Link>
+                                                            ) : (
+                                                                <span>{course.semesterName}</span>
+                                                            )}
                                                         </TableCell>
                                                         <TableCell>{course.credits}</TableCell>
                                                         <TableCell className="text-right">
@@ -1255,6 +1515,20 @@ const ProgramDashboardContent: React.FC = () => {
                                                                 </span>
                                                             )}
                                                         </TableCell>
+                                                        <TableCell className="w-[52px] text-right align-middle">
+                                                            <Button
+                                                                type="button"
+                                                                variant="destructive"
+                                                                size="icon"
+                                                                className={isCourseEditMode ? 'h-8 w-8' : 'h-8 w-8 opacity-0 pointer-events-none'}
+                                                                aria-label={`Delete ${course.name}`}
+                                                                aria-hidden={!isCourseEditMode}
+                                                                tabIndex={isCourseEditMode ? 0 : -1}
+                                                                onClick={() => setCoursePendingDelete(course)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </TableCell>
                                                     </TableRow>
                                                     ))}
                                         </TableBody>
@@ -1271,9 +1545,36 @@ const ProgramDashboardContent: React.FC = () => {
                     isOpen={isCourseModalOpen}
                     onClose={() => setIsCourseModalOpen(false)}
                     programId={program.id}
-                    onCourseAdded={refreshProgram}
+                    onCourseAdded={refreshDashboardData}
                 />
             )}
+            <AlertDialog
+                open={coursePendingDelete !== null}
+                onOpenChange={(nextOpen) => {
+                    if (!isDeletingCourse && !nextOpen) {
+                        setCoursePendingDelete(null);
+                    }
+                }}
+            >
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete course?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {`Are you sure you want to delete ${coursePendingDelete?.name || 'this course'}? This action cannot be undone.`}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingCourse}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={submitDeleteCourse}
+                            disabled={isDeletingCourse}
+                        >
+                            {isDeletingCourse ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Layout>
     );
 };

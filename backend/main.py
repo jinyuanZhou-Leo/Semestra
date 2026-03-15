@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, schemas/models/crud/logic/utils/auth/lms modules, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance and all HTTP route handlers, including Program subject-color-map persistence, provider-neutral LMS integration endpoints, plugin-shared settings persistence, semester todo APIs, and fact-oriented gradebook endpoints]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, encrypted LMS connection APIs, persisted todo APIs, backup import/export, fact-only gradebook APIs, force-aware widget deletion, and no runtime schema rewrite helpers]
+# output: [FastAPI app instance and all HTTP route handlers, including Program subject-color-map persistence, provider-neutral LMS integration endpoints, plugin-shared settings persistence, semester todo APIs, fact-oriented gradebook endpoints, and ICS-backed semester/course imports]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, encrypted LMS connection APIs, persisted todo APIs, backup import/export, fact-only gradebook APIs, force-aware widget deletion, ICS-backed semester/course imports, and no runtime schema rewrite helpers]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -1470,6 +1470,66 @@ async def create_semester_from_ics(
         
     return semester
 
+@app.post("/programs/{program_id}/courses/upload", response_model=list[schemas.Course])
+async def create_courses_from_ics(
+    program_id: str,
+    file: UploadFile = File(...),
+    semester_id: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+
+    target_semester_id: str | None = None
+    if semester_id:
+        semester = db.query(models.Semester).join(models.Program).filter(
+            models.Semester.id == semester_id,
+            models.Semester.program_id == program_id,
+            models.Program.owner_id == current_user.id,
+        ).first()
+        if semester is None:
+            raise HTTPException(status_code=404, detail="Semester not found")
+        target_semester_id = semester.id
+
+    content = await file.read()
+    parsed_schedule = utils.parse_ics_schedule(content)
+    parsed_courses = parsed_schedule.get("courses", [])
+
+    user_setting = crud.get_user_setting_dict(current_user)
+    default_course_credit = float(user_setting.get("default_course_credit", crud.DEFAULT_COURSE_CREDIT))
+    if not parsed_courses:
+        parsed_courses = [{"name": course_name, "category": utils.extract_category(course_name), "meetings": []} for course_name in utils.parse_ics(content)]
+
+    created_courses: list[models.Course] = []
+    for parsed_course in parsed_courses:
+        course_name = str(parsed_course.get("name", "")).strip()
+        if not course_name:
+            continue
+
+        category = parsed_course.get("category") or utils.extract_category(course_name)
+        course_create = schemas.CourseCreate(name=course_name, credits=default_course_credit, category=category)
+        created_course = crud.create_course(
+            db=db,
+            course=course_create,
+            program_id=program_id,
+            semester_id=target_semester_id,
+        )
+        created_courses.append(created_course)
+
+        meetings = parsed_course.get("meetings", [])
+        if not isinstance(meetings, list) or len(meetings) == 0:
+            continue
+
+        import_course_schedule_from_ics(db, created_course, meetings)
+
+    db.commit()
+    for course in created_courses:
+        db.refresh(course)
+
+    return created_courses
+
 @app.get("/semesters/{semester_id}", response_model=schemas.SemesterWithDetails)
 def read_semester(semester_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     # Need to verify ownership via program -> user
@@ -2880,7 +2940,7 @@ def create_widget_for_semester(
 def create_widget_for_course(
     course_id: str, widget: schemas.WidgetCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
-    course = db.query(models.Course).join(models.Semester).join(models.Program).filter(
+    course = db.query(models.Course).join(models.Program).filter(
         models.Course.id == course_id, models.Program.owner_id == current_user.id
     ).first()
     if not course:
@@ -2891,14 +2951,14 @@ def create_widget_for_course(
 def update_widget(
     widget_id: str, widget: schemas.WidgetUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
-    # Verify ownership via semester -> program -> user OR course -> semester -> program -> user
+    # Verify ownership via semester -> program -> user OR course -> program -> user
     # Check Semester widget
     db_widget_sem = db.query(models.Widget).join(models.Semester).join(models.Program).filter(
         models.Widget.id == widget_id, models.Program.owner_id == current_user.id
     ).first()
     
     # Check Course widget
-    db_widget_course = db.query(models.Widget).join(models.Course).join(models.Semester).join(models.Program).filter(
+    db_widget_course = db.query(models.Widget).join(models.Course).join(models.Program).filter(
         models.Widget.id == widget_id, models.Program.owner_id == current_user.id
     ).first()
 
@@ -2921,7 +2981,7 @@ def delete_widget(
     ).first()
     
     # Check Course widget
-    db_widget_course = db.query(models.Widget).join(models.Course).join(models.Semester).join(models.Program).filter(
+    db_widget_course = db.query(models.Widget).join(models.Course).join(models.Program).filter(
         models.Widget.id == widget_id, models.Program.owner_id == current_user.id
     ).first()
 
@@ -2951,7 +3011,7 @@ def create_tab_for_semester(
 def create_tab_for_course(
     course_id: str, tab: schemas.TabCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
-    course = db.query(models.Course).join(models.Semester).join(models.Program).filter(
+    course = db.query(models.Course).join(models.Program).filter(
         models.Course.id == course_id, models.Program.owner_id == current_user.id
     ).first()
     if not course:
@@ -2965,7 +3025,7 @@ def update_tab(
     db_tab_sem = db.query(models.Tab).join(models.Semester).join(models.Program).filter(
         models.Tab.id == tab_id, models.Program.owner_id == current_user.id
     ).first()
-    db_tab_course = db.query(models.Tab).join(models.Course).join(models.Semester).join(models.Program).filter(
+    db_tab_course = db.query(models.Tab).join(models.Course).join(models.Program).filter(
         models.Tab.id == tab_id, models.Program.owner_id == current_user.id
     ).first()
     db_tab = db_tab_sem or db_tab_course
@@ -2980,7 +3040,7 @@ def delete_tab(
     db_tab_sem = db.query(models.Tab).join(models.Semester).join(models.Program).filter(
         models.Tab.id == tab_id, models.Program.owner_id == current_user.id
     ).first()
-    db_tab_course = db.query(models.Tab).join(models.Course).join(models.Semester).join(models.Program).filter(
+    db_tab_course = db.query(models.Tab).join(models.Course).join(models.Program).filter(
         models.Tab.id == tab_id, models.Program.owner_id == current_user.id
     ).first()
     db_tab = db_tab_sem or db_tab_course
