@@ -1,6 +1,6 @@
 # input:  [Canvas LMS provider config/credential payloads and requests-based Canvas REST access]
-# output: [Canvas-backed LMS provider adapter that validates connections, resolves user summaries, lists normalized courses, and reads assignments/calendar events with provider-specific due-date normalization]
-# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field mapping]
+# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, masks stored credentials, validates connections, resolves user summaries, lists normalized courses, and reads assignments/calendar events with provider-specific due-date normalization]
+# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field and credential mapping]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -39,6 +39,27 @@ def normalize_canvas_base_url(raw_value: str) -> str:
 class CanvasLmsProvider:
     provider = "canvas"
 
+    def normalize_integration_config(self, value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise LmsProviderError("LMS_CONFIG_INVALID", "config must be a JSON object.")
+        return {"base_url": normalize_canvas_base_url(str(value.get("base_url") or ""))}
+
+    def normalize_integration_credentials(self, value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise LmsProviderError("LMS_CREDENTIALS_INVALID", "credentials must be a JSON object.")
+        token = str(value.get("personal_access_token") or "").strip()
+        if not token:
+            raise LmsProviderError("LMS_CREDENTIALS_INVALID", "Canvas personal_access_token is required.")
+        return {"personal_access_token": token}
+
+    def mask_credentials(self, credentials: dict[str, Any]) -> Optional[str]:
+        raw_value = str(credentials.get("personal_access_token") or "").strip()
+        if not raw_value:
+            return None
+        visible_prefix = raw_value[:4]
+        hidden_length = max(4, len(raw_value) - len(visible_prefix))
+        return f"{visible_prefix}{'*' * hidden_length}"
+
     def _normalize_due_date(self, raw_value: Any) -> Optional[str]:
         if raw_value is None:
             return None
@@ -52,10 +73,8 @@ class CanvasLmsProvider:
         return parsed.date().isoformat()
 
     def _build_session(self, config: dict[str, Any], credentials: dict[str, Any]) -> tuple[str, requests.Session]:
-        base_url = normalize_canvas_base_url(str(config.get("base_url") or ""))
-        token = str(credentials.get("personal_access_token") or "").strip()
-        if not token:
-            raise LmsProviderError("LMS_CREDENTIALS_INVALID", "Canvas personal_access_token is required.")
+        base_url = self.normalize_integration_config(config)["base_url"]
+        token = self.normalize_integration_credentials(credentials)["personal_access_token"]
 
         session = requests.Session()
         session.headers.update({

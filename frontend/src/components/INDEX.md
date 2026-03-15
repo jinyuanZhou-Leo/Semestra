@@ -8,7 +8,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 |------|------|-------------|
 | __tests__/ | Subdirectory | Test cases for modules in this folder. |
 | landing/ | Subdirectory | Landing-page-only presentational components. |
-| settings/ | Subdirectory | Settings-specific component groupings such as LMS integration management. |
+| settings/ | Subdirectory | Settings-specific component groupings such as LMS integration management plus local provider-definition helpers that keep provider-specific wiring out of generic settings components. |
 | skeletons/ | Subdirectory | Loading skeleton component set. |
 | ui/ | Subdirectory | shadcn UI primitives (excluded from this documentation scope per request). |
 | widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome, edit-mode-only hover elevation, and forced delete affordances when plugin widgets become unavailable. |

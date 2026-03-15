@@ -1,6 +1,6 @@
 # input:  [Dataclasses, typing protocol helpers, and provider adapter implementations]
-# output: [Provider-neutral LMS DTOs, including normalized assignment due dates, error types, and provider registry resolution helpers]
-# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integrations, course links, assignments, and calendar reads]
+# output: [Provider-neutral LMS DTOs, provider adapter protocol methods for integration payload normalization and credential masking, error types, and provider registry resolution helpers]
+# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, assignments, and calendar reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -75,6 +75,15 @@ class LmsProviderError(Exception):
 
 class LmsProvider(Protocol):
     provider: str
+
+    def normalize_integration_config(self, value: Any) -> dict[str, Any]:
+        ...
+
+    def normalize_integration_credentials(self, value: Any) -> dict[str, Any]:
+        ...
+
+    def mask_credentials(self, credentials: dict[str, Any]) -> Optional[str]:
+        ...
 
     def validate_connection(self, config: dict[str, Any], credentials: dict[str, Any]) -> LmsConnectionSummaryData:
         ...

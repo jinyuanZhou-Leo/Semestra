@@ -93,20 +93,11 @@ def _integration_error(code: str | None, message: str | None) -> Optional[schema
     )
 
 
-def _mask_api_key(credentials: dict[str, Any]) -> Optional[str]:
-    raw_value = str(credentials.get("personal_access_token") or "").strip()
-    if not raw_value:
-        return None
-    visible_prefix = raw_value[:4]
-    hidden_length = max(4, len(raw_value) - len(visible_prefix))
-    return f"{visible_prefix}{'*' * hidden_length}"
-
-
 def _integration_to_schema(record: models.LmsIntegration) -> schemas.LmsIntegrationResponse:
     masked_api_key: Optional[str] = None
     if record.credentials_encrypted:
         try:
-            masked_api_key = _mask_api_key(_credentials_from_record(record))
+            masked_api_key = _provider_from_integration(record).mask_credentials(_credentials_from_record(record))
         except Exception:
             masked_api_key = None
     return schemas.LmsIntegrationResponse(
@@ -359,8 +350,10 @@ def create_integration(
     provider_impl = get_lms_provider(payload.provider)
 
     try:
-        summary = provider_impl.validate_connection(payload.config, payload.credentials)
-        encrypted_credentials = encrypt_credentials(payload.credentials)
+        config = provider_impl.normalize_integration_config(payload.config)
+        credentials = provider_impl.normalize_integration_credentials(payload.credentials)
+        summary = provider_impl.validate_connection(config, credentials)
+        encrypted_credentials = encrypt_credentials(credentials)
     except Exception as exc:
         raise _map_lms_exception(exc) from exc
 
@@ -368,7 +361,7 @@ def create_integration(
         user_id=user_id,
         display_name=payload.display_name,
         provider=provider_impl.provider,
-        config_json=json.dumps(payload.config, separators=(",", ":"), sort_keys=True),
+        config_json=json.dumps(config, separators=(",", ":"), sort_keys=True),
         credentials_encrypted=encrypted_credentials,
     )
     _set_record_connected(record)
@@ -397,8 +390,16 @@ def update_integration(
     if payload.config is not None or payload.credentials is not None:
         provider_impl = _provider_from_integration(record)
         try:
-            config = payload.config if payload.config is not None else _parse_json_dict(record.config_json)
-            credentials = payload.credentials if payload.credentials is not None else _credentials_from_record(record)
+            config = (
+                provider_impl.normalize_integration_config(payload.config)
+                if payload.config is not None
+                else _parse_json_dict(record.config_json)
+            )
+            credentials = (
+                provider_impl.normalize_integration_credentials(payload.credentials)
+                if payload.credentials is not None
+                else _credentials_from_record(record)
+            )
             summary = provider_impl.validate_connection(config, credentials)
             record.config_json = json.dumps(config, separators=(",", ":"), sort_keys=True)
             if payload.credentials is not None:
@@ -422,7 +423,9 @@ def update_integration(
 def validate_integration_draft(payload: schemas.LmsIntegrationValidationRequest) -> schemas.LmsIntegrationValidationResponse:
     provider_impl = get_lms_provider(payload.provider)
     try:
-        summary = provider_impl.validate_connection(payload.config, payload.credentials)
+        config = provider_impl.normalize_integration_config(payload.config)
+        credentials = provider_impl.normalize_integration_credentials(payload.credentials)
+        summary = provider_impl.validate_connection(config, credentials)
     except Exception as exc:
         raise _map_lms_exception(exc) from exc
     return schemas.LmsIntegrationValidationResponse(

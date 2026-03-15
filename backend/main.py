@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, schemas/models/crud/logic/utils/auth/lms modules, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance and all HTTP route handlers, including Program subject-color-map persistence, provider-neutral LMS integration endpoints, plugin-shared settings persistence, semester todo APIs, fact-oriented gradebook endpoints, and ICS-backed semester/course imports]
-# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, encrypted LMS connection APIs, persisted todo APIs, backup import/export, fact-only gradebook APIs, force-aware widget deletion, ICS-backed semester/course imports, and no runtime schema rewrite helpers]
+# output: [FastAPI app instance and all HTTP route handlers, including Program subject-color-map persistence, provider-neutral LMS integration endpoints, validated course reassignment routes, plugin-shared settings persistence, semester todo APIs, fact-oriented gradebook endpoints, and ICS-backed semester/course imports]
+# pos:    [Backend entry point and API orchestration layer, including auth-cookie session issuance, encrypted LMS connection APIs, validated course/semester ownership checks, persisted todo APIs, backup import/export, fact-only gradebook APIs, force-aware widget deletion, ICS-backed semester/course imports, and no runtime schema rewrite helpers]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -2015,7 +2015,15 @@ def update_course(
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
         
-    return crud.update_course(db=db, course_id=course_id, course_update=course)
+    try:
+        return crud.update_course(db=db, course_id=course_id, course_update=course)
+    except crud.CourseSemesterAssignmentError as exc:
+        if str(exc) == "SEMESTER_NOT_FOUND":
+            raise HTTPException(status_code=404, detail=error_detail("SEMESTER_NOT_FOUND", "Semester not found."))
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail("SEMESTER_PROGRAM_MISMATCH", "Semester does not belong to this course's Program."),
+        )
 
 @app.delete("/courses/{course_id}")
 def delete_course(
@@ -2027,8 +2035,7 @@ def delete_course(
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    db.delete(db_course)
-    db.commit()
+    crud.delete_course(db, course_id)
     return {"ok": True}
 
 

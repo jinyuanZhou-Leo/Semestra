@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy setup, backend LMS service/schema/crypto modules, and fake provider adapters]
-# output: [unit tests covering multi-integration LMS storage, Program/Course LMS link rules, imports, and read-only assignment/calendar contracts]
-# pos:    [backend regression tests for multi-integration LMS orchestration and Program/Course link behavior]
+# output: [unit tests covering multi-integration LMS storage, Program/Course LMS link rules, provider-backed imports, read-only assignment/calendar contracts, and program-level course stat/reassignment safeguards]
+# pos:    [backend regression tests for LMS orchestration plus program/course behaviors that interact with provider setup and semester assignment]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -42,6 +42,26 @@ class _FakeLmsProvider:
     def __init__(self) -> None:
         self.validation_fail = False
         self.last_list_courses_args = None
+
+    def normalize_integration_config(self, value):
+        if not isinstance(value, dict):
+            raise LmsProviderError("LMS_CONFIG_INVALID", "config must be a JSON object.")
+        base_url = str(value.get("base_url") or "").strip()
+        if not base_url:
+            raise LmsProviderError("LMS_CONFIG_INVALID", "base_url is required.")
+        return {"base_url": base_url.rstrip("/")}
+
+    def normalize_integration_credentials(self, value):
+        if not isinstance(value, dict):
+            raise LmsProviderError("LMS_CREDENTIALS_INVALID", "credentials must be a JSON object.")
+        token = str(value.get("personal_access_token") or "").strip()
+        if not token:
+            raise LmsProviderError("LMS_CREDENTIALS_INVALID", "personal_access_token is required.")
+        return {"personal_access_token": token}
+
+    def mask_credentials(self, credentials):
+        token = str(credentials.get("personal_access_token") or "").strip()
+        return f"{token[:4]}{'*' * max(4, len(token) - 4)}" if token else None
 
     def validate_connection(self, config, credentials):
         if self.validation_fail:
@@ -399,6 +419,75 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertTrue(all(item.course_name == course.name for item in semester_calendar.items))
         self.assertTrue(all(item.course_display_code == "CSC100" for item in semester_calendar.items))
         self.assertEqual({item.event_type_code for item in semester_calendar.items}, {"CALENDAR", "ASSIGNMENT"})
+
+    def test_program_level_course_recomputes_grade_scaled_without_semester(self) -> None:
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="Program Level", credits=0.5, grade_percentage=85),
+            self.program.id,
+            None,
+        )
+
+        self.assertIsNone(course.semester_id)
+        self.assertEqual(course.grade_scaled, 4.0)
+
+        updated = crud.update_course(
+            self.db,
+            course.id,
+            schemas.CourseUpdate(grade_percentage=80),
+        )
+
+        self.assertEqual(updated.grade_scaled, 3.7)
+
+    def test_removing_course_from_semester_recomputes_previous_semester_stats(self) -> None:
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="Assigned", credits=0.5, grade_percentage=80),
+            self.program.id,
+            self.semester.id,
+        )
+        self.db.refresh(self.semester)
+        self.assertEqual(self.semester.average_percentage, 80.0)
+        self.assertEqual(self.semester.average_scaled, 3.7)
+
+        updated = crud.update_course(
+            self.db,
+            course.id,
+            schemas.CourseUpdate(semester_id=None),
+        )
+
+        self.assertIsNone(updated.semester_id)
+        self.assertEqual(updated.grade_scaled, 3.7)
+        self.db.refresh(self.semester)
+        self.assertEqual(self.semester.average_percentage, 0.0)
+        self.assertEqual(self.semester.average_scaled, 0.0)
+
+    def test_course_cannot_move_to_semester_in_another_program(self) -> None:
+        other_program = crud.create_program(
+            self.db,
+            schemas.ProgramCreate(name="Other Program", lms_integration_id=None),
+            self.user.id,
+        )
+        other_semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(name="Other Semester"),
+            other_program.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="Algorithms", credits=0.5, category="CSC"),
+            self.program.id,
+            self.semester.id,
+        )
+
+        with self.assertRaises(crud.CourseSemesterAssignmentError) as context:
+            crud.update_course(
+                self.db,
+                course.id,
+                schemas.CourseUpdate(semester_id=other_semester.id),
+            )
+
+        self.assertEqual(str(context.exception), "SEMESTER_PROGRAM_MISMATCH")
 
 
 if __name__ == "__main__":

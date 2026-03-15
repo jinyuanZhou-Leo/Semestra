@@ -1,4 +1,4 @@
-# input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, and LMS URL normalization helpers]
+# input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
 # output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
 # pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, user preferences, plus todo and fact-only gradebook wire contracts]
 #
@@ -14,7 +14,7 @@ from typing import List, Optional, Any, Literal
 from enum import Enum
 from datetime import date
 
-from lms_canvas import normalize_canvas_base_url
+from lms_providers import get_lms_provider
 
 def _validate_single_widget_layout(value: Any, scope: str) -> None:
     if not isinstance(value, dict):
@@ -128,28 +128,17 @@ class GoogleAuthRequest(BaseModel):
 
 def _validate_lms_provider(value: str) -> str:
     normalized = value.strip().lower()
-    if normalized != "canvas":
-        raise ValueError("provider must currently be 'canvas'.")
+    try:
+        get_lms_provider(normalized)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
     return normalized
 
 
-def _validate_canvas_config_payload(value: Any) -> dict[str, Any]:
+def _validate_lms_json_object(field_name: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise ValueError("config must be a JSON object.")
-    try:
-        base_url = normalize_canvas_base_url(str(value.get("base_url") or ""))
-    except Exception as exc:
-        raise ValueError(str(exc)) from exc
-    return {"base_url": base_url}
-
-
-def _validate_canvas_credentials_payload(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ValueError("credentials must be a JSON object.")
-    token = str(value.get("personal_access_token") or "").strip()
-    if not token:
-        raise ValueError("credentials.personal_access_token is required.")
-    return {"personal_access_token": token}
+        raise ValueError(f"{field_name} must be a JSON object.")
+    return value
 
 
 class LmsIntegrationError(BaseModel):
@@ -192,11 +181,11 @@ class LmsIntegrationCreateRequest(BaseModel):
 
     @validator("config")
     def validate_config(cls, value: Any) -> dict[str, Any]:
-        return _validate_canvas_config_payload(value)
+        return _validate_lms_json_object("config", value)
 
     @validator("credentials")
     def validate_credentials(cls, value: Any) -> dict[str, Any]:
-        return _validate_canvas_credentials_payload(value)
+        return _validate_lms_json_object("credentials", value)
 
 
 class LmsIntegrationUpdateRequest(BaseModel):
@@ -217,13 +206,13 @@ class LmsIntegrationUpdateRequest(BaseModel):
     def validate_optional_config(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
         if value is None:
             return value
-        return _validate_canvas_config_payload(value)
+        return _validate_lms_json_object("config", value)
 
     @validator("credentials")
     def validate_optional_credentials(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
         if value is None:
             return value
-        return _validate_canvas_credentials_payload(value)
+        return _validate_lms_json_object("credentials", value)
 
     @model_validator(mode="after")
     def validate_update_pair(self) -> "LmsIntegrationUpdateRequest":
@@ -243,11 +232,11 @@ class LmsIntegrationValidationRequest(BaseModel):
 
     @validator("config")
     def validate_config(cls, value: Any) -> dict[str, Any]:
-        return _validate_canvas_config_payload(value)
+        return _validate_lms_json_object("config", value)
 
     @validator("credentials")
     def validate_credentials(cls, value: Any) -> dict[str, Any]:
-        return _validate_canvas_credentials_payload(value)
+        return _validate_lms_json_object("credentials", value)
 
 
 class LmsIntegrationResponse(BaseModel):

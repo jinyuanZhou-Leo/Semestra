@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, shared color helpers, and timezone/date helpers]
-# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, user settings including background plugin preload preference defaults, gradebook initialization, and stable Program subject-color synchronization]
-# pos:    [Database access layer for backend services, normalized user-setting persistence, and gradebook-backed course creation]
+# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, user settings including background plugin preload preference defaults, gradebook initialization, validated course-to-semester reassignment, and stable Program subject-color synchronization]
+# pos:    [Database access layer for backend services, normalized user-setting persistence, gradebook-backed course creation, and stat-safe course/semester mutations]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -29,6 +29,10 @@ BUILTIN_EVENT_TYPES = [
 
 
 class ProgramLmsDependencyError(Exception):
+    pass
+
+
+class CourseSemesterAssignmentError(Exception):
     pass
 
 def normalize_timezone(timezone_value: str | None) -> str:
@@ -334,6 +338,21 @@ def get_courses(db: Session, program_id: str, semester_id: str | None = None, un
 def get_course(db: Session, course_id: str):
     return db.query(models.Course).filter(models.Course.id == course_id).first()
 
+
+def _validate_course_semester_assignment(
+    db: Session,
+    course: models.Course,
+    semester_id: str | None,
+) -> None:
+    if semester_id is None:
+        return
+
+    target_semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if target_semester is None:
+        raise CourseSemesterAssignmentError("SEMESTER_NOT_FOUND")
+    if target_semester.program_id != course.program_id:
+        raise CourseSemesterAssignmentError("SEMESTER_PROGRAM_MISMATCH")
+
 def create_course(db: Session, course: schemas.CourseCreate, program_id: str, semester_id: str | None = None):
     db_course = models.Course(**course.model_dump(), program_id=program_id, semester_id=semester_id)
     db.add(db_course)
@@ -357,9 +376,7 @@ def create_course(db: Session, course: schemas.CourseCreate, program_id: str, se
         db.commit()
     db.refresh(db_course)
 
-    # Trigger logic
-    if semester_id:
-        logic.update_course_stats(db_course, db)
+    logic.update_course_stats(db_course, db)
     
     return db_course
 
@@ -367,8 +384,13 @@ def update_course(db: Session, course_id: str, course_update: schemas.CourseUpda
     db_course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if not db_course:
         return None
-    
-    for key, value in course_update.model_dump(exclude_unset=True).items():
+
+    previous_semester_id = db_course.semester_id
+    update_data = course_update.model_dump(exclude_unset=True)
+    if "semester_id" in update_data:
+        _validate_course_semester_assignment(db, db_course, update_data["semester_id"])
+
+    for key, value in update_data.items():
         setattr(db_course, key, value)
     if db_course.program:
         _sync_program_subject_color_map(db_course.program)
@@ -376,10 +398,36 @@ def update_course(db: Session, course_id: str, course_update: schemas.CourseUpda
     db.commit()
     db.refresh(db_course)
     
-    # Trigger logic
-    if db_course.semester_id:
-        logic.update_course_stats(db_course, db)
+    logic.update_course_stats(db_course, db)
+    if previous_semester_id and previous_semester_id != db_course.semester_id:
+        previous_semester = db.query(models.Semester).filter(models.Semester.id == previous_semester_id).first()
+        if previous_semester is not None:
+            logic.update_semester_stats(previous_semester, db)
     
+    return db_course
+
+
+def delete_course(db: Session, course_id: str):
+    db_course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if not db_course:
+        return None
+
+    previous_semester_id = db_course.semester_id
+    program_id = db_course.program_id
+    db.delete(db_course)
+    db.commit()
+
+    if previous_semester_id:
+        previous_semester = db.query(models.Semester).filter(models.Semester.id == previous_semester_id).first()
+        if previous_semester is not None:
+            logic.update_semester_stats(previous_semester, db)
+
+    if program_id:
+        program = db.query(models.Program).filter(models.Program.id == program_id).first()
+        if program is not None and _sync_program_subject_color_map(program):
+            db.add(program)
+            db.commit()
+
     return db_course
 
 def _ensure_widget_context(semester_id: str | None, course_id: str | None):

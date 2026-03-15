@@ -1,6 +1,6 @@
-// input:  [TanStack Query, LMS API service, CRUD panel/table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, dialog-context alerts, and provider-specific LMS assets]
+// input:  [TanStack Query, LMS API service, settings-local LMS provider definitions, CRUD panel/table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, and dialog-context alerts]
 // output: [`LmsIntegrationManager` component]
-// pos:    [settings-specific management surface for multiple saved LMS integrations with CRUD-table listing, icon-based row actions, save-time validation, and dialog-based create/edit/delete flows]
+// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving CRUD-table, validation, and dialog flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -43,40 +43,17 @@ import { ResponsiveDialogDrawer } from '@/components/ResponsiveDialogDrawer';
 import { useDialog } from '@/contexts/DialogContext';
 import api, { type LmsIntegrationResponse } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
-import canvasLogo from '@/assets/canvas-icon.png';
 import { cn } from '@/lib/utils';
-
-type SupportedProvider = 'canvas';
-
-interface ProviderDefinition {
-  value: SupportedProvider;
-  label: string;
-  logoSrc: string;
-  logoAlt: string;
-  instanceUrlLabel: string;
-  instanceUrlPlaceholder: string;
-  apiKeyLabel: string;
-  apiKeyPlaceholder: string;
-  description: string;
-}
-
-const LMS_PROVIDER_DEFINITIONS: Record<SupportedProvider, ProviderDefinition> = {
-  canvas: {
-    value: 'canvas',
-    label: 'Canvas',
-    logoSrc: canvasLogo,
-    logoAlt: 'Canvas',
-    instanceUrlLabel: 'Instance URL',
-    instanceUrlPlaceholder: 'https://canvas.instructure.com/',
-    apiKeyLabel: 'API Key',
-    apiKeyPlaceholder: 'Paste Canvas API key',
-    description: 'Reusable Canvas connections for Program-level LMS binding and Course linking.',
-  },
-};
+import {
+  getDefaultLmsProvider,
+  getLmsProviderDefinition,
+  getSupportedLmsProviderDefinitions,
+  type SupportedLmsProvider,
+} from './lmsProviderDefinitions';
 
 interface DraftState {
   id: string | null;
-  provider: SupportedProvider;
+  provider: SupportedLmsProvider;
   displayName: string;
   instanceUrl: string;
   apiKey: string;
@@ -87,39 +64,13 @@ interface DraftState {
 
 const EMPTY_DRAFT: DraftState = {
   id: null,
-  provider: 'canvas',
+  provider: getDefaultLmsProvider(),
   displayName: '',
   instanceUrl: '',
   apiKey: '',
   isEditingApiKey: false,
   hasApiKeyChange: false,
   maskedApiKey: '',
-};
-
-const normalizeCanvasBaseUrl = (value: string) => {
-  const trimmedValue = value.trim();
-  if (!trimmedValue) return null;
-
-  const candidate = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmedValue)
-    ? trimmedValue
-    : `https://${trimmedValue}`;
-
-  try {
-    const parsed = new URL(candidate);
-    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
-    if (!parsed.hostname || parsed.search || parsed.hash) return null;
-    if (parsed.pathname.replace(/\/+$/, '') === '/api/v1') return null;
-    parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-};
-
-const validateCanvasApiKey = (value: string) => {
-  if (!value) return false;
-  if (value.includes('@') || /\s/.test(value)) return false;
-  return value.length >= 8;
 };
 
 const resolveInlineApiErrorMessage = (error: unknown, fallback: string) => {
@@ -137,43 +88,6 @@ const resolveInlineApiErrorMessage = (error: unknown, fallback: string) => {
   }
   return fallback;
 };
-
-const getProviderDefinition = (provider: string | SupportedProvider): ProviderDefinition => {
-  if (provider in LMS_PROVIDER_DEFINITIONS) {
-    return LMS_PROVIDER_DEFINITIONS[provider as SupportedProvider];
-  }
-  return LMS_PROVIDER_DEFINITIONS.canvas;
-};
-
-const normalizeInstanceUrl = (provider: SupportedProvider, value: string) => {
-  switch (provider) {
-    case 'canvas':
-      return normalizeCanvasBaseUrl(value);
-    default:
-      return null;
-  }
-};
-
-const validateApiKey = (provider: SupportedProvider, value: string) => {
-  switch (provider) {
-    case 'canvas':
-      return validateCanvasApiKey(value);
-    default:
-      return false;
-  }
-};
-
-const maskApiKey = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  const visiblePrefix = trimmed.slice(0, 4);
-  const hiddenLength = Math.max(4, trimmed.length - visiblePrefix.length);
-  return `${visiblePrefix}${'*'.repeat(hiddenLength)}`;
-};
-
-const getIntegrationInstanceUrl = (integration: LmsIntegrationResponse) => (
-  typeof integration.config?.base_url === 'string' ? integration.config.base_url : ''
-);
 
 export const LmsIntegrationManager: React.FC = () => {
   const queryClient = useQueryClient();
@@ -230,19 +144,30 @@ export const LmsIntegrationManager: React.FC = () => {
   });
 
   const providerDefinition = useMemo(
-    () => getProviderDefinition(draft.provider),
+    () => getLmsProviderDefinition(draft.provider),
     [draft.provider],
   );
   const selectedIntegration = useMemo(
     () => integrationsQuery.data?.find((item) => item.id === draft.id) ?? null,
     [draft.id, integrationsQuery.data],
   );
-  const selectedInstanceUrl = selectedIntegration ? getIntegrationInstanceUrl(selectedIntegration) : '';
+  if (providerDefinition === null) {
+    throw new Error(`Unsupported LMS provider in draft: ${draft.provider}`);
+  }
+
+  const selectedProviderDefinition = selectedIntegration
+    ? getLmsProviderDefinition(selectedIntegration.provider)
+    : null;
+  const selectedInstanceUrl = selectedIntegration && selectedProviderDefinition
+    ? selectedProviderDefinition.getInstanceUrl(selectedIntegration)
+    : '';
   const normalizedApiKey = draft.apiKey.trim();
-  const normalizedInstanceUrl = normalizeInstanceUrl(draft.provider, draft.instanceUrl.trim());
+  const normalizedInstanceUrl = providerDefinition.normalizeInstanceUrl(draft.instanceUrl.trim());
   const displayNameValid = draft.displayName.trim().length > 0;
-  const apiKeyValid = validateApiKey(draft.provider, normalizedApiKey);
-  const displayedMaskedApiKey = draft.hasApiKeyChange ? maskApiKey(normalizedApiKey) : draft.maskedApiKey;
+  const apiKeyValid = providerDefinition.validateCredential(normalizedApiKey);
+  const displayedMaskedApiKey = draft.hasApiKeyChange
+    ? providerDefinition.maskCredential(normalizedApiKey)
+    : draft.maskedApiKey;
   const instanceUrlInvalid = touched && Boolean(draft.instanceUrl.trim()) && !normalizedInstanceUrl;
   const apiKeyInvalid = touched && Boolean(normalizedApiKey) && !apiKeyValid;
   const isBusy = createMutation.isPending
@@ -271,11 +196,21 @@ export const LmsIntegrationManager: React.FC = () => {
   };
 
   const openEditDialog = (integration: LmsIntegrationResponse) => {
+    const definition = getLmsProviderDefinition(integration.provider);
+    if (definition === null) {
+      void alert({
+        title: 'Unsupported provider',
+        description: `${integration.provider} is not supported by this settings UI.`,
+        confirmText: 'OK',
+      });
+      return;
+    }
+
     setDraft({
       id: integration.id,
-      provider: integration.provider as SupportedProvider,
+      provider: definition.value,
       displayName: integration.display_name,
-      instanceUrl: getIntegrationInstanceUrl(integration),
+      instanceUrl: definition.getInstanceUrl(integration),
       apiKey: '',
       isEditingApiKey: false,
       hasApiKeyChange: false,
@@ -331,15 +266,15 @@ export const LmsIntegrationManager: React.FC = () => {
 
     try {
       let response: LmsIntegrationResponse;
+      const configPayload = normalizedInstanceUrl ? providerDefinition.buildConfig(normalizedInstanceUrl) : null;
+      const credentialPayload = providerDefinition.buildCredentials(normalizedApiKey);
       if (draft.id) {
         if (needsConnectionUpdate && hasCredentialUpdate) {
           await validateDraftMutation.mutateAsync({
             provider: draft.provider,
-            config: { base_url: normalizedInstanceUrl! },
-            credentials: { personal_access_token: normalizedApiKey },
+            config: configPayload!,
+            credentials: credentialPayload,
           });
-        } else if (!needsConnectionUpdate) {
-          await validateSavedMutation.mutateAsync(draft.id);
         }
 
         response = await updateMutation.mutateAsync({
@@ -347,8 +282,8 @@ export const LmsIntegrationManager: React.FC = () => {
           payload: needsConnectionUpdate
             ? {
               display_name: draft.displayName.trim(),
-              config: { base_url: normalizedInstanceUrl! },
-              credentials: hasCredentialUpdate ? { personal_access_token: normalizedApiKey } : undefined,
+              config: configPayload!,
+              credentials: hasCredentialUpdate ? credentialPayload : undefined,
             }
             : {
               display_name: draft.displayName.trim(),
@@ -357,23 +292,23 @@ export const LmsIntegrationManager: React.FC = () => {
       } else {
         await validateDraftMutation.mutateAsync({
           provider: draft.provider,
-          config: { base_url: normalizedInstanceUrl! },
-          credentials: { personal_access_token: normalizedApiKey },
+          config: configPayload!,
+          credentials: credentialPayload,
         });
 
         response = await createMutation.mutateAsync({
           provider: draft.provider,
           display_name: draft.displayName.trim(),
-          config: { base_url: normalizedInstanceUrl! },
-          credentials: { personal_access_token: normalizedApiKey },
+          config: configPayload!,
+          credentials: credentialPayload,
         });
       }
 
       setDraft({
         id: response.id,
-        provider: response.provider as SupportedProvider,
+        provider: providerDefinition.value,
         displayName: response.display_name,
-        instanceUrl: getIntegrationInstanceUrl(response),
+        instanceUrl: providerDefinition.getInstanceUrl(response),
         apiKey: '',
         isEditingApiKey: false,
         hasApiKeyChange: false,
@@ -433,7 +368,7 @@ export const LmsIntegrationManager: React.FC = () => {
           </TableRow>
         )}
         renderRow={(integration) => {
-          const definition = getProviderDefinition(integration.provider);
+          const definition = getLmsProviderDefinition(integration.provider);
           const isRevalidating = revalidatingIntegrationId === integration.id;
           const isConnected = integration.status === 'connected';
           return (
@@ -443,10 +378,16 @@ export const LmsIntegrationManager: React.FC = () => {
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background p-2">
-                    <img src={definition.logoSrc} alt={definition.logoAlt} className="h-6 w-6 object-contain" />
-                  </div>
-                  <span className="text-sm font-medium">{definition.label}</span>
+                  {definition ? (
+                    <>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background p-2">
+                        <img src={definition.logoSrc} alt={definition.logoAlt} className="h-6 w-6 object-contain" />
+                      </div>
+                      <span className="text-sm font-medium">{definition.label}</span>
+                    </>
+                  ) : (
+                    <span className="text-sm font-medium">{integration.provider}</span>
+                  )}
                 </div>
               </TableCell>
               <TableCell>
@@ -474,6 +415,7 @@ export const LmsIntegrationManager: React.FC = () => {
                     variant="outline"
                     aria-label={`Edit ${integration.display_name}`}
                     title={`Edit ${integration.display_name}`}
+                    disabled={!definition}
                     onClick={() => openEditDialog(integration)}
                   >
                     <Pencil className="size-4" />
@@ -533,7 +475,7 @@ export const LmsIntegrationManager: React.FC = () => {
                   value={draft.provider}
                   disabled={Boolean(draft.id)}
                   onValueChange={(value) => {
-                    setDraft((current) => ({ ...current, provider: value as SupportedProvider }));
+                    setDraft((current) => ({ ...current, provider: value as SupportedLmsProvider }));
                     setTouched(true);
                     resetFeedback();
                   }}
@@ -542,7 +484,7 @@ export const LmsIntegrationManager: React.FC = () => {
                     <SelectValue placeholder="Select LMS type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.values(LMS_PROVIDER_DEFINITIONS).map((definition) => (
+                    {getSupportedLmsProviderDefinitions().map((definition) => (
                       <SelectItem key={definition.value} value={definition.value}>
                         {definition.label}
                       </SelectItem>
