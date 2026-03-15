@@ -1,6 +1,6 @@
 // input:  [all-day calendar event data, precomputed labels/colors, view-context flags, and optional todo completion callback]
-// output: [`CalendarAllDayEventContent` component for all-day events across month and week views, including todo completion radios and gradebook icons]
-// pos:    [Calendar event-content leaf component dedicated to all-day event presentation with view-specific month/week handling, tighter pill sizing, todo toggle affordances, and gradebook iconography]
+// output: [`CalendarAllDayEventContent` component for all-day events across month and week views, including todo completion radios, optional subtitles, and gradebook icons]
+// pos:    [Calendar event-content leaf component dedicated to all-day event presentation with view-specific month/week handling, tighter pill sizing, todo toggle affordances, optional subtitles, and gradebook iconography]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -20,6 +20,7 @@ import type { CalendarEventData } from '../../../shared/types';
 interface CalendarAllDayEventContentProps {
   event: CalendarEventData;
   primaryLabel: string;
+  secondaryLabel?: string | null;
   resolvedAccentColor: string;
   showConflictLabel: boolean;
   isRecurring: boolean;
@@ -30,6 +31,7 @@ interface CalendarAllDayEventContentProps {
 export const CalendarAllDayEventContent: React.FC<CalendarAllDayEventContentProps> = ({
   event,
   primaryLabel,
+  secondaryLabel,
   resolvedAccentColor,
   showConflictLabel,
   isRecurring,
@@ -137,6 +139,11 @@ export const CalendarAllDayEventContent: React.FC<CalendarAllDayEventContentProp
         >
           {showConflictLabel ? `Conflict · ${primaryLabel}` : primaryLabel}
         </span>
+        {!isMonthView && secondaryLabel ? (
+          <span className="mt-0.5 block truncate text-[10px] font-medium leading-none text-muted-foreground">
+            {secondaryLabel}
+          </span>
+        ) : null}
       </div>
       {isRecurring ? (
         <span className="inline-flex shrink-0" style={{ color: resolvedAccentColor }} aria-label="Recurring event" role="img">

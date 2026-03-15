@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Edit, Trash2, Plus } from 'lucide-react';
+import { Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { definePluginSettings } from '@/plugin-system/contracts';

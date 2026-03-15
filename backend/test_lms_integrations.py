@@ -108,6 +108,7 @@ class _FakeLmsProvider:
                 title="Problem Set",
                 description=None,
                 due_at="2026-02-01T12:00:00Z",
+                due_date="2026-02-01",
                 unlock_at=None,
                 lock_at=None,
                 html_url="https://canvas.example.edu/assignments/1",
@@ -392,8 +393,12 @@ class LmsIntegrationTests(unittest.TestCase):
 
         self.assertEqual(assignments.items[0].course_id, course.id)
         self.assertEqual(assignments.items[0].course_name, course.name)
-        self.assertEqual(semester_calendar.items[0].course_id, course.id)
-        self.assertEqual(semester_calendar.items[0].course_name, course.name)
+        self.assertEqual(assignments.items[0].course_display_code, "CSC100")
+        self.assertEqual(len(semester_calendar.items), 2)
+        self.assertTrue(all(item.course_id == course.id for item in semester_calendar.items))
+        self.assertTrue(all(item.course_name == course.name for item in semester_calendar.items))
+        self.assertTrue(all(item.course_display_code == "CSC100" for item in semester_calendar.items))
+        self.assertEqual({item.event_type_code for item in semester_calendar.items}, {"CALENDAR", "ASSIGNMENT"})
 
 
 if __name__ == "__main__":

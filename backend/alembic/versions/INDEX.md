@@ -14,3 +14,4 @@ Keep downgrade steps practical, but prioritize accurate forward migrations for a
 | 20260314_0005_add_course_resource_links.py | Schema migration | Extends `course_resource_files` with link-only resource fields so Course Resources can store external URLs without local file bytes. |
 | 20260314_0006_add_lms_integrations.py | Schema migration | Adds provider-neutral `lms_integrations` rows for encrypted LMS connection storage. |
 | 20260314_0007_expand_lms_integrations.py | Schema migration | Expands LMS support to multiple integrations per user, Program-level LMS selection, and dedicated `course_lms_links` metadata. |
+| 20260315_0008_add_gradebook_lms_assignment_source.py | Schema migration | Adds optional LMS provenance columns on `gradebook_assessments` so one-time LMS assignment imports can avoid duplicate local rows without enabling sync. |

@@ -1,6 +1,6 @@
 // input:  [precomputed standard calendar event labels, colors, recurrence state, optional metadata, time text, and view-context flags]
 // output: [`CalendarStandardEventContent` component for non-all-day events across month and week views]
-// pos:    [Calendar event-content leaf component dedicated to standard timed events with month-chip and week-card variants plus unified metadata rows]
+// pos:    [Calendar event-content leaf component dedicated to standard timed events with month-chip and week-card variants, optional subtitles, and unified metadata rows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 interface CalendarStandardEventContentProps {
   primaryLabel: string;
+  secondaryLabel?: string | null;
   resolvedAccentColor: string;
   showConflictLabel: boolean;
   isRecurring: boolean;
@@ -27,6 +28,7 @@ interface CalendarStandardEventContentProps {
 
 export const CalendarStandardEventContent: React.FC<CalendarStandardEventContentProps> = ({
   primaryLabel,
+  secondaryLabel,
   resolvedAccentColor,
   showConflictLabel,
   isRecurring,
@@ -68,14 +70,21 @@ export const CalendarStandardEventContent: React.FC<CalendarStandardEventContent
   return (
     <div className="flex h-full min-w-0 flex-col gap-1.5">
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <div
-          className={cn(
-            'semestra-calendar-event-title truncate text-[13px] font-semibold leading-[1.15]',
-            showConflictLabel ? 'semestra-calendar-event-title--conflict text-destructive' : null,
-          )}
-          style={!showConflictLabel ? { ['--semestra-event-title-color' as string]: resolvedAccentColor } : undefined}
-        >
-          {primaryLabel}
+        <div className="min-w-0 space-y-1">
+          <div
+            className={cn(
+              'semestra-calendar-event-title truncate text-[13px] font-semibold leading-[1.15]',
+              showConflictLabel ? 'semestra-calendar-event-title--conflict text-destructive' : null,
+            )}
+            style={!showConflictLabel ? { ['--semestra-event-title-color' as string]: resolvedAccentColor } : undefined}
+          >
+            {primaryLabel}
+          </div>
+          {secondaryLabel ? (
+            <div className="truncate text-[11px] font-medium leading-none text-muted-foreground">
+              {secondaryLabel}
+            </div>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {isRecurring ? (

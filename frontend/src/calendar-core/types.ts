@@ -1,6 +1,6 @@
 // input:  [React-facing calendar consumers, source loaders, todo completion metadata, and event refresh signals]
 // output: [shared calendar-core event/source/context type contracts]
-// pos:    [standalone calendar domain contract layer used by Calendar UI and external source registrations]
+// pos:    [standalone calendar domain contract layer used by Calendar UI and external source registrations, including optional event subtitles]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,6 +18,7 @@ export interface CalendarEventData {
   eventId: string;
   sourceId: string;
   title: string;
+  subtitle?: string | null;
   courseId: string;
   courseName: string;
   eventTypeCode: string;

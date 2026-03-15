@@ -1,5 +1,5 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, and LMS URL normalization helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
 # pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, user preferences, plus todo and fact-only gradebook wire contracts]
 #
 # ⚠️ When this file is updated:
@@ -368,9 +368,11 @@ class LmsAssignmentSummary(BaseModel):
     external_id: str
     course_id: str
     course_name: str
+    course_display_code: str
     title: str
     description: Optional[str] = None
     due_at: Optional[str] = None
+    due_date: Optional[date] = None
     unlock_at: Optional[str] = None
     lock_at: Optional[str] = None
     html_url: Optional[str] = None
@@ -387,6 +389,7 @@ class LmsCalendarEventSummary(BaseModel):
     source_id: str
     course_id: str
     course_name: str
+    course_display_code: str
     title: str
     description: Optional[str] = None
     location: Optional[str] = None

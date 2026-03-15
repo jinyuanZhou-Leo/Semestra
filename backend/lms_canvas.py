@@ -1,6 +1,6 @@
 # input:  [Canvas LMS provider config/credential payloads and requests-based Canvas REST access]
-# output: [Canvas-backed LMS provider adapter that validates connections, resolves user summaries, lists normalized courses, and reads assignments/calendar events]
-# pos:    [Provider-specific adapter layer for the first LMS integration implementation]
+# output: [Canvas-backed LMS provider adapter that validates connections, resolves user summaries, lists normalized courses, and reads assignments/calendar events with provider-specific due-date normalization]
+# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field mapping]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -37,6 +38,18 @@ def normalize_canvas_base_url(raw_value: str) -> str:
 
 class CanvasLmsProvider:
     provider = "canvas"
+
+    def _normalize_due_date(self, raw_value: Any) -> Optional[str]:
+        if raw_value is None:
+            return None
+        normalized = str(raw_value).strip()
+        if not normalized:
+            return None
+        try:
+            parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed.date().isoformat()
 
     def _build_session(self, config: dict[str, Any], credentials: dict[str, Any]) -> tuple[str, requests.Session]:
         base_url = normalize_canvas_base_url(str(config.get("base_url") or ""))
@@ -122,11 +135,13 @@ class CanvasLmsProvider:
 
     def _normalize_assignment(self, payload: dict[str, Any]) -> LmsAssignmentSummaryData:
         submission_types = payload.get("submission_types")
+        due_at = payload.get("due_at")
         return LmsAssignmentSummaryData(
             external_id=str(payload.get("id") or ""),
             title=str(payload.get("name") or "").strip() or "Assignment",
             description=payload.get("description"),
-            due_at=payload.get("due_at"),
+            due_at=due_at,
+            due_date=self._normalize_due_date(due_at),
             unlock_at=payload.get("unlock_at"),
             lock_at=payload.get("lock_at"),
             html_url=payload.get("html_url"),
@@ -144,9 +159,9 @@ class CanvasLmsProvider:
             return None
 
         start_at = payload.get("start_at")
-        end_at = payload.get("end_at")
-        if not start_at or not end_at:
+        if not start_at:
             return None
+        end_at = payload.get("end_at") or start_at
 
         workflow_state = str(payload.get("workflow_state") or "").strip().upper()
         event_type_code = str(payload.get("type") or payload.get("workflow_state") or "LMS").strip().upper() or "LMS"

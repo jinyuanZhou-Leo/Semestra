@@ -162,6 +162,16 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
       ));
   }, [eventsWithOptimisticPatches, semesterContext.semesterRange, settings.eventColors]);
 
+  const handleManualRefresh = React.useCallback(async () => {
+    if (!semesterId) return;
+    await Promise.all([
+      semesterContext.reload(),
+      reloadMatchingSources({
+        type: 'manual',
+      }),
+    ]);
+  }, [reloadMatchingSources, semesterContext, semesterId]);
+
   const handleToggleTodoCompleted = React.useCallback(async (event: CalendarEventData, completed: boolean) => {
     if (!semesterId) return;
 
@@ -304,9 +314,11 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           displayWeekNumber={navigation.displayWeekNumber}
           displayMaxWeek={navigation.displayMaxWeek}
           isReadingWeek={navigation.shouldShowReadingWeekLabel}
+          isRefreshing={semesterContext.isLoading || areSourcesLoading}
           onPrevious={navigation.handleNavigatePrevious}
           onNext={navigation.handleNavigateNext}
           onToday={navigation.handleToday}
+          onRefresh={() => void handleManualRefresh()}
           onViewModeChange={navigation.handleViewModeChange}
         />
 

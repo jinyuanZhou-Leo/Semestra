@@ -1,6 +1,6 @@
-// input:  [calendar period state, display week metadata, and calendar navigation callbacks]
-// output: [`CalendarToolbar` control bar for calendar navigation, view switching, and stable period summary display]
-// pos:    [Calendar header controls that use a unified shadcn-style toolbar layout with a compact single-shell Reading Week-aware period summary]
+// input:  [calendar period state, display week metadata, refresh state, and calendar navigation callbacks]
+// output: [`CalendarToolbar` control bar for calendar navigation, refresh, view switching, and stable period summary display]
+// pos:    [Calendar header controls that use a unified shadcn-style toolbar layout with a compact single-shell Reading Week-aware summary and explicit manual refresh]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,7 +9,7 @@
 "use no memo";
 
 import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -25,9 +25,11 @@ interface CalendarToolbarProps {
   displayWeekNumber: number | null;
   displayMaxWeek: number;
   isReadingWeek: boolean;
+  isRefreshing: boolean;
   onPrevious: () => void;
   onNext: () => void;
   onToday: () => void;
+  onRefresh: () => void;
   onViewModeChange: (viewMode: CalendarViewMode) => void;
 }
 
@@ -41,9 +43,11 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
   displayWeekNumber,
   displayMaxWeek,
   isReadingWeek,
+  isRefreshing,
   onPrevious,
   onNext,
   onToday,
+  onRefresh,
   onViewModeChange,
 }) => {
   const safeMaxWeek = Math.max(1, maxWeek);
@@ -116,11 +120,22 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
             Month
           </ToggleGroupItem>
         </ToggleGroup>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isRefreshing}
+          onClick={onRefresh}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       <div
         data-slot="calendar-period-summary"
-        className="flex min-w-[208px] items-center justify-end gap-1.5 rounded-md border bg-background px-3 py-1.5 shadow-xs sm:ml-auto sm:min-w-[236px]"
+        className="flex items-center justify-end gap-1.5 rounded-md border bg-background px-3 py-1.5 shadow-xs sm:ml-auto"
       >
         <span
           data-slot="calendar-period-badge"

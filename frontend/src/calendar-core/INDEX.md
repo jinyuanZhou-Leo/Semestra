@@ -9,4 +9,4 @@ Calendar UI consumes this layer as a read-only extension boundary.
 | INDEX.md | Architecture index | Local map for calendar-core contracts and registry services. |
 | index.ts | Public entry | Re-exports standalone Calendar source APIs and shared contracts. |
 | registry.ts | Registry service | Stores registered Calendar sources by owner, replaces registrations safely, and exposes a React subscription hook. |
-| types.ts | Contract types | Defines Calendar events, source definitions, refresh signals including gradebook assessment updates, optional todo completion metadata, and semester-range context shared across Calendar consumers. |
+| types.ts | Contract types | Defines Calendar events, source definitions, refresh signals including gradebook assessment updates, optional event subtitles, optional todo completion metadata, and semester-range context shared across Calendar consumers. |

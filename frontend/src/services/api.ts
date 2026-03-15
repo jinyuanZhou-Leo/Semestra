@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, and widget delete options]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, and fact-oriented course gradebook APIs]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs, and one-time LMS gradebook imports]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -215,9 +215,11 @@ export interface LmsAssignmentSummary {
     external_id: string;
     course_id: string;
     course_name: string;
+    course_display_code: string;
     title: string;
     description?: string | null;
     due_at?: string | null;
+    due_date?: string | null;
     unlock_at?: string | null;
     lock_at?: string | null;
     html_url?: string | null;
@@ -234,6 +236,7 @@ export interface LmsCalendarEventSummary {
     source_id: string;
     course_id: string;
     course_name: string;
+    course_display_code: string;
     title: string;
     description?: string | null;
     location?: string | null;
@@ -681,7 +684,6 @@ const api = {
         const response = await axios.put<CourseGradebook>(`/api/courses/${courseId}/gradebook/assessments/reorder`, data);
         return response.data;
     },
-
     // Auth
     updateUser: async (data: any) => {
         const response = await axios.put<User>('/api/users/me', data);

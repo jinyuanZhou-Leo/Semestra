@@ -1,12 +1,25 @@
 // input:  [initial course fields (name/alias/category/custom color/credits/GPA flags), resolved Program default color metadata, LMS link state and available LMS courses, color picker UI, and auto-save callback]
 // output: [`CourseSettingsPanel` component]
-// pos:    [Settings form section for editing per-course metadata, LMS link/sync actions, a stable-layout optional custom color override, GPA participation, and shadcn Field-based form structure with debounced auto-save]
+// pos:    [Settings form section for editing per-course metadata, a clearer LMS link/sync status flow, a stable-layout optional custom color override, GPA participation, and shadcn Field-based form structure with debounced auto-save]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +30,7 @@ import { SettingsSection } from "./SettingsSection";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { cn } from "@/lib/utils";
 import { normalizeSubjectCode, resolveCourseSubjectCode } from "@/utils/courseCategoryBadge";
+import canvasLogo from "@/assets/canvas-icon.png";
 import {
   Field,
   FieldContent,
@@ -26,6 +40,7 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import type { LmsCourseLinkSummary, LmsCourseSummary } from "@/services/api";
+import { Link2, RefreshCw, Unplug } from "lucide-react";
 
 const COURSE_COLOR_PRESETS: readonly ColorPickerPreset[] = [
   { name: 'Blue', value: '#2563eb' },
@@ -37,6 +52,13 @@ const COURSE_COLOR_PRESETS: readonly ColorPickerPreset[] = [
   { name: 'Amber', value: '#ca8a04' },
   { name: 'Sky', value: '#0ea5e9' },
 ];
+
+const LMS_PROVIDER_ICONS: Record<string, { src: string; alt: string }> = {
+  canvas: {
+    src: canvasLogo,
+    alt: "Canvas",
+  },
+};
 
 interface CourseSettingsPanelProps {
   initialName: string;
@@ -237,6 +259,49 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   const shouldShowCategoryUpdate = Boolean(
     suggestedCategory && suggestedCategory !== normalizedCurrentCategory,
   );
+  const hasLmsLink = Boolean(lmsLink);
+  const canApplyLmsLink = Boolean(
+    selectedLmsCourseId
+    && onLinkCourse
+    && !isLmsBusy
+    && selectedLmsCourseId !== lmsLink?.external_course_id,
+  );
+  const syncButtonDisabled = !lmsLink || !onSyncCourseLink || isLmsBusy || !lmsSyncEnabled;
+  const linkedCourseLabel = lmsLink
+    ? `${lmsLink.external_name || lmsLink.external_course_id}${lmsLink.external_course_code ? ` (${lmsLink.external_course_code})` : ""}`
+    : "No LMS course linked yet.";
+  const linkedProviderIcon = lmsLink ? LMS_PROVIDER_ICONS[lmsLink.provider] : null;
+  const relativeLastRefresh = lmsLink?.last_synced_at
+    ? formatDistanceToNow(new Date(lmsLink.last_synced_at), { addSuffix: true })
+    : null;
+
+  const handleApplyLmsLink = async () => {
+    if (!selectedLmsCourseId || !onLinkCourse) return;
+    setIsLmsBusy(true);
+    try {
+      await onLinkCourse({
+        external_course_id: selectedLmsCourseId,
+        sync_enabled: lmsSyncEnabled,
+      });
+    } finally {
+      setIsLmsBusy(false);
+    }
+  };
+
+  const handleToggleLmsSync = async (nextValue: boolean) => {
+    if (!lmsLink || !onSyncCourseLink || isLmsBusy) return;
+    const previousValue = lmsSyncEnabled;
+    setLmsSyncEnabled(nextValue);
+    setIsLmsBusy(true);
+    try {
+      await onSyncCourseLink({ sync_enabled: nextValue });
+    } catch (error) {
+      setLmsSyncEnabled(previousValue);
+      throw error;
+    } finally {
+      setIsLmsBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -375,109 +440,158 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
       <SettingsSection title="LMS" description="Link this course to an external LMS course and refresh its read-only LMS data.">
         <FieldSet>
           <FieldGroup>
+            <div className="min-h-[96px] rounded-xl border border-border/70 bg-muted/20 p-4">
+              <div className="flex h-full flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div className="min-w-0 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {lmsLink?.last_error?.message ? (
+                      <Badge variant="outline" className="text-destructive">
+                        Sync issue
+                      </Badge>
+                    ) : null}
+                    {hasLmsLink && !lmsSyncEnabled ? (
+                      <Badge variant="outline">Sync off</Badge>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      {linkedProviderIcon ? (
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border/70 bg-background p-0.5">
+                          <img
+                            src={linkedProviderIcon.src}
+                            alt={linkedProviderIcon.alt}
+                            className="h-3.5 w-3.5 object-contain"
+                          />
+                        </span>
+                      ) : null}
+                      <span className="min-w-0 truncate">{linkedCourseLabel}</span>
+                    </p>
+                    <p className="min-h-5 text-sm text-muted-foreground">
+                      {!lmsIntegrationEnabled
+                        ? "Configure an LMS integration on the Program before linking courses."
+                        : lmsLink?.last_error?.message
+                          ? lmsLink.last_error.message
+                          : relativeLastRefresh
+                            ? `Last refreshed ${relativeLastRefresh}`
+                            : "Linking keeps LMS assignments and calendar events available without changing your local course data."}
+                    </p>
+                  </div>
+                </div>
+                {lmsLink ? (
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={syncButtonDisabled}
+                      onClick={async () => {
+                        if (!onSyncCourseLink) return;
+                        setIsLmsBusy(true);
+                        try {
+                          await onSyncCourseLink({ sync_enabled: lmsSyncEnabled });
+                        } finally {
+                          setIsLmsBusy(false);
+                        }
+                      }}
+                    >
+                      <RefreshCw className={cn("mr-2 h-4 w-4", isLmsBusy && "animate-spin")} />
+                      Sync Now
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={!onUnlinkCourse || isLmsBusy}
+                        >
+                          <Unplug className="mr-2 h-4 w-4" />
+                          Disconnect
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent size="sm">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Disconnect LMS course?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This course will keep its local data, but LMS assignments and calendar events will stop refreshing until you link it again.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isLmsBusy}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            disabled={isLmsBusy}
+                            onClick={async () => {
+                              if (!onUnlinkCourse) return;
+                              setIsLmsBusy(true);
+                              try {
+                                await onUnlinkCourse();
+                              } finally {
+                                setIsLmsBusy(false);
+                              }
+                            }}
+                          >
+                            Disconnect
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
             <Field className="max-w-sm">
-              <FieldLabel htmlFor={`${fieldId}-lms-course`}>Linked LMS Course</FieldLabel>
-              <NativeSelect
-                id={`${fieldId}-lms-course`}
-                className="w-full"
-                value={selectedLmsCourseId || "__none__"}
-                onChange={(event) => setSelectedLmsCourseId(event.target.value === "__none__" ? "" : event.target.value)}
-                disabled={!lmsIntegrationEnabled || availableLmsCourses.length === 0 || isLmsBusy}
-              >
-                <NativeSelectOption value="__none__">Select an LMS course</NativeSelectOption>
-                {availableLmsCourses.map((courseOption) => (
-                  <NativeSelectOption key={courseOption.external_id} value={courseOption.external_id}>
-                    {courseOption.name}{courseOption.course_code ? ` (${courseOption.course_code})` : ""}
+              <FieldLabel htmlFor={`${fieldId}-lms-course`}>
+                {hasLmsLink ? "Change linked LMS course" : "Link an LMS course"}
+              </FieldLabel>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <NativeSelect
+                  id={`${fieldId}-lms-course`}
+                  className="w-full"
+                  value={selectedLmsCourseId || "__none__"}
+                  onChange={(event) => setSelectedLmsCourseId(event.target.value === "__none__" ? "" : event.target.value)}
+                  disabled={!lmsIntegrationEnabled || availableLmsCourses.length === 0 || isLmsBusy}
+                >
+                  <NativeSelectOption value="__none__">
+                    {hasLmsLink ? "Choose another LMS course" : "Choose an LMS course"}
                   </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                  {availableLmsCourses.map((courseOption) => (
+                    <NativeSelectOption key={courseOption.external_id} value={courseOption.external_id}>
+                      {courseOption.name}{courseOption.course_code ? ` (${courseOption.course_code})` : ""}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+                <Button
+                  type="button"
+                  className="shrink-0"
+                  disabled={!canApplyLmsLink}
+                  onClick={() => void handleApplyLmsLink()}
+                >
+                  <Link2 className="mr-2 h-4 w-4" />
+                  {hasLmsLink ? "Update Link" : "Link Course"}
+                </Button>
+              </div>
               <FieldDescription>
                 {!lmsIntegrationEnabled
-                  ? "Configure an LMS integration on the Program before linking courses."
-                  : "Linking keeps LMS assignments and calendar events available without changing your local course data."}
+                  ? "Program LMS integration is required before you can link this course."
+                  : "Choose the LMS course that should supply assignments and calendar events for this course."}
               </FieldDescription>
             </Field>
 
             <Field orientation="responsive" className="max-w-sm">
               <FieldContent>
-                <FieldLabel htmlFor={`${fieldId}-lms-sync-enabled`}>LMS Sync Enabled</FieldLabel>
+                <FieldLabel htmlFor={`${fieldId}-lms-sync-enabled`}>Keep LMS data refreshed</FieldLabel>
                 <FieldDescription>
-                  Disable this if you want to keep the link but stop LMS refreshes for this course.
+                  Turn this off to keep the link but stop LMS refreshes for this course.
                 </FieldDescription>
               </FieldContent>
               <Switch
                 id={`${fieldId}-lms-sync-enabled`}
                 checked={lmsSyncEnabled}
-                onCheckedChange={setLmsSyncEnabled}
-                disabled={isLmsBusy || (!lmsLink && !selectedLmsCourseId)}
+                onCheckedChange={(checked) => void handleToggleLmsSync(checked)}
+                disabled={isLmsBusy || !lmsLink || !onSyncCourseLink}
               />
             </Field>
-
-            <Field>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!selectedLmsCourseId || !onLinkCourse || isLmsBusy}
-                  onClick={async () => {
-                    if (!selectedLmsCourseId || !onLinkCourse) return;
-                    setIsLmsBusy(true);
-                    try {
-                      await onLinkCourse({
-                        external_course_id: selectedLmsCourseId,
-                        sync_enabled: lmsSyncEnabled,
-                      });
-                    } finally {
-                      setIsLmsBusy(false);
-                    }
-                  }}
-                >
-                  {lmsLink ? 'Relink LMS Course' : 'Link LMS Course'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!lmsLink || !onSyncCourseLink || isLmsBusy}
-                  onClick={async () => {
-                    if (!onSyncCourseLink) return;
-                    setIsLmsBusy(true);
-                    try {
-                      await onSyncCourseLink({ sync_enabled: lmsSyncEnabled });
-                    } finally {
-                      setIsLmsBusy(false);
-                    }
-                  }}
-                >
-                  Sync Now
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={!lmsLink || !onUnlinkCourse || isLmsBusy}
-                  onClick={async () => {
-                    if (!onUnlinkCourse) return;
-                    setIsLmsBusy(true);
-                    try {
-                      await onUnlinkCourse();
-                    } finally {
-                      setIsLmsBusy(false);
-                    }
-                  }}
-                >
-                  Unlink
-                </Button>
-              </div>
-            </Field>
-
-            {lmsLink ? (
-              <Field className="max-w-xl">
-                <FieldDescription>
-                  {lmsLink.integration_display_name} · {lmsLink.external_name || lmsLink.external_course_id}
-                  {lmsLink.last_synced_at ? ` · Last synced ${new Date(lmsLink.last_synced_at).toLocaleString()}` : ""}
-                  {lmsLink.last_error?.message ? ` · ${lmsLink.last_error.message}` : ""}
-                </FieldDescription>
-              </Field>
-            ) : null}
           </FieldGroup>
         </FieldSet>
       </SettingsSection>

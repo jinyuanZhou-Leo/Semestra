@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, LMS ORM models, CRUD/user-setting helpers, versioned crypto helpers, provider registry, and API schema payloads]
 # output: [Provider-agnostic LMS integration, Program binding, Course link, import, assignment, and calendar service functions]
-# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, and local Course/Program ownership rules]
+# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, and local course-display-code mapping]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -10,10 +10,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import re
 from typing import Any, Iterable, Optional
 
 from sqlalchemy.orm import Session
 
+import color_utils
 import crud
 import models
 import schemas
@@ -31,6 +33,7 @@ from lms_providers import (
 
 
 CANVAS_CALENDAR_CONTEXT_BATCH_SIZE = 10
+COURSE_CODE_PATTERN = re.compile(r"\b([A-Za-z]{2,6})[\s-]*([0-9]{2,4}[A-Za-z0-9]*)\b")
 
 
 class LmsServiceError(Exception):
@@ -152,6 +155,58 @@ def _course_link_to_schema(record: models.CourseLmsLink) -> schemas.LmsCourseLin
         sync_enabled=bool(record.sync_enabled),
         last_synced_at=record.last_synced_at,
         last_error=_integration_error(record.last_error_code, record.last_error_message),
+    )
+
+
+def _resolve_course_display_code(course: models.Course) -> str:
+    for candidate in [course.alias, course.name]:
+        if not candidate:
+            continue
+        match = COURSE_CODE_PATTERN.search(candidate.strip())
+        if match:
+            return f"{match.group(1).upper()}{match.group(2).upper()}"
+    subject_code = color_utils.resolve_subject_code(category=course.category, alias=course.alias, name=course.name)
+    if subject_code:
+        return subject_code
+    if course.alias and course.alias.strip():
+        return course.alias.strip()
+    return course.name.strip()
+
+
+def _calendar_identity(
+    *,
+    external_course_id: str,
+    title: str,
+    start_at: str,
+    html_url: str | None,
+    event_type_code: str,
+) -> tuple[str, str, str, str, str]:
+    return (
+        external_course_id,
+        (html_url or "").strip(),
+        title.strip(),
+        start_at.strip(),
+        event_type_code.strip().upper(),
+    )
+
+
+def _assignment_to_calendar_event(
+    course: models.Course,
+    assignment: LmsAssignmentSummaryData,
+) -> LmsCalendarEventSummaryData | None:
+    if not assignment.due_at:
+        return None
+    return LmsCalendarEventSummaryData(
+        external_id=f"assignment:{assignment.external_id}",
+        external_course_id=course.lms_link.external_course_id,
+        title=assignment.title,
+        description=assignment.description,
+        location=None,
+        start_at=assignment.due_at,
+        end_at=assignment.due_at,
+        all_day=False,
+        html_url=assignment.html_url,
+        event_type_code="ASSIGNMENT",
     )
 
 
@@ -750,9 +805,11 @@ def list_course_assignments(
                     external_id=item.external_id,
                     course_id=course.id,
                     course_name=course.name,
+                    course_display_code=_resolve_course_display_code(course),
                     title=item.title,
                     description=item.description,
                     due_at=item.due_at,
+                    due_date=item.due_date,
                     unlock_at=item.unlock_at,
                     lock_at=item.lock_at,
                     html_url=item.html_url,
@@ -822,6 +879,17 @@ def list_semester_calendar_events(
                     end_at=end_at,
                 )
             )
+        assignment_events: list[LmsCalendarEventSummaryData] = []
+        for course in linked_courses:
+            assignments = provider_impl.list_assignments(
+                config,
+                credentials,
+                course.lms_link.external_course_id,
+            )
+            for assignment in assignments:
+                normalized = _assignment_to_calendar_event(course, assignment)
+                if normalized is not None:
+                    assignment_events.append(normalized)
         _set_record_connected(integration)
         db.add(integration)
         for course in linked_courses:
@@ -843,18 +911,34 @@ def list_semester_calendar_events(
         db.commit()
         raise mapped from exc
 
+    merged_events: list[LmsCalendarEventSummaryData] = []
+    seen_identities: set[tuple[str, str, str, str, str]] = set()
+    for item in [*provider_events, *assignment_events]:
+        identity = _calendar_identity(
+            external_course_id=item.external_course_id,
+            title=item.title,
+            start_at=item.start_at,
+            html_url=item.html_url,
+            event_type_code=item.event_type_code,
+        )
+        if identity in seen_identities:
+            continue
+        seen_identities.add(identity)
+        merged_events.append(item)
+
     items: list[schemas.LmsCalendarEventSummary] = []
-    for item in provider_events:
+    for item in merged_events:
         course = external_course_map.get(item.external_course_id)
         if course is None:
             continue
         items.append(
-            schemas.LmsCalendarEventSummary(
-                external_id=item.external_id,
-                source_id=f"lms:{integration.id}",
-                course_id=course.id,
-                course_name=course.name,
-                title=item.title,
+                schemas.LmsCalendarEventSummary(
+                    external_id=item.external_id,
+                    source_id=f"lms:{integration.id}",
+                    course_id=course.id,
+                    course_name=course.name,
+                    course_display_code=_resolve_course_display_code(course),
+                    title=item.title,
                 description=item.description,
                 location=item.location,
                 start_at=item.start_at,

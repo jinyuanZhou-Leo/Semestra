@@ -1,6 +1,6 @@
 // input:  [calendar event data, FullCalendar time text, view-context flags, and optional todo completion callback]
 // output: [`CalendarEventContent` layout selector that delegates to all-day and standard Calendar event-content components]
-// pos:    [Calendar event-content coordinator that computes shared display state before choosing the all-day or standard event layout component]
+// pos:    [Calendar event-content coordinator that computes shared display state, including optional subtitles, before choosing the all-day or standard event layout component]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -48,6 +48,7 @@ export const CalendarEventContent: React.FC<CalendarEventContentProps> = ({
   const showConflictLabel = highlightConflicts && event.isConflict;
   const isMonthView = viewType === 'dayGridMonth';
   const primaryLabel = getPrimaryEventLabel(event);
+  const secondaryLabel = event.subtitle?.trim() || null;
   const location = getEventLocation(event);
   const durationMinutes = getEventDurationMinutes(event);
   const showLocation = !isMonthView && Boolean(location);
@@ -61,6 +62,7 @@ export const CalendarEventContent: React.FC<CalendarEventContentProps> = ({
       <CalendarAllDayEventContent
         event={event}
         primaryLabel={primaryLabel}
+        secondaryLabel={secondaryLabel}
         resolvedAccentColor={resolvedAccentColor}
         showConflictLabel={showConflictLabel}
         isRecurring={event.isRecurring}
@@ -73,6 +75,7 @@ export const CalendarEventContent: React.FC<CalendarEventContentProps> = ({
   return (
     <CalendarStandardEventContent
       primaryLabel={primaryLabel}
+      secondaryLabel={secondaryLabel}
       resolvedAccentColor={resolvedAccentColor}
       showConflictLabel={showConflictLabel}
       isRecurring={event.isRecurring}

@@ -1,6 +1,6 @@
 // input:  [calendar-core source contracts, LMS calendar API, cached semester data, and semester date helpers]
 // output: [built-in LMS Calendar source definition]
-// pos:    [read-only Calendar source adapter that maps semester-scoped LMS events into calendar-core event data]
+// pos:    [read-only Calendar source adapter that maps semester-scoped LMS events into calendar-core event data with local course-code titles and LMS event subtitles]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -38,7 +38,8 @@ const buildLmsCalendarEvent = (
     id: `lms:${item.course_id}:${item.external_id}:${item.start_at}`,
     eventId: item.external_id,
     sourceId: BUILTIN_CALENDAR_SOURCE_LMS,
-    title: item.title.trim() || 'LMS Event',
+    title: item.course_display_code.trim() || item.course_name.trim() || 'LMS',
+    subtitle: item.title.trim() || null,
     courseId: item.course_id,
     courseName: item.course_name,
     eventTypeCode: item.event_type_code || 'LMS',

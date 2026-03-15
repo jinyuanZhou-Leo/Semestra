@@ -1,5 +1,5 @@
 # input:  [Dataclasses, typing protocol helpers, and provider adapter implementations]
-# output: [Provider-neutral LMS DTOs, error types, and provider registry resolution helpers]
+# output: [Provider-neutral LMS DTOs, including normalized assignment due dates, error types, and provider registry resolution helpers]
 # pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integrations, course links, assignments, and calendar reads]
 #
 # ⚠️ When this file is updated:
@@ -43,6 +43,7 @@ class LmsAssignmentSummaryData:
     title: str
     description: Optional[str]
     due_at: Optional[str]
+    due_date: Optional[str]
     unlock_at: Optional[str]
     lock_at: Optional[str]
     html_url: Optional[str]

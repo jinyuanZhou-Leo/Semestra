@@ -1,6 +1,6 @@
 // input:  [course context, parent Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, Program-derived default course colors, Course LMS link/sync controls, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -523,8 +523,13 @@ const CourseHomepageContent: React.FC = () => {
         await Promise.all([
             refreshCourse(),
             queryClient.invalidateQueries({ queryKey: queryKeys.courses.lmsLink(course.id) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.courses.lmsAssignments(course.id) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.courses.gradebook(course.id) }),
             course.program_id
                 ? queryClient.invalidateQueries({ queryKey: queryKeys.programs.lmsCourses(course.program_id, { mode: 'link-picker' }) })
+                : Promise.resolve(),
+            course.semester_id
+                ? queryClient.invalidateQueries({ queryKey: queryKeys.semesters.lmsAssignments(course.semester_id) })
                 : Promise.resolve(),
             course.semester_id
                 ? queryClient.invalidateQueries({ queryKey: queryKeys.semesters.lmsCalendarEvents(course.semester_id) })

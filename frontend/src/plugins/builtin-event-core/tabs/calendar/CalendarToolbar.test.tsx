@@ -23,9 +23,11 @@ describe('CalendarToolbar', () => {
         displayWeekNumber={8}
         displayMaxWeek={15}
         isReadingWeek={false}
+        isRefreshing={false}
         onPrevious={vi.fn()}
         onNext={vi.fn()}
         onToday={vi.fn()}
+        onRefresh={vi.fn()}
         onViewModeChange={vi.fn()}
       />,
     );
@@ -54,9 +56,11 @@ describe('CalendarToolbar', () => {
         displayWeekNumber={null}
         displayMaxWeek={15}
         isReadingWeek
+        isRefreshing={false}
         onPrevious={vi.fn()}
         onNext={vi.fn()}
         onToday={vi.fn()}
+        onRefresh={vi.fn()}
         onViewModeChange={vi.fn()}
       />,
     );

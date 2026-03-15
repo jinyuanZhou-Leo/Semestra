@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, multi-integration LMS records, Program/Course LMS link metadata, context-scoped plugin shared settings, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, multi-integration LMS connection storage, Program/Course LMS link metadata, plugin-shared settings, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, multi-integration LMS records, Program/Course LMS link metadata, gradebook LMS-import provenance fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, multi-integration LMS connection storage, Program/Course LMS link metadata, gradebook import provenance, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -268,6 +268,12 @@ class GradebookAssessment(Base):
     __tablename__ = "gradebook_assessments"
     __table_args__ = (
         Index("ix_gradebook_assessments_gradebook_order", "gradebook_id", "order_index"),
+        UniqueConstraint(
+            "gradebook_id",
+            "source_kind",
+            "source_external_id",
+            name="uq_gradebook_assessments_gradebook_source",
+        ),
     )
 
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
@@ -277,6 +283,8 @@ class GradebookAssessment(Base):
     due_date = Column(Date, nullable=True)
     weight = Column(Float, nullable=False, default=0.0)
     score = Column(Float, nullable=True)
+    source_kind = Column(String, nullable=True, index=True)
+    source_external_id = Column(String, nullable=True, index=True)
     order_index = Column(Integer, nullable=False, default=0)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
