@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, user preferences, plus todo and fact-only gradebook wire contracts]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, range-scoped calendar payloads, user preferences, plus todo and fact-only gradebook wire contracts]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -1024,6 +1024,15 @@ class ScheduleEventItem(BaseModel):
 class ScheduleResponse(BaseModel):
     week: int
     max_week: int = Field(alias="maxWeek")
+    items: List[ScheduleEventItem]
+    warnings: List[str] = []
+
+    class Config:
+        populate_by_name = True
+
+class ScheduleRangeResponse(BaseModel):
+    start: date
+    end: date
     items: List[ScheduleEventItem]
     warnings: List[str] = []
 

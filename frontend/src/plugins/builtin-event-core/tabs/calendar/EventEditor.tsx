@@ -1,6 +1,6 @@
 // input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, source label, and save callback]
-// output: [`EventEditor` modal for source-aware skip editing plus conflict context]
-// pos:    [Calendar detail dialog that explains schedule conflicts while editing occurrence skip state with Reading Week-aware labels]
+// output: [`EventEditor` modal for source-aware event details plus optional skip editing and conflict context]
+// pos:    [Calendar detail dialog that explains schedule conflicts while optionally editing occurrence skip state with Reading Week-aware labels]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { looksLikeHtml, sanitizeHtmlFragment } from '@/lib/html';
 import type { CalendarEventData, CalendarEventPatch } from '@/calendar-core';
 
 interface EventEditorProps {
@@ -22,6 +23,7 @@ interface EventEditorProps {
   onOpenChange: (open: boolean) => void;
   event: CalendarEventData | null;
   sourceLabel: string;
+  canEdit: boolean;
   conflictingEvents?: CalendarEventData[];
   formatWeekLabel?: (week: number) => string;
   onSave: (eventId: string, patch: CalendarEventPatch) => Promise<void>;
@@ -32,12 +34,16 @@ export const EventEditor: React.FC<EventEditorProps> = ({
   onOpenChange,
   event,
   sourceLabel,
+  canEdit,
   conflictingEvents = [],
   formatWeekLabel,
   onSave,
 }) => {
   const [isSkipped, setIsSkipped] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
+  const sanitizedDescription = React.useMemo(() => (
+    looksLikeHtml(event?.note) ? sanitizeHtmlFragment(event?.note) : ''
+  ), [event?.note]);
   const conflictingPeers = React.useMemo(() => {
     if (!event?.conflictGroupId) return [];
     return conflictingEvents.filter((item) => item.id !== event.id);
@@ -68,16 +74,32 @@ export const EventEditor: React.FC<EventEditorProps> = ({
             Event Details
             <Badge variant="secondary">{sourceLabel}</Badge>
           </DialogTitle>
-          <DialogDescription>Update visibility for this event.</DialogDescription>
+          <DialogDescription>
+            {canEdit ? 'Review details and update visibility for this event.' : 'Review details for this read-only event.'}
+          </DialogDescription>
         </DialogHeader>
 
         {!event ? null : (
           <div className="space-y-4">
-            <div className="rounded-md border p-3">
+            <div>
               <p className="font-medium">{event.title}</p>
+              {event.subtitle ? (
+                <p className="mt-1 text-sm text-muted-foreground">{event.subtitle}</p>
+              ) : null}
               <p className="mt-1 text-sm text-muted-foreground">
                 {formatWeekLabel ? formatWeekLabel(event.week) : `Week ${event.week}`}, {event.start.toLocaleDateString()} {event.startTime}-{event.endTime}
               </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {event.courseName}
+              </p>
+              {event.note ? (
+                <div
+                  className="mt-3 h-48 overflow-y-auto rounded border bg-muted/30 px-3 py-2 text-sm text-foreground/90 [&_a]:text-primary [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-medium [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:rounded [&_pre]:bg-background/80 [&_pre]:p-2 [&_ul]:list-disc [&_ul]:pl-5]"
+                  dangerouslySetInnerHTML={sanitizedDescription ? { __html: sanitizedDescription } : undefined}
+                >
+                  {sanitizedDescription ? null : event.note}
+                </div>
+              ) : null}
             </div>
 
             {event.isConflict ? (
@@ -109,27 +131,31 @@ export const EventEditor: React.FC<EventEditorProps> = ({
               </div>
             ) : null}
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="event-editor-skip" className="cursor-pointer">Skip this event</Label>
-                  <p className="text-xs text-muted-foreground">Skipped events can be grayed or hidden in calendar settings.</p>
+            {canEdit ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="event-editor-skip" className="cursor-pointer">Skip this event</Label>
+                    <p className="text-xs text-muted-foreground">Skipped events can be grayed or hidden in calendar settings.</p>
+                  </div>
+                  <Switch
+                    id="event-editor-skip"
+                    checked={isSkipped}
+                    onCheckedChange={setIsSkipped}
+                  />
                 </div>
-                <Switch
-                  id="event-editor-skip"
-                  checked={isSkipped}
-                  onCheckedChange={setIsSkipped}
-                />
               </div>
-            </div>
+            ) : null}
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-                Cancel
+              <Button type="button" variant={canEdit ? 'outline' : 'default'} onClick={() => onOpenChange(false)} disabled={isSaving}>
+                {canEdit ? 'Cancel' : 'Close'}
               </Button>
-              <Button type="button" onClick={() => void handleSave()} disabled={isSaving}>
-                {isSaving ? 'Saving...' : 'Save'}
-              </Button>
+              {canEdit ? (
+                <Button type="button" onClick={() => void handleSave()} disabled={isSaving}>
+                  {isSaving ? 'Saving...' : 'Save'}
+                </Button>
+              ) : null}
             </div>
           </div>
         )}

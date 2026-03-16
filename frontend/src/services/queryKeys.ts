@@ -1,6 +1,6 @@
 // input:  [resource identifiers and request parameter objects from frontend data hooks]
 // output: [`queryKeys` factory for stable TanStack Query cache keys across pages, contexts, and plugins]
-// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, LMS, and plugin data]
+// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, LMS, and range-scoped calendar data]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -20,8 +20,17 @@ export const queryKeys = {
     schedule: (semesterId: string, params: { mode: string; week: number; withConflicts: boolean }) => (
       ['semesters', semesterId, 'schedule', params] as const
     ),
+    calendarSchedule: (semesterId: string, params?: Record<string, unknown>) => (
+      params
+        ? ['semesters', semesterId, 'calendar-schedule', params] as const
+        : ['semesters', semesterId, 'calendar-schedule'] as const
+    ),
     lmsAssignments: (semesterId: string) => ['semesters', semesterId, 'lms-assignments'] as const,
-    lmsCalendarEvents: (semesterId: string) => ['semesters', semesterId, 'lms-calendar-events'] as const,
+    lmsCalendarEvents: (semesterId: string, params?: Record<string, unknown>) => (
+      params
+        ? ['semesters', semesterId, 'lms-calendar-events', params] as const
+        : ['semesters', semesterId, 'lms-calendar-events'] as const
+    ),
   },
   courses: {
     detail: (courseId: string) => ['courses', 'detail', courseId] as const,

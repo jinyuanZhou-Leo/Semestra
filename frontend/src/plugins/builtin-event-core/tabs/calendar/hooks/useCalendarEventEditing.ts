@@ -1,6 +1,6 @@
 // input:  [calendar events, source definitions, source context, and save-success side effects]
-// output: [`useCalendarEventEditing()` hook exposing editor state, optimistic patches, and save handlers]
-// pos:    [calendar edit-flow hook that keeps source-aware editability and optimistic skip updates out of CalendarTab]
+// output: [`useCalendarEventEditing()` hook exposing detail-dialog state, optimistic patches, and save handlers]
+// pos:    [calendar edit-flow hook that keeps source-aware detail/edit behavior and optimistic skip updates out of CalendarTab]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -32,6 +32,7 @@ export const useCalendarEventEditing = ({
 }: UseCalendarEventEditingOptions) => {
   const [selectedEvent, setSelectedEvent] = React.useState<CalendarEventData | null>(null);
   const [selectedSourceLabel, setSelectedSourceLabel] = React.useState('Schedule');
+  const [isSelectedEventEditable, setIsSelectedEventEditable] = React.useState(false);
   const [isEventEditorOpen, setIsEventEditorOpen] = React.useState(false);
   const [optimisticPatches, setOptimisticPatches] = React.useState<Map<string, CalendarEventPatch>>(new Map());
 
@@ -65,13 +66,9 @@ export const useCalendarEventEditing = ({
 
   const handleEventClick = React.useCallback((event: CalendarEventData) => {
     const source = sourceById.get(event.sourceId);
-    if (!source?.applyEventPatch) {
-      toast.message(`${source?.label ?? 'This source'} items are read-only in calendar.`);
-      return;
-    }
-
     setSelectedEvent(event);
-    setSelectedSourceLabel(source.label);
+    setSelectedSourceLabel(source?.label ?? 'Calendar');
+    setIsSelectedEventEditable(Boolean(source?.applyEventPatch));
     setIsEventEditorOpen(true);
   }, [sourceById]);
 
@@ -124,6 +121,7 @@ export const useCalendarEventEditing = ({
   return {
     selectedEvent,
     selectedSourceLabel,
+    isSelectedEventEditable,
     isEventEditorOpen,
     setIsEventEditorOpen,
     eventsWithOptimisticPatches,

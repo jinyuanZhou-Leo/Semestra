@@ -1,6 +1,6 @@
 // input:  [React-facing calendar consumers, source loaders, todo completion metadata, and event refresh signals]
 // output: [shared calendar-core event/source/context type contracts]
-// pos:    [standalone calendar domain contract layer used by Calendar UI and external source registrations, including optional event subtitles]
+// pos:    [standalone calendar domain contract layer used by Calendar UI and external source registrations, including optional event subtitles and buffered query ranges]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,6 +11,11 @@ export interface SemesterDateRange {
   endDate: Date;
   readingWeekStart: Date | null;
   readingWeekEnd: Date | null;
+}
+
+export interface CalendarQueryRange {
+  start: Date;
+  end: Date;
 }
 
 export interface CalendarEventData {
@@ -53,6 +58,8 @@ export interface CalendarSourceContext {
   semesterId: string;
   semesterRange: SemesterDateRange;
   maxWeek: number;
+  queryRange: CalendarQueryRange;
+  prefetchQueryRanges?: CalendarQueryRange[];
 }
 
 export type CalendarRefreshSignal =

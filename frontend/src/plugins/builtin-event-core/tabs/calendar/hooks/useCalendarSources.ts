@@ -1,6 +1,6 @@
 // input:  [calendar source registry entries, semester calendar context, and refresh signals]
 // output: [`useCalendarSources()` hook exposing merged source data plus targeted reload helpers]
-// pos:    [calendar orchestration hook that independently loads and refreshes registered sources]
+// pos:    [calendar orchestration hook that independently loads and refreshes registered sources with per-source progressive commits]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -60,10 +60,9 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
   });
   const requestCounterRef = React.useRef(0);
 
-  const replaceSourceState = React.useCallback((
-    targetSourceIds: string[],
-    nextEntries: Array<{ sourceId: string; events: CalendarEventData[] }>,
-    nextErrors: Array<{ sourceId: string; error: Error }>,
+  const commitSourceEvents = React.useCallback((
+    sourceId: string,
+    events: CalendarEventData[],
     requestId: number,
   ) => {
     if (requestCounterRef.current !== requestId) return;
@@ -73,19 +72,32 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       const errorBySourceId = new Map(current.errorBySourceId);
       const loadingSourceIds = new Set(current.loadingSourceIds);
 
-      for (const sourceId of targetSourceIds) {
-        dataBySourceId.delete(sourceId);
-        errorBySourceId.delete(sourceId);
-        loadingSourceIds.delete(sourceId);
-      }
+      dataBySourceId.set(sourceId, events);
+      errorBySourceId.delete(sourceId);
+      loadingSourceIds.delete(sourceId);
 
-      for (const entry of nextEntries) {
-        dataBySourceId.set(entry.sourceId, entry.events);
-      }
+      return {
+        dataBySourceId,
+        errorBySourceId,
+        loadingSourceIds,
+      };
+    });
+  }, []);
 
-      for (const entry of nextErrors) {
-        errorBySourceId.set(entry.sourceId, entry.error);
-      }
+  const commitSourceError = React.useCallback((
+    sourceId: string,
+    error: Error,
+    requestId: number,
+  ) => {
+    if (requestCounterRef.current !== requestId) return;
+
+    setState((current) => {
+      const dataBySourceId = new Map(current.dataBySourceId);
+      const errorBySourceId = new Map(current.errorBySourceId);
+      const loadingSourceIds = new Set(current.loadingSourceIds);
+
+      errorBySourceId.set(sourceId, error);
+      loadingSourceIds.delete(sourceId);
 
       return {
         dataBySourceId,
@@ -108,40 +120,22 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       loadingSourceIds: new Set([...current.loadingSourceIds, ...targetSourceIds]),
     }));
 
-    const settledResults = await Promise.allSettled(
+    await Promise.allSettled(
       targetSources.map(async (source) => {
         try {
-          return {
-            sourceId: source.id,
-            events: await source.load(context),
-          };
+          const events = await source.load(context);
+          commitSourceEvents(source.id, events, requestId);
         } catch (error) {
-          throw {
-            sourceId: source.id,
-            error,
-          };
+          commitSourceError(
+            source.id,
+            error instanceof Error ? error : new Error(String(error)),
+            requestId,
+          );
+          throw error;
         }
       }),
     );
-
-    const nextEntries: Array<{ sourceId: string; events: CalendarEventData[] }> = [];
-    const nextErrors: Array<{ sourceId: string; error: Error }> = [];
-
-    for (const result of settledResults) {
-      if (result.status === 'fulfilled') {
-        nextEntries.push(result.value);
-        continue;
-      }
-
-      const payload = result.reason as { sourceId?: string; error?: unknown } | undefined;
-      nextErrors.push({
-        sourceId: payload?.sourceId ?? targetSourceIds[nextErrors.length] ?? 'unknown',
-        error: payload?.error instanceof Error ? payload.error : new Error(String(payload?.error ?? result.reason)),
-      });
-    }
-
-    replaceSourceState(targetSourceIds, nextEntries, nextErrors, requestId);
-  }, [context, replaceSourceState]);
+  }, [commitSourceError, commitSourceEvents, context]);
 
   React.useEffect(() => {
     if (!context) {

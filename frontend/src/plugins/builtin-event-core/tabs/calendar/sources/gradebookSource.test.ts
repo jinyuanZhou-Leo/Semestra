@@ -28,6 +28,10 @@ describe('builtinGradebookCalendarSource', () => {
       readingWeekEnd: null,
     },
     maxWeek: 16,
+    queryRange: {
+      start: new Date('2026-01-05T00:00:00'),
+      end: new Date('2026-05-07T00:00:00'),
+    },
   };
 
   it('maps only assessments with due dates into all-day calendar events', async () => {

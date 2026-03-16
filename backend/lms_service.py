@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, LMS ORM models, CRUD/user-setting helpers, versioned crypto helpers, provider registry, and API schema payloads]
-# output: [Provider-agnostic LMS integration, Program binding, Course link, import, assignment, and calendar service functions]
-# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, and local course-display-code mapping]
+# output: [Provider-agnostic LMS integration, Program binding, Course link, import, assignment, and range-filtered calendar service functions]
+# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, and semester calendar range filtering]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 import re
 from typing import Any, Iterable, Optional
@@ -179,6 +179,39 @@ def _calendar_identity(
         start_at.strip(),
         event_type_code.strip().upper(),
     )
+
+def _parse_provider_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if normalized.endswith("Z"):
+        normalized = f"{normalized[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+def _calendar_event_in_range(
+    event: LmsCalendarEventSummaryData,
+    start_date: date,
+    end_date: date,
+) -> bool:
+    start_dt = _parse_provider_datetime(event.start_at)
+    end_dt = _parse_provider_datetime(event.end_at) or start_dt
+    if start_dt is None and end_dt is None:
+        return False
+    effective_start = start_dt or end_dt
+    effective_end = end_dt or start_dt
+    if effective_start is None or effective_end is None:
+        return False
+    range_start = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+    range_end = datetime.combine(end_date, datetime.min.time(), tzinfo=timezone.utc)
+    return effective_start < range_end and effective_end >= range_start
 
 
 def _assignment_to_calendar_event(
@@ -853,22 +886,29 @@ def list_semester_calendar_events(
     db: Session,
     user_id: str,
     semester_id: str,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> schemas.LmsCalendarEventListResponse:
     semester = _require_semester_record(db, user_id, semester_id)
     program = _require_program_record(db, user_id, semester.program_id)
     if not program.lms_integration_id:
-        raise LmsServiceError("PROGRAM_LMS_NOT_CONFIGURED", "Program does not have an LMS integration configured.", status_code=422)
+        return schemas.LmsCalendarEventListResponse(items=[])
     integration = _require_integration_record(db, user_id, program.lms_integration_id)
 
     linked_courses = [course for course in semester.courses if course.lms_link is not None and course.lms_link.sync_enabled]
     if not linked_courses:
         return schemas.LmsCalendarEventListResponse(items=[])
 
+    effective_start = start_date or semester.start_date
+    effective_end = end_date or (semester.end_date + timedelta(days=1))
+    if effective_start >= effective_end:
+        raise LmsServiceError("INVALID_DATE_RANGE", "start must be earlier than end.", status_code=422)
+
     external_course_map = {course.lms_link.external_course_id: course for course in linked_courses}
     context_codes = [f"course_{external_id}" for external_id in external_course_map.keys()]
     provider_impl, config, credentials = _integration_runtime(integration)
-    start_at = semester.start_date.isoformat() if semester.start_date is not None else None
-    end_at = semester.end_date.isoformat() if semester.end_date is not None else None
+    start_at = effective_start.isoformat()
+    end_at = effective_end.isoformat()
 
     try:
         provider_events: list[LmsCalendarEventSummaryData] = []
@@ -891,7 +931,7 @@ def list_semester_calendar_events(
             )
             for assignment in assignments:
                 normalized = _assignment_to_calendar_event(course, assignment)
-                if normalized is not None:
+                if normalized is not None and _calendar_event_in_range(normalized, effective_start, effective_end):
                     assignment_events.append(normalized)
         _set_record_connected(integration)
         db.add(integration)
@@ -917,6 +957,8 @@ def list_semester_calendar_events(
     merged_events: list[LmsCalendarEventSummaryData] = []
     seen_identities: set[tuple[str, str, str, str, str]] = set()
     for item in [*provider_events, *assignment_events]:
+        if not _calendar_event_in_range(item, effective_start, effective_end):
+            continue
         identity = _calendar_identity(
             external_course_id=item.external_course_id,
             title=item.title,

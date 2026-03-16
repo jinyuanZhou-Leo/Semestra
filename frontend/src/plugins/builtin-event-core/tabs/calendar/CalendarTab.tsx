@@ -96,8 +96,10 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
       semesterId,
       semesterRange: semesterContext.semesterRange,
       maxWeek: semesterContext.maxWeek,
+      queryRange: navigation.queryRange,
+      prefetchQueryRanges: navigation.prefetchQueryRanges,
     };
-  }, [semesterContext.isReady, semesterContext.maxWeek, semesterContext.semesterRange, semesterId]);
+  }, [navigation.prefetchQueryRanges, navigation.queryRange, semesterContext.isReady, semesterContext.maxWeek, semesterContext.semesterRange, semesterId]);
   const {
     events,
     errorBySourceId,
@@ -110,6 +112,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
   const {
     selectedEvent,
     selectedSourceLabel,
+    isSelectedEventEditable,
     isEventEditorOpen,
     setIsEventEditorOpen,
     eventsWithOptimisticPatches,
@@ -353,6 +356,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           onOpenChange={setIsEventEditorOpen}
           event={selectedEvent}
           sourceLabel={selectedSourceLabel}
+          canEdit={isSelectedEventEditable}
           conflictingEvents={selectedEvent ? (conflictGroups.get(conflictOccurrenceKey(selectedEvent) ?? '') ?? []) : []}
           formatWeekLabel={navigation.formatWeekLabel}
           onSave={handleSaveEvent}

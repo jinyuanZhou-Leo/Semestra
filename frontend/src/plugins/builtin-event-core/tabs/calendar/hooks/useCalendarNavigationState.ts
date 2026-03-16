@@ -1,6 +1,6 @@
 // input:  [semester id, semester range, max-week bounds, and DST-safe shared calendar date helpers]
-// output: [`useCalendarNavigationState()` hook exposing stable week/month navigation state and labels]
-// pos:    [calendar navigation hook that isolates toolbar/view state from source loading and edit flows with DST-safe academic week math]
+// output: [`useCalendarNavigationState()` hook exposing stable week/month navigation state, labels, and buffered query ranges]
+// pos:    [calendar navigation hook that isolates toolbar/view state from source loading and edit flows with DST-safe academic week math and view-aware fetch windows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -43,6 +43,22 @@ const clampWeek = (week: number, maxWeek: number) => {
   const upperBound = Math.max(1, maxWeek);
   return Math.max(1, Math.min(upperBound, week));
 };
+
+const getMonthGridRange = (anchorDate: Date) => {
+  const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+  const monthEndExclusive = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1);
+  const gridStart = startOfWeekMonday(monthStart);
+  const gridEnd = addDays(startOfWeekMonday(addDays(monthEndExclusive, -1)), 7);
+  return {
+    start: gridStart,
+    end: gridEnd,
+  };
+};
+
+const toBufferedQueryRange = (range: { start: Date; end: Date }) => ({
+  start: addDays(range.start, -7),
+  end: addDays(range.end, 7),
+});
 
 export const useCalendarNavigationState = ({
   semesterId,
@@ -172,6 +188,39 @@ export const useCalendarNavigationState = ({
     () => isReadingWeek(semesterRange, week) && !countReadingWeekInWeekNumber,
     [countReadingWeekInWeekNumber, semesterRange, week],
   );
+  const visibleRange = React.useMemo(() => {
+    if (viewMode === 'month') {
+      return getMonthGridRange(monthAnchorDate);
+    }
+
+    const start = getWeekStartForSemester(semesterRange.startDate, week);
+    return {
+      start,
+      end: addDays(start, 7),
+    };
+  }, [monthAnchorDate, semesterRange.startDate, viewMode, week]);
+  const queryRange = React.useMemo(() => toBufferedQueryRange(visibleRange), [visibleRange]);
+  const prefetchQueryRanges = React.useMemo(() => {
+    if (viewMode === 'month') {
+      return [
+        toBufferedQueryRange(getMonthGridRange(new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth() - 1, 1))),
+        toBufferedQueryRange(getMonthGridRange(new Date(monthAnchorDate.getFullYear(), monthAnchorDate.getMonth() + 1, 1))),
+      ];
+    }
+
+    const previousVisibleRange = {
+      start: addDays(visibleRange.start, -7),
+      end: addDays(visibleRange.end, -7),
+    };
+    const nextVisibleRange = {
+      start: addDays(visibleRange.start, 7),
+      end: addDays(visibleRange.end, 7),
+    };
+    return [
+      toBufferedQueryRange(previousVisibleRange),
+      toBufferedQueryRange(nextVisibleRange),
+    ];
+  }, [monthAnchorDate, viewMode, visibleRange]);
   const formatWeekLabel = React.useCallback((targetWeek: number) => {
     if (isReadingWeek(semesterRange, targetWeek) && !countReadingWeekInWeekNumber) {
       return 'Reading Week';
@@ -193,6 +242,9 @@ export const useCalendarNavigationState = ({
     displayWeekNumber,
     displayMaxWeek,
     shouldShowReadingWeekLabel,
+    visibleRange,
+    queryRange,
+    prefetchQueryRanges,
     formatWeekLabel,
     handleWeekChange,
     handleNavigatePrevious,

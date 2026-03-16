@@ -1,6 +1,6 @@
 // input:  [axios client, course/semester schedule endpoint payloads, export options]
 // output: [schedule domain DTO types and default `scheduleService` API wrapper]
-// pos:    [Specialized timetable service for event-type/section/event CRUD and export]
+// pos:    [Specialized timetable service for event-type/section/event CRUD, calendar range reads, and export]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -76,6 +76,13 @@ export interface ScheduleItem {
 export interface ScheduleResponse {
   week: number;
   maxWeek: number;
+  items: ScheduleItem[];
+  warnings: string[];
+}
+
+export interface ScheduleRangeResponse {
+  start: string;
+  end: string;
   items: ScheduleItem[];
   warnings: string[];
 }
@@ -218,6 +225,14 @@ const scheduleService = {
 
   getSemesterSchedule: async (semesterId: string, params?: { week?: number; withConflicts?: boolean }) => {
     const response = await axios.get<ScheduleResponse>(`/api/schedule/semester/${semesterId}`, { params });
+    return response.data;
+  },
+
+  getSemesterCalendarSchedule: async (
+    semesterId: string,
+    params: { start: string; end: string; withConflicts?: boolean },
+  ) => {
+    const response = await axios.get<ScheduleRangeResponse>(`/api/schedule/semester/${semesterId}/calendar-events`, { params });
     return response.data;
   },
 

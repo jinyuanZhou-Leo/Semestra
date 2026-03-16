@@ -1,6 +1,6 @@
-// input:  [calendar-core source contracts, schedule service APIs, and shared schedule-to-calendar mappers]
+// input:  [calendar-core source contracts, schedule range API, and shared schedule-to-calendar mappers]
 // output: [built-in schedule Calendar source definition]
-// pos:    [built-in Calendar source adapter that loads all semester schedule events for the registry]
+// pos:    [built-in Calendar source adapter that loads only the buffered visible semester schedule window for the registry]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,48 +11,42 @@
 import scheduleService from '@/services/schedule';
 import type { CalendarSourceDefinition } from '@/calendar-core';
 import { queryClient } from '@/services/queryClient';
+import { queryKeys } from '@/services/queryKeys';
 import {
   BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
-  DEFAULT_WEEK,
-  SCHEDULE_MAX_PARALLEL_REQUESTS,
   BUILTIN_CALENDAR_SOURCE_SCHEDULE,
 } from '../../../shared/constants';
 import {
   buildCalendarEvents,
-  dedupeScheduleItems,
+  formatDateAsIsoDate,
   sortScheduleItemsByTime,
 } from '../../../shared/utils';
 
-const runWithConcurrencyLimit = async <T,>(
-  tasks: Array<() => Promise<T>>,
-  maxParallelRequests: number,
-) => {
-  if (tasks.length === 0) return [] as T[];
+const buildCalendarScheduleParams = (context: Parameters<NonNullable<CalendarSourceDefinition['load']>>[0]) => ({
+  start: formatDateAsIsoDate(context.queryRange.start),
+  end: formatDateAsIsoDate(context.queryRange.end),
+  withConflicts: true,
+});
 
-  const results: T[] = new Array(tasks.length);
-  let cursor = 0;
-
-  const worker = async () => {
-    while (cursor < tasks.length) {
-      const currentIndex = cursor;
-      cursor += 1;
-      results[currentIndex] = await tasks[currentIndex]();
-    }
-  };
-
-  const workerCount = Math.min(tasks.length, Math.max(1, maxParallelRequests));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-  return results;
+const prefetchAdjacentScheduleWindows = (context: Parameters<NonNullable<CalendarSourceDefinition['load']>>[0]) => {
+  const prefetchRanges = context.prefetchQueryRanges ?? [];
+  return Promise.allSettled(prefetchRanges.map((range) => {
+    const params = {
+      start: formatDateAsIsoDate(range.start),
+      end: formatDateAsIsoDate(range.end),
+      withConflicts: true,
+    };
+    return queryClient.prefetchQuery({
+      queryKey: queryKeys.semesters.calendarSchedule(context.semesterId, params),
+      queryFn: async () => {
+        const response = await scheduleService.getSemesterCalendarSchedule(context.semesterId, params);
+        return response.items;
+      },
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+    });
+  }));
 };
-
-const buildCalendarScheduleQueryKey = (semesterId: string) => (
-  ['semesters', semesterId, 'calendar-schedule', {
-    mode: 'all-weeks',
-    week: DEFAULT_WEEK,
-    withConflicts: true,
-  }] as const
-);
 
 export const builtinScheduleCalendarSource: CalendarSourceDefinition = {
   id: BUILTIN_CALENDAR_SOURCE_SCHEDULE,
@@ -61,43 +55,32 @@ export const builtinScheduleCalendarSource: CalendarSourceDefinition = {
   defaultColor: '#3b82f6',
   priority: 100,
   getCached: (context) => {
-    const cachedItems = queryClient.getQueryData<Awaited<ReturnType<typeof scheduleService.getSemesterSchedule>>['items']>(
-      buildCalendarScheduleQueryKey(context.semesterId),
+    const params = buildCalendarScheduleParams(context);
+    const cachedItems = queryClient.getQueryData<Awaited<ReturnType<typeof scheduleService.getSemesterCalendarSchedule>>['items']>(
+      queryKeys.semesters.calendarSchedule(context.semesterId, params),
     );
     if (!cachedItems) return undefined;
     return buildCalendarEvents(sortScheduleItemsByTime(cachedItems), context.semesterRange.startDate);
   },
   load: async (context) => {
+    const params = buildCalendarScheduleParams(context);
     const snapshot = await queryClient.fetchQuery({
-      queryKey: buildCalendarScheduleQueryKey(context.semesterId),
+      queryKey: queryKeys.semesters.calendarSchedule(context.semesterId, params),
       queryFn: async () => {
-        const firstWeekResponse = await scheduleService.getSemesterSchedule(context.semesterId, {
-          week: DEFAULT_WEEK,
-          withConflicts: true,
-        });
-
-        const targetWeekCount = Math.max(DEFAULT_WEEK, context.maxWeek, firstWeekResponse.maxWeek);
-        const tasks = Array.from({ length: targetWeekCount - 1 }, (_, index) => {
-          const week = index + 2;
-          return () => scheduleService.getSemesterSchedule(context.semesterId, {
-            week,
-            withConflicts: true,
-          });
-        });
-
-        const remainingResponses = await runWithConcurrencyLimit(tasks, SCHEDULE_MAX_PARALLEL_REQUESTS);
-        return dedupeScheduleItems([firstWeekResponse, ...remainingResponses].flatMap((response) => response.items));
+        const response = await scheduleService.getSemesterCalendarSchedule(context.semesterId, params);
+        return response.items;
       },
-      staleTime: Infinity,
-      gcTime: Infinity,
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
     });
+    void prefetchAdjacentScheduleWindows(context);
     const sortedItems = sortScheduleItemsByTime(snapshot);
 
     return buildCalendarEvents(sortedItems, context.semesterRange.startDate);
   },
   invalidate: (signal, context) => {
     void signal;
-    queryClient.removeQueries({ queryKey: buildCalendarScheduleQueryKey(context.semesterId) });
+    queryClient.removeQueries({ queryKey: queryKeys.semesters.calendarSchedule(context.semesterId) });
   },
   shouldRefresh: (signal, context) => {
     if (signal.type !== 'timetable') return true;

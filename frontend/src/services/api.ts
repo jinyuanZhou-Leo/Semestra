@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, and widget delete options]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs, and one-time LMS gradebook imports]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -823,9 +823,15 @@ const api = {
             return response.data;
         });
     },
-    getSemesterLmsCalendarEvents: async (semesterId: string) => {
-        return dedupeGet(`GET:/api/semesters/${semesterId}/lms/calendar-events`, async () => {
-            const response = await axios.get<LmsCalendarEventListResponse>(`/api/semesters/${semesterId}/lms/calendar-events`);
+    getSemesterLmsCalendarEvents: async (
+        semesterId: string,
+        params?: {
+            start?: string;
+            end?: string;
+        }
+    ) => {
+        return dedupeGet(`GET:/api/semesters/${semesterId}/lms/calendar-events:${JSON.stringify(params ?? {})}`, async () => {
+            const response = await axios.get<LmsCalendarEventListResponse>(`/api/semesters/${semesterId}/lms/calendar-events`, { params });
             return response.data;
         });
     },

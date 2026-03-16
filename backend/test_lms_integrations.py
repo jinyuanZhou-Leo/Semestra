@@ -420,6 +420,43 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertTrue(all(item.course_display_code == "CSC100" for item in semester_calendar.items))
         self.assertEqual({item.event_type_code for item in semester_calendar.items}, {"CALENDAR", "ASSIGNMENT"})
 
+    def test_semester_calendar_returns_empty_when_program_lms_is_not_configured(self) -> None:
+        semester_calendar = lms_service.list_semester_calendar_events(self.db, self.user.id, self.semester.id)
+
+        self.assertEqual(semester_calendar.items, [])
+
+    def test_semester_calendar_filters_items_to_requested_date_range(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        response = lms_service.import_program_courses(
+            self.db,
+            self.user.id,
+            self.program.id,
+            schemas.LmsCourseImportRequest(
+                external_course_ids=["course-1"],
+                semester_id=self.semester.id,
+            ),
+        )
+        course = response.results[0].course
+        assert course is not None
+
+        semester_calendar = lms_service.list_semester_calendar_events(
+            self.db,
+            self.user.id,
+            self.semester.id,
+            start_date=date(2026, 2, 10),
+            end_date=date(2026, 2, 11),
+        )
+
+        self.assertEqual(len(semester_calendar.items), 1)
+        self.assertEqual(semester_calendar.items[0].course_id, course.id)
+        self.assertEqual(semester_calendar.items[0].event_type_code, "CALENDAR")
+
     def test_program_level_course_recomputes_grade_scaled_without_semester(self) -> None:
         course = crud.create_course(
             self.db,

@@ -20,6 +20,10 @@ const calendarContext: CalendarSourceContext = {
     readingWeekEnd: null,
   },
   maxWeek: 16,
+  queryRange: {
+    start: new Date('2026-03-02T00:00:00'),
+    end: new Date('2026-03-23T00:00:00'),
+  },
 };
 
 const buildEvent = (id: string, sourceId: string) => ({
@@ -166,5 +170,47 @@ describe('useCalendarSources', () => {
     expect(result.current.events[0]?.id).toBe('cached-event');
     expect(result.current.isLoading).toBe(false);
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it('renders completed sources before slower sources finish loading', async () => {
+    let resolveSlow: ((events: Array<ReturnType<typeof buildEvent>>) => void) | null = null;
+    const fastSource: CalendarSourceDefinition = {
+      id: 'owner:fast',
+      ownerId: 'owner',
+      label: 'Fast',
+      defaultColor: '#2563eb',
+      priority: 100,
+      load: vi.fn(async () => [buildEvent('fast-event', 'owner:fast')]),
+      shouldRefresh: () => true,
+    };
+    const slowSource: CalendarSourceDefinition = {
+      id: 'owner:slow',
+      ownerId: 'owner',
+      label: 'Slow',
+      defaultColor: '#16a34a',
+      priority: 200,
+      load: vi.fn(() => new Promise<Array<ReturnType<typeof buildEvent>>>((resolve) => {
+        resolveSlow = resolve;
+      })),
+      shouldRefresh: () => true,
+    };
+
+    const { result } = renderHook(() => useCalendarSources({
+      sources: [fastSource, slowSource],
+      context: calendarContext,
+    }));
+
+    await waitFor(() => {
+      expect(result.current.events.map((event) => event.id)).toContain('fast-event');
+    });
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      resolveSlow?.([buildEvent('slow-event', 'owner:slow')]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.events.map((event) => event.id)).toEqual(expect.arrayContaining(['fast-event', 'slow-event']));
+    });
   });
 });

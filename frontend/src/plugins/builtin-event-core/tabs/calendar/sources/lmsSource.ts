@@ -1,6 +1,6 @@
 // input:  [calendar-core source contracts, LMS calendar API, cached semester data, and semester date helpers]
 // output: [built-in LMS Calendar source definition]
-// pos:    [read-only Calendar source adapter that maps semester-scoped LMS events into calendar-core event data with local course-code titles and LMS event subtitles]
+// pos:    [read-only Calendar source adapter that maps range-scoped LMS events into calendar-core event data with local course-code titles and LMS event subtitles]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,7 +17,28 @@ import {
   BUILTIN_CALENDAR_SOURCE_LMS,
   BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
 } from '../../../shared/constants';
-import { getWeekFromSemesterDate, startOfWeekMonday } from '../../../shared/utils';
+import { formatDateAsIsoDate, getWeekFromSemesterDate, startOfWeekMonday } from '../../../shared/utils';
+
+const buildLmsCalendarParams = (context: Parameters<NonNullable<CalendarSourceDefinition['load']>>[0]) => ({
+  start: formatDateAsIsoDate(context.queryRange.start),
+  end: formatDateAsIsoDate(context.queryRange.end),
+});
+
+const prefetchAdjacentLmsWindows = (context: Parameters<NonNullable<CalendarSourceDefinition['load']>>[0]) => {
+  const prefetchRanges = context.prefetchQueryRanges ?? [];
+  return Promise.allSettled(prefetchRanges.map((range) => {
+    const params = {
+      start: formatDateAsIsoDate(range.start),
+      end: formatDateAsIsoDate(range.end),
+    };
+    return queryClient.prefetchQuery({
+      queryKey: queryKeys.semesters.lmsCalendarEvents(context.semesterId, params),
+      queryFn: () => api.getSemesterLmsCalendarEvents(context.semesterId, params),
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+    });
+  }));
+};
 
 const buildLmsCalendarEvent = (
   item: Awaited<ReturnType<typeof api.getSemesterLmsCalendarEvents>>['items'][number],
@@ -67,8 +88,9 @@ export const builtinLmsCalendarSource: CalendarSourceDefinition = {
   defaultColor: '#0f766e',
   priority: 350,
   getCached: (context) => {
+    const params = buildLmsCalendarParams(context);
     const cached = queryClient.getQueryData<Awaited<ReturnType<typeof api.getSemesterLmsCalendarEvents>>>(
-      queryKeys.semesters.lmsCalendarEvents(context.semesterId),
+      queryKeys.semesters.lmsCalendarEvents(context.semesterId, params),
     );
     if (!cached) return undefined;
     return cached.items
@@ -76,12 +98,14 @@ export const builtinLmsCalendarSource: CalendarSourceDefinition = {
       .filter((event): event is CalendarEventData => event !== null);
   },
   load: async (context) => {
+    const params = buildLmsCalendarParams(context);
     const response = await queryClient.fetchQuery({
-      queryKey: queryKeys.semesters.lmsCalendarEvents(context.semesterId),
-      queryFn: () => api.getSemesterLmsCalendarEvents(context.semesterId),
+      queryKey: queryKeys.semesters.lmsCalendarEvents(context.semesterId, params),
+      queryFn: () => api.getSemesterLmsCalendarEvents(context.semesterId, params),
       staleTime: 60_000,
       gcTime: 5 * 60_000,
     });
+    void prefetchAdjacentLmsWindows(context);
     return response.items
       .map((item) => buildLmsCalendarEvent(item, startOfWeekMonday(context.semesterRange.startDate)))
       .filter((event): event is CalendarEventData => event !== null);

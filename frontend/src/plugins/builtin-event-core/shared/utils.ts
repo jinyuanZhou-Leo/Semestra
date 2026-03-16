@@ -1,6 +1,6 @@
 // input:  [schedule service entities, shared calendar constants, todo scheduling data, and semester date ranges]
-// output: [DST-safe date/time helpers, schedule grouping utilities, and event-core calendar mappers]
-// pos:    [shared event-core utility layer for transforming backend schedule data into tab-ready state with Reading Week-aware calendar arithmetic]
+// output: [DST-safe date/time helpers, schedule grouping utilities, local date-format helpers, and event-core calendar mappers]
+// pos:    [shared event-core utility layer for transforming backend schedule data into tab-ready state with Reading Week-aware calendar arithmetic and range-query formatting]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -176,6 +176,13 @@ export const addDays = (date: Date, days: number) => {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
   return result;
+};
+
+export const formatDateAsIsoDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 export const getNextVisibleDate = (date: Date, showWeekends: boolean) => {

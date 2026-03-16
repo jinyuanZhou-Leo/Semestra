@@ -337,6 +337,13 @@ def parse_time_value(value: str) -> time:
 def week_date(semester_start: date, week: int, day_of_week: int) -> date:
     return semester_start + timedelta(days=((week - 1) * 7 + (day_of_week - 1)))
 
+def dedupe_warnings(warnings: list[str]) -> list[str]:
+    return list(dict.fromkeys(warnings))
+
+def item_in_date_range(item: dict, semester_start: date, start_date: date, end_date: date) -> bool:
+    occurrence_date = week_date(semester_start, item["week"], item["day_of_week"])
+    return start_date <= occurrence_date < end_date
+
 def detect_conflicts(items: list[dict]) -> list[dict]:
     active_indices: list[int] = []
     for index, item in enumerate(items):
@@ -483,6 +490,42 @@ def collect_semester_week_items(
         if item is not None:
             items.append(item)
     return items, warnings
+
+def collect_semester_range_items(
+    db: Session,
+    semester: models.Semester,
+    start_date: date,
+    end_date: date,
+    with_conflicts: bool,
+) -> tuple[list[dict], list[str]]:
+    if start_date >= end_date:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail("INVALID_DATE_RANGE", "start must be earlier than end."),
+        )
+
+    overlap_start = max(start_date, semester.start_date)
+    overlap_end = min(end_date, semester.end_date + timedelta(days=1))
+    if overlap_start >= overlap_end:
+        return [], []
+
+    start_week = max(1, ((overlap_start - semester.start_date).days // 7) + 1)
+    end_week = min(get_semester_max_week(semester), ((overlap_end - timedelta(days=1) - semester.start_date).days // 7) + 1)
+
+    items: list[dict] = []
+    warnings: list[str] = []
+    for week in range(start_week, end_week + 1):
+        week_items, week_warnings = collect_semester_week_items(db, semester, week)
+        items.extend(
+            item for item in week_items
+            if item_in_date_range(item, semester.start_date, overlap_start, overlap_end)
+        )
+        warnings.extend(week_warnings)
+
+    if with_conflicts:
+        items = detect_conflicts(items)
+
+    return items, dedupe_warnings(warnings)
 
 def collect_course_week_items(
     db: Session,
@@ -1556,11 +1599,19 @@ def read_semester_lms_assignments(
 @app.get("/semesters/{semester_id}/lms/calendar-events", response_model=schemas.LmsCalendarEventListResponse)
 def read_semester_lms_calendar_events(
     semester_id: str,
+    start: Optional[date] = Query(None),
+    end: Optional[date] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     try:
-        return lms_service.list_semester_calendar_events(db, current_user.id, semester_id)
+        return lms_service.list_semester_calendar_events(
+            db,
+            current_user.id,
+            semester_id,
+            start_date=start,
+            end_date=end,
+        )
     except Exception as exc:
         raise_lms_http_error(exc)
 
@@ -2797,6 +2848,31 @@ def get_semester_schedule(
     return {
         "week": resolved_week,
         "maxWeek": max_week,
+        "items": serialized,
+        "warnings": warnings,
+    }
+
+@app.get("/schedule/semester/{semester_id}/calendar-events", response_model=schemas.ScheduleRangeResponse)
+def get_semester_schedule_calendar_events(
+    semester_id: str,
+    start: date = Query(...),
+    end: date = Query(...),
+    with_conflicts: bool = Query(True, alias="withConflicts"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    items, warnings = collect_semester_range_items(
+        db=db,
+        semester=semester,
+        start_date=start,
+        end_date=end,
+        with_conflicts=with_conflicts,
+    )
+    serialized = [serialize_schedule_item(item) for item in items]
+    return {
+        "start": start,
+        "end": end,
         "items": serialized,
         "warnings": warnings,
     }
