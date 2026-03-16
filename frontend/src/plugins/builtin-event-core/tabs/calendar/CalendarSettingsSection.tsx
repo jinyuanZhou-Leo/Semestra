@@ -9,7 +9,9 @@
 "use no memo";
 
 import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Clock3, Download } from 'lucide-react';
+import { queryKeys } from '@/services/queryKeys';
 import { SettingsSection } from '@/components/SettingsSection';
 import {
   AlertDialog,
@@ -35,9 +37,8 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
-import { useScheduleData } from '../../shared/hooks/useScheduleData';
 import type { CalendarSettingsState } from '../../shared/types';
-import { buildCourseOptions } from '../../shared/utils';
+import { getWeekFromSemesterDate, resolveSemesterDateRange } from '../../shared/utils';
 import { CalendarSourceSettingsList } from './components/CalendarSourceSettingsList';
 import {
   DEFAULT_CALENDAR_SETTINGS,
@@ -57,8 +58,18 @@ interface CalendarSettingsSectionProps {
 }
 
 const WEEK_VIEW_DAY_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
+const FALLBACK_MAX_WEEK = 16;
+
+interface CachedSemesterDetail {
+  start_date?: string | null;
+  end_date?: string | null;
+  reading_week_start?: string | null;
+  reading_week_end?: string | null;
+  courses?: Array<{ id: string; name: string }>;
+}
 
 export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({ semesterId, settings, updateSettings }) => {
+  const queryClient = useQueryClient();
   const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
   const calendarSources = useCalendarSourceRegistry();
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
@@ -66,14 +77,27 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
   const [dayStartDraft, setDayStartDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayStartMinutes));
   const [dayEndDraft, setDayEndDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayEndMinutes));
   const timeInputClassName = 'appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none';
-  const { items, maxWeek } = useScheduleData({
-    semesterId,
-    mode: 'all-weeks',
-    enabled: Boolean(semesterId),
-    withConflicts: true,
-  });
-
-  const courseOptions = React.useMemo(() => buildCourseOptions(items), [items]);
+  const cachedSemester = React.useMemo(() => {
+    if (!semesterId) return null;
+    return queryClient.getQueryData<CachedSemesterDetail>(queryKeys.semesters.detail(semesterId)) ?? null;
+  }, [queryClient, semesterId]);
+  const maxWeek = React.useMemo(() => {
+    if (!cachedSemester) return FALLBACK_MAX_WEEK;
+    const semesterRange = resolveSemesterDateRange(
+      cachedSemester.start_date,
+      cachedSemester.end_date,
+      FALLBACK_MAX_WEEK,
+      cachedSemester.reading_week_start,
+      cachedSemester.reading_week_end,
+    );
+    return Math.max(1, getWeekFromSemesterDate(semesterRange.startDate, semesterRange.endDate));
+  }, [cachedSemester]);
+  const courseOptions = React.useMemo(() => {
+    return (cachedSemester?.courses ?? []).map((course) => ({
+      id: course.id,
+      name: course.name,
+    }));
+  }, [cachedSemester]);
 
   const patchSettings = (patch: Partial<CalendarSettingsState>) => {
     const nextSettings: CalendarSettingsState = {

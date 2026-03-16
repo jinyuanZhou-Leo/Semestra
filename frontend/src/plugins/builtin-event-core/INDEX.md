@@ -2,7 +2,7 @@
 
 `builtin-event-core/` is the core domain plugin that bundles schedule, calendar, and todo experiences.
 It exposes plugin metadata/runtime entrypoints plus shared data/event primitives consumed by tab modules and now bridges built-in schedule, todo, gradebook due-date, and LMS calendar data into the standalone `calendar-core` registry.
-Subfolders split reusable dialogs/utilities from tab-specific UI to keep semester workflows cohesive while preserving keyboard access, scoped schedule refreshes, source-driven Calendar rendering, buffered range-based Calendar fetching, configurable week-view scroll width, DST-safe academic week math, inline-first Todo editing, and safer destructive flows.
+Subfolders split reusable dialogs/utilities from tab-specific UI to keep semester workflows cohesive while preserving keyboard access, scoped schedule refreshes, source-driven Calendar rendering, buffered range-based Calendar fetching, cached-detail-backed export settings that avoid eager all-week schedule preloads, configurable week-view scroll width, DST-safe academic week math, inline-first Todo editing, and safer destructive flows.
 
 | File | Role | Description |
 |------|------|-------------|
