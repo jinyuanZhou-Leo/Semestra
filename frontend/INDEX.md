@@ -14,7 +14,7 @@ Build/test configs and scripts support local development, bundling, release meta
 | .env | Environment file | Local frontend environment variables for development. |
 | components.json | shadcn config | shadcn/ui registry and alias configuration. |
 | eslint.config.js | Lint config | ESLint ruleset for TypeScript + React hooks. |
-| index.html | HTML entry | Root HTML template with pre-React loading fallback. |
+| index.html | HTML entry | Root HTML template with pre-React loading fallback and the Semestra circular WebP favicon. |
 | package-lock.json | Dependency lockfile | Pinned npm dependency tree for reproducible installs. |
 | package.json | Package manifest | Frontend scripts, dependencies, and package metadata for the LMS integration/program/course management release, Program Dashboard course-edit deletion flow, TanStack Query-backed cache/mutation infrastructure, inline-first Apple Reminder-style Todo aggregate UX, split habit-streak dual-widget runtime, multi-instance support, and homepage loading-shell behavior. |
 | README.md | Guide | Baseline React+Vite README and project notes. |
