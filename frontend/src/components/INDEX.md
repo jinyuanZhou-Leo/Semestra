@@ -25,7 +25,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |
 | GradientBlinds.tsx | UI component | Reusable component for gradient blinds UI/interaction flow. |
 | IconCircle.tsx | UI component | Reusable component for icon circle UI/interaction flow. |
-| ImportPreviewModal.tsx | UI component | Reusable component for import preview modal UI/interaction flow. |
+| ImportPreviewModal.tsx | UI component | Backup-restore preview modal that summarizes programs, Program-level courses, LMS integrations, todo tasks, resources, and schedule-bearing course data while still handling conflict strategy and optional account-settings import. |
 | KeyValueTable.tsx | UI component | Reusable component for key value table UI/interaction flow. |
 | Layout.tsx | UI component | Shared authenticated layout chrome, including header breadcrumb slot, fixed-height overflow handling, and server-backed sign-out actions. |
 | LmsCourseSelectionList.tsx | UI component | Reusable LMS multi-select list with shadcn-native search/select chrome, linked-course disabled states with inline reasons, a single input-radius results shell, unclipped focus rings, and overflow-safe scrollable rows for Add Course/Add Semester flows. |

@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, simplified gradebook ORM models, GPA logic helpers, and gradebook API schemas]
-# output: [course-gradebook domain service for initialization, preference/category/assessment CRUD, and import/export mapping]
-# pos:    [backend gradebook domain layer that persists assessment score facts while leaving forecast and plan calculations to the client]
+# output: [course-gradebook domain service for initialization, preference/category/assessment CRUD, and import/export mapping that preserves LMS assessment provenance in backups]
+# pos:    [backend gradebook domain layer that persists assessment score facts while leaving forecast and plan calculations to the client, including backup restore helpers for imported LMS rows]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -436,10 +436,14 @@ def reorder_assessments(
 def export_course_gradebook(course: models.Course) -> Optional[schemas.CourseGradebookExport]:
     if course.gradebook is None:
         return None
-    payload = build_course_gradebook_payload(course.gradebook)
+    category_key_by_id = {
+        category.id: category.key
+        for category in course.gradebook.categories
+    }
     return schemas.CourseGradebookExport(
-        target_gpa=payload.target_gpa,
-        forecast_model=payload.forecast_model,
+        revision=int(course.gradebook.revision or 1),
+        target_gpa=course.gradebook.target_gpa,
+        forecast_model=course.gradebook.forecast_model,
         categories=[
             schemas.GradebookAssessmentCategoryExport(
                 name=category.name,
@@ -449,18 +453,20 @@ def export_course_gradebook(course: models.Course) -> Optional[schemas.CourseGra
                 order_index=category.order_index,
                 is_archived=category.is_archived,
             )
-            for category in payload.categories
+            for category in course.gradebook.categories
         ],
         assessments=[
             schemas.GradebookAssessmentExport(
                 title=assessment.title,
-                category_key=next((category.key for category in payload.categories if category.id == assessment.category_id), None),
+                category_key=category_key_by_id.get(assessment.category_id),
                 due_date=assessment.due_date,
                 weight=assessment.weight,
                 score=assessment.score,
+                source_kind=assessment.source_kind,
+                source_external_id=assessment.source_external_id,
                 order_index=assessment.order_index,
             )
-            for assessment in payload.assessments
+            for assessment in course.gradebook.assessments
         ],
     )
 
@@ -477,6 +483,7 @@ def import_course_gradebook(
     for category in list(gradebook.categories):
         db.delete(category)
     db.flush()
+    db.expire(gradebook, ["categories", "assessments"])
 
     gradebook.target_gpa = _normalize_target_gpa(payload.target_gpa)
     gradebook.forecast_model = payload.forecast_model
@@ -505,6 +512,8 @@ def import_course_gradebook(
             due_date=assessment_data.due_date,
             weight=_normalize_percentage(assessment_data.weight, "weight", allow_none=False) or 0.0,
             score=_normalize_percentage(assessment_data.score, "score"),
+            source_kind=(assessment_data.source_kind or None),
+            source_external_id=(assessment_data.source_external_id or None),
             order_index=assessment_data.order_index,
         )
         _touch_row(assessment)

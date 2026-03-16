@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, range-scoped calendar payloads, user preferences, plus todo and fact-only gradebook wire contracts]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar payloads, user preferences, plus todo and fact-only gradebook wire contracts]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -1104,6 +1104,8 @@ class GradebookAssessmentExport(BaseModel):
     due_date: Optional[date] = None
     weight: float = 0.0
     score: Optional[float] = None
+    source_kind: Optional[str] = None
+    source_external_id: Optional[str] = None
     order_index: int = 0
 
 class CourseGradebookExport(BaseModel):
@@ -1113,7 +1115,70 @@ class CourseGradebookExport(BaseModel):
     categories: List[GradebookAssessmentCategoryExport] = []
     assessments: List[GradebookAssessmentExport] = []
 
+class LmsIntegrationExport(BaseModel):
+    id: Optional[str] = None
+    display_name: str
+    provider: str
+    status: str = "connected"
+    config: dict[str, Any] = {}
+    credentials: dict[str, Any] = {}
+    last_checked_at: Optional[str] = None
+    last_error: Optional[LmsIntegrationError] = None
+    summary: Optional[LmsConnectionSummary] = None
+
+class LmsCourseLinkExport(BaseModel):
+    lms_integration_id: Optional[str] = None
+    external_course_id: str
+    external_course_code: Optional[str] = None
+    external_name: Optional[str] = None
+    sync_enabled: bool = True
+    last_synced_at: Optional[str] = None
+    last_error: Optional[LmsIntegrationError] = None
+
+class CourseResourceExport(BaseModel):
+    filename_original: str
+    filename_display: str
+    resource_kind: str = "file"
+    external_url: Optional[str] = None
+    mime_type: str = "application/octet-stream"
+    size_bytes: int = 0
+    content_base64: Optional[str] = None
+
+class CourseEventTypeExport(CourseEventTypeBase):
+    id: Optional[str] = None
+
+class CourseSectionExport(CourseSectionBase):
+    id: Optional[str] = None
+
+class CourseEventExport(CourseEventBase):
+    id: Optional[str] = None
+
+class TodoSectionExport(BaseModel):
+    id: Optional[str] = None
+    name: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class TodoTaskExport(BaseModel):
+    id: Optional[str] = None
+    title: str
+    note: str = ""
+    due_date: Optional[date] = None
+    due_time: Optional[str] = None
+    priority: TodoPriority = TodoPriority.NONE
+    completed: bool = False
+    course_id: Optional[str] = None
+    section_id: Optional[str] = None
+    origin_section_id: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class TodoSemesterExport(BaseModel):
+    sections: List[TodoSectionExport] = []
+    tasks: List[TodoTaskExport] = []
+
 class CourseExport(BaseModel):
+    id: Optional[str] = None
     name: str
     alias: Optional[str] = None
     category: Optional[str] = None
@@ -1127,17 +1192,29 @@ class CourseExport(BaseModel):
     tabs: List[TabExport] = []
     plugin_settings: List[PluginSettingExport] = []
     gradebook: Optional[CourseGradebookExport] = None
+    resource_files: List[CourseResourceExport] = []
+    lms_link: Optional[LmsCourseLinkExport] = None
+    event_types: List[CourseEventTypeExport] = []
+    sections: List[CourseSectionExport] = []
+    events: List[CourseEventExport] = []
 
 class SemesterExport(BaseModel):
+    id: Optional[str] = None
     name: str
     average_percentage: float = 0.0
     average_scaled: float = 0.0
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    reading_week_start: Optional[date] = None
+    reading_week_end: Optional[date] = None
     courses: List[CourseExport] = []
     widgets: List[WidgetExport] = []
     tabs: List[TabExport] = []
     plugin_settings: List[PluginSettingExport] = []
+    todo: Optional[TodoSemesterExport] = None
 
 class ProgramExport(BaseModel):
+    id: Optional[str] = None
     name: str
     cgpa_scaled: float = 0.0
     cgpa_percentage: float = 0.0
@@ -1145,22 +1222,28 @@ class ProgramExport(BaseModel):
     subject_color_map: str = "{}"
     grad_requirement_credits: float = 0.0
     hide_gpa: bool = False
+    program_timezone: str = "UTC"
+    lms_integration_id: Optional[str] = None
+    courses: List[CourseExport] = []
     semesters: List[SemesterExport] = []
 
 class UserSettingsExport(BaseModel):
     nickname: Optional[str] = None
     gpa_scaling_table: Optional[str] = None
     default_course_credit: float = 0.0
+    background_plugin_preload: bool = True
 
 class UserDataExport(BaseModel):
     version: str = "1.0"
     exported_at: str
     settings: UserSettingsExport
+    lms_integrations: List[LmsIntegrationExport] = []
     programs: List[ProgramExport] = []
 
 class UserDataImport(BaseModel):
     version: Optional[str] = None
     settings: Optional[UserSettingsExport] = None
+    lms_integrations: List[LmsIntegrationExport] = []
     programs: List[ProgramExport] = []
 
 
