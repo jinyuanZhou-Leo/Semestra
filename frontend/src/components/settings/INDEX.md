@@ -6,5 +6,5 @@ Keep future settings-specific editors here when they are not broadly reusable ou
 
 | File | Role | Description |
 |------|------|-------------|
-| LmsIntegrationManager.tsx | Settings component | Multi-integration LMS management surface with CRUD-table listing, icon-based row actions, save-time validation, alert-dialog delete confirmation, and provider-definition-driven form behavior instead of inline Canvas payload wiring. |
+| LmsIntegrationManager.tsx | Settings component | Multi-integration LMS management surface with mobile-safe CRUD-table listing, icon-based row actions, save-time validation, alert-dialog delete confirmation, and provider-definition-driven form behavior instead of inline Canvas payload wiring. |
 | lmsProviderDefinitions.ts | Provider helper | Settings-local provider definition registry that preserves Canvas as the only LMS UI while centralizing provider-specific normalization, payload building, and credential masking helpers. |

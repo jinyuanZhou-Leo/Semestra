@@ -8,5 +8,5 @@ The tab now exposes explicit keyboard-accessible expand controls, atomic batch t
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for the course-schedule tab files and responsibilities. |
 | CourseScheduleTab.tsx | Main runtime | Renders the section table with explicit location summaries, accessible expand controls, atomic section toggles, and section deletion flows. |
-| CourseScheduleSettings.tsx | Settings panel | Manages course event types for the course-schedule tab settings surface and publishes semester-scoped refresh events. |
+| CourseScheduleSettings.tsx | Settings panel | Manages course event types for the course-schedule tab settings surface with a tighter mobile CRUD table and publishes semester-scoped refresh events. |
 | index.ts | Public export | Re-exports course-schedule runtime/settings entrypoints for tab registration. |

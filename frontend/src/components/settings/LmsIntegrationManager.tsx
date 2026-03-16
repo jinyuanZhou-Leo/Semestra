@@ -1,6 +1,6 @@
 // input:  [TanStack Query, LMS API service, settings-local LMS provider definitions, CRUD panel/table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, and dialog-context alerts]
 // output: [`LmsIntegrationManager` component]
-// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving CRUD-table, validation, and dialog flows]
+// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving mobile-safe CRUD-table, validation, and dialog flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -358,7 +358,7 @@ export const LmsIntegrationManager: React.FC = () => {
         items={integrationsQuery.data ?? []}
         isLoading={integrationsQuery.isLoading}
         emptyMessage="No LMS integrations yet."
-        minWidthClassName="min-w-[560px]"
+        minWidthClassName="min-w-[520px] sm:min-w-[560px]"
         renderHeader={() => (
           <TableRow>
             <TableHead>Name</TableHead>
@@ -373,7 +373,7 @@ export const LmsIntegrationManager: React.FC = () => {
           const isConnected = integration.status === 'connected';
           return (
             <TableRow key={integration.id}>
-              <TableCell>
+              <TableCell className="max-w-[10rem] whitespace-normal break-words sm:max-w-[14rem]">
                 <span className="text-sm font-medium">{integration.display_name}</span>
               </TableCell>
               <TableCell>

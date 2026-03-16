@@ -114,7 +114,7 @@ describe('CourseListGlobalSettings', () => {
 
         expect(await screen.findByText('Could not refresh semester courses')).toBeInTheDocument();
 
-        const manageButton = screen.getByRole('button', { name: '+ Add / Manage Courses' });
+        const manageButton = screen.getByRole('button', { name: 'Add / Manage Courses' });
         expect(manageButton).toBeDisabled();
 
         fireEvent.click(manageButton);

@@ -1,6 +1,6 @@
 // input:  [program name/credits/GPA defaults, discovered subject codes, available LMS integrations, course color-picker presets, and auto-save lifecycle callbacks]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, separated LMS/general sections, and stable subject-color management]
+// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, separated LMS/general sections, stable subject-color management, and mobile-safe CRUD sizing]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -362,13 +362,13 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         <CrudPanel
           title="Course Code Colors"
           description="Manage the default color used for each course code prefix in this Program."
-          minWidthClassName="min-w-[720px]"
+          minWidthClassName="min-w-[540px] sm:min-w-[720px]"
           items={visibleSubjectCodes}
           emptyMessage="Subject codes appear here after courses such as APS105 or MAT180 are detected."
           renderHeader={() => (
             <TableRow>
               <TableHead>Code</TableHead>
-              <TableHead className="w-[420px]">Color</TableHead>
+              <TableHead className="w-[280px] sm:w-[420px]">Color</TableHead>
               <TableHead className="w-[88px] text-right">Action</TableHead>
             </TableRow>
           )}
@@ -384,7 +384,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
                   </span>
                 </TableCell>
                 <TableCell className="py-3">
-                  <div className="w-full min-w-[240px]">
+                  <div className="w-full min-w-[180px] sm:min-w-[240px]">
                     <ColorPicker
                       id={`${fieldId}-subject-color-${subjectCode}`}
                       value={selectedColor}

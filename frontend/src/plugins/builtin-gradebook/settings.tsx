@@ -1,6 +1,6 @@
 // input:  [course gradebook APIs, plugin settings contracts, and shared category helpers]
 // output: [builtin-gradebook shared settings sections for forecast preferences and categories]
-// pos:    [course-scoped gradebook settings surface for forecast-mode selection, Field-based category dialog inputs, and category management]
+// pos:    [course-scoped gradebook settings surface for forecast-mode selection, Field-based category dialog inputs, and mobile-safe category management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -304,7 +304,7 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                 <CrudPanel
                     title="Categories"
                     description="Manage the category labels available to this course."
-                    minWidthClassName="min-w-[480px]"
+                    minWidthClassName="min-w-[400px] sm:min-w-[480px]"
                     items={gradebook.categories}
                     actionButton={(
                         <Button onClick={handleOpenCreate}>

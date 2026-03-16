@@ -1,6 +1,6 @@
 // input:  [Todo task item data, shared todo row shell/meta chips, inline quick-edit callbacks, drag state, and display helpers]
 // output: [TodoTaskCard React component]
-// pos:    [Reminder-inspired task row that reuses the shared todo row shell for view/edit alignment, selection, swipe delete, and drag handle affordances]
+// pos:    [Reminder-inspired task row that reuses the shared todo row shell for view/edit alignment, selection, empty-title direct deletion, swipe delete, and drag handle affordances]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -43,7 +43,7 @@ interface TodoTaskCardProps {
     patch: Partial<Pick<TodoTask, 'title' | 'note' | 'dueDate' | 'dueTime' | 'priority' | 'courseId' | 'courseName' | 'courseCategory'>>,
   ) => void;
   onOpenDetails: (task: TodoTask) => void;
-  onRequestDelete: (task: TodoTask) => void;
+  onRequestDelete: (task: TodoTask, options?: { skipConfirm?: boolean }) => void;
   onSelect: (taskId: string) => void;
 }
 
@@ -148,9 +148,13 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
   const commitTitle = React.useCallback(() => {
     const nextTitle = titleDraft.trim();
     setEditingTitle(false);
-    if (!nextTitle || nextTitle === task.title) return;
+    if (!nextTitle) {
+      onRequestDelete(task, { skipConfirm: true });
+      return;
+    }
+    if (nextTitle === task.title) return;
     onPatchTask(task.id, { title: nextTitle });
-  }, [onPatchTask, task.id, task.title, titleDraft]);
+  }, [onPatchTask, onRequestDelete, task, task.id, task.title, titleDraft]);
 
   const commitNote = React.useCallback(() => {
     if (noteDraft === task.note) return;

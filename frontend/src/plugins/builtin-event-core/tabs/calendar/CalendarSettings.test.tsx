@@ -1,6 +1,6 @@
-// input:  [CalendarSettings dialog, testing-library helpers, and calendar settings fixtures]
-// output: [regression tests covering draft-friendly time input behavior in legacy calendar settings]
-// pos:    [calendar settings regression suite for time-window input handling]
+// input:  [CalendarSettings dialog, testing-library helpers, built-in source ids, and calendar settings fixtures]
+// output: [regression tests covering draft-friendly time input behavior and settings-shape stability in legacy calendar settings]
+// pos:    [calendar settings regression suite for time-window input handling and stored settings fixtures]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CalendarSettings } from './CalendarSettings';
 import type { CalendarSettingsState } from '../../shared/types';
 import {
+  BUILTIN_CALENDAR_SOURCE_LMS,
   BUILTIN_CALENDAR_SOURCE_SCHEDULE,
   BUILTIN_CALENDAR_SOURCE_TODO,
 } from '../../shared/constants';
@@ -26,10 +27,17 @@ const buildSettings = (): CalendarSettingsState => ({
   eventColors: {
     [BUILTIN_CALENDAR_SOURCE_SCHEDULE]: '#2563eb',
     [BUILTIN_CALENDAR_SOURCE_TODO]: '#16a34a',
+    [BUILTIN_CALENDAR_SOURCE_LMS]: '#0f766e',
+  },
+  sourceVisibility: {
+    [BUILTIN_CALENDAR_SOURCE_SCHEDULE]: true,
+    [BUILTIN_CALENDAR_SOURCE_TODO]: true,
+    [BUILTIN_CALENDAR_SOURCE_LMS]: true,
   },
   highlightConflicts: true,
   showWeekends: true,
   countReadingWeekInWeekNumber: false,
+  renderUnsafeLmsDescriptionHtml: false,
   weekViewDayCount: 5,
   dayStartMinutes: 8 * 60,
   dayEndMinutes: 18 * 60,

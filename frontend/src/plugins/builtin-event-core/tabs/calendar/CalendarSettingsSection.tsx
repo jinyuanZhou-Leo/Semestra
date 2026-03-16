@@ -1,6 +1,6 @@
-// input:  [calendar settings state, settings update callback, schedule data hooks, shadcn settings/time-input UI primitives]
-// output: [`CalendarSettingsSection` settings UI for calendar behavior, Reading Week week-number controls, colors, export, and reset actions]
-// pos:    [Calendar tab settings panel entry that normalizes state, applies granular patches, and uses shadcn Field-based form structure for standard controls]
+// input:  [calendar settings state, settings update callback, schedule data hooks, shadcn settings/time-input UI primitives, and registered calendar sources]
+// output: [`CalendarSettingsSection` settings UI for calendar behavior, source list visibility/color controls, LMS description safety, Reading Week week-number controls, export, and reset actions]
+// pos:    [Calendar tab settings panel entry that normalizes state, applies granular patches, and uses shadcn Field-based form structure for standard controls plus source-aware list controls]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -38,7 +38,7 @@ import { useCalendarSourceRegistry } from '@/calendar-core';
 import { useScheduleData } from '../../shared/hooks/useScheduleData';
 import type { CalendarSettingsState } from '../../shared/types';
 import { buildCourseOptions } from '../../shared/utils';
-import { EventColorPicker } from './components/EventColorPicker';
+import { CalendarSourceSettingsList } from './components/CalendarSourceSettingsList';
 import {
   DEFAULT_CALENDAR_SETTINGS,
   CALENDAR_TIME_INPUT_STEP_SECONDS,
@@ -62,6 +62,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
   const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
   const calendarSources = useCalendarSourceRegistry();
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
+  const [isLmsDescriptionRiskDialogOpen, setIsLmsDescriptionRiskDialogOpen] = React.useState(false);
   const [dayStartDraft, setDayStartDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayStartMinutes));
   const [dayEndDraft, setDayEndDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayEndMinutes));
   const timeInputClassName = 'appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none';
@@ -81,6 +82,10 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
       eventColors: {
         ...normalizedSettings.eventColors,
         ...(patch.eventColors ?? {}),
+      },
+      sourceVisibility: {
+        ...normalizedSettings.sourceVisibility,
+        ...(patch.sourceVisibility ?? {}),
       },
     };
 
@@ -249,21 +254,22 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
                   className="shrink-0"
                 />
               </Field>
+
             </FieldGroup>
           </FieldSet>
 
           <div className="space-y-2 pt-2">
-            <p className="text-sm font-medium">Event source colors</p>
-            <div className="grid gap-3 lg:grid-cols-3">
-              {calendarSources.map((source) => (
-                <EventColorPicker
-                  key={source.id}
-                  source={source}
-                  value={normalizedSettings.eventColors[source.id] ?? source.defaultColor}
-                  onChange={(color) => patchSettings({ eventColors: { ...normalizedSettings.eventColors, [source.id]: color } })}
-                />
-              ))}
-            </div>
+            <p className="text-sm font-medium">calendar sources</p>
+            <CalendarSourceSettingsList
+              sources={calendarSources}
+              eventColors={normalizedSettings.eventColors}
+              sourceVisibility={normalizedSettings.sourceVisibility}
+              renderUnsafeLmsDescriptionHtml={normalizedSettings.renderUnsafeLmsDescriptionHtml}
+              onToggleSourceVisibility={(sourceId, enabled) => patchSettings({ sourceVisibility: { [sourceId]: enabled } })}
+              onChangeSourceColor={(sourceId, color) => patchSettings({ eventColors: { [sourceId]: color } })}
+              onToggleUnsafeLmsDescriptionHtml={(enabled) => patchSettings({ renderUnsafeLmsDescriptionHtml: enabled })}
+              onRequestEnableUnsafeLmsDescriptionHtml={() => setIsLmsDescriptionRiskDialogOpen(true)}
+            />
           </div>
         </div>
       </SettingsSection>
@@ -325,6 +331,26 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
           </div>
         </div>
       </SettingsSection>
+
+      <AlertDialog open={isLmsDescriptionRiskDialogOpen} onOpenChange={setIsLmsDescriptionRiskDialogOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enable rich LMS descriptions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              LMS description HTML can include richer formatting from external systems. Only enable this if you trust the upstream LMS content, because it increases rendering risk compared with the default safe text/list mode.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Safe Mode</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => patchSettings({ renderUnsafeLmsDescriptionHtml: true })}
+            >
+              Enable Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {semesterId ? (
         <SemesterScheduleExportModal

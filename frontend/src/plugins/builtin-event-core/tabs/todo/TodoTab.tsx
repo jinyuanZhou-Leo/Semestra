@@ -1,6 +1,6 @@
 // input:  [Todo tab settings payload, semester todo APIs, runtime mapping helpers, shared UI primitives, and event bus refresh signals]
 // output: [TodoTab React component for semester-first Apple Reminder-style todo management backed by the semester todo API]
-// pos:    [Todo tab orchestration layer that derives local list state from canonical semester todo query data, persists local view preferences, issues domain mutations through dedicated APIs, and renders the unified list UI]
+// pos:    [Todo tab orchestration layer that derives local list state from canonical semester todo query data, persists local view preferences, issues domain mutations through dedicated APIs, supports empty-title direct task deletion, and renders the unified list UI]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -599,7 +599,17 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
         onToggleTaskCompleted={handleToggleTaskCompleted}
         onPatchTask={handlePatchTask}
         onOpenDetails={openTaskDialogForEdit}
-        onRequestDelete={(targetTask) => {
+        onRequestDelete={(targetTask, options) => {
+          if (options?.skipConfirm) {
+            if (!semesterId) return;
+            void runMutation(
+              () => api.deleteSemesterTodoTask(semesterId, targetTask.id),
+              targetTask.courseId ? 'course' : 'semester',
+              targetTask.courseId || undefined,
+            );
+            return;
+          }
+
           setPendingDeleteTarget({
             kind: 'task',
             taskId: targetTask.id,

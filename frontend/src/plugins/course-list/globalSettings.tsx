@@ -1,6 +1,6 @@
 // input:  [plugin settings props, semester/course API service, settings-section UI, CRUD panel shell, and modal/alert primitives]
 // output: [course-list plugin settings component for semester course management]
-// pos:    [plugin-global settings panel that loads semester courses, renders CRUD-panel-aligned course management, surfaces failures, and handles removal flows]
+// pos:    [plugin-global settings panel that loads semester courses, renders mobile-safe CRUD-panel-aligned course management, surfaces failures, and handles removal flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -153,7 +153,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
           items={courses}
           isLoading={isLoading && !semester}
           emptyMessage="No courses assigned."
-          minWidthClassName="min-w-[560px]"
+          minWidthClassName="min-w-[500px] sm:min-w-[560px]"
           renderHeader={() => (
             <TableRow>
               <TableHead>Name</TableHead>
@@ -164,7 +164,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
           )}
           renderRow={(course: Course) => (
             <TableRow key={course.id}>
-              <TableCell className="font-medium">
+              <TableCell className="max-w-[12rem] font-medium whitespace-normal break-words sm:max-w-[16rem]">
                 <div className="flex flex-col">
                   <span>{course.name}</span>
                   {course.alias ? (

@@ -1,7 +1,16 @@
+// input:  [CRUD section copy, row/header render callbacks, shared table primitives, and optional loading/action controls]
+// output: [`CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` helpers for settings CRUD tables]
+// pos:    [shared settings-table shell that keeps header actions and horizontal scrolling mobile-safe across CRUD surfaces]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
     Table,
     TableBody,
@@ -14,8 +23,8 @@ const TableShell: React.FC<{ children: React.ReactNode; minWidthClassName?: stri
     children,
     minWidthClassName = 'min-w-[720px]',
 }) => (
-    <div className="overflow-x-auto rounded-md border border-border/70">
-        <div className={minWidthClassName}>
+    <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-md border border-border/70">
+        <div className={cn('min-w-full', minWidthClassName)}>
             {children}
         </div>
     </div>
@@ -34,12 +43,16 @@ const PanelHeader: React.FC<{
     description: string;
     right?: React.ReactNode;
 }> = ({ title, description, right }) => (
-    <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
             <h3 className="text-base font-semibold tracking-tight">{title}</h3>
             <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        {right}
+        {right ? (
+            <div className="flex w-full min-w-0 sm:w-auto sm:justify-end">
+                {right}
+            </div>
+        ) : null}
     </div>
 );
 
@@ -67,8 +80,8 @@ export function CrudPanel<T>({
     isLoading,
 }: CrudPanelProps<T>) {
     return (
-        <div className="space-y-4 [&_[data-slot=button][data-variant=destructive][data-size=icon]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]:hover]:bg-destructive/20">
-            <div className="px-1">
+        <div className="w-full min-w-0 space-y-4 [&_[data-slot=button][data-variant=destructive][data-size=icon]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]:hover]:bg-destructive/20">
+            <div className="w-full min-w-0 px-1">
                 <PanelHeader
                     title={title}
                     description={description}

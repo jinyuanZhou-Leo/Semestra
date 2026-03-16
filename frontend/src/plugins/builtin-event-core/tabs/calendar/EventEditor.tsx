@@ -1,6 +1,6 @@
-// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, source label, and save callback]
+// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, source label, LMS HTML safety setting, and save callback]
 // output: [`EventEditor` modal for source-aware event details plus optional skip editing and conflict context]
-// pos:    [Calendar detail dialog that explains schedule conflicts while optionally editing occurrence skip state with Reading Week-aware labels]
+// pos:    [Calendar detail dialog that explains schedule conflicts while optionally editing occurrence skip state with Reading Week-aware labels and source-aware description sanitization]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,8 +15,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { looksLikeHtml, sanitizeHtmlFragment } from '@/lib/html';
+import { looksLikeHtml, sanitizeHtmlFragment, sanitizeTextListHtmlFragment } from '@/lib/html';
 import type { CalendarEventData, CalendarEventPatch } from '@/calendar-core';
+import { BUILTIN_CALENDAR_SOURCE_LMS } from '../../shared/constants';
 
 interface EventEditorProps {
   open: boolean;
@@ -24,6 +25,7 @@ interface EventEditorProps {
   event: CalendarEventData | null;
   sourceLabel: string;
   canEdit: boolean;
+  renderUnsafeLmsDescriptionHtml: boolean;
   conflictingEvents?: CalendarEventData[];
   formatWeekLabel?: (week: number) => string;
   onSave: (eventId: string, patch: CalendarEventPatch) => Promise<void>;
@@ -35,15 +37,22 @@ export const EventEditor: React.FC<EventEditorProps> = ({
   event,
   sourceLabel,
   canEdit,
+  renderUnsafeLmsDescriptionHtml,
   conflictingEvents = [],
   formatWeekLabel,
   onSave,
 }) => {
   const [isSkipped, setIsSkipped] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
-  const sanitizedDescription = React.useMemo(() => (
-    looksLikeHtml(event?.note) ? sanitizeHtmlFragment(event?.note) : ''
-  ), [event?.note]);
+  const sanitizedDescription = React.useMemo(() => {
+    if (!looksLikeHtml(event?.note)) return '';
+    if (event?.sourceId !== BUILTIN_CALENDAR_SOURCE_LMS) {
+      return sanitizeHtmlFragment(event?.note);
+    }
+    return renderUnsafeLmsDescriptionHtml
+      ? sanitizeHtmlFragment(event?.note)
+      : sanitizeTextListHtmlFragment(event?.note);
+  }, [event?.note, event?.sourceId, renderUnsafeLmsDescriptionHtml]);
   const conflictingPeers = React.useMemo(() => {
     if (!event?.conflictGroupId) return [];
     return conflictingEvents.filter((item) => item.id !== event.id);

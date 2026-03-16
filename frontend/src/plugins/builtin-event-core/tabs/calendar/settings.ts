@@ -1,5 +1,5 @@
-// input:  [calendar defaults, stored settings payloads, and raw time/minute values]
-// output: [calendar-settings normalization helpers, time parsing/formatting helpers, and defaults]
+// input:  [calendar defaults, stored settings payloads, raw time/minute values, and registered source metadata]
+// output: [calendar-settings normalization helpers, per-source visibility/color defaults, LMS description safety defaults, time parsing/formatting helpers, and defaults]
 // pos:    [calendar settings utility layer shared by settings UIs, tab runtime, and export flows]
 //
 // ⚠️ When this file is updated:
@@ -77,15 +77,24 @@ export const buildDefaultCalendarEventColors = () => {
   }, {});
 };
 
+export const buildDefaultCalendarSourceVisibility = () => {
+  return getRegisteredCalendarSources().reduce<Record<string, boolean>>((visibility, source) => {
+    visibility[source.id] = true;
+    return visibility;
+  }, {});
+};
+
 export const getCalendarEventColor = (eventColors: Record<string, string>, sourceId: string) => {
   return eventColors[sourceId] ?? buildDefaultCalendarEventColors()[sourceId] ?? '#3b82f6';
 };
 
 export const DEFAULT_CALENDAR_SETTINGS: CalendarSettingsState = {
   eventColors: buildDefaultCalendarEventColors(),
+  sourceVisibility: buildDefaultCalendarSourceVisibility(),
   highlightConflicts: true,
   showWeekends: true,
   countReadingWeekInWeekNumber: false,
+  renderUnsafeLmsDescriptionHtml: false,
   weekViewDayCount: 5,
   dayStartMinutes: CALENDAR_DEFAULT_START_MINUTES,
   dayEndMinutes: CALENDAR_DEFAULT_END_MINUTES,
@@ -97,12 +106,23 @@ export const normalizeCalendarSettings = (value: unknown): CalendarSettingsState
     ? (source.eventColors as Record<string, unknown>)
     : {};
   const defaultEventColors = buildDefaultCalendarEventColors();
+  const defaultSourceVisibility = buildDefaultCalendarSourceVisibility();
   const normalizedProvidedColors = Object.fromEntries(
     Object.entries(providedColors).filter((entry) => typeof entry[1] === 'string'),
   ) as Record<string, string>;
   const eventColors: Record<string, string> = {
     ...defaultEventColors,
     ...normalizedProvidedColors,
+  };
+  const providedSourceVisibility = source.sourceVisibility && typeof source.sourceVisibility === 'object'
+    ? (source.sourceVisibility as Record<string, unknown>)
+    : {};
+  const normalizedProvidedSourceVisibility = Object.fromEntries(
+    Object.entries(providedSourceVisibility).filter((entry) => typeof entry[1] === 'boolean'),
+  ) as Record<string, boolean>;
+  const sourceVisibility: Record<string, boolean> = {
+    ...defaultSourceVisibility,
+    ...normalizedProvidedSourceVisibility,
   };
 
   const { dayStartMinutes, dayEndMinutes } = normalizeDayMinuteWindow(
@@ -112,10 +132,14 @@ export const normalizeCalendarSettings = (value: unknown): CalendarSettingsState
 
   return {
     eventColors,
+    sourceVisibility,
     highlightConflicts: typeof source.highlightConflicts === 'boolean' ? source.highlightConflicts : true,
     showWeekends: typeof source.showWeekends === 'boolean' ? source.showWeekends : true,
     countReadingWeekInWeekNumber: typeof source.countReadingWeekInWeekNumber === 'boolean'
       ? source.countReadingWeekInWeekNumber
+      : false,
+    renderUnsafeLmsDescriptionHtml: typeof source.renderUnsafeLmsDescriptionHtml === 'boolean'
+      ? source.renderUnsafeLmsDescriptionHtml
       : false,
     weekViewDayCount: normalizeWeekViewDayCount(source.weekViewDayCount),
     dayStartMinutes,

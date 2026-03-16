@@ -1,6 +1,6 @@
-// input:  [semester context, calendar-core registry, shared timetable event bus, todo sync helpers, and calendar subcomponents]
-// output: [Calendar tab runtime component with source-driven event rendering, todo completion sync, and low-coupling extension wiring]
-// pos:    [built-in event-core Calendar composition shell that binds registry sources, navigation state, editing flows, todo completion updates, and external refresh signals]
+// input:  [semester context, calendar-core registry, shared timetable event bus, todo sync helpers, calendar settings, and calendar subcomponents]
+// output: [Calendar tab runtime component with source-driven event rendering, per-source enable filtering, source-aware event detail safety controls, todo completion sync, and low-coupling extension wiring]
+// pos:    [built-in event-core Calendar composition shell that binds registry sources, navigation state, per-source settings, editing flows, todo completion updates, and external refresh signals]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -74,6 +74,10 @@ const toRefreshSignal = (payload: {
 export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings }) => {
   const settings = React.useMemo(() => normalizeCalendarSettings(inputSettings), [inputSettings]);
   const calendarSources = useCalendarSourceRegistry();
+  const enabledCalendarSources = React.useMemo(
+    () => calendarSources.filter((source) => settings.sourceVisibility[source.id] ?? true),
+    [calendarSources, settings.sourceVisibility],
+  );
   const sourceById = React.useMemo(
     () => new Map(calendarSources.map((source) => [source.id, source])),
     [calendarSources],
@@ -106,7 +110,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
     isLoading: areSourcesLoading,
     reloadMatchingSources,
   } = useCalendarSources({
-    sources: calendarSources,
+    sources: enabledCalendarSources,
     context: sourceContext,
   });
   const {
@@ -357,6 +361,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSet
           event={selectedEvent}
           sourceLabel={selectedSourceLabel}
           canEdit={isSelectedEventEditable}
+          renderUnsafeLmsDescriptionHtml={settings.renderUnsafeLmsDescriptionHtml}
           conflictingEvents={selectedEvent ? (conflictGroups.get(conflictOccurrenceKey(selectedEvent) ?? '') ?? []) : []}
           formatWeekLabel={navigation.formatWeekLabel}
           onSave={handleSaveEvent}

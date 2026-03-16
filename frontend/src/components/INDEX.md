@@ -18,7 +18,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
 | BackButton.tsx | UI component | Reusable component for back button UI/interaction flow. |
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
-| CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
+| CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces with mobile-safe header stacking and overflow-contained horizontal table scrolling. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
 | CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation, with height-stable select/create/calendar/LMS tabs, searchable existing-course selection, duplicate-name confirmation before manual creation, ICS parsing import, reusable LMS search-plus-year-filter course selection, split loading feedback, and standardized modal no-results empty states. |
 | CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, close/unmount flush protection, shadcn `Field`-based standard form layout, right-aligned switch controls, Program-derived default-color guidance, optional per-course override controls, a clearer LMS status card with adjacent sync/disconnect actions, inline link-update controls, destructive disconnect confirmation, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | GPAScalingTable.tsx | UI component | GPA scaling-rule editor with descending range sorting, explicit min/max/GPA inputs, full-range coverage warnings, and standardized create-empty feedback when no rules exist yet. |
@@ -38,7 +38,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | SemesterSettingsPanel.tsx | UI component | Semester settings panel with debounced auto-save, close/unmount flush protection, shadcn `Field`-based standard form layout, inline Reading Week validation, draft-safe sync against refreshed semester payloads, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | SessionExpiredModal.tsx | UI component | Reusable component for session expired modal UI/interaction flow. |
 | SettingsModal.tsx | UI component | Generic settings modal container with a wider desktop surface, fixed header, scrollable body, and async close handling so settings editors can flush pending autosaves before dismissing. |
-| SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles that can inherit a page-level offset provider. |
+| SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles, shrink-safe content columns, and overflow-contained cards for mobile settings layouts. |
 | SettingsTabContent.tsx | UI component | Reusable component for settings tab content UI/interaction flow. |
 | Tabs.tsx | UI component | Reusable dashboard/homepage tab shell with non-passive wheel-driven horizontal overflow scrolling, drag-sort, add/remove controls, edge-shadow overflow affordances, and stable right-aligned workspace navigation behavior. |
 | TabSwitch.tsx | UI component | Reusable component for tab switch UI/interaction flow. |

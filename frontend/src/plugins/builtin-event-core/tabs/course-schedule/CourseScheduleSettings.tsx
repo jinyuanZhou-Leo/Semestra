@@ -1,6 +1,6 @@
 // input:  [course context, course/event-type APIs, shared timetable event bus, and settings CRUD UI]
 // output: [`CourseScheduleSettings` settings panel for course event-type management]
-// pos:    [Course-schedule settings surface that edits event-type definitions and publishes scoped refresh events]
+// pos:    [Course-schedule settings surface that edits event-type definitions, keeps CRUD tables mobile-safe, and publishes scoped refresh events]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -152,7 +152,7 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
         <CrudPanel
           title="Event Types"
           description="Manage the types of events available for this course (e.g., Lecture, Tutorial, Lab)."
-          minWidthClassName="min-w-[560px]"
+          minWidthClassName="min-w-[460px] sm:min-w-[560px]"
           items={eventTypes}
           isLoading={isLoading}
           actionButton={(

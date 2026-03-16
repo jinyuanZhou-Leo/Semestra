@@ -10,5 +10,6 @@ The folder isolates settings controls and loading placeholders from the Calendar
 | CalendarAllDayEventContent.tsx | Event UI | All-day event renderer that handles tighter month pills, week all-day rows, optional subtitles, and todo-style completion radios with icon sizing aligned to rounded pill chrome. |
 | CalendarSkeleton.tsx | Loading UI | Compact pure-Skeleton toolbar and body placeholder that can reuse the final Calendar shell height while runtime state is still loading. |
 | CalendarEventContent.tsx | Event UI | Shared layout selector that computes event display state, including optional subtitles, and delegates to all-day or standard event renderers, including todo completion callbacks. |
+| CalendarSourceSettingsList.tsx | Settings list | Integrated source-settings list that combines per-source enable toggles, colors, and source-specific settings sections such as LMS HTML rendering risk controls. |
 | CalendarStandardEventContent.tsx | Event UI | Standard timed-event renderer that handles month chips and week-detail cards with optional subtitles plus unified location/conflict/time metadata rows. |
 | EventColorPicker.tsx | Settings field | Source-aware color picker row for dynamic Calendar source color settings. |

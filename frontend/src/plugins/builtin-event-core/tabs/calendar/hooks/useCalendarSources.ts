@@ -1,6 +1,6 @@
 // input:  [calendar source registry entries, semester calendar context, and refresh signals]
-// output: [`useCalendarSources()` hook exposing merged source data plus targeted reload helpers]
-// pos:    [calendar orchestration hook that independently loads and refreshes registered sources with per-source progressive commits]
+// output: [`useCalendarSources()` hook exposing cache-seeded merged source data plus targeted reload helpers]
+// pos:    [calendar orchestration hook that independently loads and refreshes registered sources with per-source progressive commits and revalidates sources when they are re-enabled]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -59,6 +59,8 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
     return buildCachedState(sources, context);
   });
   const requestCounterRef = React.useRef(0);
+  const previousSourceIdsRef = React.useRef<Set<string>>(new Set());
+  const hasInitializedSourcesRef = React.useRef(false);
 
   const commitSourceEvents = React.useCallback((
     sourceId: string,
@@ -140,16 +142,30 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
   React.useEffect(() => {
     if (!context) {
       setState(EMPTY_STATE);
+      previousSourceIdsRef.current = new Set();
+      hasInitializedSourcesRef.current = false;
       return;
     }
 
     const cachedState = buildCachedState(sources, context);
+    const previousSourceIds = previousSourceIdsRef.current;
+    const nextSourceIds = new Set(sources.map((source) => source.id));
+    const reenabledSourceIds = !hasInitializedSourcesRef.current
+      ? new Set<string>()
+      : new Set(sources
+        .filter((source) => !previousSourceIds.has(source.id))
+        .map((source) => source.id));
+
+    previousSourceIdsRef.current = nextSourceIds;
+    hasInitializedSourcesRef.current = true;
     setState(cachedState);
 
-    const uncachedSources = sources.filter((source) => !cachedState.dataBySourceId.has(source.id));
-    if (uncachedSources.length === 0) return;
+    const sourcesToLoad = sources.filter((source) => (
+      reenabledSourceIds.has(source.id) || !cachedState.dataBySourceId.has(source.id)
+    ));
+    if (sourcesToLoad.length === 0) return;
 
-    void loadSources(uncachedSources);
+    void loadSources(sourcesToLoad);
   }, [context, loadSources, sources]);
 
   const reloadMatchingSources = React.useCallback(async (signal: CalendarRefreshSignal) => {

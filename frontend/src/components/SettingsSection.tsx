@@ -1,6 +1,6 @@
 // input:  [settings section copy/action props and wrapped content node]
 // output: [`SettingsSection` component]
-// pos:    [Reusable card-based section wrapper for settings screens]
+// pos:    [Reusable card-based section wrapper for settings screens with overflow-safe content columns for mobile CRUD surfaces]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -46,7 +46,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   const contextStickyTop = useContext(SettingsStickyTopContext);
   const resolvedTop = stickyTop ?? contextStickyTop;
   return (
-    <section className={cn("grid gap-x-12 gap-y-6 md:grid-cols-3 lg:grid-cols-4 py-2", className)}>
+    <section className={cn("min-w-0 grid gap-x-12 gap-y-6 py-2 md:grid-cols-3 lg:grid-cols-4", className)}>
       {(title || description || headerAction) && (
         <div className="md:col-span-1 lg:col-span-1 space-y-4">
           <div className="space-y-1.5 pt-1.5 md:sticky" style={{ top: resolvedTop }}>
@@ -64,9 +64,9 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           </div>
         </div>
       )}
-      <div className={cn("md:col-span-2 lg:col-span-3", !(title || description || headerAction) && "md:col-start-2 lg:col-start-2")}>
-        <Card className="shadow-none">
-          <CardContent className={cn("p-6", center && "flex justify-center", contentClassName)}>
+      <div className={cn("min-w-0 md:col-span-2 lg:col-span-3", !(title || description || headerAction) && "md:col-start-2 lg:col-start-2")}>
+        <Card className="min-w-0 overflow-hidden shadow-none">
+          <CardContent className={cn("min-w-0 p-6", center && "flex justify-center", contentClassName)}>
             {children}
           </CardContent>
         </Card>

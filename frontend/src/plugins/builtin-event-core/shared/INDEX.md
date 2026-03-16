@@ -12,5 +12,5 @@ This layer now also exposes built-in Calendar source ids, timetable refresh payl
 | hooks/ | Shared hooks | Event-core hooks including cached schedule loading helpers. |
 | publishTimetableScheduleChange.ts | Publisher helper | Shared schedule-change emitter that resolves missing semester context before broadcasting Calendar refresh signals. |
 | utils.test.ts | Test file | Guards timezone-safe semester date parsing, DST-safe Reading Week range validation, and week-number alignment helpers. |
-| types.ts | Shared types | Schedule/event payload types shared across tabs, widget, settings surfaces, todo data-change signaling, and external Calendar-source refresh wiring, including `calendar-core` event re-exports and week-view screen-width calendar settings state. |
+| types.ts | Shared types | Schedule/event payload types shared across tabs, widget, settings surfaces, todo data-change signaling, and external Calendar-source refresh wiring, including `calendar-core` event re-exports and calendar settings state for per-source visibility/color control, week-view sizing, and LMS-description safety. |
 | utils.ts | Shared utilities | Date/time conversion, DST-safe semester week/date helpers, Reading Week-aware numbering/filtering helpers, recurring-event mapping, schedule grouping, filtering, and source-ready calendar/todo event mappers. |

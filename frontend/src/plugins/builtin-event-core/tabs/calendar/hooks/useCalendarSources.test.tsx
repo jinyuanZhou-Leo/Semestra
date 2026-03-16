@@ -1,5 +1,5 @@
 // input:  [calendar source orchestration hook, mock source definitions, and renderHook helpers]
-// output: [tests for independent source loading and targeted refresh behavior]
+// output: [tests for independent source loading, cache hydration, re-enabled source revalidation, and targeted refresh behavior]
 // pos:    [calendar source orchestration regression suite]
 //
 // ⚠️ When this file is updated:
@@ -170,6 +170,56 @@ describe('useCalendarSources', () => {
     expect(result.current.events[0]?.id).toBe('cached-event');
     expect(result.current.isLoading).toBe(false);
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it('revalidates a cached source when it is re-enabled later', async () => {
+    let resolveLoad: ((events: Array<ReturnType<typeof buildEvent>>) => void) | null = null;
+    const source: CalendarSourceDefinition = {
+      id: 'owner:toggle',
+      ownerId: 'owner',
+      label: 'Toggle',
+      defaultColor: '#3b82f6',
+      priority: 100,
+      getCached: () => [buildEvent('cached-event', 'owner:toggle')],
+      load: vi.fn(() => new Promise<Array<ReturnType<typeof buildEvent>>>((resolve) => {
+        resolveLoad = resolve;
+      })),
+      shouldRefresh: () => true,
+    };
+
+    const { result, rerender } = renderHook((props: { sources: CalendarSourceDefinition[] }) => useCalendarSources({
+      sources: props.sources,
+      context: calendarContext,
+    }), {
+      initialProps: { sources: [source] },
+    });
+
+    await waitFor(() => {
+      expect(result.current.events[0]?.id).toBe('cached-event');
+    });
+    expect(source.load).not.toHaveBeenCalled();
+
+    rerender({ sources: [] });
+
+    await waitFor(() => {
+      expect(result.current.events).toHaveLength(0);
+    });
+
+    rerender({ sources: [source] });
+
+    await waitFor(() => {
+      expect(result.current.events[0]?.id).toBe('cached-event');
+      expect(source.load).toHaveBeenCalledTimes(1);
+    });
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      resolveLoad?.([buildEvent('loaded-event', 'owner:toggle')]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.events[0]?.id).toBe('loaded-event');
+    });
   });
 
   it('renders completed sources before slower sources finish loading', async () => {

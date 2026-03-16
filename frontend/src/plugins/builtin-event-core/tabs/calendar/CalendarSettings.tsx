@@ -1,6 +1,6 @@
-// input:  [dialog open state, calendar settings state, and settings mutation callbacks]
-// output: [`CalendarSettings` legacy dialog UI for time window, week-number toggles, and colors]
-// pos:    [legacy calendar settings surface kept for direct in-tab configuration flows]
+// input:  [dialog open state, calendar settings state, settings mutation callbacks, and registered calendar sources]
+// output: [`CalendarSettings` legacy dialog UI for time window, source list visibility/color controls, LMS description safety, and week-number toggles]
+// pos:    [legacy calendar settings surface kept for direct in-tab configuration flows with source-aware list controls]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,16 @@
 "use no memo";
 
 import React from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -17,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
 import type { CalendarSettingsState } from '../../shared/types';
+import { CalendarSourceSettingsList } from './components/CalendarSourceSettingsList';
 import {
   CALENDAR_TIME_INPUT_STEP_SECONDS,
   normalizeDayMinuteWindow,
@@ -42,6 +53,7 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
   onReset,
 }) => {
   const calendarSources = useCalendarSourceRegistry();
+  const [isLmsDescriptionRiskDialogOpen, setIsLmsDescriptionRiskDialogOpen] = React.useState(false);
   const [dayStartDraft, setDayStartDraft] = React.useState(() => toTimeInputValue(settings.dayStartMinutes));
   const [dayEndDraft, setDayEndDraft] = React.useState(() => toTimeInputValue(settings.dayEndMinutes));
 
@@ -52,6 +64,10 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
       eventColors: {
         ...settings.eventColors,
         ...(patch.eventColors ?? {}),
+      },
+      sourceVisibility: {
+        ...settings.sourceVisibility,
+        ...(patch.sourceVisibility ?? {}),
       },
     });
   };
@@ -207,21 +223,17 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
           </div>
 
           <div className="space-y-3">
-            <p className="text-sm font-medium">Event colors</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {calendarSources.map((source) => (
-                <div key={source.id} className="space-y-1.5">
-                  <Label htmlFor={`color-${source.id}`}>{source.label}</Label>
-                  <Input
-                    id={`color-${source.id}`}
-                    type="color"
-                    value={settings.eventColors[source.id] ?? source.defaultColor}
-                    onChange={(event) => patchSettings({ eventColors: { ...settings.eventColors, [source.id]: event.target.value } })}
-                    className="h-10 w-full cursor-pointer"
-                  />
-                </div>
-              ))}
-            </div>
+            <p className="text-sm font-medium">calendar sources</p>
+            <CalendarSourceSettingsList
+              sources={calendarSources}
+              eventColors={settings.eventColors}
+              sourceVisibility={settings.sourceVisibility}
+              renderUnsafeLmsDescriptionHtml={settings.renderUnsafeLmsDescriptionHtml}
+              onToggleSourceVisibility={(sourceId, enabled) => patchSettings({ sourceVisibility: { [sourceId]: enabled } })}
+              onChangeSourceColor={(sourceId, color) => patchSettings({ eventColors: { [sourceId]: color } })}
+              onToggleUnsafeLmsDescriptionHtml={(enabled) => patchSettings({ renderUnsafeLmsDescriptionHtml: enabled })}
+              onRequestEnableUnsafeLmsDescriptionHtml={() => setIsLmsDescriptionRiskDialogOpen(true)}
+            />
           </div>
 
           <div className="flex justify-end gap-2">
@@ -230,6 +242,26 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
           </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={isLmsDescriptionRiskDialogOpen} onOpenChange={setIsLmsDescriptionRiskDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enable rich LMS descriptions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              LMS description HTML can include richer formatting from external systems. Only enable this if you trust the upstream LMS content, because it increases rendering risk compared with the default safe text/list mode.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Safe Mode</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => patchSettings({ renderUnsafeLmsDescriptionHtml: true })}
+            >
+              Enable Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

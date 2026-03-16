@@ -1,6 +1,6 @@
 // input:  [Testing Library render helpers, todo interaction hooks/components, and normalized todo runtime fixtures]
-// output: [Vitest coverage for local inline todo creation state, canonical todo-state derivation, compact time-chip editing, local sort persistence, and completed-task display behavior]
-// pos:    [Regression test file for todo runtime helpers that protect per-composer inline drafts, canonical-to-UI derivation, stable shell reuse, persisted view preferences, and completion bucketing behavior]
+// output: [Vitest coverage for local inline todo creation state, inline task-title deletion behavior, canonical todo-state derivation, compact time-chip editing, local sort persistence, and completed-task display behavior]
+// pos:    [Regression test file for todo runtime helpers and task-card interactions that protect per-composer inline drafts, empty-title delete behavior, canonical-to-UI derivation, stable shell reuse, persisted view preferences, and completion bucketing behavior]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,6 +18,7 @@ import { PRIORITY_OPTIONS } from './shared';
 import type { TodoListModel } from './types';
 import { fromTodoApiState, normalizeListStorage } from './utils/todoData';
 import { toggleTodoTaskCompletedInStorage } from './utils/todoMutations';
+import { TodoTaskCard } from './components/TodoTaskCard';
 
 describe('TodoInlineCreateRow', () => {
   it('opens from the placeholder and saves with Enter without showing action buttons', () => {
@@ -184,6 +185,65 @@ describe('TodoInlineCreateRow', () => {
 
     const secondInput = screen.getByPlaceholderText('Add second todo');
     expect(secondInput).toHaveValue('');
+  });
+});
+
+describe('TodoTaskCard', () => {
+  it('deletes the task immediately when the edited title is cleared', () => {
+    const task = {
+      id: 'task-1',
+      title: 'Draft task',
+      note: '',
+      sectionId: '',
+      originSectionId: undefined,
+      courseId: '',
+      courseName: '',
+      courseCategory: '',
+      dueDate: '',
+      dueTime: '',
+      priority: '',
+      completed: false,
+      order: 0,
+      createdAt: '2026-03-11T10:00:00.000Z',
+      updatedAt: '2026-03-11T10:00:00.000Z',
+    } as const;
+    const onPatchTask = vi.fn();
+    const onRequestDelete = vi.fn();
+
+    render(
+      <>
+        <TodoTaskCard
+          mode="semester"
+          task={task}
+          sectionId=""
+          draggingTaskId={null}
+          dragOverTaskId={null}
+          showCourseTag={true}
+          isSelected={true}
+          courseOptions={[]}
+          priorityOptions={PRIORITY_OPTIONS}
+          onTaskDragStart={vi.fn()}
+          onTaskDragEnd={vi.fn()}
+          onTaskDragOverItem={vi.fn()}
+          onTaskDropToSection={vi.fn()}
+          onToggleTaskCompleted={vi.fn()}
+          onPatchTask={onPatchTask}
+          onOpenDetails={vi.fn()}
+          onRequestDelete={onRequestDelete}
+          onSelect={vi.fn()}
+        />
+        <button type="button">Outside</button>
+      </>,
+    );
+
+    const titleInput = screen.getByDisplayValue('Draft task');
+    fireEvent.focus(titleInput);
+    fireEvent.change(titleInput, { target: { value: '   ' } });
+    fireEvent.blur(titleInput, { relatedTarget: screen.getByRole('button', { name: 'Outside' }) });
+
+    expect(onPatchTask).not.toHaveBeenCalled();
+    expect(onRequestDelete).toHaveBeenCalledTimes(1);
+    expect(onRequestDelete).toHaveBeenCalledWith(task, { skipConfirm: true });
   });
 });
 

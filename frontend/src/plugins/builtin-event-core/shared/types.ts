@@ -71,9 +71,11 @@ export type CalendarViewMode = 'week' | 'month';
 
 export interface CalendarSettingsState {
   eventColors: Record<string, string>;
+  sourceVisibility: Record<string, boolean>;
   highlightConflicts: boolean;
   showWeekends: boolean;
   countReadingWeekInWeekNumber: boolean;
+  renderUnsafeLmsDescriptionHtml: boolean;
   weekViewDayCount: number;
   dayStartMinutes: number;
   dayEndMinutes: number;
