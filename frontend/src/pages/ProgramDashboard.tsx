@@ -1223,7 +1223,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                 <CardContent>
                                                     <div className="grid grid-cols-2 gap-4 mt-2">
                                                         <div>
-                                                            <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">GPA</p>
+                                                            <p className="text-xs tracking-wider text-muted-foreground font-medium">GPA</p>
                                                             <p className="text-lg font-semibold">
                                                                 <AnimatedNumber
                                                                     value={semester.average_scaled}
@@ -1232,7 +1232,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                             </p>
                                                         </div>
                                                         <div className="text-right">
-                                                            <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Average</p>
+                                                            <p className="text-xs tracking-wider text-muted-foreground font-medium">Average</p>
                                                             <p className="text-lg font-semibold">{formatGpaPercentage(semester.average_percentage)}</p>
                                                         </div>
                                                     </div>
