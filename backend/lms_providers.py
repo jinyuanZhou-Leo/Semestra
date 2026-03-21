@@ -1,6 +1,6 @@
 # input:  [Dataclasses, typing protocol helpers, and provider adapter implementations]
 # output: [Provider-neutral LMS DTOs, provider adapter protocol methods for integration payload normalization and credential masking, error types, and provider registry resolution helpers]
-# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, navigation, announcements, modules, pages, and calendar reads]
+# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, navigation, announcements, modules, pages, quizzes, syllabus, and calendar reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -108,6 +108,24 @@ class LmsModuleSummaryData:
     state: Optional[str]
     unlock_at: Optional[str]
     items: list[LmsModuleItemData]
+
+
+@dataclass
+class LmsQuizSummaryData:
+    quiz_id: str
+    title: str
+    description: Optional[str]
+    due_at: Optional[str]
+    unlock_at: Optional[str]
+    lock_at: Optional[str]
+    html_url: Optional[str]
+    published: bool
+
+
+@dataclass
+class LmsCourseSyllabusData:
+    body: Optional[str]
+    html_url: Optional[str]
 
 
 @dataclass
@@ -231,6 +249,22 @@ class LmsProvider(Protocol):
         credentials: dict[str, Any],
         external_course_id: str,
     ) -> list[LmsModuleSummaryData]:
+        ...
+
+    def list_course_quizzes(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> list[LmsQuizSummaryData]:
+        ...
+
+    def get_course_syllabus(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> LmsCourseSyllabusData:
         ...
 
     def list_calendar_events(

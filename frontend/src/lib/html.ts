@@ -1,6 +1,6 @@
 // input:  [raw user/content HTML strings, Canvas page bodies, and browser DOM parsing APIs]
-// output: [safe HTML sanitization helpers for block-preserving text/list mode or richer HTML mode plus HTML-shape detection helpers]
-// pos:    [small frontend HTML safety utility for rendering trusted subsets of rich text in dialogs, UI surfaces, and Canvas page bodies]
+// output: [safe HTML sanitization helpers for block-preserving text/list mode or richer HTML mode plus HTML-shape detection helpers with Canvas-focused table or image preservation]
+// pos:    [small frontend HTML safety utility for rendering trusted subsets of rich text in dialogs, UI surfaces, and Canvas page bodies while retaining richer Canvas formatting]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -20,6 +20,7 @@ const ALLOWED_TAGS = new Set([
   'h4',
   'h5',
   'h6',
+  'img',
   'i',
   'li',
   'ol',
@@ -27,6 +28,12 @@ const ALLOWED_TAGS = new Set([
   'pre',
   'span',
   'strong',
+  'table',
+  'tbody',
+  'td',
+  'th',
+  'thead',
+  'tr',
   'ul',
 ]);
 
@@ -53,6 +60,8 @@ const PLAIN_TEXT_LIST_TAGS = new Set([
 
 const ALLOWED_ATTRS = new Set([
   'href',
+  'src',
+  'alt',
   'style',
   'target',
   'rel',
@@ -65,17 +74,6 @@ const SAFE_URL_PROTOCOLS = new Set([
 ]);
 
 const HTML_TAG_PATTERN = /<\/?[a-z][\s\S]*>/i;
-const ALLOWED_STYLE_PROPS = new Set([
-  'background-color',
-  'color',
-  'font-size',
-  'font-style',
-  'font-weight',
-  'line-height',
-  'text-align',
-  'text-decoration',
-]);
-
 interface SanitizeOptions {
   allowedTags: Set<string>;
   allowInlineStyles: boolean;
@@ -96,19 +94,10 @@ const isSafeStyleValue = (value: string) => {
   return !/url\(|expression\(|javascript:|@import/i.test(value);
 };
 
-const sanitizeInlineStyle = (element: HTMLElement) => {
-  const safeEntries: string[] = [];
-
-  for (const propertyName of Array.from(element.style)) {
-    const normalizedName = propertyName.toLowerCase();
-    if (!ALLOWED_STYLE_PROPS.has(normalizedName)) continue;
-
-    const value = element.style.getPropertyValue(propertyName).trim();
-    if (!value || !isSafeStyleValue(value)) continue;
-    safeEntries.push(`${normalizedName}: ${value}`);
-  }
-
-  return safeEntries.join('; ');
+const sanitizeInlineStyle = (rawStyle: string) => {
+  const normalizedStyle = rawStyle.trim();
+  if (!normalizedStyle) return '';
+  return isSafeStyleValue(normalizedStyle) ? normalizedStyle : '';
 };
 
 const sanitizeNode = (node: Node, documentRef: Document, options: SanitizeOptions): Node | null => {
@@ -152,6 +141,19 @@ const sanitizeNode = (node: Node, documentRef: Document, options: SanitizeOption
       continue;
     }
 
+    if (attrName === 'src') {
+      if (tagName !== 'img') continue;
+      if (!isSafeHref(attr.value.trim())) continue;
+      cleanElement.setAttribute('src', attr.value.trim());
+      continue;
+    }
+
+    if (attrName === 'alt') {
+      if (tagName !== 'img') continue;
+      cleanElement.setAttribute('alt', attr.value);
+      continue;
+    }
+
     if (attrName === 'target') {
       if (tagName !== 'a') continue;
       cleanElement.setAttribute('target', '_blank');
@@ -166,7 +168,7 @@ const sanitizeNode = (node: Node, documentRef: Document, options: SanitizeOption
 
     if (attrName === 'style') {
       if (!options.allowInlineStyles) continue;
-      const sanitizedStyle = sanitizeInlineStyle(element);
+      const sanitizedStyle = sanitizeInlineStyle(attr.value);
       if (sanitizedStyle) {
         cleanElement.setAttribute('style', sanitizedStyle);
       }

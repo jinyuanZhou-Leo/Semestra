@@ -1,5 +1,5 @@
 // input:  [Canvas navigation/page API payloads, Canvas anchor metadata, and plugin tab runtime settings]
-// output: [builtin-canvas-integration plugin constants plus Canvas navigation, page-link parsing, and timestamp formatting helpers]
+// output: [builtin-canvas-integration plugin constants plus LMS URL resolution, page-link parsing, and timestamp formatting helpers]
 // pos:    [Shared helper layer for the Canvas navigation tab runtime]
 //
 // ⚠️ When this file is updated:
@@ -7,10 +7,10 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 export const BUILTIN_CANVAS_INTEGRATION_PLUGIN_ID = 'builtin-canvas-integration';
-export const BUILTIN_CANVAS_PAGES_TAB_TYPE = 'builtin-canvas-integration:pages';
+export const BUILTIN_CANVAS_PAGES_TAB_TYPE = 'builtin-canvas-integration';
 
-export type CanvasNavSectionKey = 'home' | 'announcements' | 'modules' | 'pages';
-export type CanvasHomeLandingTarget = 'page' | 'announcements' | 'modules' | 'external';
+export type CanvasNavSectionKey = 'home' | 'announcements' | 'modules' | 'pages' | 'quizzes' | 'syllabus';
+export type CanvasHomeLandingTarget = Exclude<CanvasNavSectionKey, 'home'> | null;
 
 export interface CanvasPageSummaryLike {
     url: string;
@@ -19,17 +19,6 @@ export interface CanvasPageSummaryLike {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export const resolveCanvasNavSectionKey = (value: string | null | undefined): CanvasNavSectionKey | null => {
-    if (!value) return null;
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return null;
-    if (normalized.includes('announ') || normalized.includes('feed') || normalized.includes('activity')) return 'announcements';
-    if (normalized.includes('module')) return 'modules';
-    if (normalized.includes('page') || normalized.includes('wiki')) return 'pages';
-    if (normalized.includes('home') || normalized.includes('front') || normalized === 'default') return 'home';
-    return null;
-};
-
 const extractPageRefFromPath = (path: string, courseExternalId: string) => {
     const escapedCourseId = escapeRegExp(courseExternalId);
     const match = path.match(new RegExp(`^/(?:api/v1/)?courses/${escapedCourseId}/pages/(.+)$`));
@@ -37,19 +26,45 @@ const extractPageRefFromPath = (path: string, courseExternalId: string) => {
     return decodeURIComponent(match[1].replace(/[?#].*$/, ''));
 };
 
-export const resolveCanvasPageReference = (href: string, courseExternalId: string) => {
+export const resolveCanvasHref = (href: string, canvasOrigin?: string | null) => {
+    const normalizedHref = href.trim();
+    if (!normalizedHref) {
+        return null;
+    }
+    if (/^(https?:|mailto:|tel:)/i.test(normalizedHref)) {
+        return normalizedHref;
+    }
+    if (!canvasOrigin) {
+        return null;
+    }
     try {
-        const parsed = new URL(href, globalThis.location?.origin ?? 'https://semestra.local');
+        return new URL(normalizedHref, canvasOrigin).toString();
+    } catch {
+        return null;
+    }
+};
+
+export const resolveCanvasPageReference = (href: string, courseExternalId: string, canvasOrigin?: string | null) => {
+    const resolvedHref = resolveCanvasHref(href, canvasOrigin);
+    if (!resolvedHref) {
+        return extractPageRefFromPath(href, courseExternalId);
+    }
+    try {
+        const parsed = new URL(resolvedHref);
         return extractPageRefFromPath(parsed.pathname, courseExternalId);
     } catch {
         return extractPageRefFromPath(href, courseExternalId);
     }
 };
 
-export const resolveCanvasPageReferenceFromAnchor = (anchor: HTMLAnchorElement, courseExternalId: string) => {
+export const resolveCanvasPageReferenceFromAnchor = (
+    anchor: HTMLAnchorElement,
+    courseExternalId: string,
+    canvasOrigin?: string | null,
+) => {
     const endpoint = anchor.dataset.apiEndpoint;
     if (endpoint) {
-        const endpointPageRef = resolveCanvasPageReference(endpoint, courseExternalId);
+        const endpointPageRef = resolveCanvasPageReference(endpoint, courseExternalId, canvasOrigin);
         if (endpointPageRef) {
             return endpointPageRef;
         }
@@ -57,23 +72,12 @@ export const resolveCanvasPageReferenceFromAnchor = (anchor: HTMLAnchorElement, 
 
     const href = anchor.getAttribute('href');
     if (!href) return null;
-    return resolveCanvasPageReference(href, courseExternalId);
-};
-
-export const resolveCanvasHomeLandingTarget = (defaultView?: string | null): CanvasHomeLandingTarget => {
-    const sectionKey = resolveCanvasNavSectionKey(defaultView);
-    if (sectionKey === 'announcements' || sectionKey === 'modules') {
-        return sectionKey;
-    }
-    if (sectionKey === 'pages' || sectionKey === 'home' || !defaultView?.trim()) {
-        return 'page';
-    }
-    return 'external';
+    return resolveCanvasPageReference(href, courseExternalId, canvasOrigin);
 };
 
 export const resolveCanvasHomePageRef = (pages: CanvasPageSummaryLike[]) => {
     const frontPage = pages.find((page) => page.front_page);
-    return frontPage?.url ?? pages[0]?.url ?? null;
+    return frontPage?.url ?? null;
 };
 
 export const formatCanvasPageTimestamp = (value: string | null | undefined) => {

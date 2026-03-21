@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks with optional point-based score fields]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks with optional point-based score fields]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -353,6 +353,26 @@ class LmsModuleSummary(BaseModel):
 
 class LmsModuleListResponse(BaseModel):
     items: List[LmsModuleSummary] = []
+
+
+class LmsQuizSummary(BaseModel):
+    quiz_id: str
+    title: str
+    description: Optional[str] = None
+    due_at: Optional[str] = None
+    unlock_at: Optional[str] = None
+    lock_at: Optional[str] = None
+    html_url: Optional[str] = None
+    published: bool = False
+
+
+class LmsQuizListResponse(BaseModel):
+    items: List[LmsQuizSummary] = []
+
+
+class LmsCourseSyllabusResponse(BaseModel):
+    body: Optional[str] = None
+    html_url: Optional[str] = None
 
 
 class LmsCourseLinkSummary(BaseModel):

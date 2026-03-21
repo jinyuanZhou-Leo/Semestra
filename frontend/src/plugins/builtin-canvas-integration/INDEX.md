@@ -1,14 +1,17 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Canvas navigation tab plugin for Canvas-linked courses.
-The tab browser now mirrors Canvas web app semantics with a narrow course-navigation rail, top-level Home/Announcements/Modules/Pages entries, and a page submenu only when Pages is active.
-Shared helpers keep the plugin ID, Canvas tab-to-section resolution, page-link parsing, and timestamp formatting isolated from the tab runtime, while the tab keeps navigation, announcement, module, page-list, and page-detail queries warm in a longer-lived client cache.
+The tab browser now mirrors Canvas web app semantics with a sticky course-menu rail on the left and right-side content for every visible Canvas tab.
+Home follows Canvas `default_view`, hides `assignments`/`grades`/`files`/discussion tab ids from the rail, keeps Pages/Announcements/Modules/Quizzes/Syllabus on Semestra-native views, routes unknown internal tabs to a fallback open-in-Canvas prompt, shows external tabs as in-pane launch prompts instead of confirmation dialogs, and aligns plugin-level unavailable states with the shared host empty-state sizing.
+Modules now render as collapsible section cards, locked Canvas pages use a native shadcn alert treatment instead of bespoke callout chrome, Canvas rich-text bodies now use a stronger Semestra typography layer for headings, prose, lists, tables, and images, and the left rail measures the workspace sticky header so it does not slide under the Course Homepage title bar.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for the Canvas integration plugin files. |
+| components/ | UI subdirectory | Extracted semantic Canvas tab UI components grouped by rail, loading, HTML, CTA prompt, page, announcement, module, quiz, and syllabus responsibilities. |
 | index.ts | Runtime entry | Registers the Canvas pages tab runtime through `definePluginRuntime(...)`. |
 | metadata.ts | Plugin metadata | Declares the course-only Canvas pages tab catalog entry. |
-| shared.ts | Shared helpers | Stores plugin constants plus Canvas tab-section resolution, landing-target resolution, page-link parsing, and timestamp formatting helpers. |
-| tab.test.tsx | Test file | Verifies Canvas-link prompting, backend-driven Home/Announcements/Modules content, and in-tab Canvas page navigation. |
-| tab.tsx | Tab runtime | Renders the narrow course-navigation rail, Home/Announcements/Modules/Pages content views, same-course navigation interception, and longer-lived client-side Canvas query caching. |
+| shared.ts | Shared helpers | Stores plugin constants plus LMS URL resolution, page-link parsing, and timestamp formatting helpers. |
+| tab-helpers.ts | Runtime helpers | Holds query defaults, hidden-tab filtering, navigation-entry mapping, Home fallback resolution, LMS URL helpers, and other non-visual runtime utilities shared by the extracted tab files. |
+| tab.test.tsx | Test file | Verifies Canvas-link prompting, host-aligned unavailable-state sizing, hidden-tab filtering, Home fallback routing, sticky-rail offset behavior, collapsible module interactions, locked-page alerts, external/unknown CTA rendering, and native quizzes/syllabus views. |
+| tab.tsx | Tab runtime | Owns selected-tab state, filtered navigation composition, Home fallback routing, query orchestration for page/announcement/module/quiz/syllabus reads, framework-aligned unavailable-state rendering, host-aware sticky rail offset measurement, and composition of the extracted Canvas tab UI components. |

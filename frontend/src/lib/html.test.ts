@@ -1,5 +1,5 @@
 // input:  [HTML sanitizer helpers and Vitest assertions running in jsdom]
-// output: [regression tests for block-preserving safe-text HTML sanitization and Canvas page-link metadata preservation]
+// output: [regression tests for block-preserving safe-text HTML sanitization plus Canvas page-link, table, image, and style preservation]
 // pos:    [frontend HTML utility regression suite]
 //
 // ⚠️ When this file is updated:
@@ -29,5 +29,19 @@ describe('sanitizeCanvasHtmlFragment', () => {
     expect(sanitized).toContain('data-api-endpoint="/api/v1/courses/123/pages/second-page"');
     expect(sanitized).toContain('data-api-returntype="Page"');
     expect(sanitized).not.toContain('onclick');
+  });
+
+  it('preserves table and image markup with inline styles in Canvas mode', () => {
+    const sanitized = sanitizeCanvasHtmlFragment(
+      '<table style="width: 100%; border: 1px solid #ddd"><tbody><tr><th style="text-align: left">Week</th><td><img src="https://canvas.example.edu/image.png" alt="Diagram" style="width: 240px; border-radius: 12px" /></td></tr></tbody></table>',
+    );
+
+    expect(sanitized).toContain('<table');
+    expect(sanitized).toContain('style="width: 100%; border: 1px solid #ddd"');
+    expect(sanitized).toContain('<th style="text-align: left">Week</th>');
+    expect(sanitized).toContain('<img');
+    expect(sanitized).toContain('src="https://canvas.example.edu/image.png"');
+    expect(sanitized).toContain('alt="Diagram"');
+    expect(sanitized).toContain('style="width: 240px; border-radius: 12px"');
   });
 });

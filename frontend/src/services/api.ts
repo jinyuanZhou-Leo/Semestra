@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, and course Canvas page browser requests]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, and course Canvas navigation/page/quiz/syllabus browser requests]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/page browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/page/quiz/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -275,6 +275,26 @@ export interface LmsModuleSummary {
 
 export interface LmsModuleListResponse {
     items: LmsModuleSummary[];
+}
+
+export interface LmsQuizSummary {
+    quiz_id: string;
+    title: string;
+    description?: string | null;
+    due_at?: string | null;
+    unlock_at?: string | null;
+    lock_at?: string | null;
+    html_url?: string | null;
+    published: boolean;
+}
+
+export interface LmsQuizListResponse {
+    items: LmsQuizSummary[];
+}
+
+export interface LmsCourseSyllabusResponse {
+    body?: string | null;
+    html_url?: string | null;
 }
 
 export interface LmsCourseImportResult {
@@ -919,6 +939,12 @@ const api = {
             return response.data;
         });
     },
+    getCourseLmsQuizzes: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/quizzes`, async () => {
+            const response = await axios.get<LmsQuizListResponse>(`/api/courses/${courseId}/lms/quizzes`);
+            return response.data;
+        });
+    },
     getCourseLmsPages: async (courseId: string) => {
         return dedupeGet(`GET:/api/courses/${courseId}/lms/pages`, async () => {
             const response = await axios.get<LmsCoursePageListResponse>(`/api/courses/${courseId}/lms/pages`);
@@ -928,6 +954,12 @@ const api = {
     getCourseLmsPage: async (courseId: string, pageRef: string) => {
         return dedupeGet(`GET:/api/courses/${courseId}/lms/pages/${pageRef}`, async () => {
             const response = await axios.get<LmsCoursePageDetail>(`/api/courses/${courseId}/lms/pages/${encodeURIComponent(pageRef)}`);
+            return response.data;
+        });
+    },
+    getCourseLmsSyllabus: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/syllabus`, async () => {
+            const response = await axios.get<LmsCourseSyllabusResponse>(`/api/courses/${courseId}/lms/syllabus`);
             return response.data;
         });
     },

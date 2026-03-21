@@ -1,6 +1,6 @@
 # input:  [Canvas LMS provider config/credential payloads and requests-based Canvas REST access]
-# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/modules/pages, and reads assignments/calendar events with provider-specific due-date normalization]
-# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, navigation, page, announcement, module, and credential mapping]
+# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/modules/pages/quizzes, reads syllabus/assignments/calendar events, and applies provider-specific due-date normalization]
+# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, navigation, page, announcement, module, quiz, syllabus, and credential mapping]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -22,12 +22,14 @@ from lms_providers import (
     LmsCoursePageData,
     LmsCourseNavigationData,
     LmsCourseNavigationTabData,
+    LmsCourseSyllabusData,
     LmsCourseSummaryData,
     LmsModuleItemData,
     LmsModuleSummaryData,
     LmsPageDetailData,
     LmsPageSummaryData,
     LmsProviderError,
+    LmsQuizSummaryData,
 )
 
 
@@ -252,6 +254,19 @@ class CanvasLmsProvider:
             state=state,
             unlock_at=payload.get("unlock_at"),
             items=items,
+        )
+
+    def _normalize_quiz(self, payload: dict[str, Any]) -> LmsQuizSummaryData:
+        quiz_id = str(payload.get("id") or "").strip()
+        return LmsQuizSummaryData(
+            quiz_id=quiz_id,
+            title=str(payload.get("title") or quiz_id or "Quiz").strip() or "Quiz",
+            description=payload.get("description"),
+            due_at=payload.get("due_at"),
+            unlock_at=payload.get("unlock_at"),
+            lock_at=payload.get("lock_at"),
+            html_url=payload.get("html_url"),
+            published=bool(payload.get("published")),
         )
 
     def _active_navigation_tab_id(self, default_view: Optional[str]) -> Optional[str]:
@@ -504,6 +519,47 @@ class CanvasLmsProvider:
                 params={"per_page": 100, "sort": "title", "order": "asc"},
             )
             return [self._normalize_page_summary(item) for item in payload]
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def list_course_quizzes(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> list[LmsQuizSummaryData]:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._paginate_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/quizzes",
+                params={"per_page": 100},
+            )
+            return [self._normalize_quiz(item) for item in payload]
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def get_course_syllabus(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> LmsCourseSyllabusData:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._request_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}",
+                params={"include[]": ["syllabus_body"]},
+            )
+            if not isinstance(payload, dict):
+                raise LmsProviderError("LMS_PROVIDER_ERROR", "Canvas returned an unexpected provider payload.", status_code=502)
+            return LmsCourseSyllabusData(
+                body=payload.get("syllabus_body"),
+                html_url=f"{base_url}/courses/{external_course_id}/assignments/syllabus",
+            )
         except Exception as exc:
             raise self._map_provider_exception(exc) from exc
 

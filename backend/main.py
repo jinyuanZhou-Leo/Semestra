@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, and widget delete query flags]
 # output: [FastAPI app instance, router registration, and remaining Program/Semester/Course route handlers that are not yet split into separate backend API modules]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, and keeps the remaining program/semester/course orchestration endpoints plus course LMS navigation, announcement, module, and page reads]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, and keeps the remaining program/semester/course orchestration endpoints plus course LMS navigation, announcement, module, page, quiz, and syllabus reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -678,6 +678,18 @@ def read_course_lms_modules(
         raise_lms_http_error(exc)
 
 
+@app.get("/courses/{course_id}/lms/quizzes", response_model=schemas.LmsQuizListResponse)
+def read_course_lms_quizzes(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_course_quizzes(db, current_user.id, course_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
 @app.get("/courses/{course_id}/lms/pages", response_model=schemas.LmsPageListResponse)
 def read_course_lms_pages(
     course_id: str,
@@ -699,6 +711,18 @@ def read_course_lms_page(
 ):
     try:
         return lms_service.get_course_page(db, current_user.id, course_id, page_ref)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/courses/{course_id}/lms/syllabus", response_model=schemas.LmsCourseSyllabusResponse)
+def read_course_lms_syllabus(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.get_course_syllabus(db, current_user.id, course_id)
     except Exception as exc:
         raise_lms_http_error(exc)
 
