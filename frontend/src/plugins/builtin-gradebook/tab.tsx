@@ -1,4 +1,4 @@
-// input:  [course gradebook APIs, course data update context, LMS assignment APIs, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers, and shared business empty-state wrappers]
+// input:  [course gradebook APIs, course data update context, LMS assignment APIs, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers, builtin-gradebook shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, LMS-assisted add-assessment flows, incomplete-weight warning stats, and tab definition]
 // pos:    [course-scoped gradebook surface for local assessment scores, one-time LMS assignment import inside the add-assessment dialog using provider-normalized due dates, stable shadcn tabbed add-assessment UX, Calendar due-date sync, temporary what-if editing, incomplete-weight calculation gating, and semantic empty-state feedback]
 //
@@ -82,6 +82,7 @@ import {
     hasCompleteGradebookWeight,
     formatGradebookDate,
     formatGradebookDateInput,
+    formatGradebookGpaPercentage,
     formatPercent,
     getApiErrorMessage,
     getCategoryBadgeClassName,
@@ -788,13 +789,13 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     <span className="text-amber-600 dark:text-amber-400">
                                         <AnimatedNumber
                                             value={whatIfResult.projected_percentage}
-                                            format={(v) => `${v.toFixed(1)}%`}
+                                            format={formatGradebookGpaPercentage}
                                         />
                                     </span>
                                 ) : (
                                     <AnimatedNumber
                                         value={course.grade_percentage}
-                                        format={(v) => `${v.toFixed(1)}%`}
+                                        format={formatGradebookGpaPercentage}
                                     />
                                 )}
                             </div>

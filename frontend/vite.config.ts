@@ -1,6 +1,6 @@
-// input:  [Vite + Vitest APIs, React/Tailwind plugins, manual chunk strategy, dev proxy rules]
+// input:  [Vite + Vitest APIs, React/Tailwind plugins, React Compiler preset wiring, environment-gated Vite DevTools config, and dev proxy rules]
 // output: [default exported `defineConfig(...)` result for Vite/Vitest]
-// pos:    [Primary toolchain configuration for dev server, tests, and production bundling]
+// pos:    [Primary toolchain configuration for dev server, tests, production bundling, and opt-in standalone Vite DevTools on Vite 8]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,60 +8,48 @@
 
 /// <reference types="vitest" />
 import path from "path"
+import babel, { defineRolldownBabelPreset } from "@rolldown/plugin-babel"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 
-const normalizeModuleId = (id: string) => id.replace(/\\/g, '/')
+const compilerPreset = defineRolldownBabelPreset({
+  ...reactCompilerPreset({ target: '19' }),
+  rolldown: {
+    filter: {
+      id: {
+        include: ['src/**/*.tsx', 'src/**/*.jsx'],
+        exclude: [
+          'src/**/*.test.*',
+          'src/**/*.spec.*',
+          'src/test/**',
+          'src/utils/**',
+          'src/types/**',
+          'src/services/**',
+          'src/calendar-core/**',
+        ],
+      },
+      moduleType: {
+        include: ['tsx', 'jsx'],
+      },
+    },
+    optimizeDeps: {
+      include: ['react/compiler-runtime'],
+    },
+  },
+})
 
-const manualChunkGroups = [
-  { name: 'react', packages: ['react', 'react-dom', 'react-router-dom'] },
-  { name: 'motion', packages: ['framer-motion'] },
-  { name: 'grid', packages: ['react-grid-layout'] },
-  { name: 'http', packages: ['axios'] },
-  { name: 'ogl', packages: ['ogl'] },
-  { name: 'icons', packages: ['lucide-react'] },
-  { name: 'utils', packages: ['clsx', 'tailwind-merge', 'class-variance-authority'] },
-]
-
-const uiPackages = [
-  '@radix-ui/react-avatar',
-  '@radix-ui/react-checkbox',
-  '@radix-ui/react-dialog',
-  '@radix-ui/react-dropdown-menu',
-  '@radix-ui/react-label',
-  '@radix-ui/react-progress',
-  '@radix-ui/react-radio-group',
-  '@radix-ui/react-select',
-  '@radix-ui/react-separator',
-  '@radix-ui/react-slot',
-  '@radix-ui/react-tabs',
-  'sonner',
-]
-
-const resolveManualChunk = (id: string) => {
-  const normalizedId = normalizeModuleId(id)
-
-  for (const group of manualChunkGroups) {
-    if (group.packages.some((pkg) => normalizedId.includes(`/node_modules/${pkg}/`))) {
-      return group.name
-    }
-  }
-
-  const matchedPackage = uiPackages.find((pkg) => normalizedId.includes(`/node_modules/${pkg}/`))
-  if (matchedPackage) {
-    const chunkSuffix = matchedPackage.replace('@radix-ui/react-', '')
-    return `ui-${chunkSuffix}`
-  }
-}
+const devToolsEnabled = process.env.SEMESTRA_VITE_DEVTOOLS === '1'
 
 // https://vite.dev/config/
 export default defineConfig({
+  devtools: {
+    enabled: devToolsEnabled,
+  },
   plugins: [
-    react({
-      babel: {
-        plugins: [['babel-plugin-react-compiler', { target: '19' }]],
-      },
+    react(),
+    babel({
+      presets: [compilerPreset],
     }),
     tailwindcss(),
   ],
@@ -91,23 +79,5 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
-  },
-  build: {
-    rollupOptions: {
-      onwarn(warning, warn) {
-        if (
-          warning.code === 'MODULE_LEVEL_DIRECTIVE' &&
-          warning.message?.includes('"use no memo"')
-        ) {
-          return
-        }
-        warn(warning)
-      },
-      output: {
-        manualChunks(id) {
-          return resolveManualChunk(id)
-        },
-      },
-    },
   },
 })

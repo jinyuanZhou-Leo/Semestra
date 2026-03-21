@@ -1,4 +1,4 @@
-// input:  [plugin settings props, semester/course API service, settings-section UI, CRUD panel shell, and modal/alert primitives]
+// input:  [plugin settings props, semester/course API service, plugin-local GPA-percentage formatting, settings-section UI, CRUD panel shell, and modal/alert primitives]
 // output: [course-list plugin settings component for semester course management]
 // pos:    [plugin-global settings panel that loads semester courses, renders mobile-safe CRUD-panel-aligned course management, surfaces failures, and handles removal flows]
 //
@@ -31,6 +31,7 @@ import api from '@/services/api';
 import type { Course, Semester } from '@/services/api';
 import type { PluginSettingsProps } from '@/services/pluginSettingsRegistry';
 import { AlertCircle, Loader2, Plus, Trash2 } from 'lucide-react';
+import { formatCourseListGpaPercentage } from './format';
 
 const resolveErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -175,7 +176,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
                 </div>
               </TableCell>
               <TableCell>{course.credits}</TableCell>
-              <TableCell>{course.grade_percentage}%</TableCell>
+              <TableCell>{formatCourseListGpaPercentage(course.grade_percentage)}</TableCell>
               <TableCell className="text-right">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>

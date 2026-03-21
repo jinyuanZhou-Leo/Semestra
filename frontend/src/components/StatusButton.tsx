@@ -1,4 +1,4 @@
-// input:  [button state prop (`idle/saving/success/error`), customizable status labels, button props, and timer-driven visual transitions]
+// input:  [button state prop (`idle/saving/success/error`), customizable status labels, button props, and browser-timer-driven visual transitions]
 // output: [`StatusButton` component and `StatusButtonState` type]
 // pos:    [Reusable settings/action CTA with animated in-place status transitions]
 //
@@ -29,6 +29,8 @@ const SPINNER_DELAY_MS = 280;
 const SPINNER_SWAP_MS = 180;
 const TEXT_IN_MS = 200;
 
+type TimerHandle = ReturnType<typeof globalThis.setTimeout>;
+
 interface StatusButtonProps
   extends Omit<React.ComponentProps<typeof Button>, "children"> {
   status: StatusButtonState;
@@ -54,15 +56,15 @@ export const StatusButton: React.FC<StatusButtonProps> = ({
   const previousStatusRef = useRef<StatusButtonState>(status);
   const savingStartedAtRef = useRef<number>(0);
   const spinnerShownRef = useRef(false);
-  const timersRef = useRef<Array<ReturnType<typeof window.setTimeout>>>([]);
+  const timersRef = useRef<TimerHandle[]>([]);
 
   const clearTimers = () => {
-    timersRef.current.forEach((timer) => window.clearTimeout(timer));
+    timersRef.current.forEach((timer) => globalThis.clearTimeout(timer));
     timersRef.current = [];
   };
 
   const schedule = (callback: () => void, delay: number) => {
-    const timer = window.setTimeout(callback, delay);
+    const timer = globalThis.setTimeout(callback, delay);
     timersRef.current.push(timer);
   };
 

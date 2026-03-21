@@ -1,4 +1,4 @@
-// input:  [program/semester identifiers, course CRUD and LMS/calendar import APIs, auth default credit, dialog state, global confirm/alert dialogs, responsive overlay wrapper, shared LMS course picker, and business empty-state wrappers]
+// input:  [program/semester identifiers, course CRUD and LMS/calendar import APIs, auth default credit, dialog state, global confirm/alert dialogs, responsive overlay wrapper, shared LMS course picker, shared GPA-percentage formatting, and business empty-state wrappers]
 // output: [`CourseManagerModal` component]
 // pos:    [Program dashboard responsive add-course surface with height-stable select/create/calendar/LMS flows, searchable existing-course selection, duplicate-name confirmation, reusable LMS course selection, and import feedback]
 //
@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import { Plus, Search, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatGpaPercentage } from '@/utils/percentage';
 import { ResponsiveDialogDrawer } from './ResponsiveDialogDrawer';
 import { LmsCourseSelectionList } from './LmsCourseSelectionList';
 
@@ -433,7 +434,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                                                 <span className="opacity-70">Credits:</span> {course.credits}
                                                             </span>
                                                             <span className="flex items-center gap-1">
-                                                                <span className="opacity-70">Grade:</span> {course.grade_percentage}%
+                                                                <span className="opacity-70">Grade:</span> {formatGpaPercentage(course.grade_percentage)}
                                                             </span>
                                                             {course.category ? (
                                                                 <span className="flex items-center gap-1">

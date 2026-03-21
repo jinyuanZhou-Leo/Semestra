@@ -25,6 +25,13 @@ export const BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE = 'builtin-gradebook-summary'
 export const GRADEBOOK_OPEN_TAB_EVENT = 'semestra:open-course-gradebook-tab';
 export const OPEN_GRADEBOOK_TAB_EVENT = GRADEBOOK_OPEN_TAB_EVENT;
 
+export const formatGradebookGpaPercentage = (value: number): string => {
+    if (!Number.isFinite(value)) {
+        return '0.0%';
+    }
+    return `${value.toFixed(1)}%`;
+};
+
 export type GradebookSortKey = 'due_date' | 'category' | 'weight' | 'score' | 'title';
 export type GradebookSortDirection = 'asc' | 'desc' | 'none';
 export type GradebookFilterKey = 'all' | 'graded' | 'ungraded';

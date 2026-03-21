@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Pure utility functions and small constants used across pages/components.
-Includes GPA conversion, password rules, icon guards, Google identity loader, and shared course badge color helpers.
+Includes GPA conversion, GPA-percentage display formatting, password rules, icon guards, Google identity loader, and shared course badge color helpers.
 Also contains homepage builtin-tab configuration and widget layout normalization helpers.
 
 | File | Role | Description |
@@ -13,4 +13,5 @@ Also contains homepage builtin-tab configuration and widget layout normalization
 | homepageBuiltinTabs.ts | Utility module | Homepage builtin-tab requirements/config constants that pin Dashboard first and Settings last while leaving Gradebook, Calendar, Schedule, and Todo reorderable. |
 | icon.ts | Utility module | Type guard for icon values that should render as images. |
 | passwordRules.ts | Utility module | Password validation rules and helper hint text. |
+| percentage.ts | Utility module | Shared one-decimal GPA percentage formatters reused by pages, components, and plugins without coupling plugin runtime code to host views. |
 | widgetLayout.ts | Utility module | Shared widget layout constraint and size normalization helpers. |

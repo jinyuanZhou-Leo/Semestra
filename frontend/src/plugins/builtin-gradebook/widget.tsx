@@ -1,4 +1,4 @@
-// input:  [course API, widget runtime contracts, dashboard stat iconography, and shared business empty-state wrappers]
+// input:  [course API, widget runtime contracts, dashboard stat iconography, builtin-gradebook shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [builtin-gradebook summary widget component and widget definition]
 // pos:    [course-scoped read-only KPI widget using CSS-only responsive vertical layout, non-selectable stat tiles, and standardized unavailable empty states]
 //
@@ -15,7 +15,7 @@ import { AppEmptyState } from '@/components/AppEmptyState';
 import api, { type Course } from '@/services/api';
 import type { WidgetDefinition, WidgetProps } from '@/services/widgetRegistry';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE } from './shared';
+import { BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE, formatGradebookGpaPercentage } from './shared';
 import { cn } from '@/lib/utils';
 
 interface SummaryTileProps {
@@ -146,7 +146,7 @@ const BuiltinGradebookSummaryWidget: React.FC<WidgetProps> = ({ courseId }) => {
                     labelClassName="text-[10px] sm:text-[11px] md:text-xs"
                     valueClassName="text-xs tabular-nums sm:text-sm md:text-base lg:text-lg"
                     value={(
-                        <span className="block leading-none">{`${course.grade_percentage.toFixed(1)}%`}</span>
+                        <span className="block leading-none">{formatGradebookGpaPercentage(course.grade_percentage)}</span>
                     )}
                 />
             </div>

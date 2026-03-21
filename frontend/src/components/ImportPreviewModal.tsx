@@ -1,4 +1,4 @@
-// input:  [raw backup payload, conflict strategy options, optional account-settings import flag, and confirm callbacks]
+// input:  [raw backup payload, conflict strategy options, shared GPA-percentage formatting, optional account-settings import flag, and confirm callbacks]
 // output: [`ImportPreviewModal` component and backup import helper types]
 // pos:    [Settings workflow modal that previews backup contents across programs, LMS integrations, resources, todo data, and account settings before restore]
 //
@@ -27,6 +27,7 @@ import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { formatGpaPercentage } from '@/utils/percentage';
 
 type CountableList = Array<unknown> | undefined | null;
 
@@ -345,7 +346,7 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                                                                     </Badge>
                                                                 </div>
                                                                 <p className="truncate text-xs text-muted-foreground">
-                                                                    CGPA {program.cgpa_scaled} ({program.cgpa_percentage}%) · Grad Credits {program.grad_requirement_credits}
+                                                                    CGPA {program.cgpa_scaled} ({formatGpaPercentage(program.cgpa_percentage)}) · Grad Credits {program.grad_requirement_credits}
                                                                     {program.program_timezone ? ` · ${program.program_timezone}` : ''}
                                                                     {program.gpa_scaling_table ? ` · Scale ${program.gpa_scaling_table}` : ''}
                                                                     {program.hide_gpa ? ' · GPA hidden' : ''}
@@ -380,7 +381,7 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                                                                             <div className="min-w-0 flex-1">
                                                                                 <p className="truncate text-sm font-medium">{semester.name}</p>
                                                                                 <p className="truncate text-xs text-muted-foreground">
-                                                                                    Avg {semester.average_scaled} ({semester.average_percentage}%) · Widgets {semester.widgets.length} · Tabs {semester.tabs.length}
+                                                                                    Avg {semester.average_scaled} ({formatGpaPercentage(semester.average_percentage)}) · Widgets {semester.widgets.length} · Tabs {semester.tabs.length}
                                                                                     {countOf(semester.todo?.tasks) > 0 ? ` · Todo ${countOf(semester.todo?.tasks)}` : ''}
                                                                                 </p>
                                                                             </div>
@@ -402,7 +403,7 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                                                                                     <p className="truncate text-xs font-medium">{course.name}</p>
                                                                                     <p className="truncate text-[11px] text-muted-foreground">
                                                                                         {course.alias ? `${course.alias} · ` : ''}
-                                                                                        {course.credits} credits · {course.grade_percentage}% ({course.grade_scaled}) · Widgets {course.widgets.length} · Tabs {course.tabs.length}
+                                                                                        {course.credits} credits · {formatGpaPercentage(course.grade_percentage)} ({course.grade_scaled}) · Widgets {course.widgets.length} · Tabs {course.tabs.length}
                                                                                         {countOf(course.resource_files) > 0 ? ` · Resources ${countOf(course.resource_files)}` : ''}
                                                                                         {countOf(course.events) > 0 ? ` · Events ${countOf(course.events)}` : ''}
                                                                                         {course.lms_link ? ' · LMS linked' : ''}

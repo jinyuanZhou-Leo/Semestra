@@ -1,4 +1,4 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, course-manager modal flows, responsive overlay wrapper, shared business empty-state wrappers, and shadcn AlertDialog interactions]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, and shadcn AlertDialog interactions]
 // output: [`ProgramDashboard` and local semester/course delete confirmation plus responsive create surface components]
 // pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, LMS-backed import flows, a three-tab semester create/import surface, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, edit-mode course deletion, tri-state course-list sorting, and standardized not-found workspace fallbacks]
 //
@@ -38,6 +38,7 @@ import { StatCardSkeleton, SemesterCardSkeleton, TextSkeleton } from '../compone
 import { ProgramDataProvider, useProgramData } from '../contexts/ProgramDataContext';
 import { CourseManagerModal } from '../components/CourseManagerModal';
 import { useDialog } from '../contexts/DialogContext';
+import { formatGpaPercentage, formatGpaPercentageValue } from '@/utils/percentage';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -809,7 +810,7 @@ const ProgramDashboardContent: React.FC = () => {
     }, [program, programCourses, courseSearchQuery, sortConfig, activeFilters]);
 
     const discoveredSubjectCodes = useMemo(() => {
-        if (!program) return [];
+        if (programCourses.length === 0) return [];
         return Array.from(new Set(
             programCourses
                 .map((course) => resolveCourseSubjectCode(course))
@@ -1084,7 +1085,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                     <>
                                                         <AnimatedNumber
                                                             value={program.cgpa_percentage}
-                                                            format={(val) => val.toFixed(1)}
+                                                            format={formatGpaPercentageValue}
                                                             animateOnMount
                                                         />
                                                         <span className="ml-0.5 text-xs font-normal text-muted-foreground">%</span>
@@ -1156,7 +1157,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                     <>
                                                         <AnimatedNumber
                                                             value={program.cgpa_percentage}
-                                                            format={(val) => val.toFixed(1)}
+                                                            format={formatGpaPercentageValue}
                                                             animateOnMount
                                                         />
                                                         <span className="text-base font-normal text-muted-foreground ml-1">%</span>
@@ -1232,7 +1233,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Average</p>
-                                                            <p className="text-lg font-semibold">{semester.average_percentage.toFixed(1)}%</p>
+                                                            <p className="text-lg font-semibold">{formatGpaPercentage(semester.average_percentage)}</p>
                                                         </div>
                                                     </div>
                                                     <div className="mt-4 pt-4 border-t flex justify-between items-center text-sm text-muted-foreground">
@@ -1502,7 +1503,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                         <TableCell>{course.credits}</TableCell>
                                                         <TableCell className="text-right">
                                                             {course.hide_gpa ? '****' : (
-                                                                <span>{course.grade_percentage.toFixed(1)}%</span>
+                                                                <span>{formatGpaPercentage(course.grade_percentage)}</span>
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium">

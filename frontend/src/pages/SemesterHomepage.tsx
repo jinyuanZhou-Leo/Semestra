@@ -1,4 +1,4 @@
-// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
+// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
 // pos:    [Semester workspace page with workspace navigation, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
@@ -32,6 +32,7 @@ import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
 import { BookOpen, GraduationCap, Percent } from 'lucide-react';
+import { formatGpaPercentage } from '@/utils/percentage';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
@@ -252,7 +253,7 @@ const SemesterHomepageContent: React.FC = () => {
                         value: (
                             <AnimatedNumber
                                 value={semester.average_percentage}
-                                format={(value) => `${value.toFixed(1)}%`}
+                                format={formatGpaPercentage}
                             />
                         ),
                     },

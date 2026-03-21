@@ -1,4 +1,4 @@
-// input:  [Todo tab settings payload, semester todo APIs, runtime mapping helpers, shared UI primitives, and event bus refresh signals]
+// input:  [Todo tab settings payload, semester todo APIs, runtime mapping helpers, shared UI primitives, event bus refresh signals, and completion timers]
 // output: [TodoTab React component for semester-first Apple Reminder-style todo management backed by the semester todo API]
 // pos:    [Todo tab orchestration layer that derives local list state from canonical semester todo query data, persists local view preferences, issues domain mutations through dedicated APIs, supports empty-title direct task deletion, and renders the unified list UI]
 //
@@ -71,6 +71,7 @@ interface TodoTabProps {
 }
 
 type RecentCompletedMap = Record<string, true>;
+type TimerHandle = ReturnType<typeof globalThis.setTimeout>;
 
 const TodoMainPanelSkeleton: React.FC = () => {
   return (
@@ -129,7 +130,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   const semesterTodoQuery = useSemesterTodoQuery(semesterId);
   const { getTodoState, setTodoState } = useSemesterTodoCache(semesterId);
 
-  const completionTimeoutsRef = React.useRef<Record<string, ReturnType<typeof window.setTimeout>>>({});
+  const completionTimeoutsRef = React.useRef<Record<string, TimerHandle>>({});
 
   const behavior = React.useMemo(() => normalizeTodoBehaviorSettings(semesterSettingsSnapshot), [semesterSettingsSnapshot]);
   const viewPreferenceScopeKey = React.useMemo(
@@ -457,13 +458,13 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   const handleToggleTaskCompleted = React.useCallback((taskId: string, completed: boolean) => {
     if (!semesterId) return;
     if (completionTimeoutsRef.current[taskId]) {
-      window.clearTimeout(completionTimeoutsRef.current[taskId]);
+      globalThis.clearTimeout(completionTimeoutsRef.current[taskId]);
       delete completionTimeoutsRef.current[taskId];
     }
 
     if (completed) {
       setRecentCompletedTaskIds((previous) => ({ ...previous, [taskId]: true }));
-      completionTimeoutsRef.current[taskId] = window.setTimeout(() => {
+      completionTimeoutsRef.current[taskId] = globalThis.setTimeout(() => {
         setRecentCompletedTaskIds((previous) => {
           const next = { ...previous };
           delete next[taskId];

@@ -1,4 +1,4 @@
-// input:  [current draft value, saved snapshot value, async save callback, optional equality/validation/timing config]
+// input:  [current draft value, saved snapshot value, async save callback, optional equality/validation/timing config, and shared timer handles]
 // output: [`useAutoSave()` hook exposing save state, pending-change status, and a manual flush action for auto-saving forms]
 // pos:    [Cross-page auto-save scheduler with debounce, max-wait throttling, save-state feedback, and retry pause after failed saves until the draft changes]
 //
@@ -26,6 +26,8 @@ interface UseAutoSaveOptions<T> {
 const DEFAULT_DEBOUNCE_MS = 900;
 const DEFAULT_MAX_WAIT_MS = 4000;
 const DEFAULT_SUCCESS_MS = 900;
+
+type TimerHandle = ReturnType<typeof globalThis.setTimeout>;
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => (
   Object.prototype.toString.call(value) === "[object Object]"
@@ -70,8 +72,8 @@ export const useAutoSave = <T>({
   const latestValueRef = useRef(value);
   const latestSavedValueRef = useRef(savedValue);
   const acknowledgedSavedValueRef = useRef(savedValue);
-  const debounceTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
-  const successTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const debounceTimerRef = useRef<TimerHandle | null>(null);
+  const successTimerRef = useRef<TimerHandle | null>(null);
   const pendingSinceRef = useRef<number | null>(null);
   const isSavingRef = useRef(false);
   const shouldRetryAfterSaveRef = useRef(false);
@@ -89,14 +91,14 @@ export const useAutoSave = <T>({
 
   const clearDebounceTimer = useCallback(() => {
     if (debounceTimerRef.current) {
-      window.clearTimeout(debounceTimerRef.current);
+      globalThis.clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
   }, []);
 
   const clearSuccessTimer = useCallback(() => {
     if (successTimerRef.current) {
-      window.clearTimeout(successTimerRef.current);
+      globalThis.clearTimeout(successTimerRef.current);
       successTimerRef.current = null;
     }
   }, []);
@@ -130,7 +132,7 @@ export const useAutoSave = <T>({
       failedValueRef.current = null;
       setSaveState("success");
       clearSuccessTimer();
-      successTimerRef.current = window.setTimeout(() => {
+      successTimerRef.current = globalThis.setTimeout(() => {
         setSaveState("idle");
       }, successMs);
     } catch (error) {
@@ -198,7 +200,7 @@ export const useAutoSave = <T>({
     const delayMs = Math.min(debounceMs, remainingBeforeForceSave);
 
     clearDebounceTimer();
-    debounceTimerRef.current = window.setTimeout(() => {
+    debounceTimerRef.current = globalThis.setTimeout(() => {
       void runSave();
     }, delayMs);
 

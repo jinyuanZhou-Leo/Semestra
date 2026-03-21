@@ -1,4 +1,4 @@
-// input:  [semester context id, semester/program API service, router link navigation, and shared alert/button primitives]
+// input:  [semester context id, semester/program API service, router link navigation, plugin-local GPA-percentage formatting, and shared alert/button primitives]
 // output: [course-list widget component and plugin definition metadata]
 // pos:    [semester-scoped dashboard widget that fetches/render course cards with Program-derived subject-code colors plus explicit loading and retry states]
 //
@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { getCourseBadgeStyle, parseSubjectColorMap, resolveCourseColor } from '@/utils/courseCategoryBadge';
+import { formatCourseListGpaPercentage } from './format';
 
 const resolveErrorMessage = (error: unknown, fallback: string) => {
     if (error instanceof Error && error.message.trim().length > 0) {
@@ -131,7 +132,7 @@ const CourseListComponent: React.FC<WidgetProps> = ({ semesterId }) => {
                                             {course.name}
                                         </span>
                                         <span className="text-sm font-semibold tabular-nums leading-none">
-                                            {course.grade_percentage}%
+                                            {formatCourseListGpaPercentage(course.grade_percentage)}
                                         </span>
                                     </div>
 

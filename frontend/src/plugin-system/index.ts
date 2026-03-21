@@ -1,4 +1,4 @@
-// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, settings registry, browser idle callbacks, and Vite HMR updates]
+// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
 // output: [plugin facade helpers for catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, lazy runtime registration, and idle background preloading]
 // pos:    [Central plugin manager facade that validates plugin declarations, keeps metadata/plugin settings eager, and exposes runtime load-state-aware registration helpers]
 //
@@ -67,6 +67,9 @@ export interface PluginLoadState {
     error: Error | null;
 }
 
+type BrowserTimerHandle = ReturnType<typeof globalThis.setTimeout>;
+type IdleTaskHandle = number | BrowserTimerHandle;
+
 type BrowserIdleWindow = Window & {
     requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
     cancelIdleCallback?: (handle: number) => void;
@@ -122,7 +125,7 @@ const runtimeHmrModulePaths = Object.keys(
 
 const isDev = import.meta.env.DEV;
 
-const scheduleBrowserIdleTask = (callback: () => void, timeout = 1500) => {
+const scheduleBrowserIdleTask = (callback: () => void, timeout = 1500): IdleTaskHandle => {
     if (typeof window === 'undefined') {
         return globalThis.setTimeout(callback, 0);
     }
@@ -135,14 +138,14 @@ const scheduleBrowserIdleTask = (callback: () => void, timeout = 1500) => {
     return globalThis.setTimeout(callback, 250);
 };
 
-const cancelBrowserIdleTask = (handle: number) => {
+const cancelBrowserIdleTask = (handle: IdleTaskHandle) => {
     if (typeof window === 'undefined') {
         globalThis.clearTimeout(handle);
         return;
     }
 
     const browserWindow = window as BrowserIdleWindow;
-    if (typeof browserWindow.cancelIdleCallback === 'function') {
+    if (typeof browserWindow.cancelIdleCallback === 'function' && typeof handle === 'number') {
         browserWindow.cancelIdleCallback(handle);
         return;
     }
@@ -487,7 +490,7 @@ export const preloadRemainingPluginsWhenIdle = (): (() => void) => {
     }
 
     let cancelled = false;
-    let idleHandle: number | null = null;
+    let idleHandle: IdleTaskHandle | null = null;
     let cleanupLoadListener: (() => void) | null = null;
 
     const scheduleNext = () => {
