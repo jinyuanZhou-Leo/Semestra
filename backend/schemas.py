@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar payloads, user preferences, plus todo and fact-only gradebook wire contracts]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks with optional point-based score fields]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -275,6 +275,84 @@ class LmsCourseListResponse(BaseModel):
     page_size: int = 50
     has_more: bool = False
     next_page: Optional[int] = None
+
+
+class LmsPageSummary(BaseModel):
+    page_id: str
+    url: str
+    title: str
+    updated_at: Optional[str] = None
+    html_url: Optional[str] = None
+    published: bool = False
+    front_page: bool = False
+
+
+class LmsPageListResponse(BaseModel):
+    items: List[LmsPageSummary] = []
+
+
+class LmsPageDetail(LmsPageSummary):
+    body: Optional[str] = None
+    locked_for_user: bool = False
+    lock_explanation: Optional[str] = None
+    editing_roles: Optional[str] = None
+
+
+class LmsCourseNavigationTab(BaseModel):
+    tab_id: str
+    label: str
+    html_url: Optional[str] = None
+    hidden: bool = False
+    position: int = 0
+    tab_type: Optional[str] = None
+    active: bool = False
+
+
+class LmsCourseNavigationResponse(BaseModel):
+    default_view: Optional[str] = None
+    front_page_url: Optional[str] = None
+    tabs: List[LmsCourseNavigationTab] = []
+
+
+class LmsAnnouncementSummary(BaseModel):
+    announcement_id: str
+    title: str
+    body: Optional[str] = None
+    posted_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    html_url: Optional[str] = None
+
+
+class LmsAnnouncementListResponse(BaseModel):
+    items: List[LmsAnnouncementSummary] = []
+
+
+class LmsModuleItem(BaseModel):
+    module_item_id: str
+    title: str
+    item_type: Optional[str] = None
+    content_id: Optional[str] = None
+    html_url: Optional[str] = None
+    url: Optional[str] = None
+    position: Optional[int] = None
+    indent: Optional[int] = None
+    published: bool = False
+    completion_requirement_type: Optional[str] = None
+    new_tab: bool = False
+
+
+class LmsModuleSummary(BaseModel):
+    module_id: str
+    name: str
+    position: Optional[int] = None
+    published: bool = False
+    state: Optional[str] = None
+    unlock_at: Optional[str] = None
+    items: List[LmsModuleItem] = []
+
+
+class LmsModuleListResponse(BaseModel):
+    items: List[LmsModuleSummary] = []
 
 
 class LmsCourseLinkSummary(BaseModel):
@@ -735,6 +813,8 @@ class GradebookAssessmentBase(BaseModel):
     due_date: Optional[date] = None
     weight: float = 0.0
     score: Optional[float] = None
+    points_earned: Optional[float] = None
+    points_possible: Optional[float] = None
     order_index: int = 0
 
 class GradebookAssessment(GradebookAssessmentBase):
@@ -773,6 +853,8 @@ class GradebookAssessmentUpdate(BaseModel):
     due_date: Optional[date] = None
     weight: Optional[float] = None
     score: Optional[float] = None
+    points_earned: Optional[float] = None
+    points_possible: Optional[float] = None
 
 class GradebookAssessmentReorderRequest(BaseModel):
     assessment_ids: List[str]
@@ -1104,6 +1186,8 @@ class GradebookAssessmentExport(BaseModel):
     due_date: Optional[date] = None
     weight: float = 0.0
     score: Optional[float] = None
+    points_earned: Optional[float] = None
+    points_possible: Optional[float] = None
     source_kind: Optional[str] = None
     source_external_id: Optional[str] = None
     order_index: int = 0

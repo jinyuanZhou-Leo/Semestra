@@ -1,6 +1,6 @@
 # input:  [filesystem paths/env configuration, SQLAlchemy session, backend ORM models, and uploaded file payloads]
-# output: [Course-resource storage helpers, quota calculations, and persistence operations for course-scoped files]
-# pos:    [Backend course-resource domain service that enforces account-wide quotas, stores file metadata, and synchronizes disk files with database rows]
+# output: [Course-resource storage helpers, quota calculations, and persistence operations for course-scoped files and saved links]
+# pos:    [Backend course-resource domain service that enforces account-wide quotas, stores file metadata, and synchronizes database deletions with on-disk files safely]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -263,8 +263,10 @@ def resolve_absolute_path(base_dir: Path, resource: models.CourseResourceFile) -
 
 
 def delete_course_resource(db: Session, *, base_dir: Path, resource: models.CourseResourceFile) -> None:
-    absolute_path = resolve_absolute_path(base_dir, resource)
+    absolute_path = None
+    if resource.resource_kind == "file" and resource.storage_path:
+        absolute_path = resolve_absolute_path(base_dir, resource)
     db.delete(resource)
     db.commit()
-    if absolute_path.exists():
+    if absolute_path and absolute_path.is_file():
         absolute_path.unlink()

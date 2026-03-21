@@ -1,6 +1,6 @@
 // input:  [Vitest assertions, builtin-gradebook shared helpers, and simplified gradebook fixtures]
-// output: [test suite validating builtin-gradebook forecast summaries, incomplete-weight gating, plan-mode recommendations, and stable badge color fallbacks]
-// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, weight validation, and category badge helpers]
+// output: [test suite validating builtin-gradebook forecast summaries, exact-weight gating, plan-mode recommendations, and stable badge color fallbacks]
+// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, exact-100 weight validation, and category badge helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -41,6 +41,8 @@ const fixture: CourseGradebook = {
             due_date: '2026-02-12',
             weight: 25,
             score: 82,
+            points_earned: null,
+            points_possible: null,
             order_index: 0,
         },
         {
@@ -50,6 +52,8 @@ const fixture: CourseGradebook = {
             due_date: '2026-03-12',
             weight: 25,
             score: null,
+            points_earned: null,
+            points_possible: null,
             order_index: 1,
         },
         {
@@ -59,6 +63,8 @@ const fixture: CourseGradebook = {
             due_date: '2026-04-20',
             weight: 50,
             score: null,
+            points_earned: null,
+            points_possible: null,
             order_index: 2,
         },
     ],
@@ -99,6 +105,26 @@ describe('builtin-gradebook shared helpers', () => {
         expect(summary.current_real_gpa).toBeNull();
         expect(summary.minimum_required_average).toBeNull();
         expect(summary.forecast_percentage).toBeNull();
+    });
+
+    it('disables grade calculations when total weight exceeds 100%', () => {
+        const overweightFixture: CourseGradebook = {
+            ...fixture,
+            assessments: fixture.assessments.map((assessment, index) => (
+                index === 2
+                    ? { ...assessment, weight: 60 }
+                    : assessment
+            )),
+        };
+
+        const summary = buildComputedGradebookSummary(overweightFixture);
+
+        expect(hasCompleteGradebookWeight(overweightFixture)).toBe(false);
+        expect(summary.total_weight).toBe(110);
+        expect(summary.has_complete_weight).toBe(false);
+        expect(summary.current_real_percentage).toBeNull();
+        expect(summary.current_real_gpa).toBeNull();
+        expect(summary.minimum_required_average).toBeNull();
     });
 
     it('fills auto what-if scores using history and fallback rules', () => {

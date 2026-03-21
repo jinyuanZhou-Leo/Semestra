@@ -68,6 +68,8 @@ describe('builtinGradebookCalendarSource', () => {
           due_date: '2026-02-14',
           weight: 25,
           score: 82,
+          points_earned: null,
+          points_possible: null,
           order_index: 0,
         },
         {
@@ -77,6 +79,8 @@ describe('builtinGradebookCalendarSource', () => {
           due_date: null,
           weight: 10,
           score: null,
+          points_earned: null,
+          points_possible: null,
           order_index: 1,
         },
       ],

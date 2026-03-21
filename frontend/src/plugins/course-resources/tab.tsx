@@ -1,6 +1,6 @@
 // input:  [course resource API/query state, course tab context ids, dialog primitives, tabs UI, and shared action components]
 // output: [`CourseResourcesTabDefinition` and the course-resources tab runtime component]
-// pos:    [course-scoped resource manager tab with account-quota-aware uploads, drag-drop intake, saved-link support, and lightweight file actions]
+// pos:    [course-scoped resource manager tab with account-quota-aware uploads, lower-height stable dialog tabs, footer-aligned actions, saved-link support, and lightweight file actions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -390,7 +390,7 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                     }
                 }}
             >
-                <DialogContent className="sm:max-w-[580px]">
+                <DialogContent className="flex max-h-[min(76vh,560px)] flex-col sm:max-w-[580px]">
                     <DialogHeader>
                         <DialogTitle>Add resource</DialogTitle>
                         <DialogDescription>
@@ -398,99 +398,103 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <Tabs value={activeUploadTab} onValueChange={(value) => setActiveUploadTab(value as 'files' | 'link')} className="gap-4">
-                        <TabsList>
+                    <Tabs
+                        value={activeUploadTab}
+                        onValueChange={(value) => setActiveUploadTab(value as 'files' | 'link')}
+                        className="min-h-0 flex-1 gap-4"
+                    >
+                        <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="files">Upload files</TabsTrigger>
                             <TabsTrigger value="link">Save URL</TabsTrigger>
                         </TabsList>
 
-                        <TabsContent value="files" className="space-y-4">
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                multiple
-                                className="hidden"
-                                onChange={(event) => {
-                                    appendFiles(event.target.files);
-                                    event.currentTarget.value = '';
-                                }}
-                            />
-                            <button
-                                type="button"
-                                className={`w-full cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all ${
-                                    isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
-                                }`}
-                                onClick={() => fileInputRef.current?.click()}
-                                onDragOver={(event) => {
-                                    event.preventDefault();
-                                    setIsDragging(true);
-                                }}
-                                onDragLeave={(event) => {
-                                    event.preventDefault();
-                                    setIsDragging(false);
-                                }}
-                                onDrop={(event) => {
-                                    event.preventDefault();
-                                    setIsDragging(false);
-                                    appendFiles(event.dataTransfer.files);
-                                }}
-                            >
-                                <div className="flex flex-col items-center gap-2">
-                                    {pendingFiles.length > 0 ? (
-                                        <div className="flex items-center gap-2 text-primary font-medium">
-                                            <Upload className="h-5 w-5" />
-                                            {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} selected
+                        <div className="min-h-0 flex-1">
+                            <TabsContent value="files" className="mt-0 h-full">
+                                <div className="flex h-full min-h-[300px] flex-col gap-4">
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        multiple
+                                        className="hidden"
+                                        onChange={(event) => {
+                                            appendFiles(event.target.files);
+                                            event.currentTarget.value = '';
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        className={`w-full cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all ${
+                                            isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
+                                        }`}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        onDragOver={(event) => {
+                                            event.preventDefault();
+                                            setIsDragging(true);
+                                        }}
+                                        onDragLeave={(event) => {
+                                            event.preventDefault();
+                                            setIsDragging(false);
+                                        }}
+                                        onDrop={(event) => {
+                                            event.preventDefault();
+                                            setIsDragging(false);
+                                            appendFiles(event.dataTransfer.files);
+                                        }}
+                                    >
+                                        <div className="flex flex-col items-center gap-2">
+                                            {pendingFiles.length > 0 ? (
+                                                <div className="flex items-center gap-2 font-medium text-primary">
+                                                    <Upload className="h-5 w-5" />
+                                                    {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} selected
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Upload className="h-8 w-8 text-muted-foreground/50" />
+                                                    <div className="text-sm text-muted-foreground">
+                                                        Click or drag files to upload
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <>
-                                            <Upload className="h-8 w-8 text-muted-foreground/50" />
-                                            <div className="text-sm text-muted-foreground">
-                                                Click or drag files to upload
-                                            </div>
-                                        </>
-                                    )}
+                                    </button>
+                                    <p className="text-sm text-muted-foreground">
+                                        Remaining account storage: {quota ? formatBytes(quota.remaining_bytes) : '...'}
+                                    </p>
+                                    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                                        <UploadSelectionList files={pendingFiles} onRemove={removePendingFile} />
+                                    </div>
                                 </div>
-                            </button>
-                            <p className="text-sm text-muted-foreground">
-                                Remaining account storage: {quota ? formatBytes(quota.remaining_bytes) : '...'}
-                            </p>
-                            <UploadSelectionList files={pendingFiles} onRemove={removePendingFile} />
-                            <div className="flex justify-end">
-                                <Button type="button" onClick={submitPendingFiles} disabled={pendingFiles.length === 0 || uploadMutation.isPending}>
-                                    {uploadMutation.isPending ? 'Uploading...' : `Upload ${pendingFiles.length > 0 ? pendingFiles.length : ''}`.trim()}
-                                </Button>
-                            </div>
-                        </TabsContent>
+                            </TabsContent>
 
-                        <TabsContent value="link" className="space-y-4">
-                            <div className="space-y-1">
-                                <p className="text-sm font-medium text-foreground">Save a course URL</p>
-                                <p className="text-sm text-muted-foreground">
-                                    Use this for slides, docs, recordings, forms, or any external resource you want to reopen from this list.
-                                </p>
-                            </div>
-                            <Input
-                                value={linkUrl}
-                                onChange={(event) => setLinkUrl(event.target.value)}
-                                placeholder="https://example.com/resource"
-                            />
-                            <Input
-                                value={linkName}
-                                onChange={(event) => setLinkName(event.target.value)}
-                                placeholder="Optional display name"
-                            />
-                            <div className="flex justify-end">
-                                <Button type="button" variant="secondary" onClick={() => createLinkMutation.mutate()} disabled={!linkUrl.trim() || createLinkMutation.isPending}>
-                                    {createLinkMutation.isPending ? 'Saving...' : 'Save URL'}
-                                </Button>
-                            </div>
-                        </TabsContent>
+                            <TabsContent value="link" className="mt-0 h-full">
+                                <div className="flex h-full min-h-[300px] flex-col gap-4">
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium text-foreground">Save a course URL</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            Use this for slides, docs, recordings, forms, or any external resource you want to reopen from this list.
+                                        </p>
+                                    </div>
+                                    <Input
+                                        value={linkUrl}
+                                        onChange={(event) => setLinkUrl(event.target.value)}
+                                        placeholder="https://example.com/resource"
+                                    />
+                                    <Input
+                                        value={linkName}
+                                        onChange={(event) => setLinkName(event.target.value)}
+                                        placeholder="Optional display name"
+                                    />
+                                    <div className="flex-1" />
+                                </div>
+                            </TabsContent>
+                        </div>
                     </Tabs>
 
                     <DialogFooter>
                         <Button
                             type="button"
                             variant="secondary"
+                            className="w-full sm:w-auto"
                             onClick={() => {
                                 setIsUploadDialogOpen(false);
                                 resetUploadState();
@@ -499,6 +503,25 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                         >
                             Close
                         </Button>
+                        {activeUploadTab === 'files' ? (
+                            <Button
+                                type="button"
+                                className="w-full sm:w-auto"
+                                onClick={submitPendingFiles}
+                                disabled={pendingFiles.length === 0 || uploadMutation.isPending}
+                            >
+                                {uploadMutation.isPending ? 'Uploading...' : `Upload ${pendingFiles.length > 0 ? pendingFiles.length : ''}`.trim()}
+                            </Button>
+                        ) : (
+                            <Button
+                                type="button"
+                                className="w-full sm:w-auto"
+                                onClick={() => createLinkMutation.mutate()}
+                                disabled={!linkUrl.trim() || createLinkMutation.isPending}
+                            >
+                                {createLinkMutation.isPending ? 'Saving...' : 'Save URL'}
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

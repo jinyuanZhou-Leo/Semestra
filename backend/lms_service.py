@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, LMS ORM models, CRUD/user-setting helpers, versioned crypto helpers, provider registry, and API schema payloads]
-# output: [Provider-agnostic LMS integration, Program binding, Course link, import, assignment, and range-filtered calendar service functions]
-# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, and semester calendar range filtering]
+# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, page, module, announcement, and range-filtered calendar service functions]
+# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, and semester calendar range filtering]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -23,10 +23,17 @@ import utils
 from lms_crypto import LmsCryptoError, decrypt_credentials, encrypt_credentials
 from lms_providers import (
     LmsAssignmentSummaryData,
+    LmsAnnouncementSummaryData,
     LmsCalendarEventSummaryData,
     LmsConnectionSummaryData,
     LmsCoursePageData,
+    LmsCourseNavigationData,
+    LmsCourseNavigationTabData,
     LmsCourseSummaryData,
+    LmsModuleItemData,
+    LmsModuleSummaryData,
+    LmsPageDetailData,
+    LmsPageSummaryData,
     LmsProviderError,
     get_lms_provider,
 )
@@ -131,6 +138,93 @@ def _course_page_to_schema(integration_id: str, page_data: LmsCoursePageData) ->
         page_size=page_data.page_size,
         has_more=page_data.has_more,
         next_page=page_data.next_page,
+    )
+
+
+def _page_summary_to_schema(page: LmsPageSummaryData) -> schemas.LmsPageSummary:
+    return schemas.LmsPageSummary(
+        page_id=page.page_id,
+        url=page.url,
+        title=page.title,
+        updated_at=page.updated_at,
+        html_url=page.html_url,
+        published=page.published,
+        front_page=page.front_page,
+    )
+
+
+def _page_detail_to_schema(page: LmsPageDetailData) -> schemas.LmsPageDetail:
+    return schemas.LmsPageDetail(
+        page_id=page.page_id,
+        url=page.url,
+        title=page.title,
+        updated_at=page.updated_at,
+        html_url=page.html_url,
+        published=page.published,
+        front_page=page.front_page,
+        body=page.body,
+        locked_for_user=page.locked_for_user,
+        lock_explanation=page.lock_explanation,
+        editing_roles=page.editing_roles,
+    )
+
+
+def _navigation_tab_to_schema(tab: LmsCourseNavigationTabData) -> schemas.LmsCourseNavigationTab:
+    return schemas.LmsCourseNavigationTab(
+        tab_id=tab.tab_id,
+        label=tab.label,
+        html_url=tab.html_url,
+        hidden=tab.hidden,
+        position=tab.position,
+        tab_type=tab.tab_type,
+        active=tab.active,
+    )
+
+
+def _navigation_to_schema(navigation: LmsCourseNavigationData) -> schemas.LmsCourseNavigationResponse:
+    return schemas.LmsCourseNavigationResponse(
+        default_view=navigation.default_view,
+        front_page_url=navigation.front_page_url,
+        tabs=[_navigation_tab_to_schema(item) for item in navigation.tabs],
+    )
+
+
+def _announcement_to_schema(announcement: LmsAnnouncementSummaryData) -> schemas.LmsAnnouncementSummary:
+    return schemas.LmsAnnouncementSummary(
+        announcement_id=announcement.announcement_id,
+        title=announcement.title,
+        body=announcement.body,
+        posted_at=announcement.posted_at,
+        updated_at=announcement.updated_at,
+        html_url=announcement.html_url,
+    )
+
+
+def _module_item_to_schema(item: LmsModuleItemData) -> schemas.LmsModuleItem:
+    return schemas.LmsModuleItem(
+        module_item_id=item.module_item_id,
+        title=item.title,
+        item_type=item.item_type,
+        content_id=item.content_id,
+        html_url=item.html_url,
+        url=item.url,
+        position=item.position,
+        indent=item.indent,
+        published=item.published,
+        completion_requirement_type=item.completion_requirement_type,
+        new_tab=item.new_tab,
+    )
+
+
+def _module_to_schema(module: LmsModuleSummaryData) -> schemas.LmsModuleSummary:
+    return schemas.LmsModuleSummary(
+        module_id=module.module_id,
+        name=module.name,
+        position=module.position,
+        published=module.published,
+        state=module.state,
+        unlock_at=module.unlock_at,
+        items=[_module_item_to_schema(item) for item in module.items],
     )
 
 
@@ -855,6 +949,167 @@ def list_course_assignments(
                 for item in assignments
             ]
         )
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def list_course_pages(
+    db: Session,
+    user_id: str,
+    course_id: str,
+) -> schemas.LmsPageListResponse:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        pages = provider_impl.list_course_pages(config, credentials, link.external_course_id)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return schemas.LmsPageListResponse(items=[_page_summary_to_schema(item) for item in pages])
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def get_course_page(
+    db: Session,
+    user_id: str,
+    course_id: str,
+    page_ref: str,
+) -> schemas.LmsPageDetail:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        page = provider_impl.get_course_page(config, credentials, link.external_course_id, page_ref)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return _page_detail_to_schema(page)
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def get_course_navigation(
+    db: Session,
+    user_id: str,
+    course_id: str,
+) -> schemas.LmsCourseNavigationResponse:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        navigation = provider_impl.get_course_navigation(config, credentials, link.external_course_id)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return _navigation_to_schema(navigation)
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def list_course_announcements(
+    db: Session,
+    user_id: str,
+    course_id: str,
+) -> schemas.LmsAnnouncementListResponse:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        announcements = provider_impl.list_course_announcements(config, credentials, link.external_course_id)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return schemas.LmsAnnouncementListResponse(items=[_announcement_to_schema(item) for item in announcements])
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def list_course_modules(
+    db: Session,
+    user_id: str,
+    course_id: str,
+) -> schemas.LmsModuleListResponse:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        modules = provider_impl.list_course_modules(config, credentials, link.external_course_id)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return schemas.LmsModuleListResponse(items=[_module_to_schema(item) for item in modules])
     except Exception as exc:
         mapped = _map_lms_exception(exc)
         _set_record_error(integration, mapped)

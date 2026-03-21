@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, simplified gradebook ORM models, GPA logic helpers, and gradebook API schemas]
-# output: [course-gradebook domain service for initialization, preference/category/assessment CRUD, and import/export mapping that preserves LMS assessment provenance in backups]
-# pos:    [backend gradebook domain layer that persists assessment score facts while leaving forecast and plan calculations to the client, including backup restore helpers for imported LMS rows]
+# output: [course-gradebook domain service for initialization, preference/category/assessment CRUD, and import/export mapping that preserves LMS assessment provenance plus optional point-based score inputs in backups]
+# pos:    [backend gradebook domain layer that persists assessment score facts, optional points-based grading inputs, and import provenance while leaving forecast and plan calculations to the client]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -94,6 +94,53 @@ def _normalize_target_gpa(value: float) -> float:
     if not math.isfinite(numeric) or numeric < 0.0:
         raise GradebookValidationError("target_gpa must be a non-negative number.")
     return numeric
+
+
+def _normalize_non_negative_number(
+    value: Optional[float],
+    field_name: str,
+    *,
+    allow_none: bool = True,
+) -> Optional[float]:
+    if value is None:
+        if allow_none:
+            return None
+        raise GradebookValidationError(f"{field_name} is required.")
+    numeric = float(value)
+    if not math.isfinite(numeric) or numeric < 0.0:
+        raise GradebookValidationError(f"{field_name} must be a non-negative number.")
+    return numeric
+
+
+def _resolve_score_inputs(
+    *,
+    score: Optional[float],
+    points_earned: Optional[float],
+    points_possible: Optional[float],
+) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    normalized_points_earned = _normalize_non_negative_number(points_earned, "points_earned")
+    normalized_points_possible = _normalize_non_negative_number(points_possible, "points_possible")
+
+    if (normalized_points_earned is None) != (normalized_points_possible is None):
+        raise GradebookValidationError("points_earned and points_possible must be provided together.")
+
+    if normalized_points_possible is not None:
+        if normalized_points_possible <= 0:
+            raise GradebookValidationError("points_possible must be greater than 0.")
+        if normalized_points_earned is not None and normalized_points_earned > normalized_points_possible:
+            raise GradebookValidationError("points_earned cannot exceed points_possible.")
+        derived_score = (normalized_points_earned / normalized_points_possible) * 100 if normalized_points_earned is not None else None
+        return (
+            _normalize_percentage(derived_score, "score"),
+            normalized_points_earned,
+            normalized_points_possible,
+        )
+
+    return (
+        _normalize_percentage(score, "score"),
+        None,
+        None,
+    )
 
 
 def _touch_gradebook(gradebook: models.CourseGradebook) -> None:
@@ -206,6 +253,8 @@ def build_course_gradebook_payload(gradebook: models.CourseGradebook) -> schemas
                 due_date=assessment.due_date,
                 weight=assessment.weight,
                 score=assessment.score,
+                points_earned=assessment.points_earned,
+                points_possible=assessment.points_possible,
                 order_index=assessment.order_index,
             )
             for assessment in sorted(gradebook.assessments, key=lambda item: item.order_index)
@@ -330,6 +379,11 @@ def create_assessment(
     gradebook = get_course_gradebook_or_404(db, course_id)
     if payload.category_id and not any(category.id == payload.category_id for category in gradebook.categories):
         raise GradebookValidationError("Selected category does not exist.")
+    normalized_score, normalized_points_earned, normalized_points_possible = _resolve_score_inputs(
+        score=payload.score,
+        points_earned=payload.points_earned,
+        points_possible=payload.points_possible,
+    )
 
     assessment = models.GradebookAssessment(
         gradebook_id=gradebook.id,
@@ -337,7 +391,9 @@ def create_assessment(
         title=_normalize_name(payload.title, "Assessment title"),
         due_date=_parse_due_date(payload.due_date),
         weight=_normalize_percentage(payload.weight, "weight", allow_none=False) or 0.0,
-        score=_normalize_percentage(payload.score, "score"),
+        score=normalized_score,
+        points_earned=normalized_points_earned,
+        points_possible=normalized_points_possible,
         order_index=len(gradebook.assessments),
     )
     _touch_row(assessment)
@@ -365,6 +421,16 @@ def update_assessment(
         raise GradebookValidationError("Selected category does not exist.")
 
     update_data = payload.model_dump(exclude_unset=True)
+    if any(key in update_data for key in {"score", "points_earned", "points_possible"}):
+        normalized_score, normalized_points_earned, normalized_points_possible = _resolve_score_inputs(
+            score=update_data.get("score", assessment.score),
+            points_earned=update_data.get("points_earned", assessment.points_earned),
+            points_possible=update_data.get("points_possible", assessment.points_possible),
+        )
+        assessment.score = normalized_score
+        assessment.points_earned = normalized_points_earned
+        assessment.points_possible = normalized_points_possible
+
     for key, value in update_data.items():
         if key == "title" and value is not None:
             setattr(assessment, key, _normalize_name(value, "Assessment title"))
@@ -372,8 +438,8 @@ def update_assessment(
             setattr(assessment, key, _parse_due_date(value))
         elif key == "weight" and value is not None:
             assessment.weight = _normalize_percentage(value, "weight", allow_none=False) or 0.0
-        elif key == "score":
-            assessment.score = _normalize_percentage(value, "score")
+        elif key in {"score", "points_earned", "points_possible"}:
+            continue
         else:
             setattr(assessment, key, value)
 
@@ -462,6 +528,8 @@ def export_course_gradebook(course: models.Course) -> Optional[schemas.CourseGra
                 due_date=assessment.due_date,
                 weight=assessment.weight,
                 score=assessment.score,
+                points_earned=assessment.points_earned,
+                points_possible=assessment.points_possible,
                 source_kind=assessment.source_kind,
                 source_external_id=assessment.source_external_id,
                 order_index=assessment.order_index,
@@ -505,13 +573,20 @@ def import_course_gradebook(
 
     for assessment_data in sorted(payload.assessments, key=lambda item: item.order_index):
         category = categories_by_key.get(assessment_data.category_key or "")
+        normalized_score, normalized_points_earned, normalized_points_possible = _resolve_score_inputs(
+            score=assessment_data.score,
+            points_earned=assessment_data.points_earned,
+            points_possible=assessment_data.points_possible,
+        )
         assessment = models.GradebookAssessment(
             gradebook_id=gradebook.id,
             category_id=category.id if category else None,
             title=_normalize_name(assessment_data.title, "Assessment title"),
             due_date=assessment_data.due_date,
             weight=_normalize_percentage(assessment_data.weight, "weight", allow_none=False) or 0.0,
-            score=_normalize_percentage(assessment_data.score, "score"),
+            score=normalized_score,
+            points_earned=normalized_points_earned,
+            points_possible=normalized_points_possible,
             source_kind=(assessment_data.source_kind or None),
             source_external_id=(assessment_data.source_external_id or None),
             order_index=assessment_data.order_index,

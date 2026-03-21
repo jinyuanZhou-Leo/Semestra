@@ -1,6 +1,6 @@
 # input:  [unittest, asyncio, temp filesystem/env setup, in-memory SQLAlchemy session, and backend backup/LMS/resource modules]
-# output: [regression tests covering full backup export/import for LMS integrations, program-level courses, schedule data, resources, todo state, and account settings]
-# pos:    [backend regression tests for the account backup pipeline across current persisted features]
+# output: [regression tests covering full backup export/import for LMS integrations, program-level courses, schedule data, resources, todo state, account settings, and gradebook point-based scores]
+# pos:    [backend regression tests for the account backup pipeline across current persisted features, including gradebook point-based assessment inputs]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -325,6 +325,8 @@ class BackupImportExportTests(unittest.TestCase):
                 due_date=date(2026, 2, 10),
                 weight=15.0,
                 score=92.0,
+                points_earned=46.0,
+                points_possible=50.0,
                 source_kind="lms_assignment",
                 source_external_id="assignment-1",
                 order_index=0,
@@ -414,6 +416,8 @@ class BackupImportExportTests(unittest.TestCase):
         restored_gradebook = restored_semester_course.gradebook
         self.assertIsNotNone(restored_gradebook)
         restored_assessment = restored_gradebook.assessments[0]
+        self.assertEqual(restored_assessment.points_earned, 46.0)
+        self.assertEqual(restored_assessment.points_possible, 50.0)
         self.assertEqual(restored_assessment.source_kind, "lms_assignment")
         self.assertEqual(restored_assessment.source_external_id, "assignment-1")
 

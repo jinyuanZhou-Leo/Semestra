@@ -1,6 +1,6 @@
 # input:  [Canvas LMS provider config/credential payloads and requests-based Canvas REST access]
-# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, masks stored credentials, validates connections, resolves user summaries, lists normalized courses, and reads assignments/calendar events with provider-specific due-date normalization]
-# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field and credential mapping]
+# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/modules/pages, and reads assignments/calendar events with provider-specific due-date normalization]
+# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, navigation, page, announcement, module, and credential mapping]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -16,10 +16,17 @@ import requests
 
 from lms_providers import (
     LmsAssignmentSummaryData,
+    LmsAnnouncementSummaryData,
     LmsCalendarEventSummaryData,
     LmsConnectionSummaryData,
     LmsCoursePageData,
+    LmsCourseNavigationData,
+    LmsCourseNavigationTabData,
     LmsCourseSummaryData,
+    LmsModuleItemData,
+    LmsModuleSummaryData,
+    LmsPageDetailData,
+    LmsPageSummaryData,
     LmsProviderError,
 )
 
@@ -71,6 +78,16 @@ class CanvasLmsProvider:
         except ValueError:
             return None
         return parsed.date().isoformat()
+
+    def _optional_int(self, raw_value: Any) -> Optional[int]:
+        if raw_value is None:
+            return None
+        if isinstance(raw_value, bool):
+            return None
+        try:
+            return int(raw_value)
+        except (TypeError, ValueError):
+            return None
 
     def _build_session(self, config: dict[str, Any], credentials: dict[str, Any]) -> tuple[str, requests.Session]:
         base_url = self.normalize_integration_config(config)["base_url"]
@@ -151,6 +168,97 @@ class CanvasLmsProvider:
             start_at=payload.get("start_at"),
             end_at=payload.get("end_at"),
         )
+
+    def _normalize_page_summary(self, payload: dict[str, Any]) -> LmsPageSummaryData:
+        return LmsPageSummaryData(
+            page_id=str(payload.get("page_id") or payload.get("id") or ""),
+            url=str(payload.get("url") or "").strip(),
+            title=str(payload.get("title") or "").strip() or "Page",
+            updated_at=payload.get("updated_at"),
+            html_url=payload.get("html_url"),
+            published=bool(payload.get("published")),
+            front_page=bool(payload.get("front_page")),
+        )
+
+    def _normalize_page_detail(self, payload: dict[str, Any]) -> LmsPageDetailData:
+        summary = self._normalize_page_summary(payload)
+        return LmsPageDetailData(
+            **summary.__dict__,
+            body=payload.get("body"),
+            locked_for_user=bool(payload.get("locked_for_user")),
+            lock_explanation=payload.get("lock_explanation"),
+            editing_roles=payload.get("editing_roles"),
+        )
+
+    def _normalize_navigation_tab(self, payload: dict[str, Any], *, active: bool = False) -> LmsCourseNavigationTabData:
+        tab_id = str(payload.get("id") or "").strip()
+        return LmsCourseNavigationTabData(
+            tab_id=tab_id,
+            label=str(payload.get("label") or tab_id or "Tab").strip() or "Tab",
+            html_url=payload.get("html_url"),
+            hidden=bool(payload.get("hidden")),
+            position=self._optional_int(payload.get("position")) or 0,
+            tab_type=str(payload.get("type") or "").strip() or None,
+            active=active,
+        )
+
+    def _normalize_announcement(self, payload: dict[str, Any]) -> Optional[LmsAnnouncementSummaryData]:
+        context_code = str(payload.get("context_code") or "").strip()
+        if context_code and not context_code.startswith("course_"):
+            return None
+        return LmsAnnouncementSummaryData(
+            announcement_id=str(payload.get("id") or ""),
+            title=str(payload.get("title") or "").strip() or "Announcement",
+            body=payload.get("message") or payload.get("body"),
+            posted_at=payload.get("posted_at") or payload.get("created_at"),
+            updated_at=payload.get("updated_at"),
+            html_url=payload.get("html_url"),
+        )
+
+    def _normalize_module_item(self, payload: dict[str, Any]) -> LmsModuleItemData:
+        completion_requirement = payload.get("completion_requirement")
+        requirement_type = None
+        if isinstance(completion_requirement, dict):
+            requirement_type = str(completion_requirement.get("type") or "").strip() or None
+        item_id = str(payload.get("id") or "").strip()
+        return LmsModuleItemData(
+            module_item_id=item_id,
+            title=str(payload.get("title") or item_id or "Module Item").strip() or "Module Item",
+            item_type=str(payload.get("type") or "").strip() or None,
+            content_id=str(payload.get("content_id") or "").strip() or None,
+            html_url=payload.get("html_url"),
+            url=payload.get("url"),
+            position=self._optional_int(payload.get("position")),
+            indent=self._optional_int(payload.get("indent")),
+            published=bool(payload.get("published")),
+            completion_requirement_type=requirement_type,
+            new_tab=bool(payload.get("new_tab")),
+        )
+
+    def _normalize_module(self, payload: dict[str, Any]) -> LmsModuleSummaryData:
+        raw_items = payload.get("items")
+        items: list[LmsModuleItemData] = []
+        if isinstance(raw_items, list):
+            for item in raw_items:
+                if isinstance(item, dict):
+                    items.append(self._normalize_module_item(item))
+        state = str(payload.get("workflow_state") or payload.get("state") or "").strip() or None
+        module_id = str(payload.get("id") or "").strip()
+        return LmsModuleSummaryData(
+            module_id=module_id,
+            name=str(payload.get("name") or module_id or "Module").strip() or "Module",
+            position=self._optional_int(payload.get("position")),
+            published=bool(payload.get("published")),
+            state=state,
+            unlock_at=payload.get("unlock_at"),
+            items=items,
+        )
+
+    def _active_navigation_tab_id(self, default_view: Optional[str]) -> Optional[str]:
+        normalized = str(default_view or "").strip().lower()
+        if not normalized or normalized in {"wiki", "feed"}:
+            return "home"
+        return normalized
 
     def _normalize_assignment(self, payload: dict[str, Any]) -> LmsAssignmentSummaryData:
         submission_types = payload.get("submission_types")
@@ -261,6 +369,55 @@ class CanvasLmsProvider:
         except Exception as exc:
             raise self._map_provider_exception(exc) from exc
 
+    def get_course_navigation(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> LmsCourseNavigationData:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            course_payload = self._request_json(session, base_url, f"/courses/{external_course_id}")
+            if not isinstance(course_payload, dict):
+                raise LmsProviderError("LMS_PROVIDER_ERROR", "Canvas returned an unexpected provider payload.", status_code=502)
+
+            default_view = course_payload.get("default_view")
+            front_page_url: Optional[str] = None
+            normalized_default_view = str(default_view or "").strip().lower()
+            if normalized_default_view in {"", "wiki"}:
+                try:
+                    front_page_payload = self._request_json(session, base_url, f"/courses/{external_course_id}/front_page")
+                except requests.HTTPError as exc:
+                    response = exc.response
+                    if response is not None and response.status_code == 404:
+                        front_page_payload = None
+                    else:
+                        raise
+                if isinstance(front_page_payload, dict):
+                    front_page_url = front_page_payload.get("html_url") or front_page_payload.get("url")
+
+            tab_payloads = self._paginate_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/tabs",
+                params={"per_page": 100},
+            )
+            active_tab_id = self._active_navigation_tab_id(default_view)
+            tabs: list[LmsCourseNavigationTabData] = []
+            for item in tab_payloads:
+                if not isinstance(item, dict):
+                    continue
+                tab = self._normalize_navigation_tab(item, active=str(item.get("id") or "").strip().lower() == active_tab_id)
+                tabs.append(tab)
+
+            return LmsCourseNavigationData(
+                default_view=str(default_view or "").strip() or None,
+                front_page_url=front_page_url,
+                tabs=tabs,
+            )
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
     def list_assignments(
         self,
         config: dict[str, Any],
@@ -276,6 +433,97 @@ class CanvasLmsProvider:
                 params={"per_page": 100},
             )
             return [self._normalize_assignment(item) for item in payload]
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def list_course_announcements(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> list[LmsAnnouncementSummaryData]:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._paginate_json(
+                session,
+                base_url,
+                "/announcements",
+                params={
+                    "per_page": 100,
+                    "context_codes[]": [f"course_{external_course_id}"],
+                },
+            )
+            items: list[LmsAnnouncementSummaryData] = []
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                normalized = self._normalize_announcement(item)
+                if normalized is not None:
+                    items.append(normalized)
+            return items
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def list_course_modules(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> list[LmsModuleSummaryData]:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._paginate_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/modules",
+                params={
+                    "per_page": 100,
+                    "include[]": ["items", "content_details"],
+                },
+            )
+            items: list[LmsModuleSummaryData] = []
+            for item in payload:
+                if isinstance(item, dict):
+                    items.append(self._normalize_module(item))
+            return items
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def list_course_pages(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> list[LmsPageSummaryData]:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._paginate_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/pages",
+                params={"per_page": 100, "sort": "title", "order": "asc"},
+            )
+            return [self._normalize_page_summary(item) for item in payload]
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def get_course_page(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+        page_ref: str,
+    ) -> LmsPageDetailData:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._request_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/pages/{page_ref}",
+            )
+            if not isinstance(payload, dict):
+                raise LmsProviderError("LMS_PROVIDER_ERROR", "Canvas returned an unexpected provider payload.", status_code=502)
+            return self._normalize_page_detail(payload)
         except Exception as exc:
             raise self._map_provider_exception(exc) from exc
 

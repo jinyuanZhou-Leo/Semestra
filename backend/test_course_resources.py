@@ -1,5 +1,5 @@
 # input:  [unittest, tempfile storage roots, in-memory SQLAlchemy setup, and course_resources domain helpers]
-# output: [backend regression tests for course-resource quota accounting, file persistence, saved-link resources, and rename sanitization]
+# output: [backend regression tests for course-resource quota accounting, file persistence, saved-link resources, safe deletion, and rename sanitization]
 # pos:    [backend unit tests covering the course-resource service without requiring HTTP requests]
 #
 # ⚠️ When this file is updated:
@@ -136,6 +136,21 @@ class CourseResourcesServiceTests(unittest.TestCase):
 
         snapshot = course_resources.get_user_quota_snapshot(self.db, self.user_id)
         self.assertEqual(snapshot.total_bytes_used, 0)
+
+    def test_delete_external_resource_keeps_storage_root_intact(self) -> None:
+        resource = course_resources.create_external_course_resource(
+            self.db,
+            course_id=self.course.id,
+            external_url="https://example.com/slides/week-2",
+            filename_display="Week 2 slides",
+        )
+        storage_root = course_resources.get_storage_root(self.base_dir)
+
+        course_resources.delete_course_resource(self.db, base_dir=self.base_dir, resource=resource)
+
+        self.assertTrue(storage_root.exists())
+        self.assertTrue(storage_root.is_dir())
+        self.assertIsNone(course_resources.get_course_resource(self.db, self.course.id, resource.id))
 
 
 if __name__ == "__main__":

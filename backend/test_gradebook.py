@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy session setup, gradebook domain service, and backend schemas/models]
-# output: [unit tests covering gradebook initialization, category reassignment, preference updates, and score-first assessment behavior]
-# pos:    [backend regression tests for the simplified built-in gradebook service and import-safe payload helpers]
+# output: [unit tests covering gradebook initialization, category reassignment, preference updates, percentage and point-based score persistence, and score-first assessment behavior]
+# pos:    [backend regression tests for the simplified built-in gradebook service and import-safe payload helpers, including points-to-percentage assessment input]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -141,6 +141,61 @@ class GradebookServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(created.assessments[0].score, 82.5)
+
+    def test_points_are_persisted_and_converted_to_percentage(self) -> None:
+        payload = self._payload()
+        category_id = payload.categories[0].id
+
+        created = gradebook.create_assessment(
+            self.db,
+            self.course_id,
+            schemas.GradebookAssessmentCreate(
+                category_id=category_id,
+                title="Lab Report",
+                due_date=date(2026, 2, 18),
+                weight=15.0,
+                score=None,
+                points_earned=18.0,
+                points_possible=20.0,
+            ),
+        )
+
+        self.assertEqual(created.assessments[0].points_earned, 18.0)
+        self.assertEqual(created.assessments[0].points_possible, 20.0)
+        self.assertEqual(created.assessments[0].score, 90.0)
+
+    def test_manual_score_update_clears_existing_points(self) -> None:
+        payload = self._payload()
+        category_id = payload.categories[0].id
+
+        created = gradebook.create_assessment(
+            self.db,
+            self.course_id,
+            schemas.GradebookAssessmentCreate(
+                category_id=category_id,
+                title="Quiz 2",
+                due_date=date(2026, 2, 20),
+                weight=10.0,
+                points_earned=9.0,
+                points_possible=10.0,
+            ),
+        )
+
+        updated = gradebook.update_assessment(
+            self.db,
+            self.course_id,
+            created.assessments[0].id,
+            schemas.GradebookAssessmentUpdate(
+                score=85.0,
+                points_earned=None,
+                points_possible=None,
+            ),
+        )
+
+        assessment = next(item for item in updated.assessments if item.id == created.assessments[0].id)
+        self.assertEqual(assessment.score, 85.0)
+        self.assertIsNone(assessment.points_earned)
+        self.assertIsNone(assessment.points_possible)
 
     def test_update_preferences_persists_target_gpa_and_model(self) -> None:
         updated = gradebook.update_preferences(

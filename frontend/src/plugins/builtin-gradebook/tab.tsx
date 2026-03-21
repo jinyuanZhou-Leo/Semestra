@@ -1,6 +1,6 @@
 // input:  [course gradebook APIs, course data update context, LMS assignment APIs, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers, builtin-gradebook shared GPA-percentage formatting, and shared business empty-state wrappers]
-// output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, LMS-assisted add-assessment flows, incomplete-weight warning stats, and tab definition]
-// pos:    [course-scoped gradebook surface for local assessment scores, one-time LMS assignment import inside the add-assessment dialog using provider-normalized due dates, stable shadcn tabbed add-assessment UX, Calendar due-date sync, temporary what-if editing, incomplete-weight calculation gating, and semantic empty-state feedback]
+// output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, LMS-assisted add-assessment flows, exact-weight warning stats, and tab definition]
+// pos:    [course-scoped gradebook surface for local assessment scores plus optional point-based assessment input, one-time LMS assignment import inside the add-assessment dialog using provider-normalized due dates, stable shadcn tabbed add-assessment UX, Calendar due-date sync, temporary what-if editing, exact-100 weight gating, and semantic empty-state feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -51,6 +51,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -98,11 +99,14 @@ import {
 type AssessmentDraft = {
     id: string | null;
     source_mode: 'manual' | 'lms';
+    score_mode: 'percent' | 'points';
     title: string;
     category_id: string | null;
     due_date: string;
     weight: string;
     score: string;
+    points_earned: string;
+    points_possible: string;
     selected_lms_assignment_ids: string[];
 };
 
@@ -151,11 +155,14 @@ const createAssessmentDraft = (
 ): AssessmentDraft => ({
     id: assessment?.id ?? null,
     source_mode: 'manual',
+    score_mode: assessment?.points_earned !== null && assessment?.points_possible !== null ? 'points' : 'percent',
     title: assessment?.title ?? '',
     category_id: assessment?.category_id ?? gradebook.categories.find((category) => !category.is_archived)?.id ?? null,
     due_date: formatGradebookDateInput(assessment?.due_date),
     weight: assessment ? String(assessment.weight) : '',
     score: assessment?.score === null || assessment?.score === undefined ? '' : String(assessment.score),
+    points_earned: assessment?.points_earned === null || assessment?.points_earned === undefined ? '' : String(assessment.points_earned),
+    points_possible: assessment?.points_possible === null || assessment?.points_possible === undefined ? '' : String(assessment.points_possible),
     selected_lms_assignment_ids: [],
 });
 
@@ -243,7 +250,7 @@ const AssessmentDialog: React.FC<{
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[640px]">
+            <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[640px]">
                 <DialogHeader>
                     <DialogTitle>{draft.id ? 'Edit Assessment' : 'Add Assessment'}</DialogTitle>
                     <DialogDescription className="text-sm text-muted-foreground">
@@ -255,7 +262,7 @@ const AssessmentDialog: React.FC<{
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4">
+                <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
                     {!draft.id && canImportFromLms ? (
                         <Tabs value={draft.source_mode} onValueChange={(value) => setField('source_mode', value as AssessmentDraft['source_mode'])}>
                             <TabsList className="grid w-full grid-cols-2">
@@ -265,9 +272,9 @@ const AssessmentDialog: React.FC<{
                         </Tabs>
                     ) : null}
 
-                    <div className="h-[500px] overflow-hidden">
+                    <div className="h-[min(68vh,560px)] min-h-0 overflow-hidden">
                         {draft.source_mode === 'lms' && !draft.id ? (
-                            <div className="flex h-full flex-col gap-4">
+                            <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
                                 <div className="space-y-2">
                                     <Label>Category</Label>
                                     <Select value={draft.category_id ?? 'none'} onValueChange={(value) => setField('category_id', value === 'none' ? null : value)}>
@@ -286,7 +293,7 @@ const AssessmentDialog: React.FC<{
                                     </p>
                                 </div>
 
-                                <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/70">
+                                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70">
                                     <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
                                         <div>
                                             <div className="text-sm font-medium text-foreground">Assignments from LMS</div>
@@ -342,7 +349,7 @@ const AssessmentDialog: React.FC<{
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex h-full flex-col">
+                            <div className="flex h-full min-h-0 flex-col overflow-y-auto pr-1">
                                 <div className="space-y-3">
                                     <h3 className="text-sm font-medium text-foreground">Details</h3>
                                     <div className="grid gap-3 sm:grid-cols-2">
@@ -411,10 +418,54 @@ const AssessmentDialog: React.FC<{
                                             <Label>Weight (%)</Label>
                                             <Input value={draft.weight} inputMode="decimal" onChange={(event) => setField('weight', event.target.value)} placeholder="20" />
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label>Score (%)</Label>
-                                            <Input value={draft.score} inputMode="decimal" onChange={(event) => setField('score', event.target.value)} placeholder="Optional" />
+                                        <div className="space-y-2 sm:col-span-2">
+                                            <Label>Score input</Label>
+                                            <RadioGroup
+                                                value={draft.score_mode}
+                                                onValueChange={(value) => setField('score_mode', value as AssessmentDraft['score_mode'])}
+                                                className="grid gap-2 sm:grid-cols-2"
+                                            >
+                                                <label
+                                                    className={cn(
+                                                        'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-colors',
+                                                        draft.score_mode === 'percent'
+                                                            ? 'border-primary bg-primary/5'
+                                                            : 'border-border/70 hover:bg-muted/30',
+                                                    )}
+                                                >
+                                                    <RadioGroupItem value="percent" />
+                                                    <span className="text-sm font-medium text-foreground">Percentage</span>
+                                                </label>
+                                                <label
+                                                    className={cn(
+                                                        'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-colors',
+                                                        draft.score_mode === 'points'
+                                                            ? 'border-primary bg-primary/5'
+                                                            : 'border-border/70 hover:bg-muted/30',
+                                                    )}
+                                                >
+                                                    <RadioGroupItem value="points" />
+                                                    <span className="text-sm font-medium text-foreground">Points</span>
+                                                </label>
+                                            </RadioGroup>
                                         </div>
+                                        {draft.score_mode === 'points' ? (
+                                            <>
+                                                <div className="space-y-2">
+                                                    <Label>Points earned</Label>
+                                                    <Input value={draft.points_earned} inputMode="decimal" onChange={(event) => setField('points_earned', event.target.value)} placeholder="18" />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Points possible</Label>
+                                                    <Input value={draft.points_possible} inputMode="decimal" onChange={(event) => setField('points_possible', event.target.value)} placeholder="20" />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="space-y-2 sm:col-span-2">
+                                                <Label>Score (%)</Label>
+                                                <Input value={draft.score} inputMode="decimal" onChange={(event) => setField('score', event.target.value)} />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -567,7 +618,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
     const enterPlanMode = React.useCallback(() => {
         if (!hasCompleteWeight) {
-            toast.error('Gradebook calculations stay disabled until total assessment weight reaches 100%.');
+            toast.error('Gradebook calculations stay disabled until total assessment weight is exactly 100%.');
             return;
         }
         setPlanMode(true);
@@ -607,6 +658,8 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         due_date: assignment.due_date ?? null,
                         weight: 0,
                         score: null,
+                        points_earned: null,
+                        points_possible: null,
                     });
                 }
                 if (!latestGradebook) {
@@ -639,12 +692,25 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             title: assessmentDraft.title.trim(),
             due_date: assessmentDraft.due_date || null,
             weight: Number(assessmentDraft.weight) || 0,
-            score: parseOptionalNumber(assessmentDraft.score),
+            score: assessmentDraft.score_mode === 'percent' ? parseOptionalNumber(assessmentDraft.score) : null,
+            points_earned: assessmentDraft.score_mode === 'points' ? parseOptionalNumber(assessmentDraft.points_earned) : null,
+            points_possible: assessmentDraft.score_mode === 'points' ? parseOptionalNumber(assessmentDraft.points_possible) : null,
         };
 
         if (!payload.title) {
             toast.error('Assessment title is required.');
             return;
+        }
+        if (assessmentDraft.score_mode === 'points') {
+            const hasEitherPoints = payload.points_earned !== null || payload.points_possible !== null;
+            if (hasEitherPoints && (payload.points_earned === null || payload.points_possible === null)) {
+                toast.error('Enter both points earned and points possible.');
+                return;
+            }
+            if (payload.points_possible !== null && payload.points_possible <= 0) {
+                toast.error('Points possible must be greater than 0.');
+                return;
+            }
         }
 
         const didSave = assessmentDraft.id
@@ -674,7 +740,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const handleRunPlan = React.useCallback(async () => {
         if (!gradebook) return;
         if (!hasCompleteGradebookWeight(gradebook)) {
-            toast.error('Gradebook calculations stay disabled until total assessment weight reaches 100%.');
+            toast.error('Gradebook calculations stay disabled until total assessment weight is exactly 100%.');
             return;
         }
         const parsed = Number(targetGpaDraft);
@@ -695,6 +761,8 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         if (nextValue === assessment.score) return;
         await commitGradebook(api.updateCourseGradebookAssessment(courseId, assessment.id, {
             score: nextValue,
+            points_earned: null,
+            points_possible: null,
         }));
     }, [commitGradebook, courseId, planMode, scoreDrafts]);
 
@@ -746,7 +814,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         'flex h-11 flex-1 min-w-[200px] shrink-0 items-center justify-end transition-all duration-300 relative overflow-hidden z-10'
     );
 
-    const showWeightIncompleteState = Boolean(course && summary && !summary.has_complete_weight);
+    const showWeightMismatchState = Boolean(course && summary && !summary.has_complete_weight);
 
     return (
         <div className="space-y-4">
@@ -754,7 +822,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 <section className="mb-2.5">
                     <div className={cn(
                         'grid select-none rounded-lg border overflow-hidden transition-colors duration-300',
-                        showWeightIncompleteState
+                        showWeightMismatchState
                             ? 'border-rose-300/80 bg-rose-50/40 dark:border-rose-500/40 dark:bg-rose-950/15'
                             : planMode
                             ? 'border-amber-300/60 dark:border-amber-500/30'
@@ -763,27 +831,27 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         {/* Grade */}
                         <div className={cn(
                             'min-w-0 px-3.5 py-2.5 transition-colors duration-300',
-                            showWeightIncompleteState
+                            showWeightMismatchState
                                 ? 'bg-rose-50/80 dark:bg-rose-950/20'
                                 : planMode ? 'bg-amber-50/60 dark:bg-amber-950/25' : '',
                         )}>
                             <div className="flex items-center gap-1.5">
-                                {showWeightIncompleteState
+                                {showWeightMismatchState
                                     ? <Percent className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" />
                                     : planMode
                                     ? <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
                                     : <Percent className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />}
                                 <p className={cn(
                                     'truncate text-xs font-medium transition-colors duration-300',
-                                    showWeightIncompleteState
+                                    showWeightMismatchState
                                         ? 'text-rose-700 dark:text-rose-300'
                                         : planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
                                 )}>
-                                    {showWeightIncompleteState ? 'Grade · Incomplete Weight' : planMode ? 'Grade · What If' : 'Grade'}
+                                    {showWeightMismatchState ? 'Grade · Weight Mismatch' : planMode ? 'Grade · What If' : 'Grade'}
                                 </p>
                             </div>
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
-                                {course.hide_gpa ? '****' : showWeightIncompleteState ? (
+                                {course.hide_gpa ? '****' : showWeightMismatchState ? (
                                     <span className="text-rose-600 dark:text-rose-400">Not calculated</span>
                                 ) : planMode && whatIfResult ? (
                                     <span className="text-amber-600 dark:text-amber-400">
@@ -799,9 +867,9 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     />
                                 )}
                             </div>
-                            {!course.hide_gpa && showWeightIncompleteState ? (
+                            {!course.hide_gpa && showWeightMismatchState ? (
                                 <p className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-300/90">
-                                    Total weight is {summary.total_weight.toFixed(1)}%. Reach 100% to calculate.
+                                    Total weight is {summary.total_weight.toFixed(1)}%. It must be exactly 100.0% to calculate.
                                 </p>
                             ) : null}
                         </div>
@@ -809,29 +877,29 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         {/* GPA */}
                         <div className={cn(
                             'min-w-0 border-l px-3.5 py-2.5 transition-colors duration-300',
-                            showWeightIncompleteState
+                            showWeightMismatchState
                                 ? 'border-rose-300/80 bg-rose-50/80 dark:border-rose-500/40 dark:bg-rose-950/20'
                                 : planMode
                                 ? 'border-amber-300/60 bg-amber-50/60 dark:border-amber-500/30 dark:bg-amber-950/25'
                                 : 'border-border/70',
                         )}>
                             <div className="flex items-center gap-1.5">
-                                {showWeightIncompleteState
+                                {showWeightMismatchState
                                     ? <GraduationCap className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" />
                                     : planMode
                                     ? <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
                                     : <GraduationCap className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />}
                                 <p className={cn(
                                     'truncate text-xs font-medium transition-colors duration-300',
-                                    showWeightIncompleteState
+                                    showWeightMismatchState
                                         ? 'text-rose-700 dark:text-rose-300'
                                         : planMode ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground/80',
                                 )}>
-                                    {showWeightIncompleteState ? 'GPA · Incomplete Weight' : planMode ? 'GPA · What If' : 'GPA (Scaled)'}
+                                    {showWeightMismatchState ? 'GPA · Weight Mismatch' : planMode ? 'GPA · What If' : 'GPA (Scaled)'}
                                 </p>
                             </div>
                             <div className="mt-0.5 truncate text-sm font-semibold tracking-tight sm:text-lg">
-                                {course.hide_gpa ? '****' : showWeightIncompleteState ? (
+                                {course.hide_gpa ? '****' : showWeightMismatchState ? (
                                     <span className="text-rose-600 dark:text-rose-400">Not calculated</span>
                                 ) : planMode && whatIfResult ? (
                                     <span className="text-amber-600 dark:text-amber-400">
@@ -849,9 +917,9 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                         />
                                 )}
                             </div>
-                            {!course.hide_gpa && showWeightIncompleteState ? (
+                            {!course.hide_gpa && showWeightMismatchState ? (
                                 <p className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-300/90">
-                                    Gradebook math stays off while the configured weights are below 100%.
+                                    Gradebook math stays off unless the configured weights total exactly 100%.
                                 </p>
                             ) : null}
                         </div>

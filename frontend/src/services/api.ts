@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, and widget delete options]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, and course Canvas page browser requests]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, Program subject-color persistence, account-wide course-resource file and saved-link APIs, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/page browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -199,6 +199,84 @@ export interface LmsCourseLinkSummary {
     last_error?: LmsIntegrationError | null;
 }
 
+export interface LmsCoursePageSummary {
+    page_id: string | number;
+    url: string;
+    title: string;
+    updated_at?: string | null;
+    published: boolean;
+    front_page: boolean;
+    html_url?: string | null;
+}
+
+export interface LmsCoursePageDetail extends LmsCoursePageSummary {
+    body?: string | null;
+    locked_for_user?: boolean;
+    lock_explanation?: string | null;
+    editing_roles?: string | null;
+}
+
+export interface LmsCoursePageListResponse {
+    items: LmsCoursePageSummary[];
+}
+
+export interface LmsCourseNavigationTab {
+    tab_id: string;
+    label: string;
+    html_url?: string | null;
+    hidden: boolean;
+    position: number;
+    tab_type?: string | null;
+    active: boolean;
+}
+
+export interface LmsCourseNavigationResponse {
+    default_view?: string | null;
+    front_page_url?: string | null;
+    tabs: LmsCourseNavigationTab[];
+}
+
+export interface LmsAnnouncementSummary {
+    announcement_id: string;
+    title: string;
+    body?: string | null;
+    posted_at?: string | null;
+    updated_at?: string | null;
+    html_url?: string | null;
+}
+
+export interface LmsAnnouncementListResponse {
+    items: LmsAnnouncementSummary[];
+}
+
+export interface LmsModuleItem {
+    module_item_id: string;
+    title: string;
+    item_type?: string | null;
+    content_id?: string | null;
+    html_url?: string | null;
+    url?: string | null;
+    position?: number | null;
+    indent?: number | null;
+    published: boolean;
+    completion_requirement_type?: string | null;
+    new_tab: boolean;
+}
+
+export interface LmsModuleSummary {
+    module_id: string;
+    name: string;
+    position?: number | null;
+    published: boolean;
+    state?: string | null;
+    unlock_at?: string | null;
+    items: LmsModuleItem[];
+}
+
+export interface LmsModuleListResponse {
+    items: LmsModuleSummary[];
+}
+
 export interface LmsCourseImportResult {
     external_course_id: string;
     status: 'created' | 'skipped' | 'conflict';
@@ -319,6 +397,8 @@ export interface GradebookAssessment {
     due_date: string | null;
     weight: number;
     score: number | null;
+    points_earned: number | null;
+    points_possible: number | null;
     order_index: number;
 }
 
@@ -663,6 +743,8 @@ const api = {
             due_date?: string | null;
             weight: number;
             score?: number | null;
+            points_earned?: number | null;
+            points_possible?: number | null;
         }
     ) => {
         const response = await axios.post<CourseGradebook>(`/api/courses/${courseId}/gradebook/assessments`, data);
@@ -677,6 +759,8 @@ const api = {
             due_date?: string | null;
             weight?: number;
             score?: number | null;
+            points_earned?: number | null;
+            points_possible?: number | null;
         }
     ) => {
         const response = await axios.patch<CourseGradebook>(`/api/courses/${courseId}/gradebook/assessments/${assessmentId}`, data);
@@ -814,6 +898,36 @@ const api = {
     getCourseLmsAssignments: async (courseId: string) => {
         return dedupeGet(`GET:/api/courses/${courseId}/lms/assignments`, async () => {
             const response = await axios.get<LmsAssignmentListResponse>(`/api/courses/${courseId}/lms/assignments`);
+            return response.data;
+        });
+    },
+    getCourseLmsNavigation: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/navigation`, async () => {
+            const response = await axios.get<LmsCourseNavigationResponse>(`/api/courses/${courseId}/lms/navigation`);
+            return response.data;
+        });
+    },
+    getCourseLmsAnnouncements: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/announcements`, async () => {
+            const response = await axios.get<LmsAnnouncementListResponse>(`/api/courses/${courseId}/lms/announcements`);
+            return response.data;
+        });
+    },
+    getCourseLmsModules: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/modules`, async () => {
+            const response = await axios.get<LmsModuleListResponse>(`/api/courses/${courseId}/lms/modules`);
+            return response.data;
+        });
+    },
+    getCourseLmsPages: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/pages`, async () => {
+            const response = await axios.get<LmsCoursePageListResponse>(`/api/courses/${courseId}/lms/pages`);
+            return response.data;
+        });
+    },
+    getCourseLmsPage: async (courseId: string, pageRef: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/pages/${pageRef}`, async () => {
+            const response = await axios.get<LmsCoursePageDetail>(`/api/courses/${courseId}/lms/pages/${encodeURIComponent(pageRef)}`);
             return response.data;
         });
     },

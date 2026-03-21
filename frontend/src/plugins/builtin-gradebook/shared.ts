@@ -1,6 +1,6 @@
 // input:  [gradebook API contracts, date-fns helpers, and builtin-gradebook table view preferences]
-// output: [builtin-gradebook constants, weight-gated forecast/plan calculators, shared formatters, and stable category badge color helpers]
-// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, and settings surface, including total-weight calculation gating]
+// output: [builtin-gradebook constants, exact-weight-gated forecast/plan calculators, shared formatters, and stable category badge color helpers]
+// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, and settings surface, including exact-100 total-weight calculation gating]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -114,6 +114,7 @@ const DEFAULT_CATEGORY_COLOR_OPTION = CATEGORY_COLOR_OPTIONS.find((option) => op
 
 const roundValue = (value: number, digits: number = 4): number => Number(value.toFixed(digits));
 const clampScore = (value: number): number => Math.max(0, Math.min(100, value));
+const GRADEBOOK_WEIGHT_TOLERANCE = 0.001;
 
 const calculateMean = (values: number[]): number | null => {
     if (values.length === 0) return null;
@@ -194,7 +195,7 @@ export const calculateTotalWeight = (gradebook: CourseGradebook): number => roun
 );
 
 export const hasCompleteGradebookWeight = (gradebook: CourseGradebook): boolean => (
-    calculateTotalWeight(gradebook) >= 100
+    Math.abs(calculateTotalWeight(gradebook) - 100) <= GRADEBOOK_WEIGHT_TOLERANCE
 );
 
 export const buildCategoryStats = (gradebook: CourseGradebook): GradebookCategoryStats[] => {

@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, and widget delete query flags]
 # output: [FastAPI app instance, router registration, and remaining Program/Semester/Course route handlers that are not yet split into separate backend API modules]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, and keeps the remaining program/semester/course orchestration endpoints]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, and keeps the remaining program/semester/course orchestration endpoints plus course LMS navigation, announcement, module, and page reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -640,6 +640,68 @@ def read_course_lms_assignments(
         return lms_service.list_course_assignments(db, current_user.id, course_id)
     except Exception as exc:
         raise_lms_http_error(exc)
+
+
+@app.get("/courses/{course_id}/lms/navigation", response_model=schemas.LmsCourseNavigationResponse)
+def read_course_lms_navigation(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.get_course_navigation(db, current_user.id, course_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/courses/{course_id}/lms/announcements", response_model=schemas.LmsAnnouncementListResponse)
+def read_course_lms_announcements(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_course_announcements(db, current_user.id, course_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/courses/{course_id}/lms/modules", response_model=schemas.LmsModuleListResponse)
+def read_course_lms_modules(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_course_modules(db, current_user.id, course_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/courses/{course_id}/lms/pages", response_model=schemas.LmsPageListResponse)
+def read_course_lms_pages(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_course_pages(db, current_user.id, course_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/courses/{course_id}/lms/pages/{page_ref}", response_model=schemas.LmsPageDetail)
+def read_course_lms_page(
+    course_id: str,
+    page_ref: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.get_course_page(db, current_user.id, course_id, page_ref)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
 
 @app.get("/courses/{course_id}/plugin-settings", response_model=list[schemas.PluginSetting])
 def read_course_plugin_settings(

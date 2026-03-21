@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy setup, backend LMS service/schema/crypto modules, and fake provider adapters]
-# output: [unit tests covering multi-integration LMS storage, Program/Course LMS link rules, provider-backed imports, read-only assignment/calendar contracts, and program-level course stat/reassignment safeguards]
-# pos:    [backend regression tests for LMS orchestration plus program/course behaviors that interact with provider setup and semester assignment]
+# output: [unit tests covering multi-integration LMS storage, Program/Course LMS link rules, provider-backed imports, read-only navigation/announcement/module/assignment/page/calendar contracts, and program-level course stat/reassignment safeguards]
+# pos:    [backend regression tests for LMS orchestration plus program/course behaviors that interact with provider setup, navigation/page browsing, and semester assignment]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -12,6 +12,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -21,17 +22,26 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import crud
+import main
 import lms_service
 import models
 import schemas
 from database import Base
 from lms_crypto import decrypt_credentials, encrypt_credentials
+from lms_canvas import CanvasLmsProvider
 from lms_providers import (
     LmsAssignmentSummaryData,
+    LmsAnnouncementSummaryData,
     LmsCalendarEventSummaryData,
     LmsConnectionSummaryData,
     LmsCoursePageData,
+    LmsCourseNavigationData,
+    LmsCourseNavigationTabData,
     LmsCourseSummaryData,
+    LmsModuleItemData,
+    LmsModuleSummaryData,
+    LmsPageDetailData,
+    LmsPageSummaryData,
     LmsProviderError,
 )
 
@@ -42,6 +52,11 @@ class _FakeLmsProvider:
     def __init__(self) -> None:
         self.validation_fail = False
         self.last_list_courses_args = None
+        self.last_navigation_args = None
+        self.last_announcements_args = None
+        self.last_modules_args = None
+        self.last_list_pages_args = None
+        self.last_get_page_args = None
 
     def normalize_integration_config(self, value):
         if not isinstance(value, dict):
@@ -137,6 +152,124 @@ class _FakeLmsProvider:
             ),
         ]
 
+    def get_course_navigation(self, config, credentials, external_course_id):
+        self.last_navigation_args = {
+            "external_course_id": external_course_id,
+        }
+        return LmsCourseNavigationData(
+            default_view="wiki",
+            front_page_url="https://canvas.example.edu/courses/123/pages/home",
+            tabs=[
+                LmsCourseNavigationTabData(
+                    tab_id="home",
+                    label="Home",
+                    html_url="https://canvas.example.edu/courses/123",
+                    hidden=False,
+                    position=1,
+                    tab_type=None,
+                    active=True,
+                ),
+                LmsCourseNavigationTabData(
+                    tab_id="modules",
+                    label="Modules",
+                    html_url="https://canvas.example.edu/courses/123/modules",
+                    hidden=False,
+                    position=2,
+                    tab_type=None,
+                    active=False,
+                ),
+            ],
+        )
+
+    def list_course_announcements(self, config, credentials, external_course_id):
+        self.last_announcements_args = {
+            "external_course_id": external_course_id,
+        }
+        return [
+            LmsAnnouncementSummaryData(
+                announcement_id="announcement-1",
+                title="Welcome",
+                body="<p>Welcome to the course.</p>",
+                posted_at="2026-01-05T12:00:00Z",
+                updated_at="2026-01-05T12:30:00Z",
+                html_url="https://canvas.example.edu/courses/123/announcements/1",
+            ),
+        ]
+
+    def list_course_modules(self, config, credentials, external_course_id):
+        self.last_modules_args = {
+            "external_course_id": external_course_id,
+        }
+        return [
+            LmsModuleSummaryData(
+                module_id="module-1",
+                name="Module 1",
+                position=1,
+                published=True,
+                state="active",
+                unlock_at=None,
+                items=[
+                    LmsModuleItemData(
+                        module_item_id="module-item-1",
+                        title="Lecture 1",
+                        item_type="Page",
+                        content_id="page-1",
+                        html_url="https://canvas.example.edu/courses/123/pages/lecture-1",
+                        url="/courses/123/pages/lecture-1",
+                        position=1,
+                        indent=0,
+                        published=True,
+                        completion_requirement_type="must_view",
+                        new_tab=False,
+                    )
+                ],
+            ),
+        ]
+
+    def list_course_pages(self, config, credentials, external_course_id):
+        self.last_list_pages_args = {
+            "external_course_id": external_course_id,
+        }
+        return [
+            LmsPageSummaryData(
+                page_id="1",
+                url="home",
+                title="Home",
+                updated_at="2026-02-01T12:00:00Z",
+                html_url="https://canvas.example.edu/courses/123/pages/home",
+                published=True,
+                front_page=True,
+            ),
+            LmsPageSummaryData(
+                page_id="2",
+                url="syllabus",
+                title="Syllabus",
+                updated_at="2026-02-02T12:00:00Z",
+                html_url="https://canvas.example.edu/courses/123/pages/syllabus",
+                published=True,
+                front_page=False,
+            ),
+        ]
+
+    def get_course_page(self, config, credentials, external_course_id, page_ref):
+        self.last_get_page_args = {
+            "external_course_id": external_course_id,
+            "page_ref": page_ref,
+        }
+        return LmsPageDetailData(
+            page_id="1",
+            url=str(page_ref),
+            title="Home",
+            updated_at="2026-02-01T12:00:00Z",
+            html_url="https://canvas.example.edu/courses/123/pages/home",
+            published=True,
+            front_page=True,
+            body="<p>Welcome to the course page.</p>",
+            locked_for_user=False,
+            lock_explanation=None,
+            editing_roles="teachers,students",
+        )
+
     def list_calendar_events(self, config, credentials, *, context_codes, start_at, end_at):
         del start_at, end_at
         return [
@@ -174,7 +307,12 @@ class LmsIntegrationTests(unittest.TestCase):
 
         self.provider = _FakeLmsProvider()
         self.original_get_lms_provider = lms_service.get_lms_provider
-        lms_service.get_lms_provider = lambda provider: self.provider
+        def _resolve_provider(provider: str):
+            if provider == self.provider.provider:
+                return self.provider
+            raise LmsProviderError("LMS_PROVIDER_NOT_SUPPORTED", f"Provider '{provider}' is not supported.", status_code=404)
+
+        lms_service.get_lms_provider = _resolve_provider
 
         self.program = crud.create_program(
             self.db,
@@ -218,6 +356,290 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertIn("ciphertext", envelope)
         self.assertIn("tag", envelope)
         self.assertEqual(decrypt_credentials(encrypted)["personal_access_token"], "secret")
+
+    def test_canvas_provider_normalizes_page_list_response(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.links = {}
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._payload
+
+        class FakeSession:
+            def __init__(self, response):
+                self.response = response
+                self.calls = []
+
+            def get(self, url, params=None, timeout=None):
+                self.calls.append({"url": url, "params": params, "timeout": timeout})
+                return self.response
+
+        session = FakeSession(
+            FakeResponse(
+                [
+                    {
+                        "page_id": 1,
+                        "url": "home",
+                        "title": "Home",
+                        "updated_at": "2026-02-01T12:00:00Z",
+                        "html_url": "https://canvas.example.edu/courses/123/pages/home",
+                        "published": True,
+                        "front_page": True,
+                    },
+                ]
+            )
+        )
+        provider = CanvasLmsProvider()
+
+        with patch.object(CanvasLmsProvider, "_build_session", return_value=("https://canvas.example.edu", session)):
+            pages = provider.list_course_pages(
+                {"base_url": "https://canvas.example.edu"},
+                {"personal_access_token": "token"},
+                "course-1",
+            )
+
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(session.calls[0]["url"], "https://canvas.example.edu/api/v1/courses/course-1/pages")
+        self.assertEqual(session.calls[0]["params"], {"per_page": 100, "sort": "title", "order": "asc"})
+        self.assertEqual(pages[0].page_id, "1")
+        self.assertTrue(pages[0].front_page)
+        self.assertEqual(pages[0].url, "home")
+
+    def test_canvas_provider_normalizes_page_detail_response(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.links = {}
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._payload
+
+        class FakeSession:
+            def __init__(self, response):
+                self.response = response
+                self.calls = []
+
+            def get(self, url, params=None, timeout=None):
+                self.calls.append({"url": url, "params": params, "timeout": timeout})
+                return self.response
+
+        session = FakeSession(
+            FakeResponse(
+                {
+                    "page_id": 1,
+                    "url": "home",
+                    "title": "Home",
+                    "updated_at": "2026-02-01T12:00:00Z",
+                    "html_url": "https://canvas.example.edu/courses/123/pages/home",
+                    "published": True,
+                    "front_page": True,
+                    "body": "<p>Welcome to the course page.</p>",
+                    "locked_for_user": False,
+                    "lock_explanation": None,
+                    "editing_roles": "teachers,students",
+                }
+            )
+        )
+        provider = CanvasLmsProvider()
+
+        with patch.object(CanvasLmsProvider, "_build_session", return_value=("https://canvas.example.edu", session)):
+            page = provider.get_course_page(
+                {"base_url": "https://canvas.example.edu"},
+                {"personal_access_token": "token"},
+                "course-1",
+                "home",
+            )
+
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(session.calls[0]["url"], "https://canvas.example.edu/api/v1/courses/course-1/pages/home")
+        self.assertEqual(page.page_id, "1")
+        self.assertEqual(page.body, "<p>Welcome to the course page.</p>")
+        self.assertFalse(page.locked_for_user)
+        self.assertEqual(page.editing_roles, "teachers,students")
+
+    def test_canvas_provider_normalizes_navigation_response(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.links = {}
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._payload
+
+        class FakeSession:
+            def __init__(self):
+                self.calls = []
+
+            def get(self, url, params=None, timeout=None):
+                self.calls.append({"url": url, "params": params, "timeout": timeout})
+                if url.endswith("/front_page"):
+                    return FakeResponse(
+                        {
+                            "html_url": "https://canvas.example.edu/courses/123/pages/home",
+                            "url": "home",
+                        }
+                    )
+                if url.endswith("/tabs"):
+                    return FakeResponse(
+                        [
+                            {
+                                "id": "home",
+                                "label": "Home",
+                                "html_url": "https://canvas.example.edu/courses/123",
+                                "hidden": False,
+                                "position": 1,
+                            },
+                            {
+                                "id": "modules",
+                                "label": "Modules",
+                                "html_url": "https://canvas.example.edu/courses/123/modules",
+                                "hidden": False,
+                                "position": 2,
+                            },
+                        ]
+                    )
+                return FakeResponse({"default_view": "wiki"})
+
+        session = FakeSession()
+        provider = CanvasLmsProvider()
+
+        with patch.object(CanvasLmsProvider, "_build_session", return_value=("https://canvas.example.edu", session)):
+            navigation = provider.get_course_navigation(
+                {"base_url": "https://canvas.example.edu"},
+                {"personal_access_token": "token"},
+                "course-1",
+            )
+
+        self.assertEqual(len(session.calls), 3)
+        self.assertEqual(session.calls[0]["url"], "https://canvas.example.edu/api/v1/courses/course-1")
+        self.assertEqual(session.calls[1]["url"], "https://canvas.example.edu/api/v1/courses/course-1/front_page")
+        self.assertEqual(session.calls[2]["url"], "https://canvas.example.edu/api/v1/courses/course-1/tabs")
+        self.assertEqual(session.calls[2]["params"], {"per_page": 100})
+        self.assertEqual(navigation.default_view, "wiki")
+        self.assertEqual(navigation.front_page_url, "https://canvas.example.edu/courses/123/pages/home")
+        self.assertEqual([item.tab_id for item in navigation.tabs], ["home", "modules"])
+        self.assertTrue(navigation.tabs[0].active)
+
+    def test_canvas_provider_normalizes_announcements_response(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.links = {}
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._payload
+
+        class FakeSession:
+            def __init__(self):
+                self.calls = []
+
+            def get(self, url, params=None, timeout=None):
+                self.calls.append({"url": url, "params": params, "timeout": timeout})
+                return FakeResponse(
+                    [
+                        {
+                            "id": "announcement-1",
+                            "title": "Welcome",
+                            "message": "<p>Welcome to the course.</p>",
+                            "posted_at": "2026-01-05T12:00:00Z",
+                            "updated_at": "2026-01-05T12:30:00Z",
+                            "html_url": "https://canvas.example.edu/courses/123/announcements/1",
+                            "context_code": "course_course-1",
+                        }
+                    ]
+                )
+
+        session = FakeSession()
+        provider = CanvasLmsProvider()
+
+        with patch.object(CanvasLmsProvider, "_build_session", return_value=("https://canvas.example.edu", session)):
+            announcements = provider.list_course_announcements(
+                {"base_url": "https://canvas.example.edu"},
+                {"personal_access_token": "token"},
+                "course-1",
+            )
+
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(session.calls[0]["url"], "https://canvas.example.edu/api/v1/announcements")
+        self.assertEqual(session.calls[0]["params"], {"per_page": 100, "context_codes[]": ["course_course-1"]})
+        self.assertEqual(announcements[0].announcement_id, "announcement-1")
+        self.assertEqual(announcements[0].body, "<p>Welcome to the course.</p>")
+        self.assertEqual(announcements[0].posted_at, "2026-01-05T12:00:00Z")
+
+    def test_canvas_provider_normalizes_modules_response(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.links = {}
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._payload
+
+        class FakeSession:
+            def __init__(self):
+                self.calls = []
+
+            def get(self, url, params=None, timeout=None):
+                self.calls.append({"url": url, "params": params, "timeout": timeout})
+                return FakeResponse(
+                    [
+                        {
+                            "id": "module-1",
+                            "name": "Module 1",
+                            "position": 1,
+                            "published": True,
+                            "workflow_state": "active",
+                            "items": [
+                                {
+                                    "id": "module-item-1",
+                                    "title": "Lecture 1",
+                                    "type": "Page",
+                                    "content_id": "page-1",
+                                    "html_url": "https://canvas.example.edu/courses/123/pages/lecture-1",
+                                    "url": "/courses/123/pages/lecture-1",
+                                    "position": 1,
+                                    "indent": 0,
+                                    "published": True,
+                                    "completion_requirement": {"type": "must_view"},
+                                    "new_tab": False,
+                                }
+                            ],
+                        }
+                    ]
+                )
+
+        session = FakeSession()
+        provider = CanvasLmsProvider()
+
+        with patch.object(CanvasLmsProvider, "_build_session", return_value=("https://canvas.example.edu", session)):
+            modules = provider.list_course_modules(
+                {"base_url": "https://canvas.example.edu"},
+                {"personal_access_token": "token"},
+                "course-1",
+            )
+
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(session.calls[0]["url"], "https://canvas.example.edu/api/v1/courses/course-1/modules")
+        self.assertEqual(session.calls[0]["params"], {"per_page": 100, "include[]": ["items", "content_details"]})
+        self.assertEqual(modules[0].module_id, "module-1")
+        self.assertEqual(modules[0].items[0].module_item_id, "module-item-1")
+        self.assertEqual(modules[0].items[0].completion_requirement_type, "must_view")
 
     def test_create_integration_persists_connected_record_without_plaintext_secret(self) -> None:
         response = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
@@ -420,6 +842,88 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertTrue(all(item.course_display_code == "CSC100" for item in semester_calendar.items))
         self.assertEqual({item.event_type_code for item in semester_calendar.items}, {"CALENDAR", "ASSIGNMENT"})
 
+    def test_course_pages_are_available_through_service_and_route(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        response = lms_service.import_program_courses(
+            self.db,
+            self.user.id,
+            self.program.id,
+            schemas.LmsCourseImportRequest(
+                external_course_ids=["course-1"],
+                semester_id=self.semester.id,
+            ),
+        )
+        course = response.results[0].course
+        assert course is not None
+
+        pages = lms_service.list_course_pages(self.db, self.user.id, course.id)
+        page = lms_service.get_course_page(self.db, self.user.id, course.id, "home")
+
+        self.assertEqual(self.provider.last_list_pages_args, {"external_course_id": "course-1"})
+        self.assertEqual(self.provider.last_get_page_args, {"external_course_id": "course-1", "page_ref": "home"})
+        self.assertEqual([item.title for item in pages.items], ["Home", "Syllabus"])
+        self.assertTrue(pages.items[0].front_page)
+        self.assertEqual(page.body, "<p>Welcome to the course page.</p>")
+        self.assertEqual(page.editing_roles, "teachers,students")
+        self.assertEqual(page.url, "home")
+
+        route_pages = main.read_course_lms_pages(course.id, db=self.db, current_user=self.user)
+        route_page = main.read_course_lms_page(course.id, "home", db=self.db, current_user=self.user)
+
+        self.assertEqual(route_pages.items[0].url, "home")
+        self.assertEqual(route_page.body, "<p>Welcome to the course page.</p>")
+        self.assertEqual(route_page.page_id, "1")
+
+    def test_course_navigation_announcements_and_modules_are_available_through_service_and_route(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        response = lms_service.import_program_courses(
+            self.db,
+            self.user.id,
+            self.program.id,
+            schemas.LmsCourseImportRequest(
+                external_course_ids=["course-1"],
+                semester_id=self.semester.id,
+            ),
+        )
+        course = response.results[0].course
+        assert course is not None
+
+        navigation = lms_service.get_course_navigation(self.db, self.user.id, course.id)
+        announcements = lms_service.list_course_announcements(self.db, self.user.id, course.id)
+        modules = lms_service.list_course_modules(self.db, self.user.id, course.id)
+
+        self.assertEqual(self.provider.last_navigation_args, {"external_course_id": "course-1"})
+        self.assertEqual(self.provider.last_announcements_args, {"external_course_id": "course-1"})
+        self.assertEqual(self.provider.last_modules_args, {"external_course_id": "course-1"})
+        self.assertEqual(navigation.default_view, "wiki")
+        self.assertEqual(navigation.front_page_url, "https://canvas.example.edu/courses/123/pages/home")
+        self.assertEqual([item.tab_id for item in navigation.tabs], ["home", "modules"])
+        self.assertTrue(navigation.tabs[0].active)
+        self.assertEqual(announcements.items[0].title, "Welcome")
+        self.assertEqual(announcements.items[0].html_url, "https://canvas.example.edu/courses/123/announcements/1")
+        self.assertEqual(modules.items[0].items[0].module_item_id, "module-item-1")
+        self.assertEqual(modules.items[0].items[0].completion_requirement_type, "must_view")
+
+        route_navigation = main.read_course_lms_navigation(course.id, db=self.db, current_user=self.user)
+        route_announcements = main.read_course_lms_announcements(course.id, db=self.db, current_user=self.user)
+        route_modules = main.read_course_lms_modules(course.id, db=self.db, current_user=self.user)
+
+        self.assertEqual(route_navigation.front_page_url, "https://canvas.example.edu/courses/123/pages/home")
+        self.assertEqual(route_announcements.items[0].announcement_id, "announcement-1")
+        self.assertEqual(route_modules.items[0].module_id, "module-1")
+
     def test_semester_calendar_returns_empty_when_program_lms_is_not_configured(self) -> None:
         semester_calendar = lms_service.list_semester_calendar_events(self.db, self.user.id, self.semester.id)
 
@@ -456,6 +960,86 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertEqual(len(semester_calendar.items), 1)
         self.assertEqual(semester_calendar.items[0].course_id, course.id)
         self.assertEqual(semester_calendar.items[0].event_type_code, "CALENDAR")
+
+    def test_non_canvas_provider_returns_clear_not_supported_error_for_pages(self) -> None:
+        integration = models.LmsIntegration(
+            user_id=self.user.id,
+            display_name="Moodle Main",
+            provider="moodle",
+            status="connected",
+            config_json=json.dumps({"base_url": "https://moodle.example.edu"}),
+            credentials_encrypted=encrypt_credentials({"personal_access_token": "token-moodle"}),
+        )
+        self.db.add(integration)
+        self.db.commit()
+        self.db.refresh(integration)
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="Unsupported", credits=0.5),
+            self.program.id,
+            self.semester.id,
+        )
+        link = models.CourseLmsLink(
+            course_id=course.id,
+            program_id=self.program.id,
+            lms_integration_id=integration.id,
+            external_course_id="course-1",
+            sync_enabled=True,
+        )
+        self.db.add(link)
+        self.db.commit()
+
+        with self.assertRaises(lms_service.LmsServiceError) as context:
+            lms_service.list_course_pages(self.db, self.user.id, course.id)
+
+        self.assertEqual(context.exception.code, "LMS_PROVIDER_NOT_SUPPORTED")
+        self.assertEqual(context.exception.status_code, 404)
+
+    def test_non_canvas_provider_returns_clear_not_supported_error_for_navigation(self) -> None:
+        integration = models.LmsIntegration(
+            user_id=self.user.id,
+            display_name="Moodle Main",
+            provider="moodle",
+            status="connected",
+            config_json=json.dumps({"base_url": "https://moodle.example.edu"}),
+            credentials_encrypted=encrypt_credentials({"personal_access_token": "token-moodle"}),
+        )
+        self.db.add(integration)
+        self.db.commit()
+        self.db.refresh(integration)
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="Unsupported", credits=0.5),
+            self.program.id,
+            self.semester.id,
+        )
+        link = models.CourseLmsLink(
+            course_id=course.id,
+            program_id=self.program.id,
+            lms_integration_id=integration.id,
+            external_course_id="course-1",
+            sync_enabled=True,
+        )
+        self.db.add(link)
+        self.db.commit()
+
+        with self.assertRaises(lms_service.LmsServiceError) as context:
+            lms_service.get_course_navigation(self.db, self.user.id, course.id)
+
+        self.assertEqual(context.exception.code, "LMS_PROVIDER_NOT_SUPPORTED")
+        self.assertEqual(context.exception.status_code, 404)
 
     def test_program_level_course_recomputes_grade_scaled_without_semester(self) -> None:
         course = crud.create_course(

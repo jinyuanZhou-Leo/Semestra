@@ -1,6 +1,6 @@
-// input:  [raw user/content HTML strings and browser DOM parsing APIs]
+// input:  [raw user/content HTML strings, Canvas page bodies, and browser DOM parsing APIs]
 // output: [safe HTML sanitization helpers for block-preserving text/list mode or richer HTML mode plus HTML-shape detection helpers]
-// pos:    [small frontend HTML safety utility for rendering trusted subsets of rich text in dialogs and UI surfaces]
+// pos:    [small frontend HTML safety utility for rendering trusted subsets of rich text in dialogs, UI surfaces, and Canvas page bodies]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -79,6 +79,7 @@ const ALLOWED_STYLE_PROPS = new Set([
 interface SanitizeOptions {
   allowedTags: Set<string>;
   allowInlineStyles: boolean;
+  allowedDataAttrs?: Set<string>;
 }
 
 const isSafeHref = (value: string) => {
@@ -137,7 +138,12 @@ const sanitizeNode = (node: Node, documentRef: Document, options: SanitizeOption
   const cleanElement = documentRef.createElement(tagName);
   for (const attr of Array.from(element.attributes)) {
     const attrName = attr.name.toLowerCase();
-    if (!ALLOWED_ATTRS.has(attrName)) continue;
+    if (!ALLOWED_ATTRS.has(attrName)) {
+      if (options.allowedDataAttrs && attrName.startsWith('data-') && options.allowedDataAttrs.has(attrName) && tagName === 'a') {
+        cleanElement.setAttribute(attrName, attr.value);
+      }
+      continue;
+    }
 
     if (attrName === 'href') {
       if (tagName !== 'a') continue;
@@ -186,6 +192,19 @@ export const sanitizeHtmlFragment = (value: string | null | undefined) => {
   return sanitizeHtmlFragmentWithOptions(value, {
     allowedTags: ALLOWED_TAGS,
     allowInlineStyles: true,
+  });
+};
+
+const CANVAS_ALLOWED_DATA_ATTRS = new Set([
+  'data-api-endpoint',
+  'data-api-returntype',
+]);
+
+export const sanitizeCanvasHtmlFragment = (value: string | null | undefined) => {
+  return sanitizeHtmlFragmentWithOptions(value, {
+    allowedTags: ALLOWED_TAGS,
+    allowInlineStyles: true,
+    allowedDataAttrs: CANVAS_ALLOWED_DATA_ATTRS,
   });
 };
 

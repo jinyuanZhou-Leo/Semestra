@@ -1,6 +1,6 @@
 // input:  [resource identifiers and request parameter objects from frontend data hooks]
 // output: [`queryKeys` factory for stable TanStack Query cache keys across pages, contexts, and plugins]
-// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, LMS, and range-scoped calendar data]
+// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, LMS, Canvas navigation/page browser, and range-scoped calendar data]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -43,6 +43,11 @@ export const queryKeys = {
     schedule: (courseId: string, params: Record<string, unknown>) => ['courses', courseId, 'schedule', params] as const,
     lmsLink: (courseId: string) => ['courses', courseId, 'lms-link'] as const,
     lmsAssignments: (courseId: string) => ['courses', courseId, 'lms-assignments'] as const,
+    lmsNavigation: (courseId: string) => ['courses', courseId, 'lms-navigation'] as const,
+    lmsAnnouncements: (courseId: string) => ['courses', courseId, 'lms-announcements'] as const,
+    lmsModules: (courseId: string) => ['courses', courseId, 'lms-modules'] as const,
+    lmsPages: (courseId: string) => ['courses', courseId, 'lms-pages'] as const,
+    lmsPage: (courseId: string, pageRef: string) => ['courses', courseId, 'lms-page', pageRef] as const,
   },
   user: {
     me: () => ['user', 'me'] as const,

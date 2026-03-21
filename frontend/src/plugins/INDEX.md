@@ -14,6 +14,7 @@ The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, an
 |------|------|-------------|
 | INDEX.md | Architecture index | Local plugin folder architecture and plugin catalog map. |
 | builtin-dashboard/ | Built-in tab plugin | Default dashboard tab plugin implementation and settings entry. |
+| builtin-canvas-integration/ | Built-in tab plugin | Canvas-only course navigation tab with a compact left-side rail, Home/Announcements/Modules/Pages sections, and in-app same-course page links. |
 | builtin-dashboard/INDEX.md | Plugin architecture index | File map for built-in dashboard tab runtime with light-mode light-green glass active FAB surface, dark-mode deep-green active surface, and shadowless dark-mode tuning, plus metadata/settings/runtime contracts. |
 | builtin-event-core/ | Built-in domain plugin | Core calendar/course/todo tab suite and shared schedule logic. |
 | builtin-event-core/INDEX.md | Plugin architecture index | File map for event-core plugin entries, shared domain primitives, scoped refresh payloads, retrying todo sync, and tab/widget runtime responsibilities. |
@@ -23,7 +24,7 @@ The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, an
 | builtin-settings/INDEX.md | Plugin architecture index | File map for the built-in Settings tab runtime and its dynamic sticky-title offset behavior. |
 | counter/ | Widget plugin | Numeric counter widget with inline controls and per-instance settings. |
 | counter/INDEX.md | Plugin architecture index | File map for counter plugin runtime, metadata, settings, bound validation, and design notes. |
-| course-resources/ | Course resource plugin | Course-only resource manager tab plus pinned quick-open widget backed by account-wide resource quota APIs. |
+| course-resources/ | Course resource plugin | Course-only resource manager tab plus pinned quick-open widget backed by account-wide resource quota APIs, with a height-stable add-resource dialog across upload and link tabs. |
 | course-list/ | Widget plugin | Course list widget with plugin-level management settings panel. |
 | course-list/INDEX.md | Plugin architecture index | File map for course-list plugin runtime, metadata, plugin-global settings, explicit async loading/error feedback, and guarded course-manager entry behavior. |
 | habit-streak/ | Widget plugin | Habit streak dual-widget plugin with per-instance streak data, split Duolingo/ring widget definitions, mode-specific settings, reward bursts, and tests. |
