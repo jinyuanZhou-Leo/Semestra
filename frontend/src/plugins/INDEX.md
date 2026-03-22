@@ -14,7 +14,7 @@ The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, an
 |------|------|-------------|
 | INDEX.md | Architecture index | Local plugin folder architecture and plugin catalog map. |
 | builtin-dashboard/ | Built-in tab plugin | Default dashboard tab plugin implementation and settings entry. |
-| builtin-canvas-integration/ | Built-in tab plugin | Canvas-only course navigation tab with a sticky left-side course menu, hidden assignments/grades/files/discussion tab ids, default-view-backed Home fallback routing, special Announcements/Modules/Pages/Quizzes/Syllabus views, CTA-only handling for unknown internal tabs plus external tools, and in-app same-course page links. |
+| builtin-canvas-integration/ | Built-in tab plugin | Canvas-only course navigation tab with a sticky left-side course menu, hidden assignments/grades/files/discussion tab ids, default-view-backed Home fallback routing, special Announcements/Modules/Pages/Quizzes/Syllabus views, all-open instant-collapse module sections for long lists, CTA-only handling for unknown internal tabs plus external tools, and in-app same-course page links. |
 | builtin-dashboard/INDEX.md | Plugin architecture index | File map for built-in dashboard tab runtime with light-mode light-green glass active FAB surface, dark-mode deep-green active surface, and shadowless dark-mode tuning, plus metadata/settings/runtime contracts. |
 | builtin-event-core/ | Built-in domain plugin | Core calendar/course/todo tab suite and shared schedule logic. |
 | builtin-event-core/INDEX.md | Plugin architecture index | File map for event-core plugin entries, shared domain primitives, scoped refresh payloads, retrying todo sync, and tab/widget runtime responsibilities. |

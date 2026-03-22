@@ -1,6 +1,6 @@
 // input:  [Canvas navigation tab runtime, mocked course context, mocked Canvas LMS APIs, and testing-library assertions/interactions]
-// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, tab filtering, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, and collapsible module/page detail interactions]
-// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows and unavailable-state alignment]
+// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, tab filtering, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, and all-open collapsible module/page interactions]
+// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, and unavailable-state alignment]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -280,6 +280,79 @@ describe('CanvasPagesTab', () => {
 
         expect(openSpy).toHaveBeenCalledWith('https://canvas.example.edu/courses/canvas-course-1/files/1', '_blank', 'noopener,noreferrer');
         openSpy.mockRestore();
+    });
+
+    it('renders all modules expanded by default while preserving manual collapse', async () => {
+        vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
+            default_view: 'modules',
+            front_page_url: null,
+            tabs: [
+                { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
+                { tab_id: 'modules', label: 'Modules', html_url: 'https://canvas.example.edu/courses/1/modules', hidden: false, position: 2, tab_type: 'internal', active: false },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModules).mockResolvedValue({
+            items: [
+                {
+                    module_id: 'module-1',
+                    name: 'Week 1',
+                    position: 1,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    items: [
+                        {
+                            module_item_id: 'item-1',
+                            title: 'Course Overview',
+                            item_type: 'Page',
+                            content_id: 'page-1',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/pages/course-overview',
+                            url: '/courses/canvas-course-1/pages/course-overview',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: 'must_view',
+                            new_tab: false,
+                        },
+                    ],
+                },
+                {
+                    module_id: 'module-2',
+                    name: 'Week 2',
+                    position: 2,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    items: [
+                        {
+                            module_item_id: 'item-2',
+                            title: 'Lecture Slides',
+                            item_type: 'File',
+                            content_id: 'file-2',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/2',
+                            url: '/courses/canvas-course-1/files/2',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: true,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        renderCanvasTab();
+
+        expect(await screen.findByText('Course Overview')).toBeInTheDocument();
+        expect(screen.getByText('Week 2')).toBeInTheDocument();
+        expect(screen.getByText('Lecture Slides')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Week 2' }));
+
+        await waitFor(() => {
+            expect(screen.queryByText('Lecture Slides')).not.toBeInTheDocument();
+        });
     });
 
     it('renders locked Canvas pages with an alert callout', async () => {

@@ -1,0 +1,9 @@
+{
+  "name": "semestra",
+  "private": true,
+  "version": "2.2.10",
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "sh -c 'cd backend && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000'"
+  }
+}

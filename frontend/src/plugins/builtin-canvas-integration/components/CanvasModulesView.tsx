@@ -1,6 +1,6 @@
 // input:  [Canvas module payloads, Canvas link helpers, shadcn collapsible primitives, and shared class merging]
-// output: [CanvasModulesView presentational component plus private collapsible module-section and item-row renderers]
-// pos:    [module content renderer for the Canvas integration tab with collapsible sections, container-aligned row corners, and link-type-aware emphasis]
+// output: [CanvasModulesView presentational component plus private memoized module-section and item-row renderers]
+// pos:    [module content renderer for the Canvas integration tab with all-open default sections, instant-collapse content swaps, offscreen-friendly long-list rendering, and link-type-aware emphasis]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,19 +12,29 @@ import React from 'react';
 import { ChevronRight, ExternalLink } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { LmsModuleItem, LmsModuleSummary } from '@/services/api';
 
 import { openExternalUrl } from '../tab-helpers';
 import { resolveCanvasHref, resolveCanvasPageReference } from '../shared';
 
-const CanvasModuleItemRow: React.FC<{
+const MODULE_ROW_HEIGHT_ESTIMATE = 44;
+const MODULE_EMPTY_STATE_HEIGHT_ESTIMATE = 72;
+
+type CanvasModuleItemRowProps = {
     item: LmsModuleItem;
     onOpenPage: (pageRef: string) => void;
     courseExternalId: string;
     canvasOrigin?: string | null;
-}> = ({ item, onOpenPage, courseExternalId, canvasOrigin }) => {
+};
+
+const CanvasModuleItemRow = React.memo(function CanvasModuleItemRow({
+    item,
+    onOpenPage,
+    courseExternalId,
+    canvasOrigin,
+}: CanvasModuleItemRowProps) {
     const pageRef = resolveCanvasPageReference(item.html_url ?? item.url ?? '', courseExternalId, canvasOrigin);
     const externalUrl = resolveCanvasHref(item.html_url ?? item.url ?? '', canvasOrigin);
     const isExternalOnly = !pageRef && Boolean(externalUrl);
@@ -54,25 +64,36 @@ const CanvasModuleItemRow: React.FC<{
             {(pageRef || externalUrl) ? <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /> : null}
         </button>
     );
-};
+});
 
-const CanvasModuleSection: React.FC<{
+type CanvasModuleSectionBodyProps = {
     moduleItem: LmsModuleSummary;
     onOpenPage: (pageRef: string) => void;
     courseExternalId: string;
     canvasOrigin?: string | null;
-}> = ({ moduleItem, onOpenPage, courseExternalId, canvasOrigin }) => (
-    <Collapsible defaultOpen className="group/module overflow-hidden rounded-2xl border border-border/60">
-        <CollapsibleTrigger asChild>
-            <button
-                type="button"
-                className="flex w-full items-center gap-3 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
-            >
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/module:rotate-90" />
-                <h3 className="min-w-0 truncate text-base font-semibold text-foreground">{moduleItem.name}</h3>
-            </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="overflow-hidden border-t border-border/60 data-open:animate-accordion-down data-closed:animate-accordion-up">
+};
+
+const CanvasModuleSectionBody = React.memo(function CanvasModuleSectionBody({
+    moduleItem,
+    onOpenPage,
+    courseExternalId,
+    canvasOrigin,
+}: CanvasModuleSectionBodyProps) {
+    const contentStyle = React.useMemo<React.CSSProperties>(() => ({
+        contentVisibility: 'auto',
+        containIntrinsicSize: `${Math.max(
+            moduleItem.items.length > 0
+                ? moduleItem.items.length * MODULE_ROW_HEIGHT_ESTIMATE
+                : MODULE_EMPTY_STATE_HEIGHT_ESTIMATE,
+            MODULE_EMPTY_STATE_HEIGHT_ESTIMATE,
+        )}px`,
+    }), [moduleItem.items.length]);
+
+    return (
+        <div
+            className="border-t border-border/60"
+            style={contentStyle}
+        >
             {moduleItem.items.length > 0 ? (
                 <div className="divide-y divide-border/60">
                     {moduleItem.items.map((item) => (
@@ -92,9 +113,53 @@ const CanvasModuleSection: React.FC<{
             ) : (
                 <p className="px-4 py-4 text-sm text-muted-foreground">This module does not contain any published items.</p>
             )}
-        </CollapsibleContent>
-    </Collapsible>
-);
+        </div>
+    );
+});
+
+type CanvasModuleSectionProps = {
+    moduleItem: LmsModuleSummary;
+    onOpenPage: (pageRef: string) => void;
+    courseExternalId: string;
+    canvasOrigin?: string | null;
+};
+
+const CanvasModuleSection = React.memo(function CanvasModuleSection({
+    moduleItem,
+    onOpenPage,
+    courseExternalId,
+    canvasOrigin,
+}: CanvasModuleSectionProps) {
+    const [isOpen, setIsOpen] = React.useState(true);
+
+    const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+        React.startTransition(() => {
+            setIsOpen(nextOpen);
+        });
+    }, []);
+
+    return (
+        <Collapsible open={isOpen} onOpenChange={handleOpenChange} className="group/module overflow-hidden rounded-2xl border border-border/60">
+            <CollapsibleTrigger asChild>
+                <button
+                    type="button"
+                    className="flex w-full items-center gap-3 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
+                >
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/module:rotate-90" />
+                    <h3 className="min-w-0 truncate text-base font-semibold text-foreground">{moduleItem.name}</h3>
+                </button>
+            </CollapsibleTrigger>
+            {isOpen ? (
+                <CanvasModuleSectionBody
+                    moduleItem={moduleItem}
+                    onOpenPage={onOpenPage}
+                    courseExternalId={courseExternalId}
+                    canvasOrigin={canvasOrigin}
+                />
+            ) : null}
+        </Collapsible>
+    );
+});
 
 export const CanvasModulesView: React.FC<{
     heading: string;

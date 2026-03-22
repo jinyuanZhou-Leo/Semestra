@@ -62,6 +62,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 The backend will be running at `http://localhost:8000`
 
 > **Tip**: You can also use `uv` package manager: `uv run uvicorn main:app --reload`
+> From the repository root you can now also run: `npm run dev:backend`
 
 ### 3. Frontend Setup
 
@@ -77,6 +78,8 @@ npm run dev
 ```
 
 The frontend will be running at `http://localhost:5173`
+
+> From the repository root you can now also run: `npm run dev:frontend`
 
 ---
 

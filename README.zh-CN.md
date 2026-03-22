@@ -62,6 +62,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 后端服务将运行在 `http://localhost:8000`
 
 > **提示**: 也可以使用 `uv` 包管理器：`uv run uvicorn main:app --reload`
+> 现在也可以在仓库根目录直接运行：`npm run dev:backend`
 
 ### 3. 前端部署
 
@@ -77,6 +78,8 @@ npm run dev
 ```
 
 前端服务将运行在 `http://localhost:5173`
+
+> 现在也可以在仓库根目录直接运行：`npm run dev:frontend`
 
 ---
 

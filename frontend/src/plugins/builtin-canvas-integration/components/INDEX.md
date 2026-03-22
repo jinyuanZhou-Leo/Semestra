@@ -11,7 +11,7 @@ All files here stay UI-only; queries, cache decisions, and section-state routing
 | CanvasAnnouncementViews.tsx | Announcement views | Renders Canvas announcement list and detail surfaces. |
 | CanvasHtmlFragment.tsx | HTML renderer | Renders sanitized Canvas HTML with tuned reading typography, richer table/image treatment, and same-course page links routed internally. |
 | CanvasLinkPromptView.tsx | CTA prompt view | Renders open-in-Canvas or external-website prompts for unsupported or external tabs. |
-| CanvasModulesView.tsx | Module view | Renders Canvas module sections as collapsible cards with corrected row corners, in-app page routing, and underlined external-link titles on hover. |
+| CanvasModulesView.tsx | Module view | Renders Canvas module sections as memoized collapsible cards that all start open, swap section bodies instantly instead of animating height, use browser offscreen-skipping for long lists, preserve in-app page routing, and underline external-link titles on hover. |
 | CanvasPageViews.tsx | Page views | Renders Canvas Home/page detail surfaces plus the Pages list flow, including shadcn alert treatment for locked pages. |
 | CanvasQuizzesView.tsx | Quiz view | Renders the Canvas quiz list as a native Semestra view with external open actions. |
 | CanvasRailButton.tsx | Rail item | Renders one left-rail Canvas course-menu entry. |
