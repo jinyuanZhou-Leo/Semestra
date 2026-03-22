@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, and course Canvas navigation/page/quiz/syllabus browser requests]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, and course Canvas navigation/page/quiz/grade/syllabus browser requests]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/page/quiz/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -327,6 +327,37 @@ export interface LmsAssignmentSummary {
 
 export interface LmsAssignmentListResponse {
     items: LmsAssignmentSummary[];
+}
+
+export interface LmsGradeSummary {
+    enrollment_id: string;
+    course_id: string;
+    course_name: string;
+    course_display_code: string;
+    enrollment_type?: string | null;
+    enrollment_role?: string | null;
+    enrollment_state?: string | null;
+    html_url?: string | null;
+    grades_html_url?: string | null;
+    current_grade?: string | null;
+    final_grade?: string | null;
+    current_score?: number | null;
+    final_score?: number | null;
+    current_points?: number | null;
+    unposted_current_grade?: string | null;
+    unposted_final_grade?: string | null;
+    unposted_current_score?: number | null;
+    unposted_final_score?: number | null;
+    has_grading_periods: boolean;
+    current_grading_period_title?: string | null;
+    current_period_current_grade?: string | null;
+    current_period_final_grade?: string | null;
+    current_period_current_score?: number | null;
+    current_period_final_score?: number | null;
+}
+
+export interface LmsGradeListResponse {
+    items: LmsGradeSummary[];
 }
 
 export interface LmsCalendarEventSummary {
@@ -918,6 +949,12 @@ const api = {
     getCourseLmsAssignments: async (courseId: string) => {
         return dedupeGet(`GET:/api/courses/${courseId}/lms/assignments`, async () => {
             const response = await axios.get<LmsAssignmentListResponse>(`/api/courses/${courseId}/lms/assignments`);
+            return response.data;
+        });
+    },
+    getCourseLmsGrades: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/lms/grades`, async () => {
+            const response = await axios.get<LmsGradeListResponse>(`/api/courses/${courseId}/lms/grades`);
             return response.data;
         });
     },

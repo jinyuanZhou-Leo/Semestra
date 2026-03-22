@@ -7,6 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 export { CanvasAnnouncementDetailView, CanvasAnnouncementListView } from './CanvasAnnouncementViews';
+export { CanvasAssignmentsView, CanvasGradebookRecommendationCard, CanvasGradesView } from './CanvasAssignmentsAndGradesView';
 export { CanvasHtmlFragment } from './CanvasHtmlFragment';
 export { CanvasLinkPromptView } from './CanvasLinkPromptView';
 export { CanvasModulesView } from './CanvasModulesView';

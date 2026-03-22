@@ -1,5 +1,5 @@
-// input:  [Canvas navigation/page API payloads, Canvas anchor metadata, and plugin tab runtime settings]
-// output: [builtin-canvas-integration plugin constants plus LMS URL resolution, page-link parsing, and timestamp formatting helpers]
+// input:  [Canvas navigation/page API payloads, Canvas anchor metadata, and expanded plugin tab section-key contracts]
+// output: [builtin-canvas-integration plugin constants plus Canvas section key types, LMS URL resolution, page-link parsing, and timestamp formatting helpers]
 // pos:    [Shared helper layer for the Canvas navigation tab runtime]
 //
 // ⚠️ When this file is updated:
@@ -9,7 +9,7 @@
 export const BUILTIN_CANVAS_INTEGRATION_PLUGIN_ID = 'builtin-canvas-integration';
 export const BUILTIN_CANVAS_PAGES_TAB_TYPE = 'builtin-canvas-integration';
 
-export type CanvasNavSectionKey = 'home' | 'announcements' | 'modules' | 'pages' | 'quizzes' | 'syllabus';
+export type CanvasNavSectionKey = 'home' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus';
 export type CanvasHomeLandingTarget = Exclude<CanvasNavSectionKey, 'home'> | null;
 
 export interface CanvasPageSummaryLike {

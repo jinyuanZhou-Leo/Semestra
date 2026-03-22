@@ -1,6 +1,6 @@
 # input:  [Dataclasses, typing protocol helpers, and provider adapter implementations]
 # output: [Provider-neutral LMS DTOs, provider adapter protocol methods for integration payload normalization and credential masking, error types, and provider registry resolution helpers]
-# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, navigation, announcements, modules, pages, quizzes, syllabus, and calendar reads]
+# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, navigation, announcements, modules, pages, quizzes, grades, syllabus, and calendar reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -143,6 +143,31 @@ class LmsAssignmentSummaryData:
 
 
 @dataclass
+class LmsGradeSummaryData:
+    enrollment_id: str
+    enrollment_type: Optional[str]
+    enrollment_role: Optional[str]
+    enrollment_state: Optional[str]
+    html_url: Optional[str]
+    grades_html_url: Optional[str]
+    current_grade: Optional[str]
+    final_grade: Optional[str]
+    current_score: Optional[float]
+    final_score: Optional[float]
+    current_points: Optional[float]
+    unposted_current_grade: Optional[str]
+    unposted_final_grade: Optional[str]
+    unposted_current_score: Optional[float]
+    unposted_final_score: Optional[float]
+    has_grading_periods: bool
+    current_grading_period_title: Optional[str]
+    current_period_current_grade: Optional[str]
+    current_period_final_grade: Optional[str]
+    current_period_current_score: Optional[float]
+    current_period_final_score: Optional[float]
+
+
+@dataclass
 class LmsCalendarEventSummaryData:
     external_id: str
     external_course_id: str
@@ -208,6 +233,14 @@ class LmsProvider(Protocol):
         credentials: dict[str, Any],
         external_course_id: str,
     ) -> list[LmsAssignmentSummaryData]:
+        ...
+
+    def list_grades(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> list[LmsGradeSummaryData]:
         ...
 
     def list_course_pages(

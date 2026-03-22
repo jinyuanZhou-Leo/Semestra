@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, LMS ORM models, CRUD/user-setting helpers, versioned crypto helpers, provider registry, and API schema payloads]
-# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, page, module, announcement, quiz, syllabus, and range-filtered calendar service functions]
-# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, quiz/syllabus reads, and semester calendar range filtering]
+# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, grade, page, module, announcement, quiz, syllabus, and range-filtered calendar service functions]
+# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, quiz/grade/syllabus reads, and semester calendar range filtering]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -31,6 +31,7 @@ from lms_providers import (
     LmsCourseNavigationTabData,
     LmsCourseSyllabusData,
     LmsCourseSummaryData,
+    LmsGradeSummaryData,
     LmsModuleItemData,
     LmsModuleSummaryData,
     LmsPageDetailData,
@@ -247,6 +248,35 @@ def _syllabus_to_schema(syllabus: LmsCourseSyllabusData) -> schemas.LmsCourseSyl
     return schemas.LmsCourseSyllabusResponse(
         body=syllabus.body,
         html_url=syllabus.html_url,
+    )
+
+
+def _grade_to_schema(course: models.Course, grade: LmsGradeSummaryData) -> schemas.LmsGradeSummary:
+    return schemas.LmsGradeSummary(
+        enrollment_id=grade.enrollment_id,
+        course_id=course.id,
+        course_name=course.name,
+        course_display_code=_resolve_course_display_code(course),
+        enrollment_type=grade.enrollment_type,
+        enrollment_role=grade.enrollment_role,
+        enrollment_state=grade.enrollment_state,
+        html_url=grade.html_url,
+        grades_html_url=grade.grades_html_url,
+        current_grade=grade.current_grade,
+        final_grade=grade.final_grade,
+        current_score=grade.current_score,
+        final_score=grade.final_score,
+        current_points=grade.current_points,
+        unposted_current_grade=grade.unposted_current_grade,
+        unposted_final_grade=grade.unposted_final_grade,
+        unposted_current_score=grade.unposted_current_score,
+        unposted_final_score=grade.unposted_final_score,
+        has_grading_periods=grade.has_grading_periods,
+        current_grading_period_title=grade.current_grading_period_title,
+        current_period_current_grade=grade.current_period_current_grade,
+        current_period_final_grade=grade.current_period_final_grade,
+        current_period_current_score=grade.current_period_current_score,
+        current_period_final_score=grade.current_period_final_score,
     )
 
 
@@ -971,6 +1001,38 @@ def list_course_assignments(
                 for item in assignments
             ]
         )
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def list_course_grades(
+    db: Session,
+    user_id: str,
+    course_id: str,
+) -> schemas.LmsGradeListResponse:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        grades = provider_impl.list_grades(config, credentials, link.external_course_id)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return schemas.LmsGradeListResponse(items=[_grade_to_schema(course, item) for item in grades])
     except Exception as exc:
         mapped = _map_lms_exception(exc)
         _set_record_error(integration, mapped)

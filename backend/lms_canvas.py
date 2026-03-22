@@ -1,6 +1,6 @@
 # input:  [Canvas LMS provider config/credential payloads and requests-based Canvas REST access]
-# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/modules/pages/quizzes, reads syllabus/assignments/calendar events, and applies provider-specific due-date normalization]
-# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, navigation, page, announcement, module, quiz, syllabus, and credential mapping]
+# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/modules/pages/quizzes/grades, reads syllabus/assignments/calendar events, and applies provider-specific due-date normalization]
+# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, navigation, page, announcement, module, quiz, grade, syllabus, and credential mapping]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -24,6 +24,7 @@ from lms_providers import (
     LmsCourseNavigationTabData,
     LmsCourseSyllabusData,
     LmsCourseSummaryData,
+    LmsGradeSummaryData,
     LmsModuleItemData,
     LmsModuleSummaryData,
     LmsPageDetailData,
@@ -88,6 +89,16 @@ class CanvasLmsProvider:
             return None
         try:
             return int(raw_value)
+        except (TypeError, ValueError):
+            return None
+
+    def _optional_float(self, raw_value: Any) -> Optional[float]:
+        if raw_value is None:
+            return None
+        if isinstance(raw_value, bool):
+            return None
+        try:
+            return float(raw_value)
         except (TypeError, ValueError):
             return None
 
@@ -295,6 +306,43 @@ class CanvasLmsProvider:
             ],
         )
 
+    def _normalize_grade(self, payload: dict[str, Any]) -> Optional[LmsGradeSummaryData]:
+        grades_payload = payload.get("grades")
+        if not isinstance(grades_payload, dict):
+            grades_payload = {}
+
+        enrollment_type = str(payload.get("type") or "").strip() or None
+        if enrollment_type != "StudentEnrollment":
+            return None
+
+        enrollment_id = str(payload.get("id") or "").strip()
+        if not enrollment_id:
+            return None
+
+        return LmsGradeSummaryData(
+            enrollment_id=enrollment_id,
+            enrollment_type=enrollment_type,
+            enrollment_role=str(payload.get("role") or "").strip() or None,
+            enrollment_state=str(payload.get("enrollment_state") or "").strip() or None,
+            html_url=payload.get("html_url"),
+            grades_html_url=grades_payload.get("html_url") or payload.get("html_url"),
+            current_grade=str(grades_payload.get("current_grade") or "").strip() or None,
+            final_grade=str(grades_payload.get("final_grade") or "").strip() or None,
+            current_score=self._optional_float(grades_payload.get("current_score")),
+            final_score=self._optional_float(grades_payload.get("final_score")),
+            current_points=self._optional_float(grades_payload.get("current_points")),
+            unposted_current_grade=str(payload.get("unposted_current_grade") or "").strip() or None,
+            unposted_final_grade=str(payload.get("unposted_final_grade") or "").strip() or None,
+            unposted_current_score=self._optional_float(payload.get("unposted_current_score")),
+            unposted_final_score=self._optional_float(payload.get("unposted_final_score")),
+            has_grading_periods=bool(payload.get("has_grading_periods")),
+            current_grading_period_title=str(payload.get("current_grading_period_title") or "").strip() or None,
+            current_period_current_grade=str(payload.get("current_period_current_grade") or "").strip() or None,
+            current_period_final_grade=str(payload.get("current_period_final_grade") or "").strip() or None,
+            current_period_current_score=self._optional_float(payload.get("current_period_current_score")),
+            current_period_final_score=self._optional_float(payload.get("current_period_final_score")),
+        )
+
     def _normalize_calendar_event(self, payload: dict[str, Any]) -> Optional[LmsCalendarEventSummaryData]:
         context_code = str(payload.get("context_code") or "").strip()
         if not context_code.startswith("course_"):
@@ -473,6 +521,36 @@ class CanvasLmsProvider:
                 if not isinstance(item, dict):
                     continue
                 normalized = self._normalize_announcement(item)
+                if normalized is not None:
+                    items.append(normalized)
+            return items
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def list_grades(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+    ) -> list[LmsGradeSummaryData]:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._paginate_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/enrollments",
+                params={
+                    "user_id": "self",
+                    "type[]": ["StudentEnrollment"],
+                    "include[]": ["current_points"],
+                    "per_page": 100,
+                },
+            )
+            items: list[LmsGradeSummaryData] = []
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                normalized = self._normalize_grade(item)
                 if normalized is not None:
                     items.append(normalized)
             return items

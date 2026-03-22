@@ -1,6 +1,6 @@
 // input:  [Canvas navigation tab runtime, mocked course context, mocked Canvas LMS APIs, and testing-library assertions/interactions]
-// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, tab filtering, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, and all-open collapsible module/page interactions]
-// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, and unavailable-state alignment]
+// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, and all-open collapsible module/page interactions]
+// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, assignment or grade Canvas data UI, and unavailable-state alignment]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -16,6 +16,9 @@ import { CanvasPagesTab } from './tab';
 
 vi.mock('@/services/api', () => ({
     default: {
+        getCourseGradebook: vi.fn(),
+        getCourseLmsAssignments: vi.fn(),
+        getCourseLmsGrades: vi.fn(),
         getCourseLmsNavigation: vi.fn(),
         getCourseLmsAnnouncements: vi.fn(),
         getCourseLmsModules: vi.fn(),
@@ -57,6 +60,8 @@ const mockLinkedCanvasCourse = () => {
 describe('CanvasPagesTab', () => {
     beforeEach(() => {
         mockLinkedCanvasCourse();
+        vi.mocked(api.getCourseLmsAssignments).mockResolvedValue({ items: [] });
+        vi.mocked(api.getCourseLmsGrades).mockResolvedValue({ items: [] });
         vi.mocked(api.getCourseLmsAnnouncements).mockResolvedValue({ items: [] });
         vi.mocked(api.getCourseLmsModules).mockResolvedValue({ items: [] });
         vi.mocked(api.getCourseLmsPages).mockResolvedValue({ items: [] });
@@ -96,7 +101,7 @@ describe('CanvasPagesTab', () => {
         expect(screen.getByText('Canvas unavailable').closest('[data-slot="empty"]')?.className).not.toContain('my-16');
     });
 
-    it('filters assignments grades files and discussion tabs from the rail', async () => {
+    it('keeps files and discussion tabs hidden while surfacing assignments and grades in the rail', async () => {
         vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
             default_view: 'modules',
             front_page_url: 'https://canvas.example.edu/courses/1/pages/front-page',
@@ -129,15 +134,96 @@ describe('CanvasPagesTab', () => {
         renderCanvasTab();
 
         expect(await screen.findByText('Week 1')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Assignments' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Grades' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Modules' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Pages' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Quizzes' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Syllabus' })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Assignments' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Grades' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Files' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Discussions' })).not.toBeInTheDocument();
         expect(screen.getByText('Canvas course menu').closest('aside')).toHaveStyle({ top: '180px' });
+    });
+
+    it('renders assignments and Canvas grades views with a Gradebook handoff card', async () => {
+        const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+        vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
+            default_view: 'assignments',
+            front_page_url: null,
+            tabs: [
+                { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
+                { tab_id: 'assignments', label: 'Assignments', html_url: 'https://canvas.example.edu/courses/1/assignments', hidden: false, position: 2, tab_type: 'internal', active: false },
+                { tab_id: 'grades', label: 'Grades', html_url: 'https://canvas.example.edu/courses/1/grades', hidden: false, position: 3, tab_type: 'internal', active: false },
+            ],
+        });
+        vi.mocked(api.getCourseLmsAssignments).mockResolvedValue({
+            items: [
+                {
+                    external_id: 'assignment-1',
+                    course_id: 'canvas-course-1',
+                    course_name: 'Course 1',
+                    course_display_code: 'CRS 101',
+                    title: 'Essay Draft',
+                    description: null,
+                    due_at: '2026-03-24T16:00:00Z',
+                    due_date: '2026-03-24',
+                    unlock_at: null,
+                    lock_at: null,
+                    html_url: 'https://canvas.example.edu/courses/1/assignments/1',
+                    published: true,
+                    submission_types: ['online_upload'],
+                },
+            ],
+        });
+        vi.mocked(api.getCourseLmsGrades).mockResolvedValue({
+            items: [
+                {
+                    enrollment_id: 'enrollment-1',
+                    course_id: 'canvas-course-1',
+                    course_name: 'Course 1',
+                    course_display_code: 'CRS 101',
+                    enrollment_type: 'StudentEnrollment',
+                    enrollment_role: 'StudentEnrollment',
+                    enrollment_state: 'active',
+                    html_url: 'https://canvas.example.edu/courses/1/users/1',
+                    grades_html_url: 'https://canvas.example.edu/courses/1/grades',
+                    current_grade: 'A-',
+                    final_grade: 'B+',
+                    current_score: 91.3,
+                    final_score: 88.7,
+                    current_points: 182.5,
+                    unposted_current_grade: 'A',
+                    unposted_final_grade: 'A-',
+                    unposted_current_score: 93,
+                    unposted_final_score: 90.1,
+                    has_grading_periods: true,
+                    current_grading_period_title: 'Winter Term',
+                    current_period_current_grade: 'A',
+                    current_period_final_grade: 'A-',
+                    current_period_current_score: 94.2,
+                    current_period_final_score: 91.6,
+                },
+            ],
+        });
+        renderCanvasTab();
+
+        expect(await screen.findByText('Manage assignments in Gradebook')).toBeInTheDocument();
+        expect(screen.getByText('Essay Draft')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Grades' }));
+
+        expect(await screen.findByText('Manage grades in Gradebook')).toBeInTheDocument();
+        expect(screen.getByText('Course grade')).toBeInTheDocument();
+        expect(screen.getByText('91.3%')).toBeInTheDocument();
+        expect(screen.getByText('182.5')).toBeInTheDocument();
+        expect(screen.getByText('Winter Term')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Open Canvas Grades' })).toHaveAttribute('href', 'https://canvas.example.edu/courses/1/grades');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Open Gradebook' }));
+
+        expect(dispatchSpy).toHaveBeenCalled();
+        dispatchSpy.mockRestore();
     });
 
     it('falls back home from a hidden default_view to the first supported visible section', async () => {
@@ -400,13 +486,13 @@ describe('CanvasPagesTab', () => {
         expect(screen.getByText('This page unlocks next week.')).toBeInTheDocument();
     });
 
-    it('shows a fallback empty state when home only points to hidden tabs', async () => {
+    it('shows a fallback empty state when home only points to hidden or unsupported tabs', async () => {
         vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
-            default_view: 'grades',
+            default_view: 'files',
             front_page_url: null,
             tabs: [
                 { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
-                { tab_id: 'grades', label: 'Grades', html_url: 'https://canvas.example.edu/courses/1/grades', hidden: false, position: 2, tab_type: 'internal', active: false },
+                { tab_id: 'files', label: 'Files', html_url: 'https://canvas.example.edu/courses/1/files', hidden: false, position: 2, tab_type: 'internal', active: false },
             ],
         });
 

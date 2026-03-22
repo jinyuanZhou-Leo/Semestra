@@ -1,4 +1,4 @@
-// input:  [Canvas navigation API payloads, plugin section keys, and browser URL parsing helpers]
+// input:  [Canvas navigation API payloads, plugin section keys, assignment/page/module/quiz summary types, and browser URL parsing helpers]
 // output: [builtin-canvas-integration query defaults, Canvas-type-aware navigation-entry mapping, home fallback helpers, LMS URL helpers, and small runtime utilities]
 // pos:    [logic helper layer shared by the Canvas tab runtime and its extracted UI components]
 //
@@ -7,10 +7,11 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { ComponentType } from 'react';
-import { Blocks, FileQuestion, FileText, Home, Megaphone, ScrollText } from 'lucide-react';
+import { Blocks, ChartColumnIncreasing, FileQuestion, FileSpreadsheet, FileText, Home, Megaphone, ScrollText } from 'lucide-react';
 
 import type {
     LmsAnnouncementSummary,
+    LmsAssignmentSummary,
     LmsCourseNavigationResponse,
     LmsCourseNavigationTab,
     LmsCoursePageSummary,
@@ -32,6 +33,7 @@ export type CanvasNavigationEntry = {
 
 export const EMPTY_PAGE_ITEMS: LmsCoursePageSummary[] = [];
 export const EMPTY_ANNOUNCEMENT_ITEMS: LmsAnnouncementSummary[] = [];
+export const EMPTY_ASSIGNMENT_ITEMS: LmsAssignmentSummary[] = [];
 export const EMPTY_MODULE_ITEMS: LmsModuleSummary[] = [];
 export const EMPTY_QUIZ_ITEMS: LmsQuizSummary[] = [];
 
@@ -47,6 +49,8 @@ export const CANVAS_QUERY_OPTIONS = {
 export const SECTION_META: Record<CanvasNavSectionKey, { label: string; icon: ComponentType<{ className?: string }> }> = {
     home: { label: 'Home', icon: Home },
     announcements: { label: 'Announcements', icon: Megaphone },
+    assignments: { label: 'Assignments', icon: FileSpreadsheet },
+    grades: { label: 'Grades', icon: ChartColumnIncreasing },
     modules: { label: 'Modules', icon: Blocks },
     pages: { label: 'Pages', icon: FileText },
     quizzes: { label: 'Quizzes', icon: FileQuestion },
@@ -54,8 +58,6 @@ export const SECTION_META: Record<CanvasNavSectionKey, { label: string; icon: Co
 };
 
 const HIDDEN_CANVAS_TAB_IDS = new Set([
-    'assignments',
-    'grades',
     'files',
     'discussion',
     'discussions',
@@ -66,6 +68,8 @@ const CANVAS_TAB_SECTION_MAP: Record<string, CanvasNavSectionKey> = {
     home: 'home',
     announcements: 'announcements',
     feed: 'announcements',
+    assignments: 'assignments',
+    grades: 'grades',
     modules: 'modules',
     pages: 'pages',
     wiki: 'pages',
@@ -73,7 +77,7 @@ const CANVAS_TAB_SECTION_MAP: Record<string, CanvasNavSectionKey> = {
     syllabus: 'syllabus',
 };
 
-const HOME_FALLBACK_ORDER: CanvasHomeLandingTarget[] = ['pages', 'modules', 'announcements', 'quizzes', 'syllabus'];
+const HOME_FALLBACK_ORDER: CanvasHomeLandingTarget[] = ['pages', 'assignments', 'modules', 'grades', 'announcements', 'quizzes', 'syllabus'];
 
 const toDisplayTitle = (value: string | null | undefined, fallback: string) => {
     const source = value?.trim() || fallback;
@@ -193,7 +197,7 @@ export const resolveCanvasHomeLandingTarget = (
     const normalizedDefaultView = normalizeCanvasTabValue(defaultView);
     const mappedSection = CANVAS_TAB_SECTION_MAP[normalizedDefaultView] ?? null;
 
-    if (mappedSection && mappedSection !== 'home') {
+    if (mappedSection && mappedSection !== 'home' && hasSectionEntry(navigationEntries, mappedSection)) {
         return mappedSection;
     }
 

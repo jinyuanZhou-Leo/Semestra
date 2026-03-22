@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy setup, backend LMS service/schema/crypto modules, and fake provider adapters]
-# output: [unit tests covering multi-integration LMS storage, Program/Course LMS link rules, provider-backed imports, read-only navigation/announcement/module/assignment/page/quiz/syllabus/calendar contracts, and program-level course stat/reassignment safeguards]
-# pos:    [backend regression tests for LMS orchestration plus program/course behaviors that interact with provider setup, navigation/page/quiz/syllabus browsing, and semester assignment]
+# output: [unit tests covering multi-integration LMS storage, Program/Course LMS link rules, provider-backed imports, read-only navigation/announcement/module/assignment/page/quiz/grade/syllabus/calendar contracts, and program-level course stat/reassignment safeguards]
+# pos:    [backend regression tests for LMS orchestration plus program/course behaviors that interact with provider setup, navigation/page/quiz/grade/syllabus browsing, and semester assignment]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -39,6 +39,7 @@ from lms_providers import (
     LmsCourseNavigationTabData,
     LmsCourseSyllabusData,
     LmsCourseSummaryData,
+    LmsGradeSummaryData,
     LmsModuleItemData,
     LmsModuleSummaryData,
     LmsPageDetailData,
@@ -58,6 +59,7 @@ class _FakeLmsProvider:
         self.last_announcements_args = None
         self.last_modules_args = None
         self.last_quizzes_args = None
+        self.last_grades_args = None
         self.last_syllabus_args = None
         self.last_list_pages_args = None
         self.last_get_page_args = None
@@ -269,6 +271,36 @@ class _FakeLmsProvider:
                 lock_at="2026-02-04T12:00:00Z",
                 html_url="https://canvas.example.edu/courses/123/quizzes/1",
                 published=True,
+            ),
+        ]
+
+    def list_grades(self, config, credentials, external_course_id):
+        self.last_grades_args = {
+            "external_course_id": external_course_id,
+        }
+        return [
+            LmsGradeSummaryData(
+                enrollment_id="enrollment-1",
+                enrollment_type="StudentEnrollment",
+                enrollment_role="StudentEnrollment",
+                enrollment_state="active",
+                html_url="https://canvas.example.edu/courses/123/users/1",
+                grades_html_url="https://canvas.example.edu/courses/123/grades",
+                current_grade="A-",
+                final_grade="B+",
+                current_score=91.3,
+                final_score=88.7,
+                current_points=182.5,
+                unposted_current_grade="A",
+                unposted_final_grade="A-",
+                unposted_current_score=93.0,
+                unposted_final_score=90.1,
+                has_grading_periods=True,
+                current_grading_period_title="Winter Term",
+                current_period_current_grade="A",
+                current_period_final_grade="A-",
+                current_period_current_score=94.2,
+                current_period_final_score=91.6,
             ),
         ]
 
@@ -1004,7 +1036,7 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertEqual(route_page.body, "<p>Welcome to the course page.</p>")
         self.assertEqual(route_page.page_id, "1")
 
-    def test_course_navigation_announcements_modules_quizzes_and_syllabus_are_available_through_service_and_route(self) -> None:
+    def test_course_navigation_announcements_modules_quizzes_grades_and_syllabus_are_available_through_service_and_route(self) -> None:
         integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
         crud.update_program(
             self.db,
@@ -1028,12 +1060,14 @@ class LmsIntegrationTests(unittest.TestCase):
         announcements = lms_service.list_course_announcements(self.db, self.user.id, course.id)
         modules = lms_service.list_course_modules(self.db, self.user.id, course.id)
         quizzes = lms_service.list_course_quizzes(self.db, self.user.id, course.id)
+        grades = lms_service.list_course_grades(self.db, self.user.id, course.id)
         syllabus = lms_service.get_course_syllabus(self.db, self.user.id, course.id)
 
         self.assertEqual(self.provider.last_navigation_args, {"external_course_id": "course-1"})
         self.assertEqual(self.provider.last_announcements_args, {"external_course_id": "course-1"})
         self.assertEqual(self.provider.last_modules_args, {"external_course_id": "course-1"})
         self.assertEqual(self.provider.last_quizzes_args, {"external_course_id": "course-1"})
+        self.assertEqual(self.provider.last_grades_args, {"external_course_id": "course-1"})
         self.assertEqual(self.provider.last_syllabus_args, {"external_course_id": "course-1"})
         self.assertEqual(navigation.default_view, "wiki")
         self.assertEqual(navigation.front_page_url, "https://canvas.example.edu/courses/123/pages/home")
@@ -1045,6 +1079,9 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertEqual(modules.items[0].items[0].completion_requirement_type, "must_view")
         self.assertEqual(quizzes.items[0].quiz_id, "quiz-1")
         self.assertEqual(quizzes.items[0].html_url, "https://canvas.example.edu/courses/123/quizzes/1")
+        self.assertEqual(grades.items[0].grades_html_url, "https://canvas.example.edu/courses/123/grades")
+        self.assertEqual(grades.items[0].current_grade, "A-")
+        self.assertEqual(grades.items[0].current_period_current_score, 94.2)
         self.assertEqual(syllabus.body, "<p>Course syllabus body.</p>")
         self.assertEqual(syllabus.html_url, "https://canvas.example.edu/courses/123/assignments/syllabus")
 
@@ -1052,12 +1089,14 @@ class LmsIntegrationTests(unittest.TestCase):
         route_announcements = main.read_course_lms_announcements(course.id, db=self.db, current_user=self.user)
         route_modules = main.read_course_lms_modules(course.id, db=self.db, current_user=self.user)
         route_quizzes = main.read_course_lms_quizzes(course.id, db=self.db, current_user=self.user)
+        route_grades = main.read_course_lms_grades(course.id, db=self.db, current_user=self.user)
         route_syllabus = main.read_course_lms_syllabus(course.id, db=self.db, current_user=self.user)
 
         self.assertEqual(route_navigation.front_page_url, "https://canvas.example.edu/courses/123/pages/home")
         self.assertEqual(route_announcements.items[0].announcement_id, "announcement-1")
         self.assertEqual(route_modules.items[0].module_id, "module-1")
         self.assertEqual(route_quizzes.items[0].title, "Week 1 Quiz")
+        self.assertEqual(route_grades.items[0].final_score, 88.7)
         self.assertEqual(route_syllabus.body, "<p>Course syllabus body.</p>")
 
     def test_semester_calendar_returns_empty_when_program_lms_is_not_configured(self) -> None:

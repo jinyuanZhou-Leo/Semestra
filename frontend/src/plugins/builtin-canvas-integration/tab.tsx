@@ -1,6 +1,6 @@
-// input:  [Canvas navigation, announcement, module, page, quiz, and syllabus APIs, course context state, extracted tab helpers, and extracted tab UI components]
+// input:  [Canvas navigation, announcement, assignment, grade, module, page, quiz, and syllabus APIs, course context state, extracted tab helpers, and extracted tab UI components]
 // output: [builtin-canvas-integration course tab runtime and tab definition with framework-aligned unavailable states and host-aware sticky navigation offset]
-// pos:    [course-scoped Canvas navigation controller that filters unsupported tabs, resolves Home fallback targets, owns selected-tab state, orchestrates queries, and renders extracted Canvas views inside the host tab shell]
+// pos:    [course-scoped Canvas navigation controller that resolves Home fallback targets, owns selected-tab state, orchestrates Canvas queries, dispatches Gradebook handoff events, and renders extracted Canvas views inside the host tab shell]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { useCourseData } from '@/contexts/CourseDataContext';
+import { BUILTIN_GRADEBOOK_TAB_TYPE, OPEN_GRADEBOOK_TAB_EVENT } from '@/plugins/builtin-gradebook/shared';
 import api from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
 import type { TabDefinition, TabProps } from '@/services/tabRegistry';
@@ -22,6 +23,7 @@ import {
     buildNavigationEntries,
     CANVAS_QUERY_OPTIONS,
     EMPTY_ANNOUNCEMENT_ITEMS,
+    EMPTY_ASSIGNMENT_ITEMS,
     EMPTY_MODULE_ITEMS,
     EMPTY_PAGE_ITEMS,
     EMPTY_QUIZ_ITEMS,
@@ -34,6 +36,9 @@ import {
 import {
     CanvasAnnouncementDetailView,
     CanvasAnnouncementListView,
+    CanvasAssignmentsView,
+    CanvasGradebookRecommendationCard,
+    CanvasGradesView,
     CanvasLinkPromptView,
     CanvasModulesView,
     CanvasPageDetailView,
@@ -148,6 +153,8 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
 
     const shouldLoadPages = activeSection === 'pages' || (activeSection === 'home' && homeLandingTarget === 'pages');
     const shouldLoadAnnouncements = activeSection === 'announcements' || (activeSection === 'home' && homeLandingTarget === 'announcements');
+    const shouldLoadAssignments = activeSection === 'assignments' || (activeSection === 'home' && homeLandingTarget === 'assignments');
+    const shouldLoadGrades = activeSection === 'grades' || (activeSection === 'home' && homeLandingTarget === 'grades');
     const shouldLoadModules = activeSection === 'modules' || (activeSection === 'home' && homeLandingTarget === 'modules');
     const shouldLoadQuizzes = activeSection === 'quizzes' || (activeSection === 'home' && homeLandingTarget === 'quizzes');
     const shouldLoadSyllabus = activeSection === 'syllabus' || (activeSection === 'home' && homeLandingTarget === 'syllabus');
@@ -201,6 +208,22 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         }
     }, [announcements, selectedAnnouncementId]);
 
+    const assignmentsQuery = useQuery({
+        queryKey: courseId ? queryKeys.courses.lmsAssignments(courseId) : ['courses', 'lms-assignments', 'disabled'],
+        queryFn: () => api.getCourseLmsAssignments(courseId!),
+        enabled: Boolean(courseId && isCanvasLinked && shouldLoadAssignments),
+        ...CANVAS_QUERY_OPTIONS,
+    });
+    const assignments = assignmentsQuery.data?.items ?? EMPTY_ASSIGNMENT_ITEMS;
+
+    const gradesQuery = useQuery({
+        queryKey: courseId ? queryKeys.courses.lmsGrades(courseId) : ['courses', 'lms-grades', 'disabled'],
+        queryFn: () => api.getCourseLmsGrades(courseId!),
+        enabled: Boolean(courseId && isCanvasLinked && shouldLoadGrades),
+        ...CANVAS_QUERY_OPTIONS,
+    });
+    const grades = gradesQuery.data?.items ?? [];
+
     const modulesQuery = useQuery({
         queryKey: courseId ? queryKeys.courses.lmsModules(courseId) : ['courses', 'lms-modules', 'disabled'],
         queryFn: () => api.getCourseLmsModules(courseId!),
@@ -231,6 +254,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         syllabusQuery.data?.html_url,
         ...pages.map((page) => page.html_url),
         ...announcements.map((announcement) => announcement.html_url),
+        ...assignments.map((assignment) => assignment.html_url),
         ...quizzes.map((quiz) => quiz.html_url),
     );
 
@@ -264,6 +288,15 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         setHomePageRef(pageRef);
         setActiveEntryId('home');
     }, [hasPagesEntry, pagesEntryId]);
+
+    const handleOpenGradebook = React.useCallback(() => {
+        window.dispatchEvent(new CustomEvent(OPEN_GRADEBOOK_TAB_EVENT, {
+            detail: {
+                courseId,
+                tabType: BUILTIN_GRADEBOOK_TAB_TYPE,
+            },
+        }));
+    }, [courseId]);
 
     if (!courseId) {
         return (
@@ -325,6 +358,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
     const activePageErrorStatus = getQueryErrorStatus(activePageQuery.error);
     const activeEntryUrl = resolveNavigationExternalUrl(activeEntry?.htmlUrl ?? null, canvasOrigin);
 
+    let recommendationCard: React.ReactNode = null;
     let content: React.ReactNode;
     if (shouldLoadPages && pagesQuery.isLoading && pages.length === 0) {
         content = <CanvasSectionLoading />;
@@ -449,6 +483,40 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                 />
             );
         }
+    } else if (shouldLoadAssignments) {
+        recommendationCard = (
+            <CanvasGradebookRecommendationCard
+                sectionLabel="Assignments"
+                canvasHref={activeEntryUrl}
+                onOpenGradebook={handleOpenGradebook}
+            />
+        );
+        content = (
+            <CanvasAssignmentsView
+                heading={activeSection === 'home' ? homeEntryLabel : 'Assignments'}
+                items={assignments}
+                isLoading={assignmentsQuery.isLoading && !assignmentsQuery.data}
+                errorMessage={assignmentsQuery.error ? 'Failed to load the Canvas assignments list.' : null}
+            />
+        );
+    } else if (shouldLoadGrades) {
+        const gradesCanvasHref = grades[0]?.grades_html_url ?? activeEntryUrl;
+        recommendationCard = (
+            <CanvasGradebookRecommendationCard
+                sectionLabel="Grades"
+                canvasHref={gradesCanvasHref}
+                onOpenGradebook={handleOpenGradebook}
+            />
+        );
+        content = (
+            <CanvasGradesView
+                heading={activeSection === 'home' ? homeEntryLabel : 'Grades'}
+                items={grades}
+                isLoading={gradesQuery.isLoading && !gradesQuery.data}
+                errorMessage={gradesQuery.error ? 'Failed to load Canvas grade data.' : null}
+                canvasHref={gradesCanvasHref}
+            />
+        );
     } else if (shouldLoadModules) {
         if (modulesQuery.isLoading && !modulesQuery.data) {
             content = <CanvasSectionLoading />;
@@ -575,9 +643,12 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                 </div>
             </aside>
 
-            <section className="min-h-0 overflow-hidden rounded-2xl border border-border/60 bg-background">
-                {content}
-            </section>
+            <div className="min-h-0 flex flex-col gap-4">
+                {recommendationCard}
+                <section className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background">
+                    {content}
+                </section>
+            </div>
         </div>
     );
 };

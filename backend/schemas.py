@@ -471,6 +471,37 @@ class LmsAssignmentListResponse(BaseModel):
     items: List[LmsAssignmentSummary] = []
 
 
+class LmsGradeSummary(BaseModel):
+    enrollment_id: str
+    course_id: str
+    course_name: str
+    course_display_code: str
+    enrollment_type: Optional[str] = None
+    enrollment_role: Optional[str] = None
+    enrollment_state: Optional[str] = None
+    html_url: Optional[str] = None
+    grades_html_url: Optional[str] = None
+    current_grade: Optional[str] = None
+    final_grade: Optional[str] = None
+    current_score: Optional[float] = None
+    final_score: Optional[float] = None
+    current_points: Optional[float] = None
+    unposted_current_grade: Optional[str] = None
+    unposted_final_grade: Optional[str] = None
+    unposted_current_score: Optional[float] = None
+    unposted_final_score: Optional[float] = None
+    has_grading_periods: bool = False
+    current_grading_period_title: Optional[str] = None
+    current_period_current_grade: Optional[str] = None
+    current_period_final_grade: Optional[str] = None
+    current_period_current_score: Optional[float] = None
+    current_period_final_score: Optional[float] = None
+
+
+class LmsGradeListResponse(BaseModel):
+    items: List[LmsGradeSummary] = []
+
+
 class LmsCalendarEventSummary(BaseModel):
     external_id: str
     source_id: str
