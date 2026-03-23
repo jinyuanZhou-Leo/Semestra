@@ -314,7 +314,7 @@ export const HomePage: React.FC = () => {
                                         <CardContent className="space-y-4">
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
-                                                    <span className="block text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">CGPA</span>
+                                                    <span className="block text-xs tracking-wider text-muted-foreground font-medium mb-1">CGPA</span>
                                                     <span className="text-xl font-bold tracking-tight">
                                                         <AnimatedNumber
                                                             value={program.cgpa_scaled}
@@ -323,7 +323,7 @@ export const HomePage: React.FC = () => {
                                                     </span>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="block text-xs uppercase tracking-wider text-muted-foreground font-medium mb-1">Credits</span>
+                                                    <span className="block text-xs tracking-wider text-muted-foreground font-medium mb-1">Credits</span>
                                                     <span className="text-sm font-medium">
                                                         <span className="text-foreground text-base">{(programEarnedCredits[program.id] || 0).toFixed(1)}</span>
                                                         <span className="text-muted-foreground"> / {program.grad_requirement_credits}</span>
