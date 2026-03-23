@@ -1,6 +1,6 @@
 # input:  [Dataclasses, typing protocol helpers, and provider adapter implementations]
-# output: [Provider-neutral LMS DTOs, provider adapter protocol methods for integration payload normalization and credential masking, error types, and provider registry resolution helpers]
-# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, navigation, announcements, modules, pages, quizzes, grades, syllabus, and calendar reads]
+# output: [Provider-neutral LMS DTOs, provider adapter protocol methods for integration payload normalization and credential masking, error types, and provider registry resolution helpers, including split module-summary and module-item reads]
+# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, navigation, announcements, module summary and per-module item reads, pages, quizzes, grades, syllabus, and calendar reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -107,6 +107,7 @@ class LmsModuleSummaryData:
     published: bool
     state: Optional[str]
     unlock_at: Optional[str]
+    item_count: int
     items: list[LmsModuleItemData]
 
 
@@ -282,6 +283,15 @@ class LmsProvider(Protocol):
         credentials: dict[str, Any],
         external_course_id: str,
     ) -> list[LmsModuleSummaryData]:
+        ...
+
+    def list_course_module_items(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+        module_id: str,
+    ) -> list[LmsModuleItemData]:
         ...
 
     def list_course_quizzes(

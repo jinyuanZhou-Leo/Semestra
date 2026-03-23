@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance, router registration, and remaining Program/Semester/Course route handlers that are not yet split into separate backend API modules]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, and keeps the remaining program/semester/course orchestration endpoints plus course LMS navigation, announcement, assignment, grade, module, page, quiz, and syllabus reads]
+# output: [FastAPI app instance, router registration, production-safe docs configuration, and remaining Program/Semester/Course route handlers that are not yet split into separate backend API modules]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, and keeps the remaining program/semester/course orchestration endpoints plus course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, and syllabus reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -8,6 +8,7 @@
 
 from fastapi import Body, FastAPI, Depends, HTTPException, Form, Response, status, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
@@ -55,26 +56,37 @@ models.Base.metadata.create_all(bind=engine)
 from fastapi import UploadFile, File
 import utils
 
-app = FastAPI()
+def _build_fastapi_kwargs() -> dict[str, object]:
+    if os.getenv("ENVIRONMENT", "development") == "production":
+        return {
+            "docs_url": None,
+            "redoc_url": None,
+            "openapi_url": None,
+        }
+    return {}
+
+
+def _configure_middlewares(app_instance: FastAPI) -> None:
+    app_instance.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=auth.get_allowed_api_hosts(),
+    )
+    app_instance.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
+app = FastAPI(**_build_fastapi_kwargs())
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # CORS configuration
-origins = [
-    FRONTEND_URL,
-    "https://semestra.jyleo.cc",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
-origins = list({o for o in origins if o})
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+origins = auth.get_allowed_browser_origins()
+_configure_middlewares(app)
 
 app.include_router(auth_router)
 app.include_router(course_schedule_router)
@@ -690,6 +702,19 @@ def read_course_lms_modules(
         raise_lms_http_error(exc)
 
 
+@app.get("/courses/{course_id}/lms/modules/{module_id}/items", response_model=schemas.LmsModuleItemListResponse)
+def read_course_lms_module_items(
+    course_id: str,
+    module_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.list_course_module_items(db, current_user.id, course_id, module_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
 @app.get("/courses/{course_id}/lms/quizzes", response_model=schemas.LmsQuizListResponse)
 def read_course_lms_quizzes(
     course_id: str,
@@ -779,6 +804,7 @@ async def upload_course_resources(
     get_owned_course(db, current_user, course_id)
 
     quota = course_resources.get_user_quota_snapshot(db, current_user.id)
+    max_upload_bytes = course_resources.get_max_upload_bytes()
     running_total = quota.total_bytes_used
     uploaded_files: list[models.CourseResourceFile] = []
     failed_files: list[schemas.CourseResourceUploadFailure] = []
@@ -787,7 +813,7 @@ async def upload_course_resources(
         filename = (file.filename or "").strip() or "untitled"
         try:
             course_resources.validate_upload_filename(filename)
-            content = await file.read()
+            content = await course_resources.read_upload_content(file, max_bytes=max_upload_bytes)
             projected_total = running_total + len(content)
             if projected_total > quota.total_bytes_limit:
                 failed_files.append(schemas.CourseResourceUploadFailure(
@@ -809,6 +835,12 @@ async def upload_course_resources(
             )
             uploaded_files.append(uploaded)
             running_total += uploaded.size_bytes
+        except course_resources.CourseResourceFileTooLargeError as error:
+            failed_files.append(schemas.CourseResourceUploadFailure(
+                filename=filename,
+                code="FILE_TOO_LARGE",
+                message=str(error),
+            ))
         except course_resources.CourseResourceStorageError as error:
             failed_files.append(schemas.CourseResourceUploadFailure(
                 filename=filename,

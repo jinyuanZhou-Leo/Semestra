@@ -1,6 +1,6 @@
 # input:  [FastAPI router/dependencies, backend auth/crud/models/schemas/LMS services, Google token verification, backup-transfer service, and shared API helpers]
 # output: [Auth, current-user, LMS integration, and backup import/export route handlers plus exported backup wrapper functions]
-# pos:    [backend API router for identity/session flows and account-scoped integration or backup endpoints]
+# pos:    [backend API router for identity/session flows, DB-backed login throttling, logout revocation, and account-scoped integration or backup endpoints]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -64,32 +64,58 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/auth/token", response_model=schemas.Token)
 async def login_for_access_token(
+    request: Request,
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     remember_me: bool = Form(False),
     db: Session = Depends(get_db),
 ):
+    try:
+        client_ip, account_key = auth.enforce_password_login_rate_limits(db, request, form_data.username)
+    except auth.AuthRateLimitExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many authentication attempts. Please retry later.",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
     user = crud.get_user_by_email(db, email=form_data.username)
     if not user or not crud.verify_password(form_data.password, user.hashed_password):
+        auth.record_password_login_failure(db, client_ip=client_ip, account_key=account_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    auth.clear_password_login_failures(db, client_ip=client_ip, account_key=account_key)
     access_token_expires = timedelta(days=15) if remember_me else timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth.create_access_token(data={"sub": user.email}, expires_delta=access_token_expires)
+    access_token = auth.create_user_access_token(user, access_token_expires)
     auth.set_auth_cookie(response, access_token, access_token_expires)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.post("/auth/google", response_model=schemas.Token)
 def login_with_google(
+    request: Request,
     payload: schemas.GoogleAuthRequest,
     response: Response,
     db: Session = Depends(get_db),
 ):
-    google_payload = verify_google_id_token(payload.id_token)
+    try:
+        client_ip = auth.enforce_google_login_rate_limit(db, request)
+    except auth.AuthRateLimitExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many authentication attempts. Please retry later.",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+    try:
+        google_payload = verify_google_id_token(payload.id_token)
+    except HTTPException:
+        auth.record_google_login_failure(db, client_ip=client_ip)
+        raise
     email = google_payload.get("email")
     email_verified = google_payload.get("email_verified")
     sub = google_payload.get("sub")
@@ -97,8 +123,10 @@ def login_with_google(
     if isinstance(email_verified, str):
         email_verified = email_verified.lower() == "true"
     if not email_verified:
+        auth.record_google_login_failure(db, client_ip=client_ip)
         raise HTTPException(status_code=400, detail="Google email is not verified")
     if not email or not sub:
+        auth.record_google_login_failure(db, client_ip=client_ip)
         raise HTTPException(status_code=400, detail="Google token missing email or subject")
 
     user = crud.get_user_by_google_sub(db, google_sub=sub)
@@ -114,14 +142,22 @@ def login_with_google(
         else:
             user = crud.create_user_from_google(db, email=email, google_sub=sub)
 
+    auth.clear_google_login_failures(db, client_ip=client_ip)
     access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth.create_access_token(data={"sub": user.email}, expires_delta=access_token_expires)
+    access_token = auth.create_user_access_token(user, access_token_expires)
     auth.set_auth_cookie(response, access_token, access_token_expires)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout():
+def logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    if request.cookies.get(auth.AUTH_COOKIE_NAME):
+        auth.enforce_cookie_request_security(request)
+    auth.revoke_user_sessions(db, current_user)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     auth.clear_auth_cookie(response)
     return response

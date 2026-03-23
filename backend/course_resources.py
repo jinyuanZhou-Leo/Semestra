@@ -1,6 +1,6 @@
 # input:  [filesystem paths/env configuration, SQLAlchemy session, backend ORM models, and uploaded file payloads]
-# output: [Course-resource storage helpers, quota calculations, and persistence operations for course-scoped files and saved links]
-# pos:    [Backend course-resource domain service that enforces account-wide quotas, stores file metadata, and synchronizes database deletions with on-disk files safely]
+# output: [Course-resource storage helpers, quota calculations, bounded upload readers, and persistence operations for course-scoped files and saved links]
+# pos:    [Backend course-resource domain service that enforces account-wide quotas, bounds upload memory usage, stores file metadata, and synchronizes database deletions with on-disk files safely]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
+from fastapi import UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,8 @@ import models
 
 DEFAULT_COURSE_RESOURCES_MAX_TOTAL_BYTES = 50 * 1024 * 1024
 DEFAULT_COURSE_RESOURCES_STORAGE_DIRNAME = "course_resources"
+DEFAULT_COURSE_RESOURCES_MAX_UPLOAD_BYTES = DEFAULT_COURSE_RESOURCES_MAX_TOTAL_BYTES
+UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 
 INLINE_MIME_PREFIXES = ("image/", "text/")
 INLINE_MIME_TYPES = {
@@ -55,6 +58,10 @@ class CourseResourceQuotaExceededError(CourseResourceError):
 
 class CourseResourceStorageError(CourseResourceError):
     """Raised when resource storage cannot be completed."""
+
+
+class CourseResourceFileTooLargeError(CourseResourceStorageError):
+    """Raised when a single uploaded file exceeds the configured maximum."""
 
 
 @dataclass(frozen=True)
@@ -93,6 +100,19 @@ def get_total_bytes_limit() -> int:
         raise CourseResourceStorageError("COURSE_RESOURCES_MAX_TOTAL_BYTES must be an integer.") from error
     if parsed <= 0:
         raise CourseResourceStorageError("COURSE_RESOURCES_MAX_TOTAL_BYTES must be greater than 0.")
+    return parsed
+
+
+def get_max_upload_bytes() -> int:
+    raw_value = os.getenv("COURSE_RESOURCES_MAX_UPLOAD_BYTES", "").strip()
+    if not raw_value:
+        return DEFAULT_COURSE_RESOURCES_MAX_UPLOAD_BYTES
+    try:
+        parsed = int(raw_value)
+    except ValueError as error:
+        raise CourseResourceStorageError("COURSE_RESOURCES_MAX_UPLOAD_BYTES must be an integer.") from error
+    if parsed <= 0:
+        raise CourseResourceStorageError("COURSE_RESOURCES_MAX_UPLOAD_BYTES must be greater than 0.")
     return parsed
 
 
@@ -154,6 +174,20 @@ def validate_upload_filename(filename: str) -> None:
     suffix = Path(normalized).suffix.lower()
     if suffix in BLOCKED_UPLOAD_EXTENSIONS:
         raise CourseResourceStorageError("Script files are not allowed.")
+
+
+async def read_upload_content(upload_file: UploadFile, *, max_bytes: int) -> bytes:
+    buffer = bytearray()
+    while True:
+        chunk = await upload_file.read(UPLOAD_READ_CHUNK_BYTES)
+        if not chunk:
+            break
+        buffer.extend(chunk)
+        if len(buffer) > max_bytes:
+            raise CourseResourceFileTooLargeError(
+                f"Files larger than {max_bytes} bytes are not allowed.",
+            )
+    return bytes(buffer)
 
 
 def normalize_external_url(url: str) -> str:

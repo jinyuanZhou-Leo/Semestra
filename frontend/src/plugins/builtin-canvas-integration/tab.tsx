@@ -1,4 +1,4 @@
-// input:  [Canvas navigation, announcement, assignment, grade, module, page, quiz, syllabus APIs, course context state, plugin host + UI-state hooks, extracted tab helpers, and extracted tab UI components]
+// input:  [Canvas navigation, announcement, assignment, grade, module summary/item, page, quiz, syllabus APIs, course context state, plugin host + UI-state hooks, extracted tab helpers, and extracted tab UI components]
 // output: [builtin-canvas-integration course tab runtime and tab definition with framework-aligned unavailable states, persisted local navigation UI state, and host-aware sticky navigation offset]
 // pos:    [course-scoped Canvas navigation controller that resolves Home fallback targets, restores local section/page selection UI state, orchestrates Canvas queries, requests Gradebook handoff through the host API, and renders extracted Canvas views inside the host tab shell]
 //
@@ -567,6 +567,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         } else {
             content = (
                 <CanvasModulesView
+                    courseId={courseId}
                     heading={activeSection === 'home' ? homeEntryLabel : 'Modules'}
                     items={modulesQuery.data?.items ?? EMPTY_MODULE_ITEMS}
                     onOpenPage={handleOpenPage}
@@ -654,7 +655,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
     }
 
     return (
-        <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[11.75rem_minmax(0,1fr)]">
+        <div className="grid h-full min-h-0 min-w-0 gap-4 lg:grid-cols-[11.75rem_minmax(0,1fr)]">
             <aside
                 className="min-h-0 rounded-2xl border border-border/60 bg-background p-3 lg:sticky lg:self-start"
                 style={{ top: `${railStickyTop}px` }}
@@ -676,9 +677,9 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                 </div>
             </aside>
 
-            <div className="min-h-0 flex flex-col gap-4">
+            <div className="min-h-0 min-w-0 flex flex-col gap-4">
                 {recommendationCard}
-                <section className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background">
+                <section className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background">
                     {content}
                 </section>
             </div>

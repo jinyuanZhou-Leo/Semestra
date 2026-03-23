@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, multi-integration LMS records, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, multi-integration LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, auth security state, multi-integration LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -38,10 +38,28 @@ class User(Base):
     hashed_password = Column(String, nullable=True)
     google_sub = Column(String, unique=True, index=True, nullable=True)
     user_setting = Column(Text, default="{}")
+    session_version = Column(Integer, nullable=False, default=0)
     
     # Relationships
     programs = relationship("Program", back_populates="owner")
     lms_integrations = relationship("LmsIntegration", back_populates="user", cascade="all, delete-orphan")
+
+
+class AuthRateLimit(Base):
+    __tablename__ = "auth_rate_limits"
+    __table_args__ = (
+        UniqueConstraint("scope", "key_hash", name="uq_auth_rate_limits_scope_key_hash"),
+        Index("ix_auth_rate_limits_scope_blocked_until", "scope", "blocked_until"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    scope = Column(String, nullable=False, index=True)
+    key_hash = Column(String, nullable=False, index=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    window_started_at = Column(String, nullable=False, default="")
+    blocked_until = Column(String, nullable=True)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
 
 class LmsIntegration(Base):
     __tablename__ = "lms_integrations"

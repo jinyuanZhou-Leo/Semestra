@@ -1,5 +1,5 @@
-// input:  [Canvas navigation tab runtime, mocked course context, mocked Canvas LMS APIs, and testing-library assertions/interactions]
-// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, and all-open collapsible module/page interactions]
+// input:  [Canvas navigation tab runtime, mocked course context, mocked Canvas LMS summary/item APIs, and testing-library assertions/interactions]
+// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, and lazy module-item interactions]
 // pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, assignment or grade Canvas data UI, and unavailable-state alignment]
 //
 // ⚠️ When this file is updated:
@@ -29,6 +29,7 @@ vi.mock('@/services/api', () => ({
         getCourseLmsNavigation: vi.fn(),
         getCourseLmsAnnouncements: vi.fn(),
         getCourseLmsModules: vi.fn(),
+        getCourseLmsModuleItems: vi.fn(),
         getCourseLmsPages: vi.fn(),
         getCourseLmsPage: vi.fn(),
         getCourseLmsQuizzes: vi.fn(),
@@ -109,6 +110,7 @@ describe('CanvasPagesTab', () => {
         vi.mocked(api.getCourseLmsGrades).mockResolvedValue({ items: [] });
         vi.mocked(api.getCourseLmsAnnouncements).mockResolvedValue({ items: [] });
         vi.mocked(api.getCourseLmsModules).mockResolvedValue({ items: [] });
+        vi.mocked(api.getCourseLmsModuleItems).mockResolvedValue({ items: [] });
         vi.mocked(api.getCourseLmsPages).mockResolvedValue({ items: [] });
         vi.mocked(api.getCourseLmsPage).mockResolvedValue({
             page_id: 1,
@@ -172,7 +174,7 @@ describe('CanvasPagesTab', () => {
                     published: true,
                     state: 'active',
                     unlock_at: null,
-                    items: [],
+                    item_count: 0,
                 },
             ],
         });
@@ -189,6 +191,43 @@ describe('CanvasPagesTab', () => {
         expect(screen.queryByRole('button', { name: 'Files' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Discussions' })).not.toBeInTheDocument();
         expect(screen.getByText('Canvas course menu').closest('aside')).toHaveStyle({ top: '180px' });
+    });
+
+    it('keeps the Canvas shell shrink-safe so detail views do not force horizontal page overflow', async () => {
+        vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
+            default_view: 'pages',
+            front_page_url: 'https://canvas.example.edu/courses/1/pages/front-page',
+            tabs: [
+                { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
+                { tab_id: 'pages', label: 'Pages', html_url: 'https://canvas.example.edu/courses/1/pages', hidden: false, position: 2, tab_type: 'internal', active: false },
+            ],
+        });
+        vi.mocked(api.getCourseLmsPages).mockResolvedValue({
+            items: [
+                {
+                    page_id: 1,
+                    url: 'front-page',
+                    title: 'Front Page',
+                    updated_at: '2026-03-21T10:00:00Z',
+                    published: true,
+                    front_page: true,
+                    html_url: 'https://canvas.example.edu/courses/1/pages/front-page',
+                },
+            ],
+        });
+
+        renderCanvasTab();
+
+        expect(await screen.findByText('Front Page')).toBeInTheDocument();
+
+        const aside = screen.getByText('Canvas course menu').closest('aside');
+        const root = aside?.parentElement;
+        const contentColumn = aside?.nextElementSibling;
+        const contentShell = contentColumn?.lastElementChild;
+
+        expect(root).toHaveClass('min-w-0');
+        expect(contentColumn).toHaveClass('min-w-0');
+        expect(contentShell).toHaveClass('min-w-0', 'overflow-hidden');
     });
 
     it('renders assignments and Canvas grades views with a Gradebook handoff card', async () => {
@@ -324,34 +363,37 @@ describe('CanvasPagesTab', () => {
                     published: true,
                     state: 'active',
                     unlock_at: null,
-                    items: [
-                        {
-                            module_item_id: 'item-1',
-                            title: 'Course Overview',
-                            item_type: 'Page',
-                            content_id: 'page-1',
-                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/pages/course-overview',
-                            url: '/courses/canvas-course-1/pages/course-overview',
-                            position: 1,
-                            indent: 0,
-                            published: true,
-                            completion_requirement_type: 'must_view',
-                            new_tab: false,
-                        },
-                        {
-                            module_item_id: 'item-2',
-                            title: 'Reference PDF',
-                            item_type: 'File',
-                            content_id: 'file-1',
-                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/1',
-                            url: '/courses/canvas-course-1/files/1',
-                            position: 2,
-                            indent: 0,
-                            published: false,
-                            completion_requirement_type: null,
-                            new_tab: true,
-                        },
-                    ],
+                    item_count: 2,
+                },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModuleItems).mockResolvedValue({
+            items: [
+                {
+                    module_item_id: 'item-1',
+                    title: 'Course Overview',
+                    item_type: 'Page',
+                    content_id: 'page-1',
+                    html_url: 'https://canvas.example.edu/courses/canvas-course-1/pages/course-overview',
+                    url: '/courses/canvas-course-1/pages/course-overview',
+                    position: 1,
+                    indent: 0,
+                    published: true,
+                    completion_requirement_type: 'must_view',
+                    new_tab: false,
+                },
+                {
+                    module_item_id: 'item-2',
+                    title: 'Reference PDF',
+                    item_type: 'File',
+                    content_id: 'file-1',
+                    html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/1',
+                    url: '/courses/canvas-course-1/files/1',
+                    position: 2,
+                    indent: 0,
+                    published: false,
+                    completion_requirement_type: null,
+                    new_tab: true,
                 },
             ],
         });
@@ -385,18 +427,18 @@ describe('CanvasPagesTab', () => {
         renderCanvasTab();
 
         expect(await screen.findByText('Week 1')).toBeInTheDocument();
-        expect(screen.getByText('Course Overview')).toBeInTheDocument();
+        expect(await screen.findByText('Course Overview')).toBeInTheDocument();
         expect(screen.queryByText('Page')).not.toBeInTheDocument();
         expect(screen.queryByText('Hidden')).not.toBeInTheDocument();
         expect(screen.queryByText('must view')).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Week 1' }));
+        fireEvent.click(screen.getByRole('button', { name: /Week 1/ }));
 
         await waitFor(() => {
             expect(screen.queryByText('Course Overview')).not.toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Week 1' }));
+        fireEvent.click(screen.getByRole('button', { name: /Week 1/ }));
 
         expect(await screen.findByText('Course Overview')).toBeInTheDocument();
 
@@ -435,6 +477,22 @@ describe('CanvasPagesTab', () => {
                     published: true,
                     state: 'active',
                     unlock_at: null,
+                    item_count: 1,
+                },
+                {
+                    module_id: 'module-2',
+                    name: 'Week 2',
+                    position: 2,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    item_count: 1,
+                },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModuleItems).mockImplementation(async (_courseId, moduleId) => {
+            if (moduleId === 'module-1') {
+                return {
                     items: [
                         {
                             module_item_id: 'item-1',
@@ -450,40 +508,39 @@ describe('CanvasPagesTab', () => {
                             new_tab: false,
                         },
                     ],
-                },
-                {
-                    module_id: 'module-2',
-                    name: 'Week 2',
-                    position: 2,
-                    published: true,
-                    state: 'active',
-                    unlock_at: null,
-                    items: [
-                        {
-                            module_item_id: 'item-2',
-                            title: 'Lecture Slides',
-                            item_type: 'File',
-                            content_id: 'file-2',
-                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/2',
-                            url: '/courses/canvas-course-1/files/2',
-                            position: 1,
-                            indent: 0,
-                            published: true,
-                            completion_requirement_type: null,
-                            new_tab: true,
-                        },
-                    ],
-                },
-            ],
+                };
+            }
+
+            return {
+                items: [
+                    {
+                        module_item_id: 'item-2',
+                        title: 'Lecture Slides',
+                        item_type: 'File',
+                        content_id: 'file-2',
+                        html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/2',
+                        url: '/courses/canvas-course-1/files/2',
+                        position: 1,
+                        indent: 0,
+                        published: true,
+                        completion_requirement_type: null,
+                        new_tab: true,
+                    },
+                ],
+            };
         });
 
         renderCanvasTab();
 
         expect(await screen.findByText('Course Overview')).toBeInTheDocument();
         expect(screen.getByText('Week 2')).toBeInTheDocument();
-        expect(screen.getByText('Lecture Slides')).toBeInTheDocument();
+        expect(await screen.findByText('Lecture Slides')).toBeInTheDocument();
+        await waitFor(() => {
+            expect(api.getCourseLmsModuleItems).toHaveBeenCalledWith('course-1', 'module-1');
+            expect(api.getCourseLmsModuleItems).toHaveBeenCalledWith('course-1', 'module-2');
+        });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Week 2' }));
+        fireEvent.click(screen.getByRole('button', { name: /Week 2/ }));
 
         await waitFor(() => {
             expect(screen.queryByText('Lecture Slides')).not.toBeInTheDocument();
@@ -570,7 +627,7 @@ describe('CanvasPagesTab', () => {
                     published: true,
                     state: 'active',
                     unlock_at: null,
-                    items: [],
+                    item_count: 0,
                 },
             ],
         });
@@ -605,7 +662,7 @@ describe('CanvasPagesTab', () => {
                     published: true,
                     state: 'active',
                     unlock_at: null,
-                    items: [],
+                    item_count: 0,
                 },
             ],
         });
@@ -641,7 +698,7 @@ describe('CanvasPagesTab', () => {
                     published: true,
                     state: 'active',
                     unlock_at: null,
-                    items: [],
+                    item_count: 0,
                 },
             ],
         });
@@ -696,7 +753,7 @@ describe('CanvasPagesTab', () => {
                     published: true,
                     state: 'active',
                     unlock_at: null,
-                    items: [],
+                    item_count: 0,
                 },
             ],
         });

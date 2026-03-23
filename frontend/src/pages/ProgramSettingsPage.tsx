@@ -1,6 +1,6 @@
 // input:  [route params/navigation primitives, shared layout/container/back button components, program entity context, LMS integration query, and reusable Program settings form]
 // output: [`ProgramSettingsPage` route component]
-// pos:    [Dedicated Program settings workspace route with breadcrumb-aware navigation, query-backed Program/LMS data loading, and page-based autosaving settings management]
+// pos:    [Dedicated Program settings workspace route with breadcrumb-aware navigation, single-current-page breadcrumb semantics, query-backed Program/LMS data loading, and page-based autosaving settings management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -72,7 +72,7 @@ const ProgramSettingsPageContent: React.FC = () => {
                             <Link to={`/programs/${program.id}`}>{program.name}</Link>
                         </BreadcrumbLink>
                     ) : (
-                        <BreadcrumbPage>Program</BreadcrumbPage>
+                        <span className="text-muted-foreground">Program</span>
                     )}
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />

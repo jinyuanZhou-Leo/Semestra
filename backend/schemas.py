@@ -348,11 +348,16 @@ class LmsModuleSummary(BaseModel):
     published: bool = False
     state: Optional[str] = None
     unlock_at: Optional[str] = None
+    item_count: int = 0
     items: List[LmsModuleItem] = []
 
 
 class LmsModuleListResponse(BaseModel):
     items: List[LmsModuleSummary] = []
+
+
+class LmsModuleItemListResponse(BaseModel):
+    items: List[LmsModuleItem] = []
 
 
 class LmsQuizSummary(BaseModel):

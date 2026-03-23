@@ -1,6 +1,6 @@
 <!--
-input:  [Backend auth implementation, frontend auth flow, runtime environment settings, March 2026 security hardening context]
-output: [Human-readable documentation for JWT secret handling, cookie sessions, deployment settings, and non-expert security explanation]
+input:  [Backend auth implementation, frontend auth flow, runtime environment settings, CSRF hardening, and March 2026 security hardening context]
+output: [Human-readable documentation for JWT secret handling, CSRF-protected cookie sessions, deployment settings, and non-expert security explanation]
 pos:    [Project security note describing the auth/session hardening change and how to operate it safely]
 -->
 
@@ -28,7 +28,9 @@ The project now uses this safer model:
 2. Login stores the session in an `HttpOnly` cookie instead of `localStorage`.
 3. The frontend restores login state by calling `/users/me`, not by reading a token from browser storage.
 4. Logout clears the server-managed auth cookie.
-5. The backend still accepts bearer tokens for compatibility, but the frontend no longer relies on them.
+5. Cookie-authenticated write requests now require a matching CSRF token header.
+6. Logout now revokes previously issued JWTs by bumping a persisted user session version.
+7. The backend still accepts bearer tokens for compatibility, but the frontend no longer relies on them.
 
 ## The Simple Explanation
 
@@ -80,10 +82,12 @@ This change improves auth/session handling. It does **not** mean:
 - CSRF is impossible,
 - or the whole app is now "security complete."
 
-It specifically fixes two issues:
+It specifically fixes these issues:
 
 1. secret management for JWT signing,
-2. browser-side storage of login tokens.
+2. browser-side storage of login tokens,
+3. missing CSRF protection for cookie-authenticated write requests,
+4. logout not revoking previously issued JWTs.
 
 ## Runtime Configuration
 
@@ -92,18 +96,54 @@ The backend now expects these auth-related settings:
 ```env
 JWT_SECRET_KEY=replace-me-with-a-long-random-secret
 AUTH_COOKIE_NAME=semestra_session
+AUTH_CSRF_COOKIE_NAME=semestra_csrf
+AUTH_CSRF_HEADER_NAME=X-CSRF-Token
 AUTH_COOKIE_SAMESITE=lax
 AUTH_COOKIE_SECURE=false
 # AUTH_COOKIE_DOMAIN=
+ALLOWED_HOSTS=api.example.com
 ```
 
 ### What These Mean
 
 - `JWT_SECRET_KEY`: the private signing secret for login tokens. This must be long, random, and never committed to git.
 - `AUTH_COOKIE_NAME`: cookie key seen by the browser.
+- `AUTH_CSRF_COOKIE_NAME`: browser-readable CSRF cookie name paired with the auth session.
+- `AUTH_CSRF_HEADER_NAME`: header name that must echo the CSRF cookie on cookie-authenticated write requests.
 - `AUTH_COOKIE_SAMESITE`: controls when the browser sends the cookie across sites.
 - `AUTH_COOKIE_SECURE`: when `true`, the browser only sends the cookie over HTTPS.
 - `AUTH_COOKIE_DOMAIN`: optional; only set it if you intentionally want the cookie shared across subdomains.
+- `ALLOWED_HOSTS`: comma-separated backend hostnames accepted by the app in production.
+
+## CSRF Protection Model
+
+Semestra now uses a double-submit CSRF pattern for browser cookie sessions:
+
+1. Login sets the normal `HttpOnly` session cookie.
+2. Login also sets a second non-`HttpOnly` CSRF cookie.
+3. For `POST`, `PUT`, `PATCH`, and `DELETE` requests that authenticate via cookie, the frontend must copy that CSRF cookie into the `X-CSRF-Token` header.
+4. Bearer-token requests are not subject to this CSRF check.
+
+This keeps browser sessions safe from cross-site request forgery without breaking existing non-browser API clients that use `Authorization: Bearer ...`.
+
+If you customize the backend CSRF names away from the defaults, keep the frontend in sync with:
+
+```env
+VITE_AUTH_CSRF_COOKIE_NAME=semestra_csrf
+VITE_AUTH_CSRF_HEADER_NAME=X-CSRF-Token
+```
+
+## Logout Revocation Model
+
+Semestra no longer treats logout as a browser-only cookie clear.
+Each user now has a persisted session version in the database:
+
+1. Newly issued JWTs include the current session version.
+2. Authenticated requests must present a token whose session version still matches the database row.
+3. Logout increments that stored session version.
+4. Any older JWT immediately stops working, even if its `exp` has not been reached yet.
+
+This is still stateless on the request path, but it gives the server one small piece of revocation state so logout has real effect.
 
 ## Safe Defaults for Real Deployments
 

@@ -1,6 +1,6 @@
 // input:  [auth state/actions, app-status notifications, header slot props, theme toggle and children]
 // output: [`Layout` component]
-// pos:    [Shared authenticated page chrome with authenticated header actions and sign-out handling]
+// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, authenticated header actions, and sign-out handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -174,17 +174,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
             >
                 <Container className="flex h-full items-center justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-3">
-                        <Link to="/" className="text-lg font-bold text-foreground no-underline hover:opacity-80 transition-opacity">
-                            Semestra
-                        </Link>
-                        {breadcrumb && (
-                            <div className="hidden min-w-0 items-center gap-3 md:flex">
+                        <div className="flex h-full shrink-0 items-center gap-3">
+                            <Link to="/" className="inline-flex h-full items-center text-lg font-bold leading-none text-foreground no-underline transition-opacity hover:opacity-80">
+                                Semestra
+                            </Link>
+                            {breadcrumb && (
                                 <Separator
                                     orientation="vertical"
-                                    className="h-5 bg-foreground/30 data-[orientation=vertical]:w-[2px]"
+                                    className="hidden h-5 self-center bg-foreground/30 data-[orientation=vertical]:w-[2px] md:block"
                                 />
-                                <div className="min-w-0">{breadcrumb}</div>
-                            </div>
+                            )}
+                        </div>
+                        {breadcrumb && (
+                            <div className="hidden min-w-0 md:block">{breadcrumb}</div>
                         )}
                     </div>
 

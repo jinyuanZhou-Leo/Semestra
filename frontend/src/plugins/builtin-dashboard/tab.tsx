@@ -32,7 +32,7 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const {
         state: isEditMode,
         setState: setIsEditMode,
-    } = usePluginUiState<boolean>('dashboard-edit-mode', true);
+    } = usePluginUiState<boolean>('dashboard-edit-mode', false);
 
     const toggleEditMode = React.useCallback(() => {
         setIsEditMode((currentValue) => !currentValue);

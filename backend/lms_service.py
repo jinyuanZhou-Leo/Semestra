@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, LMS ORM models, CRUD/user-setting helpers, versioned crypto helpers, provider registry, and API schema payloads]
-# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, grade, page, module, announcement, quiz, syllabus, and range-filtered calendar service functions]
-# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, quiz/grade/syllabus reads, and semester calendar range filtering]
+# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, grade, page, module summary, module item, announcement, quiz, syllabus, and range-filtered calendar service functions]
+# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, module summary/item reads, quiz/grade/syllabus reads, and semester calendar range filtering]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -227,7 +227,7 @@ def _module_to_schema(module: LmsModuleSummaryData) -> schemas.LmsModuleSummary:
         published=module.published,
         state=module.state,
         unlock_at=module.unlock_at,
-        items=[_module_item_to_schema(item) for item in module.items],
+        item_count=module.item_count,
     )
 
 
@@ -1258,6 +1258,39 @@ def list_course_modules(
         db.add(link)
         db.commit()
         return schemas.LmsModuleListResponse(items=[_module_to_schema(item) for item in modules])
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def list_course_module_items(
+    db: Session,
+    user_id: str,
+    course_id: str,
+    module_id: str,
+) -> schemas.LmsModuleItemListResponse:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        items = provider_impl.list_course_module_items(config, credentials, link.external_course_id, module_id)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return schemas.LmsModuleItemListResponse(items=[_module_item_to_schema(item) for item in items])
     except Exception as exc:
         mapped = _map_lms_exception(exc)
         _set_record_error(integration, mapped)

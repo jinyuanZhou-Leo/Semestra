@@ -1,6 +1,6 @@
 # input:  [Canvas LMS provider config/credential payloads and requests-based Canvas REST access]
-# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/modules/pages/quizzes/grades, reads syllabus/assignments/calendar events, and applies provider-specific due-date normalization]
-# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, navigation, page, announcement, module, quiz, grade, syllabus, and credential mapping]
+# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, blocks SSRF-prone hosts or redirects, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/module summaries/module items/pages/quizzes/grades, reads syllabus/assignments/calendar events, and applies provider-specific due-date normalization]
+# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, outbound-target hardening, navigation, page, announcement, module summary/item, quiz, grade, syllabus, and credential mapping]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+import ipaddress
+import socket
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -43,7 +45,83 @@ def normalize_canvas_base_url(raw_value: str) -> str:
         raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas base_url must not include the /api/v1 suffix.")
     if parsed.query or parsed.fragment:
         raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas base_url must not include query parameters or fragments.")
+    if parsed.username or parsed.password:
+        raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas base_url must not include embedded credentials.")
+    _validate_outbound_canvas_url(normalized)
     return normalized
+
+
+def _default_port_for_scheme(scheme: str) -> int:
+    return 443 if scheme == "https" else 80
+
+
+def _origin_for_parsed_url(parsed) -> str:
+    if not parsed.hostname:
+        raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas URL must include a hostname.")
+    port = parsed.port
+    default_port = _default_port_for_scheme(parsed.scheme)
+    normalized_port = f":{port}" if port and port != default_port else ""
+    return f"{parsed.scheme}://{parsed.hostname}{normalized_port}"
+
+
+def _is_blocked_ip_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return (
+        address.is_loopback
+        or address.is_private
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_reserved
+        or address.is_unspecified
+    )
+
+
+def _resolve_and_validate_hostname(hostname: str, port: int) -> None:
+    lowered_hostname = hostname.lower()
+    if lowered_hostname in {"localhost", "localhost.localdomain"}:
+        raise LmsProviderError(
+            "LMS_CONFIG_INVALID",
+            "Canvas base_url must not target localhost or other loopback/private network hosts.",
+        )
+
+    addresses: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
+    try:
+        addresses.add(ipaddress.ip_address(lowered_hostname))
+    except ValueError:
+        try:
+            records = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+        except OSError as exc:
+            raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas base_url host could not be resolved.") from exc
+        for record in records:
+            ip_text = record[4][0]
+            addresses.add(ipaddress.ip_address(ip_text))
+
+    if not addresses:
+        raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas base_url host could not be resolved.")
+    if any(_is_blocked_ip_address(address) for address in addresses):
+        raise LmsProviderError(
+            "LMS_CONFIG_INVALID",
+            "Canvas base_url must not resolve to loopback, private, or link-local network hosts.",
+        )
+
+
+def _validate_outbound_canvas_url(raw_value: str, *, expected_origin: Optional[str] = None) -> str:
+    normalized = raw_value.strip()
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.hostname:
+        raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas URL must be a valid http or https URL.")
+    if parsed.username or parsed.password:
+        raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas URL must not include embedded credentials.")
+
+    origin = _origin_for_parsed_url(parsed)
+    if expected_origin is not None and origin != expected_origin:
+        raise LmsProviderError(
+            "LMS_PROVIDER_ERROR",
+            "Canvas returned a cross-origin URL, which has been blocked.",
+            status_code=502,
+        )
+
+    _resolve_and_validate_hostname(parsed.hostname, parsed.port or _default_port_for_scheme(parsed.scheme))
+    return origin
 
 
 class CanvasLmsProvider:
@@ -113,6 +191,14 @@ class CanvasLmsProvider:
         })
         return base_url, session
 
+    def _raise_for_redirect(self, response: requests.Response) -> None:
+        if 300 <= response.status_code < 400:
+            raise LmsProviderError(
+                "LMS_PROVIDER_ERROR",
+                "Canvas returned an unexpected redirect response.",
+                status_code=502,
+            )
+
     def _map_provider_exception(self, exc: Exception) -> LmsProviderError:
         if isinstance(exc, LmsProviderError):
             return exc
@@ -137,7 +223,11 @@ class CanvasLmsProvider:
         *,
         params: Optional[dict[str, Any]] = None,
     ) -> Any:
-        response = session.get(f"{base_url}/api/v1{path}", params=params, timeout=30)
+        request_url = f"{base_url}/api/v1{path}"
+        expected_origin = _validate_outbound_canvas_url(base_url)
+        _validate_outbound_canvas_url(request_url, expected_origin=expected_origin)
+        response = session.get(request_url, params=params, timeout=30, allow_redirects=False)
+        self._raise_for_redirect(response)
         response.raise_for_status()
         return response.json()
 
@@ -150,11 +240,14 @@ class CanvasLmsProvider:
         params: Optional[dict[str, Any]] = None,
     ) -> list[dict[str, Any]]:
         next_url = f"{base_url}/api/v1{path}"
+        expected_origin = _validate_outbound_canvas_url(base_url)
         next_params = dict(params or {})
         items: list[dict[str, Any]] = []
 
         while next_url:
-            response = session.get(next_url, params=next_params, timeout=30)
+            _validate_outbound_canvas_url(next_url, expected_origin=expected_origin)
+            response = session.get(next_url, params=next_params, timeout=30, allow_redirects=False)
+            self._raise_for_redirect(response)
             response.raise_for_status()
             payload = response.json()
             if isinstance(payload, list):
@@ -250,13 +343,10 @@ class CanvasLmsProvider:
 
     def _normalize_module(self, payload: dict[str, Any]) -> LmsModuleSummaryData:
         raw_items = payload.get("items")
-        items: list[LmsModuleItemData] = []
-        if isinstance(raw_items, list):
-            for item in raw_items:
-                if isinstance(item, dict):
-                    items.append(self._normalize_module_item(item))
+        inline_item_count = len(raw_items) if isinstance(raw_items, list) else 0
         state = str(payload.get("workflow_state") or payload.get("state") or "").strip() or None
         module_id = str(payload.get("id") or "").strip()
+        item_count = self._optional_int(payload.get("items_count"))
         return LmsModuleSummaryData(
             module_id=module_id,
             name=str(payload.get("name") or module_id or "Module").strip() or "Module",
@@ -264,7 +354,8 @@ class CanvasLmsProvider:
             published=bool(payload.get("published")),
             state=state,
             unlock_at=payload.get("unlock_at"),
-            items=items,
+            item_count=item_count if item_count is not None else inline_item_count,
+            items=[],
         )
 
     def _normalize_quiz(self, payload: dict[str, Any]) -> LmsQuizSummaryData:
@@ -571,13 +662,37 @@ class CanvasLmsProvider:
                 f"/courses/{external_course_id}/modules",
                 params={
                     "per_page": 100,
-                    "include[]": ["items", "content_details"],
                 },
             )
             items: list[LmsModuleSummaryData] = []
             for item in payload:
                 if isinstance(item, dict):
                     items.append(self._normalize_module(item))
+            return items
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def list_course_module_items(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+        module_id: str,
+    ) -> list[LmsModuleItemData]:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._paginate_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/modules/{module_id}/items",
+                params={
+                    "per_page": 100,
+                },
+            )
+            items: list[LmsModuleItemData] = []
+            for item in payload:
+                if isinstance(item, dict):
+                    items.append(self._normalize_module_item(item))
             return items
         except Exception as exc:
             raise self._map_provider_exception(exc) from exc

@@ -1,11 +1,12 @@
-# input:  [unittest, tempfile storage roots, in-memory SQLAlchemy setup, and course_resources domain helpers]
-# output: [backend regression tests for course-resource quota accounting, file persistence, saved-link resources, safe deletion, and rename sanitization]
+# input:  [unittest, tempfile storage roots, in-memory SQLAlchemy setup, asyncio helpers, and course_resources domain helpers]
+# output: [backend regression tests for course-resource quota accounting, bounded upload reads, file persistence, saved-link resources, safe deletion, and rename sanitization]
 # pos:    [backend unit tests covering the course-resource service without requiring HTTP requests]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
 #    2. Update the INDEX.md of the folder this file belongs to
 
+import asyncio
 import tempfile
 import unittest
 from datetime import date
@@ -25,6 +26,15 @@ from database import Base
 
 
 class CourseResourcesServiceTests(unittest.TestCase):
+    class _FakeUploadFile:
+        def __init__(self, chunks: list[bytes]) -> None:
+            self._chunks = list(chunks)
+
+        async def read(self, _size: int = -1) -> bytes:
+            if not self._chunks:
+                return b""
+            return self._chunks.pop(0)
+
     def setUp(self) -> None:
         self.engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
         testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
@@ -136,6 +146,12 @@ class CourseResourcesServiceTests(unittest.TestCase):
 
         snapshot = course_resources.get_user_quota_snapshot(self.db, self.user_id)
         self.assertEqual(snapshot.total_bytes_used, 0)
+
+    def test_read_upload_content_rejects_files_larger_than_configured_limit(self) -> None:
+        upload = self._FakeUploadFile([b"abcd", b"ef"])
+
+        with self.assertRaises(course_resources.CourseResourceFileTooLargeError):
+            asyncio.run(course_resources.read_upload_content(upload, max_bytes=5))
 
     def test_delete_external_resource_keeps_storage_root_intact(self) -> None:
         resource = course_resources.create_external_course_resource(

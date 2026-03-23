@@ -8,7 +8,7 @@ They are the source of truth for delivery sequencing and human-readable project 
 |------|------|-------------|
 | INDEX.md | Documentation index | Architecture summary and file-level catalog for `docs/`. |
 | alembic.md | Backend migration note | Short guide for the new Alembic-based schema migration workflow and why runtime schema rewrite code was removed. |
-| auth-security-explained.md | Security note | Plain-language explanation of JWT secret management, HttpOnly cookie sessions, deployment settings, and the March 2026 auth hardening change. |
+| auth-security-explained.md | Security note | Plain-language explanation of JWT secret management, CSRF-protected HttpOnly cookie sessions, logout revocation, deployment settings, and the March 2026 auth hardening change. |
 | PLUGIN_DEVELOPMENT.md | Plugin guide | Developer guide for plugin metadata/runtime/global-settings registration plus runtime host APIs such as confirmed tab jumps and plugin-local UI-state caching. |
 | fix-dashboard-edit-mode-widget-reload.md | Bug fix spec | Records issue context and fix approach for dashboard edit-mode widget reload behavior. |
 | timetable_refactoring_plan_optimized.md | Refactor plan | Optimized plan for timetable plugin refactor phases, architecture, and acceptance checkpoints. |
