@@ -1,6 +1,6 @@
-// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, dashboard-only overview stats, and standardized unavailable/not-found empty states]
+// pos:    [Semester workspace page with workspace navigation, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -40,6 +40,8 @@ import {
     getTabComponentByType,
     getTabSettingsComponentByType,
     hasTabPluginForType,
+    PluginHostProvider,
+    PluginRuntimeInstanceProvider,
     PluginSettingsSectionRenderer,
     usePluginLoadStateVersion,
     usePluginSettingsRegistry,
@@ -316,14 +318,24 @@ const SemesterHomepageContent: React.FC = () => {
         }
         return (
             <React.Suspense fallback={<PluginTabSkeleton />}>
-                <PluginContentFadeIn key={activeTab.id}>
-                    <TabComponent
-                        tabId={activeTab.id}
-                        settings={activeTab.settings || {}}
-                        semesterId={semester.id}
-                        updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
-                    />
-                </PluginContentFadeIn>
+                <PluginRuntimeInstanceProvider
+                    value={{
+                        workspaceKind: 'semester',
+                        workspaceId: semester.id,
+                        slotKind: 'tab',
+                        slotId: activeTab.id,
+                        pluginType: activeTab.type,
+                    }}
+                >
+                    <PluginContentFadeIn key={activeTab.id}>
+                        <TabComponent
+                            tabId={activeTab.id}
+                            settings={activeTab.settings || {}}
+                            semesterId={semester.id}
+                            updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
+                        />
+                    </PluginContentFadeIn>
+                </PluginRuntimeInstanceProvider>
             </React.Suspense>
         );
     }, [activeTabId, semester, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading, activeTabLoadState.status]);
@@ -492,61 +504,63 @@ const SemesterHomepageContent: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <BuiltinTabProvider value={builtinTabContext}>
-                <WorkspaceNav
-                    title={semester?.name || 'Semester'}
-                    isLoading={isLoading || !semester}
-                    tabsLoading={!areBuiltinTabsReady}
-                    tabs={(
-                        <Tabs
-                            items={tabBarItems}
-                            activeId={activeTabId}
-                            onSelect={setActiveTabId}
-                            onRemove={handleRemoveTab}
-                            onReorder={handleReorderTabs}
-                            onAdd={openAddTabModal}
-                        />
-                    )}
-                />
+            <PluginHostProvider visibleTabs={visibleTabs} setActiveTabId={setActiveTabId}>
+                <BuiltinTabProvider value={builtinTabContext}>
+                    <WorkspaceNav
+                        title={semester?.name || 'Semester'}
+                        isLoading={isLoading || !semester}
+                        tabsLoading={!areBuiltinTabsReady}
+                        tabs={(
+                            <Tabs
+                                items={tabBarItems}
+                                activeId={activeTabId}
+                                onSelect={setActiveTabId}
+                                onRemove={handleRemoveTab}
+                                onReorder={handleReorderTabs}
+                                onAdd={openAddTabModal}
+                            />
+                        )}
+                    />
 
-                <Container className="py-5 sm:py-6">
-                    {isLoading || !semester ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {[1, 2, 3, 4, 5, 6].map(i => (
-                                <CardSkeleton key={i} className="h-[240px]" />
-                            ))}
-                        </div>
-                    ) : (
-                            dashboardContent
-                    )}
-                </Container>
+                    <Container className="py-5 sm:py-6">
+                        {isLoading || !semester ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <CardSkeleton key={i} className="h-[240px]" />
+                                ))}
+                            </div>
+                        ) : (
+                                dashboardContent
+                        )}
+                    </Container>
 
-                {semester && (
-                    <>
-                        <AddWidgetModal
-                            isOpen={isAddWidgetOpen}
-                            onClose={() => setIsAddWidgetOpen(false)}
-                            onAdd={handleAddWidget}
-                            context="semester"
-                            widgets={widgets}
-                        />
-                        <AddTabModal
-                            isOpen={isAddTabOpen}
-                            onClose={() => setIsAddTabOpen(false)}
-                            onAdd={handleAddTab}
-                            context="semester"
-                            tabs={customTabs}
-                        />
-                        <WidgetSettingsModal
-                            isOpen={!!editingWidget}
-                            onClose={() => setEditingWidget(null)}
-                            widget={editingWidget}
-                            onSave={onUpdateWidgetInner}
-                            semesterId={semester.id}
-                        />
-                    </>
-                )}
-            </BuiltinTabProvider>
+                    {semester && (
+                        <>
+                            <AddWidgetModal
+                                isOpen={isAddWidgetOpen}
+                                onClose={() => setIsAddWidgetOpen(false)}
+                                onAdd={handleAddWidget}
+                                context="semester"
+                                widgets={widgets}
+                            />
+                            <AddTabModal
+                                isOpen={isAddTabOpen}
+                                onClose={() => setIsAddTabOpen(false)}
+                                onAdd={handleAddTab}
+                                context="semester"
+                                tabs={customTabs}
+                            />
+                            <WidgetSettingsModal
+                                isOpen={!!editingWidget}
+                                onClose={() => setEditingWidget(null)}
+                                widget={editingWidget}
+                                onSave={onUpdateWidgetInner}
+                                semesterId={semester.id}
+                            />
+                        </>
+                    )}
+                </BuiltinTabProvider>
+            </PluginHostProvider>
         </Layout>
     );
 };

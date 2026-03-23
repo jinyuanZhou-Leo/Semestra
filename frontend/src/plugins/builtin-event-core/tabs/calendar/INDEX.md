@@ -2,7 +2,7 @@
 
 `tabs/calendar/` implements the built-in Calendar runtime, settings, export flow, and extension wiring.
 The folder now centers on a source-driven Calendar shell that consumes the standalone `calendar-core` registry instead of hardcoding schedule/todo/gradebook loading into one component.
-Hooks and source adapters isolate semester context, navigation, editing, per-source refresh rules, and Query-cache-aware remount reuse so future modules can add Calendar events, including LMS events, with lower coupling while preserving the existing grid during event refreshes.
+Hooks and source adapters isolate semester context, navigation, editing, per-source refresh rules, persisted navigation UI state, and Query-cache-aware remount reuse so future modules can add Calendar events, including LMS events, with lower coupling while preserving the existing grid during event refreshes.
 The Calendar tab now derives a buffered query window from the active week/month view so schedule and LMS sources load only nearby dates instead of fan-out fetching an entire semester, and it prefetches adjacent view windows for smoother week-to-week navigation.
 
 | File | Role | Description |
@@ -21,7 +21,7 @@ The Calendar tab now derives a buffered query window from the active week/month 
 | SemesterScheduleExportModal.tsx | Export workflow | Schedule export modal with PNG/PDF/ICS generation helpers and filters. |
 | components/ | Local subcomponents | Calendar-specific presentational helpers such as shared event-content rendering, a pure-Skeleton height-matched loading shell, and source-color inputs. |
 | components/INDEX.md | Components architecture index | File map for Calendar-only visual helpers. |
-| hooks/ | Runtime hooks | Source orchestration, shared-cache semester context, academic week navigation with buffered query-range output, edit-flow, and sizing hooks used by `CalendarTab`. |
+| hooks/ | Runtime hooks | Source orchestration, shared-cache semester context, persisted academic week navigation with buffered query-range output, edit-flow, and sizing hooks used by `CalendarTab`. |
 | hooks/INDEX.md | Hooks architecture index | File map for Calendar runtime hook boundaries. |
 | index.ts | Calendar entry | Lazy-load entrypoint exports for calendar tab runtime/settings bindings. |
 | settings.ts | Settings utilities | Calendar defaults plus normalization/time conversion helpers, LMS description safety defaults, week-view screen-width settings, and dynamic source-color defaults. |

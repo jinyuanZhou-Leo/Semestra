@@ -8,23 +8,23 @@ The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, an
 - `metadata.ts` default-exports `definePluginMetadata(...)` and is the **single source of truth** for `name`, `description`, `icon`, `layout`, `maxInstances`, and `allowedContexts`.
 - `index.ts` default-exports `definePluginRuntime(...)`; runtime definitions in `widget.tsx`/`tab.tsx` declare runtime-specific fields like `component`, `defaultSettings`, tab/widget `SettingsComponent`, `headerButtons`, and lifecycle hooks.
 - `settings.ts(x)` is **optional** and default-exports `definePluginSettings(...)` only when the plugin defines shared plugin-level settings sections.
-- Regular plugins can use framework-managed shared settings through `PluginSettingsProps.settings` and `updateSettings(...)`; builtin plugins may still keep host-coupled custom APIs where needed.
+- Regular plugins can use framework-managed shared settings through `PluginSettingsProps.settings` and `updateSettings(...)`; transient per-instance UI state should use the plugin UI-state hook instead of backend persistence.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local plugin folder architecture and plugin catalog map. |
-| builtin-dashboard/ | Built-in tab plugin | Default dashboard tab plugin implementation and settings entry. |
-| builtin-canvas-integration/ | Built-in tab plugin | Canvas-only course navigation tab with a sticky left-side course menu, first-class Assignments and Canvas-backed Grades views, a standalone Gradebook handoff card, default-view-backed Home fallback routing, special Announcements/Modules/Pages/Quizzes/Syllabus views, all-open instant-collapse module sections for long lists, CTA-only handling for unknown internal tabs plus external tools, and in-app same-course page links. |
+| builtin-dashboard/ | Built-in tab plugin | Default dashboard tab plugin implementation and settings entry, with edit-mode state stored as plugin-local UI state instead of ad hoc localStorage. |
+| builtin-canvas-integration/ | Built-in tab plugin | Canvas-only course navigation tab with a sticky left-side course menu, first-class Assignments and Canvas-backed Grades views, a standalone Gradebook handoff card routed through the host jump API, default-view-backed Home fallback routing, special Announcements/Modules/Pages/Quizzes/Syllabus views, all-open instant-collapse module sections for long lists, CTA-only handling for unknown internal tabs plus external tools, in-app same-course page links, and plugin-local navigation drafts. |
 | builtin-dashboard/INDEX.md | Plugin architecture index | File map for built-in dashboard tab runtime with light-mode light-green glass active FAB surface, dark-mode deep-green active surface, and shadowless dark-mode tuning, plus metadata/settings/runtime contracts. |
 | builtin-event-core/ | Built-in domain plugin | Core calendar/course/todo tab suite and shared schedule logic. |
 | builtin-event-core/INDEX.md | Plugin architecture index | File map for event-core plugin entries, shared domain primitives, scoped refresh payloads, retrying todo sync, and tab/widget runtime responsibilities. |
-| builtin-gradebook/ | Built-in grade domain plugin | Course gradebook tab and read-only course-metrics widget backed by fact-only gradebook APIs with client-derived projections and validation. |
-| builtin-gradebook/INDEX.md | Plugin architecture index | File map for the builtin-gradebook command-center tab, moved course stat strip, stable fixed-height Plan Mode toolbar layout, clarified forecast settings UI, compact course-metrics widget, grade-calculator-style dashboard-stat syncing after gradebook saves, shared client-side gradebook calculators, and backend gradebook integration. |
+| builtin-gradebook/ | Built-in grade domain plugin | Course gradebook tab and read-only course-metrics widget backed by fact-only gradebook APIs with client-derived projections, validation, and plugin-local persisted Plan Mode drafts. |
+| builtin-gradebook/INDEX.md | Plugin architecture index | File map for the builtin-gradebook command-center tab, moved course stat strip, stable fixed-height Plan Mode toolbar layout, persisted What If drafts, clarified forecast settings UI, compact course-metrics widget, grade-calculator-style dashboard-stat syncing after gradebook saves, shared client-side gradebook calculators, and backend gradebook integration. |
 | builtin-settings/ | Built-in tab plugin | Default settings tab plugin implementation and settings entry. |
 | builtin-settings/INDEX.md | Plugin architecture index | File map for the built-in Settings tab runtime and its dynamic sticky-title offset behavior. |
 | counter/ | Widget plugin | Numeric counter widget with inline controls and per-instance settings. |
 | counter/INDEX.md | Plugin architecture index | File map for counter plugin runtime, metadata, settings, bound validation, and design notes. |
-| course-resources/ | Course resource plugin | Course-only resource manager tab plus pinned quick-open widget backed by account-wide resource quota APIs, with a height-stable add-resource dialog across upload and link tabs. |
+| course-resources/ | Course resource plugin | Course-only resource manager tab plus pinned quick-open widget backed by account-wide resource quota APIs, with a height-stable add-resource dialog whose link form uses plugin-local UI state. |
 | course-list/ | Widget plugin | Course list widget with plugin-level management settings panel. |
 | course-list/INDEX.md | Plugin architecture index | File map for course-list plugin runtime, metadata, plugin-global settings, explicit async loading/error feedback, and guarded course-manager entry behavior. |
 | habit-streak/ | Widget plugin | Habit streak dual-widget plugin with per-instance streak data, split Duolingo/ring widget definitions, mode-specific settings, reward bursts, and tests. |

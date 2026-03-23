@@ -131,6 +131,151 @@ Important behavior:
 - `usePluginLoadStateVersion()` is useful when a page needs to react to multiple plugin load-state transitions while resolving several tab settings sections at once.
 - `TabRegistry`, `WidgetRegistry`, and `PluginSettingsRegistry` still exist internally, but page-level integration should prefer the facade above.
 
+## Runtime Host APIs
+
+Runtime plugins can import host-owned helper hooks from `frontend/src/plugin-system/index.ts`.
+
+### `usePluginHost()`
+
+Use this hook when a plugin needs to jump to another tab that already exists in the current workspace.
+
+```typescript
+import { usePluginHost } from '@/plugin-system';
+
+const ExampleTab: React.FC<TabProps> = () => {
+    const { jumpToTab } = usePluginHost();
+
+    const handleOpenGradebook = () => {
+        void jumpToTab(
+            { tabType: 'builtin-gradebook' },
+            {
+                title: 'Open Gradebook?',
+                description: 'Switch to the existing Gradebook tab in this course.',
+                confirmText: 'Open',
+                cancelText: 'Stay here',
+            },
+        );
+    };
+
+    return <Button onClick={handleOpenGradebook}>Open Gradebook</Button>;
+};
+```
+
+API shape:
+
+```typescript
+const { jumpToTab } = usePluginHost();
+
+const result = await jumpToTab(
+  { tabId: 'tab-instance-id' } | { tabType: 'builtin-gradebook' },
+  {
+    title?: string,
+    description?: React.ReactNode,
+    confirmText?: string,
+    cancelText?: string,
+  },
+);
+```
+
+Return value:
+
+```typescript
+type PluginHostJumpResult = {
+  status: 'jumped' | 'cancelled' | 'missing' | 'ambiguous';
+  tabId?: string;
+};
+```
+
+Rules:
+- Navigation is limited to the current workspace page. It does not perform router-level cross-page navigation.
+- The host always shows a confirmation dialog before switching tabs.
+- `{ tabId }` succeeds only if that exact visible tab instance already exists.
+- `{ tabType }` resolves only against visible tabs in the current workspace.
+- If no matching tab exists, the host shows an alert and returns `missing`.
+- If multiple tabs share the same `tabType`, the host shows an alert and returns `ambiguous`; the caller must retry with `tabId`.
+- The host never auto-adds or auto-creates missing tabs.
+
+When to use it:
+- Jumping from one plugin tab to another existing plugin tab.
+- Replacing custom `window.dispatchEvent(...)` / `addEventListener(...)` handoff hacks.
+
+When not to use it:
+- Cross-route navigation.
+- Creating or provisioning tabs that do not already exist.
+
+### `usePluginUiState<T>()`
+
+Use this hook for transient frontend-only plugin UI state that should survive remounts in the same browser.
+This includes dialog drafts, sorting, filters, toggles, view preferences, and other local UI state that should not be written to backend persistence.
+
+```typescript
+import { usePluginUiState } from '@/plugin-system';
+
+interface ResourceDialogDraft {
+    activeTab: 'upload' | 'link';
+    linkName: string;
+    linkUrl: string;
+}
+
+const ExampleTab: React.FC<TabProps> = () => {
+    const {
+        state,
+        setState,
+        resetState,
+    } = usePluginUiState<ResourceDialogDraft>('resource-dialog', () => ({
+        activeTab: 'upload',
+        linkName: '',
+        linkUrl: '',
+    }));
+
+    return (
+        <Input
+            value={state.linkUrl}
+            onChange={(event) => {
+                setState((current) => ({ ...current, linkUrl: event.target.value }));
+            }}
+        />
+    );
+};
+```
+
+API shape:
+
+```typescript
+const {
+  state,
+  setState,
+  resetState,
+} = usePluginUiState<T>(stateKey, initialState);
+```
+
+Behavior:
+- Storage is frontend-only and browser-local.
+- Keys are automatically scoped by workspace kind, workspace id, slot kind, slot id, and your `stateKey`.
+- Backing storage uses `localStorage` when available and falls back to in-memory storage when browser storage is unavailable.
+- The `initialState` argument is a seed/reset baseline. It is used only when no cached value exists and when `resetState()` runs.
+- State values must be JSON-serializable plain data.
+- Bad or invalid cached JSON is discarded and falls back to `initialState`.
+- `resetState()` removes the cached entry and resets the hook to its initial state.
+
+Use it for:
+- Dialog drafts.
+- Search/filter input that should survive tab switches.
+- Toggle state such as edit mode or plan mode.
+- Sorting, view preferences, and other local-only UI controls.
+- Temporary What If scores or similar client-only projections.
+
+Do not use it for:
+- Business data that belongs in backend persistence.
+- Shared plugin configuration that all instances should read.
+- Large binary objects such as `File`.
+- Secrets or security-sensitive data.
+
+Decision rule:
+- Use `updateSettings(...)` when the state is real persisted configuration or domain data.
+- Use plugin-global `settings.ts(x)` shared settings when the state is shared across all instances in the same context.
+- Use `usePluginUiState(...)` when the state is tab/widget-instance-local transient UI state that should survive remounts.
+
 ## Structure
 
 ### WidgetDefinition
@@ -900,7 +1045,7 @@ When custom CSS is needed, use CSS variables:
 
 See `frontend/src/plugins/builtin-gradebook/tab.tsx` for a complete example demonstrating:
 - Metadata-first registration with a lazy runtime entry in `index.ts`
-- Keeping instance view state in `tab.settings` while persisting domain data through backend APIs
+- Keeping transient plan-mode and What If view state in plugin UI state while persisting domain data through backend APIs
 - Pairing a course-only builtin tab with an optional read-only summary widget
 
 ## Widget UI Design Guidelines

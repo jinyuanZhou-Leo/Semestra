@@ -1,15 +1,16 @@
-// input:  [CalendarTab runtime, standalone calendar registry, mocked API/schedule services, and child-component test doubles]
-// output: [integration tests for CalendarTab source registration and orchestration wiring]
-// pos:    [CalendarTab regression suite covering external source registration through calendar-core]
+// input:  [CalendarTab runtime, plugin runtime instance provider, standalone calendar registry, mocked API/schedule services, and child-component test doubles]
+// output: [integration tests for CalendarTab source registration, orchestration wiring, and persisted UI state]
+// pos:    [CalendarTab regression suite covering external source registration through calendar-core and remount-scoped UI state]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CalendarSourceDefinition } from '@/calendar-core';
 import { registerCalendarSources } from '@/calendar-core';
+import { PluginRuntimeInstanceProvider, resetPluginUiStateCacheForTests } from '@/plugin-system';
 import scheduleService from '@/services/schedule';
 import api from '@/services/api';
 import { createQueryClientWrapper } from '@/test/queryClientWrapper';
@@ -54,6 +55,10 @@ beforeAll(() => {
 });
 
 describe('CalendarTab', () => {
+  beforeEach(() => {
+    resetPluginUiStateCacheForTests();
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -115,12 +120,22 @@ describe('CalendarTab', () => {
       });
 
       render(
-        <CalendarTab
-          tabId="calendar-1"
-          semesterId="semester-1"
-          settings={{}}
-          updateSettings={vi.fn()}
-        />,
+        <PluginRuntimeInstanceProvider
+          value={{
+            workspaceKind: 'semester',
+            workspaceId: 'semester-1',
+            slotKind: 'tab',
+            slotId: 'calendar-1',
+            pluginType: 'builtin-event-core.calendar',
+          }}
+        >
+          <CalendarTab
+            tabId="calendar-1"
+            semesterId="semester-1"
+            settings={{}}
+            updateSettings={vi.fn()}
+          />
+        </PluginRuntimeInstanceProvider>,
         { wrapper: Wrapper },
       );
 

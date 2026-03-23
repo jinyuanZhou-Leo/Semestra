@@ -1,6 +1,6 @@
-// input:  [course resource API/query state, course tab context ids, dialog primitives, tabs UI, and shared action components]
+// input:  [course resource API/query state, course tab context ids, plugin UI-state hook, dialog primitives, tabs UI, and shared action components]
 // output: [`CourseResourcesTabDefinition` and the course-resources tab runtime component]
-// pos:    [course-scoped resource manager tab with account-quota-aware uploads, lower-height stable dialog tabs, footer-aligned actions, saved-link support, and lightweight file actions]
+// pos:    [course-scoped resource manager tab with account-quota-aware uploads, persisted local link-form UI state, lower-height stable dialog tabs, footer-aligned actions, saved-link support, and lightweight file actions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -44,6 +44,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePluginUiState } from '@/plugin-system';
 import api, { type CourseResourceFile } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
 import type { TabDefinition, TabProps } from '@/services/tabRegistry';
@@ -88,6 +89,12 @@ const getResourceIcon = (resource: Pick<CourseResourceFile, 'mime_type' | 'filen
     if (['.html', '.js', '.jsx', '.json', '.ts', '.tsx'].includes(suffix)) return FileCode2;
     return File;
 };
+
+interface CourseResourcesUiState {
+    activeUploadTab: 'files' | 'link';
+    linkUrl: string;
+    linkName: string;
+}
 
 const isBlockedUploadFile = (file: File) => {
     const lastDot = file.name.lastIndexOf('.');
@@ -181,15 +188,28 @@ const UploadSelectionList: React.FC<{
 const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
     const queryClient = useQueryClient();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const {
+        state,
+        setState: setResourceUiState,
+        resetState,
+    } = usePluginUiState<CourseResourcesUiState>('course-resources-dialog', () => ({
+        activeUploadTab: 'files',
+        linkUrl: '',
+        linkName: '',
+    }));
     const [isUploadDialogOpen, setIsUploadDialogOpen] = React.useState(false);
-    const [activeUploadTab, setActiveUploadTab] = React.useState<'files' | 'link'>('files');
     const [isDragging, setIsDragging] = React.useState(false);
     const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
-    const [linkUrl, setLinkUrl] = React.useState('');
-    const [linkName, setLinkName] = React.useState('');
     const [renamingResource, setRenamingResource] = React.useState<CourseResourceFile | null>(null);
     const [resourceToDelete, setResourceToDelete] = React.useState<CourseResourceFile | null>(null);
     const [renameValue, setRenameValue] = React.useState('');
+    const activeUploadTab = state.activeUploadTab;
+    const linkUrl = state.linkUrl;
+    const linkName = state.linkName;
+
+    const updateUiState = React.useCallback((patch: Partial<CourseResourcesUiState>) => {
+        setResourceUiState((currentState) => ({ ...currentState, ...patch }));
+    }, [setResourceUiState]);
 
     const resourcesQuery = useQuery({
         queryKey: courseId ? queryKeys.courses.resources(courseId) : ['courses', 'resources', 'disabled'],
@@ -198,11 +218,17 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
         staleTime: 30_000,
     });
 
+    const resetUploadState = React.useCallback(() => {
+        setPendingFiles([]);
+        setIsDragging(false);
+        resetState();
+    }, [resetState]);
+
     const uploadMutation = useMutation({
         mutationFn: async (files: File[]) => api.uploadCourseResources(courseId!, files),
         onSuccess: async (response) => {
             await queryClient.invalidateQueries({ queryKey: queryKeys.courses.resources(courseId!) });
-            setPendingFiles([]);
+            resetUploadState();
             setIsUploadDialogOpen(false);
             if (response.uploaded_files.length > 0) {
                 toast.success(`Uploaded ${response.uploaded_files.length} file${response.uploaded_files.length === 1 ? '' : 's'}.`);
@@ -223,8 +249,7 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
         }),
         onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: queryKeys.courses.resources(courseId!) });
-            setLinkUrl('');
-            setLinkName('');
+            resetUploadState();
             setIsUploadDialogOpen(false);
             toast.success('URL saved.');
         },
@@ -281,14 +306,6 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
 
     const removePendingFile = React.useCallback((index: number) => {
         setPendingFiles((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
-    }, []);
-
-    const resetUploadState = React.useCallback(() => {
-        setPendingFiles([]);
-        setLinkUrl('');
-        setLinkName('');
-        setIsDragging(false);
-        setActiveUploadTab('files');
     }, []);
 
     const openRenameDialog = React.useCallback((resource: CourseResourceFile) => {
@@ -400,7 +417,7 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
 
                     <Tabs
                         value={activeUploadTab}
-                        onValueChange={(value) => setActiveUploadTab(value as 'files' | 'link')}
+                        onValueChange={(value) => updateUiState({ activeUploadTab: value as 'files' | 'link' })}
                         className="min-h-0 flex-1 gap-4"
                     >
                         <TabsList className="grid w-full grid-cols-2">
@@ -476,12 +493,12 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                                     </div>
                                     <Input
                                         value={linkUrl}
-                                        onChange={(event) => setLinkUrl(event.target.value)}
+                                        onChange={(event) => updateUiState({ linkUrl: event.target.value })}
                                         placeholder="https://example.com/resource"
                                     />
                                     <Input
                                         value={linkName}
-                                        onChange={(event) => setLinkName(event.target.value)}
+                                        onChange={(event) => updateUiState({ linkName: event.target.value })}
                                         placeholder="Optional display name"
                                     />
                                     <div className="flex-1" />

@@ -1,6 +1,6 @@
-// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
-// output: [plugin facade helpers for catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, lazy runtime registration, and idle background preloading]
-// pos:    [Central plugin manager facade that validates plugin declarations, keeps metadata/plugin settings eager, and exposes runtime load-state-aware registration helpers]
+// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
+// output: [plugin facade helpers for catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
+// pos:    [Central plugin manager facade that validates plugin declarations, keeps metadata/plugin settings eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -19,6 +19,21 @@ import {
     type RegisteredPluginSettingsSectionDefinition,
     usePluginSettingsRegistry as usePluginSettingsRegistryStore,
 } from '../services/pluginSettingsRegistry';
+export { PluginHostProvider, usePluginHost } from './PluginHostContext';
+export type {
+    PluginHostJumpOptions,
+    PluginHostJumpResult,
+    PluginHostJumpTarget,
+    PluginHostTabLike,
+} from './PluginHostContext';
+export { PluginRuntimeInstanceProvider, usePluginRuntimeInstanceContext } from './PluginRuntimeInstanceContext';
+export type {
+    PluginRuntimeInstanceValue,
+    PluginRuntimeSlotKind,
+    PluginRuntimeWorkspaceKind,
+} from './PluginRuntimeInstanceContext';
+export { buildPluginUiStateStorageKey } from './PluginRuntimeInstanceContext';
+export { resetPluginUiStateCacheForTests, usePluginUiState } from './PluginUiState';
 import type {
     PluginMetadataDefinition,
     PluginRuntimeDefinition,

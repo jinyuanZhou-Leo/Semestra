@@ -1,6 +1,6 @@
-// input:  [Canvas navigation, announcement, assignment, grade, module, page, quiz, and syllabus APIs, course context state, extracted tab helpers, and extracted tab UI components]
-// output: [builtin-canvas-integration course tab runtime and tab definition with framework-aligned unavailable states and host-aware sticky navigation offset]
-// pos:    [course-scoped Canvas navigation controller that resolves Home fallback targets, owns selected-tab state, orchestrates Canvas queries, dispatches Gradebook handoff events, and renders extracted Canvas views inside the host tab shell]
+// input:  [Canvas navigation, announcement, assignment, grade, module, page, quiz, syllabus APIs, course context state, plugin host + UI-state hooks, extracted tab helpers, and extracted tab UI components]
+// output: [builtin-canvas-integration course tab runtime and tab definition with framework-aligned unavailable states, persisted local navigation UI state, and host-aware sticky navigation offset]
+// pos:    [course-scoped Canvas navigation controller that resolves Home fallback targets, restores local section/page selection UI state, orchestrates Canvas queries, requests Gradebook handoff through the host API, and renders extracted Canvas views inside the host tab shell]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,7 +14,8 @@ import { useQuery } from '@tanstack/react-query';
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { useCourseData } from '@/contexts/CourseDataContext';
-import { BUILTIN_GRADEBOOK_TAB_TYPE, OPEN_GRADEBOOK_TAB_EVENT } from '@/plugins/builtin-gradebook/shared';
+import { usePluginHost, usePluginUiState } from '@/plugin-system';
+import { BUILTIN_GRADEBOOK_TAB_TYPE } from '@/plugins/builtin-gradebook/shared';
 import api from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
 import type { TabDefinition, TabProps } from '@/services/tabRegistry';
@@ -60,26 +61,40 @@ const GLOBAL_HEADER_HEIGHT = 60;
 const CANVAS_RAIL_STICKY_GAP = 16;
 const FALLBACK_WORKSPACE_NAV_HEIGHT = 104;
 
+interface CanvasNavigationUiState {
+    activeEntryId: string;
+    homePageRef: string | null;
+    pagesSelectedPageRef: string | null;
+    selectedAnnouncementId: string | null;
+}
+
 export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
     const { course, isLoading: isCourseLoading } = useCourseData();
-    const [activeEntryId, setActiveEntryId] = React.useState('home');
-    const [homePageRef, setHomePageRef] = React.useState<string | null>(null);
-    const [pagesSelectedPageRef, setPagesSelectedPageRef] = React.useState<string | null>(null);
-    const [selectedAnnouncementId, setSelectedAnnouncementId] = React.useState<string | null>(null);
+    const { jumpToTab } = usePluginHost();
+    const {
+        state,
+        setState: setNavigationState,
+    } = usePluginUiState<CanvasNavigationUiState>('canvas-navigation', () => ({
+        activeEntryId: 'home',
+        homePageRef: null,
+        pagesSelectedPageRef: null,
+        selectedAnnouncementId: null,
+    }));
     const [railStickyTop, setRailStickyTop] = React.useState(
         GLOBAL_HEADER_HEIGHT + FALLBACK_WORKSPACE_NAV_HEIGHT + CANVAS_RAIL_STICKY_GAP,
     );
+    const activeEntryId = state.activeEntryId;
+    const homePageRef = state.homePageRef;
+    const pagesSelectedPageRef = state.pagesSelectedPageRef;
+    const selectedAnnouncementId = state.selectedAnnouncementId;
 
     const lmsLink = course?.lms_link ?? null;
     const isCanvasLinked = lmsLink?.provider === 'canvas';
     const courseExternalId = lmsLink?.external_course_id ?? '';
 
-    React.useEffect(() => {
-        setActiveEntryId('home');
-        setHomePageRef(null);
-        setPagesSelectedPageRef(null);
-        setSelectedAnnouncementId(null);
-    }, [courseId]);
+    const updateNavigationState = React.useCallback((patch: Partial<CanvasNavigationUiState>) => {
+        setNavigationState((currentState) => ({ ...currentState, ...patch }));
+    }, [setNavigationState]);
 
     React.useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -147,11 +162,11 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
             return;
         }
         if (!navigationEntries.some((entry) => entry.id === activeEntryId)) {
-            setActiveEntryId(navigationEntries[0].id);
+            updateNavigationState({ activeEntryId: navigationEntries[0].id });
         }
-    }, [activeEntryId, navigationEntries]);
+    }, [activeEntryId, navigationEntries, updateNavigationState]);
 
-    const shouldLoadPages = activeSection === 'pages' || (activeSection === 'home' && homeLandingTarget === 'pages');
+    const shouldLoadPages = activeSection === 'pages' || (activeSection === 'home' && (homeLandingTarget === 'pages' || Boolean(homePageRef)));
     const shouldLoadAnnouncements = activeSection === 'announcements' || (activeSection === 'home' && homeLandingTarget === 'announcements');
     const shouldLoadAssignments = activeSection === 'assignments' || (activeSection === 'home' && homeLandingTarget === 'assignments');
     const shouldLoadGrades = activeSection === 'grades' || (activeSection === 'home' && homeLandingTarget === 'grades');
@@ -165,22 +180,35 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         enabled: Boolean(courseId && isCanvasLinked && shouldLoadPages),
         ...CANVAS_QUERY_OPTIONS,
     });
-    const pages = pagesQuery.data?.items ?? EMPTY_PAGE_ITEMS;
+    const resolvedPages = pagesQuery.data?.items ?? null;
+    const pages = resolvedPages ?? EMPTY_PAGE_ITEMS;
 
     React.useEffect(() => {
-        if (pages.length === 0) {
-            setHomePageRef(null);
-            setPagesSelectedPageRef(null);
+        if (!resolvedPages) {
             return;
         }
-        const preferredPageRef = resolveCanvasHomePageRef(pages);
-        setHomePageRef((current) => (current && pages.some((page) => page.url === current) ? current : preferredPageRef));
-        setPagesSelectedPageRef((current) => (current && pages.some((page) => page.url === current) ? current : null));
-    }, [pages]);
+        if (resolvedPages.length === 0) {
+            updateNavigationState({
+                homePageRef: null,
+                pagesSelectedPageRef: null,
+            });
+            return;
+        }
+        const preferredPageRef = resolveCanvasHomePageRef(resolvedPages);
+        setNavigationState((currentState) => ({
+            ...currentState,
+            homePageRef: currentState.homePageRef && resolvedPages.some((page) => page.url === currentState.homePageRef)
+                ? currentState.homePageRef
+                : preferredPageRef,
+            pagesSelectedPageRef: currentState.pagesSelectedPageRef && resolvedPages.some((page) => page.url === currentState.pagesSelectedPageRef)
+                ? currentState.pagesSelectedPageRef
+                : null,
+        }));
+    }, [resolvedPages, setNavigationState, updateNavigationState]);
 
     const activePageRef = activeSection === 'pages'
         ? pagesSelectedPageRef
-        : activeSection === 'home' && homeLandingTarget === 'pages'
+        : activeSection === 'home' && homePageRef
             ? homePageRef
             : null;
 
@@ -199,14 +227,18 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         enabled: Boolean(courseId && isCanvasLinked && shouldLoadAnnouncements),
         ...CANVAS_QUERY_OPTIONS,
     });
-    const announcements = announcementsQuery.data?.items ?? EMPTY_ANNOUNCEMENT_ITEMS;
+    const resolvedAnnouncements = announcementsQuery.data?.items ?? null;
+    const announcements = resolvedAnnouncements ?? EMPTY_ANNOUNCEMENT_ITEMS;
     const selectedAnnouncement = announcements.find((item) => item.announcement_id === selectedAnnouncementId) ?? null;
 
     React.useEffect(() => {
-        if (selectedAnnouncementId && !announcements.some((item) => item.announcement_id === selectedAnnouncementId)) {
-            setSelectedAnnouncementId(null);
+        if (!resolvedAnnouncements) {
+            return;
         }
-    }, [announcements, selectedAnnouncementId]);
+        if (selectedAnnouncementId && !announcements.some((item) => item.announcement_id === selectedAnnouncementId)) {
+            updateNavigationState({ selectedAnnouncementId: null });
+        }
+    }, [announcements, resolvedAnnouncements, selectedAnnouncementId, updateNavigationState]);
 
     const assignmentsQuery = useQuery({
         queryKey: courseId ? queryKeys.courses.lmsAssignments(courseId) : ['courses', 'lms-assignments', 'disabled'],
@@ -269,34 +301,35 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
             return;
         }
 
-        setActiveEntryId(entryId);
+        updateNavigationState({ activeEntryId: entryId });
         const nextSection = nextEntry.kind === 'section' ? nextEntry.section ?? null : null;
         if (nextSection === 'pages') {
-            setPagesSelectedPageRef(null);
+            updateNavigationState({ pagesSelectedPageRef: null });
         }
         if (nextSection === 'announcements' || (nextSection === 'home' && homeLandingTarget === 'announcements')) {
-            setSelectedAnnouncementId(null);
+            updateNavigationState({ selectedAnnouncementId: null });
         }
-    }, [homeLandingTarget, navigationEntries]);
+    }, [homeLandingTarget, navigationEntries, updateNavigationState]);
 
     const handleOpenPage = React.useCallback((pageRef: string) => {
         if (hasPagesEntry) {
-            setPagesSelectedPageRef(pageRef);
-            setActiveEntryId(pagesEntryId);
+            updateNavigationState({
+                pagesSelectedPageRef: pageRef,
+                activeEntryId: pagesEntryId,
+            });
             return;
         }
-        setHomePageRef(pageRef);
-        setActiveEntryId('home');
-    }, [hasPagesEntry, pagesEntryId]);
+        updateNavigationState({
+            homePageRef: pageRef,
+            activeEntryId: 'home',
+        });
+    }, [hasPagesEntry, pagesEntryId, updateNavigationState]);
 
     const handleOpenGradebook = React.useCallback(() => {
-        window.dispatchEvent(new CustomEvent(OPEN_GRADEBOOK_TAB_EVENT, {
-            detail: {
-                courseId,
-                tabType: BUILTIN_GRADEBOOK_TAB_TYPE,
-            },
-        }));
-    }, [courseId]);
+        void jumpToTab({
+            tabType: BUILTIN_GRADEBOOK_TAB_TYPE,
+        });
+    }, [jumpToTab]);
 
     if (!courseId) {
         return (
@@ -391,14 +424,14 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                 className="h-full"
             />
         );
-    } else if (activeSection === 'pages' || (activeSection === 'home' && homeLandingTarget === 'pages')) {
+    } else if (activeSection === 'pages' || (activeSection === 'home' && (homeLandingTarget === 'pages' || Boolean(homePageRef)))) {
         if (activeSection === 'pages' && !pagesSelectedPageRef) {
             content = (
                 <CanvasPageListView
                     heading="Pages"
                     pages={pages}
                     selectedPageRef={pagesSelectedPageRef}
-                    onSelectPage={setPagesSelectedPageRef}
+                    onSelectPage={(pageRef) => updateNavigationState({ pagesSelectedPageRef: pageRef })}
                 />
             );
         } else if (activePageRef && activePageQuery.isLoading && !activePageQuery.data) {
@@ -445,7 +478,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                     page={activePageQuery.data}
                     courseExternalId={courseExternalId}
                     canvasOrigin={canvasOrigin}
-                    onBack={activeSection === 'pages' ? () => setPagesSelectedPageRef(null) : undefined}
+                    onBack={activeSection === 'pages' ? () => updateNavigationState({ pagesSelectedPageRef: null }) : undefined}
                     onNavigateToPage={handleOpenPage}
                 />
             );
@@ -471,7 +504,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                     courseExternalId={courseExternalId}
                     canvasOrigin={canvasOrigin}
                     backLabel={activeSection === 'home' ? homeEntryLabel : 'Announcements'}
-                    onBack={() => setSelectedAnnouncementId(null)}
+                    onBack={() => updateNavigationState({ selectedAnnouncementId: null })}
                     onNavigateToPage={handleOpenPage}
                 />
             ) : (
@@ -479,7 +512,7 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                     heading={activeSection === 'home' ? homeEntryLabel : 'Announcements'}
                     items={announcements}
                     selectedAnnouncementId={selectedAnnouncementId}
-                    onSelectAnnouncement={setSelectedAnnouncementId}
+                    onSelectAnnouncement={(announcementId) => updateNavigationState({ selectedAnnouncementId: announcementId })}
                 />
             );
         }

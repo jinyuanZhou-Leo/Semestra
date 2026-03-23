@@ -10,6 +10,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as courseDataContext from '@/contexts/CourseDataContext';
+import { DialogProvider } from '@/contexts/DialogContext';
+import {
+    PluginHostProvider,
+    PluginRuntimeInstanceProvider,
+    resetPluginUiStateCacheForTests,
+    type PluginHostTabLike,
+} from '@/plugin-system';
 import api from '@/services/api';
 import { createQueryClientWrapper } from '@/test/queryClientWrapper';
 import { CanvasPagesTab } from './tab';
@@ -37,12 +44,28 @@ vi.mock('@/lib/html', () => ({
     sanitizeCanvasHtmlFragment: (value: string) => value,
 }));
 
-const renderCanvasTab = () => {
+const renderCanvasTab = (visibleTabs: PluginHostTabLike[] = [{ id: 'gradebook-tab', type: 'builtin-gradebook', title: 'Gradebook' }]) => {
     const { Wrapper } = createQueryClientWrapper();
-    return render(
-        <CanvasPagesTab tabId="tab-1" courseId="course-1" settings={{}} updateSettings={vi.fn()} />,
+    const setActiveTabId = vi.fn();
+    const view = render(
+        <DialogProvider>
+            <PluginHostProvider visibleTabs={visibleTabs} setActiveTabId={setActiveTabId}>
+                <PluginRuntimeInstanceProvider
+                    value={{
+                        workspaceKind: 'course',
+                        workspaceId: 'course-1',
+                        slotKind: 'tab',
+                        slotId: 'tab-1',
+                        pluginType: 'builtin-canvas-pages',
+                    }}
+                >
+                    <CanvasPagesTab tabId="tab-1" courseId="course-1" settings={{}} updateSettings={vi.fn()} />
+                </PluginRuntimeInstanceProvider>
+            </PluginHostProvider>
+        </DialogProvider>,
         { wrapper: Wrapper },
     );
+    return { ...view, setActiveTabId };
 };
 
 const mockLinkedCanvasCourse = () => {
@@ -57,8 +80,30 @@ const mockLinkedCanvasCourse = () => {
     } as never);
 };
 
+const createMockStorage = () => {
+    const store = new Map<string, string>();
+
+    return {
+        getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+        setItem: (key: string, value: string) => {
+            store.set(key, String(value));
+        },
+        removeItem: (key: string) => {
+            store.delete(key);
+        },
+        clear: () => {
+            store.clear();
+        },
+    } as Storage;
+};
+
 describe('CanvasPagesTab', () => {
     beforeEach(() => {
+        Object.defineProperty(window, 'localStorage', {
+            value: createMockStorage(),
+            configurable: true,
+        });
+        resetPluginUiStateCacheForTests();
         mockLinkedCanvasCourse();
         vi.mocked(api.getCourseLmsAssignments).mockResolvedValue({ items: [] });
         vi.mocked(api.getCourseLmsGrades).mockResolvedValue({ items: [] });
@@ -86,6 +131,7 @@ describe('CanvasPagesTab', () => {
     });
 
     afterEach(() => {
+        resetPluginUiStateCacheForTests();
         vi.clearAllMocks();
     });
 
@@ -146,8 +192,6 @@ describe('CanvasPagesTab', () => {
     });
 
     it('renders assignments and Canvas grades views with a Gradebook handoff card', async () => {
-        const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
-
         vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
             default_view: 'assignments',
             front_page_url: null,
@@ -206,24 +250,27 @@ describe('CanvasPagesTab', () => {
                 },
             ],
         });
-        renderCanvasTab();
+        const { setActiveTabId } = renderCanvasTab();
 
         expect(await screen.findByText('Manage assignments in Gradebook')).toBeInTheDocument();
-        expect(screen.getByText('Essay Draft')).toBeInTheDocument();
+        expect(await screen.findByText('Essay Draft')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Grades' }));
 
         expect(await screen.findByText('Manage grades in Gradebook')).toBeInTheDocument();
-        expect(screen.getByText('Course grade')).toBeInTheDocument();
-        expect(screen.getByText('91.3%')).toBeInTheDocument();
-        expect(screen.getByText('182.5')).toBeInTheDocument();
-        expect(screen.getByText('Winter Term')).toBeInTheDocument();
+        expect(await screen.findByText('Course grade')).toBeInTheDocument();
+        expect(await screen.findByText('91.3%')).toBeInTheDocument();
+        expect(await screen.findByText('182.5')).toBeInTheDocument();
+        expect(await screen.findByText('Winter Term')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Open Canvas Grades' })).toHaveAttribute('href', 'https://canvas.example.edu/courses/1/grades');
 
         fireEvent.click(screen.getByRole('button', { name: 'Open Gradebook' }));
+        expect(await screen.findByRole('dialog')).toHaveTextContent('Jump to tab?');
+        fireEvent.click(screen.getByRole('button', { name: 'Open' }));
 
-        expect(dispatchSpy).toHaveBeenCalled();
-        dispatchSpy.mockRestore();
+        await waitFor(() => {
+            expect(setActiveTabId).toHaveBeenCalledWith('gradebook-tab');
+        });
     });
 
     it('falls back home from a hidden default_view to the first supported visible section', async () => {
@@ -355,7 +402,9 @@ describe('CanvasPagesTab', () => {
 
         fireEvent.click(screen.getByText('Course Overview'));
 
-        expect(await screen.findByText('Overview body')).toBeInTheDocument();
+        await waitFor(() => {
+            expect(api.getCourseLmsPage).toHaveBeenCalledWith('course-1', 'course-overview');
+        });
 
         fireEvent.click(screen.getByRole('button', { name: 'Modules' }));
 

@@ -1,6 +1,6 @@
-// input:  [widget item data, widget registry lookup, plugin lazy loader, update/remove callbacks including unavailable-widget override, and widget-header glass control styles]
+// input:  [widget item data, widget registry lookup, plugin lazy loader, runtime instance scope, update/remove callbacks including unavailable-widget override, and widget-header glass control styles]
 // output: [`DashboardWidgetWrapper` component]
-// pos:    [Runtime wrapper that mounts plugin widget content, preserves unavailable-widget delete escape hatches, and renders glassmorphism header controls into the dashboard shell]
+// pos:    [Runtime wrapper that mounts plugin widget content, provides widget runtime scope for plugin-local UI state, preserves unavailable-widget delete escape hatches, and renders glassmorphism header controls into the dashboard shell]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -36,6 +36,7 @@ import {
     getWidgetComponentByType,
     getWidgetDefinitionByType,
     hasWidgetPluginForType,
+    PluginRuntimeInstanceProvider,
     useWidgetPluginLoadState,
 } from '../../plugin-system';
 import { jsonDeepEqual } from '../../plugin-system/utils';
@@ -127,6 +128,14 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     const handleEdit = useCallback(() => {
         if (onEdit) onEdit(widget);
     }, [onEdit, widget]);
+
+    const runtimeInstanceValue = React.useMemo(() => ({
+        workspaceKind: courseId ? 'course' as const : 'semester' as const,
+        workspaceId: courseId ?? semesterId ?? '',
+        slotKind: 'widget' as const,
+        slotId: widget.id,
+        pluginType: widget.type,
+    }), [courseId, semesterId, widget.id, widget.type]);
 
     // Render custom header buttons from widget definition
     const headerButtons = React.useMemo(() => {
@@ -238,75 +247,73 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
         ));
     }, [widgetDefinition, widget.id, widget.settings, semesterId, courseId, handleUpdateSettings]);
 
-    if (!WidgetComponent) {
-        if (isWidgetPluginPending) {
-            return <PluginWidgetSkeleton />;
-        }
-        return (
-            <WidgetContainer
-                id={widget.id}
-                onRemove={onRemoveUnavailable ? handleRemoveUnavailable : onRemove ? handleRemove : undefined}
-                isEditMode={isEditMode}
-            >
-                <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center text-muted-foreground bg-muted/20">
-                    <div className="rounded-full bg-destructive/10 p-3 mb-3">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="h-6 w-6 text-destructive"
-                        >
-                            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-                            <path d="M12 9v4" />
-                            <path d="M12 17h.01" />
-                        </svg>
-                    </div>
-                    <h3 className="mb-1 font-semibold text-foreground">Widget Unavailable</h3>
-                    <p className="mb-4 text-xs text-muted-foreground/80 line-clamp-2">
-                        {loadState.status === 'error'
-                            ? `The plugin for ${widget.type} failed to load.`
-                            : `The plugin for ${widget.type} is missing or disabled.`}
-                    </p>
-                    {(onRemoveUnavailable || onRemove) && (
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={onRemoveUnavailable ? handleRemoveUnavailable : handleRemove}
-                        >
-                            Delete Widget
-                        </Button>
-                    )}
-                </div>
-            </WidgetContainer>
-        );
-    }
-
-    // Check if widget has a settings component (auto-detect settings availability)
-    const hasSettings = !!widgetDefinition?.SettingsComponent;
-
     return (
-        <WidgetContainer
-            id={widget.id}
-            onRemove={onRemove ? handleRemove : undefined}
-            onEdit={onEdit && hasSettings ? handleEdit : undefined}
-            headerButtons={headerButtons}
-            isEditMode={isEditMode}
-        >
-            <PluginContentFadeIn>
-                <WidgetComponent
-                    widgetId={widget.id}
-                    settings={widget.settings || {}}
-                    semesterId={semesterId}
-                    courseId={courseId}
-                    updateSettings={handleUpdateSettings}
-                    updateCourse={updateCourse}
-                />
-            </PluginContentFadeIn>
-        </WidgetContainer>
+        <PluginRuntimeInstanceProvider value={runtimeInstanceValue}>
+            {!WidgetComponent ? (
+                isWidgetPluginPending ? (
+                    <PluginWidgetSkeleton />
+                ) : (
+                    <WidgetContainer
+                        id={widget.id}
+                        onRemove={onRemoveUnavailable ? handleRemoveUnavailable : onRemove ? handleRemove : undefined}
+                        isEditMode={isEditMode}
+                    >
+                        <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center text-muted-foreground bg-muted/20">
+                            <div className="rounded-full bg-destructive/10 p-3 mb-3">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="h-6 w-6 text-destructive"
+                                >
+                                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                    <path d="M12 9v4" />
+                                    <path d="M12 17h.01" />
+                                </svg>
+                            </div>
+                            <h3 className="mb-1 font-semibold text-foreground">Widget Unavailable</h3>
+                            <p className="mb-4 text-xs text-muted-foreground/80 line-clamp-2">
+                                {loadState.status === 'error'
+                                    ? `The plugin for ${widget.type} failed to load.`
+                                    : `The plugin for ${widget.type} is missing or disabled.`}
+                            </p>
+                            {(onRemoveUnavailable || onRemove) && (
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={onRemoveUnavailable ? handleRemoveUnavailable : handleRemove}
+                                >
+                                    Delete Widget
+                                </Button>
+                            )}
+                        </div>
+                    </WidgetContainer>
+                )
+            ) : (
+                <WidgetContainer
+                    id={widget.id}
+                    onRemove={onRemove ? handleRemove : undefined}
+                    onEdit={onEdit && widgetDefinition?.SettingsComponent ? handleEdit : undefined}
+                    headerButtons={headerButtons}
+                    isEditMode={isEditMode}
+                >
+                    <PluginContentFadeIn>
+                        <WidgetComponent
+                            widgetId={widget.id}
+                            settings={widget.settings || {}}
+                            semesterId={semesterId}
+                            courseId={courseId}
+                            updateSettings={handleUpdateSettings}
+                            updateCourse={updateCourse}
+                        />
+                    </PluginContentFadeIn>
+                </WidgetContainer>
+            )}
+        </PluginRuntimeInstanceProvider>
     );
 };
 

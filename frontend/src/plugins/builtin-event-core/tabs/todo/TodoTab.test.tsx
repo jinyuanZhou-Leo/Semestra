@@ -1,6 +1,6 @@
-// input:  [Testing Library render helpers, todo interaction hooks/components, and normalized todo runtime fixtures]
-// output: [Vitest coverage for local inline todo creation state, inline task-title deletion behavior, canonical todo-state derivation, compact time-chip editing, local sort persistence, and completed-task display behavior]
-// pos:    [Regression test file for todo runtime helpers and task-card interactions that protect per-composer inline drafts, empty-title delete behavior, canonical-to-UI derivation, stable shell reuse, persisted view preferences, and completion bucketing behavior]
+// input:  [Testing Library render helpers, todo interaction hooks/components, plugin runtime instance provider, and normalized todo runtime fixtures]
+// output: [Vitest coverage for local inline todo creation state, inline task-title deletion behavior, canonical todo-state derivation, compact time-chip editing, local sort and section-visibility persistence, and completed-task display behavior]
+// pos:    [Regression test file for todo runtime helpers and task-card interactions that protect per-composer inline drafts, empty-title delete behavior, canonical-to-UI derivation, stable shell reuse, persisted view preferences, persisted section visibility, and completion bucketing behavior]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,11 +8,13 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
-import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, type ReactNode } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PluginRuntimeInstanceProvider, resetPluginUiStateCacheForTests } from '@/plugin-system';
 import type { TodoSemesterStateRecord } from '@/services/api';
 import { TodoInlineCreateRow } from './components/TodoInlineCreateRow';
 import { useTodoSectionTasks } from './hooks/useTodoSectionTasks';
+import { useTodoSectionOpenMap } from './hooks/useTodoSectionOpenMap';
 import { useTodoViewPreferences } from './hooks/useTodoViewPreferences';
 import { PRIORITY_OPTIONS } from './shared';
 import type { TodoListModel } from './types';
@@ -350,8 +352,31 @@ describe('useTodoSectionTasks', () => {
 });
 
 describe('useTodoViewPreferences', () => {
-  it('persists sort preferences in localStorage for the current list scope', () => {
-    const { result, unmount } = renderHook(() => useTodoViewPreferences('semester:test'));
+  const wrapper = ({ children }: { children: ReactNode }) => {
+    return (
+      <PluginRuntimeInstanceProvider value={{
+        workspaceKind: 'semester',
+        workspaceId: 'semester-test',
+        slotKind: 'tab',
+        slotId: 'todo-tab',
+        pluginType: 'builtin-event-core.todo',
+      }}
+      >
+        {children}
+      </PluginRuntimeInstanceProvider>
+    );
+  };
+
+  beforeEach(() => {
+    resetPluginUiStateCacheForTests();
+    const storage = window.localStorage as Partial<Storage>;
+    if (typeof storage.clear === 'function') {
+      storage.clear();
+    }
+  });
+
+  it('persists sort preferences in plugin UI state for the current list scope', () => {
+    const { result, unmount } = renderHook(() => useTodoViewPreferences('semester:test'), { wrapper });
 
     act(() => {
       result.current.setSortMode('priority');
@@ -360,9 +385,48 @@ describe('useTodoViewPreferences', () => {
 
     unmount();
 
-    const restored = renderHook(() => useTodoViewPreferences('semester:test'));
+    const restored = renderHook(() => useTodoViewPreferences('semester:test'), { wrapper });
     expect(restored.result.current.sortMode).toBe('priority');
     expect(restored.result.current.sortDirection).toBe('desc');
+  });
+});
+
+describe('useTodoSectionOpenMap', () => {
+  const wrapper = ({ children }: { children: ReactNode }) => {
+    return (
+      <PluginRuntimeInstanceProvider value={{
+        workspaceKind: 'semester',
+        workspaceId: 'semester-test',
+        slotKind: 'tab',
+        slotId: 'todo-tab',
+        pluginType: 'builtin-event-core.todo',
+      }}
+      >
+        {children}
+      </PluginRuntimeInstanceProvider>
+    );
+  };
+
+  beforeEach(() => {
+    resetPluginUiStateCacheForTests();
+  });
+
+  it('persists open-state choices per list and section across remounts', () => {
+    const { result, unmount } = renderHook(() => useTodoSectionOpenMap(), { wrapper });
+
+    expect(result.current.isSectionOpen('list-a', 'section-a')).toBe(true);
+
+    act(() => {
+      result.current.setSectionOpen('list-a', 'section-a', false);
+    });
+
+    expect(result.current.isSectionOpen('list-a', 'section-a')).toBe(false);
+
+    unmount();
+
+    const remounted = renderHook(() => useTodoSectionOpenMap(), { wrapper });
+    expect(remounted.result.current.isSectionOpen('list-a', 'section-a')).toBe(false);
+    expect(remounted.result.current.isSectionOpen('list-b', 'section-a')).toBe(true);
   });
 });
 

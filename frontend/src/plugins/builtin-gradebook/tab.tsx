@@ -1,6 +1,6 @@
-// input:  [course gradebook APIs, course data update context, LMS assignment APIs, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers, builtin-gradebook shared GPA-percentage formatting, and shared business empty-state wrappers]
-// output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, LMS-assisted add-assessment flows, exact-weight warning stats, and tab definition]
-// pos:    [course-scoped gradebook surface for local assessment scores plus optional point-based assessment input, one-time LMS assignment import inside the add-assessment dialog using provider-normalized due dates, stable shadcn tabbed add-assessment UX, Calendar due-date sync, temporary what-if editing, exact-100 weight gating, and semantic empty-state feedback]
+// input:  [course gradebook APIs, course data update context, LMS assignment APIs, plugin UI-state hooks, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers, builtin-gradebook shared GPA-percentage formatting, and shared business empty-state wrappers]
+// output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, LMS-assisted add-assessment flows, exact-weight warning stats, persisted assessment-view and plan-mode UI state, and tab definition]
+// pos:    [course-scoped gradebook surface for local assessment scores plus optional point-based assessment input, one-time LMS assignment import inside the add-assessment dialog using provider-normalized due dates, stable shadcn tabbed add-assessment UX, Calendar due-date sync, instance-local assessment-view and plan-mode what-if UI state, exact-100 weight gating, and semantic empty-state feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -74,6 +74,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useCourseData } from '@/contexts/CourseDataContext';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
+import { usePluginUiState } from '@/plugin-system';
 import { publishTimetableScheduleChange } from '../builtin-event-core/shared/publishTimetableScheduleChange';
 import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
@@ -112,6 +113,17 @@ type AssessmentDraft = {
 
 const DEFAULT_SORT_KEY: GradebookSortKey = 'due_date';
 const DEFAULT_SORT_DIRECTION: GradebookSortDirection = 'none';
+
+interface GradebookPlanModeUiState {
+    planMode: boolean;
+    whatIfDrafts: Record<string, string>;
+}
+
+interface GradebookAssessmentViewUiState {
+    searchQuery: string;
+    sortKey: GradebookSortKey;
+    sortDirection: GradebookSortDirection;
+}
 
 const publishGradebookAssessmentCalendarRefresh = async (courseId: string, semesterId?: string) => {
     await publishTimetableScheduleChange({
@@ -488,19 +500,32 @@ const AssessmentDialog: React.FC<{
 
 const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const { course, updateCourse } = useCourseData();
+    const {
+        state: planModeState,
+        setState: setPlanModeUiState,
+    } = usePluginUiState<GradebookPlanModeUiState>('gradebook-plan-mode', () => ({
+        planMode: false,
+        whatIfDrafts: {},
+    }));
+    const {
+        state: assessmentViewState,
+        setState: setAssessmentViewState,
+    } = usePluginUiState<GradebookAssessmentViewUiState>('gradebook-assessment-view', () => ({
+        searchQuery: '',
+        sortKey: DEFAULT_SORT_KEY,
+        sortDirection: DEFAULT_SORT_DIRECTION,
+    }));
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
     const [isMutating, setIsMutating] = React.useState(false);
     const [assessmentDraft, setAssessmentDraft] = React.useState<AssessmentDraft | null>(null);
     const [assessmentDialogOpen, setAssessmentDialogOpen] = React.useState(false);
-    const [searchQuery, setSearchQuery] = React.useState('');
-    const [sortKey, setSortKey] = React.useState<GradebookSortKey>(DEFAULT_SORT_KEY);
-    const [sortDirection, setSortDirection] = React.useState<GradebookSortDirection>(DEFAULT_SORT_DIRECTION);
     const [scoreDrafts, setScoreDrafts] = React.useState<Record<string, string>>({});
-    const [planMode, setPlanMode] = React.useState(false);
     const [planModeIntroOpen, setPlanModeIntroOpen] = React.useState(false);
     const [planModeExitOpen, setPlanModeExitOpen] = React.useState(false);
     const [targetGpaDraft, setTargetGpaDraft] = React.useState('');
-    const [whatIfDrafts, setWhatIfDrafts] = React.useState<Record<string, string>>({});
+    const searchQuery = assessmentViewState.searchQuery;
+    const sortKey = assessmentViewState.sortKey;
+    const sortDirection = assessmentViewState.sortDirection;
     const deferredSearchQuery = React.useDeferredValue(searchQuery);
     const gradebookQuery = useCourseGradebookQuery(courseId);
     const gradebookMutation = useCourseGradebookMutation(courseId);
@@ -524,6 +549,15 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             gradebook?.assessments.map((assessment) => getGradebookAssessmentFingerprint(assessment)) ?? [],
         )
     ), [gradebook?.assessments]);
+    const planMode = planModeState.planMode;
+    const whatIfDrafts = planModeState.whatIfDrafts;
+
+    const updatePlanModeState = React.useCallback((patch: Partial<GradebookPlanModeUiState>) => {
+        setPlanModeUiState((currentState) => ({
+            ...currentState,
+            ...patch,
+        }));
+    }, [setPlanModeUiState]);
 
     React.useEffect(() => {
         if (gradebookQuery.error) {
@@ -544,6 +578,32 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             ]),
         ));
     }, [gradebook]);
+
+    React.useEffect(() => {
+        if (!gradebook) {
+            return;
+        }
+        const editableAssessmentIds = new Set(
+            gradebook.assessments
+                .filter((assessment) => assessment.score === null)
+                .map((assessment) => assessment.id),
+        );
+        setPlanModeUiState((currentState) => {
+            const nextWhatIfDrafts = Object.fromEntries(
+                Object.entries(currentState.whatIfDrafts).filter(([assessmentId]) => editableAssessmentIds.has(assessmentId)),
+            );
+            const shouldResetPlanMode = currentState.planMode && !hasCompleteGradebookWeight(gradebook);
+            const planModeStateChanged = shouldResetPlanMode
+                || Object.keys(nextWhatIfDrafts).length !== Object.keys(currentState.whatIfDrafts).length;
+            if (!planModeStateChanged) {
+                return currentState;
+            }
+            return {
+                planMode: shouldResetPlanMode ? false : currentState.planMode,
+                whatIfDrafts: nextWhatIfDrafts,
+            };
+        });
+    }, [gradebook, setPlanModeUiState]);
 
     const commitGradebook = React.useCallback(async (promise: Promise<CourseGradebook>) => {
         setIsMutating(true);
@@ -608,28 +668,36 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     }, [categoriesById, deferredSearchQuery, gradebook, sortDirection, sortKey]);
 
     const requestSort = React.useCallback((nextSortKey: GradebookSortKey) => {
-        if (sortKey === nextSortKey) {
-            setSortDirection((current) => current === 'none' ? 'asc' : current === 'asc' ? 'desc' : 'none');
+        if (assessmentViewState.sortKey === nextSortKey) {
+            setAssessmentViewState((current) => ({
+                ...current,
+                sortDirection: current.sortDirection === 'none' ? 'asc' : current.sortDirection === 'asc' ? 'desc' : 'none',
+            }));
             return;
         }
-        setSortKey(nextSortKey);
-        setSortDirection('asc');
-    }, [sortKey]);
+        setAssessmentViewState((current) => ({
+            ...current,
+            sortKey: nextSortKey,
+            sortDirection: 'asc',
+        }));
+    }, [assessmentViewState.sortKey, setAssessmentViewState]);
 
     const enterPlanMode = React.useCallback(() => {
         if (!hasCompleteWeight) {
             toast.error('Gradebook calculations stay disabled until total assessment weight is exactly 100%.');
             return;
         }
-        setPlanMode(true);
+        updatePlanModeState({ planMode: true });
         setPlanModeIntroOpen(false);
-    }, [hasCompleteWeight]);
+    }, [hasCompleteWeight, updatePlanModeState]);
 
     const exitPlanMode = React.useCallback(() => {
-        setPlanMode(false);
-        setWhatIfDrafts({});
+        updatePlanModeState({
+            planMode: false,
+            whatIfDrafts: {},
+        });
         setPlanModeExitOpen(false);
-    }, []);
+    }, [updatePlanModeState]);
 
     const handlePlanModeCheckedChange = React.useCallback((checked: boolean) => {
         if (checked) {
@@ -749,11 +817,13 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             return;
         }
         const suggestions = buildSuggestedWhatIfScores(gradebook, parsed);
-        setWhatIfDrafts(Object.fromEntries(
-            Object.entries(suggestions).map(([assessmentId, score]) => [assessmentId, String(score)]),
-        ));
+        updatePlanModeState({
+            whatIfDrafts: Object.fromEntries(
+                Object.entries(suggestions).map(([assessmentId, score]) => [assessmentId, String(score)]),
+            ),
+        });
         await handlePersistTargetGpa();
-    }, [gradebook, handlePersistTargetGpa, targetGpaDraft]);
+    }, [gradebook, handlePersistTargetGpa, targetGpaDraft, updatePlanModeState]);
 
     const handleSaveScore = React.useCallback(async (assessment: GradebookAssessment) => {
         if (!courseId || planMode) return;
@@ -938,7 +1008,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         )} />
                         <Input
                             value={searchQuery}
-                            onChange={(event) => setSearchQuery(event.target.value)}
+                            onChange={(event) => setAssessmentViewState((current) => ({
+                                ...current,
+                                searchQuery: event.target.value,
+                            }))}
                             placeholder="Search assessments..."
                             className={cn(
                                 'h-11 w-full rounded-md border-border/60 bg-background pl-9 pr-10',
@@ -949,7 +1022,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                             <button
                                 type="button"
                                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                                onClick={() => setSearchQuery('')}
+                                onClick={() => setAssessmentViewState((current) => ({
+                                    ...current,
+                                    searchQuery: '',
+                                }))}
                                 aria-label="Clear assessment search"
                             >
                                 <X className="h-3.5 w-3.5" />
@@ -1062,7 +1138,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => setSearchQuery('')}
+                                    onClick={() => setAssessmentViewState((current) => ({
+                                        ...current,
+                                        searchQuery: '',
+                                    }))}
                                 >
                                     Clear Search
                                 </Button>
@@ -1165,7 +1244,13 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                                         onChange={(event) => {
                                                             const nextValue = event.target.value;
                                                             if (planMode) {
-                                                                setWhatIfDrafts((current) => ({ ...current, [assessment.id]: nextValue }));
+                                                                setPlanModeUiState((currentState) => ({
+                                                                    ...currentState,
+                                                                    whatIfDrafts: {
+                                                                        ...currentState.whatIfDrafts,
+                                                                        [assessment.id]: nextValue,
+                                                                    },
+                                                                }));
                                                                 return;
                                                             }
                                                             setScoreDrafts((current) => ({ ...current, [assessment.id]: nextValue }));

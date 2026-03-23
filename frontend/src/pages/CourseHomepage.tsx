@@ -1,6 +1,6 @@
-// input:  [course context, parent Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
+// input:  [course context, parent Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -38,6 +38,8 @@ import {
     getTabComponentByType,
     getTabSettingsComponentByType,
     hasTabPluginForType,
+    PluginHostProvider,
+    PluginRuntimeInstanceProvider,
     PluginSettingsSectionRenderer,
     usePluginLoadStateVersion,
     usePluginSettingsRegistry,
@@ -45,7 +47,6 @@ import {
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
 import { publishTimetableScheduleChange } from '../plugins/builtin-event-core/shared/publishTimetableScheduleChange';
-import { BUILTIN_GRADEBOOK_TAB_TYPE, OPEN_GRADEBOOK_TAB_EVENT } from '../plugins/builtin-gradebook/shared';
 import {
     COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
     HOMEPAGE_DASHBOARD_TAB_TYPE,
@@ -359,15 +360,25 @@ const CourseHomepageContent: React.FC = () => {
         }
         return (
             <React.Suspense fallback={<PluginTabSkeleton />}>
-                <PluginContentFadeIn key={activeTab.id}>
-                    <TabComponent
-                        tabId={activeTab.id}
-                        settings={activeTab.settings || {}}
-                        semesterId={course.semester_id}
-                        courseId={course.id}
-                        updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
-                    />
-                </PluginContentFadeIn>
+                <PluginRuntimeInstanceProvider
+                    value={{
+                        workspaceKind: 'course',
+                        workspaceId: course.id,
+                        slotKind: 'tab',
+                        slotId: activeTab.id,
+                        pluginType: activeTab.type,
+                    }}
+                >
+                    <PluginContentFadeIn key={activeTab.id}>
+                        <TabComponent
+                            tabId={activeTab.id}
+                            settings={activeTab.settings || {}}
+                            semesterId={course.semester_id}
+                            courseId={course.id}
+                            updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
+                        />
+                    </PluginContentFadeIn>
+                </PluginRuntimeInstanceProvider>
             </React.Suspense>
         );
     }, [activeTabId, course, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading, activeTabLoadState.status]);
@@ -386,20 +397,6 @@ const CourseHomepageContent: React.FC = () => {
             setActiveTabId(tabBarItems[0].id);
         }
     }, [activeTabId, areBuiltinTabsReady, tabBarItems]);
-
-    useEffect(() => {
-        const handleOpenGradebookTab = () => {
-            const gradebookTab = visibleTabs.find((tab) => tab.type === BUILTIN_GRADEBOOK_TAB_TYPE);
-            if (gradebookTab) {
-                setActiveTabId(gradebookTab.id);
-            }
-        };
-
-        window.addEventListener(OPEN_GRADEBOOK_TAB_EVENT, handleOpenGradebookTab);
-        return () => {
-            window.removeEventListener(OPEN_GRADEBOOK_TAB_EVENT, handleOpenGradebookTab);
-        };
-    }, [visibleTabs]);
 
     const tabInstanceSettingsSections = useMemo(() => {
         const sections = visibleTabs
@@ -674,63 +671,65 @@ const CourseHomepageContent: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <BuiltinTabProvider value={builtinTabContext}>
-                <WorkspaceNav
-                    title={course?.name || 'Course'}
-                    isLoading={isLoading || !course}
-                    tabsLoading={!areBuiltinTabsReady}
-                    tabs={(
-                        <Tabs
-                            items={tabBarItems}
-                            activeId={activeTabId}
-                            onSelect={setActiveTabId}
-                            onRemove={handleRemoveTab}
-                            onReorder={handleReorderTabs}
-                            onAdd={openAddTabModal}
-                        />
-                    )}
-                />
+            <PluginHostProvider visibleTabs={visibleTabs} setActiveTabId={setActiveTabId}>
+                <BuiltinTabProvider value={builtinTabContext}>
+                    <WorkspaceNav
+                        title={course?.name || 'Course'}
+                        isLoading={isLoading || !course}
+                        tabsLoading={!areBuiltinTabsReady}
+                        tabs={(
+                            <Tabs
+                                items={tabBarItems}
+                                activeId={activeTabId}
+                                onSelect={setActiveTabId}
+                                onRemove={handleRemoveTab}
+                                onReorder={handleReorderTabs}
+                                onAdd={openAddTabModal}
+                            />
+                        )}
+                    />
 
-                <Container className="py-5 sm:py-6">
-                {isLoading || !course || !course.id ? (  /* Check course.id since useDashboardWidgets needs it */
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {[1, 2, 3, 4, 5, 6].map(i => (
-                                <CardSkeleton key={i} className="h-[240px]" />
-                            ))}
-                        </div>
-                ) : (
-                            dashboardContent
-                )}
-                </Container>
-                {
-                    course && (
-                        <>
-                            <AddWidgetModal
-                                isOpen={isAddWidgetOpen}
-                                onClose={() => setIsAddWidgetOpen(false)}
-                                onAdd={handleAddWidget}
-                                context="course"
-                                widgets={widgets}
-                            />
-                            <AddTabModal
-                                isOpen={isAddTabOpen}
-                                onClose={() => setIsAddTabOpen(false)}
-                                onAdd={handleAddTab}
-                                context="course"
-                                tabs={tabs}
-                            />
-                            <WidgetSettingsModal
-                                isOpen={!!editingWidget}
-                                onClose={() => setEditingWidget(null)}
-                                widget={editingWidget}
-                                onSave={handleUpdateWidget}
-                                courseId={course.id}
-                                semesterId={course.semester_id}
-                            />
-                        </>
-                    )
-                }
-            </BuiltinTabProvider>
+                    <Container className="py-5 sm:py-6">
+                    {isLoading || !course || !course.id ? (  /* Check course.id since useDashboardWidgets needs it */
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <CardSkeleton key={i} className="h-[240px]" />
+                                ))}
+                            </div>
+                    ) : (
+                                dashboardContent
+                    )}
+                    </Container>
+                    {
+                        course && (
+                            <>
+                                <AddWidgetModal
+                                    isOpen={isAddWidgetOpen}
+                                    onClose={() => setIsAddWidgetOpen(false)}
+                                    onAdd={handleAddWidget}
+                                    context="course"
+                                    widgets={widgets}
+                                />
+                                <AddTabModal
+                                    isOpen={isAddTabOpen}
+                                    onClose={() => setIsAddTabOpen(false)}
+                                    onAdd={handleAddTab}
+                                    context="course"
+                                    tabs={tabs}
+                                />
+                                <WidgetSettingsModal
+                                    isOpen={!!editingWidget}
+                                    onClose={() => setEditingWidget(null)}
+                                    widget={editingWidget}
+                                    onSave={handleUpdateWidget}
+                                    courseId={course.id}
+                                    semesterId={course.semester_id}
+                                />
+                            </>
+                        )
+                    }
+                </BuiltinTabProvider>
+            </PluginHostProvider>
         </Layout >
     );
 };

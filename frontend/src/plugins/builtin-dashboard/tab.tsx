@@ -1,6 +1,6 @@
-// input:  [builtin tab context state, optional dashboard overview nodes, dashboard widget callbacks (including unavailable-widget delete routing plus local layout sync + commit persistence), motion + icon dependencies, shared button variant classes]
+// input:  [builtin tab context state, optional dashboard overview nodes, dashboard widget callbacks (including unavailable-widget delete routing plus local layout sync + commit persistence), plugin UI-state hook, motion + icon dependencies, and shared button variant classes]
 // output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` plugin metadata]
-// pos:    [Built-in dashboard tab UI entry handling dashboard overview rendering, edit mode state, theme-adaptive floating action controls, and split layout callback wiring]
+// pos:    [Built-in dashboard tab UI entry handling dashboard overview rendering, plugin-local edit-mode UI-state persistence, theme-adaptive floating action controls, and split layout callback wiring]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,6 +10,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import { usePluginUiState } from '@/plugin-system';
 import { CardSkeleton } from '../../components/skeletons';
 import { DashboardGrid } from '../../components/widgets/DashboardGrid';
 import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
@@ -28,60 +29,14 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
     const pencilIconClassName =
         "h-5 w-5 shrink-0 text-foreground/80";
 
-    // Use a unique key for each dashboard (semester or course)
-    const dashboardKey = dashboard.semesterId || dashboard.courseId || 'default';
-    const editModeStorageKey = `dashboard-edit-mode-${dashboardKey}`;
-    const legacyLockedStorageKey = `dashboard-locked-${dashboardKey}`;
+    const {
+        state: isEditMode,
+        setState: setIsEditMode,
+    } = usePluginUiState<boolean>('dashboard-edit-mode', true);
 
-    // Initialize edit mode state from localStorage.
-    // Falls back to the legacy "locked" key for backward compatibility.
-    const [isEditMode, setIsEditMode] = React.useState(() => {
-        try {
-            const storedEditMode = localStorage.getItem(editModeStorageKey);
-            if (storedEditMode !== null) {
-                return storedEditMode === 'true';
-            }
-            const storedLocked = localStorage.getItem(legacyLockedStorageKey);
-            if (storedLocked !== null) {
-                return storedLocked !== 'true';
-            }
-            return true;
-        } catch {
-            return true;
-        }
-    });
-
-    // Sync state when dashboard changes (navigating between dashboards)
-    React.useEffect(() => {
-        try {
-            const storedEditMode = localStorage.getItem(editModeStorageKey);
-            if (storedEditMode !== null) {
-                setIsEditMode(storedEditMode === 'true');
-                return;
-            }
-            const storedLocked = localStorage.getItem(legacyLockedStorageKey);
-            if (storedLocked !== null) {
-                setIsEditMode(storedLocked !== 'true');
-                return;
-            }
-            setIsEditMode(true);
-        } catch {
-            setIsEditMode(true);
-        }
-    }, [editModeStorageKey, legacyLockedStorageKey]);
-
-    // Persist edit mode state to localStorage
     const toggleEditMode = React.useCallback(() => {
-        setIsEditMode(prev => {
-            const newValue = !prev;
-            try {
-                localStorage.setItem(editModeStorageKey, String(newValue));
-            } catch {
-                // Ignore storage errors
-            }
-            return newValue;
-        });
-    }, [editModeStorageKey]);
+        setIsEditMode((currentValue) => !currentValue);
+    }, [setIsEditMode]);
 
     if (isLoading) {
         return (

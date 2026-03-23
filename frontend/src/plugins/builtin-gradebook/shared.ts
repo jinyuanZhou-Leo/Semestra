@@ -1,6 +1,6 @@
-// input:  [gradebook API contracts, date-fns helpers, and builtin-gradebook table view preferences]
-// output: [builtin-gradebook constants, exact-weight-gated forecast/plan calculators, shared formatters, and stable category badge color helpers]
-// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, and settings surface, including exact-100 total-weight calculation gating]
+// input:  [gradebook API contracts, date-fns helpers, builtin-gradebook table view preferences, and shared badge-color utilities]
+// output: [builtin-gradebook plugin constants, exact-weight-gated forecast/plan calculators, shared formatters, and stable category badge color helpers]
+// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,8 +22,6 @@ import { getHexBadgeStyle } from '@/utils/courseCategoryBadge';
 export const BUILTIN_GRADEBOOK_PLUGIN_ID = 'builtin-gradebook';
 export const BUILTIN_GRADEBOOK_TAB_TYPE = 'builtin-gradebook';
 export const BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE = 'builtin-gradebook-summary';
-export const GRADEBOOK_OPEN_TAB_EVENT = 'semestra:open-course-gradebook-tab';
-export const OPEN_GRADEBOOK_TAB_EVENT = GRADEBOOK_OPEN_TAB_EVENT;
 
 export const formatGradebookGpaPercentage = (value: number): string => {
     if (!Number.isFinite(value)) {
@@ -40,11 +38,6 @@ export interface GradebookViewSettings {
     sortKey: GradebookSortKey;
     sortDirection: GradebookSortDirection;
     filter: GradebookFilterKey;
-}
-
-export interface OpenGradebookTabDetail {
-    courseId?: string;
-    tabType: string;
 }
 
 export interface GradebookCategoryStats {
