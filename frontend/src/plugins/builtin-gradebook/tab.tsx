@@ -1,6 +1,6 @@
-// input:  [course gradebook APIs, course data update context, LMS assignment APIs, plugin UI-state hooks, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers, builtin-gradebook shared GPA-percentage formatting, and shared business empty-state wrappers]
-// output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, LMS-assisted add-assessment flows, exact-weight warning stats, persisted assessment-view and plan-mode UI state, and tab definition]
-// pos:    [course-scoped gradebook surface for local assessment scores plus optional point-based assessment input, one-time LMS assignment import inside the add-assessment dialog using provider-normalized due dates, stable shadcn tabbed add-assessment UX, Calendar due-date sync, instance-local assessment-view and plan-mode what-if UI state, exact-100 weight gating, and semantic empty-state feedback]
+// input:  [course gradebook APIs, course data update context, LMS assignment APIs, plugin UI-state hooks, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers plus GPA-threshold resolution helpers, and shared business empty-state wrappers]
+// output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, LMS-assisted add-assessment flows, exact-weight warning stats, persisted assessment-sort and plan-mode UI state, plan target-format switching between GPA and GPA Percentage, and tab definition]
+// pos:    [course-scoped gradebook surface for local assessment scores plus optional point-based assessment input, one-time LMS assignment import inside the add-assessment dialog using provider-normalized due dates, stable shadcn tabbed add-assessment UX, Calendar due-date sync, instance-local assessment-sort and plan-mode what-if UI state, exact-100 weight gating, animated mode-specific toolbar controls, and semantic empty-state feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,7 +11,7 @@
 import React from 'react';
 import { format, isValid, parseISO } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, Check, FlaskConical, GraduationCap, Pencil, Percent, Plus, Search, Sparkles, Target, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, Check, FlaskConical, GraduationCap, Pencil, Percent, Plus, Sparkles, Target, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
@@ -81,6 +81,7 @@ import {
     buildComputedGradebookSummary,
     buildPlanModeResult,
     buildSuggestedWhatIfScores,
+    calculateGradebookGpa,
     hasCompleteGradebookWeight,
     formatGradebookDate,
     formatGradebookDateInput,
@@ -92,6 +93,7 @@ import {
     getCategoryById,
     getRelativeDueText,
     isAssessmentOverdue,
+    resolveTargetPercentageForGpa,
     sortAssessments,
     type GradebookSortDirection,
     type GradebookSortKey,
@@ -113,14 +115,15 @@ type AssessmentDraft = {
 
 const DEFAULT_SORT_KEY: GradebookSortKey = 'due_date';
 const DEFAULT_SORT_DIRECTION: GradebookSortDirection = 'none';
+type TargetInputMode = 'gpa' | 'percentage';
 
 interface GradebookPlanModeUiState {
     planMode: boolean;
     whatIfDrafts: Record<string, string>;
+    targetInputMode: TargetInputMode;
 }
 
 interface GradebookAssessmentViewUiState {
-    searchQuery: string;
     sortKey: GradebookSortKey;
     sortDirection: GradebookSortDirection;
 }
@@ -177,6 +180,32 @@ const createAssessmentDraft = (
     points_possible: assessment?.points_possible === null || assessment?.points_possible === undefined ? '' : String(assessment.points_possible),
     selected_lms_assignment_ids: [],
 });
+
+const formatTargetDraftValue = (
+    gradebook: CourseGradebook,
+    inputMode: TargetInputMode,
+    targetGpa: number = gradebook.target_gpa,
+) => {
+    if (inputMode === 'percentage') {
+        const targetPercentage = resolveTargetPercentageForGpa(targetGpa, gradebook.scaling_table);
+        return targetPercentage === null ? '' : String(targetPercentage);
+    }
+    return String(targetGpa);
+};
+
+const parseTargetDraftValue = (
+    gradebook: CourseGradebook,
+    draftValue: string,
+    inputMode: TargetInputMode,
+) => {
+    const parsed = Number(draftValue);
+    if (!Number.isFinite(parsed)) return null;
+    if (inputMode === 'percentage') {
+        if (parsed < 0 || parsed > 100) return null;
+        return calculateGradebookGpa(parsed, gradebook.scaling_table);
+    }
+    return parsed;
+};
 
 
 const SortableHead: React.FC<{
@@ -506,12 +535,12 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     } = usePluginUiState<GradebookPlanModeUiState>('gradebook-plan-mode', () => ({
         planMode: false,
         whatIfDrafts: {},
+        targetInputMode: 'gpa',
     }));
     const {
         state: assessmentViewState,
         setState: setAssessmentViewState,
     } = usePluginUiState<GradebookAssessmentViewUiState>('gradebook-assessment-view', () => ({
-        searchQuery: '',
         sortKey: DEFAULT_SORT_KEY,
         sortDirection: DEFAULT_SORT_DIRECTION,
     }));
@@ -523,10 +552,8 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const [planModeIntroOpen, setPlanModeIntroOpen] = React.useState(false);
     const [planModeExitOpen, setPlanModeExitOpen] = React.useState(false);
     const [targetGpaDraft, setTargetGpaDraft] = React.useState('');
-    const searchQuery = assessmentViewState.searchQuery;
     const sortKey = assessmentViewState.sortKey;
     const sortDirection = assessmentViewState.sortDirection;
-    const deferredSearchQuery = React.useDeferredValue(searchQuery);
     const gradebookQuery = useCourseGradebookQuery(courseId);
     const gradebookMutation = useCourseGradebookMutation(courseId);
     const gradebook = gradebookQuery.data ?? null;
@@ -551,6 +578,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     ), [gradebook?.assessments]);
     const planMode = planModeState.planMode;
     const whatIfDrafts = planModeState.whatIfDrafts;
+    const targetInputMode = planModeState.targetInputMode;
 
     const updatePlanModeState = React.useCallback((patch: Partial<GradebookPlanModeUiState>) => {
         setPlanModeUiState((currentState) => ({
@@ -570,14 +598,14 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
     React.useEffect(() => {
         if (!gradebook) return;
-        setTargetGpaDraft(String(gradebook.target_gpa));
+        setTargetGpaDraft(formatTargetDraftValue(gradebook, targetInputMode));
         setScoreDrafts(Object.fromEntries(
             gradebook.assessments.map((assessment) => [
                 assessment.id,
                 assessment.score === null || assessment.score === undefined ? '' : String(assessment.score),
             ]),
         ));
-    }, [gradebook]);
+    }, [gradebook, targetInputMode]);
 
     React.useEffect(() => {
         if (!gradebook) {
@@ -601,6 +629,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             return {
                 planMode: shouldResetPlanMode ? false : currentState.planMode,
                 whatIfDrafts: nextWhatIfDrafts,
+                targetInputMode: currentState.targetInputMode,
             };
         });
     }, [gradebook, setPlanModeUiState]);
@@ -650,22 +679,15 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
     const whatIfResult = React.useMemo(() => {
         if (!gradebook || !planMode || Object.keys(parsedWhatIfScores).length === 0) return null;
         if (!hasCompleteGradebookWeight(gradebook)) return null;
-        const parsed = Number(targetGpaDraft);
-        if (!Number.isFinite(parsed)) return null;
+        const parsed = parseTargetDraftValue(gradebook, targetGpaDraft, targetInputMode);
+        if (parsed === null) return null;
         return buildPlanModeResult(gradebook, parsed, parsedWhatIfScores);
-    }, [gradebook, parsedWhatIfScores, planMode, targetGpaDraft]);
+    }, [gradebook, parsedWhatIfScores, planMode, targetGpaDraft, targetInputMode]);
 
     const filteredAssessments = React.useMemo(() => {
         if (!gradebook) return [];
-        const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
-        const filtered = gradebook.assessments.filter((assessment) => {
-            const categoryName = categoriesById.get(assessment.category_id ?? '')?.name.toLowerCase() ?? '';
-            return !normalizedQuery
-                || assessment.title.toLowerCase().includes(normalizedQuery)
-                || categoryName.includes(normalizedQuery);
-        });
-        return sortAssessments(filtered, categoriesById, sortKey, sortDirection);
-    }, [categoriesById, deferredSearchQuery, gradebook, sortDirection, sortKey]);
+        return sortAssessments(gradebook.assessments, categoriesById, sortKey, sortDirection);
+    }, [categoriesById, gradebook, sortDirection, sortKey]);
 
     const requestSort = React.useCallback((nextSortKey: GradebookSortKey) => {
         if (assessmentViewState.sortKey === nextSortKey) {
@@ -795,15 +817,18 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
     const handlePersistTargetGpa = React.useCallback(async () => {
         if (!courseId || !gradebook) return;
-        const parsed = Number(targetGpaDraft);
-        if (!Number.isFinite(parsed)) {
-            toast.error('Enter a valid GPA target.');
-            setTargetGpaDraft(String(gradebook.target_gpa));
+        if (!targetGpaDraft.trim()) {
+            return;
+        }
+        const parsed = parseTargetDraftValue(gradebook, targetGpaDraft, targetInputMode);
+        if (parsed === null) {
+            toast.error(targetInputMode === 'percentage' ? 'Enter a valid GPA percentage target.' : 'Enter a valid GPA target.');
+            setTargetGpaDraft(formatTargetDraftValue(gradebook, targetInputMode));
             return;
         }
         if (parsed === gradebook.target_gpa) return;
         await commitGradebook(api.updateCourseGradebookPreferences(courseId, { target_gpa: parsed }));
-    }, [commitGradebook, courseId, gradebook, targetGpaDraft]);
+    }, [commitGradebook, courseId, gradebook, targetGpaDraft, targetInputMode]);
 
     const handleRunPlan = React.useCallback(async () => {
         if (!gradebook) return;
@@ -811,9 +836,17 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             toast.error('Gradebook calculations stay disabled until total assessment weight is exactly 100%.');
             return;
         }
-        const parsed = Number(targetGpaDraft);
-        if (!Number.isFinite(parsed)) {
-            toast.error('Enter a valid GPA target before running the plan.');
+        if (!targetGpaDraft.trim()) {
+            toast.error(targetInputMode === 'percentage'
+                ? 'Enter a GPA percentage target before running Auto-fill.'
+                : 'Enter a GPA target before running Auto-fill.');
+            return;
+        }
+        const parsed = parseTargetDraftValue(gradebook, targetGpaDraft, targetInputMode);
+        if (parsed === null) {
+            toast.error(targetInputMode === 'percentage'
+                ? 'Enter a valid GPA percentage target before running the plan.'
+                : 'Enter a valid GPA target before running the plan.');
             return;
         }
         const suggestions = buildSuggestedWhatIfScores(gradebook, parsed);
@@ -823,7 +856,15 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             ),
         });
         await handlePersistTargetGpa();
-    }, [gradebook, handlePersistTargetGpa, targetGpaDraft, updatePlanModeState]);
+    }, [gradebook, handlePersistTargetGpa, targetGpaDraft, targetInputMode, updatePlanModeState]);
+
+    const handleToggleTargetInputMode = React.useCallback(() => {
+        if (!gradebook) return;
+        const nextInputMode: TargetInputMode = targetInputMode === 'gpa' ? 'percentage' : 'gpa';
+        const parsedTargetGpa = parseTargetDraftValue(gradebook, targetGpaDraft, targetInputMode) ?? gradebook.target_gpa;
+        updatePlanModeState({ targetInputMode: nextInputMode });
+        setTargetGpaDraft(formatTargetDraftValue(gradebook, nextInputMode, parsedTargetGpa));
+    }, [gradebook, targetGpaDraft, targetInputMode, updatePlanModeState]);
 
     const handleSaveScore = React.useCallback(async (assessment: GradebookAssessment) => {
         if (!courseId || planMode) return;
@@ -871,17 +912,11 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             />
         );
     }
-
-
-    const hasActiveAssessmentFilters = deferredSearchQuery.trim().length > 0;
     const canManageAssessments = !planMode;
     const planModeSwitchLabel = 'Plan Mode';
     const toolbarSecondarySlotClassName = cn(
-        'flex h-11 shrink-0 items-center transition-all duration-300 relative z-10',
-        planMode ? 'flex-1 min-w-[130px]' : 'w-0 flex-none overflow-hidden opacity-0 p-0 m-0 border-0'
-    );
-    const toolbarPrimarySlotClassName = cn(
-        'flex h-11 flex-1 min-w-[200px] shrink-0 items-center justify-end transition-all duration-300 relative overflow-hidden z-10'
+        'flex min-w-0 shrink items-center overflow-hidden transition-[max-width,opacity] duration-200',
+        planMode ? 'max-w-[300px] opacity-100' : 'pointer-events-none max-w-0 opacity-0',
     );
 
     const showWeightMismatchState = Boolean(course && summary && !summary.has_complete_weight);
@@ -1000,45 +1035,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
             <section className="space-y-3">
                 <h2 className="text-lg font-semibold tracking-tight">Assessments</h2>
 
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="relative w-full lg:max-w-xl min-w-0">
-                        <Search className={cn(
-                            'pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2',
-                            planMode ? 'text-amber-600/80 dark:text-amber-300/80' : 'text-muted-foreground',
-                        )} />
-                        <Input
-                            value={searchQuery}
-                            onChange={(event) => setAssessmentViewState((current) => ({
-                                ...current,
-                                searchQuery: event.target.value,
-                            }))}
-                            placeholder="Search assessments..."
-                            className={cn(
-                                'h-11 w-full rounded-md border-border/60 bg-background pl-9 pr-10',
-                                planMode && 'border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/30',
-                            )}
-                        />
-                        {searchQuery ? (
-                            <button
-                                type="button"
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                                onClick={() => setAssessmentViewState((current) => ({
-                                    ...current,
-                                    searchQuery: '',
-                                }))}
-                                aria-label="Clear assessment search"
-                            >
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        ) : null}
-                    </div>
-
-                    <div className={cn(
-                        "flex w-full lg:flex-1 items-center justify-end gap-2 lg:gap-3",
-                        planMode ? "flex-wrap lg:flex-nowrap" : "flex-nowrap"
-                    )}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                         <div className={cn(
-                            'flex h-11 flex-1 min-w-[140px] shrink-0 select-none items-center justify-between gap-2 lg:gap-3 rounded-md border px-3',
+                            'flex h-11 w-full shrink-0 select-none items-center justify-between gap-2 rounded-md border px-3 sm:w-[184px]',
                             planMode ? 'border-amber-400/50 bg-amber-100/50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100' : 'border-border/60 bg-background/80',
                         )}>
                             <div className="flex items-center gap-2 text-sm font-medium tracking-tight whitespace-nowrap">
@@ -1055,17 +1055,15 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         </div>
 
                         <div className={toolbarSecondarySlotClassName}>
-                            <div className={cn(
-                                "absolute left-0 top-0 flex h-11 w-full items-center gap-1.5 sm:gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-2 sm:px-3 transition-all duration-300 dark:border-amber-500/40 dark:bg-amber-950/20",
-                                planMode ? "opacity-100 visible z-10 translate-x-0" : "opacity-0 invisible -z-10 -translate-x-2"
-                            )}>
+                            <div className="flex h-11 min-w-[188px] flex-1 items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-3 dark:border-amber-500/40 dark:bg-amber-950/20">
                                 <Target className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
-                                <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground whitespace-nowrap">Target GPA</Label>
+                                <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground whitespace-nowrap">Target</Label>
                                 <Input
                                     id="gradebook-target-gpa"
                                     className="h-8 flex-1 min-w-0 border-0 bg-transparent px-0 text-right tabular-nums shadow-none focus-visible:ring-0 text-amber-950 dark:text-amber-50 font-medium"
                                     value={targetGpaDraft}
                                     inputMode="decimal"
+                                    placeholder={targetInputMode === 'gpa' ? '3.70' : '85.0'}
                                     onChange={(event) => setTargetGpaDraft(event.target.value)}
                                     onBlur={() => void handlePersistTargetGpa()}
                                     onKeyDown={(event) => {
@@ -1077,17 +1075,31 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     disabled={!planMode}
                                     tabIndex={planMode ? 0 : -1}
                                 />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 shrink-0 rounded-md text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-950/35"
+                                    onClick={handleToggleTargetInputMode}
+                                    disabled={!planMode}
+                                    tabIndex={planMode ? 0 : -1}
+                                    aria-label={targetInputMode === 'gpa' ? 'Switch target input to GPA Percentage' : 'Switch target input to GPA'}
+                                >
+                                    {targetInputMode === 'gpa' ? (
+                                        <Percent className="h-3.5 w-3.5 shrink-0" />
+                                    ) : (
+                                        <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+                                    )}
+                                </Button>
                             </div>
-                            <div aria-hidden="true" className={cn(
-                                "absolute inset-0 h-11 w-full rounded-md border border-transparent transition-all duration-300",
-                                planMode ? "opacity-0 invisible" : "opacity-100 visible"
-                            )} />
                         </div>
+                    </div>
 
-                        <div className={toolbarPrimarySlotClassName}>
+                    <div className="relative h-11 w-full shrink-0 sm:w-[188px]">
+                        <div className="absolute inset-0">
                             <div className={cn(
                                 "absolute inset-0 transition-all duration-300",
-                                planMode ? "opacity-0 invisible translate-y-2" : "opacity-100 visible translate-y-0"
+                                planMode ? "opacity-0 invisible" : "opacity-100 visible"
                             )}>
                                 <Button
                                     type="button"
@@ -1105,7 +1117,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 
                             <div className={cn(
                                 "absolute inset-0 transition-all duration-300",
-                                planMode ? "opacity-100 visible translate-y-0" : "opacity-0 invisible -translate-y-2"
+                                planMode ? "opacity-100 visible" : "opacity-0 invisible"
                             )}>
                                 <Button
                                     type="button"
@@ -1124,41 +1136,13 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                 <div className="min-h-[400px] rounded-md border bg-card flex flex-col overflow-hidden">
                     {filteredAssessments.length === 0 ? (
                         <AppEmptyState
-                            scenario={hasActiveAssessmentFilters ? 'no-results' : 'create'}
+                            scenario="create"
                             size="section"
                             surface="inherit"
                             className="min-h-[400px] rounded-md"
-                            title={hasActiveAssessmentFilters ? 'No assessments found' : 'No assessments added yet'}
-                            description={
-                                hasActiveAssessmentFilters
-                                    ? 'Try clearing the search to see more assessments.'
-                                    : 'Add your first assessment to start tracking this course.'
-                            }
-                            primaryAction={hasActiveAssessmentFilters ? (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setAssessmentViewState((current) => ({
-                                        ...current,
-                                        searchQuery: '',
-                                    }))}
-                                >
-                                    Clear Search
-                                </Button>
-                            ) : !planMode ? (
-                                <Button
-                                    type="button"
-                                    disabled={isMutating}
-                                    onClick={() => {
-                                        setAssessmentDraft(createAssessmentDraft(gradebook));
-                                        setAssessmentDialogOpen(true);
-                                    }}
-                                >
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Add Assessment
-                                </Button>
-                            ) : undefined}
-                            secondaryAction={hasActiveAssessmentFilters && !planMode ? (
+                            title="No assessments added yet"
+                            description="Add your first assessment to start tracking this course."
+                            primaryAction={!planMode ? (
                                 <Button
                                     type="button"
                                     disabled={isMutating}
@@ -1365,7 +1349,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                     <ul className="space-y-1.5 text-sm text-muted-foreground list-disc pl-4">
                         <li><strong>Graded</strong> assessments stay locked to keep results accurate.</li>
                         <li><strong>Add / Edit / Delete</strong> is disabled until you leave Plan Mode.</li>
-                        <li>Set a <strong>Target GPA</strong> and tap <strong>Auto-fill</strong>.</li>
+                        <li>Set a target in <strong>GPA</strong> or <strong>GPA Percentage</strong>, then tap <strong>Auto-fill</strong>.</li>
                     </ul>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setPlanModeIntroOpen(false)}>

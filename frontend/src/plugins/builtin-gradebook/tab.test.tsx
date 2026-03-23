@@ -1,6 +1,6 @@
 // input:  [Vitest + Testing Library, builtin-gradebook tab runtime, plugin runtime scope, mocked course and gradebook hooks, and dialog-backed plan-mode UI]
-// output: [regression tests validating persisted gradebook plan-mode, What If UI-state, and assessment view preferences restoration]
-// pos:    [plugin-level regression tests for builtin-gradebook tab-local UI-state persistence]
+// output: [regression tests validating persisted gradebook plan-mode, What If UI-state, assessment sort restoration, and target input-mode switching]
+// pos:    [plugin-level regression tests for builtin-gradebook tab-local UI-state persistence and toolbar target-format behavior]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'sonner';
 import { DialogProvider } from '@/contexts/DialogContext';
 import * as courseDataContext from '@/contexts/CourseDataContext';
 import * as courseGradebookQuery from '@/hooks/useCourseGradebookQuery';
@@ -23,6 +24,13 @@ vi.mock('@/contexts/CourseDataContext', () => ({
 vi.mock('@/hooks/useCourseGradebookQuery', () => ({
     useCourseGradebookQuery: vi.fn(),
     useCourseGradebookMutation: vi.fn(),
+}));
+
+vi.mock('sonner', () => ({
+    toast: {
+        error: vi.fn(),
+        success: vi.fn(),
+    },
 }));
 
 const categories: GradebookAssessmentCategory[] = [
@@ -196,7 +204,7 @@ describe('BuiltinGradebookTab', () => {
         expect(screen.getAllByPlaceholderText('What if')).toHaveLength(2);
     });
 
-    it('restores persisted assessment search and sort preferences after remount', async () => {
+    it('restores persisted assessment sort preferences after remount', async () => {
         const sortedGradebook = buildGradebook({
             assessments: [
                 {
@@ -221,13 +229,11 @@ describe('BuiltinGradebookTab', () => {
 
         const firstRender = renderGradebookTab();
 
-        fireEvent.change(screen.getByPlaceholderText('Search assessments...'), { target: { value: 'essay' } });
         fireEvent.click(screen.getByText('Assessment'));
 
         await waitFor(() => {
             const assessmentRows = screen.getAllByRole('row').slice(1);
             expect(assessmentRows[0]).toHaveTextContent('Alpha Essay');
-            expect(screen.getByDisplayValue('essay')).toBeInTheDocument();
         });
 
         firstRender.unmount();
@@ -237,7 +243,38 @@ describe('BuiltinGradebookTab', () => {
         await waitFor(() => {
             const assessmentRows = screen.getAllByRole('row').slice(1);
             expect(assessmentRows[0]).toHaveTextContent('Alpha Essay');
-            expect(screen.getByDisplayValue('essay')).toBeInTheDocument();
         });
+    });
+
+    it('switches the plan target input between GPA and GPA Percentage', async () => {
+        renderGradebookTab();
+
+        fireEvent.click(screen.getByLabelText('Toggle Plan Mode'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Enter Plan Mode' }));
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('Switch target input to GPA Percentage')).toBeInTheDocument();
+            expect(screen.getByDisplayValue('3.7')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByLabelText('Switch target input to GPA Percentage'));
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('Switch target input to GPA')).toBeInTheDocument();
+            expect(screen.getByDisplayValue('80')).toBeInTheDocument();
+        });
+    });
+
+    it('prompts when auto-fill is requested with an empty target', async () => {
+        renderGradebookTab();
+
+        fireEvent.click(screen.getByLabelText('Toggle Plan Mode'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Enter Plan Mode' }));
+
+        const targetInput = await screen.findByLabelText('Target');
+        fireEvent.change(targetInput, { target: { value: '' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Auto-fill' }));
+
+        expect(toast.error).toHaveBeenCalledWith('Enter a GPA target before running Auto-fill.');
     });
 });

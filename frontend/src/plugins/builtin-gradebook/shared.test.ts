@@ -1,6 +1,6 @@
 // input:  [Vitest assertions, builtin-gradebook shared helpers, and simplified gradebook fixtures]
-// output: [test suite validating builtin-gradebook forecast summaries, exact-weight gating, plan-mode recommendations, and stable badge color fallbacks]
-// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, exact-100 weight validation, and category badge helpers]
+// output: [test suite validating builtin-gradebook forecast summaries, exact-weight gating, plan-mode recommendations, GPA-threshold resolution, and stable badge color fallbacks]
+// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, exact-100 weight validation, band-aware GPA scale parsing, and category badge helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,6 +11,7 @@ import {
     buildComputedGradebookSummary,
     buildPlanModeResult,
     buildSuggestedWhatIfScores,
+    calculateGradebookGpa,
     formatGradebookDate,
     getCategoryBadgeClassName,
     getCategoryBadgeStyle,
@@ -79,6 +80,27 @@ describe('builtin-gradebook shared helpers', () => {
         expect(resolveTargetPercentageForGpa(4, fixture.scaling_table)).toBe(90);
     });
 
+    it('maps numeric scaling tables by the matched band minimum', () => {
+        expect(calculateGradebookGpa(86, {
+            '90': 4.0,
+            '85': 3.9,
+            '80': 3.7,
+            '75': 3.3,
+        })).toBe(3.9);
+        expect(calculateGradebookGpa(80, {
+            '90': 4.0,
+            '85': 3.9,
+            '80': 3.7,
+            '75': 3.3,
+        })).toBe(3.7);
+        expect(resolveTargetPercentageForGpa(3.7, {
+            '90': 4.0,
+            '85': 3.9,
+            '80': 3.7,
+            '75': 3.3,
+        })).toBe(80);
+    });
+
     it('keeps forecast blank when a remaining category has no history', () => {
         const summary = buildComputedGradebookSummary(fixture);
 
@@ -132,6 +154,8 @@ describe('builtin-gradebook shared helpers', () => {
 
         expect(whatIfScores['assessment-2']).toBeGreaterThanOrEqual(82);
         expect(whatIfScores['assessment-3']).toBeGreaterThanOrEqual(50);
+        expect(whatIfScores['assessment-2']).toBe(Math.ceil(whatIfScores['assessment-2'] ?? 0));
+        expect(whatIfScores['assessment-3']).toBe(Math.ceil(whatIfScores['assessment-3'] ?? 0));
     });
 
     it('computes a plan-mode projection from temporary what-if scores', () => {

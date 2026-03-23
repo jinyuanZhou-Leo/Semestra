@@ -285,8 +285,6 @@ export const HomePage: React.FC = () => {
                         <CreateProgramDialogButton
                             showAlert={showAlert}
                             onCreated={fetchPrograms}
-                            size="default"
-                            className="shadow-sm"
                         >
                             <Plus className="mr-2 h-4 w-4" />
                             New Program

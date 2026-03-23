@@ -1,6 +1,6 @@
 // input:  [gradebook API contracts, date-fns helpers, builtin-gradebook table view preferences, and shared badge-color utilities]
-// output: [builtin-gradebook plugin constants, exact-weight-gated forecast/plan calculators, shared formatters, and stable category badge color helpers]
-// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating]
+// output: [builtin-gradebook plugin constants, exact-weight-gated forecast/plan calculators, shared formatters, stable GPA-threshold resolution helpers, and category badge color helpers]
+// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating and band-aware numeric-or-range GPA scale parsing]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -107,6 +107,7 @@ const DEFAULT_CATEGORY_COLOR_OPTION = CATEGORY_COLOR_OPTIONS.find((option) => op
 
 const roundValue = (value: number, digits: number = 4): number => Number(value.toFixed(digits));
 const clampScore = (value: number): number => Math.max(0, Math.min(100, value));
+const ceilScore = (value: number): number => clampScore(Math.ceil(value));
 const GRADEBOOK_WEIGHT_TOLERANCE = 0.001;
 
 const calculateMean = (values: number[]): number | null => {
@@ -125,6 +126,7 @@ const calculateSampleStandardDeviation = (values: number[]): number | null => {
 export const calculateGradebookGpa = (percentage: number | null, scalingTable: GradebookScalingTable): number | null => {
     if (percentage === null || !Number.isFinite(percentage)) return null;
 
+    const numericThresholdEntries: Array<{ threshold: number; gpa: number }> = [];
     for (const [range, rawGpa] of Object.entries(scalingTable)) {
         const key = String(range).trim();
         const gpa = Number(rawGpa);
@@ -151,11 +153,22 @@ export const calculateGradebookGpa = (percentage: number | null, scalingTable: G
         }
 
         const numeric = Number(key);
-        if (Number.isFinite(numeric) && percentage >= numeric) {
-            return roundValue(gpa, 3);
+        if (Number.isFinite(numeric)) {
+            numericThresholdEntries.push({ threshold: numeric, gpa });
         }
     }
 
+    numericThresholdEntries.sort((left, right) => left.threshold - right.threshold);
+    for (let index = 0; index < numericThresholdEntries.length; index += 1) {
+        const current = numericThresholdEntries[index];
+        const next = numericThresholdEntries[index + 1];
+        if (!current) continue;
+        const withinLowerBound = percentage >= current.threshold;
+        const withinUpperBound = !next || percentage < next.threshold;
+        if (withinLowerBound && withinUpperBound) {
+            return roundValue(current.gpa, 3);
+        }
+    }
     return 0;
 };
 
@@ -376,7 +389,7 @@ export const buildSuggestedWhatIfScores = (
     const currentContribution = calculateCurrentScorePercentage(gradebook);
     const requiredAverage = calculateRequiredAverage(gradebook, targetGpa);
     if (gradebook.forecast_model === 'simple_minimum_needed') {
-        const suggested = clampScore(requiredAverage ?? 0);
+        const suggested = ceilScore(requiredAverage ?? 0);
         pendingAssessments.forEach((assessment) => {
             recommendations[assessment.id] = suggested;
         });
@@ -408,7 +421,9 @@ export const buildSuggestedWhatIfScores = (
     let remainingDeficit = Math.max(0, targetPercentage - baseProjection);
     remainingDeficit = distributeUniformScores(pendingAssessments, recommendations, remainingDeficit);
     distributeHistoryScores(historyAssessments, recommendations, remainingDeficit);
-    return recommendations;
+    return Object.fromEntries(
+        Object.entries(recommendations).map(([assessmentId, score]) => [assessmentId, ceilScore(score)]),
+    );
 };
 
 export const buildPlanModeResult = (
