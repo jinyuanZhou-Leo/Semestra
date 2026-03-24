@@ -1,4 +1,4 @@
-// input:  [Canvas page payloads, shared HTML fragment renderer, shadcn alert or badge or button primitives, and iconography]
+// input:  [Canvas page payloads, shared HTML fragment renderer, shadcn alert or badge or button or scroll-area primitives, and iconography]
 // output: [CanvasPageDetailView and CanvasPageListView presentational components]
 // pos:    [page list/detail components for the Canvas integration tab, including Home/front-page detail rendering and locked-page alert callouts]
 //
@@ -15,6 +15,7 @@ import { AppEmptyState } from '@/components/AppEmptyState';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { LmsCoursePageDetail, LmsCoursePageSummary } from '@/services/api';
 
@@ -59,7 +60,8 @@ export const CanvasPageDetailView: React.FC<{
             </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <ScrollArea className="min-h-0 flex-1">
+            <div className="px-5 py-5">
             {page.locked_for_user && page.lock_explanation ? (
                 <Alert className="mb-4">
                     <AlertCircle className="size-4" />
@@ -78,7 +80,8 @@ export const CanvasPageDetailView: React.FC<{
             ) : (
                 <p className="text-sm text-muted-foreground">This page does not have any visible content.</p>
             )}
-        </div>
+            </div>
+        </ScrollArea>
     </div>
 );
 
@@ -102,7 +105,7 @@ export const CanvasPageListView: React.FC<{
     }
 
     return (
-        <div className="min-h-0 overflow-y-auto">
+        <ScrollArea className="min-h-0">
             <div className="border-b border-border/60 px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
                     <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
@@ -132,6 +135,6 @@ export const CanvasPageListView: React.FC<{
                     </button>
                 ))}
             </div>
-        </div>
+        </ScrollArea>
     );
 };

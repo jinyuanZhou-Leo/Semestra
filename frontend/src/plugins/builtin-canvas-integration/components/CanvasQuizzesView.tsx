@@ -1,4 +1,4 @@
-// input:  [Canvas quiz payloads, timestamp helpers, shadcn UI primitives, and shared class merging]
+// input:  [Canvas quiz payloads, timestamp helpers, shadcn UI/scroll-area primitives, and shared class merging]
 // output: [CanvasQuizzesView presentational component for Canvas quiz list rendering]
 // pos:    [quiz list renderer for the Canvas integration tab with external-link emphasis and reduced badge chrome]
 //
@@ -13,6 +13,7 @@ import { ExternalLink } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { LmsQuizSummary } from '@/services/api';
 
@@ -37,7 +38,7 @@ export const CanvasQuizzesView: React.FC<{
     }
 
     return (
-        <div className="min-h-0 overflow-y-auto">
+        <ScrollArea className="min-h-0">
             <div className="border-b border-border/60 px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
                     <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
@@ -79,6 +80,6 @@ export const CanvasQuizzesView: React.FC<{
                     </button>
                 ))}
             </div>
-        </div>
+        </ScrollArea>
     );
 };

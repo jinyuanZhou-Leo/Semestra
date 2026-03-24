@@ -15,7 +15,7 @@ import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { CalendarDays, RotateCcw, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -538,11 +538,13 @@ const HabitSharedSettingsFields = <TSettings extends HabitStreakSettings>({
                                 <SelectValue placeholder="Select cadence" />
                             </SelectTrigger>
                             <SelectContent>
-                                {INTERVAL_OPTIONS.map((option) => (
-                                    <SelectItem key={`habit-interval-${option.value}`} value={String(option.value)}>
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
+                                <SelectGroup>
+                                    {INTERVAL_OPTIONS.map((option) => (
+                                        <SelectItem key={`habit-interval-${option.value}`} value={String(option.value)}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectGroup>
                             </SelectContent>
                         </Select>
                     </div>

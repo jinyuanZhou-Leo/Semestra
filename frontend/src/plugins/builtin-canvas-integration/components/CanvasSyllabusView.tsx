@@ -1,4 +1,4 @@
-// input:  [Canvas syllabus payload, shared HTML fragment renderer, and shadcn UI primitives]
+// input:  [Canvas syllabus payload, shared HTML fragment renderer, and shadcn UI/scroll-area primitives]
 // output: [CanvasSyllabusView presentational component for Canvas syllabus rendering]
 // pos:    [syllabus renderer for the Canvas integration tab]
 //
@@ -13,6 +13,7 @@ import { ExternalLink } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import type { LmsCourseSyllabusResponse } from '@/services/api';
 
 import { CanvasHtmlFragment } from './CanvasHtmlFragment';
@@ -41,7 +42,8 @@ export const CanvasSyllabusView: React.FC<{
                 ) : null}
             </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <ScrollArea className="min-h-0 flex-1">
+            <div className="px-5 py-5">
             {syllabus.body ? (
                 <CanvasHtmlFragment
                     body={syllabus.body}
@@ -59,6 +61,7 @@ export const CanvasSyllabusView: React.FC<{
                     className="h-full"
                 />
             )}
-        </div>
+            </div>
+        </ScrollArea>
     </div>
 );

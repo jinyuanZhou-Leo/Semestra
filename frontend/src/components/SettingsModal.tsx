@@ -1,4 +1,4 @@
-// input:  [open/close state props, title string, settings form children node]
+// input:  [open/close state props, title string, settings form children node, and shadcn scroll-area]
 // output: [`SettingsModal` component]
 // pos:    [Generic modal container for compact settings editors]
 //
@@ -8,6 +8,7 @@
 
 import React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -36,9 +37,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             Configure settings for {title}.
           </DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 overflow-y-auto px-6 py-5">
-          {children}
-        </div>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="px-6 py-5">
+            {children}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

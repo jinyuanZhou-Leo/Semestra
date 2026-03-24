@@ -1,4 +1,4 @@
-// input:  [course resource API/query state, course tab context ids, plugin UI-state hook, dialog primitives, tabs UI, and shared action components]
+// input:  [course resource API/query state, course tab context ids, plugin UI-state hook, dialog primitives, tabs UI, shared action components, and shadcn scroll-area]
 // output: [`CourseResourcesTabDefinition` and the course-resources tab runtime component]
 // pos:    [course-scoped resource manager tab with account-quota-aware uploads, persisted local link-form UI state, lower-height stable dialog tabs, footer-aligned actions, saved-link support, and lightweight file actions]
 //
@@ -42,6 +42,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePluginUiState } from '@/plugin-system';
@@ -383,7 +384,8 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                     />
                 ) : (
                     <div className="min-h-0 flex-1 overflow-hidden">
-                        <div className="max-h-[min(68vh,720px)] space-y-3 overflow-y-auto pr-1">
+                        <ScrollArea className="max-h-[min(68vh,720px)]">
+                            <div className="space-y-3 pr-3">
                             {quota?.files.map((resource) => (
                                 <ResourceRow
                                     key={resource.id}
@@ -393,7 +395,8 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                                     onDelete={setResourceToDelete}
                                 />
                             ))}
-                        </div>
+                            </div>
+                        </ScrollArea>
                     </div>
                 )}
             </div>
@@ -477,9 +480,11 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                                     <p className="text-sm text-muted-foreground">
                                         Remaining account storage: {quota ? formatBytes(quota.remaining_bytes) : '...'}
                                     </p>
-                                    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                                        <UploadSelectionList files={pendingFiles} onRemove={removePendingFile} />
-                                    </div>
+                                    <ScrollArea className="min-h-0 flex-1">
+                                        <div className="pr-3">
+                                            <UploadSelectionList files={pendingFiles} onRemove={removePendingFile} />
+                                        </div>
+                                    </ScrollArea>
                                 </div>
                             </TabsContent>
 

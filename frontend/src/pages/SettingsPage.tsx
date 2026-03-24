@@ -1,4 +1,4 @@
-// input:  [auth context/actions, user settings/import-export/LMS persistence APIs, dialog helpers, theme hooks, switch controls, responsive dialog wrapper, and LMS integration manager component]
+// input:  [auth context/actions, user settings/import-export/LMS persistence APIs, dialog helpers, theme hooks, switch controls, responsive dialog wrapper, LMS integration manager component, and shadcn scroll-area]
 // output: [`SettingsPage` route component]
 // pos:    [Global settings workspace for profile defaults, multi-integration LMS management, plugin preload preferences, GPA rules, and data transfer with mobile-safe responsive layout, shadcn Field-based form structure, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
 //
@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useDialog } from '../contexts/DialogContext';
@@ -49,6 +50,7 @@ import {
 import { Upload } from "lucide-react";
 import { ResponsiveDialogDrawer } from "../components/ResponsiveDialogDrawer";
 import { LmsIntegrationManager } from "@/components/settings/LmsIntegrationManager";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
@@ -507,19 +509,26 @@ export const SettingsPage: React.FC = () => {
                                     <Field>
                                         <FieldLabel>Theme</FieldLabel>
                                         <FieldDescription>Select your preferred color scheme.</FieldDescription>
-                                        <div className="flex w-full flex-wrap items-center gap-2">
+                                        <RadioGroup
+                                            value={themeMode}
+                                            onValueChange={(value) => handleThemeChange(value as "light" | "dark" | "system")}
+                                            className="flex w-full flex-wrap items-center gap-2"
+                                        >
                                             {themeOptions.map((option) => (
-                                                <Button
+                                                <label
                                                     key={option.value}
-                                                    variant={themeMode === option.value ? "default" : "outline"}
-                                                    size="sm"
-                                                    onClick={() => handleThemeChange(option.value)}
-                                                    className="min-w-[80px] flex-1 sm:flex-none"
+                                                    className={cn(
+                                                        "flex min-w-[80px] flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors sm:flex-none",
+                                                        themeMode === option.value
+                                                            ? "border-primary bg-accent text-foreground"
+                                                            : "border-border bg-background text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                                                    )}
                                                 >
+                                                    <RadioGroupItem value={option.value} />
                                                     {option.label}
-                                                </Button>
+                                                </label>
                                             ))}
-                                        </div>
+                                        </RadioGroup>
                                     </Field>
                                 </FieldGroup>
                             </FieldSet>
@@ -688,68 +697,70 @@ export const SettingsPage: React.FC = () => {
                                 desktopFooterClassName="pt-4"
                                 mobileFooterClassName="px-0"
                             >
-                                <form
-                                    id={restoreBackupFormId}
-                                    onSubmit={handlePrepareImport}
-                                    className="space-y-4 overflow-y-auto px-4 pb-4 sm:space-y-4 sm:px-0 sm:py-4 sm:pb-0"
-                                >
-                                    <div className="space-y-2">
-                                        <p className="text-sm font-medium">Backup File</p>
-                                        <div
-                                            className={cn(
-                                                "cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all",
-                                                isRestoreDragging
-                                                    ? "border-primary bg-primary/5"
-                                                    : "border-muted-foreground/25 hover:border-primary/50"
-                                            )}
-                                            onClick={() => restoreBackupFileInputRef.current?.click()}
-                                            onDragOver={(event) => {
-                                                event.preventDefault();
-                                                setIsRestoreDragging(true);
-                                            }}
-                                            onDragLeave={(event) => {
-                                                event.preventDefault();
-                                                setIsRestoreDragging(false);
-                                            }}
-                                            onDrop={async (event) => {
-                                                event.preventDefault();
-                                                setIsRestoreDragging(false);
-                                                const file = event.dataTransfer.files?.[0] ?? null;
-                                                await syncRestoreBackupFile(file);
-                                            }}
-                                        >
-                                            <input
-                                                ref={restoreBackupFileInputRef}
-                                                id={restoreBackupFileInputId}
-                                                type="file"
-                                                accept=".json,application/json"
-                                                className="hidden"
-                                                onChange={async (event) => {
-                                                    const file = event.target.files?.[0] ?? null;
+                                <ScrollArea className="min-h-0">
+                                    <form
+                                        id={restoreBackupFormId}
+                                        onSubmit={handlePrepareImport}
+                                        className="space-y-4 px-4 pb-4 sm:space-y-4 sm:px-0 sm:py-4 sm:pb-0"
+                                    >
+                                        <div className="space-y-2">
+                                            <p className="text-sm font-medium">Backup File</p>
+                                            <div
+                                                className={cn(
+                                                    "cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all",
+                                                    isRestoreDragging
+                                                        ? "border-primary bg-primary/5"
+                                                        : "border-muted-foreground/25 hover:border-primary/50"
+                                                )}
+                                                onClick={() => restoreBackupFileInputRef.current?.click()}
+                                                onDragOver={(event) => {
+                                                    event.preventDefault();
+                                                    setIsRestoreDragging(true);
+                                                }}
+                                                onDragLeave={(event) => {
+                                                    event.preventDefault();
+                                                    setIsRestoreDragging(false);
+                                                }}
+                                                onDrop={async (event) => {
+                                                    event.preventDefault();
+                                                    setIsRestoreDragging(false);
+                                                    const file = event.dataTransfer.files?.[0] ?? null;
                                                     await syncRestoreBackupFile(file);
                                                 }}
-                                            />
-                                            <div className="flex flex-col items-center gap-2">
-                                                {selectedBackupFile ? (
-                                                    <div className="flex items-center gap-2 font-medium text-primary">
-                                                        <Upload className="h-5 w-5" />
-                                                        <span className="break-all">{selectedBackupFile.name}</span>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <Upload className="h-8 w-8 text-muted-foreground/50" />
-                                                        <div className="text-sm text-muted-foreground">
-                                                            Click or drag a `.json` backup file to upload
+                                            >
+                                                <input
+                                                    ref={restoreBackupFileInputRef}
+                                                    id={restoreBackupFileInputId}
+                                                    type="file"
+                                                    accept=".json,application/json"
+                                                    className="hidden"
+                                                    onChange={async (event) => {
+                                                        const file = event.target.files?.[0] ?? null;
+                                                        await syncRestoreBackupFile(file);
+                                                    }}
+                                                />
+                                                <div className="flex flex-col items-center gap-2">
+                                                    {selectedBackupFile ? (
+                                                        <div className="flex items-center gap-2 font-medium text-primary">
+                                                            <Upload className="h-5 w-5" />
+                                                            <span className="break-all">{selectedBackupFile.name}</span>
                                                         </div>
-                                                    </>
-                                                )}
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="h-8 w-8 text-muted-foreground/50" />
+                                                            <div className="text-sm text-muted-foreground">
+                                                                Click or drag a `.json` backup file to upload
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
+                                            <p className="text-sm text-muted-foreground">
+                                                The backup will be validated before you choose how to merge it.
+                                            </p>
                                         </div>
-                                        <p className="text-sm text-muted-foreground">
-                                            The backup will be validated before you choose how to merge it.
-                                        </p>
-                                    </div>
-                                </form>
+                                    </form>
+                                </ScrollArea>
                             </ResponsiveDialogDrawer>
 
                             {importModalOpen && (

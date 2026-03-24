@@ -162,7 +162,7 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
           </div>
         ) : (
           <div className="min-h-0 min-w-0 h-full">
-            <ScrollArea className="h-full min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]]:overflow-x-hidden [&>[data-slot=scroll-area-viewport]>div]:!block [&>[data-slot=scroll-area-viewport]>div]:min-h-full [&>[data-slot=scroll-area-viewport]>div]:w-full [&>[data-slot=scroll-area-viewport]>div]:min-w-0">
+            <ScrollArea className="h-full min-h-0 min-w-0">
               <div className="w-full min-w-0 max-w-full space-y-2 pr-3">
                 {filteredCourses.map((course) => {
                   const checked = selectedCourseIds.includes(course.external_id);

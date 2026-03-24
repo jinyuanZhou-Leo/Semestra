@@ -1,4 +1,4 @@
-// input:  [program list/create/delete APIs, dialog context, route links, loading skeletons, responsive overlay wrapper, and shared business empty-state wrappers]
+// input:  [program list/create/delete APIs, dialog context, route links, loading skeletons, responsive overlay wrapper, shared business empty-state wrappers, and shadcn scroll-area]
 // output: [`HomePage` plus local create/delete program confirmation and responsive create surface components]
 // pos:    [Authenticated root workspace page showing programs, standardized create-empty feedback, and mobile drawer program creation]
 //
@@ -38,6 +38,7 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus, Trash2 } from 'lucide-react';
 import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
 
@@ -127,35 +128,37 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
                 desktopFooterClassName="pt-4"
                 mobileFooterClassName="px-0"
             >
-                <form
-                    id={createProgramFormId}
-                    onSubmit={handleCreateProgram}
-                    className="space-y-4 px-4 pb-4 sm:px-0 sm:pb-0 sm:space-y-4 sm:py-4 overflow-y-auto"
-                >
-                    <div className="grid gap-2">
-                        <Label htmlFor={programNameId}>Program Name</Label>
-                        <Input
-                            id={programNameId}
-                            placeholder="e.g. Computer Science"
-                            value={newProgramName}
-                            onChange={(e) => setNewProgramName(e.target.value)}
-                            required
-                            autoFocus
-                        />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor={programCreditsId}>Graduation Requirement (Credits)</Label>
-                        <Input
-                            id={programCreditsId}
-                            type="number"
-                            step="0.5"
-                            placeholder="e.g. 120"
-                            value={newProgramCredits}
-                            onChange={(e) => setNewProgramCredits(e.target.value)}
-                            required
-                        />
-                    </div>
-                </form>
+                <ScrollArea className="min-h-0">
+                    <form
+                        id={createProgramFormId}
+                        onSubmit={handleCreateProgram}
+                        className="space-y-4 px-4 pb-4 sm:px-0 sm:pb-0 sm:space-y-4 sm:py-4"
+                    >
+                        <div className="grid gap-2">
+                            <Label htmlFor={programNameId}>Program Name</Label>
+                            <Input
+                                id={programNameId}
+                                placeholder="e.g. Computer Science"
+                                value={newProgramName}
+                                onChange={(e) => setNewProgramName(e.target.value)}
+                                required
+                                autoFocus
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor={programCreditsId}>Graduation Requirement (Credits)</Label>
+                            <Input
+                                id={programCreditsId}
+                                type="number"
+                                step="0.5"
+                                placeholder="e.g. 120"
+                                value={newProgramCredits}
+                                onChange={(e) => setNewProgramCredits(e.target.value)}
+                                required
+                            />
+                        </div>
+                    </form>
+                </ScrollArea>
             </ResponsiveDialogDrawer>
         </>
     );

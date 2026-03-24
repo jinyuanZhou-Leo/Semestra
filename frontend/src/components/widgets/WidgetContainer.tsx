@@ -146,24 +146,10 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                         title="Remove Widget"
                                         data-widget-control
                                         className={cn(
-                                            'rounded-full text-destructive shadow-sm transition backdrop-blur-md backdrop-saturate-150',
+                                            'rounded-full border border-destructive/30 bg-destructive/10 text-destructive shadow-sm transition hover:bg-destructive/15 hover:text-destructive',
                                             controlSizeClass,
                                             controlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
                                         )}
-                                        style={{
-                                            backgroundColor: 'var(--destructive-soft-bg)',
-                                            borderWidth: '1px',
-                                            borderStyle: 'solid',
-                                            borderColor: 'var(--destructive-soft-border)',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--destructive-soft-bg-hover)';
-                                            e.currentTarget.style.borderColor = 'var(--destructive-soft-border-hover)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--destructive-soft-bg)';
-                                            e.currentTarget.style.borderColor = 'var(--destructive-soft-border)';
-                                        }}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                         }}

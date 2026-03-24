@@ -69,7 +69,6 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   const [endDate, setEndDate] = useState<Date | undefined>(() => parseDateOrUndefined(endDateRaw));
   const [readingWeekStart, setReadingWeekStart] = useState<Date | undefined>(() => parseDateOrUndefined(readingWeekStartRaw));
   const [readingWeekEnd, setReadingWeekEnd] = useState<Date | undefined>(() => parseDateOrUndefined(readingWeekEndRaw));
-  const [formError, setFormError] = useState("");
   const fieldId = useId();
   const dateRangeLabel = startDate
     ? endDate
@@ -135,85 +134,52 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
     if (draftHasLocalChanges && !incomingMatchesDraft) return;
 
     setName(savedSnapshot.name);
-    setFormError("");
-
     setStartDate(parseDateOrUndefined(savedSnapshot.startDate));
     setEndDate(parseDateOrUndefined(savedSnapshot.endDate));
     setReadingWeekStart(parseDateOrUndefined(savedSnapshot.readingWeekStart));
     setReadingWeekEnd(parseDateOrUndefined(savedSnapshot.readingWeekEnd));
   }, [draftSnapshot, savedSnapshot]);
 
+  const durationError = useMemo(() => {
+    if (startDate && endDate && startDate > endDate) {
+      return "Start date must be earlier than or equal to end date.";
+    }
+
+    return "";
+  }, [endDate, startDate]);
+
+  const readingWeekError = useMemo(() => {
+    if ((readingWeekStart && !readingWeekEnd) || (!readingWeekStart && readingWeekEnd)) {
+      return "Reading Week must include both a start and end date.";
+    }
+
+    if (readingWeekStart && readingWeekEnd) {
+      if (!startDate || !endDate) {
+        return "Set the semester duration before selecting Reading Week.";
+      }
+
+      if (differenceInCalendarDays(readingWeekEnd, readingWeekStart) !== 6) {
+        return "Reading Week must span exactly one Monday-to-Sunday week.";
+      }
+
+      if (readingWeekStart.getDay() !== 1 || readingWeekEnd.getDay() !== 0) {
+        return "Reading Week must start on Monday and end on Sunday.";
+      }
+
+      if (
+        normalizeToDay(readingWeekStart) < normalizeToDay(startDate)
+        || normalizeToDay(readingWeekEnd) > normalizeToDay(endDate)
+      ) {
+        return "Reading Week must stay within the semester duration.";
+      }
+    }
+
+    return "";
+  }, [endDate, readingWeekEnd, readingWeekStart, startDate]);
+
   const isValid = useMemo(() => {
-    if (startDate && endDate && startDate > endDate) {
-      return false;
-    }
-
-    if ((readingWeekStart && !readingWeekEnd) || (!readingWeekStart && readingWeekEnd)) {
-      return false;
-    }
-
-    if (readingWeekStart && readingWeekEnd) {
-      if (!startDate || !endDate) {
-        return false;
-      }
-
-      if (differenceInCalendarDays(readingWeekEnd, readingWeekStart) !== 6) {
-        return false;
-      }
-
-      if (readingWeekStart.getDay() !== 1 || readingWeekEnd.getDay() !== 0) {
-        return false;
-      }
-
-      if (
-        normalizeToDay(readingWeekStart) < normalizeToDay(startDate)
-        || normalizeToDay(readingWeekEnd) > normalizeToDay(endDate)
-      ) {
-        return false;
-      }
-    }
-
-    return true;
-  }, [endDate, readingWeekEnd, readingWeekStart, startDate]);
-
-  useEffect(() => {
-    if (startDate && endDate && startDate > endDate) {
-      setFormError("Start date must be earlier than or equal to end date.");
-      return;
-    }
-
-    if ((readingWeekStart && !readingWeekEnd) || (!readingWeekStart && readingWeekEnd)) {
-      setFormError("Reading Week must include both a start and end date.");
-      return;
-    }
-
-    if (readingWeekStart && readingWeekEnd) {
-      if (!startDate || !endDate) {
-        setFormError("Set the semester duration before selecting Reading Week.");
-        return;
-      }
-
-      if (differenceInCalendarDays(readingWeekEnd, readingWeekStart) !== 6) {
-        setFormError("Reading Week must span exactly one Monday-to-Sunday week.");
-        return;
-      }
-
-      if (readingWeekStart.getDay() !== 1 || readingWeekEnd.getDay() !== 0) {
-        setFormError("Reading Week must start on Monday and end on Sunday.");
-        return;
-      }
-
-      if (
-        normalizeToDay(readingWeekStart) < normalizeToDay(startDate)
-        || normalizeToDay(readingWeekEnd) > normalizeToDay(endDate)
-      ) {
-        setFormError("Reading Week must stay within the semester duration.");
-        return;
-      }
-    }
-
-    setFormError("");
-  }, [endDate, readingWeekEnd, readingWeekStart, startDate]);
+    return !durationError && !readingWeekError;
+  }, [durationError, readingWeekError]);
 
   const { flush } = useAutoSave({
     value: draftSnapshot,
@@ -263,7 +229,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
             />
           </Field>
 
-          <Field data-invalid={Boolean(formError)}>
+          <Field data-invalid={Boolean(durationError)}>
             <FieldLabel htmlFor={`${fieldId}-date`}>Semester Duration</FieldLabel>
             <Popover>
               <PopoverTrigger asChild>
@@ -271,7 +237,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
                   id={`${fieldId}-date`}
                   type="button"
                   variant="outline"
-                  aria-invalid={Boolean(formError)}
+                  aria-invalid={Boolean(durationError)}
                   className={cn(
                     "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
                     !startDate && "text-muted-foreground"
@@ -299,9 +265,10 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
               </PopoverContent>
             </Popover>
             <FieldDescription>Select the full semester date range.</FieldDescription>
+            {durationError ? <FieldError>{durationError}</FieldError> : null}
           </Field>
 
-          <Field data-invalid={Boolean(formError)}>
+          <Field data-invalid={Boolean(readingWeekError)}>
             <FieldLabel htmlFor={`${fieldId}-reading-week`}>Reading Week</FieldLabel>
             <FieldDescription>
               Optional. Select the full Reading Week date range. It must span exactly one Monday-to-Sunday week.
@@ -312,7 +279,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
                   id={`${fieldId}-reading-week`}
                   type="button"
                   variant="outline"
-                  aria-invalid={Boolean(formError)}
+                  aria-invalid={Boolean(readingWeekError)}
                   className={cn(
                     "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
                     !readingWeekStart && "text-muted-foreground"
@@ -354,7 +321,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
                 </div>
               </PopoverContent>
             </Popover>
-            {formError ? <FieldError>{formError}</FieldError> : null}
+            {readingWeekError ? <FieldError>{readingWeekError}</FieldError> : null}
           </Field>
         </FieldGroup>
       </FieldSet>

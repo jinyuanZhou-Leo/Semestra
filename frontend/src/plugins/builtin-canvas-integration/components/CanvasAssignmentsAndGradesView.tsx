@@ -1,4 +1,4 @@
-// input:  [Canvas assignment and grade payloads, Canvas tab links, Canvas timestamp/link helpers, and shadcn business primitives]
+// input:  [Canvas assignment and grade payloads, Canvas tab links, Canvas timestamp/link helpers, and shadcn business/scroll-area primitives]
 // output: [CanvasAssignmentsView and CanvasGradesView presentational components plus exported gradebook recommendation card]
 // pos:    [assignment and grade section renderers for the Canvas integration tab with flattened section layouts and a standalone Gradebook handoff CTA card]
 //
@@ -14,6 +14,7 @@ import { ArrowRight, ChartColumnIncreasing, ExternalLink, FileSpreadsheet } from
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { LmsAssignmentSummary, LmsGradeSummary } from '@/services/api';
@@ -101,7 +102,7 @@ export const CanvasAssignmentsView: React.FC<{
     isLoading?: boolean;
     errorMessage?: string | null;
 }> = ({ heading, items, isLoading = false, errorMessage }) => (
-    <div className="min-h-0 overflow-y-auto">
+    <ScrollArea className="min-h-0">
         <div className="border-b border-border/60 px-5 py-4">
             <div className="flex items-center justify-between gap-3">
                 <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
@@ -172,7 +173,7 @@ export const CanvasAssignmentsView: React.FC<{
                 ))}
             </div>
         )}
-    </div>
+    </ScrollArea>
 );
 
 export const CanvasGradesView: React.FC<{
@@ -220,7 +221,7 @@ export const CanvasGradesView: React.FC<{
     }
 
     return (
-        <div className="min-h-0 overflow-y-auto">
+        <ScrollArea className="min-h-0">
             <div className="border-b border-border/60 px-5 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
@@ -298,6 +299,6 @@ export const CanvasGradesView: React.FC<{
                     </div>
                 ))}
             </div>
-        </div>
+        </ScrollArea>
     );
 };

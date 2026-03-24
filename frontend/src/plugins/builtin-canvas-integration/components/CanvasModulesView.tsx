@@ -1,4 +1,4 @@
-// input:  [Canvas module summary + item APIs, Canvas link helpers, TanStack Query, shadcn collapsible primitives, and shared class merging]
+// input:  [Canvas module summary + item APIs, Canvas link helpers, TanStack Query, shadcn collapsible/scroll-area primitives, and shared class merging]
 // output: [CanvasModulesView presentational component plus private windowed module-section and item-row renderers]
 // pos:    [module content renderer for the Canvas integration tab that preserves expanded module cards while windowing offscreen sections and loading item lists on demand]
 //
@@ -14,6 +14,7 @@ import { ChevronRight, ExternalLink } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { Collapsible, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import api, { type LmsModuleItem, type LmsModuleSummary } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
@@ -236,7 +237,7 @@ export const CanvasModulesView: React.FC<{
     courseExternalId: string;
     canvasOrigin?: string | null;
 }> = ({ courseId, heading, items, onOpenPage, courseExternalId, canvasOrigin }) => {
-    const scrollRootRef = React.useRef<HTMLDivElement | null>(null);
+    const scrollAreaHostRef = React.useRef<HTMLDivElement | null>(null);
     const [scrollTop, setScrollTop] = React.useState(0);
     const [viewportHeight, setViewportHeight] = React.useState(MODULE_DEFAULT_VIEWPORT_HEIGHT);
     const [openModuleMap, setOpenModuleMap] = React.useState<Record<string, boolean>>(() => (
@@ -254,8 +255,9 @@ export const CanvasModulesView: React.FC<{
     }, [items]);
 
     React.useEffect(() => {
-        const root = scrollRootRef.current;
-        if (!root) {
+        const host = scrollAreaHostRef.current;
+        const viewport = host?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+        if (!viewport) {
             return;
         }
 
@@ -266,20 +268,20 @@ export const CanvasModulesView: React.FC<{
             }
             frameId = window.requestAnimationFrame(() => {
                 frameId = null;
-                setScrollTop(root.scrollTop);
-                setViewportHeight(root.clientHeight || MODULE_DEFAULT_VIEWPORT_HEIGHT);
+                setScrollTop(viewport.scrollTop);
+                setViewportHeight(viewport.clientHeight || MODULE_DEFAULT_VIEWPORT_HEIGHT);
             });
         };
 
         syncViewport();
-        root.addEventListener('scroll', syncViewport, { passive: true });
+        viewport.addEventListener('scroll', syncViewport, { passive: true });
         window.addEventListener('resize', syncViewport);
 
         return () => {
             if (frameId !== null) {
                 window.cancelAnimationFrame(frameId);
             }
-            root.removeEventListener('scroll', syncViewport);
+            viewport.removeEventListener('scroll', syncViewport);
             window.removeEventListener('resize', syncViewport);
         };
     }, []);
@@ -360,33 +362,35 @@ export const CanvasModulesView: React.FC<{
     }
 
     return (
-        <div ref={scrollRootRef} className="min-h-0 overflow-y-auto">
-            <div className="border-b border-border/60 px-5 py-4">
-                <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
-            </div>
-            <div className="px-5 py-5">
-                {windowedModules.topSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.topSpacer}px` }} /> : null}
-                <div className="space-y-4">
-                    {windowedModules.visibleItems.map((moduleItem) => (
-                        <CanvasModuleSection
-                            key={moduleItem.module_id}
-                            courseId={courseId}
-                            moduleItem={moduleItem}
-                            isOpen={openModuleMap[moduleItem.module_id] ?? true}
-                            onOpenChange={(nextOpen) => {
-                                setOpenModuleMap((currentMap) => ({
-                                    ...currentMap,
-                                    [moduleItem.module_id]: nextOpen,
-                                }));
-                            }}
-                            onOpenPage={onOpenPage}
-                            courseExternalId={courseExternalId}
-                            canvasOrigin={canvasOrigin}
-                        />
-                    ))}
+        <div ref={scrollAreaHostRef} className="min-h-0 h-full">
+            <ScrollArea className="h-full min-h-0">
+                <div className="border-b border-border/60 px-5 py-4">
+                    <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
                 </div>
-                {windowedModules.bottomSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.bottomSpacer}px` }} /> : null}
-            </div>
+                <div className="px-5 py-5">
+                    {windowedModules.topSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.topSpacer}px` }} /> : null}
+                    <div className="space-y-4">
+                        {windowedModules.visibleItems.map((moduleItem) => (
+                            <CanvasModuleSection
+                                key={moduleItem.module_id}
+                                courseId={courseId}
+                                moduleItem={moduleItem}
+                                isOpen={openModuleMap[moduleItem.module_id] ?? true}
+                                onOpenChange={(nextOpen) => {
+                                    setOpenModuleMap((currentMap) => ({
+                                        ...currentMap,
+                                        [moduleItem.module_id]: nextOpen,
+                                    }));
+                                }}
+                                onOpenPage={onOpenPage}
+                                courseExternalId={courseExternalId}
+                                canvasOrigin={canvasOrigin}
+                            />
+                        ))}
+                    </div>
+                    {windowedModules.bottomSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.bottomSpacer}px` }} /> : null}
+                </div>
+            </ScrollArea>
         </div>
     );
 };

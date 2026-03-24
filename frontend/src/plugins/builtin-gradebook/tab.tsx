@@ -1,4 +1,4 @@
-// input:  [course gradebook APIs, course data update context, LMS assignment APIs, plugin UI-state hooks, shared timetable refresh bus, animated stat-strip UI, shadcn UI primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers plus GPA-threshold resolution helpers, and shared business empty-state wrappers]
+// input:  [course gradebook APIs, course data update context, LMS assignment APIs, plugin UI-state hooks, shared timetable refresh bus, animated stat-strip UI, shadcn UI/scroll-area primitives, switch/dialog primitives, builtin-gradebook shared forecast/plan helpers plus GPA-threshold resolution helpers, and shared business empty-state wrappers]
 // output: [course-scoped builtin-gradebook tab component with course-list-style assessment management UI, LMS-assisted add-assessment flows, exact-weight warning stats, persisted assessment-sort and plan-mode UI state, plan target-format switching between GPA and GPA Percentage, and tab definition]
 // pos:    [course-scoped gradebook surface for local assessment scores plus optional point-based assessment input, one-time LMS assignment import inside the add-assessment dialog using provider-normalized due dates, stable shadcn tabbed add-assessment UX, Calendar due-date sync, instance-local assessment-sort and plan-mode what-if UI state, exact-100 weight gating, animated mode-specific toolbar controls, and semantic empty-state feedback]
 //
@@ -52,11 +52,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import {
     Select,
     SelectContent,
+    SelectGroup,
     SelectItem,
     SelectTrigger,
     SelectValue,
@@ -323,10 +325,12 @@ const AssessmentDialog: React.FC<{
                                             <SelectValue placeholder="Select a category" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="none">Uncategorized</SelectItem>
-                                            {categories.filter((category) => !category.is_archived).map((category) => (
-                                                <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-                                            ))}
+                                            <SelectGroup>
+                                                <SelectItem value="none">Uncategorized</SelectItem>
+                                                {categories.filter((category) => !category.is_archived).map((category) => (
+                                                    <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                                                ))}
+                                            </SelectGroup>
                                         </SelectContent>
                                     </Select>
                                     <p className="text-xs text-muted-foreground">
@@ -351,7 +355,7 @@ const AssessmentDialog: React.FC<{
                                             <span>Select all</span>
                                         </div>
                                     </div>
-                                    <div className="min-h-[320px] flex-1 overflow-y-auto">
+                                    <ScrollArea className="min-h-[320px] flex-1">
                                         {lmsAssignments.map((assignment) => {
                                             const isImported = importedLmsAssignmentFingerprints.has(getLmsAssignmentFingerprint(assignment));
                                             const isChecked = draft.selected_lms_assignment_ids.includes(assignment.external_id);
@@ -386,12 +390,12 @@ const AssessmentDialog: React.FC<{
                                                 </label>
                                             );
                                         })}
-                                    </div>
+                                    </ScrollArea>
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex h-full min-h-0 flex-col overflow-y-auto pr-1">
-                                <div className="space-y-3">
+                            <ScrollArea className="h-full min-h-0 flex-1">
+                                <div className="space-y-3 pr-3">
                                     <h3 className="text-sm font-medium text-foreground">Details</h3>
                                     <div className="grid gap-3 sm:grid-cols-2">
                                         <div className="space-y-2 sm:col-span-2">
@@ -405,10 +409,12 @@ const AssessmentDialog: React.FC<{
                                                     <SelectValue placeholder="Select a category" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="none">Uncategorized</SelectItem>
-                                                    {categories.filter((category) => !category.is_archived).map((category) => (
-                                                        <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-                                                    ))}
+                                                    <SelectGroup>
+                                                        <SelectItem value="none">Uncategorized</SelectItem>
+                                                        {categories.filter((category) => !category.is_archived).map((category) => (
+                                                            <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -509,7 +515,7 @@ const AssessmentDialog: React.FC<{
                                         )}
                                     </div>
                                 </div>
-                            </div>
+                            </ScrollArea>
                         )}
                     </div>
                 </div>
@@ -1371,10 +1377,10 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogAction>Keep Planning</AlertDialogAction>
-                        <AlertDialogCancel onClick={exitPlanMode}>
+                        <AlertDialogCancel>Keep Planning</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={exitPlanMode}>
                             Leave Plan Mode
-                        </AlertDialogCancel>
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

@@ -34,7 +34,7 @@ import {
   FieldSet,
 } from '@/components/ui/field';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
 import type { CalendarSettingsState } from '../../shared/types';
@@ -169,11 +169,13 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
                     <SelectValue placeholder="Select visible days" />
                   </SelectTrigger>
                   <SelectContent>
-                    {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
-                      <SelectItem key={dayCount} value={String(dayCount)}>
-                        {dayCount} day{dayCount === 1 ? '' : 's'}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
+                        <SelectItem key={dayCount} value={String(dayCount)}>
+                          {dayCount} day{dayCount === 1 ? '' : 's'}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <FieldDescription>

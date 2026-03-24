@@ -1,4 +1,4 @@
-// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, source label, LMS HTML safety setting, and save callback]
+// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, source label, LMS HTML safety setting, save callback, and shadcn scroll-area]
 // output: [`EventEditor` modal for source-aware event details plus optional skip editing and conflict context]
 // pos:    [Calendar detail dialog that explains schedule conflicts while optionally editing occurrence skip state with Reading Week-aware labels and source-aware description sanitization]
 //
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { looksLikeHtml, sanitizeHtmlFragment, sanitizeTextListHtmlFragment } from '@/lib/html';
 import type { CalendarEventData, CalendarEventPatch } from '@/calendar-core';
@@ -102,12 +103,14 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                 {event.courseName}
               </p>
               {event.note ? (
-                <div
-                  className="mt-3 h-48 overflow-y-auto rounded border bg-muted/30 px-3 py-2 text-sm text-foreground/90 [&_a]:text-primary [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-medium [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:rounded [&_pre]:bg-background/80 [&_pre]:p-2 [&_ul]:list-disc [&_ul]:pl-5]"
-                  dangerouslySetInnerHTML={sanitizedDescription ? { __html: sanitizedDescription } : undefined}
-                >
-                  {sanitizedDescription ? null : event.note}
-                </div>
+                <ScrollArea className="mt-3 h-48 rounded border bg-muted/30">
+                  <div
+                    className="px-3 py-2 text-sm text-foreground/90 [&_a]:text-primary [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-medium [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:rounded [&_pre]:bg-background/80 [&_pre]:p-2 [&_ul]:list-disc [&_ul]:pl-5]"
+                    dangerouslySetInnerHTML={sanitizedDescription ? { __html: sanitizedDescription } : undefined}
+                  >
+                    {sanitizedDescription ? null : event.note}
+                  </div>
+                </ScrollArea>
               ) : null}
             </div>
 

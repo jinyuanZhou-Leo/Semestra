@@ -1,4 +1,4 @@
-// input:  [dialog open state, calendar settings state, settings mutation callbacks, and registered calendar sources]
+// input:  [dialog open state, calendar settings state, settings mutation callbacks, registered calendar sources, and shadcn scroll-area]
 // output: [`CalendarSettings` legacy dialog UI for time window, source list visibility/color controls, LMS description safety, and week-number toggles]
 // pos:    [legacy calendar settings surface kept for direct in-tab configuration flows with source-aware list controls]
 //
@@ -23,7 +23,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
 import type { CalendarSettingsState } from '../../shared/types';
@@ -108,7 +109,7 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Calendar Settings</DialogTitle>
           <DialogDescription>
@@ -116,7 +117,8 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-5 pr-4">
           <div className="space-y-2">
             <div className="space-y-2">
               <Label htmlFor="calendar-week-view-day-count">Days per screen</Label>
@@ -128,11 +130,13 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
                   <SelectValue placeholder="Select visible days" />
                 </SelectTrigger>
                 <SelectContent>
-                  {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
-                    <SelectItem key={dayCount} value={String(dayCount)}>
-                      {dayCount} day{dayCount === 1 ? '' : 's'}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
+                      <SelectItem key={dayCount} value={String(dayCount)}>
+                        {dayCount} day{dayCount === 1 ? '' : 's'}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -240,7 +244,8 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({
             <Button type="button" variant="outline" onClick={onReset}>Reset</Button>
             <Button type="button" onClick={() => onOpenChange(false)}>Done</Button>
           </div>
-        </div>
+          </div>
+        </ScrollArea>
       </DialogContent>
 
       <AlertDialog open={isLmsDescriptionRiskDialogOpen} onOpenChange={setIsLmsDescriptionRiskDialogOpen}>

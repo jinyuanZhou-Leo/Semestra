@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
+    SelectGroup,
     SelectItem,
     SelectTrigger,
     SelectValue,
@@ -203,11 +204,13 @@ const CourseResourcesWidgetSettingsComponent: React.FC<WidgetSettingsProps> = ({
                         <SelectValue placeholder="Select card count" />
                     </SelectTrigger>
                     <SelectContent>
-                        {COURSE_RESOURCES_SLOT_COUNTS.map((slotCount) => (
-                            <SelectItem key={slotCount} value={String(slotCount)}>
-                                {slotCount} card{slotCount === 1 ? '' : 's'}
-                            </SelectItem>
-                        ))}
+                        <SelectGroup>
+                            {COURSE_RESOURCES_SLOT_COUNTS.map((slotCount) => (
+                                <SelectItem key={slotCount} value={String(slotCount)}>
+                                    {slotCount} card{slotCount === 1 ? '' : 's'}
+                                </SelectItem>
+                            ))}
+                        </SelectGroup>
                     </SelectContent>
                 </Select>
             </div>
@@ -235,12 +238,14 @@ const CourseResourcesWidgetSettingsComponent: React.FC<WidgetSettingsProps> = ({
                                     <SelectValue placeholder="Select a file" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="__empty__">No file selected</SelectItem>
-                                    {resourceOptions.map((resource) => (
-                                        <SelectItem key={resource.id} value={resource.id}>
-                                            {resource.filename_display}
-                                        </SelectItem>
-                                    ))}
+                                    <SelectGroup>
+                                        <SelectItem value="__empty__">No file selected</SelectItem>
+                                        {resourceOptions.map((resource) => (
+                                            <SelectItem key={resource.id} value={resource.id}>
+                                                {resource.filename_display}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
                                 </SelectContent>
                             </Select>
                             {resourceId && !selectedSet.has(resourceId) ? (

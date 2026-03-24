@@ -1,4 +1,4 @@
-// input:  [raw backup payload, conflict strategy options, shared GPA-percentage formatting, optional account-settings import flag, and confirm callbacks]
+// input:  [raw backup payload, conflict strategy options, shared GPA-percentage formatting, optional account-settings import flag, confirm callbacks, and shadcn scroll-area]
 // output: [`ImportPreviewModal` component and backup import helper types]
 // pos:    [Settings workflow modal that previews backup contents across programs, LMS integrations, resources, todo data, and account settings before restore]
 //
@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { ArrowRight, ChevronRight, FileDown, Loader2, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
@@ -257,7 +258,7 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="min-h-0 flex-1 overflow-y-auto">
+                <ScrollArea className="min-h-0 flex-1">
                     <div className="space-y-4 p-5">
                         <div className="rounded-md border bg-muted/25 px-2 py-1.5">
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -443,30 +444,34 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                                             onValueChange={(value) => setConflictMode(value as ConflictMode)}
                                             className="grid grid-cols-1 gap-2 sm:grid-cols-3"
                                         >
-                                            {conflictOptions.map((option, index) => {
-                                                const id = `${radioBaseId}-${index}`;
-                                                const isChecked = conflictMode === option.value;
-                                                return (
-                                                    <label
-                                                        key={option.value}
-                                                        htmlFor={id}
-                                                        className={cn(
-                                                            'cursor-pointer rounded-lg border p-3 transition-colors',
-                                                            isChecked
-                                                                ? 'border-primary bg-primary/5'
-                                                                : 'border-muted hover:bg-accent/50',
-                                                        )}
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <RadioGroupItem value={option.value} id={id} />
-                                                            <span className={cn('text-sm font-medium', isChecked && 'text-primary')}>
-                                                                {option.label}
-                                                            </span>
-                                                        </div>
-                                                        <p className="pl-6 pt-1 text-xs text-muted-foreground">{option.description}</p>
-                                                    </label>
-                                                );
-                                            })}
+                                            <FieldGroup className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                                {conflictOptions.map((option, index) => {
+                                                    const id = `${radioBaseId}-${index}`;
+                                                    const isChecked = conflictMode === option.value;
+                                                    return (
+                                                        <Field
+                                                            key={option.value}
+                                                            orientation="horizontal"
+                                                            className={cn(
+                                                                'items-start rounded-lg border p-3 transition-colors',
+                                                                isChecked
+                                                                    ? 'border-primary bg-primary/5'
+                                                                    : 'border-border hover:bg-accent/50',
+                                                            )}
+                                                        >
+                                                            <RadioGroupItem value={option.value} id={id} className="mt-0.5" />
+                                                            <FieldContent className="gap-1">
+                                                                <FieldLabel htmlFor={id} className={cn('cursor-pointer', isChecked && 'text-primary')}>
+                                                                    {option.label}
+                                                                </FieldLabel>
+                                                                <FieldDescription className="text-xs">
+                                                                    {option.description}
+                                                                </FieldDescription>
+                                                            </FieldContent>
+                                                        </Field>
+                                                    );
+                                                })}
+                                            </FieldGroup>
                                         </RadioGroup>
                                     </div>
                                 )}
@@ -518,7 +523,7 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
                             </div>
                         )}
                     </div>
-                </div>
+                </ScrollArea>
 
                 <DialogFooter className="border-t bg-muted/20 px-5 py-3 sm:justify-end">
                     <Button

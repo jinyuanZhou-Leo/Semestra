@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -336,12 +337,14 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
                   <SelectValue placeholder="Select an LMS integration" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">No LMS</SelectItem>
-                {lmsIntegrations.map((integration) => (
-                  <SelectItem key={integration.id} value={integration.id}>
-                    {integration.display_name} ({integration.provider})
-                  </SelectItem>
-                ))}
+                  <SelectGroup>
+                    <SelectItem value="__none__">No LMS</SelectItem>
+                    {lmsIntegrations.map((integration) => (
+                      <SelectItem key={integration.id} value={integration.id}>
+                        {integration.display_name} ({integration.provider})
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <FieldDescription>

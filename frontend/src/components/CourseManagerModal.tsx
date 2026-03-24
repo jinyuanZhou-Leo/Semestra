@@ -1,4 +1,4 @@
-// input:  [program/semester identifiers, course CRUD and LMS/calendar import APIs, auth default credit, dialog state, global confirm/alert dialogs, responsive overlay wrapper, shared LMS course picker, shared GPA-percentage formatting, and business empty-state wrappers]
+// input:  [program/semester identifiers, course CRUD and LMS/calendar import APIs, auth default credit, dialog state, global confirm/alert dialogs, responsive overlay wrapper, shared LMS course picker, shared GPA-percentage formatting, business empty-state wrappers, and shadcn scroll-area]
 // output: [`CourseManagerModal` component]
 // pos:    [Program dashboard responsive add-course surface with height-stable select/create/calendar/LMS flows, searchable existing-course selection, duplicate-name confirmation, reusable LMS course selection, and import feedback]
 //
@@ -415,7 +415,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                         description="Try a different keyword."
                                     />
                                 ) : (
-                                    <ScrollArea className="h-full min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]]:overflow-x-hidden [&>[data-slot=scroll-area-viewport]>div]:!block [&>[data-slot=scroll-area-viewport]>div]:min-h-full [&>[data-slot=scroll-area-viewport]>div]:w-full [&>[data-slot=scroll-area-viewport]>div]:min-w-0">
+                                    <ScrollArea className="h-full min-h-0 min-w-0">
                                         <div className="w-full min-w-0 max-w-full space-y-2 pr-3">
                                             {filteredUnassignedCourses.map(course => (
                                                 <div key={course.id} className={cn(
@@ -466,7 +466,8 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                         onSubmit={handleCreateNew}
                         className="flex h-full min-h-0 flex-col gap-4"
                     >
-                        <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto pr-1">
+                        <ScrollArea className="min-h-0 flex-1">
+                            <div className="grid content-start gap-4 pr-3">
                             <div className="grid gap-2">
                                 <Label htmlFor="course-name">Course Name</Label>
                                 <Input
@@ -528,7 +529,8 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                     />
                                 </div>
                             </div>
-                        </div>
+                            </div>
+                        </ScrollArea>
 
                         <div className="mt-auto border-t pt-4">
                             <Button type="submit" className="w-full">

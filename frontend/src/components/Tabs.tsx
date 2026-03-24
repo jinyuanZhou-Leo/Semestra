@@ -1,6 +1,6 @@
-// input:  [tab items, active selection, add/remove/reorder callbacks, drag/confirm UI events, non-passive wheel-to-horizontal-scroll gestures, and workspace-nav width constraints]
+// input:  [tab items, active selection, add/remove/reorder callbacks, shadcn tabs primitives, drag/confirm UI events, non-passive wheel-to-horizontal-scroll gestures, and workspace-nav width constraints]
 // output: [`Tabs` component and `TabItem` interface]
-// pos:    [Dashboard tab bar handling select, non-passive wheel-driven horizontal scrolling, drag-sort, add, delete-confirm actions, overflow shadow affordances, and stable right-aligned workspace tab layout]
+// pos:    [Dashboard/homepage tab selector that composes shadcn Tabs with horizontal scrolling, drag-sort, add/remove controls, overflow shadows, and stable right-aligned workspace navigation layout]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,6 +8,11 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import {
+    Tabs as ShadcnTabs,
+    TabsList,
+    TabsTrigger,
+} from '@/components/ui/tabs';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -148,20 +153,6 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
         wheelHandlerRef.current = handleWheel;
     }, [handleWheel]);
 
-    React.useEffect(() => {
-        const container = scrollRef.current;
-        if (!container) return;
-
-        const handleNativeWheel = (event: WheelEvent) => {
-            wheelHandlerRef.current(event);
-        };
-
-        container.addEventListener('wheel', handleNativeWheel, { passive: false });
-        return () => {
-            container.removeEventListener('wheel', handleNativeWheel);
-        };
-    }, []);
-
     const handleDragStart = (id: string) => (event: React.DragEvent) => {
         dragIdRef.current = id;
         setDraggingId(id);
@@ -199,128 +190,129 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
 
     return (
         <div className="flex w-full max-w-full items-center justify-end gap-2 transition-[max-width,width] duration-300 ease-out">
-            <div className="inline-flex h-10 w-full max-w-full min-w-0 items-center justify-center rounded-lg bg-muted px-1 py-1 text-muted-foreground transition-[max-width,width] duration-300 ease-out lg:w-auto">
-                <div className="relative min-w-0 flex-1 overflow-hidden rounded-[calc(theme(borderRadius.lg)-theme(spacing.1))]">
-                    <div
-                        ref={scrollRef}
-                        className="dashboard-tabs-scroll my-[-2px] flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden py-[2px] no-scrollbar transition-[max-width,width] duration-300 ease-out"
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                        role="tablist"
-                        aria-label="Dashboard Tabs"
-                    >
-                        <style>{`
-                            .dashboard-tabs-scroll::-webkit-scrollbar {
-                                display: none;
-                            }
-                        `}</style>
-                        {items.map(item => {
-                            const isActive = item.id === activeId;
-                            const isDragging = item.id === draggingId;
-                            const isDragOver = item.id === dragOverId && item.id !== draggingId;
+            <ShadcnTabs
+                value={activeId}
+                onValueChange={onSelect}
+                className="w-full max-w-full min-w-0 lg:w-auto"
+            >
+                <div className="w-full max-w-full min-w-0 transition-[max-width,width] duration-300 ease-out lg:w-auto">
+                    <div className="flex h-9 min-w-0 items-center rounded-lg bg-muted p-[3px]">
+                        <div className="relative min-w-0 flex-1 overflow-hidden rounded-[calc(theme(borderRadius.lg)-3px)]">
+                            <TabsList
+                                ref={scrollRef}
+                                className="dashboard-tabs-scroll h-full w-full min-w-0 justify-start gap-1 overflow-x-auto overflow-y-hidden no-scrollbar rounded-[inherit] bg-transparent transition-[max-width,width] duration-300 ease-out"
+                                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                                aria-label="Dashboard Tabs"
+                                onWheel={(event) => {
+                                    handleWheel(event.nativeEvent);
+                                }}
+                            >
+                                <style>{`
+                                    .dashboard-tabs-scroll::-webkit-scrollbar {
+                                        display: none;
+                                    }
+                                `}</style>
+                                {items.map((item) => {
+                                    const isDragging = item.id === draggingId;
+                                    const isDragOver = item.id === dragOverId && item.id !== draggingId;
+                                    const canDrag = !!item.draggable && !!onReorder;
 
-                            // Only allow drag interactions if item is draggable
-                            const canDrag = !!item.draggable && !!onReorder;
-
-                            return (
-                                <div
-                                    key={item.id}
-                                    role="tab"
-                                    aria-selected={isActive}
-                                    className={cn(
-                                        "group relative inline-flex min-h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md px-3.5 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer",
-                                        isActive
-                                            ? "bg-background text-foreground shadow"
-                                            : "hover:bg-background/50 hover:text-foreground",
-                                        isDragging && "opacity-50",
-                                        isDragOver && "bg-background/50 ring-2 ring-primary/20",
-                                        !canDrag && "cursor-default" // Default cursor for fixed tabs? Actually shadcn tabs are usually pointer.
-                                    )}
-                                    tabIndex={0}
-                                    onClick={() => onSelect(item.id)}
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter' || event.key === ' ') {
-                                            event.preventDefault();
-                                            onSelect(item.id);
-                                        }
-                                    }}
-                                    draggable={canDrag}
-                                    onDragStart={canDrag ? handleDragStart(item.id) : undefined}
-                                    onDragOver={canDrag ? handleDragOver(item.id, item.draggable) : undefined}
-                                    onDragEnter={
-                                        canDrag
-                                            ? () => {
-                                                  if (draggingId && item.id !== draggingId) {
-                                                      setDragOverId(item.id);
-                                                  }
-                                              }
-                                            : undefined
-                                    }
-                                    onDragLeave={
-                                        canDrag
-                                            ? () => {
-                                                  if (dragOverId === item.id) setDragOverId(null);
-                                              }
-                                            : undefined
-                                    }
-                                    onDrop={canDrag ? handleDrop(item.id, item.draggable) : undefined}
-                                    onDragEnd={
-                                        canDrag
-                                            ? () => {
-                                                  dragIdRef.current = null;
-                                                  setDraggingId(null);
-                                                  setDragOverId(null);
-                                              }
-                                            : undefined
-                                    }
-                                >
-                                    {item.icon && <span className="opacity-70 mr-2">{item.icon}</span>}
-                                    <span className="truncate">{item.label}</span>
-                                    {onRemove && item.removable && (
+                                    return (
                                         <div
-                                            role="button"
-                                            aria-label={`Remove ${item.label}`}
+                                            key={item.id}
                                             className={cn(
-                                                "ml-1 flex h-4 w-4 items-center justify-center rounded-sm opacity-50 hover:bg-muted-foreground/20 hover:opacity-100",
+                                                'relative shrink-0',
+                                                isDragging && 'opacity-50',
+                                                isDragOver && 'rounded-md ring-2 ring-primary/20'
                                             )}
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                setPendingRemoveId(item.id);
-                                            }}
+                                            draggable={canDrag}
+                                            onDragStart={canDrag ? handleDragStart(item.id) : undefined}
+                                            onDragOver={canDrag ? handleDragOver(item.id, item.draggable) : undefined}
+                                            onDragEnter={
+                                                canDrag
+                                                    ? () => {
+                                                          if (draggingId && item.id !== draggingId) {
+                                                              setDragOverId(item.id);
+                                                          }
+                                                      }
+                                                    : undefined
+                                            }
+                                            onDragLeave={
+                                                canDrag
+                                                    ? () => {
+                                                          if (dragOverId === item.id) setDragOverId(null);
+                                                      }
+                                                    : undefined
+                                            }
+                                            onDrop={canDrag ? handleDrop(item.id, item.draggable) : undefined}
+                                            onDragEnd={
+                                                canDrag
+                                                    ? () => {
+                                                          dragIdRef.current = null;
+                                                          setDraggingId(null);
+                                                          setDragOverId(null);
+                                                      }
+                                                    : undefined
+                                            }
                                         >
-                                            <X className="h-3 w-3" strokeWidth={3} />
+                                            <TabsTrigger
+                                                value={item.id}
+                                                className={cn(
+                                                    'flex-none',
+                                                    canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+                                                    onRemove && item.removable && 'pr-7'
+                                                )}
+                                            >
+                                                {item.icon && <span className="mr-2 opacity-70">{item.icon}</span>}
+                                                <span className="truncate">{item.label}</span>
+                                            </TabsTrigger>
+                                            {onRemove && item.removable && (
+                                                <button
+                                                    type="button"
+                                                    aria-label={`Remove ${item.label}`}
+                                                    className="absolute top-1/2 right-2 z-10 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-sm opacity-50 transition hover:bg-muted-foreground/20 hover:opacity-100"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        setPendingRemoveId(item.id);
+                                                    }}
+                                                >
+                                                    <X className="h-3 w-3" strokeWidth={3} />
+                                                </button>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                    );
+                                })}
+                            </TabsList>
+                            <div
+                                aria-hidden="true"
+                                className={cn(
+                                    "pointer-events-none absolute inset-y-0 left-0 w-5 bg-gradient-to-r from-muted via-muted/80 to-transparent opacity-0 transition-opacity duration-200 ease-out motion-reduce:transition-none",
+                                    showLeftShadow ? "opacity-100" : "opacity-0"
+                                )}
+                            />
+                            <div
+                                aria-hidden="true"
+                                className={cn(
+                                    "pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-muted via-muted/80 to-transparent opacity-0 transition-opacity duration-200 ease-out motion-reduce:transition-none",
+                                    showRightShadow ? "opacity-100" : "opacity-0"
+                                )}
+                            />
+                        </div>
+                        {onAdd && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Add tab"
+                                className="h-full flex-none rounded-md text-foreground/60 hover:text-foreground"
+                                onClick={onAdd}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                        )}
                     </div>
-                    <div
-                        aria-hidden="true"
-                        className={cn(
-                            "pointer-events-none absolute inset-y-0 left-0 w-5 bg-gradient-to-r from-muted via-muted/80 to-transparent opacity-0 transition-opacity duration-200 ease-out motion-reduce:transition-none",
-                            showLeftShadow ? "opacity-100" : "opacity-0"
-                        )}
-                    />
-                    <div
-                        aria-hidden="true"
-                        className={cn(
-                            "pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-muted via-muted/80 to-transparent opacity-0 transition-opacity duration-200 ease-out motion-reduce:transition-none",
-                            showRightShadow ? "opacity-100" : "opacity-0"
-                        )}
-                    />
                 </div>
-                {onAdd && (
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 ml-1 rounded-sm p-0 text-muted-foreground hover:bg-background/50 hover:text-foreground"
-                        onClick={onAdd}
-                    >
-                        <Plus className="h-4 w-4" />
-                    </Button>
-                )}
-            </div>
+            </ShadcnTabs>
             <AlertDialog
                 open={pendingRemoveId !== null}
                 onOpenChange={(nextOpen) => {

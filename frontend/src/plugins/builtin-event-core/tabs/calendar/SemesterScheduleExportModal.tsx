@@ -1,3 +1,11 @@
+// input:  [semester export open state, schedule export filters, course options, render window bounds, event color, schedule service, and shadcn scroll-area]
+// output: [`SemesterScheduleExportModal` and private export layout helpers]
+// pos:    [Calendar export dialog that filters weekly schedule data and renders downloadable PNG/PDF/ICS outputs]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 "use no memo";
 
 import React from 'react';
@@ -13,6 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -710,7 +719,7 @@ export const SemesterScheduleExportModal: React.FC<SemesterScheduleExportModalPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Export Schedule</DialogTitle>
           <DialogDescription>
@@ -720,7 +729,8 @@ export const SemesterScheduleExportModal: React.FC<SemesterScheduleExportModalPr
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-5 pr-4">
           <div className="space-y-2">
             <Label htmlFor="export-course-filter">Course filter</Label>
             <Select value={courseFilter} onValueChange={setCourseFilter}>
@@ -773,7 +783,8 @@ export const SemesterScheduleExportModal: React.FC<SemesterScheduleExportModalPr
               </SelectContent>
             </Select>
           </div>
-        </div>
+          </div>
+        </ScrollArea>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isExporting}>

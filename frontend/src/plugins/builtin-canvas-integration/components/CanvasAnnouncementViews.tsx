@@ -1,4 +1,4 @@
-// input:  [Canvas announcement payloads, shared HTML fragment renderer, and shadcn UI primitives]
+// input:  [Canvas announcement payloads, shared HTML fragment renderer, and shadcn UI/scroll-area primitives]
 // output: [CanvasAnnouncementListView and CanvasAnnouncementDetailView presentational components]
 // pos:    [announcement list/detail components for the Canvas integration tab]
 //
@@ -13,6 +13,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { LmsAnnouncementSummary } from '@/services/api';
 
@@ -39,7 +40,7 @@ export const CanvasAnnouncementListView: React.FC<{
     }
 
     return (
-        <div className="min-h-0 overflow-y-auto">
+        <ScrollArea className="min-h-0">
             <div className="border-b border-border/60 px-5 py-4">
                 <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
             </div>
@@ -63,7 +64,7 @@ export const CanvasAnnouncementListView: React.FC<{
                     </button>
                 ))}
             </div>
-        </div>
+        </ScrollArea>
     );
 };
 
@@ -98,7 +99,8 @@ export const CanvasAnnouncementDetailView: React.FC<{
                 ) : null}
             </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <ScrollArea className="min-h-0 flex-1">
+            <div className="px-5 py-5">
             {announcement.body ? (
                 <CanvasHtmlFragment
                     body={announcement.body}
@@ -109,6 +111,7 @@ export const CanvasAnnouncementDetailView: React.FC<{
             ) : (
                 <p className="text-sm text-muted-foreground">This announcement does not include a message body.</p>
             )}
-        </div>
+            </div>
+        </ScrollArea>
     </div>
 );

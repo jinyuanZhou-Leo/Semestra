@@ -40,7 +40,7 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | SettingsModal.tsx | UI component | Generic settings modal container with a wider desktop surface, fixed header, scrollable body, and async close handling so settings editors can flush pending autosaves before dismissing. |
 | SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles, shrink-safe content columns, and overflow-contained cards for mobile settings layouts. |
 | SettingsTabContent.tsx | UI component | Reusable component for settings tab content UI/interaction flow. |
-| Tabs.tsx | UI component | Reusable dashboard/homepage tab shell with non-passive wheel-driven horizontal overflow scrolling, drag-sort, add/remove controls, edge-shadow overflow affordances, and stable right-aligned workspace navigation behavior. |
+| Tabs.tsx | UI component | Reusable dashboard/homepage tab selector that composes shadcn `Tabs` primitives with non-passive wheel-driven horizontal overflow scrolling, drag-sort, add/remove controls, edge-shadow overflow affordances, and stable right-aligned workspace navigation behavior. |
 | TabSwitch.tsx | UI component | Reusable component for tab switch UI/interaction flow. |
 | ThemeProvider.tsx | UI component | Reusable component for theme provider UI/interaction flow. |
 | ThemeToggle.tsx | UI component | Reusable component for theme toggle UI/interaction flow. |

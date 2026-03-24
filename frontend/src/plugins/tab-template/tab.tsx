@@ -10,8 +10,10 @@
 
 import React, { useCallback, useId, useMemo } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { SettingsSection } from '@/components/SettingsSection';
 import type { TabDefinition, TabProps, TabSettingsProps } from '../../services/tabRegistry';
 import { resolveTemplateSettings } from './shared';
@@ -25,51 +27,53 @@ const TemplateTabComponent: React.FC<TabProps> = ({ settings, updateSettings }) 
 
     return (
         <div className="flex flex-col gap-4">
-            <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
-                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Template Overview
-                </div>
-                <div className="mt-2 text-lg font-semibold text-foreground">
-                    {resolved.title}
-                </div>
-                <div className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardDescription>Template Overview</CardDescription>
+                    <CardTitle>{resolved.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 text-sm leading-relaxed text-muted-foreground">
                     Use this tab as a starting point for new plugins. Swap out the blocks below with real data, and wire up
                     any settings through the settings panel.
-                </div>
-            </div>
+                </CardContent>
+            </Card>
 
             <div className="grid gap-4 min-[500px]:grid-cols-2 lg:grid-cols-3">
-                <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
-                    <div className="font-semibold mb-2">
-                        Layout Scaffold
-                    </div>
-                    <div className="text-sm text-muted-foreground leading-relaxed">
-                        Keep tab content focused on the main area. Avoid duplicating the tab title, and use CSS variables for
-                        theme-aware colors.
-                    </div>
-                    {resolved.showChecklist && (
-                        <ul className="mt-3 list-disc pl-4 text-sm text-muted-foreground space-y-1">
-                            <li>Use <code className="bg-muted px-1 py-0.5 rounded text-foreground font-mono text-xs">updateSettings</code> for persistence.</li>
-                            <li>Prefer <code className="bg-muted px-1 py-0.5 rounded text-foreground font-mono text-xs">useCallback</code> for handlers.</li>
-                            <li>Keep layout responsive with auto-fit grids.</li>
-                        </ul>
-                    )}
-                </div>
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Layout Scaffold</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-0">
+                        <div className="text-sm leading-relaxed text-muted-foreground">
+                            Keep tab content focused on the main area. Avoid duplicating the tab title, and use CSS variables for
+                            theme-aware colors.
+                        </div>
+                        {resolved.showChecklist && (
+                            <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+                                <li>Use <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">updateSettings</code> for persistence.</li>
+                                <li>Prefer <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">useCallback</code> for handlers.</li>
+                                <li>Keep layout responsive with auto-fit grids.</li>
+                            </ul>
+                        )}
+                    </CardContent>
+                </Card>
 
-                <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
-                    <div className="font-semibold mb-2">
-                        Persistent Notes
-                    </div>
-                    <div className="text-sm text-muted-foreground mb-3">
-                        This textarea writes directly to tab settings. Use it as a placeholder for any editable content.
-                    </div>
-                    <textarea
-                        value={resolved.note}
-                        onChange={(event) => handleNoteChange(event.target.value)}
-                        placeholder="Type notes that persist with the tab..."
-                        className="w-full min-h-[160px] p-3 rounded-md border bg-background text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                </div>
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Persistent Notes</CardTitle>
+                        <CardDescription>
+                            This textarea writes directly to tab settings. Use it as a placeholder for any editable content.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                        <Textarea
+                            value={resolved.note}
+                            onChange={(event) => handleNoteChange(event.target.value)}
+                            placeholder="Type notes that persist with the tab..."
+                            className="min-h-[160px] resize-y"
+                        />
+                    </CardContent>
+                </Card>
             </div>
         </div>
     );

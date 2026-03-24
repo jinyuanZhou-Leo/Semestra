@@ -1,4 +1,4 @@
-// input:  [course section draft data, schedule/course APIs, shadcn dialog/form primitives, and slot row edit callbacks]
+// input:  [course section draft data, schedule/course APIs, shadcn dialog/form/scroll-area primitives, and slot row edit callbacks]
 // output: [`SectionFormDialog`, slot/time helpers, and shared section-slot constants/types for course-schedule flows]
 // pos:    [Shared course-schedule section editor that manages slot rows, validates time windows, and creates theme-safe native time inputs]
 //
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import api from '@/services/api';
 import {
     Select,
@@ -111,7 +112,8 @@ const SectionSlotPlanner: React.FC<{
 }> = ({ slots, onAddSlot, onUpdateSlot, onRemoveSlot }) => {
     return (
         <div className="space-y-2">
-            <div className="h-[240px] overflow-y-auto space-y-2 rounded-md border p-2 mb-2 scrollbar-thin scrollbar-thumb-muted">
+            <ScrollArea className="mb-2 h-[240px] rounded-md border">
+                <div className="space-y-2 p-2 pr-3">
                 {slots.length === 0 && (
                     <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
                         No slots yet. Use the button below to add one.
@@ -174,7 +176,8 @@ const SectionSlotPlanner: React.FC<{
                         </Button>
                     </div>
                 ))}
-            </div>
+                </div>
+            </ScrollArea>
 
             <Button type="button" variant="outline" className="w-full" onClick={onAddSlot}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -382,7 +385,7 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[840px]">
+            <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[840px]">
                 <DialogHeader>
                     <DialogTitle>{editingSectionId ? 'Edit Section' : 'Create Section'}</DialogTitle>
                     <DialogDescription>
@@ -390,7 +393,8 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4">
+                <ScrollArea className="min-h-0 flex-1">
+                    <div className="space-y-4 pr-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
@@ -515,7 +519,8 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
 
 
 
-                </div>
+                    </div>
+                </ScrollArea>
             </DialogContent>
         </Dialog>
     );

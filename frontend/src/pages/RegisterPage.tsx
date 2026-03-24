@@ -212,11 +212,11 @@ export const RegisterPage: React.FC = () => {
                 onAnimationComplete={() => setIsGlassReady(true)}
                 className="relative z-10 w-full max-w-[360px]"
             >
-                <Card 
-                    className={`border-none shadow-2xl transition-all duration-300 rounded-xl overflow-hidden ${isGlassReady
-                        ? (currentTheme === 'light' ? 'bg-white/80 backdrop-blur-3xl' : 'bg-zinc-900/65 backdrop-blur-3xl')
-                        : (currentTheme === 'light' ? 'bg-white' : 'bg-zinc-900')
-                        } ${currentTheme === 'light' ? 'text-slate-900' : 'text-zinc-100'}`}
+                <Card
+                    className={`overflow-hidden rounded-xl border-border/60 shadow-2xl transition-all duration-300 ${isGlassReady
+                        ? 'bg-background/85 backdrop-blur-3xl'
+                        : 'bg-background'
+                        }`}
                 >
                     <CardHeader className="pb-6">
                         <CardTitle className={`text-4xl tracking-tight pb-1 ${currentTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
@@ -253,7 +253,7 @@ export const RegisterPage: React.FC = () => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="h-11 bg-secondary/50 border-muted-foreground/20 hover:bg-secondary/70 transition-colors focus-visible:ring-offset-0"
+                                    className="h-11"
                                 />
                             </div>
 
@@ -271,7 +271,7 @@ export const RegisterPage: React.FC = () => {
                                                     onFocus={() => setIsPasswordFocused(true)}
                                                     onBlur={() => setIsPasswordFocused(false)}
                                                     required
-                                                    className="h-11 pr-10 bg-secondary/50 border-muted-foreground/20 hover:bg-secondary/70 transition-colors focus-visible:ring-offset-0"
+                                                    className="h-11 pr-10"
                                                 />
                                                 <Button
                                                     type="button"
@@ -304,7 +304,7 @@ export const RegisterPage: React.FC = () => {
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
                                         required
-                                        className="h-11 pr-10 bg-secondary/50 border-muted-foreground/20 hover:bg-secondary/70 transition-colors focus-visible:ring-offset-0"
+                                        className="h-11 pr-10"
                                     />
                                     <Button
                                         type="button"
@@ -330,13 +330,13 @@ export const RegisterPage: React.FC = () => {
 
                             <Button
                                 type="submit"
-                                className="w-full h-11 text-base font-semibold shadow-lg hover:shadow-xl transition-all"
+                                className="h-11 w-full text-base font-semibold"
                                 disabled={isLoading || isGoogleLoading}
                             >
                                 {isLoading ? 'Creating account...' : 'Register'}
                             </Button>
 
-                            <Button asChild variant="outline" className="w-full h-11 text-base font-semibold">
+                            <Button asChild variant="outline" className="h-11 w-full text-base font-semibold">
                                 <Link to="/login">
                                     Sign In
                                 </Link>

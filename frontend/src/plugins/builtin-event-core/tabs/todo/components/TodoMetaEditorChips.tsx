@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getCourseBadgeStyle, getDistinctCourseBadgeClassName } from '@/utils/courseCategoryBadge';
 import type { TodoCourseOption, TodoPriority, TodoPriorityOption, TodoTabMode } from '../types';
 
@@ -288,12 +288,14 @@ export const TodoMetaEditorChips: React.FC<TodoMetaEditorChipsProps> = ({
           </span>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={EMPTY_PRIORITY_VALUE}>No Priority</SelectItem>
-          {priorityOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
+          <SelectGroup>
+            <SelectItem value={EMPTY_PRIORITY_VALUE}>No Priority</SelectItem>
+            {priorityOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
 
@@ -313,12 +315,14 @@ export const TodoMetaEditorChips: React.FC<TodoMetaEditorChipsProps> = ({
             </span>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={EMPTY_COURSE_VALUE}>No Course</SelectItem>
-            {courseOptions.map((course) => (
-              <SelectItem key={course.id} value={course.id}>
-                {course.name}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              <SelectItem value={EMPTY_COURSE_VALUE}>No Course</SelectItem>
+              {courseOptions.map((course) => (
+                <SelectItem key={course.id} value={course.id}>
+                  {course.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       ) : null}

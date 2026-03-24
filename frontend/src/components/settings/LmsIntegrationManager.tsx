@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -484,11 +485,13 @@ export const LmsIntegrationManager: React.FC = () => {
                     <SelectValue placeholder="Select LMS type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {getSupportedLmsProviderDefinitions().map((definition) => (
-                      <SelectItem key={definition.value} value={definition.value}>
-                        {definition.label}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {getSupportedLmsProviderDefinitions().map((definition) => (
+                        <SelectItem key={definition.value} value={definition.value}>
+                          {definition.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <FieldDescription>
@@ -510,7 +513,7 @@ export const LmsIntegrationManager: React.FC = () => {
                 />
               </Field>
 
-              <Field data-invalid={instanceUrlInvalid ? '' : undefined}>
+              <Field data-invalid={instanceUrlInvalid}>
                 <FieldLabel htmlFor="lms-instance-url">{providerDefinition.instanceUrlLabel}</FieldLabel>
                 <Input
                   id="lms-instance-url"
@@ -534,7 +537,7 @@ export const LmsIntegrationManager: React.FC = () => {
                 </FieldDescription>
               </Field>
 
-              <Field data-invalid={apiKeyInvalid ? '' : undefined}>
+              <Field data-invalid={apiKeyInvalid}>
                 <FieldLabel htmlFor="lms-api-key">{providerDefinition.apiKeyLabel}</FieldLabel>
                 <div className="flex items-center gap-2">
                   <Input

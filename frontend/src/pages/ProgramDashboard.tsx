@@ -55,9 +55,19 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, X, Tag, Calendar, Hash, TrendingUp, Layers, Pencil, CheckCheck } from 'lucide-react';
+import {
+    Combobox,
+    ComboboxChip,
+    ComboboxChips,
+    ComboboxChipsInput,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxItem,
+    ComboboxList,
+    ComboboxValue,
+} from '@/components/ui/combobox';
+import { InputGroupAddon } from '@/components/ui/input-group';
+import { Settings, Plus, Upload, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, Tag, Calendar, Hash, TrendingUp, Layers, Pencil, CheckCheck } from 'lucide-react';
 import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
 import { LmsCourseSelectionList } from '../components/LmsCourseSelectionList';
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
@@ -77,6 +87,12 @@ const extractCourseLevel = (courseName: string): number | null => {
 type ShowAlert = ReturnType<typeof useDialog>['alert'];
 type CourseSortConfig = { key: string; direction: 'asc' | 'desc' };
 type CourseWithProgramContext = Course & { semesterName: string; semesterId: string };
+type CourseFilterSuggestion = {
+    type: string;
+    value: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+};
 
 type CreateSemesterDialogButtonProps = {
     programId: string;
@@ -563,10 +579,8 @@ const ProgramDashboardContent: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [courseSearchQuery, setCourseSearchQuery] = useState('');
     const [sortConfig, setSortConfig] = useState<CourseSortConfig | null>(null);
-    const [activeFilters, setActiveFilters] = useState<Array<{ type: string; value: string; label: string }>>([]);
+    const [activeFilters, setActiveFilters] = useState<CourseFilterSuggestion[]>([]);
     const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
-    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
-    const searchInputRef = useRef<HTMLInputElement>(null);
     const courseEditModeLabel = isCourseEditMode ? 'Exit course edit mode' : 'Enter course edit mode';
 
     const refreshUnassignedCourses = useCallback(async () => {
@@ -677,7 +691,7 @@ const ProgramDashboardContent: React.FC = () => {
             allCourses.map(c => extractCourseLevel(c.name)).filter((level): level is number => level !== null)
         )).sort((a, b) => a - b);
 
-        const items: Array<{ type: string; value: string; label: string; icon: any }> = [];
+        const items: Array<CourseFilterSuggestion> = [];
 
         // Add category suggestions
         categories.forEach(cat => {
@@ -728,13 +742,6 @@ const ProgramDashboardContent: React.FC = () => {
 
         return items;
     }, [program, programCourses]);
-
-    // Filter suggestions based on search query
-    const filteredSuggestions = useMemo(() => {
-        if (!courseSearchQuery.trim()) return suggestions;
-        const query = courseSearchQuery.toLowerCase();
-        return suggestions.filter(s => s.label.toLowerCase().includes(query));
-    }, [suggestions, courseSearchQuery]);
 
     const filteredAndSortedCourses = useMemo(() => {
         if (!program) return [];
@@ -841,57 +848,6 @@ const ProgramDashboardContent: React.FC = () => {
         return sortConfig.direction === 'asc'
             ? <ArrowUp className="ml-2 h-4 w-4 text-foreground" />
             : <ArrowDown className="ml-2 h-4 w-4 text-foreground" />;
-    };
-
-    const handleAddFilter = (suggestion: { type: string; value: string; label: string }) => {
-        // Check if filter already exists
-        const exists = activeFilters.some(f => f.type === suggestion.type && f.value === suggestion.value);
-        if (!exists) {
-            setActiveFilters([...activeFilters, suggestion]);
-        }
-        setCourseSearchQuery('');
-        setIsSuggestionsOpen(false);
-        setSelectedSuggestionIndex(-1);
-    };
-
-    const handleRemoveFilter = (index: number) => {
-        setActiveFilters(activeFilters.filter((_, i) => i !== index));
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (!isSuggestionsOpen || filteredSuggestions.length === 0) {
-            if (e.key === 'ArrowDown' && !isSuggestionsOpen) {
-                setIsSuggestionsOpen(true);
-                setSelectedSuggestionIndex(0);
-                e.preventDefault();
-            }
-            return;
-        }
-
-        switch (e.key) {
-            case 'ArrowDown':
-                e.preventDefault();
-                setSelectedSuggestionIndex(prev =>
-                    prev < filteredSuggestions.length - 1 ? prev + 1 : prev
-                );
-                break;
-            case 'ArrowUp':
-                e.preventDefault();
-                setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : 0);
-                break;
-            case 'Enter':
-            case 'Tab':
-                e.preventDefault();
-                if (selectedSuggestionIndex >= 0 && filteredSuggestions[selectedSuggestionIndex]) {
-                    handleAddFilter(filteredSuggestions[selectedSuggestionIndex]);
-                }
-                break;
-            case 'Escape':
-                e.preventDefault();
-                setIsSuggestionsOpen(false);
-                setSelectedSuggestionIndex(-1);
-                break;
-        }
     };
 
     const submitDeleteCourse = useCallback(async () => {
@@ -1306,99 +1262,69 @@ const ProgramDashboardContent: React.FC = () => {
                                         </Button>
                                     </div>
                                     <div className="flex-1 max-w-sm space-y-1.5">
-                                        {/* Active Filters */}
-                                        <div className="min-h-6">
-                                            {activeFilters.length > 0 && (
-                                                <div className="flex gap-2 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                                                    {activeFilters.map((filter, index) => (
-                                                        <Badge
+                                        {/* Search with Suggestions */}
+                                        <Combobox<CourseFilterSuggestion, true>
+                                            items={suggestions}
+                                            multiple
+                                            itemToStringValue={(suggestion) => suggestion.label}
+                                            isItemEqualToValue={(item, value) => item.type === value.type && item.value === value.value}
+                                            inputValue={courseSearchQuery}
+                                            onInputValueChange={(value) => {
+                                                setCourseSearchQuery(value);
+                                                setIsSuggestionsOpen(true);
+                                            }}
+                                            value={activeFilters}
+                                            onValueChange={(value) => {
+                                                setActiveFilters(Array.isArray(value) ? value : []);
+                                                setCourseSearchQuery('');
+                                                setIsSuggestionsOpen(false);
+                                            }}
+                                            open={isSuggestionsOpen}
+                                            onOpenChange={setIsSuggestionsOpen}
+                                            autoHighlight
+                                        >
+                                            <ComboboxChips>
+                                                <InputGroupAddon>
+                                                    <Search />
+                                                </InputGroupAddon>
+                                                <ComboboxValue>
+                                                    {activeFilters.map((filter) => (
+                                                        <ComboboxChip
                                                             key={`${filter.type}-${filter.value}`}
-                                                            variant="secondary"
-                                                            className="shrink-0 pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5"
+                                                            value={filter}
                                                         >
                                                             {filter.label}
-                                                            <button
-                                                                onClick={() => handleRemoveFilter(index)}
-                                                                className="hover:bg-muted/80 rounded-sm p-0.5 transition-colors"
-                                                            >
-                                                                <X className="h-3 w-3" />
-                                                            </button>
-                                                        </Badge>
+                                                        </ComboboxChip>
                                                     ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                        {/* Search with Suggestions */}
-                                        <Popover open={isSuggestionsOpen}>
-                                            <PopoverTrigger asChild>
-                                                <div className="relative">
-                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                                                    <Input
-                                                        ref={searchInputRef}
-                                                        placeholder="Search or filter courses..."
-                                                        value={courseSearchQuery}
-                                                        onChange={(e) => {
-                                                            setCourseSearchQuery(e.target.value);
-                                                            setIsSuggestionsOpen(true);
-                                                            setSelectedSuggestionIndex(-1);
-                                                        }}
-                                                        onFocus={() => setIsSuggestionsOpen(true)}
-                                                        onBlur={(e) => {
-                                                            // Don't close if clicking inside the popover content
-                                                            const relatedTarget = e.relatedTarget as HTMLElement | null;
-                                                            if (relatedTarget?.closest('[data-radix-popper-content-wrapper]')) {
-                                                                return;
-                                                            }
+                                                </ComboboxValue>
+                                                <ComboboxChipsInput
+                                                    placeholder={activeFilters.length > 0 ? 'Add more filters...' : 'Search or filter courses...'}
+                                                    onFocus={() => setIsSuggestionsOpen(true)}
+                                                    onKeyDown={(event) => {
+                                                        if (event.key === 'Escape') {
                                                             setIsSuggestionsOpen(false);
-                                                            setSelectedSuggestionIndex(-1);
-                                                        }}
-                                                        onKeyDown={handleKeyDown}
-                                                        className="pl-9 h-10"
-                                                    />
-                                                </div>
-                                            </PopoverTrigger>
-                                            <PopoverContent
-                                                className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg"
-                                                align="start"
-                                                onOpenAutoFocus={(e) => e.preventDefault()}
-                                                onInteractOutside={(e) => {
-                                                    // Don't close if clicking on the input trigger
-                                                    const target = e.target as HTMLElement | null;
-                                                    if (target === searchInputRef.current || target?.closest('[data-radix-popover-trigger]')) {
-                                                        e.preventDefault();
-                                                        return;
-                                                    }
-                                                    setIsSuggestionsOpen(false);
-                                                    setSelectedSuggestionIndex(-1);
-                                                }}
-                                            >
-                                                <Command className="rounded-lg">
-                                                    <CommandList>
-                                                        {filteredSuggestions.length === 0 ? (
-                                                            <CommandEmpty>No suggestions found.</CommandEmpty>
-                                                        ) : (
-                                                            <CommandGroup heading="Filter by">
-                                                                {filteredSuggestions.map((suggestion, index) => {
-                                                                    const Icon = suggestion.icon;
-                                                                    return (
-                                                                        <CommandItem
-                                                                            key={`${suggestion.type}-${suggestion.value}`}
-                                                                            onSelect={() => handleAddFilter(suggestion)}
-                                                                            className={`cursor-pointer hover:bg-accent/60 data-selected:bg-transparent ${
-                                                                                index === selectedSuggestionIndex ? 'bg-accent' : ''
-                                                                            }`}
-                                                                        >
-                                                                            <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
-                                                                            <span>{suggestion.label}</span>
-                                                                        </CommandItem>
-                                                                    );
-                                                                })}
-                                                            </CommandGroup>
-                                                        )}
-                                                    </CommandList>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
+                                                        }
+                                                    }}
+                                                />
+                                            </ComboboxChips>
+                                            <ComboboxContent>
+                                                <ComboboxEmpty>No items found.</ComboboxEmpty>
+                                                <ComboboxList>
+                                                    {(suggestion) => {
+                                                        const Icon = suggestion.icon;
+                                                        return (
+                                                            <ComboboxItem
+                                                                key={`${suggestion.type}-${suggestion.value}`}
+                                                                value={suggestion}
+                                                            >
+                                                                <Icon className="text-muted-foreground" />
+                                                                <span>{suggestion.label}</span>
+                                                            </ComboboxItem>
+                                                        );
+                                                    }}
+                                                </ComboboxList>
+                                            </ComboboxContent>
+                                        </Combobox>
                                     </div>
                                 </div>
                                 <div className="rounded-md border bg-card min-h-[300px] flex flex-col overflow-hidden">
