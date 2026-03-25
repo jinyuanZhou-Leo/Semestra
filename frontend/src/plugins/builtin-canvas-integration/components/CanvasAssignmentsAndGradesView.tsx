@@ -101,7 +101,8 @@ export const CanvasAssignmentsView: React.FC<{
     items: LmsAssignmentSummary[];
     isLoading?: boolean;
     errorMessage?: string | null;
-}> = ({ heading, items, isLoading = false, errorMessage }) => (
+    selectedAssignmentId?: string | null;
+}> = ({ heading, items, isLoading = false, errorMessage, selectedAssignmentId = null }) => (
     <ScrollArea className="min-h-0">
         <div className="border-b border-border/60 px-5 py-4">
             <div className="flex items-center justify-between gap-3">
@@ -135,8 +136,12 @@ export const CanvasAssignmentsView: React.FC<{
                     <button
                         key={assignment.external_id}
                         type="button"
-                        className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/35"
+                        className={cn(
+                            'flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/35',
+                            selectedAssignmentId === assignment.external_id ? 'bg-primary/5' : '',
+                        )}
                         onClick={() => openExternalUrl(assignment.html_url)}
+                        aria-current={selectedAssignmentId === assignment.external_id ? 'true' : undefined}
                     >
                         <div className="min-w-0 space-y-2">
                             <div className="flex flex-wrap items-center gap-2">

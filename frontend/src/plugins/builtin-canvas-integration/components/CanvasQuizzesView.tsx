@@ -23,7 +23,8 @@ import { formatCanvasPageTimestamp } from '../shared';
 export const CanvasQuizzesView: React.FC<{
     heading: string;
     items: LmsQuizSummary[];
-}> = ({ heading, items }) => {
+    selectedQuizId?: string | null;
+}> = ({ heading, items, selectedQuizId = null }) => {
     if (items.length === 0) {
         return (
             <AppEmptyState
@@ -50,8 +51,12 @@ export const CanvasQuizzesView: React.FC<{
                     <button
                         key={quiz.quiz_id}
                         type="button"
-                        className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40"
+                        className={cn(
+                            'flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40',
+                            selectedQuizId === quiz.quiz_id ? 'bg-primary/5' : '',
+                        )}
                         onClick={() => openExternalUrl(quiz.html_url)}
+                        aria-current={selectedQuizId === quiz.quiz_id ? 'true' : undefined}
                     >
                         <div className="min-w-0 space-y-2">
                             <div className="flex flex-wrap items-center gap-2">

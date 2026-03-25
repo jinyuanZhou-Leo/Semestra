@@ -1,6 +1,6 @@
 // input:  [Canvas navigation, announcement, assignment, grade, module summary/item, page, quiz, syllabus APIs, course context state, plugin host + UI-state hooks, extracted tab helpers, and extracted tab UI components]
-// output: [builtin-canvas-integration course tab runtime and tab definition with framework-aligned unavailable states, persisted local navigation UI state, and host-aware sticky navigation offset]
-// pos:    [course-scoped Canvas navigation controller that resolves Home fallback targets, restores local section/page selection UI state, orchestrates Canvas queries, requests Gradebook handoff through the host API, and renders extracted Canvas views inside the host tab shell]
+// output: [builtin-canvas-integration course tab runtime and tab definition with framework-aligned unavailable states, persisted local navigation UI state, host-aware sticky navigation offset, and in-app module-item drill-down behavior]
+// pos:    [course-scoped Canvas navigation controller that resolves Home fallback targets, restores local section/page selection UI state, orchestrates Canvas queries, keeps supported module items in-app, requests Gradebook handoff through the host API, and renders extracted Canvas views inside the host tab shell]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -291,7 +291,11 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
     );
 
     const pagesEntryId = sectionEntries.find((entry) => entry.section === 'pages')?.id ?? 'pages';
+    const assignmentsEntryId = sectionEntries.find((entry) => entry.section === 'assignments')?.id ?? 'assignments';
+    const quizzesEntryId = sectionEntries.find((entry) => entry.section === 'quizzes')?.id ?? 'quizzes';
     const hasPagesEntry = sectionEntries.some((entry) => entry.section === 'pages');
+    const hasAssignmentsEntry = sectionEntries.some((entry) => entry.section === 'assignments');
+    const hasQuizzesEntry = sectionEntries.some((entry) => entry.section === 'quizzes');
     const homeEntryLabel = sectionEntries.find((entry) => entry.section === 'home')?.label ?? 'Home';
     const homeEntryUrl = sectionEntries.find((entry) => entry.section === 'home')?.htmlUrl ?? null;
 
@@ -324,6 +328,20 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
             activeEntryId: 'home',
         });
     }, [hasPagesEntry, pagesEntryId, updateNavigationState]);
+
+    const handleOpenAssignments = React.useCallback(() => {
+        if (!hasAssignmentsEntry) {
+            return;
+        }
+        updateNavigationState({ activeEntryId: assignmentsEntryId });
+    }, [assignmentsEntryId, hasAssignmentsEntry, updateNavigationState]);
+
+    const handleOpenQuizzes = React.useCallback(() => {
+        if (!hasQuizzesEntry) {
+            return;
+        }
+        updateNavigationState({ activeEntryId: quizzesEntryId });
+    }, [hasQuizzesEntry, quizzesEntryId, updateNavigationState]);
 
     const handleOpenGradebook = React.useCallback(() => {
         void jumpToTab({
@@ -570,9 +588,10 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                     courseId={courseId}
                     heading={activeSection === 'home' ? homeEntryLabel : 'Modules'}
                     items={modulesQuery.data?.items ?? EMPTY_MODULE_ITEMS}
-                    onOpenPage={handleOpenPage}
                     courseExternalId={courseExternalId}
                     canvasOrigin={canvasOrigin}
+                    onOpenAssignments={hasAssignmentsEntry ? handleOpenAssignments : undefined}
+                    onOpenQuizzes={hasQuizzesEntry ? handleOpenQuizzes : undefined}
                 />
             );
         }

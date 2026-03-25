@@ -1,6 +1,6 @@
-# input:  [Canvas LMS provider config/credential payloads and requests-based Canvas REST access]
-# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, blocks SSRF-prone hosts or redirects, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/module summaries/module items/pages/quizzes/grades, reads syllabus/assignments/calendar events, and applies provider-specific due-date normalization]
-# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, outbound-target hardening, navigation, page, announcement, module summary/item, quiz, grade, syllabus, and credential mapping]
+# input:  [Canvas LMS provider config/credential payloads, requests-based Canvas REST access, and Canvas file metadata/download endpoints]
+# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, blocks SSRF-prone hosts or redirects, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/module summaries/module items/pages/quizzes/grades, reads syllabus/assignments/calendar events, fetches file metadata/content, and applies provider-specific due-date normalization plus module-item target typing and content-details capture]
+# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, outbound-target hardening, navigation, page, announcement, module summary/item, quiz, grade, syllabus, file proxy/download, and credential mapping with normalized module-item target metadata]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -11,8 +11,8 @@ from __future__ import annotations
 from datetime import datetime
 import ipaddress
 import socket
-from typing import Any, Optional
-from urllib.parse import urlparse
+from typing import Any, Iterator, Optional
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -21,6 +21,8 @@ from lms_providers import (
     LmsAnnouncementSummaryData,
     LmsCalendarEventSummaryData,
     LmsConnectionSummaryData,
+    LmsCourseFileData,
+    LmsCourseFileStreamData,
     LmsCoursePageData,
     LmsCourseNavigationData,
     LmsCourseNavigationTabData,
@@ -231,6 +233,54 @@ class CanvasLmsProvider:
         response.raise_for_status()
         return response.json()
 
+    def _request_stream(
+        self,
+        session: requests.Session,
+        url: str,
+        *,
+        expected_origin: Optional[str] = None,
+    ) -> requests.Response:
+        _validate_outbound_canvas_url(url, expected_origin=expected_origin)
+        response = session.get(url, timeout=30, allow_redirects=False, stream=True)
+        self._raise_for_redirect(response)
+        response.raise_for_status()
+        return response
+
+    def _request_file_stream(
+        self,
+        session: requests.Session,
+        base_url: str,
+        raw_url: str,
+    ) -> requests.Response:
+        canvas_origin = _validate_outbound_canvas_url(base_url)
+        next_url = urljoin(base_url, raw_url)
+
+        for _ in range(5):
+            next_origin = _validate_outbound_canvas_url(next_url)
+            requester = session.get if next_origin == canvas_origin else requests.get
+            response = requester(next_url, timeout=30, allow_redirects=False, stream=True)
+
+            if 300 <= response.status_code < 400:
+                location = response.headers.get("Location")
+                response.close()
+                if not location:
+                    raise LmsProviderError(
+                        "LMS_PROVIDER_ERROR",
+                        "Canvas returned an unexpected redirect response.",
+                        status_code=502,
+                    )
+                next_url = urljoin(next_url, location)
+                continue
+
+            response.raise_for_status()
+            return response
+
+        raise LmsProviderError(
+            "LMS_PROVIDER_ERROR",
+            "Canvas returned too many redirects while downloading a file.",
+            status_code=502,
+        )
+
     def _paginate_json(
         self,
         session: requests.Session,
@@ -321,12 +371,39 @@ class CanvasLmsProvider:
             html_url=payload.get("html_url"),
         )
 
+    def _normalize_module_item_type(self, raw_type: Optional[str]) -> tuple[Optional[str], bool]:
+        normalized = str(raw_type or "").strip().lower().replace(" ", "_")
+        if not normalized:
+            return None, False
+
+        normalized = {
+            "sub_header": "subheader",
+            "discussion_topic": "discussion",
+            "discussiontopics": "discussion",
+            "discussiontopic": "discussion",
+            "externaltool": "external_tool",
+            "externalurl": "external_url",
+        }.get(normalized, normalized)
+
+        in_app_supported = normalized in {"page", "assignment", "quiz", "file", "subheader"}
+        return normalized, in_app_supported
+
     def _normalize_module_item(self, payload: dict[str, Any]) -> LmsModuleItemData:
         completion_requirement = payload.get("completion_requirement")
         requirement_type = None
         if isinstance(completion_requirement, dict):
             requirement_type = str(completion_requirement.get("type") or "").strip() or None
         item_id = str(payload.get("id") or "").strip()
+        target_type, in_app_supported = self._normalize_module_item_type(payload.get("type"))
+        content_details = payload.get("content_details")
+        if not isinstance(content_details, dict):
+            content_details = None
+        page_url = str(payload.get("page_url") or "").strip() or None
+        if page_url is None and isinstance(content_details, dict):
+            page_url = str(content_details.get("page_url") or "").strip() or None
+        external_url = str(payload.get("external_url") or "").strip() or None
+        if external_url is None and isinstance(content_details, dict):
+            external_url = str(content_details.get("external_url") or "").strip() or None
         return LmsModuleItemData(
             module_item_id=item_id,
             title=str(payload.get("title") or item_id or "Module Item").strip() or "Module Item",
@@ -339,6 +416,34 @@ class CanvasLmsProvider:
             published=bool(payload.get("published")),
             completion_requirement_type=requirement_type,
             new_tab=bool(payload.get("new_tab")),
+            target_type=target_type,
+            page_url=page_url,
+            external_url=external_url,
+            content_details=content_details,
+            in_app_supported=in_app_supported,
+        )
+
+    def _normalize_file(self, payload: dict[str, Any]) -> LmsCourseFileData:
+        file_id = str(payload.get("id") or "").strip()
+        filename = payload.get("filename")
+        if filename is not None:
+            filename = str(filename).strip() or None
+        mime_type = payload.get("content-type") or payload.get("mime_type") or payload.get("content_type")
+        if mime_type is not None:
+            mime_type = str(mime_type).strip() or None
+        size_bytes = self._optional_int(payload.get("size"))
+        if size_bytes is None:
+            size_bytes = self._optional_int(payload.get("size_bytes"))
+        return LmsCourseFileData(
+            file_id=file_id,
+            display_name=str(payload.get("display_name") or payload.get("filename") or file_id or "File").strip() or "File",
+            filename=filename,
+            mime_type=mime_type,
+            size_bytes=size_bytes,
+            url=payload.get("url"),
+            preview_url=payload.get("preview_url"),
+            locked_for_user=bool(payload.get("locked_for_user")),
+            lock_explanation=payload.get("lock_explanation"),
         )
 
     def _normalize_module(self, payload: dict[str, Any]) -> LmsModuleSummaryData:
@@ -687,6 +792,7 @@ class CanvasLmsProvider:
                 f"/courses/{external_course_id}/modules/{module_id}/items",
                 params={
                     "per_page": 100,
+                    "include[]": ["content_details"],
                 },
             )
             items: list[LmsModuleItemData] = []
@@ -694,6 +800,63 @@ class CanvasLmsProvider:
                 if isinstance(item, dict):
                     items.append(self._normalize_module_item(item))
             return items
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def get_course_file(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+        file_id: str,
+    ) -> LmsCourseFileData:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._request_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/files/{file_id}",
+            )
+            if not isinstance(payload, dict):
+                raise LmsProviderError("LMS_PROVIDER_ERROR", "Canvas returned an unexpected provider payload.", status_code=502)
+            return self._normalize_file(payload)
+        except Exception as exc:
+            raise self._map_provider_exception(exc) from exc
+
+    def open_course_file(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+        file_id: str,
+    ) -> LmsCourseFileStreamData:
+        try:
+            base_url, session = self._build_session(config, credentials)
+            payload = self._request_json(
+                session,
+                base_url,
+                f"/courses/{external_course_id}/files/{file_id}",
+            )
+            if not isinstance(payload, dict):
+                raise LmsProviderError("LMS_PROVIDER_ERROR", "Canvas returned an unexpected provider payload.", status_code=502)
+            file_data = self._normalize_file(payload)
+            download_url = str(file_data.url or file_data.preview_url or "").strip()
+            if not download_url:
+                raise LmsProviderError("LMS_PROVIDER_ERROR", "Canvas returned an unexpected provider payload.", status_code=502)
+            response = self._request_file_stream(session, base_url, download_url)
+
+            def _iter_content() -> Iterator[bytes]:
+                try:
+                    for chunk in response.iter_content(chunk_size=64 * 1024):
+                        if chunk:
+                            yield chunk
+                finally:
+                    response.close()
+
+            return LmsCourseFileStreamData(
+                **file_data.__dict__,
+                content=_iter_content(),
+            )
         except Exception as exc:
             raise self._map_provider_exception(exc) from exc
 

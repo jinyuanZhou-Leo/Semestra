@@ -1,6 +1,6 @@
-// input:  [Canvas module summary + item APIs, Canvas link helpers, TanStack Query, shadcn collapsible/scroll-area primitives, and shared class merging]
-// output: [CanvasModulesView presentational component plus private windowed module-section and item-row renderers]
-// pos:    [module content renderer for the Canvas integration tab that preserves expanded module cards while windowing offscreen sections and loading item lists on demand]
+// input:  [Canvas module summary/item APIs, Canvas page APIs, Canvas file-download proxy routes, Canvas link helpers, TanStack Query, shadcn alert/button/collapsible/scroll-area primitives, and shared class merging]
+// output: [CanvasModulesView presentational component plus private windowed module-section, item-row, and detail renderers]
+// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, windows offscreen sections, loads item lists on demand, and caches proxied file previews for native rendering]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,17 +10,41 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, ExternalLink } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, ExternalLink } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import api, { type LmsModuleItem, type LmsModuleSummary } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
 
 import { CANVAS_QUERY_OPTIONS, openExternalUrl } from '../tab-helpers';
-import { resolveCanvasHref, resolveCanvasPageReference } from '../shared';
+import { formatCanvasPageTimestamp, resolveCanvasHref, resolveCanvasPageReference } from '../shared';
+import { CanvasHtmlFragment } from './CanvasHtmlFragment';
+
+const normalizeModuleItemType = (value: string | null | undefined) => {
+    const normalized = value?.trim().toLowerCase().replace(/\s+/g, '_') ?? '';
+    if (!normalized) {
+        return '';
+    }
+    return ({
+        sub_header: 'subheader',
+        discussion_topic: 'discussion',
+        discussiontopics: 'discussion',
+        discussiontopic: 'discussion',
+        externaltool: 'external_tool',
+        externalurl: 'external_url',
+    } as const)[normalized] ?? normalized;
+};
+
+const isModuleItemExternal = (item: LmsModuleItem) => {
+    const itemType = normalizeModuleItemType(item.target_type ?? item.item_type);
+    return itemType.includes('external') || itemType.includes('discussion');
+};
 
 const MODULE_ROW_HEIGHT_ESTIMATE = 44;
 const MODULE_HEADER_HEIGHT_ESTIMATE = 50;
@@ -30,6 +54,44 @@ const MODULE_SECTION_GAP = 16;
 const MODULE_WINDOW_OVERSCAN = 720;
 const MODULE_DEFAULT_ITEM_COUNT_ESTIMATE = 6;
 const MODULE_DEFAULT_VIEWPORT_HEIGHT = 720;
+const FILE_TEXT_MIME_PREFIXES = ['text/', 'application/json', 'application/xml', 'image/svg+xml'];
+
+const buildModuleFileDownloadUrl = (courseId: string, moduleId: string, moduleItemId: string) => (
+    `/api/courses/${encodeURIComponent(courseId)}/lms/modules/${encodeURIComponent(moduleId)}/items/${encodeURIComponent(moduleItemId)}/file/download`
+);
+
+const normalizeMimeType = (value: string | null | undefined) => value?.trim().toLowerCase().split(';')[0] ?? '';
+
+const isTextLikeMimeType = (mimeType: string) => (
+    FILE_TEXT_MIME_PREFIXES.some((prefix) => mimeType.startsWith(prefix))
+    || mimeType === 'application/javascript'
+    || mimeType === 'application/x-javascript'
+    || mimeType === 'application/typescript'
+);
+
+const readBlobAsText = async (blob: Blob) => {
+    if (typeof blob.text === 'function') {
+        return blob.text();
+    }
+
+    if (typeof blob.arrayBuffer === 'function') {
+        const buffer = await blob.arrayBuffer();
+        return new TextDecoder('utf-8').decode(buffer);
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error ?? new Error('Failed to read file text.'));
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.readAsText(blob);
+    });
+};
+
+type CachedModuleFilePreview = {
+    blob: Blob;
+    mimeType: string;
+    textContent: string | null;
+};
 
 const getEstimatedModuleBodyHeight = (moduleItem: LmsModuleSummary) => {
     if (moduleItem.item_count === 0) {
@@ -48,53 +110,342 @@ const getEstimatedModuleHeight = (moduleItem: LmsModuleSummary, isOpen: boolean)
 
 type CanvasModuleItemRowProps = {
     item: LmsModuleItem;
-    onOpenPage: (pageRef: string) => void;
-    courseExternalId: string;
+    onSelectItem: (item: LmsModuleItem) => void;
     canvasOrigin?: string | null;
 };
 
 const CanvasModuleItemRow = React.memo(function CanvasModuleItemRow({
     item,
-    onOpenPage,
-    courseExternalId,
+    onSelectItem,
     canvasOrigin,
 }: CanvasModuleItemRowProps) {
-    const { pageRef, externalUrl, isExternalOnly } = React.useMemo(() => {
-        const resolvedPageRef = resolveCanvasPageReference(item.html_url ?? item.url ?? '', courseExternalId, canvasOrigin);
-        const resolvedExternalUrl = resolveCanvasHref(item.html_url ?? item.url ?? '', canvasOrigin);
+    const { externalUrl, isExternalItem } = React.useMemo(() => {
+        const contentDetails = item.content_details ?? {};
+        const fileUrl = typeof contentDetails.url === 'string' ? contentDetails.url : null;
+        const resolvedExternalUrl = resolveCanvasHref(
+            fileUrl ?? item.external_url ?? item.html_url ?? item.url ?? '',
+            canvasOrigin,
+        );
         return {
-            pageRef: resolvedPageRef,
             externalUrl: resolvedExternalUrl,
-            isExternalOnly: !resolvedPageRef && Boolean(resolvedExternalUrl),
+            isExternalItem: isModuleItemExternal(item),
         };
-    }, [canvasOrigin, courseExternalId, item.html_url, item.url]);
+    }, [canvasOrigin, item.content_details, item.external_url, item.html_url, item.item_type, item.target_type, item.url]);
 
     return (
         <button
             type="button"
             className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60"
             onClick={() => {
-                if (pageRef) {
-                    onOpenPage(pageRef);
+                if (isExternalItem) {
+                    openExternalUrl(externalUrl);
                     return;
                 }
-                openExternalUrl(externalUrl);
+                onSelectItem(item);
             }}
         >
             <div className="min-w-0">
                 <p
                     className={cn(
                         'truncate text-sm font-medium text-foreground',
-                        isExternalOnly ? 'decoration-current underline-offset-4 hover:underline' : '',
+                        isExternalItem ? 'decoration-current underline-offset-4 hover:underline' : '',
                     )}
                 >
                     {item.title}
                 </p>
             </div>
-            {(pageRef || externalUrl) ? <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /> : null}
+            {isExternalItem ? <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /> : (
+                <ArrowRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            )}
         </button>
     );
 });
+
+const CanvasModuleItemDetailLoading: React.FC = () => (
+    <div className="space-y-4 border border-border/60 rounded-2xl p-5">
+        <div className="space-y-2">
+            <Skeleton className="h-4 w-32 rounded-full" />
+            <Skeleton className="h-7 w-64 rounded-md" />
+        </div>
+        <Skeleton className="h-44 rounded-2xl" />
+    </div>
+);
+
+const CanvasModuleFilePreview: React.FC<{
+    courseId: string;
+    moduleId: string;
+    moduleItemId: string;
+    title: string;
+    onBack: () => void;
+}> = ({ courseId, moduleId, moduleItemId, title, onBack }) => {
+    const fileQuery = useQuery<CachedModuleFilePreview>({
+        queryKey: queryKeys.courses.lmsModuleFile(courseId, moduleId, moduleItemId),
+        queryFn: async () => {
+            const response = await fetch(buildModuleFileDownloadUrl(courseId, moduleId, moduleItemId), {
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const mimeType = normalizeMimeType(blob.type);
+            const textContent = isTextLikeMimeType(mimeType)
+                ? await readBlobAsText(blob)
+                : null;
+
+            return {
+                blob,
+                mimeType,
+                textContent,
+            };
+        },
+        staleTime: 1000 * 60 * 30,
+        gcTime: 1000 * 60 * 60,
+        ...CANVAS_QUERY_OPTIONS,
+    });
+
+    const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (!fileQuery.data || fileQuery.data.textContent !== null) {
+            setBlobUrl(null);
+            return;
+        }
+
+        const createdBlobUrl = URL.createObjectURL(fileQuery.data.blob);
+        setBlobUrl(createdBlobUrl);
+        return () => {
+            URL.revokeObjectURL(createdBlobUrl);
+        };
+    }, [fileQuery.data]);
+
+    if (fileQuery.isLoading && !fileQuery.data) {
+        return <CanvasModuleItemDetailLoading />;
+    }
+
+    if (fileQuery.error || !fileQuery.data) {
+        return (
+            <AppEmptyState
+                scenario="unavailable"
+                size="section"
+                surface="inherit"
+                title="File preview unavailable"
+                description={fileQuery.error instanceof Error ? fileQuery.error.message : 'Failed to load the file preview from Semestra.'}
+                className="h-full"
+            />
+        );
+    }
+
+    const mimeType = fileQuery.data.mimeType;
+    const textContent = fileQuery.data.textContent;
+    const previewKind = (() => {
+        if (mimeType.startsWith('image/')) return 'image';
+        if (mimeType.startsWith('video/')) return 'video';
+        if (mimeType.startsWith('audio/')) return 'audio';
+        if (mimeType === 'application/pdf') return 'pdf';
+        if (isTextLikeMimeType(mimeType)) return 'text';
+        return 'unknown';
+    })();
+
+    return (
+        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-background">
+            <header className="space-y-2 border-b border-border/60 px-5 py-4">
+                <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
+                    <ArrowLeft className="size-3.5" />
+                    Back to modules
+                </Button>
+                <div className="min-w-0 space-y-1">
+                    <h3 className="truncate text-xl font-semibold text-foreground">{title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                        {previewKind === 'unknown' ? 'File preview' : `${previewKind.charAt(0).toUpperCase() + previewKind.slice(1)} preview`}
+                    </p>
+                </div>
+            </header>
+            <div className="min-h-0 flex-1 overflow-auto">
+                {previewKind === 'image' && blobUrl ? (
+                    <img
+                        src={blobUrl}
+                        alt={title}
+                        className="h-auto w-full object-contain"
+                    />
+                ) : previewKind === 'video' && blobUrl ? (
+                    <video controls className="h-full w-full bg-background" src={blobUrl} />
+                ) : previewKind === 'audio' && blobUrl ? (
+                    <div className="p-5">
+                        <audio controls className="w-full" src={blobUrl} />
+                    </div>
+                ) : previewKind === 'pdf' && blobUrl ? (
+                    <object
+                        data={blobUrl}
+                        type="application/pdf"
+                        aria-label={`${title} preview`}
+                        className="h-[72vh] w-full"
+                    >
+                        <div className="p-5 text-sm text-muted-foreground">
+                            Your browser cannot render this PDF inline.
+                        </div>
+                    </object>
+                ) : previewKind === 'text' ? (
+                    <pre className="min-h-full bg-muted/20 p-5 text-sm leading-6 text-foreground whitespace-pre-wrap">
+                        {textContent || 'This file is empty.'}
+                    </pre>
+                ) : blobUrl ? (
+                    <object
+                        data={blobUrl}
+                        type={mimeType || undefined}
+                        className="h-[72vh] w-full"
+                    >
+                        <div className="p-5 text-sm text-muted-foreground">
+                            Your browser cannot render this file inline.
+                        </div>
+                    </object>
+                ) : (
+                    <AppEmptyState
+                        scenario="unavailable"
+                        size="section"
+                        surface="inherit"
+                        title="File preview unavailable"
+                        description="Semestra could not determine how to render this file inline."
+                        className="h-full"
+                    />
+                )}
+            </div>
+        </section>
+    );
+};
+
+const CanvasModuleItemDetail: React.FC<{
+    courseId: string;
+    moduleId: string;
+    moduleItem: LmsModuleItem;
+    courseExternalId: string;
+    canvasOrigin?: string | null;
+    onOpenAssignments?: () => void;
+    onOpenQuizzes?: () => void;
+    onBack: () => void;
+}> = ({ courseId, moduleId, moduleItem, courseExternalId, canvasOrigin, onOpenAssignments, onOpenQuizzes, onBack }) => {
+    const detailItemType = normalizeModuleItemType(moduleItem.target_type ?? moduleItem.item_type);
+    const resolvedPageRef = React.useMemo(
+        () => moduleItem.page_url ?? resolveCanvasPageReference(moduleItem.html_url ?? moduleItem.url ?? '', courseExternalId, canvasOrigin),
+        [canvasOrigin, courseExternalId, moduleItem.html_url, moduleItem.page_url, moduleItem.url],
+    );
+    const [activePageRef, setActivePageRef] = React.useState<string | null>(detailItemType === 'page' ? resolvedPageRef : null);
+    const isPageItem = detailItemType === 'page' && Boolean(activePageRef);
+
+    React.useEffect(() => {
+        setActivePageRef(detailItemType === 'page' ? resolvedPageRef : null);
+    }, [detailItemType, resolvedPageRef, moduleItem.module_item_id]);
+
+    const pageQuery = useQuery({
+        queryKey: courseId && activePageRef ? queryKeys.courses.lmsPage(courseId, activePageRef) : ['courses', 'lms-page', 'disabled', courseId, moduleItem.module_item_id],
+        queryFn: () => api.getCourseLmsPage(courseId, activePageRef!),
+        enabled: Boolean(activePageRef && isPageItem),
+        ...CANVAS_QUERY_OPTIONS,
+    });
+
+    if (isPageItem) {
+        if (pageQuery.isLoading && !pageQuery.data) {
+            return <CanvasModuleItemDetailLoading />;
+        }
+
+        if (pageQuery.error || !pageQuery.data) {
+            return (
+                <AppEmptyState
+                    scenario="unavailable"
+                    size="section"
+                    surface="inherit"
+                    title="Canvas page unavailable"
+                    description="Failed to load the selected Canvas page."
+                    className="h-full"
+                />
+            );
+        }
+
+        return (
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60">
+                <div className="border-b border-border/60 px-5 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-2">
+                            <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
+                                <ArrowLeft className="size-3.5" />
+                                Back to modules
+                            </Button>
+                            <h3 className="text-xl font-semibold text-foreground">{pageQuery.data.title}</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Updated {formatCanvasPageTimestamp(pageQuery.data.updated_at)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <ScrollArea className="min-h-0 flex-1">
+                    <div className="px-5 py-5">
+                        {pageQuery.data.locked_for_user && pageQuery.data.lock_explanation ? (
+                            <Alert className="mb-4">
+                                <AlertCircle className="size-4" />
+                                <AlertTitle>Locked in Canvas</AlertTitle>
+                                <AlertDescription>{pageQuery.data.lock_explanation}</AlertDescription>
+                            </Alert>
+                        ) : null}
+
+                        {pageQuery.data.body ? (
+                            <CanvasHtmlFragment
+                                body={pageQuery.data.body}
+                                courseExternalId={courseExternalId}
+                                canvasOrigin={canvasOrigin}
+                                onNavigateToPage={(nextPageRef) => setActivePageRef(nextPageRef)}
+                            />
+                        ) : (
+                            <p className="text-sm text-muted-foreground">This page does not have any visible content.</p>
+                        )}
+                    </div>
+                </ScrollArea>
+            </div>
+        );
+    }
+
+    if (detailItemType === 'file') {
+        return (
+            <CanvasModuleFilePreview
+                courseId={courseId}
+                moduleId={moduleId}
+                moduleItemId={moduleItem.module_item_id}
+                title={moduleItem.title}
+                onBack={onBack}
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-4 rounded-2xl border border-border/60 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 space-y-2">
+                    <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
+                        <ArrowLeft className="size-3.5" />
+                        Back to modules
+                    </Button>
+                    <h3 className="text-xl font-semibold text-foreground">{moduleItem.title}</h3>
+                </div>
+            </div>
+
+            {(detailItemType.includes('assignment') && onOpenAssignments) || (detailItemType.includes('quiz') && onOpenQuizzes) ? (
+                <div className="flex flex-wrap gap-2">
+                    {detailItemType.includes('assignment') && onOpenAssignments ? (
+                        <Button type="button" variant="outline" size="sm" onClick={onOpenAssignments}>
+                            Open Assignments
+                        </Button>
+                    ) : null}
+                    {detailItemType.includes('quiz') && onOpenQuizzes ? (
+                        <Button type="button" variant="outline" size="sm" onClick={onOpenQuizzes}>
+                            Open Quizzes
+                        </Button>
+                    ) : null}
+                </div>
+            ) : null}
+        </div>
+    );
+};
 
 const CanvasModuleLoadingRows: React.FC<{ estimatedHeight: number }> = ({ estimatedHeight }) => (
     <div
@@ -116,16 +467,14 @@ const CanvasModuleLoadingRows: React.FC<{ estimatedHeight: number }> = ({ estima
 type CanvasModuleSectionBodyProps = {
     courseId: string;
     moduleItem: LmsModuleSummary;
-    onOpenPage: (pageRef: string) => void;
-    courseExternalId: string;
+    onSelectItem: (moduleId: string, item: LmsModuleItem) => void;
     canvasOrigin?: string | null;
 };
 
 const CanvasModuleSectionBody = React.memo(function CanvasModuleSectionBody({
     courseId,
     moduleItem,
-    onOpenPage,
-    courseExternalId,
+    onSelectItem,
     canvasOrigin,
 }: CanvasModuleSectionBodyProps) {
     const estimatedHeight = React.useMemo(
@@ -165,8 +514,7 @@ const CanvasModuleSectionBody = React.memo(function CanvasModuleSectionBody({
                         >
                             <CanvasModuleItemRow
                                 item={item}
-                                onOpenPage={onOpenPage}
-                                courseExternalId={courseExternalId}
+                                onSelectItem={(selectedItem) => onSelectItem(moduleItem.module_id, selectedItem)}
                                 canvasOrigin={canvasOrigin}
                             />
                         </div>
@@ -182,8 +530,7 @@ type CanvasModuleSectionProps = {
     moduleItem: LmsModuleSummary;
     isOpen: boolean;
     onOpenChange: (nextOpen: boolean) => void;
-    onOpenPage: (pageRef: string) => void;
-    courseExternalId: string;
+    onSelectItem: (moduleId: string, item: LmsModuleItem) => void;
     canvasOrigin?: string | null;
 };
 
@@ -192,8 +539,7 @@ const CanvasModuleSection = React.memo(function CanvasModuleSection({
     moduleItem,
     isOpen,
     onOpenChange,
-    onOpenPage,
-    courseExternalId,
+    onSelectItem,
     canvasOrigin,
 }: CanvasModuleSectionProps) {
     const handleOpenChange = React.useCallback((nextOpen: boolean) => {
@@ -220,8 +566,7 @@ const CanvasModuleSection = React.memo(function CanvasModuleSection({
                 <CanvasModuleSectionBody
                     courseId={courseId}
                     moduleItem={moduleItem}
-                    onOpenPage={onOpenPage}
-                    courseExternalId={courseExternalId}
+                    onSelectItem={onSelectItem}
                     canvasOrigin={canvasOrigin}
                 />
             ) : null}
@@ -233,13 +578,15 @@ export const CanvasModulesView: React.FC<{
     courseId: string;
     heading: string;
     items: LmsModuleSummary[];
-    onOpenPage: (pageRef: string) => void;
     courseExternalId: string;
     canvasOrigin?: string | null;
-}> = ({ courseId, heading, items, onOpenPage, courseExternalId, canvasOrigin }) => {
+    onOpenAssignments?: () => void;
+    onOpenQuizzes?: () => void;
+}> = ({ courseId, heading, items, courseExternalId, canvasOrigin, onOpenAssignments, onOpenQuizzes }) => {
     const scrollAreaHostRef = React.useRef<HTMLDivElement | null>(null);
     const [scrollTop, setScrollTop] = React.useState(0);
     const [viewportHeight, setViewportHeight] = React.useState(MODULE_DEFAULT_VIEWPORT_HEIGHT);
+    const [selectedModuleItem, setSelectedModuleItem] = React.useState<{ moduleId: string; item: LmsModuleItem } | null>(null);
     const [openModuleMap, setOpenModuleMap] = React.useState<Record<string, boolean>>(() => (
         Object.fromEntries(items.map((moduleItem) => [moduleItem.module_id, true]))
     ));
@@ -253,6 +600,10 @@ export const CanvasModulesView: React.FC<{
             return nextMap;
         });
     }, [items]);
+
+    React.useEffect(() => {
+        setSelectedModuleItem(null);
+    }, [courseId]);
 
     React.useEffect(() => {
         const host = scrollAreaHostRef.current;
@@ -367,29 +718,43 @@ export const CanvasModulesView: React.FC<{
                 <div className="border-b border-border/60 px-5 py-4">
                     <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
                 </div>
-                <div className="px-5 py-5">
-                    {windowedModules.topSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.topSpacer}px` }} /> : null}
-                    <div className="space-y-4">
-                        {windowedModules.visibleItems.map((moduleItem) => (
-                            <CanvasModuleSection
-                                key={moduleItem.module_id}
-                                courseId={courseId}
-                                moduleItem={moduleItem}
-                                isOpen={openModuleMap[moduleItem.module_id] ?? true}
+                {selectedModuleItem ? (
+                    <div className="px-5 py-5">
+                        <CanvasModuleItemDetail
+                            courseId={courseId}
+                            moduleId={selectedModuleItem.moduleId}
+                            moduleItem={selectedModuleItem.item}
+                            courseExternalId={courseExternalId}
+                            canvasOrigin={canvasOrigin}
+                            onOpenAssignments={onOpenAssignments}
+                            onOpenQuizzes={onOpenQuizzes}
+                            onBack={() => setSelectedModuleItem(null)}
+                        />
+                    </div>
+                ) : (
+                    <div className="px-5 py-5">
+                        {windowedModules.topSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.topSpacer}px` }} /> : null}
+                        <div className="space-y-4">
+                            {windowedModules.visibleItems.map((moduleItem) => (
+                                <CanvasModuleSection
+                                    key={moduleItem.module_id}
+                                    courseId={courseId}
+                                    moduleItem={moduleItem}
+                                    isOpen={openModuleMap[moduleItem.module_id] ?? true}
                                 onOpenChange={(nextOpen) => {
                                     setOpenModuleMap((currentMap) => ({
                                         ...currentMap,
                                         [moduleItem.module_id]: nextOpen,
                                     }));
                                 }}
-                                onOpenPage={onOpenPage}
-                                courseExternalId={courseExternalId}
+                                onSelectItem={(selectedModuleId, item) => setSelectedModuleItem({ moduleId: selectedModuleId, item })}
                                 canvasOrigin={canvasOrigin}
                             />
-                        ))}
+                            ))}
+                        </div>
+                        {windowedModules.bottomSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.bottomSpacer}px` }} /> : null}
                     </div>
-                    {windowedModules.bottomSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.bottomSpacer}px` }} /> : null}
-                </div>
+                )}
             </ScrollArea>
         </div>
     );

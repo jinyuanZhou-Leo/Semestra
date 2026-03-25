@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy setup, backend LMS service/schema/crypto modules, Canvas adapter hardening, and fake provider adapters]
-# output: [unit tests covering multi-integration LMS storage, Canvas outbound-request hardening, Program/Course LMS link rules, provider-backed imports, read-only navigation/announcement/module/assignment/page/quiz/grade/syllabus/calendar contracts, and program-level course stat/reassignment safeguards]
-# pos:    [backend regression tests for LMS orchestration plus Canvas adapter security boundaries and program/course behaviors that interact with provider setup, navigation/page/quiz/grade/syllabus browsing, and semester assignment]
+# output: [unit tests covering multi-integration LMS storage, Canvas outbound-request hardening, Program/Course LMS link rules, provider-backed imports, read-only navigation/announcement/module/assignment/page/quiz/grade/syllabus/calendar contracts, normalized module-item target metadata, file proxy/download handling, and program-level course stat/reassignment safeguards]
+# pos:    [backend regression tests for LMS orchestration plus Canvas adapter security boundaries and program/course behaviors that interact with provider setup, navigation/page/quiz/grade/syllabus/file browsing, normalized module targets, file metadata/content streaming, and semester assignment]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -14,6 +14,7 @@ from pathlib import Path
 import sys
 from unittest.mock import patch
 
+import requests
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -34,6 +35,8 @@ from lms_providers import (
     LmsAnnouncementSummaryData,
     LmsCalendarEventSummaryData,
     LmsConnectionSummaryData,
+    LmsCourseFileData,
+    LmsCourseFileStreamData,
     LmsCoursePageData,
     LmsCourseNavigationData,
     LmsCourseNavigationTabData,
@@ -59,6 +62,7 @@ class _FakeLmsProvider:
         self.last_announcements_args = None
         self.last_modules_args = None
         self.last_module_items_args = None
+        self.last_file_args = None
         self.last_quizzes_args = None
         self.last_grades_args = None
         self.last_syllabus_args = None
@@ -238,8 +242,36 @@ class _FakeLmsProvider:
                 published=True,
                 completion_requirement_type="must_view",
                 new_tab=False,
+                target_type="page",
+                page_url="lecture-1",
+                content_details={"page_url": "lecture-1", "published": True},
+                in_app_supported=True,
             )
         ]
+
+    def get_course_file(self, config, credentials, external_course_id, file_id):
+        self.last_file_args = {
+            "external_course_id": external_course_id,
+            "file_id": file_id,
+        }
+        return LmsCourseFileData(
+            file_id=file_id,
+            display_name="Lecture Notes.pdf",
+            filename="lecture-notes.pdf",
+            mime_type="application/pdf",
+            size_bytes=1024,
+            url="https://example.com/files/lecture-notes.pdf",
+            preview_url="https://example.com/files/lecture-notes/preview",
+            locked_for_user=False,
+            lock_explanation=None,
+        )
+
+    def open_course_file(self, config, credentials, external_course_id, file_id):
+        file_data = self.get_course_file(config, credentials, external_course_id, file_id)
+        return LmsCourseFileStreamData(
+            **file_data.__dict__,
+            content=iter([b"file-bytes"]),
+        )
 
     def list_course_pages(self, config, credentials, external_course_id):
         self.last_list_pages_args = {
@@ -785,11 +817,13 @@ class LmsIntegrationTests(unittest.TestCase):
                             "content_id": "page-1",
                             "html_url": "https://example.com/courses/123/pages/lecture-1",
                             "url": "/courses/123/pages/lecture-1",
+                            "page_url": "lecture-1",
                             "position": 1,
                             "indent": 0,
                             "published": True,
                             "completion_requirement": {"type": "must_view"},
                             "new_tab": False,
+                            "content_details": {"page_url": "lecture-1", "published": True},
                         }
                     ]
                 )
@@ -807,9 +841,194 @@ class LmsIntegrationTests(unittest.TestCase):
 
         self.assertEqual(len(session.calls), 1)
         self.assertEqual(session.calls[0]["url"], "https://example.com/api/v1/courses/course-1/modules/module-1/items")
-        self.assertEqual(session.calls[0]["params"], {"per_page": 100})
+        self.assertEqual(session.calls[0]["params"], {"per_page": 100, "include[]": ["content_details"]})
         self.assertEqual(items[0].module_item_id, "module-item-1")
         self.assertEqual(items[0].completion_requirement_type, "must_view")
+        self.assertEqual(items[0].target_type, "page")
+        self.assertEqual(items[0].page_url, "lecture-1")
+        self.assertTrue(items[0].in_app_supported)
+        self.assertEqual(items[0].content_details, {"page_url": "lecture-1", "published": True})
+
+    def test_canvas_provider_classifies_module_item_targets(self) -> None:
+        provider = CanvasLmsProvider()
+        in_app_types = ("Page", "Assignment", "Quiz", "File", "SubHeader")
+        external_types = ("ExternalTool", "ExternalUrl", "DiscussionTopic")
+
+        for item_type in in_app_types:
+            normalized = provider._normalize_module_item({"id": "1", "type": item_type})
+            self.assertTrue(normalized.in_app_supported, item_type)
+            self.assertNotIn(normalized.target_type, {None, "external_tool", "external_url", "discussion"})
+
+        for item_type in external_types:
+            normalized = provider._normalize_module_item({"id": "1", "type": item_type})
+            self.assertFalse(normalized.in_app_supported, item_type)
+            self.assertIn(normalized.target_type, {"external_tool", "external_url", "discussion"})
+
+    def test_canvas_provider_fetches_course_file_metadata_and_stream(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload=None, chunks=None):
+                self._payload = payload
+                self._chunks = chunks or []
+                self.links = {}
+                self.status_code = 200
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._payload
+
+            def iter_content(self, chunk_size=65536):
+                del chunk_size
+                yield from self._chunks
+
+            def close(self):
+                return None
+
+        class FakeSession:
+            def __init__(self):
+                self.calls = []
+
+            def get(self, url, params=None, timeout=None, allow_redirects=None, stream=None):
+                self.calls.append({
+                    "url": url,
+                    "params": params,
+                    "timeout": timeout,
+                    "allow_redirects": allow_redirects,
+                    "stream": stream,
+                })
+                if url.endswith("/files/55"):
+                    return FakeResponse(
+                        {
+                            "id": 55,
+                            "display_name": "Lecture Notes.pdf",
+                            "filename": "lecture-notes.pdf",
+                            "content-type": "application/pdf",
+                            "size": 1024,
+                            "url": "https://example.com/files/lecture-notes.pdf",
+                            "preview_url": "https://example.com/files/lecture-notes/preview",
+                            "locked_for_user": False,
+                            "lock_explanation": None,
+                        }
+                    )
+                return FakeResponse(chunks=[b"pdf-bytes"])
+
+        session = FakeSession()
+        provider = CanvasLmsProvider()
+
+        with patch.object(CanvasLmsProvider, "_build_session", return_value=("https://example.com", session)):
+            file_data = provider.get_course_file(
+                {"base_url": "https://example.com"},
+                {"personal_access_token": "token"},
+                "course-1",
+                "55",
+            )
+            file_stream = provider.open_course_file(
+                {"base_url": "https://example.com"},
+                {"personal_access_token": "token"},
+                "course-1",
+                "55",
+            )
+
+        self.assertEqual(session.calls[0]["url"], "https://example.com/api/v1/courses/course-1/files/55")
+        self.assertEqual(session.calls[0]["stream"], None)
+        self.assertEqual(file_data.file_id, "55")
+        self.assertEqual(file_data.display_name, "Lecture Notes.pdf")
+        self.assertEqual(file_data.mime_type, "application/pdf")
+        self.assertEqual(session.calls[1]["url"], "https://example.com/api/v1/courses/course-1/files/55")
+        self.assertIsNone(session.calls[1]["stream"])
+        self.assertEqual(session.calls[2]["url"], "https://example.com/files/lecture-notes.pdf")
+        self.assertTrue(session.calls[2]["stream"])
+        self.assertEqual(file_stream.file_id, "55")
+        self.assertEqual(b"".join(file_stream.content), b"pdf-bytes")
+
+    def test_canvas_provider_follows_cross_origin_file_redirects_without_forwarding_canvas_auth(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload=None, *, status_code=200, headers=None, chunks=None):
+                self._payload = payload
+                self.links = {}
+                self.status_code = status_code
+                self.headers = headers or {}
+                self._chunks = chunks or []
+
+            def raise_for_status(self):
+                if self.status_code >= 400:
+                    raise requests.HTTPError(response=self)
+                return None
+
+            def json(self):
+                return self._payload
+
+            def iter_content(self, chunk_size=65536):
+                del chunk_size
+                yield from self._chunks
+
+            def close(self):
+                return None
+
+        class FakeSession:
+            def __init__(self):
+                self.calls = []
+
+            def get(self, url, params=None, timeout=None, allow_redirects=None, stream=None):
+                self.calls.append({
+                    "url": url,
+                    "params": params,
+                    "timeout": timeout,
+                    "allow_redirects": allow_redirects,
+                    "stream": stream,
+                })
+                if url == "https://example.com/api/v1/courses/course-1/files/55":
+                    return FakeResponse(
+                        {
+                            "id": 55,
+                            "display_name": "Lecture Notes.pdf",
+                            "filename": "lecture-notes.pdf",
+                            "content-type": "application/pdf",
+                            "size": 1024,
+                            "url": "https://example.com/files/lecture-notes.pdf",
+                            "locked_for_user": False,
+                            "lock_explanation": None,
+                        }
+                    )
+                if url == "https://example.com/files/lecture-notes.pdf":
+                    return FakeResponse(
+                        status_code=302,
+                        headers={"Location": "https://files.examplecdn.com/lecture-notes.pdf?token=abc"},
+                    )
+                raise AssertionError(f"Unexpected session URL {url}")
+
+        session = FakeSession()
+        provider = CanvasLmsProvider()
+        cross_origin_calls: list[dict[str, object]] = []
+
+        def fake_cross_origin_get(url, timeout=None, allow_redirects=None, stream=None):
+            cross_origin_calls.append({
+                "url": url,
+                "timeout": timeout,
+                "allow_redirects": allow_redirects,
+                "stream": stream,
+            })
+            if url == "https://files.examplecdn.com/lecture-notes.pdf?token=abc":
+                return FakeResponse(chunks=[b"pdf-bytes"])
+            raise AssertionError(f"Unexpected cross-origin URL {url}")
+
+        with patch.object(CanvasLmsProvider, "_build_session", return_value=("https://example.com", session)):
+            with patch("lms_canvas._resolve_and_validate_hostname", return_value=None):
+                with patch("lms_canvas.requests.get", side_effect=fake_cross_origin_get):
+                    file_stream = provider.open_course_file(
+                        {"base_url": "https://example.com"},
+                        {"personal_access_token": "token"},
+                        "course-1",
+                        "55",
+                    )
+
+        self.assertEqual(session.calls[0]["url"], "https://example.com/api/v1/courses/course-1/files/55")
+        self.assertEqual(session.calls[1]["url"], "https://example.com/files/lecture-notes.pdf")
+        self.assertTrue(session.calls[1]["stream"])
+        self.assertEqual(cross_origin_calls[0]["url"], "https://files.examplecdn.com/lecture-notes.pdf?token=abc")
+        self.assertTrue(cross_origin_calls[0]["stream"])
+        self.assertEqual(b"".join(file_stream.content), b"pdf-bytes")
 
     def test_canvas_provider_normalizes_quizzes_response(self) -> None:
         class FakeResponse:
@@ -1190,6 +1409,8 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertEqual(modules.items[0].item_count, 1)
         self.assertEqual(module_items.items[0].module_item_id, "module-item-1")
         self.assertEqual(module_items.items[0].completion_requirement_type, "must_view")
+        self.assertEqual(module_items.items[0].target_type, "page")
+        self.assertTrue(module_items.items[0].in_app_supported)
         self.assertEqual(quizzes.items[0].quiz_id, "quiz-1")
         self.assertEqual(quizzes.items[0].html_url, "https://example.com/courses/123/quizzes/1")
         self.assertEqual(grades.items[0].grades_html_url, "https://example.com/courses/123/grades")
@@ -1211,9 +1432,66 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertEqual(route_modules.items[0].module_id, "module-1")
         self.assertEqual(route_modules.items[0].item_count, 1)
         self.assertEqual(route_module_items.items[0].module_item_id, "module-item-1")
+        self.assertEqual(route_module_items.items[0].target_type, "page")
         self.assertEqual(route_quizzes.items[0].title, "Week 1 Quiz")
         self.assertEqual(route_grades.items[0].final_score, 88.7)
         self.assertEqual(route_syllabus.body, "<p>Course syllabus body.</p>")
+
+    def test_course_module_file_is_available_through_service_and_route(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        response = lms_service.import_program_courses(
+            self.db,
+            self.user.id,
+            self.program.id,
+            schemas.LmsCourseImportRequest(
+                external_course_ids=["course-1"],
+                semester_id=self.semester.id,
+            ),
+        )
+        course = response.results[0].course
+        assert course is not None
+
+        file_item = LmsModuleItemData(
+            module_item_id="module-item-file-1",
+            title="Lecture Notes",
+            item_type="File",
+            content_id="55",
+            html_url="https://example.com/courses/123/files/55",
+            url="https://example.com/courses/123/files/55",
+            position=1,
+            indent=0,
+            published=True,
+            completion_requirement_type=None,
+            new_tab=False,
+            target_type="file",
+            page_url=None,
+            external_url=None,
+            content_details={"file_id": "55"},
+            in_app_supported=True,
+        )
+
+        with patch.object(self.provider, "list_course_module_items", return_value=[file_item]):
+            file_metadata = lms_service.get_course_module_file(self.db, self.user.id, course.id, "module-1", "module-item-file-1")
+            file_download = lms_service.open_course_module_file(self.db, self.user.id, course.id, "module-1", "module-item-file-1")
+
+            route_metadata = main.read_course_lms_module_item_file(course.id, "module-1", "module-item-file-1", db=self.db, current_user=self.user)
+            route_download = main.download_course_lms_module_item_file(course.id, "module-1", "module-item-file-1", db=self.db, current_user=self.user)
+
+        self.assertEqual(self.provider.last_file_args, {"external_course_id": "course-1", "file_id": "55"})
+        self.assertEqual(file_metadata.file_id, "55")
+        self.assertEqual(file_metadata.display_name, "Lecture Notes.pdf")
+        self.assertEqual(file_metadata.download_url, f"/courses/{course.id}/lms/modules/module-1/items/module-item-file-1/file/download")
+        self.assertEqual(b"".join(file_download[1]), b"file-bytes")
+        self.assertEqual(route_metadata.file_id, "55")
+        self.assertEqual(route_metadata.download_url, f"/courses/{course.id}/lms/modules/module-1/items/module-item-file-1/file/download")
+        self.assertEqual(route_download.media_type, "application/pdf")
+        self.assertIn('inline; filename="Lecture Notes.pdf"', route_download.headers["content-disposition"])
 
     def test_semester_calendar_returns_empty_when_program_lms_is_not_configured(self) -> None:
         semester_calendar = lms_service.list_semester_calendar_events(self.db, self.user.id, self.semester.id)

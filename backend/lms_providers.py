@@ -1,13 +1,13 @@
 # input:  [Dataclasses, typing protocol helpers, and provider adapter implementations]
-# output: [Provider-neutral LMS DTOs, provider adapter protocol methods for integration payload normalization and credential masking, error types, and provider registry resolution helpers, including split module-summary and module-item reads]
-# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, navigation, announcements, module summary and per-module item reads, pages, quizzes, grades, syllabus, and calendar reads]
+# output: [Provider-neutral LMS DTOs, provider adapter protocol methods for integration payload normalization and credential masking, error types, and provider registry resolution helpers, including split module-summary and module-item reads plus normalized module-item target metadata and file streaming]
+# pos:    [Contract layer between LMS service orchestration and provider-specific adapters for integration setup, course links, navigation, announcements, module summary and per-module item reads, pages, quizzes, grades, syllabus, calendar reads, file metadata/content streams, and normalized module-item target typing]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
 #    2. Update the INDEX.md of the folder this file belongs to
 
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol
+from typing import Any, Iterator, Optional, Protocol
 
 
 @dataclass
@@ -97,6 +97,11 @@ class LmsModuleItemData:
     published: bool
     completion_requirement_type: Optional[str]
     new_tab: bool
+    target_type: Optional[str] = None
+    page_url: Optional[str] = None
+    external_url: Optional[str] = None
+    content_details: Optional[dict[str, Any]] = None
+    in_app_supported: bool = False
 
 
 @dataclass
@@ -109,6 +114,24 @@ class LmsModuleSummaryData:
     unlock_at: Optional[str]
     item_count: int
     items: list[LmsModuleItemData]
+
+
+@dataclass
+class LmsCourseFileData:
+    file_id: str
+    display_name: str
+    filename: Optional[str]
+    mime_type: Optional[str]
+    size_bytes: Optional[int]
+    url: Optional[str]
+    preview_url: Optional[str]
+    locked_for_user: bool
+    lock_explanation: Optional[str]
+
+
+@dataclass
+class LmsCourseFileStreamData(LmsCourseFileData):
+    content: Iterator[bytes]
 
 
 @dataclass
@@ -127,7 +150,6 @@ class LmsQuizSummaryData:
 class LmsCourseSyllabusData:
     body: Optional[str]
     html_url: Optional[str]
-
 
 @dataclass
 class LmsAssignmentSummaryData:
@@ -292,6 +314,24 @@ class LmsProvider(Protocol):
         external_course_id: str,
         module_id: str,
     ) -> list[LmsModuleItemData]:
+        ...
+
+    def get_course_file(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+        file_id: str,
+    ) -> LmsCourseFileData:
+        ...
+
+    def open_course_file(
+        self,
+        config: dict[str, Any],
+        credentials: dict[str, Any],
+        external_course_id: str,
+        file_id: str,
+    ) -> LmsCourseFileStreamData:
         ...
 
     def list_course_quizzes(

@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, LMS ORM models, CRUD/user-setting helpers, versioned crypto helpers, provider registry, and API schema payloads]
-# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, grade, page, module summary, module item, announcement, quiz, syllabus, and range-filtered calendar service functions]
-# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, module summary/item reads, quiz/grade/syllabus reads, and semester calendar range filtering]
+# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, grade, page, module summary, module item, announcement, quiz, syllabus, module-file metadata/download, and range-filtered calendar service functions with normalized module-item target propagation]
+# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, module summary/item reads, module-file proxy/download reads, quiz/grade/syllabus reads, semester calendar range filtering, and normalized module-item target propagation]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 import json
 import re
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Iterator, Optional
 
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,7 @@ from lms_providers import (
     LmsAnnouncementSummaryData,
     LmsCalendarEventSummaryData,
     LmsConnectionSummaryData,
+    LmsCourseFileData,
     LmsCoursePageData,
     LmsCourseNavigationData,
     LmsCourseNavigationTabData,
@@ -216,6 +217,24 @@ def _module_item_to_schema(item: LmsModuleItemData) -> schemas.LmsModuleItem:
         published=item.published,
         completion_requirement_type=item.completion_requirement_type,
         new_tab=item.new_tab,
+        target_type=item.target_type,
+        page_url=item.page_url,
+        external_url=item.external_url,
+        content_details=item.content_details,
+        in_app_supported=item.in_app_supported,
+    )
+
+
+def _module_file_to_schema(course_id: str, module_id: str, module_item_id: str, file_data: LmsCourseFileData) -> schemas.LmsModuleFile:
+    return schemas.LmsModuleFile(
+        file_id=file_data.file_id,
+        display_name=file_data.display_name,
+        filename=file_data.filename,
+        mime_type=file_data.mime_type,
+        size_bytes=file_data.size_bytes,
+        download_url=f"/courses/{course_id}/lms/modules/{module_id}/items/{module_item_id}/file/download",
+        locked_for_user=file_data.locked_for_user,
+        lock_explanation=file_data.lock_explanation,
     )
 
 
@@ -229,6 +248,32 @@ def _module_to_schema(module: LmsModuleSummaryData) -> schemas.LmsModuleSummary:
         unlock_at=module.unlock_at,
         item_count=module.item_count,
     )
+
+
+def _resolve_module_item_file_id(item: LmsModuleItemData) -> Optional[str]:
+    candidates = (item.content_id,)
+    for candidate in candidates:
+        if candidate:
+            normalized = str(candidate).strip()
+            if normalized:
+                return normalized
+
+    content_details = item.content_details or {}
+    if isinstance(content_details, dict):
+        for key in ("file_id", "id", "attachment_id"):
+            value = content_details.get(key)
+            if value is None:
+                continue
+            normalized = str(value).strip()
+            if normalized:
+                return normalized
+    return None
+
+
+def _is_file_module_item(item: LmsModuleItemData) -> bool:
+    target_type = (item.target_type or "").strip().lower()
+    item_type = (item.item_type or "").strip().lower()
+    return target_type == "file" or item_type == "file"
 
 
 def _quiz_to_schema(quiz: LmsQuizSummaryData) -> schemas.LmsQuizSummary:
@@ -1291,6 +1336,96 @@ def list_course_module_items(
         db.add(link)
         db.commit()
         return schemas.LmsModuleItemListResponse(items=[_module_item_to_schema(item) for item in items])
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def get_course_module_file(
+    db: Session,
+    user_id: str,
+    course_id: str,
+    module_id: str,
+    module_item_id: str,
+) -> schemas.LmsModuleFile:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        items = provider_impl.list_course_module_items(config, credentials, link.external_course_id, module_id)
+        module_item = next((item for item in items if item.module_item_id == module_item_id), None)
+        if module_item is None:
+            raise LmsServiceError("LMS_RESOURCE_NOT_FOUND", "Canvas module item was not found.", status_code=404)
+        if not _is_file_module_item(module_item):
+            raise LmsServiceError("LMS_RESOURCE_NOT_FOUND", "Canvas module item was not found.", status_code=404)
+
+        file_id = _resolve_module_item_file_id(module_item)
+        if file_id is None:
+            raise LmsServiceError("LMS_PROVIDER_ERROR", "Canvas file identifier was not available for this module item.", status_code=502)
+
+        file_data = provider_impl.get_course_file(config, credentials, link.external_course_id, file_id)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return _module_file_to_schema(course_id, module_id, module_item_id, file_data)
+    except Exception as exc:
+        mapped = _map_lms_exception(exc)
+        _set_record_error(integration, mapped)
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        raise mapped from exc
+
+
+def open_course_module_file(
+    db: Session,
+    user_id: str,
+    course_id: str,
+    module_id: str,
+    module_item_id: str,
+) -> tuple[schemas.LmsModuleFile, Iterator[bytes]]:
+    course = _require_course_record(db, user_id, course_id)
+    link = _require_course_link(db, course)
+    integration = _require_integration_record(db, user_id, link.lms_integration_id)
+    try:
+        provider_impl, config, credentials = _integration_runtime(integration)
+        items = provider_impl.list_course_module_items(config, credentials, link.external_course_id, module_id)
+        module_item = next((item for item in items if item.module_item_id == module_item_id), None)
+        if module_item is None:
+            raise LmsServiceError("LMS_RESOURCE_NOT_FOUND", "Canvas module item was not found.", status_code=404)
+        if not _is_file_module_item(module_item):
+            raise LmsServiceError("LMS_RESOURCE_NOT_FOUND", "Canvas module item was not found.", status_code=404)
+
+        file_id = _resolve_module_item_file_id(module_item)
+        if file_id is None:
+            raise LmsServiceError("LMS_PROVIDER_ERROR", "Canvas file identifier was not available for this module item.", status_code=502)
+
+        file_stream = provider_impl.open_course_file(config, credentials, link.external_course_id, file_id)
+        _set_record_connected(integration)
+        link.last_error_code = None
+        link.last_error_message = None
+        link.last_synced_at = _now_utc_iso()
+        _touch_timestamps(link)
+        db.add(integration)
+        db.add(link)
+        db.commit()
+        return _module_file_to_schema(course_id, module_id, module_item_id, file_stream), file_stream.content
     except Exception as exc:
         mapped = _map_lms_exception(exc)
         _set_record_error(integration, mapped)

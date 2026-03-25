@@ -261,6 +261,11 @@ export interface LmsModuleItem {
     published: boolean;
     completion_requirement_type?: string | null;
     new_tab: boolean;
+    target_type?: string | null;
+    page_url?: string | null;
+    external_url?: string | null;
+    content_details?: Record<string, unknown> | null;
+    in_app_supported?: boolean;
 }
 
 export interface LmsModuleSummary {

@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance, router registration, production-safe docs configuration, and remaining Program/Semester/Course route handlers that are not yet split into separate backend API modules]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, and keeps the remaining program/semester/course orchestration endpoints plus course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, and syllabus reads]
+# output: [FastAPI app instance, router registration, production-safe docs configuration, remaining Program/Semester/Course route handlers, and Canvas module-file metadata/download routes]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, and keeps the remaining program/semester/course orchestration endpoints plus course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -9,7 +9,7 @@
 from fastapi import Body, FastAPI, Depends, HTTPException, Form, Response, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -711,6 +711,42 @@ def read_course_lms_module_items(
 ):
     try:
         return lms_service.list_course_module_items(db, current_user.id, course_id, module_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/courses/{course_id}/lms/modules/{module_id}/items/{module_item_id}/file", response_model=schemas.LmsModuleFile)
+def read_course_lms_module_item_file(
+    course_id: str,
+    module_id: str,
+    module_item_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        return lms_service.get_course_module_file(db, current_user.id, course_id, module_id, module_item_id)
+    except Exception as exc:
+        raise_lms_http_error(exc)
+
+
+@app.get("/courses/{course_id}/lms/modules/{module_id}/items/{module_item_id}/file/download")
+def download_course_lms_module_item_file(
+    course_id: str,
+    module_id: str,
+    module_item_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    try:
+        file_metadata, content = lms_service.open_course_module_file(db, current_user.id, course_id, module_id, module_item_id)
+        safe_filename = file_metadata.display_name.replace("\n", " ").replace("\r", " ").replace('"', "'")
+        return StreamingResponse(
+            content,
+            media_type=file_metadata.mime_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": f'inline; filename="{safe_filename}"',
+            },
+        )
     except Exception as exc:
         raise_lms_http_error(exc)
 

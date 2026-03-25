@@ -1,6 +1,6 @@
 // input:  [Canvas navigation tab runtime, mocked course context, mocked Canvas LMS summary/item APIs, and testing-library assertions/interactions]
-// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, and lazy module-item interactions]
-// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, assignment or grade Canvas data UI, and unavailable-state alignment]
+// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, lazy module-item interactions, and query-cached native module file rendering]
+// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, assignment or grade Canvas data UI, in-app module item drill-down, cached native file previews, and unavailable-state alignment]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -342,8 +342,13 @@ describe('CanvasPagesTab', () => {
         expect(api.getCourseLmsPage).toHaveBeenCalledWith('course-1', 'front-page');
     });
 
-    it('keeps modules collapsible while preserving page navigation and external-link emphasis', async () => {
+    it('keeps supported module items in-app and only external/discussion items open Canvas', async () => {
         const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            blob: async () => new Blob(['Reference file body'], { type: 'text/plain' }),
+        } as Response);
 
         vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
             default_view: 'modules',
@@ -428,9 +433,6 @@ describe('CanvasPagesTab', () => {
 
         expect(await screen.findByText('Week 1')).toBeInTheDocument();
         expect(await screen.findByText('Course Overview')).toBeInTheDocument();
-        expect(screen.queryByText('Page')).not.toBeInTheDocument();
-        expect(screen.queryByText('Hidden')).not.toBeInTheDocument();
-        expect(screen.queryByText('must view')).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: /Week 1/ }));
 
@@ -444,18 +446,101 @@ describe('CanvasPagesTab', () => {
 
         fireEvent.click(screen.getByText('Course Overview'));
 
+        expect(await screen.findByText('Overview body')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Back to modules' })).toBeInTheDocument();
+        expect(openSpy).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to modules' }));
+
+        const fileTitle = await screen.findByText('Reference PDF');
+        expect(fileTitle.className).not.toContain('hover:underline');
+
+        fireEvent.click(fileTitle);
+
+        expect(await screen.findByText('Reference file body')).toBeInTheDocument();
         await waitFor(() => {
-            expect(api.getCourseLmsPage).toHaveBeenCalledWith('course-1', 'course-overview');
+            expect(fetchSpy).toHaveBeenCalledWith('/api/courses/course-1/lms/modules/module-1/items/item-2/file/download', expect.objectContaining({
+                credentials: 'include',
+            }));
+        });
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to modules' }));
+        fireEvent.click(await screen.findByText('Reference PDF'));
+
+        expect(await screen.findByText('Reference file body')).toBeInTheDocument();
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(openSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
+        openSpy.mockRestore();
+    });
+
+    it('still opens external and discussion module items in Canvas', async () => {
+        const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+        vi.mocked(api.getCourseLmsNavigation).mockResolvedValue({
+            default_view: 'modules',
+            front_page_url: null,
+            tabs: [
+                { tab_id: 'home', label: 'Home', html_url: 'https://canvas.example.edu/courses/1', hidden: false, position: 1, tab_type: 'internal', active: true },
+                { tab_id: 'modules', label: 'Modules', html_url: 'https://canvas.example.edu/courses/1/modules', hidden: false, position: 2, tab_type: 'internal', active: false },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModules).mockResolvedValue({
+            items: [
+                {
+                    module_id: 'module-1',
+                    name: 'Week 1',
+                    position: 1,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    item_count: 2,
+                },
+            ],
+        });
+        vi.mocked(api.getCourseLmsModuleItems).mockResolvedValue({
+            items: [
+                {
+                    module_item_id: 'item-1',
+                    title: 'External Resource',
+                    item_type: 'ExternalUrl',
+                    content_id: null,
+                    html_url: 'https://canvas.example.edu/courses/1/modules/items/1',
+                    url: 'https://canvas.example.edu/courses/1/modules/items/1',
+                    position: 1,
+                    indent: 0,
+                    published: true,
+                    completion_requirement_type: null,
+                    new_tab: true,
+                },
+                {
+                    module_item_id: 'item-2',
+                    title: 'Discussion Thread',
+                    item_type: 'DiscussionTopic',
+                    content_id: 'discussion-1',
+                    html_url: 'https://canvas.example.edu/courses/1/discussion_topics/1',
+                    url: 'https://canvas.example.edu/courses/1/discussion_topics/1',
+                    position: 2,
+                    indent: 0,
+                    published: true,
+                    completion_requirement_type: null,
+                    new_tab: false,
+                },
+            ],
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Modules' }));
+        renderCanvasTab();
 
-        const externalLinkTitle = await screen.findByText('Reference PDF');
-        expect(externalLinkTitle.className).toContain('hover:underline');
+        expect(await screen.findByText('Week 1')).toBeInTheDocument();
 
-        fireEvent.click(externalLinkTitle);
+        const externalResource = await screen.findByText('External Resource');
+        fireEvent.click(externalResource);
+        expect(openSpy).toHaveBeenCalledWith('https://canvas.example.edu/courses/1/modules/items/1', '_blank', 'noopener,noreferrer');
 
-        expect(openSpy).toHaveBeenCalledWith('https://canvas.example.edu/courses/canvas-course-1/files/1', '_blank', 'noopener,noreferrer');
+        const discussionThread = await screen.findByText('Discussion Thread');
+        fireEvent.click(discussionThread);
+        expect(openSpy).toHaveBeenCalledWith('https://canvas.example.edu/courses/1/discussion_topics/1', '_blank', 'noopener,noreferrer');
         openSpy.mockRestore();
     });
 
@@ -525,6 +610,9 @@ describe('CanvasPagesTab', () => {
                         published: true,
                         completion_requirement_type: null,
                         new_tab: true,
+                        content_details: {
+                            download_url: '/api/courses/course-1/lms/module-files/file-2',
+                        },
                     },
                 ],
             };

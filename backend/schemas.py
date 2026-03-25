@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, and fact-oriented course gradebooks with optional point-based score fields]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -339,6 +339,22 @@ class LmsModuleItem(BaseModel):
     published: bool = False
     completion_requirement_type: Optional[str] = None
     new_tab: bool = False
+    target_type: Optional[str] = None
+    page_url: Optional[str] = None
+    external_url: Optional[str] = None
+    content_details: Optional[dict[str, Any]] = None
+    in_app_supported: bool = False
+
+
+class LmsModuleFile(BaseModel):
+    file_id: str
+    display_name: str
+    filename: Optional[str] = None
+    mime_type: Optional[str] = None
+    size_bytes: Optional[int] = None
+    download_url: Optional[str] = None
+    locked_for_user: bool = False
+    lock_explanation: Optional[str] = None
 
 
 class LmsModuleSummary(BaseModel):

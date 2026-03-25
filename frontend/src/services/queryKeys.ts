@@ -1,6 +1,6 @@
 // input:  [resource identifiers and request parameter objects from frontend data hooks]
 // output: [`queryKeys` factory for stable TanStack Query cache keys across pages, contexts, and plugins]
-// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, LMS, Canvas navigation/module-summary/module-item/page/quiz/grade/syllabus browser, and range-scoped calendar data]
+// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, LMS, Canvas navigation/module-summary/module-item/page/quiz/grade/syllabus/file browser, and range-scoped calendar data]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -48,6 +48,9 @@ export const queryKeys = {
     lmsAnnouncements: (courseId: string) => ['courses', courseId, 'lms-announcements'] as const,
     lmsModules: (courseId: string) => ['courses', courseId, 'lms-modules'] as const,
     lmsModuleItems: (courseId: string, moduleId: string) => ['courses', courseId, 'lms-module-items', moduleId] as const,
+    lmsModuleFile: (courseId: string, moduleId: string, moduleItemId: string) => (
+      ['courses', courseId, 'lms-module-file', moduleId, moduleItemId] as const
+    ),
     lmsQuizzes: (courseId: string) => ['courses', courseId, 'lms-quizzes'] as const,
     lmsPages: (courseId: string) => ['courses', courseId, 'lms-pages'] as const,
     lmsPage: (courseId: string, pageRef: string) => ['courses', courseId, 'lms-page', pageRef] as const,
