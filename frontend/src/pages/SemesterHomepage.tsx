@@ -1,6 +1,6 @@
-// input:  [semester context, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [semester context, query-backed parent Program breadcrumb data, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
+// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,7 @@
 "use no memo";
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
@@ -53,6 +54,7 @@ import {
     HOMEPAGE_SETTINGS_TAB_TYPE,
     SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
 } from '../utils/homepageBuiltinTabs';
+import { queryKeys } from '../services/queryKeys';
 
 
 import {
@@ -66,12 +68,11 @@ import {
 
 const SemesterHomepageContent: React.FC = () => {
     const { semester, saveSemester, refreshSemester, isLoading } = useSemesterData();
+    const queryClient = useQueryClient();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('');
-
-    const [programName, setProgramName] = useState<string | null>(null);
     const openAddWidgetModal = useCallback(() => {
         const activeElement = document.activeElement;
         if (activeElement instanceof HTMLElement) {
@@ -87,30 +88,24 @@ const SemesterHomepageContent: React.FC = () => {
         setIsAddTabOpen(true);
     }, []);
 
-    useEffect(() => {
-        let isActive = true;
-        const programId = semester?.program_id;
-        if (!programId) {
-            setProgramName(null);
-            return () => {
-                isActive = false;
-            };
-        }
-        api.getProgram(programId)
-            .then((program) => {
-                if (isActive) {
-                    setProgramName(program.name);
-                }
-            })
-            .catch(() => {
-                if (isActive) {
-                    setProgramName(null);
-                }
-            });
-        return () => {
-            isActive = false;
-        };
-    }, [semester?.program_id]);
+    const parentProgramQuery = useQuery({
+        queryKey: queryKeys.programs.detail(semester?.program_id ?? 'unknown'),
+        queryFn: async () => {
+            const programId = semester?.program_id;
+            if (!programId) {
+                throw new Error('Missing parent program ID.');
+            }
+            return api.getProgram(programId);
+        },
+        enabled: Boolean(semester?.program_id),
+        staleTime: 300_000,
+        initialData: () => {
+            const programId = semester?.program_id;
+            if (!programId) return undefined;
+            return queryClient.getQueryData(queryKeys.programs.detail(programId));
+        },
+    });
+    const programName = parentProgramQuery.data?.name ?? null;
 
     const {
         widgets,

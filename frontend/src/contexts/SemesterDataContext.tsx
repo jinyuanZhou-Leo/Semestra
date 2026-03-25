@@ -1,6 +1,6 @@
 // input:  [semester ID, semester fetch/update API functions, generic `useEntityContext` hook]
 // output: [`SemesterDataProvider`, `useSemesterData()`, and `SemesterWithDetails` type]
-// pos:    [Semester-level data context providing optimistic edit and refresh capabilities]
+// pos:    [Semester-level data context providing optimistic edit, refresh capabilities, and longer-lived entity detail reuse across workspace re-entry]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -58,7 +58,7 @@ export const SemesterDataProvider: React.FC<SemesterDataProviderProps> = ({ seme
         queryKey: queryKeys.semesters.detail(semesterId),
         fetchFn,
         updateFn,
-        staleTimeMs: 60_000,
+        staleTimeMs: 300_000,
     });
 
     const value: SemesterDataContextType = useMemo(() => ({

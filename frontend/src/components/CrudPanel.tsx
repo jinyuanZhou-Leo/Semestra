@@ -1,6 +1,6 @@
-// input:  [CRUD section copy, row/header render callbacks, shared table primitives, and optional loading/action controls]
+// input:  [CRUD section copy, row/header render callbacks, shared table primitives, and optional loading/action controls, including embedded headerless settings usage]
 // output: [`CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` helpers for settings CRUD tables]
-// pos:    [shared settings-table shell that keeps header actions and horizontal scrolling mobile-safe across CRUD surfaces]
+// pos:    [shared settings-table shell that keeps header actions and horizontal scrolling mobile-safe across CRUD surfaces, with optional compact embedding inside a parent settings section]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -60,6 +60,7 @@ export interface CrudPanelProps<T> {
     title: string;
     description: string;
     actionButton?: React.ReactNode;
+    showHeader?: boolean;
     items: T[];
     renderHeader: () => React.ReactNode;
     renderRow: (item: T, index: number) => React.ReactNode;
@@ -72,6 +73,7 @@ export function CrudPanel<T>({
     title,
     description,
     actionButton,
+    showHeader = true,
     items,
     renderHeader,
     renderRow,
@@ -81,13 +83,19 @@ export function CrudPanel<T>({
 }: CrudPanelProps<T>) {
     return (
         <div className="w-full min-w-0 space-y-4 [&_[data-slot=button][data-variant=destructive][data-size=icon]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]:hover]:bg-destructive/20">
-            <div className="w-full min-w-0 px-1">
-                <PanelHeader
-                    title={title}
-                    description={description}
-                    right={actionButton}
-                />
-            </div>
+            {showHeader ? (
+                <div className="w-full min-w-0 px-1">
+                    <PanelHeader
+                        title={title}
+                        description={description}
+                        right={actionButton}
+                    />
+                </div>
+            ) : actionButton ? (
+                <div className="flex w-full min-w-0 justify-end px-1">
+                    {actionButton}
+                </div>
+            ) : null}
             <TableShell minWidthClassName={minWidthClassName}>
                 <Table>
                     <TableHeader>{renderHeader()}</TableHeader>

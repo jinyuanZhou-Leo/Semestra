@@ -1,6 +1,6 @@
 // input:  [initial course fields (name/alias/category/custom color/credits/GPA flags), resolved Program default color metadata, LMS link state and available LMS courses, color picker UI, and auto-save callback]
 // output: [`CourseSettingsPanel` component]
-// pos:    [Settings form section for editing per-course metadata, a clearer LMS link/sync status flow, a stable-layout optional custom color override, GPA participation, and shadcn Field-based form structure with debounced auto-save]
+// pos:    [Settings form section for editing per-course metadata, a clearer LMS link/sync status flow, a stable-layout optional custom color override, semantically grouped vertical General layout, unified switch-based GPA preference controls, and shadcn Field-based form structure with debounced auto-save]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,7 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
 import { Switch } from "@/components/ui/switch";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -307,8 +306,8 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
     <div className="space-y-6">
       <SettingsSection title="General" description="Update the name and key settings.">
         <FieldSet>
-          <FieldGroup>
-          <Field className="max-w-sm">
+          <FieldGroup className="space-y-6">
+          <Field>
             <FieldLabel htmlFor={`${fieldId}-name`}>Name</FieldLabel>
             <Input
               id={`${fieldId}-name`}
@@ -318,7 +317,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
             />
           </Field>
 
-          <Field className="max-w-sm">
+          <Field>
             <FieldLabel htmlFor={`${fieldId}-alias`}>Alias</FieldLabel>
             <Input
               id={`${fieldId}-alias`}
@@ -329,7 +328,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
             <FieldDescription>Optional short label shown alongside the course name.</FieldDescription>
           </Field>
 
-          <Field className="max-w-sm">
+          <Field>
             <div className="flex min-h-9 items-center justify-between gap-3">
               <FieldLabel htmlFor={`${fieldId}-category`}>Category</FieldLabel>
               <Button
@@ -359,7 +358,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
             <FieldDescription>Optional subject code used for grouping and default colors.</FieldDescription>
           </Field>
 
-          <FieldGroup>
+          <FieldGroup className="space-y-6">
             <Field orientation="responsive">
               <FieldContent>
                 <FieldLabel htmlFor={`${fieldId}-custom-color`}>Course Color</FieldLabel>
@@ -373,7 +372,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
               />
             </Field>
 
-            <Field className="max-w-sm">
+            <Field>
               <div className={cn("transition-opacity", !useCustomColor && "pointer-events-none opacity-55")}>
                 <ColorPicker
                   id={`${fieldId}-color`}
@@ -391,7 +390,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
             </Field>
           </FieldGroup>
 
-          <Field className="max-w-sm">
+          <Field>
             <FieldLabel htmlFor={`${fieldId}-credits`}>Credits</FieldLabel>
             <Input
               id={`${fieldId}-credits`}
@@ -403,34 +402,30 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
             />
           </Field>
 
-          <FieldGroup className="sm:grid sm:grid-cols-2">
-            <Field orientation="horizontal">
-              <Checkbox
-                id={`${fieldId}-include-gpa`}
-                checked={includeInGpa}
-                onCheckedChange={(checked) => {
-                  if (checked === "indeterminate") return;
-                  setIncludeInGpa(checked);
-                }}
-              />
+          <FieldGroup className="space-y-4">
+            <Field orientation="responsive">
               <FieldContent>
                 <FieldLabel htmlFor={`${fieldId}-include-gpa`}>Include in GPA</FieldLabel>
                 <FieldDescription>Use this course when calculating GPA.</FieldDescription>
               </FieldContent>
-            </Field>
-            <Field orientation="horizontal">
-              <Checkbox
-                id={`${fieldId}-hide-gpa`}
-                checked={hideGpa}
-                onCheckedChange={(checked) => {
-                  if (checked === "indeterminate") return;
-                  setHideGpa(checked);
-                }}
+              <Switch
+                id={`${fieldId}-include-gpa`}
+                checked={includeInGpa}
+                onCheckedChange={setIncludeInGpa}
+                className="shrink-0"
               />
+            </Field>
+            <Field orientation="responsive">
               <FieldContent>
                 <FieldLabel htmlFor={`${fieldId}-hide-gpa`}>Hide GPA Info</FieldLabel>
                 <FieldDescription>Hide GPA details in course-level views.</FieldDescription>
               </FieldContent>
+              <Switch
+                id={`${fieldId}-hide-gpa`}
+                checked={hideGpa}
+                onCheckedChange={setHideGpa}
+                className="shrink-0"
+              />
             </Field>
           </FieldGroup>
           </FieldGroup>
@@ -439,7 +434,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
 
       <SettingsSection title="LMS" description="Link this course to an external LMS course and refresh its read-only LMS data.">
         <FieldSet>
-          <FieldGroup>
+          <FieldGroup className="space-y-6">
             <div className="min-h-[96px] rounded-xl border border-border/70 bg-muted/20 p-4">
               <div className="flex h-full flex-col justify-between gap-3 sm:flex-row sm:items-start">
                 <div className="min-w-0 space-y-2">
@@ -540,7 +535,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
               </div>
             </div>
 
-            <Field className="max-w-sm">
+            <Field>
               <FieldLabel htmlFor={`${fieldId}-lms-course`}>
                 {hasLmsLink ? "Change linked LMS course" : "Link an LMS course"}
               </FieldLabel>
@@ -578,7 +573,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
               </FieldDescription>
             </Field>
 
-            <Field orientation="responsive" className="max-w-sm">
+            <Field orientation="responsive">
               <FieldContent>
                 <FieldLabel htmlFor={`${fieldId}-lms-sync-enabled`}>Keep LMS data refreshed</FieldLabel>
                 <FieldDescription>

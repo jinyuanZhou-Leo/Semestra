@@ -1,6 +1,6 @@
-// input:  [course context, parent Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
+// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,7 +8,7 @@
 
 "use no memo";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
@@ -47,6 +47,7 @@ import {
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
 import { publishTimetableScheduleChange } from '../plugins/builtin-event-core/shared/publishTimetableScheduleChange';
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import {
     COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
     HOMEPAGE_DASHBOARD_TAB_TYPE,
@@ -68,22 +69,29 @@ import {
     DropdownMenuContent,
     DropdownMenuGroup,
     DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Kbd, KbdGroup } from '@/components/ui/kbd';
+import { ArrowUpDown, ChevronDown, ChevronRight, Command } from 'lucide-react';
+import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
     const { course, updateCourse, saveCourse, refreshCourse, isLoading } = useCourseData();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const prefersReducedMotion = usePrefersReducedMotion();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('');
-    const [programName, setProgramName] = useState<string | null>(null);
-    const [programSubjectColorMapJson, setProgramSubjectColorMapJson] = useState<string>('{}');
-    const [programLmsIntegrationId, setProgramLmsIntegrationId] = useState<string | null>(null);
-    const [semesterName, setSemesterName] = useState<string | null>(null);
+    const [courseSwitchDirection, setCourseSwitchDirection] = useState<-1 | 0 | 1>(0);
+    const titleShakeControls = useAnimationControls();
+    const lastCourseSwitchAtRef = useRef(0);
     const openAddWidgetModal = useCallback(() => {
         const activeElement = document.activeElement;
         if (activeElement instanceof HTMLElement) {
@@ -103,38 +111,53 @@ const CourseHomepageContent: React.FC = () => {
     const shouldShowProgramDirect = Boolean(course?.program_id && !shouldCollapseProgram);
     const shouldShowSemester = Boolean(course?.semester_id);
 
+    const parentProgramQuery = useQuery({
+        queryKey: queryKeys.programs.detail(course?.program_id ?? 'unknown'),
+        queryFn: async () => {
+            const programId = course?.program_id;
+            if (!programId) {
+                throw new Error('Missing parent program ID.');
+            }
+            return api.getProgram(programId);
+        },
+        enabled: Boolean(course?.program_id),
+        staleTime: 300_000,
+        initialData: () => {
+            const programId = course?.program_id;
+            if (!programId) return undefined;
+            return queryClient.getQueryData(queryKeys.programs.detail(programId));
+        },
+    });
+    const programName = parentProgramQuery.data?.name ?? null;
+    const programSubjectColorMapJson = parentProgramQuery.data?.subject_color_map || '{}';
+    const programLmsIntegrationId = parentProgramQuery.data?.lms_integration_id ?? null;
 
-    useEffect(() => {
-        let isActive = true;
-        const programId = course?.program_id;
-        if (!programId) {
-            setProgramName(null);
-            setProgramSubjectColorMapJson('{}');
-            setProgramLmsIntegrationId(null);
-            return () => {
-                isActive = false;
-            };
-        }
-        api.getProgram(programId)
-            .then((program) => {
-                if (isActive) {
-                    setProgramName(program.name);
-                    setProgramSubjectColorMapJson(program.subject_color_map || '{}');
-                    setProgramLmsIntegrationId(program.lms_integration_id ?? null);
-                }
-            })
-            .catch(() => {
-                if (isActive) {
-                    setProgramName(null);
-                    setProgramSubjectColorMapJson('{}');
-                    setProgramLmsIntegrationId(null);
-                }
-            });
-        return () => {
-            isActive = false;
-        };
-    }, [course?.program_id]);
-
+    const parentSemesterQuery = useQuery({
+        queryKey: queryKeys.semesters.detail(course?.semester_id ?? 'unknown'),
+        queryFn: async () => {
+            const semesterId = course?.semester_id;
+            if (!semesterId) {
+                throw new Error('Missing parent semester ID.');
+            }
+            return api.getSemester(semesterId);
+        },
+        enabled: Boolean(course?.semester_id),
+        staleTime: 300_000,
+        initialData: () => {
+            const semesterId = course?.semester_id;
+            if (!semesterId) return undefined;
+            return queryClient.getQueryData(queryKeys.semesters.detail(semesterId));
+        },
+    });
+    const semesterName = parentSemesterQuery.data?.name ?? null;
+    const siblingCourses = useMemo(() => {
+        const courses = parentSemesterQuery.data?.courses ?? [];
+        return [...courses].sort((left, right) => left.name.localeCompare(right.name));
+    }, [parentSemesterQuery.data?.courses]);
+    const currentCourseIndex = useMemo(() => {
+        if (!course?.id) return -1;
+        return siblingCourses.findIndex((siblingCourse) => siblingCourse.id === course.id);
+    }, [course?.id, siblingCourses]);
     const programSubjectColorMap = useMemo(
         () => parseSubjectColorMap(programSubjectColorMapJson),
         [programSubjectColorMapJson],
@@ -153,31 +176,6 @@ const CourseHomepageContent: React.FC = () => {
         enabled: Boolean(course?.program_id && programLmsIntegrationId),
         retry: false,
     });
-
-    useEffect(() => {
-        let isActive = true;
-        const semesterId = course?.semester_id;
-        if (!semesterId) {
-            setSemesterName(null);
-            return () => {
-                isActive = false;
-            };
-        }
-        api.getSemester(semesterId)
-            .then((semester) => {
-                if (isActive) {
-                    setSemesterName(semester.name);
-                }
-            })
-            .catch(() => {
-                if (isActive) {
-                    setSemesterName(null);
-                }
-            });
-        return () => {
-            isActive = false;
-        };
-    }, [course?.semester_id]);
 
     const {
         widgets,
@@ -515,6 +513,84 @@ const CourseHomepageContent: React.FC = () => {
         }
     }, [course, saveCourse]);
 
+    const triggerBoundaryShake = useCallback(async () => {
+        if (prefersReducedMotion) {
+            return;
+        }
+        await titleShakeControls.start({
+            x: [0, -5, 5, -4, 4, 0],
+            transition: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
+        });
+        titleShakeControls.set({ x: 0 });
+    }, [prefersReducedMotion, titleShakeControls]);
+
+    const navigateToSiblingCourse = useCallback((nextCourseId: string, direction: -1 | 1) => {
+        if (!nextCourseId || nextCourseId === course?.id) {
+            return;
+        }
+        const now = Date.now();
+        if (now - lastCourseSwitchAtRef.current < 320) {
+            return;
+        }
+        lastCourseSwitchAtRef.current = now;
+        setCourseSwitchDirection(direction);
+        navigate(`/courses/${nextCourseId}`);
+    }, [course?.id, navigate]);
+
+    const handleSelectSiblingCourse = useCallback((nextCourseId: string) => {
+        if (!nextCourseId || nextCourseId === course?.id) {
+            return;
+        }
+        const nextCourseIndex = siblingCourses.findIndex((siblingCourse) => siblingCourse.id === nextCourseId);
+        const direction: -1 | 1 = nextCourseIndex < currentCourseIndex ? -1 : 1;
+        navigateToSiblingCourse(nextCourseId, direction);
+    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses]);
+
+    useEffect(() => {
+        if (!course?.id) {
+            return;
+        }
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            const modifierPressed = event.metaKey || event.ctrlKey;
+            if (!modifierPressed || event.altKey || event.shiftKey) {
+                return;
+            }
+
+            const target = event.target;
+            if (
+                target instanceof HTMLElement
+                && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+            ) {
+                return;
+            }
+
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+                return;
+            }
+
+            if (currentCourseIndex < 0 || siblingCourses.length === 0) {
+                return;
+            }
+
+            event.preventDefault();
+            const direction: -1 | 1 = event.key === 'ArrowUp' ? -1 : 1;
+            const nextCourse = siblingCourses[currentCourseIndex + direction];
+
+            if (!nextCourse) {
+                void triggerBoundaryShake();
+                return;
+            }
+
+            navigateToSiblingCourse(nextCourse.id, direction);
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses, triggerBoundaryShake]);
+
     const refreshLmsCourseState = useCallback(async () => {
         if (!course?.id) return;
         await Promise.all([
@@ -674,7 +750,121 @@ const CourseHomepageContent: React.FC = () => {
             <PluginHostProvider visibleTabs={visibleTabs} setActiveTabId={setActiveTabId}>
                 <BuiltinTabProvider value={builtinTabContext}>
                     <WorkspaceNav
-                        title={course?.name || 'Course'}
+                        title={course ? (
+                            <div className="flex min-w-0 items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-2xl">
+                                {semesterName ? (
+                                    <>
+                                        <span className="truncate text-muted-foreground">{semesterName}</span>
+                                        <ChevronRight className="ml-2 mr-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                                    </>
+                                ) : null}
+                                <motion.div className="min-w-0" animate={titleShakeControls}>
+                                    {course.semester_id && siblingCourses.length > 0 ? (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        className="h-auto min-w-0 max-w-full justify-start gap-2 rounded-md bg-accent/60 px-2.5 py-1 text-left text-[0.9em] font-semibold tracking-tight text-foreground hover:bg-accent/70"
+                                                    >
+                                                    <span className="grid min-w-0">
+                                                        <AnimatePresence mode="wait" initial={false}>
+                                                            <motion.span
+                                                                key={course.id}
+                                                                className="truncate"
+                                                                initial={prefersReducedMotion ? { opacity: 1 } : {
+                                                                    opacity: 0,
+                                                                    y: courseSwitchDirection > 0 ? 10 : courseSwitchDirection < 0 ? -10 : 0,
+                                                                }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                exit={prefersReducedMotion ? { opacity: 1 } : {
+                                                                    opacity: 0,
+                                                                    y: courseSwitchDirection > 0 ? -10 : courseSwitchDirection < 0 ? 10 : 0,
+                                                                }}
+                                                                transition={prefersReducedMotion
+                                                                    ? { duration: 0.12 }
+                                                                    : { type: 'spring', stiffness: 520, damping: 38, mass: 0.7 }
+                                                                }
+                                                                onAnimationComplete={() => {
+                                                                    if (courseSwitchDirection !== 0) {
+                                                                        setCourseSwitchDirection(0);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {course.name}
+                                                            </motion.span>
+                                                        </AnimatePresence>
+                                                    </span>
+                                                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="start" className="min-w-[18rem]">
+                                                <DropdownMenuLabel>
+                                                    {semesterName ? `${semesterName} Courses` : 'Courses'}
+                                                </DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuRadioGroup
+                                                    value={course.id}
+                                                    onValueChange={handleSelectSiblingCourse}
+                                                >
+                                                    {siblingCourses.map((siblingCourse) => (
+                                                        <DropdownMenuRadioItem
+                                                            key={siblingCourse.id}
+                                                            value={siblingCourse.id}
+                                                            className="min-w-0"
+                                                        >
+                                                            <span className="truncate">{siblingCourse.name}</span>
+                                                        </DropdownMenuRadioItem>
+                                                    ))}
+                                                </DropdownMenuRadioGroup>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    ) : (
+                                        <AnimatePresence mode="wait" initial={false}>
+                                            <motion.span
+                                                key={course.id}
+                                                className="truncate text-foreground"
+                                                initial={prefersReducedMotion ? { opacity: 1 } : {
+                                                    opacity: 0,
+                                                    y: courseSwitchDirection > 0 ? 10 : courseSwitchDirection < 0 ? -10 : 0,
+                                                }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={prefersReducedMotion ? { opacity: 1 } : {
+                                                    opacity: 0,
+                                                    y: courseSwitchDirection > 0 ? -10 : courseSwitchDirection < 0 ? 10 : 0,
+                                                }}
+                                                transition={prefersReducedMotion
+                                                    ? { duration: 0.12 }
+                                                    : { type: 'spring', stiffness: 520, damping: 38, mass: 0.7 }
+                                                }
+                                                onAnimationComplete={() => {
+                                                    if (courseSwitchDirection !== 0) {
+                                                        setCourseSwitchDirection(0);
+                                                    }
+                                                }}
+                                            >
+                                                {course.name}
+                                            </motion.span>
+                                        </AnimatePresence>
+                                    )}
+                                </motion.div>
+                                {course.semester_id && siblingCourses.length > 1 ? (
+                                    <div className="hidden items-center gap-2 text-sm font-medium text-muted-foreground lg:flex">
+                                        <KbdGroup aria-label="Command or control plus up or down arrow">
+                                            <Kbd>
+                                                <Command aria-hidden="true" />
+                                                <span className="sr-only">Command or Control</span>
+                                            </Kbd>
+                                            <span className="text-muted-foreground/70">+</span>
+                                            <Kbd>
+                                                <ArrowUpDown aria-hidden="true" />
+                                                <span className="sr-only">Up or down arrow</span>
+                                            </Kbd>
+                                        </KbdGroup>
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : 'Course'}
                         isLoading={isLoading || !course}
                         tabsLoading={!areBuiltinTabsReady}
                         tabs={(

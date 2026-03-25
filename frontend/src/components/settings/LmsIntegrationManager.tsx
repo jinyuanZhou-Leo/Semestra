@@ -1,6 +1,6 @@
 // input:  [TanStack Query, LMS API service, settings-local LMS provider definitions, CRUD panel/table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, and dialog-context alerts]
 // output: [`LmsIntegrationManager` component]
-// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving mobile-safe CRUD-table, validation, and dialog flows]
+// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving mobile-safe CRUD-table, validation, dialog flows, and parent-owned settings section chrome]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -350,6 +350,7 @@ export const LmsIntegrationManager: React.FC = () => {
       <CrudPanel
         title="LMS Integrations"
         description="Save reusable LMS connections for Program binding and Course linking."
+        showHeader={false}
         actionButton={(
           <Button type="button" className="shrink-0 self-start" onClick={openCreateDialog}>
             <Plus className="mr-2 h-4 w-4" />

@@ -45,4 +45,29 @@ describe('CrudPanel', () => {
         expect(shell).toHaveClass('w-full', 'min-w-0', 'max-w-full', 'overflow-x-auto');
         expect(minWidthWrapper).toHaveClass('min-w-[500px]', 'sm:min-w-[560px]');
     });
+
+    it('can hide the duplicate panel header when embedded in a parent settings section', () => {
+        render(
+            <CrudPanel
+                title="Courses"
+                description="Manage semester courses."
+                showHeader={false}
+                actionButton={<button type="button">Add Course</button>}
+                items={[{ id: 'course-1', name: 'Course 1' }]}
+                renderHeader={() => (
+                    <TableRow>
+                        <TableHead>Name</TableHead>
+                    </TableRow>
+                )}
+                renderRow={(item: { id: string; name: string }) => (
+                    <TableRow key={item.id}>
+                        <TableCell>{item.name}</TableCell>
+                    </TableRow>
+                )}
+            />,
+        );
+
+        expect(screen.queryByText('Manage semester courses.')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Add Course' })).toBeInTheDocument();
+    });
 });

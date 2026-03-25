@@ -1,6 +1,6 @@
 // input:  [program name/credits/GPA defaults, discovered subject codes, available LMS integrations, course color-picker presets, and auto-save lifecycle callbacks]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, separated LMS/general sections, stable subject-color management, and adaptive mobile-safe course-color table sizing]
+// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, separated LMS/general sections, shared section-shell composition, stable subject-color management, and adaptive mobile-safe course-color table sizing]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -274,8 +274,8 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         contentClassName="space-y-6"
       >
         <FieldSet>
-          <FieldGroup>
-            <Field className="max-w-sm">
+          <FieldGroup className="grid gap-6 lg:grid-cols-2">
+            <Field>
               <FieldLabel htmlFor={`${fieldId}-name`}>Program Name</FieldLabel>
               <Input
                 id={`${fieldId}-name`}
@@ -285,7 +285,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
               />
             </Field>
 
-            <Field className="max-w-sm">
+            <Field>
               <FieldLabel htmlFor={`${fieldId}-grad-credits`}>Graduation Credits</FieldLabel>
               <FieldDescription>
                 The total credits required to complete this Program.
@@ -300,7 +300,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
               />
             </Field>
 
-            <Field orientation="responsive">
+            <Field orientation="responsive" className="lg:col-span-2">
               <FieldContent>
                 <FieldLabel htmlFor={`${fieldId}-hide-gpa`}>Hide GPA Info</FieldLabel>
                 <FieldDescription>
@@ -326,7 +326,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
       >
         <FieldSet>
           <FieldGroup>
-            <Field className="max-w-sm">
+            <Field>
               <FieldLabel htmlFor={`${fieldId}-lms-integration`}>Program LMS</FieldLabel>
               <Select
                 value={lmsIntegrationId}
@@ -365,6 +365,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         <CrudPanel
           title="Course Code Colors"
           description="Manage the default color used for each course code prefix in this Program."
+          showHeader={false}
           minWidthClassName="min-w-[360px] sm:min-w-[480px]"
           items={visibleSubjectCodes}
           emptyMessage="Subject codes appear here after courses such as APS105 or MAT180 are detected."

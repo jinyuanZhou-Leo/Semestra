@@ -1,6 +1,6 @@
-// input:  [workspace title string, tab content node, loading flags, and shared container/skeleton primitives]
+// input:  [workspace title node, tab content node, loading flags, and shared container/skeleton primitives]
 // output: [`WorkspaceNav` sticky workspace-level navigation component]
-// pos:    [shared second-level navigation shell for semester/course workspaces beneath the global app header with extra-large mobile titles]
+// pos:    [shared second-level navigation shell for semester/course workspaces beneath the global app header with support for richer title compositions and extra-large mobile titles]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,7 +13,7 @@ import { Container } from './Container';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface WorkspaceNavProps {
-    title?: string | null;
+    title?: React.ReactNode;
     tabs: React.ReactNode;
     isLoading?: boolean;
     tabsLoading?: boolean;
@@ -33,9 +33,9 @@ export const WorkspaceNav: React.FC<WorkspaceNavProps> = ({
                         {isLoading ? (
                             <Skeleton className="h-6 w-40 sm:h-7 sm:w-48" />
                         ) : (
-                            <p className="truncate text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                            <div className="min-w-0 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                                 {title || 'Workspace'}
-                            </p>
+                            </div>
                         )}
                     </div>
 

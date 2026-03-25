@@ -1,6 +1,6 @@
 // input:  [course ID, course fetch/update API functions, generic `useEntityContext` hook]
 // output: [`CourseDataProvider`, `useCourseData()`, and `CourseWithDetails` type]
-// pos:    [Course-level data context with optimistic updates and refresh abstraction]
+// pos:    [Course-level data context with optimistic updates, refresh abstraction, and longer-lived entity detail reuse across workspace re-entry]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -58,7 +58,7 @@ export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId
         queryKey: queryKeys.courses.detail(courseId),
         fetchFn,
         updateFn,
-        staleTimeMs: 60_000,
+        staleTimeMs: 300_000,
     });
 
     const value: CourseDataContextType = useMemo(() => ({

@@ -1,6 +1,6 @@
-// input:  [widget collection, edit-mode flags, v2 RGL width hook, empty-state container continuity, resize-frequency guards, interaction-scoped local sync + commit callbacks, layout normalization utilities, and unavailable-widget delete overrides]
+// input:  [widget collection, edit-mode flags, v2 RGL width hook, shared empty-state wrapper, empty-state container continuity, resize-frequency guards, interaction-scoped local sync + commit callbacks, layout normalization utilities, and unavailable-widget delete overrides]
 // output: [`DashboardGrid` component and dashboard layout type contracts]
-// pos:    [Core responsive dashboard renderer with resize-stabilized width updates, persistent width-measurement mounting across empty states, split local-sync/commit persistence flows, and unavailable-widget delete escape hatches]
+// pos:    [Core responsive dashboard renderer with resize-stabilized width updates, shared section empty states, persistent width-measurement mounting across empty states, split local-sync/commit persistence flows, and unavailable-widget delete escape hatches]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,6 +13,7 @@ import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
+import { AppEmptyState } from '../AppEmptyState';
 import { DashboardWidgetWrapper } from './DashboardWidgetWrapper';
 import { getResolvedWidgetLayoutByType } from '../../plugin-system';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
@@ -298,10 +299,12 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     return (
         <div ref={containerRef} style={{ width: '100%' }}>
             {widgets.length === 0 ? (
-                <div className="text-center p-12 mt-8 border-2 border-dashed border-border rounded-[var(--radius-widget)] text-muted-foreground bg-background">
-                    <h3>No Widgets</h3>
-                    <p>Click "Add Widget" to customize your dashboard.</p>
-                </div>
+                <AppEmptyState
+                    scenario="create"
+                    size="section"
+                    title="No widgets yet"
+                    description="Add a widget to customize this dashboard."
+                />
             ) : null}
             {widgets.length > 0 && mounted && hasRenderableWidth && (
                 <Responsive

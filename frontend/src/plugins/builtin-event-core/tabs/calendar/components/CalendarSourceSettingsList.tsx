@@ -1,6 +1,6 @@
 // input:  [registered calendar sources, source visibility/color settings, LMS description safety state, and source-setting callbacks]
 // output: [`CalendarSourceSettingsList` source list UI that combines enable toggles, colors, and per-source settings sections]
-// pos:    [Calendar settings subcomponent that renders one integrated configuration card per registered Calendar source]
+// pos:    [Calendar settings subcomponent that renders one integrated configuration card per registered Calendar source with a flatter side-by-side color control layout]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -56,57 +56,64 @@ export const CalendarSourceSettingsList: React.FC<CalendarSourceSettingsListProp
 
         return (
           <div key={source.id} className="rounded-lg border p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <Label htmlFor={sourceEnabledInputId} className="cursor-pointer text-sm font-medium">
-                  {source.label}
-                </Label>
-              </div>
-              <Switch
-                id={sourceEnabledInputId}
-                checked={isEnabled}
-                onCheckedChange={(checked) => onToggleSourceVisibility(source.id, checked)}
-                className="shrink-0"
-              />
-            </div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,18rem)] lg:items-start">
+              <div className="min-w-0 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor={sourceEnabledInputId} className="cursor-pointer text-sm font-medium">
+                      {source.label}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Control visibility and accent color for this calendar source.
+                    </p>
+                  </div>
+                  <Switch
+                    id={sourceEnabledInputId}
+                    checked={isEnabled}
+                    onCheckedChange={(checked) => onToggleSourceVisibility(source.id, checked)}
+                    className="shrink-0"
+                  />
+                </div>
 
-            <div className="mt-4 space-y-2">
+                {hasSourceSettings ? (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor={lmsDescriptionInputId} className="cursor-pointer text-destructive">
+                          Render LMS description styles
+                        </Label>
+                        <p className="text-xs text-destructive/90">
+                          Enable richer LMS HTML. This increases rendering risk.
+                        </p>
+                      </div>
+                      <Switch
+                        id={lmsDescriptionInputId}
+                        checked={renderUnsafeLmsDescriptionHtml}
+                        onCheckedChange={(checked) => {
+                          if (!checked) {
+                            onToggleUnsafeLmsDescriptionHtml(false);
+                            return;
+                          }
+                          onRequestEnableUnsafeLmsDescriptionHtml();
+                        }}
+                        className="shrink-0 data-[state=checked]:bg-destructive"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               <ColorPicker
                 id={sourceColorInputId}
                 value={eventColors[source.id] ?? source.defaultColor}
                 onChange={(color) => onChangeSourceColor(source.id, color)}
                 defaultColor={source.defaultColor}
                 presetColors={PRESET_COLORS}
+                label="Source Color"
+                className="min-w-0"
                 triggerAriaLabel={`Choose color for ${source.label}`}
               />
             </div>
-
-            {hasSourceSettings ? (
-              <div className="mt-4 border-t pt-3">
-                <div className="mt-3 flex items-center justify-between gap-4 rounded-md border border-destructive/40 bg-destructive/5 p-3">
-                  <div className="space-y-1">
-                    <Label htmlFor={lmsDescriptionInputId} className="cursor-pointer text-destructive">
-                      render LMS description styles
-                    </Label>
-                    <p className="text-xs text-destructive/90">
-                      Enable richer LMS HTML. This increases rendering risk.
-                    </p>
-                  </div>
-                  <Switch
-                    id={lmsDescriptionInputId}
-                    checked={renderUnsafeLmsDescriptionHtml}
-                    onCheckedChange={(checked) => {
-                      if (!checked) {
-                        onToggleUnsafeLmsDescriptionHtml(false);
-                        return;
-                      }
-                      onRequestEnableUnsafeLmsDescriptionHtml();
-                    }}
-                    className="shrink-0 data-[state=checked]:bg-destructive"
-                  />
-                </div>
-              </div>
-            ) : null}
           </div>
         );
       })}

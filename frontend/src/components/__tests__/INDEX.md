@@ -10,4 +10,5 @@ They run inside the jsdom test environment.
 | Button.test.tsx | Test file | Test coverage for button.test behavior. |
 | CrudPanel.test.tsx | Test file | Regression coverage for shared CRUD-panel overflow containment and mobile-safe table-shell sizing. |
 | GPAScalingTable.test.tsx | Test file | Regression coverage for GPA scaling table create-empty rendering. |
+| SemesterSettingsPanel.test.tsx | Test file | Regression coverage for Semester settings invalid-state attributes so valid date ranges do not trip shadcn destructive styling. |
 | Tabs.test.tsx | Test file | Regression coverage for shared dashboard tab-shell alignment, horizontal overflow edge shadows, wheel-driven horizontal scrolling, and core tab actions. |

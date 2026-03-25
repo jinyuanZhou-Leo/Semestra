@@ -1,6 +1,6 @@
 // input:  [semester initial fields, date pickers, date-fns parse/format helpers, and auto-save callback]
 // output: [`SemesterSettingsPanel` component]
-// pos:    [Semester settings form for term title, semester duration, and optional Reading Week management with debounced auto-save plus shadcn Field-based form structure]
+// pos:    [Semester settings form for term title, semester duration, and optional Reading Week management with a name-first General layout, vertically stacked date-range controls, debounced auto-save, and invalid-state attributes applied only for real validation failures]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -180,6 +180,8 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   const isValid = useMemo(() => {
     return !durationError && !readingWeekError;
   }, [durationError, readingWeekError]);
+  const hasDurationError = durationError.length > 0;
+  const hasReadingWeekError = readingWeekError.length > 0;
 
   const { flush } = useAutoSave({
     value: draftSnapshot,
@@ -218,7 +220,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
       <FieldSet>
-        <FieldGroup className="max-w-sm">
+        <FieldGroup className="space-y-6">
           <Field>
             <FieldLabel htmlFor={`${fieldId}-name`}>Name</FieldLabel>
             <Input
@@ -229,15 +231,16 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
             />
           </Field>
 
-          <Field data-invalid={Boolean(durationError)}>
+          <Field data-invalid={hasDurationError ? true : undefined}>
             <FieldLabel htmlFor={`${fieldId}-date`}>Semester Duration</FieldLabel>
+            <FieldDescription>Select the full semester date range.</FieldDescription>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   id={`${fieldId}-date`}
                   type="button"
                   variant="outline"
-                  aria-invalid={Boolean(durationError)}
+                  aria-invalid={hasDurationError ? true : undefined}
                   className={cn(
                     "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
                     !startDate && "text-muted-foreground"
@@ -264,11 +267,10 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
                 />
               </PopoverContent>
             </Popover>
-            <FieldDescription>Select the full semester date range.</FieldDescription>
             {durationError ? <FieldError>{durationError}</FieldError> : null}
           </Field>
 
-          <Field data-invalid={Boolean(readingWeekError)}>
+          <Field data-invalid={hasReadingWeekError ? true : undefined}>
             <FieldLabel htmlFor={`${fieldId}-reading-week`}>Reading Week</FieldLabel>
             <FieldDescription>
               Optional. Select the full Reading Week date range. It must span exactly one Monday-to-Sunday week.
@@ -279,7 +281,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
                   id={`${fieldId}-reading-week`}
                   type="button"
                   variant="outline"
-                  aria-invalid={Boolean(readingWeekError)}
+                  aria-invalid={hasReadingWeekError ? true : undefined}
                   className={cn(
                     "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
                     !readingWeekStart && "text-muted-foreground"

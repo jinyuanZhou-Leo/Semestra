@@ -1,6 +1,6 @@
 // input:  [program ID, program fetch/update API calls, shared query keys, and query-backed entity context]
 // output: [`ProgramDataProvider` and `useProgramData()` context APIs]
-// pos:    [Program-level optimistic context with query-cache-backed queued backend synchronization]
+// pos:    [Program-level optimistic context with query-cache-backed queued backend synchronization and longer-lived entity detail reuse across workspace re-entry]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -54,7 +54,7 @@ export const ProgramDataProvider: React.FC<ProgramDataProviderProps> = ({ progra
         queryKey: queryKeys.programs.detail(programId),
         fetchFn,
         updateFn,
-        staleTimeMs: 60_000,
+        staleTimeMs: 300_000,
     });
 
     const value: ProgramDataContextType = useMemo(() => ({
