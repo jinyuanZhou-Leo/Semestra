@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, and course Canvas navigation/module/page/quiz/grade/syllabus browser requests]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, and course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests]
 // output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -276,6 +276,7 @@ export interface LmsModuleSummary {
     state?: string | null;
     unlock_at?: string | null;
     item_count: number;
+    items: LmsModuleItem[];
 }
 
 export interface LmsModuleListResponse {

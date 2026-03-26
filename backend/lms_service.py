@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, LMS ORM models, CRUD/user-setting helpers, versioned crypto helpers, provider registry, and API schema payloads]
-# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, grade, page, module summary, module item, announcement, quiz, syllabus, module-file metadata/download, and range-filtered calendar service functions with normalized module-item target propagation]
-# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, module summary/item reads, module-file proxy/download reads, quiz/grade/syllabus reads, semester calendar range filtering, and normalized module-item target propagation]
+# output: [Provider-agnostic LMS integration, Program binding, Course link, import, navigation, assignment, grade, page, module summary with inline item propagation, module item, announcement, quiz, syllabus, module-file metadata/download, and range-filtered calendar service functions with normalized module-item target propagation]
+# pos:    [Backend LMS orchestration layer between HTTP routes, encrypted persistence, provider adapters, local Course/Program ownership rules, local course-display-code mapping, navigation/page browsing, module summary/item reads, inline module-item propagation for summary responses, module-file proxy/download reads, quiz/grade/syllabus reads, semester calendar range filtering, and normalized module-item target propagation]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -247,6 +247,7 @@ def _module_to_schema(module: LmsModuleSummaryData) -> schemas.LmsModuleSummary:
         state=module.state,
         unlock_at=module.unlock_at,
         item_count=module.item_count,
+        items=[_module_item_to_schema(item) for item in module.items],
     )
 
 

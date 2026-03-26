@@ -1,6 +1,6 @@
-// input:  [Canvas module summary/item APIs, Canvas page APIs, Canvas file-download proxy routes, Canvas link helpers, TanStack Query, shadcn alert/button/collapsible/scroll-area primitives, and shared class merging]
+// input:  [Canvas module summary/item APIs returned from the modules list, Canvas page APIs, Canvas file-download proxy routes, Canvas link helpers, TanStack Query, shadcn alert/button/collapsible/scroll-area primitives, and shared class merging]
 // output: [CanvasModulesView presentational component plus private windowed module-section, item-row, and detail renderers]
-// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, windows offscreen sections, loads item lists on demand, and caches proxied file previews for native rendering]
+// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, windows offscreen sections, reads inline module item summaries from the modules payload, and caches proxied file previews for native rendering]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -49,7 +49,6 @@ const isModuleItemExternal = (item: LmsModuleItem) => {
 const MODULE_ROW_HEIGHT_ESTIMATE = 44;
 const MODULE_HEADER_HEIGHT_ESTIMATE = 50;
 const MODULE_EMPTY_STATE_HEIGHT_ESTIMATE = 72;
-const MODULE_LOADING_SKELETON_ROWS = 3;
 const MODULE_SECTION_GAP = 16;
 const MODULE_WINDOW_OVERSCAN = 720;
 const MODULE_DEFAULT_ITEM_COUNT_ESTIMATE = 6;
@@ -201,9 +200,9 @@ const CanvasModuleFilePreview: React.FC<{
                 textContent,
             };
         },
+        ...CANVAS_QUERY_OPTIONS,
         staleTime: 1000 * 60 * 30,
         gcTime: 1000 * 60 * 60,
-        ...CANVAS_QUERY_OPTIONS,
     });
 
     const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
@@ -447,32 +446,13 @@ const CanvasModuleItemDetail: React.FC<{
     );
 };
 
-const CanvasModuleLoadingRows: React.FC<{ estimatedHeight: number }> = ({ estimatedHeight }) => (
-    <div
-        className="border-t border-border/60 px-4 py-3"
-        style={{
-            contentVisibility: 'auto',
-            containIntrinsicSize: `${Math.max(estimatedHeight, MODULE_EMPTY_STATE_HEIGHT_ESTIMATE)}px`,
-            minHeight: `${Math.max(estimatedHeight, MODULE_EMPTY_STATE_HEIGHT_ESTIMATE)}px`,
-        }}
-    >
-        <div className="space-y-3">
-            {Array.from({ length: MODULE_LOADING_SKELETON_ROWS }).map((_, index) => (
-                <div key={index} className="h-4 rounded-full bg-muted/70" />
-            ))}
-        </div>
-    </div>
-);
-
 type CanvasModuleSectionBodyProps = {
-    courseId: string;
     moduleItem: LmsModuleSummary;
     onSelectItem: (moduleId: string, item: LmsModuleItem) => void;
     canvasOrigin?: string | null;
 };
 
 const CanvasModuleSectionBody = React.memo(function CanvasModuleSectionBody({
-    courseId,
     moduleItem,
     onSelectItem,
     canvasOrigin,
@@ -482,14 +462,7 @@ const CanvasModuleSectionBody = React.memo(function CanvasModuleSectionBody({
         [moduleItem],
     );
 
-    const moduleItemsQuery = useQuery({
-        queryKey: queryKeys.courses.lmsModuleItems(courseId, moduleItem.module_id),
-        queryFn: () => api.getCourseLmsModuleItems(courseId, moduleItem.module_id),
-        enabled: moduleItem.item_count > 0,
-        ...CANVAS_QUERY_OPTIONS,
-    });
-
-    const resolvedItems = moduleItemsQuery.data?.items ?? [];
+    const resolvedItems = moduleItem.items ?? [];
 
     return (
         <div
@@ -501,10 +474,8 @@ const CanvasModuleSectionBody = React.memo(function CanvasModuleSectionBody({
         >
             {moduleItem.item_count === 0 ? (
                 <p className="px-4 py-4 text-sm text-muted-foreground">This module does not contain any published items.</p>
-            ) : moduleItemsQuery.isLoading && !moduleItemsQuery.data ? (
-                <CanvasModuleLoadingRows estimatedHeight={estimatedHeight} />
-            ) : moduleItemsQuery.error ? (
-                <p className="px-4 py-4 text-sm text-muted-foreground">Failed to load this module&apos;s items.</p>
+            ) : resolvedItems.length === 0 ? (
+                <p className="px-4 py-4 text-sm text-muted-foreground">Canvas did not return any visible module items for this section.</p>
             ) : (
                 <div className="divide-y divide-border/60">
                     {resolvedItems.map((item) => (
@@ -526,7 +497,6 @@ const CanvasModuleSectionBody = React.memo(function CanvasModuleSectionBody({
 });
 
 type CanvasModuleSectionProps = {
-    courseId: string;
     moduleItem: LmsModuleSummary;
     isOpen: boolean;
     onOpenChange: (nextOpen: boolean) => void;
@@ -535,7 +505,6 @@ type CanvasModuleSectionProps = {
 };
 
 const CanvasModuleSection = React.memo(function CanvasModuleSection({
-    courseId,
     moduleItem,
     isOpen,
     onOpenChange,
@@ -549,28 +518,29 @@ const CanvasModuleSection = React.memo(function CanvasModuleSection({
     }, [onOpenChange]);
 
     return (
-        <Collapsible open={isOpen} onOpenChange={handleOpenChange} className="group/module overflow-hidden rounded-2xl border border-border/60">
-            <CollapsibleTrigger asChild>
-                <button
-                    type="button"
-                    className="flex w-full items-center gap-3 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
-                >
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/module:rotate-90" />
-                    <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-base font-semibold text-foreground">{moduleItem.name}</h3>
-                    </div>
-                    <span className="shrink-0 text-xs text-muted-foreground">{moduleItem.item_count}</span>
-                </button>
-            </CollapsibleTrigger>
-            {isOpen ? (
-                <CanvasModuleSectionBody
-                    courseId={courseId}
-                    moduleItem={moduleItem}
-                    onSelectItem={onSelectItem}
-                    canvasOrigin={canvasOrigin}
-                />
-            ) : null}
-        </Collapsible>
+        <div>
+            <Collapsible open={isOpen} onOpenChange={handleOpenChange} className="group/module overflow-hidden rounded-2xl border border-border/60">
+                <CollapsibleTrigger asChild>
+                    <button
+                        type="button"
+                        className="flex w-full items-center gap-3 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
+                    >
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/module:rotate-90" />
+                        <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-base font-semibold text-foreground">{moduleItem.name}</h3>
+                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground">{moduleItem.item_count}</span>
+                    </button>
+                </CollapsibleTrigger>
+                {isOpen ? (
+                    <CanvasModuleSectionBody
+                        moduleItem={moduleItem}
+                        onSelectItem={onSelectItem}
+                        canvasOrigin={canvasOrigin}
+                    />
+                ) : null}
+            </Collapsible>
+        </div>
     );
 });
 
@@ -738,18 +708,17 @@ export const CanvasModulesView: React.FC<{
                             {windowedModules.visibleItems.map((moduleItem) => (
                                 <CanvasModuleSection
                                     key={moduleItem.module_id}
-                                    courseId={courseId}
                                     moduleItem={moduleItem}
                                     isOpen={openModuleMap[moduleItem.module_id] ?? true}
-                                onOpenChange={(nextOpen) => {
-                                    setOpenModuleMap((currentMap) => ({
-                                        ...currentMap,
-                                        [moduleItem.module_id]: nextOpen,
-                                    }));
-                                }}
-                                onSelectItem={(selectedModuleId, item) => setSelectedModuleItem({ moduleId: selectedModuleId, item })}
-                                canvasOrigin={canvasOrigin}
-                            />
+                                    onOpenChange={(nextOpen) => {
+                                        setOpenModuleMap((currentMap) => ({
+                                            ...currentMap,
+                                            [moduleItem.module_id]: nextOpen,
+                                        }));
+                                    }}
+                                    onSelectItem={(selectedModuleId, item) => setSelectedModuleItem({ moduleId: selectedModuleId, item })}
+                                    canvasOrigin={canvasOrigin}
+                                />
                             ))}
                         </div>
                         {windowedModules.bottomSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.bottomSpacer}px` }} /> : null}

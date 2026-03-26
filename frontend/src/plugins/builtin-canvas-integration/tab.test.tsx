@@ -1,6 +1,6 @@
 // input:  [Canvas navigation tab runtime, mocked course context, mocked Canvas LMS summary/item APIs, and testing-library assertions/interactions]
-// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, lazy module-item interactions, and query-cached native module file rendering]
-// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, assignment or grade Canvas data UI, in-app module item drill-down, cached native file previews, and unavailable-state alignment]
+// output: [regression tests for builtin-canvas-integration empty-state handling, host-aligned unavailable layouts, assignment or grade Canvas views, home fallback routing, external/unknown CTA rendering, native quizzes or syllabus views, inline module-item rendering from the modules payload, and query-cached native module file rendering]
+// pos:    [Canvas integration tab regression suite for supported Canvas navigation flows, optimized module rendering, assignment or grade Canvas data UI, inline module item loading through the modules summary response, in-app module item drill-down, cached native file previews, and unavailable-state alignment]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -175,6 +175,7 @@ describe('CanvasPagesTab', () => {
                     state: 'active',
                     unlock_at: null,
                     item_count: 0,
+                    items: [],
                 },
             ],
         });
@@ -369,36 +370,34 @@ describe('CanvasPagesTab', () => {
                     state: 'active',
                     unlock_at: null,
                     item_count: 2,
-                },
-            ],
-        });
-        vi.mocked(api.getCourseLmsModuleItems).mockResolvedValue({
-            items: [
-                {
-                    module_item_id: 'item-1',
-                    title: 'Course Overview',
-                    item_type: 'Page',
-                    content_id: 'page-1',
-                    html_url: 'https://canvas.example.edu/courses/canvas-course-1/pages/course-overview',
-                    url: '/courses/canvas-course-1/pages/course-overview',
-                    position: 1,
-                    indent: 0,
-                    published: true,
-                    completion_requirement_type: 'must_view',
-                    new_tab: false,
-                },
-                {
-                    module_item_id: 'item-2',
-                    title: 'Reference PDF',
-                    item_type: 'File',
-                    content_id: 'file-1',
-                    html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/1',
-                    url: '/courses/canvas-course-1/files/1',
-                    position: 2,
-                    indent: 0,
-                    published: false,
-                    completion_requirement_type: null,
-                    new_tab: true,
+                    items: [
+                        {
+                            module_item_id: 'item-1',
+                            title: 'Course Overview',
+                            item_type: 'Page',
+                            content_id: 'page-1',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/pages/course-overview',
+                            url: '/courses/canvas-course-1/pages/course-overview',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: 'must_view',
+                            new_tab: false,
+                        },
+                        {
+                            module_item_id: 'item-2',
+                            title: 'Reference PDF',
+                            item_type: 'File',
+                            content_id: 'file-1',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/1',
+                            url: '/courses/canvas-course-1/files/1',
+                            position: 2,
+                            indent: 0,
+                            published: false,
+                            completion_requirement_type: null,
+                            new_tab: true,
+                        },
+                    ],
                 },
             ],
         });
@@ -496,36 +495,34 @@ describe('CanvasPagesTab', () => {
                     state: 'active',
                     unlock_at: null,
                     item_count: 2,
-                },
-            ],
-        });
-        vi.mocked(api.getCourseLmsModuleItems).mockResolvedValue({
-            items: [
-                {
-                    module_item_id: 'item-1',
-                    title: 'External Resource',
-                    item_type: 'ExternalUrl',
-                    content_id: null,
-                    html_url: 'https://canvas.example.edu/courses/1/modules/items/1',
-                    url: 'https://canvas.example.edu/courses/1/modules/items/1',
-                    position: 1,
-                    indent: 0,
-                    published: true,
-                    completion_requirement_type: null,
-                    new_tab: true,
-                },
-                {
-                    module_item_id: 'item-2',
-                    title: 'Discussion Thread',
-                    item_type: 'DiscussionTopic',
-                    content_id: 'discussion-1',
-                    html_url: 'https://canvas.example.edu/courses/1/discussion_topics/1',
-                    url: 'https://canvas.example.edu/courses/1/discussion_topics/1',
-                    position: 2,
-                    indent: 0,
-                    published: true,
-                    completion_requirement_type: null,
-                    new_tab: false,
+                    items: [
+                        {
+                            module_item_id: 'item-1',
+                            title: 'External Resource',
+                            item_type: 'ExternalUrl',
+                            content_id: null,
+                            html_url: 'https://canvas.example.edu/courses/1/modules/items/1',
+                            url: 'https://canvas.example.edu/courses/1/modules/items/1',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: true,
+                        },
+                        {
+                            module_item_id: 'item-2',
+                            title: 'Discussion Thread',
+                            item_type: 'DiscussionTopic',
+                            content_id: 'discussion-1',
+                            html_url: 'https://canvas.example.edu/courses/1/discussion_topics/1',
+                            url: 'https://canvas.example.edu/courses/1/discussion_topics/1',
+                            position: 2,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: false,
+                        },
+                    ],
                 },
             ],
         });
@@ -563,21 +560,6 @@ describe('CanvasPagesTab', () => {
                     state: 'active',
                     unlock_at: null,
                     item_count: 1,
-                },
-                {
-                    module_id: 'module-2',
-                    name: 'Week 2',
-                    position: 2,
-                    published: true,
-                    state: 'active',
-                    unlock_at: null,
-                    item_count: 1,
-                },
-            ],
-        });
-        vi.mocked(api.getCourseLmsModuleItems).mockImplementation(async (_courseId, moduleId) => {
-            if (moduleId === 'module-1') {
-                return {
                     items: [
                         {
                             module_item_id: 'item-1',
@@ -593,29 +575,35 @@ describe('CanvasPagesTab', () => {
                             new_tab: false,
                         },
                     ],
-                };
-            }
-
-            return {
-                items: [
-                    {
-                        module_item_id: 'item-2',
-                        title: 'Lecture Slides',
-                        item_type: 'File',
-                        content_id: 'file-2',
-                        html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/2',
-                        url: '/courses/canvas-course-1/files/2',
-                        position: 1,
-                        indent: 0,
-                        published: true,
-                        completion_requirement_type: null,
-                        new_tab: true,
-                        content_details: {
-                            download_url: '/api/courses/course-1/lms/module-files/file-2',
+                },
+                {
+                    module_id: 'module-2',
+                    name: 'Week 2',
+                    position: 2,
+                    published: true,
+                    state: 'active',
+                    unlock_at: null,
+                    item_count: 1,
+                    items: [
+                        {
+                            module_item_id: 'item-2',
+                            title: 'Lecture Slides',
+                            item_type: 'File',
+                            content_id: 'file-2',
+                            html_url: 'https://canvas.example.edu/courses/canvas-course-1/files/2',
+                            url: '/courses/canvas-course-1/files/2',
+                            position: 1,
+                            indent: 0,
+                            published: true,
+                            completion_requirement_type: null,
+                            new_tab: true,
+                            content_details: {
+                                download_url: '/api/courses/course-1/lms/module-files/file-2',
+                            },
                         },
-                    },
-                ],
-            };
+                    ],
+                },
+            ],
         });
 
         renderCanvasTab();
@@ -623,10 +611,6 @@ describe('CanvasPagesTab', () => {
         expect(await screen.findByText('Course Overview')).toBeInTheDocument();
         expect(screen.getByText('Week 2')).toBeInTheDocument();
         expect(await screen.findByText('Lecture Slides')).toBeInTheDocument();
-        await waitFor(() => {
-            expect(api.getCourseLmsModuleItems).toHaveBeenCalledWith('course-1', 'module-1');
-            expect(api.getCourseLmsModuleItems).toHaveBeenCalledWith('course-1', 'module-2');
-        });
 
         fireEvent.click(screen.getByRole('button', { name: /Week 2/ }));
 
@@ -716,6 +700,7 @@ describe('CanvasPagesTab', () => {
                     state: 'active',
                     unlock_at: null,
                     item_count: 0,
+                    items: [],
                 },
             ],
         });
@@ -751,6 +736,7 @@ describe('CanvasPagesTab', () => {
                     state: 'active',
                     unlock_at: null,
                     item_count: 0,
+                    items: [],
                 },
             ],
         });
@@ -787,6 +773,7 @@ describe('CanvasPagesTab', () => {
                     state: 'active',
                     unlock_at: null,
                     item_count: 0,
+                    items: [],
                 },
             ],
         });
@@ -842,6 +829,7 @@ describe('CanvasPagesTab', () => {
                     state: 'active',
                     unlock_at: null,
                     item_count: 0,
+                    items: [],
                 },
             ],
         });

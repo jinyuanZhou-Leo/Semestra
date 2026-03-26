@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy setup, backend LMS service/schema/crypto modules, Canvas adapter hardening, and fake provider adapters]
-# output: [unit tests covering multi-integration LMS storage, Canvas outbound-request hardening, Program/Course LMS link rules, provider-backed imports, read-only navigation/announcement/module/assignment/page/quiz/grade/syllabus/calendar contracts, normalized module-item target metadata, file proxy/download handling, and program-level course stat/reassignment safeguards]
-# pos:    [backend regression tests for LMS orchestration plus Canvas adapter security boundaries and program/course behaviors that interact with provider setup, navigation/page/quiz/grade/syllabus/file browsing, normalized module targets, file metadata/content streaming, and semester assignment]
+# output: [unit tests covering multi-integration LMS storage, Canvas outbound-request hardening, Program/Course LMS link rules, provider-backed imports, read-only navigation/announcement/module summary with inline items/module item/assignment/page/quiz/grade/syllabus/calendar contracts, normalized module-item target metadata, file proxy/download handling, and program-level course stat/reassignment safeguards]
+# pos:    [backend regression tests for LMS orchestration plus Canvas adapter security boundaries and program/course behaviors that interact with provider setup, navigation/page/quiz/grade/syllabus/file browsing, inline module item summary propagation, normalized module targets, file metadata/content streaming, and semester assignment]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -220,7 +220,25 @@ class _FakeLmsProvider:
                 state="active",
                 unlock_at=None,
                 item_count=1,
-                items=[],
+                items=[
+                    LmsModuleItemData(
+                        module_item_id="module-item-1",
+                        title="Lecture 1",
+                        item_type="Page",
+                        content_id="page-1",
+                        html_url="https://example.com/courses/123/pages/lecture-1",
+                        url="/courses/123/pages/lecture-1",
+                        position=1,
+                        indent=0,
+                        published=True,
+                        completion_requirement_type="must_view",
+                        new_tab=False,
+                        target_type="page",
+                        page_url="lecture-1",
+                        content_details=None,
+                        in_app_supported=True,
+                    )
+                ],
             ),
         ]
 
@@ -769,6 +787,22 @@ class LmsIntegrationTests(unittest.TestCase):
                             "published": True,
                             "workflow_state": "active",
                             "items_count": 1,
+                            "items": [
+                                {
+                                    "id": "module-item-1",
+                                    "title": "Lecture 1",
+                                    "type": "Page",
+                                    "content_id": "page-1",
+                                    "html_url": "https://example.com/courses/123/pages/lecture-1",
+                                    "url": "/courses/123/pages/lecture-1",
+                                    "page_url": "lecture-1",
+                                    "position": 1,
+                                    "indent": 0,
+                                    "published": True,
+                                    "completion_requirement": {"type": "must_view"},
+                                    "new_tab": False,
+                                }
+                            ],
                         }
                     ]
                 )
@@ -785,9 +819,11 @@ class LmsIntegrationTests(unittest.TestCase):
 
         self.assertEqual(len(session.calls), 1)
         self.assertEqual(session.calls[0]["url"], "https://example.com/api/v1/courses/course-1/modules")
-        self.assertEqual(session.calls[0]["params"], {"per_page": 100})
+        self.assertEqual(session.calls[0]["params"], {"per_page": 100, "include[]": ["items"]})
         self.assertEqual(modules[0].module_id, "module-1")
         self.assertEqual(modules[0].item_count, 1)
+        self.assertEqual(modules[0].items[0].title, "Lecture 1")
+        self.assertEqual(modules[0].items[0].page_url, "lecture-1")
 
     def test_canvas_provider_normalizes_module_items_response(self) -> None:
         class FakeResponse:
@@ -1407,6 +1443,8 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertEqual(announcements.items[0].title, "Welcome")
         self.assertEqual(announcements.items[0].html_url, "https://example.com/courses/123/announcements/1")
         self.assertEqual(modules.items[0].item_count, 1)
+        self.assertEqual(modules.items[0].items[0].module_item_id, "module-item-1")
+        self.assertEqual(modules.items[0].items[0].title, "Lecture 1")
         self.assertEqual(module_items.items[0].module_item_id, "module-item-1")
         self.assertEqual(module_items.items[0].completion_requirement_type, "must_view")
         self.assertEqual(module_items.items[0].target_type, "page")
@@ -1431,6 +1469,7 @@ class LmsIntegrationTests(unittest.TestCase):
         self.assertEqual(route_announcements.items[0].announcement_id, "announcement-1")
         self.assertEqual(route_modules.items[0].module_id, "module-1")
         self.assertEqual(route_modules.items[0].item_count, 1)
+        self.assertEqual(route_modules.items[0].items[0].module_item_id, "module-item-1")
         self.assertEqual(route_module_items.items[0].module_item_id, "module-item-1")
         self.assertEqual(route_module_items.items[0].target_type, "page")
         self.assertEqual(route_quizzes.items[0].title, "Week 1 Quiz")

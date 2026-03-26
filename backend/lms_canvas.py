@@ -1,6 +1,6 @@
 # input:  [Canvas LMS provider config/credential payloads, requests-based Canvas REST access, and Canvas file metadata/download endpoints]
-# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, blocks SSRF-prone hosts or redirects, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/module summaries/module items/pages/quizzes/grades, reads syllabus/assignments/calendar events, fetches file metadata/content, and applies provider-specific due-date normalization plus module-item target typing and content-details capture]
-# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, outbound-target hardening, navigation, page, announcement, module summary/item, quiz, grade, syllabus, file proxy/download, and credential mapping with normalized module-item target metadata]
+# output: [Canvas-backed LMS provider adapter that normalizes integration config/credentials, blocks SSRF-prone hosts or redirects, masks stored credentials, validates connections, resolves user summaries, lists normalized courses/navigation/announcements/module summaries with inline item payloads/module items/pages/quizzes/grades, reads syllabus/assignments/calendar events, fetches file metadata/content, and applies provider-specific due-date normalization plus module-item target typing and content-details capture]
+# pos:    [Provider-specific adapter layer for the first LMS integration implementation, including Canvas-to-provider-neutral field, outbound-target hardening, navigation, page, announcement, module summary/item, quiz, grade, syllabus, file proxy/download, inline module item hydration for the summary response, and credential mapping with normalized module-item target metadata]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -449,6 +449,11 @@ class CanvasLmsProvider:
     def _normalize_module(self, payload: dict[str, Any]) -> LmsModuleSummaryData:
         raw_items = payload.get("items")
         inline_item_count = len(raw_items) if isinstance(raw_items, list) else 0
+        normalized_items: list[LmsModuleItemData] = []
+        if isinstance(raw_items, list):
+            for raw_item in raw_items:
+                if isinstance(raw_item, dict):
+                    normalized_items.append(self._normalize_module_item(raw_item))
         state = str(payload.get("workflow_state") or payload.get("state") or "").strip() or None
         module_id = str(payload.get("id") or "").strip()
         item_count = self._optional_int(payload.get("items_count"))
@@ -460,7 +465,7 @@ class CanvasLmsProvider:
             state=state,
             unlock_at=payload.get("unlock_at"),
             item_count=item_count if item_count is not None else inline_item_count,
-            items=[],
+            items=normalized_items,
         )
 
     def _normalize_quiz(self, payload: dict[str, Any]) -> LmsQuizSummaryData:
@@ -767,6 +772,7 @@ class CanvasLmsProvider:
                 f"/courses/{external_course_id}/modules",
                 params={
                     "per_page": 100,
+                    "include[]": ["items"],
                 },
             )
             items: list[LmsModuleSummaryData] = []
