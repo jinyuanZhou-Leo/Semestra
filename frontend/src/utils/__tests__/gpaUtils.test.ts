@@ -1,6 +1,6 @@
 // input:  [`calculateGPA` utility and Vitest assertion/runtime APIs]
 // output: [test suite validating GPA mapping rule handling]
-// pos:    [Utility regression tests for GPA conversion edge cases]
+// pos:    [Utility regression tests for GPA conversion edge cases, including continuous matching across adjacent integer-authored bands]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -34,6 +34,17 @@ describe('calculateGPA', () => {
         expect(calculateGPA(90, standardTable)).toBe(4.0);
         expect(calculateGPA(100, standardTable)).toBe(4.0);
         expect(calculateGPA(89, standardTable)).toBe(3.0); 
+    });
+
+    it('treats adjacent integer ranges as continuous percentage bands', () => {
+        const adjacentBands = JSON.stringify({
+            "90-100": 4.0,
+            "85-89": 3.7,
+            "0-84": 0.0
+        });
+
+        expect(calculateGPA(89.5, adjacentBands)).toBe(3.7);
+        expect(calculateGPA(84.5, adjacentBands)).toBe(0.0);
     });
 
     it('should handle inverted ranges', () => {

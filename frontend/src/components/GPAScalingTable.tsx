@@ -1,7 +1,7 @@
 // input:  [serialized GPA mapping JSON, parse/coverage validation logic, and shared business empty-state wrappers]
 // output: [`GPAScalingTable` component]
 // pos:    [Settings control for authoring percentage-to-GPA conversion rules with standardized create-empty feedback; entries are
-//          auto-sorted by min score descending; input uses explicit min/max/GPA fields]
+//          auto-sorted by min score descending; input uses explicit min/max/GPA fields, continuous coverage warnings, and AlertDialog-backed delete confirmation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,17 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppEmptyState } from '@/components/AppEmptyState';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +34,44 @@ interface GpaEntry {
     min: number;
     max: number;
     gpa: number;
+}
+
+const SCORE_DOMAIN_END = 100;
+const RANGE_TOLERANCE = 1e-9;
+
+function getExclusiveRangeEnd(entry: Pick<GpaEntry, 'min' | 'max'>): number {
+    const min = Math.min(entry.min, entry.max);
+    const max = Math.max(entry.min, entry.max);
+
+    if (Number.isInteger(min) && Number.isInteger(max)) {
+        return max >= SCORE_DOMAIN_END ? SCORE_DOMAIN_END + RANGE_TOLERANCE : max + 1;
+    }
+
+    return max + RANGE_TOLERANCE;
+}
+
+function hasFullContinuousCoverage(entries: GpaEntry[]): boolean {
+    if (entries.length === 0) return false;
+
+    const sortedEntries = [...entries].sort((left, right) => (
+        left.min - right.min || left.max - right.max
+    ));
+
+    let coveredUntil = 0;
+    for (const entry of sortedEntries) {
+        const start = Math.min(entry.min, entry.max);
+        const end = getExclusiveRangeEnd(entry);
+
+        if (end <= start + RANGE_TOLERANCE) continue;
+        if (start > coveredUntil + RANGE_TOLERANCE) return false;
+
+        coveredUntil = Math.max(coveredUntil, end);
+        if (coveredUntil >= SCORE_DOMAIN_END + RANGE_TOLERANCE) {
+            return true;
+        }
+    }
+
+    return coveredUntil >= SCORE_DOMAIN_END + RANGE_TOLERANCE;
 }
 
 /** Parse JSON → sorted GpaEntry[] (high min first) */
@@ -112,14 +161,8 @@ export const GPAScalingTable: React.FC<GPAScalingTableProps> = ({ value, onChang
         onChange(serializeEntries(updated));
     };
 
-    // Coverage check: all integers 0-100 must be covered
     const isFullCoverage = useMemo(() => {
-        if (entries.length === 0) return false;
-        for (let p = 0; p <= 100; p++) {
-            const covered = entries.some(e => p >= e.min && p <= e.max);
-            if (!covered) return false;
-        }
-        return true;
+        return hasFullContinuousCoverage(entries);
     }, [entries]);
 
     return (
@@ -146,16 +189,33 @@ export const GPAScalingTable: React.FC<GPAScalingTableProps> = ({ value, onChang
                                     </span>
                                 </div>
 
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    type="button"
-                                    onClick={() => handleRemove(idx)}
-                                    className="h-8 w-8 text-muted-foreground md:opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-destructive/10 hover:text-destructive -mr-2 transition-all"
-                                    aria-label={`Remove rule ${entry.min}–${entry.max}`}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            type="button"
+                                            className="h-8 w-8 text-muted-foreground md:opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-destructive/10 hover:text-destructive -mr-2 transition-all"
+                                            aria-label={`Remove rule ${entry.min}–${entry.max}`}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent size="sm">
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Delete scaling rule?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Remove the {entry.min}-{entry.max}% rule from this GPA scaling table.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction variant="destructive" onClick={() => handleRemove(idx)}>
+                                                Delete rule
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </div>
                         ))}
                     </div>

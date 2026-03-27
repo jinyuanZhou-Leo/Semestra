@@ -1,6 +1,6 @@
 // input:  [Vitest assertions, builtin-gradebook shared helpers, and simplified gradebook fixtures]
 // output: [test suite validating builtin-gradebook forecast summaries, exact-weight gating, plan-mode recommendations, GPA-threshold resolution, and stable badge color fallbacks]
-// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, exact-100 weight validation, band-aware GPA scale parsing, and category badge helpers]
+// pos:    [plugin-level regression tests for the rebuilt gradebook statistical helpers, temporary what-if calculations, exact-100 weight validation, band-aware GPA scale parsing, continuous integer-band matching, and category badge helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -99,6 +99,19 @@ describe('builtin-gradebook shared helpers', () => {
             '80': 3.7,
             '75': 3.3,
         })).toBe(80);
+    });
+
+    it('treats adjacent integer ranges as continuous percentage bands', () => {
+        expect(calculateGradebookGpa(89.5, {
+            '90-100': 4.0,
+            '85-89': 3.7,
+            '0-84': 0.0,
+        })).toBe(3.7);
+        expect(calculateGradebookGpa(84.5, {
+            '90-100': 4.0,
+            '85-89': 3.7,
+            '0-84': 0.0,
+        })).toBe(0.0);
     });
 
     it('keeps forecast blank when a remaining category has no history', () => {

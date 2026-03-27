@@ -1,6 +1,6 @@
 // input:  [program name/credits/GPA defaults, discovered subject codes, available LMS integrations, course color-picker presets, and auto-save lifecycle callbacks]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, separated LMS/general sections, shared section-shell composition, stable subject-color management, and adaptive mobile-safe course-color table sizing]
+// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, vertically stacked General settings rows, separated LMS/general sections, shared section-shell composition, stable subject-color management, and adaptive mobile-safe course-color table sizing]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -274,7 +274,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         contentClassName="space-y-6"
       >
         <FieldSet>
-          <FieldGroup className="grid gap-6 lg:grid-cols-2">
+          <FieldGroup className="flex flex-col gap-6">
             <Field>
               <FieldLabel htmlFor={`${fieldId}-name`}>Program Name</FieldLabel>
               <Input
@@ -300,7 +300,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
               />
             </Field>
 
-            <Field orientation="responsive" className="lg:col-span-2">
+            <Field orientation="responsive">
               <FieldContent>
                 <FieldLabel htmlFor={`${fieldId}-hide-gpa`}>Hide GPA Info</FieldLabel>
                 <FieldDescription>

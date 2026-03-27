@@ -1,6 +1,6 @@
 // input:  [gradebook API contracts, date-fns helpers, builtin-gradebook table view preferences, and shared badge-color utilities]
 // output: [builtin-gradebook plugin constants, exact-weight-gated forecast/plan calculators, shared formatters, stable GPA-threshold resolution helpers, and category badge color helpers]
-// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating and band-aware numeric-or-range GPA scale parsing]
+// pos:    [shared gradebook domain layer used by the rebuilt builtin-gradebook tab, widget, settings surface, and Canvas handoff target resolution, including exact-100 total-weight calculation gating, band-aware numeric-or-range GPA scale parsing, and continuous matching for adjacent integer-authored ranges]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -109,6 +109,20 @@ const roundValue = (value: number, digits: number = 4): number => Number(value.t
 const clampScore = (value: number): number => Math.max(0, Math.min(100, value));
 const ceilScore = (value: number): number => clampScore(Math.ceil(value));
 const GRADEBOOK_WEIGHT_TOLERANCE = 0.001;
+const SCORE_DOMAIN_END = 100;
+const RANGE_TOLERANCE = 1e-9;
+
+const matchesRange = (percentage: number, left: number, right: number): boolean => {
+    const min = Math.min(left, right);
+    const max = Math.max(left, right);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return false;
+
+    const upperBound = Number.isInteger(min) && Number.isInteger(max)
+        ? (max >= SCORE_DOMAIN_END ? SCORE_DOMAIN_END + RANGE_TOLERANCE : max + 1)
+        : max + RANGE_TOLERANCE;
+
+    return percentage >= min && percentage < upperBound;
+};
 
 const calculateMean = (values: number[]): number | null => {
     if (values.length === 0) return null;
@@ -134,12 +148,8 @@ export const calculateGradebookGpa = (percentage: number | null, scalingTable: G
 
         if (key.includes('-')) {
             const [left, right] = key.split('-', 2).map((part) => Number(part.trim()));
-            if (Number.isFinite(left) && Number.isFinite(right)) {
-                const min = Math.min(left, right);
-                const max = Math.max(left, right);
-                if (percentage >= min && percentage <= max) {
-                    return roundValue(gpa, 3);
-                }
+            if (Number.isFinite(left) && Number.isFinite(right) && matchesRange(percentage, left, right)) {
+                return roundValue(gpa, 3);
             }
             continue;
         }

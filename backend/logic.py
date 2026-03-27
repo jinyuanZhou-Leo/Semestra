@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, JSON scaling definitions]
 # output: [Business logic helpers for GPA, gradebook target resolution, grades, and week calculations]
-# pos:    [Pure/domain logic layer consumed by API handlers and gradebook services]
+# pos:    [Pure/domain logic layer consumed by API handlers and gradebook services, including continuous matching for adjacent integer-authored GPA bands]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -25,12 +25,25 @@ DEFAULT_SCALING_TABLE = {
     "50-52": 0.7,
     "0-49": 0.0
 }
+SCORE_DOMAIN_END = 100.0
+RANGE_TOLERANCE = 1e-9
 
 def _round_gpa(value: float, decimals: int = 3) -> float:
     try:
         return round(float(value), decimals)
     except Exception:
         return 0.0
+
+def _range_matches_percentage(percentage: float, start: float, end: float) -> bool:
+    lower_bound = min(start, end)
+    upper_bound = max(start, end)
+
+    if float(lower_bound).is_integer() and float(upper_bound).is_integer():
+        upper_limit = SCORE_DOMAIN_END + RANGE_TOLERANCE if upper_bound >= SCORE_DOMAIN_END else upper_bound + 1.0
+    else:
+        upper_limit = upper_bound + RANGE_TOLERANCE
+
+    return lower_bound <= percentage < upper_limit
 
 def _parse_scaling_table(raw_table: str | None) -> dict | None:
     if not raw_table:
@@ -85,7 +98,7 @@ def calculate_gpa(percentage: float, scaling_table: dict) -> float:
             key = str(range_str).strip()
             if '-' in key:
                 start, end = map(float, key.split('-'))
-                if min(start, end) <= percentage <= max(start, end):
+                if _range_matches_percentage(percentage, start, end):
                     return _round_gpa(float(gpa))
             elif key.startswith('>') or key.startswith('>='):
                 val = float(''.join(ch for ch in key if (ch.isdigit() or ch == '.')))

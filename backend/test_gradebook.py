@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy session setup, gradebook domain service, and backend schemas/models]
-# output: [unit tests covering gradebook initialization, category reassignment, preference updates, percentage and point-based score persistence, and score-first assessment behavior]
-# pos:    [backend regression tests for the simplified built-in gradebook service and import-safe payload helpers, including points-to-percentage assessment input]
+# output: [unit tests covering gradebook initialization, category reassignment, preference updates, percentage and point-based score persistence, score-first assessment behavior, and GPA range continuity]
+# pos:    [backend regression tests for the simplified built-in gradebook service and import-safe payload helpers, including points-to-percentage assessment input and continuous integer-band GPA matching]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -19,6 +19,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import gradebook
+import logic
 import models
 import schemas
 from database import Base
@@ -219,6 +220,16 @@ class GradebookServiceTests(unittest.TestCase):
 
         category = next(category for category in created.categories if category.name == "Reflection")
         self.assertEqual(category.color_token, "#123abc")
+
+    def test_calculate_gpa_treats_adjacent_integer_ranges_as_continuous(self) -> None:
+        scaling_table = {
+            "90-100": 4.0,
+            "85-89": 3.7,
+            "0-84": 0.0,
+        }
+
+        self.assertEqual(logic.calculate_gpa(89.5, scaling_table), 3.7)
+        self.assertEqual(logic.calculate_gpa(84.5, scaling_table), 0.0)
 
     def test_gradebook_mutations_do_not_overwrite_course_grade_fields(self) -> None:
         course = self.db.query(models.Course).filter(models.Course.id == self.course_id).first()
