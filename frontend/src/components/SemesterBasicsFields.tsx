@@ -145,7 +145,7 @@ export const SemesterBasicsFields: React.FC<SemesterBasicsFieldsProps> = ({
   ) : "Semester Duration";
 
   return (
-    <FieldGroup className={cn("space-y-5", className)}>
+    <FieldGroup className={className}>
       <Field>
         <FieldLabel htmlFor={`${fieldId}-name`}>{nameLabel}</FieldLabel>
         <Input

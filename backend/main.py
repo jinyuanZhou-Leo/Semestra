@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, widget delete query flags, and backend schema compatibility checks]
-# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program plugin-governance + draft wizard routes, and Canvas module-file metadata/download routes]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program plugin governance, Semester draft wizard persistence, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
+# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program plugin-governance + plugin-system + draft wizard routes, Semester homepage-tab self-healing reads, and Canvas module-file metadata/download routes]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program plugin governance, explicit plugin-system setup APIs, Semester draft wizard persistence, Semester homepage-tab repair on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -361,8 +361,80 @@ def review_current_semester_draft(
         raise HTTPException(
             status_code=409,
             detail=error_detail("SEMESTER_NOT_DRAFT", "Only draft Semesters can be reviewed."),
-        )
+    )
     return crud._serialize_semester_draft(draft)
+
+
+@app.get("/plugin-system/plugins/{plugin_id}/setup-definition", response_model=schemas.PluginSystemSetupDefinitionResponse)
+def read_plugin_system_setup_definition(
+    plugin_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    del db, current_user
+    try:
+        return crud.get_plugin_system_setup_definition(plugin_id)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.get("/plugin-system/semesters/{semester_id}/setup", response_model=schemas.PluginSystemSemesterSetupResponse)
+def read_semester_plugin_system_setup(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    draft = get_owned_semester(db, current_user, semester_id)
+    if draft.lifecycle_state != "draft":
+        raise HTTPException(
+            status_code=409,
+            detail=error_detail("SEMESTER_NOT_DRAFT", "Only draft Semesters expose plugin setup state."),
+        )
+    try:
+        return crud.get_semester_plugin_system_setup(db, semester_id)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.put(
+    "/plugin-system/semesters/{semester_id}/plugins/{plugin_id}/setup",
+    response_model=schemas.PluginSystemSemesterSetupUpdateResponse,
+)
+def update_semester_plugin_system_setup(
+    semester_id: str,
+    plugin_id: str,
+    payload: schemas.PluginSystemSemesterSetupUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    draft = get_owned_semester(db, current_user, semester_id)
+    if draft.lifecycle_state != "draft":
+        raise HTTPException(
+            status_code=409,
+            detail=error_detail("SEMESTER_NOT_DRAFT", "Only draft Semesters can update plugin setup."),
+        )
+    try:
+        return crud.update_semester_plugin_system_setup(db, semester_id, plugin_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.post("/plugin-system/semesters/{semester_id}/review", response_model=schemas.PluginSystemReviewResponse)
+def review_semester_plugin_system(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    draft = get_owned_semester(db, current_user, semester_id)
+    if draft.lifecycle_state != "draft":
+        raise HTTPException(
+            status_code=409,
+            detail=error_detail("SEMESTER_NOT_DRAFT", "Only draft Semesters can be reviewed."),
+        )
+    try:
+        return crud.review_semester_plugin_system(db, semester_id)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
 
 
 @app.delete("/semesters/{semester_id}/draft")
@@ -579,6 +651,7 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
     ).first()
     if semester is None:
         raise HTTPException(status_code=404, detail="Semester not found")
+    crud.ensure_semester_homepage_tabs(db, semester)
     plugin_activations = crud.get_semester_plugin_activations(db, semester_id)
     runtime_payload = _serialize_runtime_plugin_payloads(
         plugin_activations,

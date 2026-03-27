@@ -1,6 +1,6 @@
-// input:  [Program id, program plugin governance APIs, query cache, plugin-manifest icon helpers, shared settings-section primitives, and the shared CRUD table shell]
+// input:  [Program id, program plugin governance APIs, query cache, plugin-manifest icon helpers, shared settings-section primitives, the shared data-table shell, the responsive plugin marketplace surface, and shared row-actions dropdown helpers]
 // output: [`ProgramPluginGovernancePanel` component]
-// pos:    [Program settings surface for plugin-level install, enable, disable, delete, and marketplace search flows using the shared CRUD table pattern]
+// pos:    [Program settings surface for plugin-level install, enable, disable, delete, and responsive marketplace search flows using the shared data-table pattern plus a shadcn-style row-actions dropdown]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
@@ -30,7 +31,7 @@ import { getPluginIconById } from "@/plugin-system";
 import { queryKeys } from "@/services/queryKeys";
 
 import api, { type ProgramPluginInstallation } from "../services/api";
-import { CrudPanel } from "./CrudPanel";
+import { DataTable, DataTableActionMenu } from "./DataTable";
 import { IconCircle } from "./IconCircle";
 import { PluginMarketplaceDialog } from "./PluginMarketplaceDialog";
 import { SettingsSection } from "./SettingsSection";
@@ -42,6 +43,7 @@ interface ProgramPluginGovernancePanelProps {
 
 const isInstalled = (plugin: ProgramPluginInstallation) => plugin.installed !== false;
 const isMarketplaceInstallable = (plugin: ProgramPluginInstallation) => plugin.available !== false || Boolean(plugin.is_enabled);
+const canInstallFromMarketplace = (plugin: ProgramPluginInstallation) => !isInstalled(plugin) && isMarketplaceInstallable(plugin);
 const isLocalDisableReason = (plugin: ProgramPluginInstallation) => plugin.availability_reason === "Disabled at Program level.";
 export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanelProps> = ({
   programId,
@@ -64,22 +66,20 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
     () => (pluginCatalogQuery.data ?? []).filter(isInstalled),
     [pluginCatalogQuery.data],
   );
-  const marketplacePlugins = useMemo(
-    () => (pluginCatalogQuery.data ?? []).filter((plugin) => !isInstalled(plugin)),
-    [pluginCatalogQuery.data],
-  );
   const marketplaceDialogItems = useMemo(
-    () => marketplacePlugins.map((plugin) => ({
+    () => (pluginCatalogQuery.data ?? []).map((plugin) => ({
       pluginId: plugin.plugin_id,
       displayName: plugin.display_name,
       description: plugin.description,
       author: plugin.author,
       icon: getPluginIconById(plugin.plugin_id),
-      disabled: !isMarketplaceInstallable(plugin),
-      disabledReason: plugin.available === false ? (plugin.availability_reason ?? "This plugin is currently unavailable.") : null,
-      label: "Install",
+      disabled: !canInstallFromMarketplace(plugin),
+      disabledReason: plugin.available === false
+        ? (plugin.availability_reason ?? "This plugin is currently unavailable.")
+        : null,
+      label: isInstalled(plugin) ? "Installed" : "Install",
     })),
-    [marketplacePlugins],
+    [pluginCatalogQuery.data],
   );
 
   const invalidateAll = async () => {
@@ -92,7 +92,7 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
   };
 
   const handleInstall = async (item: ProgramPluginInstallation) => {
-    if (!isMarketplaceInstallable(item)) return;
+    if (!canInstallFromMarketplace(item)) return;
     setInstallingPluginId(item.plugin_id);
     try {
       await api.upsertProgramPluginInstallation(programId, item.plugin_id, {
@@ -135,14 +135,12 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
       description="Install workspace plugins, toggle whether a Program keeps them active, and remove plugins only when you want their data deleted."
       contentClassName="space-y-5"
     >
-      <CrudPanel
+      <DataTable
         title="Program Plugins"
         description="Install workspace plugins, toggle whether a Program keeps them active, and remove plugins only when you want their data deleted."
-        showHeader={false}
         items={installedPlugins}
         isLoading={pluginCatalogQuery.isLoading}
         emptyMessage="No plugins are installed for this Program yet."
-        minWidthClassName="min-w-[760px] xl:min-w-[840px]"
         actionButton={(
           <Button type="button" className="shrink-0 self-start" onClick={() => setIsMarketplaceOpen(true)}>
             <PackagePlus className="mr-2 h-4 w-4" />
@@ -151,10 +149,10 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
         )}
         renderHeader={() => (
           <TableRow>
-            <TableHead className="min-w-[220px]">Plugin</TableHead>
-            <TableHead className="min-w-[120px]">Author</TableHead>
-            <TableHead className="w-[140px] text-right">Enabled</TableHead>
-            <TableHead className="w-[92px] text-right">Actions</TableHead>
+            <TableHead>Plugin</TableHead>
+            <TableHead>Author</TableHead>
+            <TableHead className="text-right">Enabled</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         )}
         renderRow={(plugin) => {
@@ -166,7 +164,7 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
 
           return (
             <TableRow key={plugin.plugin_id} className="align-top">
-              <TableCell className="max-w-[18rem] whitespace-normal break-words py-3">
+              <TableCell className="py-3">
                 <div className="flex items-center gap-3">
                   <IconCircle icon={pluginIcon} label={plugin.display_name} size={30} className="bg-muted text-foreground" />
                   <div className="text-sm font-medium">{plugin.display_name}</div>
@@ -176,7 +174,7 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
                 <span className="text-sm text-muted-foreground">{plugin.author}</span>
               </TableCell>
               <TableCell className="py-3 text-right align-top">
-                <div className="ml-auto flex w-full max-w-[132px] items-center justify-end gap-3">
+                <div className="ml-auto flex items-center justify-end gap-3">
                   <span className="text-xs text-muted-foreground">{plugin.is_enabled ? "On" : "Off"}</span>
                   <Switch
                     checked={plugin.is_enabled}
@@ -189,17 +187,16 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
                 </div>
               </TableCell>
               <TableCell className="py-3 text-right align-top">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="icon-sm"
-                  onClick={() => setPendingDelete(plugin)}
-                  disabled={locked || deletingPluginId === plugin.plugin_id}
-                  aria-label={`Delete ${plugin.display_name}`}
-                  title={`Delete ${plugin.display_name}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <DataTableActionMenu triggerLabel={`Open actions for ${plugin.display_name}`}>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={locked || deletingPluginId === plugin.plugin_id}
+                    onClick={() => setPendingDelete(plugin)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DataTableActionMenu>
               </TableCell>
             </TableRow>
           );
@@ -212,11 +209,12 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
         title="Install plugin"
         description="Search the workspace catalog and install a plugin into this Program."
         searchPlaceholder="Search plugins by name, author, or description..."
-        emptyLabel="Every workspace plugin is already installed for this Program."
+        emptyLabel="No workspace plugins are available for this Program yet."
+        noResultsLabel="No plugins match your search."
         items={marketplaceDialogItems}
         pendingPluginId={installingPluginId}
         onSelect={(pluginId) => {
-          const plugin = marketplacePlugins.find((entry) => entry.plugin_id === pluginId);
+          const plugin = (pluginCatalogQuery.data ?? []).find((entry) => entry.plugin_id === pluginId);
           if (!plugin) return;
           void handleInstall(plugin);
         }}

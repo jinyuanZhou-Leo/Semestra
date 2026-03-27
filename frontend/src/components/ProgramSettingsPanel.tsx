@@ -1,6 +1,6 @@
-// input:  [program name/credits/GPA defaults, discovered subject codes, available LMS integrations, course color-picker presets, and auto-save lifecycle callbacks]
+// input:  [program name/credits/GPA defaults, discovered subject codes, available LMS integrations, course color-picker presets, auto-save lifecycle callbacks, and shared data-table row-actions dropdown helpers]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, vertically stacked General settings rows, separated LMS/general sections, shared section-shell composition, stable subject-color management, and adaptive mobile-safe course-color table sizing]
+// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, vertically stacked General settings rows, separated LMS/general sections, shared section-shell composition, stable subject-color management, adaptive mobile-safe course-color table sizing, and a row-actions dropdown reset affordance]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,10 +17,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 import { ColorPicker, type ColorPickerPreset } from "@/components/ui/color-picker";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -48,7 +47,7 @@ import {
   serializeSubjectColorMap,
 } from "@/utils/courseCategoryBadge";
 
-import { CrudPanel } from "./CrudPanel";
+import { DataTable, DataTableActionMenu } from "./DataTable";
 import { GPAScalingTable } from "./GPAScalingTable";
 import { SettingsSection } from "./SettingsSection";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
@@ -107,6 +106,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
   const [subjectColorMap, setSubjectColorMap] = useState<Record<string, string>>(
     parseSubjectColorMap(initialSettings?.subject_color_map),
   );
+  const [pendingResetSubjectCode, setPendingResetSubjectCode] = useState<string | null>(null);
   const [jsonError, setJsonError] = useState("");
   const fieldId = useId();
   const initialGradCredits = String(initialSettings?.grad_requirement_credits || "");
@@ -362,18 +362,16 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
         description="Set the default color for each course code prefix in this Program. Courses can still use their own custom override when needed."
         contentClassName="space-y-5"
       >
-        <CrudPanel
+        <DataTable
           title="Course Code Colors"
           description="Manage the default color used for each course code prefix in this Program."
-          showHeader={false}
-          minWidthClassName="min-w-[360px] sm:min-w-[480px]"
           items={visibleSubjectCodes}
           emptyMessage="Subject codes appear here after courses such as APS105 or MAT180 are detected."
           renderHeader={() => (
             <TableRow>
-              <TableHead className="w-px">Code</TableHead>
-              <TableHead className="min-w-[148px]">Color</TableHead>
-              <TableHead className="w-px text-right">Action</TableHead>
+              <TableHead>Code</TableHead>
+              <TableHead>Color</TableHead>
+              <TableHead className="text-right">Action</TableHead>
             </TableRow>
           )}
           renderRow={(subjectCode) => {
@@ -382,13 +380,13 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
 
             return (
               <TableRow key={subjectCode}>
-                <TableCell className="w-px">
+                <TableCell>
                   <span className="font-mono text-sm font-semibold tracking-[0.08em] sm:tracking-[0.12em]">
                     {subjectCode}
                   </span>
                 </TableCell>
                 <TableCell className="py-3">
-                  <div className="min-w-[148px] max-w-full">
+                  <div>
                     <ColorPicker
                       id={`${fieldId}-subject-color-${subjectCode}`}
                       value={selectedColor}
@@ -403,47 +401,47 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
                     />
                   </div>
                 </TableCell>
-                <TableCell className="w-px text-right">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        aria-label={`Reset ${subjectCode} to automatic color`}
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent size="sm">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Reset {subjectCode} color?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This removes the Program override and restores the automatic default color for {subjectCode}.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          variant="destructive"
-                          onClick={() => {
-                            setSubjectColorMap((current) => {
-                              const next = { ...current };
-                              delete next[subjectCode];
-                              return next;
-                            });
-                          }}
-                        >
-                          Reset
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                <TableCell className="text-right">
+                  <DataTableActionMenu triggerLabel={`Open actions for ${subjectCode}`}>
+                    <DropdownMenuItem variant="destructive" onClick={() => setPendingResetSubjectCode(subjectCode)}>
+                      <RotateCcw className="h-4 w-4" />
+                      Reset
+                    </DropdownMenuItem>
+                  </DataTableActionMenu>
                 </TableCell>
               </TableRow>
             );
           }}
         />
+        <AlertDialog open={pendingResetSubjectCode !== null} onOpenChange={(open) => !open && setPendingResetSubjectCode(null)}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset {pendingResetSubjectCode} color?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingResetSubjectCode
+                  ? `This removes the Program override and restores the automatic default color for ${pendingResetSubjectCode}.`
+                  : "This removes the Program override and restores the automatic default color."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  if (!pendingResetSubjectCode) return;
+                  setSubjectColorMap((current) => {
+                    const next = { ...current };
+                    delete next[pendingResetSubjectCode];
+                    return next;
+                  });
+                  setPendingResetSubjectCode(null);
+                }}
+              >
+                Reset
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SettingsSection>
 
       <SettingsSection

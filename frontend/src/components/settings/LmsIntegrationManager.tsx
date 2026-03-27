@@ -1,6 +1,6 @@
-// input:  [TanStack Query, LMS API service, settings-local LMS provider definitions, CRUD panel/table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, and dialog-context alerts]
+// input:  [TanStack Query, LMS API service, settings-local LMS provider definitions, data-table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, dialog-context alerts, and shared row-actions dropdown helpers]
 // output: [`LmsIntegrationManager` component]
-// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving mobile-safe CRUD-table, validation, dialog flows, and parent-owned settings section chrome]
+// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving mobile-safe data-table layout, validation, dialog flows, parent-owned settings section chrome, and a shadcn-style row-actions dropdown]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -39,7 +40,7 @@ import {
   FieldLabel,
   FieldSet,
 } from '@/components/ui/field';
-import { CrudPanel } from '@/components/CrudPanel';
+import { DataTable, DataTableActionMenu } from '@/components/DataTable';
 import { ResponsiveDialogDrawer } from '@/components/ResponsiveDialogDrawer';
 import { useDialog } from '@/contexts/DialogContext';
 import api, { type LmsIntegrationResponse } from '@/services/api';
@@ -347,7 +348,7 @@ export const LmsIntegrationManager: React.FC = () => {
 
   return (
     <div className="w-full space-y-4">
-      <CrudPanel
+      <DataTable
         title="LMS Integrations"
         description="Save reusable LMS connections for Program binding and Course linking."
         showHeader={false}
@@ -360,7 +361,6 @@ export const LmsIntegrationManager: React.FC = () => {
         items={integrationsQuery.data ?? []}
         isLoading={integrationsQuery.isLoading}
         emptyMessage="No LMS integrations yet."
-        minWidthClassName="min-w-[520px] sm:min-w-[560px]"
         renderHeader={() => (
           <TableRow>
             <TableHead>Name</TableHead>
@@ -375,7 +375,7 @@ export const LmsIntegrationManager: React.FC = () => {
           const isConnected = integration.status === 'connected';
           return (
             <TableRow key={integration.id}>
-              <TableCell className="max-w-[10rem] whitespace-normal break-words sm:max-w-[14rem]">
+              <TableCell>
                 <span className="text-sm font-medium">{integration.display_name}</span>
               </TableCell>
               <TableCell>
@@ -403,47 +403,35 @@ export const LmsIntegrationManager: React.FC = () => {
                     {isRevalidating ? 'Validating' : isConnected ? 'Connected' : integration.status}
                   </Badge>
                   {integration.last_error?.message ? (
-                    <p className="max-w-[16rem] text-xs text-destructive">
+                    <p className="text-xs text-destructive">
                       {integration.last_error.message}
                     </p>
                   ) : null}
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="outline"
-                    aria-label={`Edit ${integration.display_name}`}
-                    title={`Edit ${integration.display_name}`}
-                    disabled={!definition}
-                    onClick={() => openEditDialog(integration)}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="outline"
-                    aria-label={`Revalidate ${integration.display_name}`}
-                    title={`Revalidate ${integration.display_name}`}
-                    disabled={validateSavedMutation.isPending || deleteMutation.isPending}
-                    onClick={() => void handleValidateSaved(integration)}
-                  >
-                    <RefreshCw className={cn('size-4', isRevalidating && 'animate-spin')} />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="outline"
-                    className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    aria-label={`Delete ${integration.display_name}`}
-                    title={`Delete ${integration.display_name}`}
-                    onClick={() => setPendingDeleteIntegration(integration)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                <div className="flex justify-end">
+                  <DataTableActionMenu triggerLabel={`Open actions for ${integration.display_name}`}>
+                    <DropdownMenuItem
+                      disabled={!definition}
+                      onClick={() => openEditDialog(integration)}
+                    >
+                      <Pencil className="size-4" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={validateSavedMutation.isPending || deleteMutation.isPending}
+                      onClick={() => void handleValidateSaved(integration)}
+                    >
+                      <RefreshCw className={cn('size-4', isRevalidating && 'animate-spin')} />
+                      Revalidate
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteIntegration(integration)}>
+                      <Trash2 className="size-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DataTableActionMenu>
                 </div>
               </TableCell>
             </TableRow>

@@ -1,6 +1,6 @@
-// input:  [course context, course/event-type APIs, shared timetable event bus, and settings CRUD UI]
+// input:  [course context, course/event-type APIs, shared timetable event bus, settings data-table UI, and shared row-actions dropdown helpers]
 // output: [`CourseScheduleSettings` settings panel for course event-type management]
-// pos:    [Course-schedule settings surface that edits event-type definitions, keeps CRUD tables mobile-safe, and publishes scoped refresh events]
+// pos:    [Course-schedule settings surface that edits event-type definitions, keeps data tables mobile-safe, publishes scoped refresh events, and uses a shadcn-style row-actions dropdown for edit/delete actions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,17 +22,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import {
   TableHead,
   TableRow,
   TableCell,
 } from '@/components/ui/table';
 import scheduleService, { type CourseEventType } from '@/services/schedule';
-import { CrudPanel } from '@/components/CrudPanel';
+import { DataTable, DataTableActionMenu } from '@/components/DataTable';
 import { EventTypeFormDialog } from '../../components/EventTypeFormDialog';
 import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 
@@ -44,6 +44,7 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [editingType, setEditingType] = React.useState<CourseEventType | null>(null);
+  const [pendingDeleteType, setPendingDeleteType] = React.useState<CourseEventType | null>(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [semesterId, setSemesterId] = React.useState<string | undefined>(undefined);
   const loadRequestIdRef = React.useRef(0);
@@ -149,10 +150,9 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
   return (
     <>
       <SettingsSection>
-        <CrudPanel
+        <DataTable
           title="Event Types"
           description="Manage the types of events available for this course (e.g., Lecture, Tutorial, Lab)."
-          minWidthClassName="min-w-[460px] sm:min-w-[560px]"
           items={eventTypes}
           isLoading={isLoading}
           actionButton={(
@@ -179,50 +179,48 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Edit event type ${item.code}`}
-                    onClick={() => setEditingType(item)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        aria-label={`Delete event type ${item.code}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent size="sm">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete event type {item.code}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone and may affect sections using this event type.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          variant="destructive"
-                          onClick={() => void handleDeleteEventType(item.code)}
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                <div className="flex justify-end">
+                  <DataTableActionMenu triggerLabel={`Open actions for ${item.code}`}>
+                    <DropdownMenuItem onClick={() => setEditingType(item)}>
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteType(item)}>
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DataTableActionMenu>
                 </div>
               </TableCell>
             </TableRow>
           )}
         />
+        <AlertDialog open={pendingDeleteType !== null} onOpenChange={(open) => !open && setPendingDeleteType(null)}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {pendingDeleteType ? `Delete event type ${pendingDeleteType.code}?` : 'Delete event type?'}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone and may affect sections using this event type.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  if (!pendingDeleteType) return;
+                  void handleDeleteEventType(pendingDeleteType.code);
+                  setPendingDeleteType(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SettingsSection>
 
       <EventTypeFormDialog

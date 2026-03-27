@@ -1,6 +1,6 @@
 // input:  [resource identifiers and request parameter objects from frontend data hooks]
 // output: [`queryKeys` factory for stable TanStack Query cache keys across pages, contexts, and plugins]
-// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, Program plugin governance, Semester draft-wizard, LMS, Canvas navigation/module-summary/module-item/page/quiz/grade/syllabus/file browser, and range-scoped calendar data]
+// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, Program plugin governance, plugin-system setup state, Semester draft-wizard, LMS, Canvas navigation/module-summary/module-item/page/quiz/grade/syllabus/file browser, and range-scoped calendar data]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -19,6 +19,7 @@ export const queryKeys = {
   semesters: {
     detail: (semesterId: string) => ['semesters', 'detail', semesterId] as const,
     pluginActivations: (semesterId: string) => ['semesters', semesterId, 'plugin-activations'] as const,
+    pluginSystemSetup: (semesterId: string) => ['plugin-system', 'semesters', semesterId, 'setup'] as const,
     pluginSettings: (semesterId: string) => ['semesters', semesterId, 'plugin-settings'] as const,
     todo: (semesterId: string) => ['semesters', semesterId, 'todo'] as const,
     schedule: (semesterId: string, params: { mode: string; week: number; withConflicts: boolean }) => (

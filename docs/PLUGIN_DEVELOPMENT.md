@@ -9,7 +9,7 @@ Plugins are the top-level extension unit. A single plugin can contribute:
 2. **Tab** entries: full-size panels that appear as workspace tabs.
 
 Both contribution shapes share a similar registration model but remain subordinate to the plugin.
-Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement any mix of tabs, widgets, and plugin-global settings.
+Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement any mix of tabs, widgets, plugin-global settings, and optional host-rendered setup definitions.
 
 ### Runtime Architecture
 
@@ -18,16 +18,20 @@ flowchart LR
     subgraph PluginFolder["frontend/src/plugins/<plugin-name>/"]
         Metadata["metadata.ts
 default export definePluginMetadata(...)"]
+        Setup["setup.ts
+default export definePluginSetup(...)"]
         Runtime["index.ts
 default export definePluginRuntime(...)"]
         Settings["settings.ts(x)
 default export definePluginSettings(...)"]
         Impl["tab.tsx / widget.tsx / shared.ts"]
+        Setup --> Impl
         Runtime --> Impl
         Settings --> Impl
     end
 
     Metadata -->|"eager import.meta.glob"| PluginSystem["frontend/src/plugin-system/index.ts"]
+    Setup -->|"eager import.meta.glob"| PluginSystem
     Runtime -->|"lazy import.meta.glob"| PluginSystem
     Settings -->|"eager import.meta.glob"| PluginSystem
 
@@ -35,6 +39,7 @@ default export definePluginSettings(...)"]
     PluginSystem -->|"register on load"| WidgetRegistry["WidgetRegistry"]
     PluginSystem -->|"register eagerly"| SettingsRegistry["PluginSettingsRegistry"]
     PluginSystem -->|"catalog helpers"| AddModals["AddTabModal / AddWidgetModal"]
+    PluginSystem -->|"buildPluginSetupManifest()"| Manifest["backend/generated/plugin_setup_manifest.json"]
     PluginSystem -->|"ensure*PluginByTypeLoaded()"| DashboardHooks["useDashboardTabs / useDashboardWidgets / useHomepageBuiltinTabs"]
 
     TabRegistry --> Pages["SemesterHomepage / CourseHomepage"]
@@ -44,6 +49,7 @@ default export definePluginSettings(...)"]
 
 The important split is:
 - `metadata.ts` drives plugin-local manifest data and tab/widget contribution catalogs before runtime code is loaded.
+- `setup.ts` stays eager, pure-data-only, and feeds the generated backend plugin setup manifest.
 - `index.ts` stays lazy and registers tab/widget runtime definitions plus instance settings when a type is actually needed.
 - `settings.ts` / `settings.tsx` is eager and reserved for plugin-global settings sections that are shared across instances.
 - Program-managed install/authorization/default-config state is declared in the host governance contract, and Semester wizard setup is declared as host-rendered setup sections instead of ad hoc plugin-controlled flows.
@@ -54,6 +60,7 @@ The important split is:
 ```
 frontend/src/plugins/<plugin-name>/
   metadata.ts     // REQUIRED: Plugin id, plugin icon, and widget/tab contribution catalog entries
+  setup.ts        // OPTIONAL: Default-exports definePluginSetup(...) when the plugin contributes host-rendered Semester setup
   index.ts        // REQUIRED: Default-exports definePluginRuntime(...) (lazy runtime UI entry)
   settings.ts(x)  // OPTIONAL: Default-exports definePluginSettings(...) when plugin exposes plugin-global settings
   widget.tsx      // Optional: widget implementation
@@ -77,16 +84,16 @@ export default definePluginMetadata({
 });
 ```
 
-Likewise, `index.ts` and `settings.ts(x)` should default-export `definePluginRuntime(...)` and `definePluginSettings(...)`.
+Likewise, `setup.ts`, `index.ts`, and `settings.ts(x)` should default-export `definePluginSetup(...)`, `definePluginRuntime(...)`, and `definePluginSettings(...)`.
 
 ## Governance And Setup Contracts
 
 Program install state, authorization state, default configuration, Semester override scope, and wizard setup sections must be host-readable. Plugins do not own the lifecycle state machine.
 
 Current repository model:
-- The authoritative governance registry lives in [`backend/plugin_governance.py`](../backend/plugin_governance.py) because the backend must validate Program settings, Semester overrides, setup payloads, availability, and draft review blockers.
-- Frontend runtime/plugin authoring uses `metadata.ts`, `index.ts`, and optional `settings.ts(x)` for plugin-local manifest data, runtime registrations, and plugin-global settings UI.
-- If a plugin needs Program-governed settings or Semester wizard setup, add a corresponding definition to the backend governance registry and keep the plugin UI aligned with those declared fields.
+- The authoritative plugin identity and governance registry lives in [`backend/plugin_governance.py`](../backend/plugin_governance.py) because the backend must validate Program settings, Semester overrides, setup payloads, availability, and draft review blockers.
+- Frontend runtime/plugin authoring uses `metadata.ts`, optional `setup.ts`, `index.ts`, and optional `settings.ts(x)` for plugin-local manifest data, host-rendered setup DSL, runtime registrations, and plugin-global settings UI.
+- If a plugin needs Semester wizard setup, declare it in `frontend/src/plugins/<plugin-id>/setup.ts`, regenerate the backend manifest, and keep any runtime UI aligned with the resolved config returned by the host.
 
 What the host contract controls:
 - Plugin identity: `plugin_id`, `display_name`, `description`, and `author`.
@@ -117,14 +124,14 @@ Plugins should treat the resolved payload as the only runtime source of truth.
 
 ### Setup Contributions
 
-Setup contributions are declaration-only and backend-owned.
+Setup contributions are declaration-only and frontend-authored through the setup DSL, then materialized into a backend-owned generated manifest.
 
-Each setup section in `backend/plugin_governance.py` should define:
+Each setup section in `frontend/src/plugins/<plugin-id>/setup.ts` should define:
 - Stable section id and title.
 - Host-renderable field list with field type, label, description, default, and select options.
 - Values that write into `semester_plugin_activations.setup_state` and, when the field is also a Semester override, into `semester_overrides`.
 
-Review summaries shown in the final wizard step must be derivable from the same declared setup fields. The backend currently builds these summaries in `plugin_governance.build_setup_summary(...)` so review/finalize behavior stays deterministic.
+Review summaries shown in the final wizard step must be derivable from the same declared setup fields. The backend currently builds these summaries from the generated manifest in `plugin_governance.build_plugin_setup_summary(...)` so review/finalize behavior stays deterministic.
 
 ### Runtime Consumption
 
@@ -153,6 +160,7 @@ Framework behavior:
 
 The plugin system scans:
 - `metadata.ts` with eager `import.meta.glob` for plugin manifests and contribution catalogs (plugin icon, contribution names, layout).
+- `setup.ts` with eager `import.meta.glob` for plugin setup registration and backend-manifest generation (only if the file exists).
 - `index.ts` with `import.meta.glob` for lazy runtime registration (tab/widget UI).
 - `settings.ts` / `settings.tsx` with eager `import.meta.glob` for plugin-global settings registration (only if the file exists).
 
@@ -162,6 +170,7 @@ If `settings.ts` / `settings.tsx` default-exports `definePluginSettings(...)`, p
 **Loading Model**
 - Backend governance payloads: fetched by host management/runtime pages when plugin identity, install state, availability, or resolved config is needed.
 - Metadata (`metadata.ts`): eagerly loaded — plugin icons plus contribution names, descriptions, layout, context limits, and instance limits are available before runtime modules.
+- Setup (`setup.ts`): eagerly loaded and validated — host-rendered setup sections are available for frontend facades and for generating the backend plugin setup manifest.
 - Runtime UI (`index.ts` -> `tab.tsx` / `widget.tsx`): lazy-loaded.
 - Plugin-global settings UI (`settings.ts` / `settings.tsx`): eagerly loaded (optional).
 - This keeps plugin icons, add-modal contribution catalogs, and shared plugin settings available without loading runtime UI bundles.

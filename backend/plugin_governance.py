@@ -1,6 +1,6 @@
-# input:  [Program model records, plugin governance payloads, and platform-level availability requirements]
-# output: [plugin catalog helpers for Program installs, Semester activation, settings validation, setup summaries, and resolved-config computation]
-# pos:    [Backend governance registry for Program-managed plugin lifecycle and Semester-scoped plugin activation rules plus review-time validation helpers]
+# input:  [Program model records, generated plugin setup manifest, plugin governance payloads, and platform-level availability requirements]
+# output: [plugin catalog helpers for Program installs, Semester activation, generated setup definitions, settings validation, setup summaries, and resolved-config computation]
+# pos:    [Backend governance registry for Program-managed plugin lifecycle and Semester-scoped plugin activation rules plus manifest-backed plugin-setup validation helpers]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import date
+import json
+from pathlib import Path
 from typing import Any
 
 
@@ -21,12 +24,31 @@ AUTH_FAILED = "failed"
 FIELD_SCOPE_PROGRAM_ONLY = "program-only"
 FIELD_SCOPE_SEMESTER_OVERRIDE = "semester-override"
 
+SETUP_PERSIST_SETUP_STATE = "setupState"
+SETUP_PERSIST_SEMESTER_OVERRIDE = "semesterOverride"
+SETUP_PERSIST_BOTH = "both"
+VALID_SETUP_PERSIST_VALUES = {
+    SETUP_PERSIST_SETUP_STATE,
+    SETUP_PERSIST_SEMESTER_OVERRIDE,
+    SETUP_PERSIST_BOTH,
+}
+VALID_SETUP_FIELD_TYPES = {
+    "text",
+    "textarea",
+    "number",
+    "boolean",
+    "select",
+    "date",
+    "json",
+}
+
 
 class PluginGovernanceValidationError(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, field_path: str | None = None):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.field_path = field_path
 
 
 @dataclass(frozen=True)
@@ -45,9 +67,13 @@ class PluginSetupFieldDefinition:
     path: str
     label: str
     field_type: str
+    persist: str
+    required: bool = False
     default: Any = None
     description: str = ""
+    placeholder: str = ""
     options: tuple[dict[str, Any], ...] = ()
+    summary_labels: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -56,6 +82,13 @@ class PluginSetupSectionDefinition:
     title: str
     description: str = ""
     fields: tuple[PluginSetupFieldDefinition, ...] = ()
+
+
+@dataclass(frozen=True)
+class PluginSetupDefinition:
+    plugin_id: str
+    fields: tuple[PluginSetupFieldDefinition, ...] = ()
+    sections: tuple[PluginSetupSectionDefinition, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -73,7 +106,6 @@ class PluginDefinition:
     capabilities: dict[str, Any] = field(default_factory=dict)
     default_settings: dict[str, Any] = field(default_factory=dict)
     fields: tuple[PluginFieldDefinition, ...] = ()
-    setup_sections: tuple[PluginSetupSectionDefinition, ...] = ()
 
     @property
     def default_installed(self) -> bool:
@@ -200,25 +232,6 @@ PLUGIN_DEFINITIONS: dict[str, PluginDefinition] = {
                 ),
             ),
         ),
-        setup_sections=(
-            PluginSetupSectionDefinition(
-                id="calendar-setup",
-                title="Calendar Setup",
-                description="Choose the starting calendar behavior for this Semester.",
-                fields=(
-                    PluginSetupFieldDefinition(
-                        path="calendarDefaultView",
-                        label="Default view",
-                        field_type="select",
-                        default="month",
-                        options=(
-                            {"label": "Month", "value": "month"},
-                            {"label": "Week", "value": "week"},
-                        ),
-                    ),
-                ),
-            ),
-        ),
     ),
     "builtin-gradebook": PluginDefinition(
         plugin_id="builtin-gradebook",
@@ -332,6 +345,190 @@ PLUGIN_DEFINITIONS: dict[str, PluginDefinition] = {
 }
 
 
+def _raise_manifest_error(message: str) -> None:
+    raise RuntimeError(f"[plugin-governance] {message}")
+
+
+def _generated_manifest_path() -> Path:
+    return Path(__file__).resolve().parent / "generated" / "plugin_setup_manifest.json"
+
+
+def _load_generated_plugin_setup_manifest() -> list[dict[str, Any]]:
+    manifest_path = _generated_manifest_path()
+    if not manifest_path.exists():
+        _raise_manifest_error(
+            f"Missing generated plugin setup manifest at '{manifest_path}'. Run `npm --prefix frontend run generate-plugin-setup-manifest`."
+        )
+    try:
+        raw_value = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - startup failure path
+        _raise_manifest_error(f"Failed to parse generated plugin setup manifest: {exc}.")
+    if not isinstance(raw_value, list):
+        _raise_manifest_error("Generated plugin setup manifest must be a JSON array.")
+    return raw_value
+
+
+def _load_manifest_field(
+    plugin_id: str,
+    raw_field: dict[str, Any],
+) -> PluginSetupFieldDefinition:
+    path = raw_field.get("path")
+    label = raw_field.get("label")
+    field_type = raw_field.get("type")
+    persist = raw_field.get("persist")
+    required = bool(raw_field.get("required", False))
+    description = raw_field.get("description") or ""
+    placeholder = raw_field.get("placeholder") or ""
+    default_value = deepcopy(raw_field.get("default_value"))
+    raw_options = raw_field.get("options") or []
+    raw_summary_labels = raw_field.get("summary_labels") or {}
+
+    if not isinstance(path, str) or not path.strip():
+        _raise_manifest_error(f"Plugin '{plugin_id}' setup field is missing a non-empty path.")
+    if not isinstance(label, str) or not label.strip():
+        _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' is missing a non-empty label.")
+    if field_type not in VALID_SETUP_FIELD_TYPES:
+        _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' uses unsupported type '{field_type}'.")
+    if persist not in VALID_SETUP_PERSIST_VALUES:
+        _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' uses unsupported persist '{persist}'.")
+    if not isinstance(raw_options, list):
+        _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' options must be a JSON array.")
+    if not isinstance(raw_summary_labels, dict):
+        _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' summary_labels must be a JSON object.")
+
+    options: list[dict[str, Any]] = []
+    option_values: set[str] = set()
+    for raw_option in raw_options:
+        if not isinstance(raw_option, dict):
+            _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' has a non-object option.")
+        option_label = raw_option.get("label")
+        option_value = raw_option.get("value")
+        if not isinstance(option_label, str) or not option_label.strip():
+            _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' has an option with an empty label.")
+        if not isinstance(option_value, str) or not option_value.strip():
+            _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' has an option with an empty value.")
+        if option_value in option_values:
+            _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' repeats option value '{option_value}'.")
+        option_values.add(option_value)
+        options.append({"label": option_label, "value": option_value})
+
+    if field_type == "select" and not options:
+        _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' is select but does not declare options.")
+
+    summary_labels = {str(key): str(value) for key, value in raw_summary_labels.items()}
+
+    return PluginSetupFieldDefinition(
+        path=path,
+        label=label,
+        field_type=field_type,
+        persist=persist,
+        required=required,
+        default=default_value,
+        description=str(description),
+        placeholder=str(placeholder),
+        options=tuple(options),
+        summary_labels=summary_labels,
+    )
+
+
+def _load_plugin_setup_definitions() -> dict[str, PluginSetupDefinition]:
+    raw_manifest = _load_generated_plugin_setup_manifest()
+    definitions: dict[str, PluginSetupDefinition] = {}
+
+    for raw_entry in raw_manifest:
+        if not isinstance(raw_entry, dict):
+            _raise_manifest_error("Generated plugin setup manifest contains a non-object entry.")
+        plugin_id = raw_entry.get("plugin_id")
+        raw_fields = raw_entry.get("fields") or []
+        raw_sections = raw_entry.get("sections") or []
+
+        if not isinstance(plugin_id, str) or not plugin_id.strip():
+            _raise_manifest_error("Generated plugin setup manifest entry is missing plugin_id.")
+        if plugin_id not in PLUGIN_DEFINITIONS:
+            _raise_manifest_error(f"Generated plugin setup manifest references unknown plugin_id '{plugin_id}'.")
+        if plugin_id in definitions:
+            _raise_manifest_error(f"Generated plugin setup manifest repeats plugin_id '{plugin_id}'.")
+        if not isinstance(raw_fields, list):
+            _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' has non-array fields.")
+        if not isinstance(raw_sections, list):
+            _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' has non-array sections.")
+
+        field_order: list[str] = []
+        field_map: dict[str, PluginSetupFieldDefinition] = {}
+        for raw_field in raw_fields:
+            if not isinstance(raw_field, dict):
+                _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' contains a non-object field.")
+            field_definition = _load_manifest_field(plugin_id, raw_field)
+            if field_definition.path in field_map:
+                _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' repeats field '{field_definition.path}'.")
+            field_map[field_definition.path] = field_definition
+            field_order.append(field_definition.path)
+
+        sections: list[PluginSetupSectionDefinition] = []
+        section_ids: set[str] = set()
+        for raw_section in raw_sections:
+            if not isinstance(raw_section, dict):
+                _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' contains a non-object section.")
+            section_id = raw_section.get("id")
+            section_title = raw_section.get("title")
+            section_description = raw_section.get("description") or ""
+            section_fields = raw_section.get("fields") or []
+            if not isinstance(section_id, str) or not section_id.strip():
+                _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' has a section with an empty id.")
+            if section_id in section_ids:
+                _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' repeats section id '{section_id}'.")
+            section_ids.add(section_id)
+            if not isinstance(section_title, str) or not section_title.strip():
+                _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' section '{section_id}' has an empty title.")
+            if not isinstance(section_fields, list) or not section_fields:
+                _raise_manifest_error(f"Generated plugin setup manifest entry '{plugin_id}' section '{section_id}' must declare fields.")
+
+            normalized_section_fields: list[PluginSetupFieldDefinition] = []
+            section_paths: set[str] = set()
+            for raw_section_field in section_fields:
+                if not isinstance(raw_section_field, dict):
+                    _raise_manifest_error(
+                        f"Generated plugin setup manifest entry '{plugin_id}' section '{section_id}' contains a non-object field."
+                    )
+                field_path = raw_section_field.get("path")
+                if not isinstance(field_path, str) or field_path not in field_map:
+                    _raise_manifest_error(
+                        f"Generated plugin setup manifest entry '{plugin_id}' section '{section_id}' references unknown field '{field_path}'."
+                    )
+                if field_path in section_paths:
+                    _raise_manifest_error(
+                        f"Generated plugin setup manifest entry '{plugin_id}' section '{section_id}' repeats field '{field_path}'."
+                    )
+                section_paths.add(field_path)
+
+                section_field_definition = _load_manifest_field(plugin_id, raw_section_field)
+                if section_field_definition != field_map[field_path]:
+                    _raise_manifest_error(
+                        f"Generated plugin setup manifest entry '{plugin_id}' section '{section_id}' field '{field_path}' diverges from the top-level field definition."
+                    )
+                normalized_section_fields.append(field_map[field_path])
+
+            sections.append(
+                PluginSetupSectionDefinition(
+                    id=section_id,
+                    title=section_title,
+                    description=str(section_description),
+                    fields=tuple(normalized_section_fields),
+                )
+            )
+
+        definitions[plugin_id] = PluginSetupDefinition(
+            plugin_id=plugin_id,
+            fields=tuple(field_map[path] for path in field_order),
+            sections=tuple(sections),
+        )
+
+    return definitions
+
+
+PLUGIN_SETUP_DEFINITIONS = _load_plugin_setup_definitions()
+
+
 def list_plugin_definitions() -> list[PluginDefinition]:
     return list(PLUGIN_DEFINITIONS.values())
 
@@ -341,6 +538,14 @@ def get_plugin_definition(plugin_id: str) -> PluginDefinition:
     if definition is None:
         raise KeyError(f"Unknown plugin_id '{plugin_id}'.")
     return definition
+
+
+def get_plugin_setup_definition(plugin_id: str) -> PluginSetupDefinition | None:
+    return PLUGIN_SETUP_DEFINITIONS.get(plugin_id)
+
+
+def has_plugin_setup_definition(plugin_id: str) -> bool:
+    return plugin_id in PLUGIN_SETUP_DEFINITIONS
 
 
 def get_default_program_plugin_ids() -> list[str]:
@@ -367,27 +572,38 @@ def build_field_payloads(plugin_id: str) -> list[dict[str, Any]]:
     ]
 
 
-def build_setup_section_payloads(plugin_id: str) -> list[dict[str, Any]]:
-    definition = get_plugin_definition(plugin_id)
+def _build_plugin_setup_field_payload(field: PluginSetupFieldDefinition) -> dict[str, Any]:
+    return {
+        "path": field.path,
+        "label": field.label,
+        "type": field.field_type,
+        "persist": field.persist,
+        "required": field.required,
+        "default_value": deepcopy(field.default),
+        "description": field.description,
+        "placeholder": field.placeholder,
+        "options": [deepcopy(option) for option in field.options],
+        "summary_labels": deepcopy(field.summary_labels),
+    }
+
+
+def build_plugin_setup_sections(plugin_id: str) -> list[dict[str, Any]]:
+    definition = get_plugin_setup_definition(plugin_id)
+    if definition is None:
+        return []
     return [
         {
             "id": section.id,
             "title": section.title,
             "description": section.description,
-            "fields": [
-                {
-                    "path": field.path,
-                    "label": field.label,
-                    "type": field.field_type,
-                    "default": deepcopy(field.default),
-                    "description": field.description,
-                    "options": [deepcopy(option) for option in field.options],
-                }
-                for field in section.fields
-            ],
+            "fields": [_build_plugin_setup_field_payload(field) for field in section.fields],
         }
-        for section in definition.setup_sections
+        for section in definition.sections
     ]
+
+
+def build_setup_section_payloads(plugin_id: str) -> list[dict[str, Any]]:
+    return build_plugin_setup_sections(plugin_id)
 
 
 def resolve_plugin_availability(
@@ -411,12 +627,10 @@ def _field_map(plugin_id: str) -> dict[str, PluginFieldDefinition]:
 
 
 def _setup_field_map(plugin_id: str) -> dict[str, PluginSetupFieldDefinition]:
-    definition = get_plugin_definition(plugin_id)
-    return {
-        field.path: field
-        for section in definition.setup_sections
-        for field in section.fields
-    }
+    definition = get_plugin_setup_definition(plugin_id)
+    if definition is None:
+        return {}
+    return {field.path: field for field in definition.fields}
 
 
 def _normalize_field_value(
@@ -442,6 +656,55 @@ def _normalize_field_value(
                 f"{field_label} must be one of: {allowed_values}.",
             )
         return normalized_value
+
+    if field_type == "number":
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            raise PluginGovernanceValidationError(error_code, f"{field_label} must be a number.")
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            stripped_value = value.strip()
+            if not stripped_value:
+                return None
+            try:
+                parsed_value = float(stripped_value)
+            except ValueError as exc:
+                raise PluginGovernanceValidationError(error_code, f"{field_label} must be a number.") from exc
+            if parsed_value.is_integer() and "." not in stripped_value and "e" not in stripped_value.lower():
+                return int(parsed_value)
+            return parsed_value
+        raise PluginGovernanceValidationError(error_code, f"{field_label} must be a number.")
+
+    if field_type == "date":
+        if value is None:
+            return ""
+        normalized_value = str(value).strip()
+        if not normalized_value:
+            return ""
+        try:
+            date.fromisoformat(normalized_value)
+        except ValueError as exc:
+            raise PluginGovernanceValidationError(error_code, f"{field_label} must use YYYY-MM-DD format.") from exc
+        return normalized_value
+
+    if field_type == "json":
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped_value = value.strip()
+            if not stripped_value:
+                return None
+            try:
+                return json.loads(stripped_value)
+            except json.JSONDecodeError as exc:
+                raise PluginGovernanceValidationError(error_code, f"{field_label} must be valid JSON.") from exc
+        try:
+            json.dumps(value)
+        except TypeError as exc:
+            raise PluginGovernanceValidationError(error_code, f"{field_label} must be valid JSON.") from exc
+        return deepcopy(value)
 
     if value is None:
         return ""
@@ -543,43 +806,207 @@ def resolve_plugin_settings(
     return resolved
 
 
-def _stringify_review_value(value: Any) -> str:
+def _is_missing_setup_value(field: PluginSetupFieldDefinition, value: Any) -> bool:
+    if value is None:
+        return True
+    if field.field_type in {"text", "textarea", "select", "date"}:
+        return isinstance(value, str) and value.strip() == ""
+    return False
+
+
+def _normalize_plugin_setup_value(field: PluginSetupFieldDefinition, value: Any) -> Any:
+    try:
+        return _normalize_field_value(
+            field_type=field.field_type,
+            field_label=field.label,
+            value=value,
+            options=field.options,
+            error_code="PLUGIN_SYSTEM_SETUP_INVALID",
+        )
+    except PluginGovernanceValidationError as exc:
+        raise PluginGovernanceValidationError(exc.code, exc.message, field_path=field.path) from exc
+
+
+def _validate_plugin_setup_values(
+    plugin_id: str,
+    values: dict[str, Any] | None,
+    *,
+    require_explicit_required_fields: bool,
+) -> dict[str, Any]:
+    definition = get_plugin_setup_definition(plugin_id)
+    if definition is None:
+        if values:
+            raise PluginGovernanceValidationError(
+                "PLUGIN_SYSTEM_SETUP_DEFINITION_NOT_FOUND",
+                f"Plugin '{plugin_id}' does not declare setup fields.",
+            )
+        return {}
+    if not isinstance(values, dict):
+        raise PluginGovernanceValidationError("PLUGIN_SYSTEM_SETUP_INVALID", "values must be a JSON object.")
+
+    field_map = _setup_field_map(plugin_id)
+    unknown_keys = sorted(set(values.keys()) - set(field_map.keys()))
+    if unknown_keys:
+        raise PluginGovernanceValidationError(
+            "PLUGIN_SYSTEM_SETUP_UNKNOWN_FIELD",
+            f"Unknown plugin setup keys for {plugin_id}: {', '.join(unknown_keys)}",
+        )
+
+    normalized_values: dict[str, Any] = {}
+    for field in definition.fields:
+        has_explicit_value = field.path in values
+        raw_value = values[field.path] if has_explicit_value else deepcopy(field.default)
+        if require_explicit_required_fields and field.required and not has_explicit_value:
+            raise PluginGovernanceValidationError(
+                "PLUGIN_SYSTEM_SETUP_REQUIRED",
+                f"{field.label} is required.",
+                field_path=field.path,
+            )
+        normalized_value = _normalize_plugin_setup_value(field, raw_value)
+        if field.required and _is_missing_setup_value(field, normalized_value):
+            raise PluginGovernanceValidationError(
+                "PLUGIN_SYSTEM_SETUP_REQUIRED",
+                f"{field.label} is required.",
+                field_path=field.path,
+            )
+        normalized_values[field.path] = deepcopy(normalized_value)
+
+    return normalized_values
+
+
+def resolve_plugin_setup_values(
+    plugin_id: str,
+    *,
+    semester_overrides: dict[str, Any] | None = None,
+    setup_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    definition = get_plugin_setup_definition(plugin_id)
+    if definition is None:
+        return {}
+
+    normalized_overrides = normalize_semester_overrides(plugin_id, semester_overrides)
+    normalized_setup_state = normalize_setup_state(plugin_id, setup_state)
+    resolved_values: dict[str, Any] = {}
+
+    for field in definition.fields:
+        fallback_value = deepcopy(field.default)
+        if field.persist == SETUP_PERSIST_SETUP_STATE:
+            resolved_values[field.path] = deepcopy(normalized_setup_state.get(field.path, fallback_value))
+        elif field.persist == SETUP_PERSIST_SEMESTER_OVERRIDE:
+            resolved_values[field.path] = deepcopy(normalized_overrides.get(field.path, fallback_value))
+        else:
+            resolved_values[field.path] = deepcopy(
+                normalized_setup_state.get(field.path, normalized_overrides.get(field.path, fallback_value))
+            )
+
+    return resolved_values
+
+
+def validate_plugin_setup_values(plugin_id: str, values: dict[str, Any] | None) -> dict[str, Any]:
+    return _validate_plugin_setup_values(plugin_id, values, require_explicit_required_fields=True)
+
+
+def validate_resolved_plugin_setup_values(plugin_id: str, values: dict[str, Any] | None) -> dict[str, Any]:
+    return _validate_plugin_setup_values(plugin_id, values, require_explicit_required_fields=False)
+
+
+def write_plugin_setup_values(
+    plugin_id: str,
+    *,
+    semester_overrides: dict[str, Any] | None = None,
+    setup_state: dict[str, Any] | None = None,
+    values: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    definition = get_plugin_setup_definition(plugin_id)
+    normalized_values = validate_plugin_setup_values(plugin_id, values)
+    if definition is None:
+        return normalize_setup_state(plugin_id, setup_state), normalize_semester_overrides(plugin_id, semester_overrides), normalized_values
+
+    next_setup_state = normalize_setup_state(plugin_id, setup_state)
+    next_semester_overrides = normalize_semester_overrides(plugin_id, semester_overrides)
+
+    for field in definition.fields:
+        value = deepcopy(normalized_values[field.path])
+        if field.persist in {SETUP_PERSIST_SETUP_STATE, SETUP_PERSIST_BOTH}:
+            next_setup_state[field.path] = deepcopy(value)
+        if field.persist in {SETUP_PERSIST_SEMESTER_OVERRIDE, SETUP_PERSIST_BOTH}:
+            next_semester_overrides[field.path] = deepcopy(value)
+
+    return next_setup_state, next_semester_overrides, normalized_values
+
+
+def _summary_label_key(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "null"
+    return str(value)
+
+
+def _stringify_setup_summary_value(field: PluginSetupFieldDefinition, value: Any) -> str:
+    summary_label_key = _summary_label_key(value)
+    if summary_label_key in field.summary_labels:
+        return field.summary_labels[summary_label_key]
+    if field.field_type == "select":
+        option_labels = {str(option["value"]): str(option["label"]) for option in field.options}
+        if summary_label_key in option_labels:
+            return option_labels[summary_label_key]
     if isinstance(value, bool):
         return "Enabled" if value else "Disabled"
     if value is None:
         return "Not set"
+    if isinstance(value, str) and value.strip() == "":
+        return "Not set"
+    if field.field_type == "json":
+        return json.dumps(value, sort_keys=True)
     return str(value)
 
 
-def build_setup_summary(
+def build_plugin_setup_summary(
     plugin_id: str,
     *,
-    resolved_settings: dict[str, Any] | None = None,
+    setup_values: dict[str, Any] | None = None,
+    semester_overrides: dict[str, Any] | None = None,
     setup_state: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    definition = get_plugin_definition(plugin_id)
-    normalized_setup_state = normalize_setup_state(plugin_id, setup_state)
-    resolved_settings = resolved_settings or {}
-    summary_sections: list[dict[str, Any]] = []
+    definition = get_plugin_setup_definition(plugin_id)
+    if definition is None:
+        return []
 
-    for section in definition.setup_sections:
-        items: list[dict[str, Any]] = []
-        for field in section.fields:
-            raw_value = normalized_setup_state.get(field.path, resolved_settings.get(field.path, field.default))
-            items.append(
-                {
-                    "path": field.path,
-                    "label": field.label,
-                    "value": _stringify_review_value(raw_value),
-                }
-            )
+    normalized_values = validate_resolved_plugin_setup_values(
+        plugin_id,
+        setup_values if setup_values is not None else resolve_plugin_setup_values(
+            plugin_id,
+            semester_overrides=semester_overrides,
+            setup_state=setup_state,
+        ),
+    )
+
+    summary_sections: list[dict[str, Any]] = []
+    for section in definition.sections:
         summary_sections.append(
             {
                 "id": section.id,
                 "title": section.title,
                 "description": section.description,
-                "items": items,
+                "items": [
+                    {
+                        "path": field.path,
+                        "label": field.label,
+                        "value": _stringify_setup_summary_value(field, normalized_values.get(field.path)),
+                    }
+                    for field in section.fields
+                ],
             }
         )
-
     return summary_sections
+
+
+def build_setup_summary(
+    plugin_id: str,
+    *,
+    resolved_settings: dict[str, Any] | None = None,  # Kept for backward compatibility with existing callers.
+    setup_state: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    del resolved_settings
+    return build_plugin_setup_summary(plugin_id, setup_state=setup_state)

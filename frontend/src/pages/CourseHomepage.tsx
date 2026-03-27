@@ -1,6 +1,6 @@
 // input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester runtime plugin governance payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-governed plugin inheritance from the parent semester, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-governed plugin inheritance from the parent semester, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -33,6 +33,7 @@ import { WorkspaceNav } from '../components/WorkspaceNav';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
+    getPluginIconById,
     getTabPluginLoadState,
     getTabComponentByType,
     getTabSettingsComponentByType,
@@ -490,12 +491,29 @@ const CourseHomepageContent: React.FC = () => {
     ]);
 
     const pluginSettingsSections = useMemo(() => {
+        const pluginMetadataById = new Map(
+            (parentSemesterQuery.data?.plugin_activations ?? []).map((activation) => [
+                activation.plugin_id,
+                {
+                    displayName: activation.display_name,
+                    description: activation.description,
+                },
+            ])
+        );
+        const renderedPluginHeaders = new Set<string>();
         const sections = pluginSettingsDefinitions
             .map((definition) => {
+                const pluginMetadata = pluginMetadataById.get(definition.pluginId);
+                const showPluginHeader = !renderedPluginHeaders.has(definition.pluginId);
+                renderedPluginHeaders.add(definition.pluginId);
                 return (
                     <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
                         <PluginSettingsSectionRenderer
                             pluginId={definition.pluginId}
+                            pluginIcon={getPluginIconById(definition.pluginId)}
+                            pluginDisplayName={pluginMetadata?.displayName}
+                            pluginDescription={pluginMetadata?.description}
+                            showPluginHeader={showPluginHeader}
                             component={definition.component}
                             courseId={course?.id}
                             initialSettings={resolvedPluginSettingsMap.get(definition.pluginId)}
@@ -512,7 +530,7 @@ const CourseHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [course?.id, pluginSettingsDefinitions, refreshCourse, resolvedPluginSettingsMap]);
+    }, [course?.id, parentSemesterQuery.data?.plugin_activations, pluginSettingsDefinitions, refreshCourse, resolvedPluginSettingsMap]);
 
     const hasPluginSettings = Boolean(pluginSettingsSections || tabInstanceSettingsSections);
 

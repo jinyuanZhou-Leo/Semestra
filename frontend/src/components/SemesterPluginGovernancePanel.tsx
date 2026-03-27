@@ -1,6 +1,6 @@
-// input:  [Semester plugin activations, Semester id, plugin-manifest icon helpers, refresh callback, shared settings-section primitives, and the shared CRUD table shell]
+// input:  [Semester plugin activations spanning all Program-enabled plugins, Semester id, plugin-manifest icon helpers, refresh callback, shared settings-section primitives, the shared data-table shell, and shared row-actions dropdown helpers]
 // output: [`SemesterPluginGovernancePanel` component]
-// pos:    [Semester settings surface for plugin-level enable/disable and protected delete rules using the shared CRUD table pattern]
+// pos:    [Semester settings surface for Program-enabled plugin visibility, Semester-level enable/disable state, plugin icons, and protected delete rules using the shared data-table pattern plus a shadcn-style row-actions dropdown]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
@@ -30,7 +30,7 @@ import { getPluginIconById } from "@/plugin-system";
 import { queryKeys } from "@/services/queryKeys";
 
 import api, { type SemesterPluginActivation } from "../services/api";
-import { CrudPanel } from "./CrudPanel";
+import { DataTable, DataTableActionMenu } from "./DataTable";
 import { IconCircle } from "./IconCircle";
 import { SettingsSection } from "./SettingsSection";
 
@@ -92,22 +92,20 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
   return (
     <SettingsSection
       title="Semester Plugins"
-      description="Enable or disable the Program-governed plugins already attached to this Semester. Built-in workspace tabs cannot be deleted here."
+      description="Review every Program-enabled plugin for this Semester. Plugins not yet imported into the Semester stay visible here as Off until you enable them."
       contentClassName="space-y-5"
     >
-      <CrudPanel
+      <DataTable
         title="Semester Plugins"
-        description="Enable or disable the Program-governed plugins already attached to this Semester. Built-in workspace tabs cannot be deleted here."
-        showHeader={false}
+        description="Review every Program-enabled plugin for this Semester. Built-in workspace tabs cannot be deleted here."
         items={installedPlugins}
         emptyMessage="No plugins have been added to this Semester yet."
-        minWidthClassName="min-w-[760px] xl:min-w-[840px]"
         renderHeader={() => (
           <TableRow>
-            <TableHead className="min-w-[220px]">Plugin</TableHead>
-            <TableHead className="min-w-[120px]">Author</TableHead>
-            <TableHead className="w-[140px] text-right">Enabled</TableHead>
-            <TableHead className="w-[92px] text-right">Actions</TableHead>
+            <TableHead>Plugin</TableHead>
+            <TableHead>Author</TableHead>
+            <TableHead className="text-right">Enabled</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         )}
         renderRow={(plugin) => {
@@ -115,11 +113,11 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
           const blockedByPrerequisite = plugin.available === false && !localDisableReason;
           const switchDisabled = togglingPluginId === plugin.plugin_id || (!plugin.is_enabled && blockedByPrerequisite);
           const pluginIcon = getPluginIconById(plugin.plugin_id);
-          const deleteDisabled = Boolean(plugin.locked) || deletingPluginId === plugin.plugin_id;
+          const deleteDisabled = Boolean(plugin.locked) || !plugin.id || deletingPluginId === plugin.plugin_id;
 
           return (
             <TableRow key={plugin.plugin_id} className="align-top">
-              <TableCell className="max-w-[18rem] whitespace-normal break-words py-3">
+              <TableCell className="py-3">
                 <div className="flex items-center gap-3">
                   <IconCircle icon={pluginIcon} label={plugin.display_name} size={30} className="bg-muted text-foreground" />
                   <div className="text-sm font-medium">{plugin.display_name}</div>
@@ -129,7 +127,7 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
                 <span className="text-sm text-muted-foreground">{plugin.author}</span>
               </TableCell>
               <TableCell className="py-3 text-right align-top">
-                <div className="ml-auto flex w-full max-w-[132px] items-center justify-end gap-3">
+                <div className="ml-auto flex items-center justify-end gap-3">
                   <span className="text-xs text-muted-foreground">{plugin.is_enabled ? "On" : "Off"}</span>
                   <Switch
                     checked={plugin.is_enabled}
@@ -142,18 +140,17 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
                 </div>
               </TableCell>
               <TableCell className="py-3 text-right align-top">
-                {!plugin.locked ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon-sm"
-                    onClick={() => setPendingDelete(plugin)}
-                    disabled={deleteDisabled}
-                    aria-label={`Delete ${plugin.display_name}`}
-                    title={`Delete ${plugin.display_name}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                {!plugin.locked && plugin.id ? (
+                  <DataTableActionMenu triggerLabel={`Open actions for ${plugin.display_name}`}>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      disabled={deleteDisabled}
+                      onClick={() => setPendingDelete(plugin)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DataTableActionMenu>
                 ) : null}
               </TableCell>
             </TableRow>

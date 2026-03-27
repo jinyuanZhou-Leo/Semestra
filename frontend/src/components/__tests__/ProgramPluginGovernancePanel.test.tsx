@@ -1,6 +1,6 @@
-// input:  [`ProgramPluginGovernancePanel`, mocked governance APIs, QueryClient wrapper, and testing-library interactions]
-// output: [component regression tests covering Program-level plugin install and enablement toggles]
-// pos:    [UI regression suite for the shared CRUD panel used by Program plugin management]
+// input:  [`ProgramPluginGovernancePanel`, mocked governance APIs, QueryClient wrapper, viewport-state hooks, and testing-library interactions]
+// output: [component regression tests covering Program-level plugin install, marketplace disabled states, and enablement toggles]
+// pos:    [UI regression suite for the shared CRUD panel and responsive marketplace used by Program plugin management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,6 +22,10 @@ const { apiMock } = vi.hoisted(() => ({
 
 vi.mock("@/services/api", () => ({
   default: apiMock,
+}));
+
+vi.mock("@/hooks/use-mobile", () => ({
+  useIsMobile: () => true,
 }));
 
 describe("ProgramPluginGovernancePanel", () => {
@@ -55,6 +59,28 @@ describe("ProgramPluginGovernancePanel", () => {
         availability_reason: null,
         installed: false,
       },
+      {
+        id: "installation-2",
+        plugin_id: "course-list",
+        display_name: "Course List",
+        description: "Semester course list widget and course-management defaults.",
+        author: "Jinyuan",
+        default_version: "workspace",
+        default_installed: true,
+        default_enabled: true,
+        locked: false,
+        version: "workspace",
+        is_enabled: true,
+        requires_program_lms_integration: false,
+        capabilities: { contexts: ["semester"] },
+        setup_sections: [],
+        program_settings: {},
+        resolved_program_settings: {},
+        fields: [],
+        available: true,
+        availability_reason: null,
+        installed: true,
+      },
     ]);
     apiMock.upsertProgramPluginInstallation.mockResolvedValue({});
 
@@ -62,6 +88,8 @@ describe("ProgramPluginGovernancePanel", () => {
     render(<ProgramPluginGovernancePanel programId="program-1" />, { wrapper: Wrapper });
 
     fireEvent.click(await screen.findByRole("button", { name: "Install plugin" }));
+    expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Installed" })).toBeDisabled();
     fireEvent.click(await screen.findByRole("button", { name: "Install" }));
 
     await waitFor(() => {

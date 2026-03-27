@@ -1,11 +1,12 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 `src/plugins/` contains plugin implementations that extend dashboard widgets and homepage tabs.
-Each plugin folder provides runtime entrypoints, plugin-manifest declarations, contribution catalogs, and optional plugin-global settings/test files.
-The plugin-system auto-loads `metadata.ts` eagerly, `settings.ts(x)` eagerly, and `index.ts` lazily per plugin.
+Each plugin folder provides runtime entrypoints, plugin-manifest declarations, contribution catalogs, optional host-rendered setup definitions, and optional plugin-global settings/test files.
+The plugin-system auto-loads `metadata.ts`, `setup.ts`, and `settings.ts(x)` eagerly, and `index.ts` lazily per plugin.
 
 **Conventions:**
 - `metadata.ts` default-exports `definePluginMetadata(...)` and is the frontend source of truth only for plugin-local runtime metadata such as the plugin icon plus tab/widget contribution catalogs.
+- `setup.ts` is **optional** and default-exports `definePluginSetup(...)` only when the plugin contributes host-rendered Semester setup sections to the plugin-system manifest.
 - Backend plugin governance remains the source of truth for plugin `name`, `description`, and `author` on Program/Semester/SetupWizard management surfaces.
 - `index.ts` default-exports `definePluginRuntime(...)`; runtime definitions in `widget.tsx`/`tab.tsx` declare runtime-specific fields like `component`, `defaultSettings`, tab/widget `SettingsComponent`, `headerButtons`, and lifecycle hooks.
 - `settings.ts(x)` is **optional** and default-exports `definePluginSettings(...)` only when the plugin defines shared plugin-level settings sections.

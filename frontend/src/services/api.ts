@@ -1,12 +1,14 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester runtime plugin-governance payloads, and Program-level plugin governance + Semester draft-wizard routes]
-// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types, Program plugin governance/draft-wizard plus review wire models, runtime governance wire models, and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, Program plugin lifecycle governance, Semester draft creation and review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin-governance driven tab resolution]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester runtime plugin-governance payloads, and Program-level plugin governance + plugin-system + Semester draft-wizard routes]
+// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types, Program plugin governance plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime governance wire models, and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, Program plugin lifecycle governance, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin-governance driven tab resolution]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import axios from 'axios';
+
+export type SemesterDraftStep = 'basics' | 'courses' | 'plugins' | 'plugin-setup' | 'review';
 
 // Interfaces matches Pydantic schemas
 export interface Program {
@@ -57,7 +59,7 @@ export interface Semester {
     reading_week_end?: string | null;
     program_id?: string;
     lifecycle_state?: 'draft' | 'active' | 'abandoned' | string;
-    creation_step?: string;
+    creation_step?: SemesterDraftStep;
     draft_updated_at?: string | null;
     review_ready?: boolean;
     review_errors?: SemesterDraftReviewIssue[];
@@ -144,9 +146,13 @@ export interface ProgramPluginSetupField {
     path: string;
     label: string;
     type: string;
-    default?: unknown;
+    persist: 'setupState' | 'semesterOverride' | 'both' | string;
+    required?: boolean;
+    default_value?: unknown;
     description?: string;
+    placeholder?: string;
     options?: Array<{ label: string; value: string }>;
+    summary_labels?: Record<string, string>;
 }
 
 export interface ProgramPluginSetupSection {
@@ -209,6 +215,51 @@ export interface SemesterPluginActivation {
     available: boolean;
     availability_reason?: string | null;
     auth_state?: string;
+}
+
+export interface PluginSystemSetupDefinitionResponse {
+    plugin_id: string;
+    sections: ProgramPluginSetupSection[];
+}
+
+export interface PluginSystemSemesterSetupPlugin {
+    plugin_id: string;
+    display_name: string;
+    description: string;
+    author: string;
+    is_enabled: boolean;
+    available: boolean;
+    availability_reason?: string | null;
+    setup_sections: ProgramPluginSetupSection[];
+    setup_values: Record<string, unknown>;
+    setup_summary: SemesterDraftReviewSummarySection[];
+    review_errors: SemesterDraftReviewIssue[];
+}
+
+export interface PluginSystemSemesterSetupResponse {
+    semester_id: string;
+    step: string;
+    plugins: PluginSystemSemesterSetupPlugin[];
+}
+
+export interface PluginSystemSemesterSetupUpdateResponse {
+    semester_id: string;
+    plugin_id: string;
+    setup_values: Record<string, unknown>;
+    setup_summary: SemesterDraftReviewSummarySection[];
+    review_errors: SemesterDraftReviewIssue[];
+}
+
+export interface PluginSystemReviewPlugin {
+    plugin_id: string;
+    review_errors: SemesterDraftReviewIssue[];
+    setup_summary: SemesterDraftReviewSummarySection[];
+}
+
+export interface PluginSystemReviewResponse {
+    semester_id: string;
+    plugins: PluginSystemReviewPlugin[];
+    has_errors: boolean;
 }
 
 export interface SemesterDraftReviewIssue {
@@ -715,7 +766,7 @@ const api = {
             end_date?: string;
             reading_week_start?: string | null;
             reading_week_end?: string | null;
-            creation_step?: string;
+            creation_step?: SemesterDraftStep;
         },
     ) => {
         const response = await axios.post<SemesterDraft>(`/api/programs/${programId}/semester-draft`, data);
@@ -729,7 +780,7 @@ const api = {
             end_date?: string;
             reading_week_start?: string | null;
             reading_week_end?: string | null;
-            creation_step?: string;
+            creation_step?: SemesterDraftStep;
         },
     ) => {
         const response = await axios.put<SemesterDraft>(`/api/semesters/${semesterId}/draft`, data);
@@ -745,6 +796,35 @@ const api = {
     },
     discardSemesterDraft: async (semesterId: string) => {
         await axios.delete(`/api/semesters/${semesterId}/draft`);
+    },
+    getPluginSystemSetupDefinition: async (pluginId: string) => {
+        return dedupeGet(`GET:/api/plugin-system/plugins/${pluginId}/setup-definition`, async () => {
+            const response = await axios.get<PluginSystemSetupDefinitionResponse>(`/api/plugin-system/plugins/${pluginId}/setup-definition`);
+            return response.data;
+        });
+    },
+    getSemesterPluginSystemSetup: async (semesterId: string) => {
+        return dedupeGet(`GET:/api/plugin-system/semesters/${semesterId}/setup`, async () => {
+            const response = await axios.get<PluginSystemSemesterSetupResponse>(`/api/plugin-system/semesters/${semesterId}/setup`);
+            return response.data;
+        });
+    },
+    updateSemesterPluginSystemSetup: async (
+        semesterId: string,
+        pluginId: string,
+        data: {
+            values: Record<string, unknown>;
+        },
+    ) => {
+        const response = await axios.put<PluginSystemSemesterSetupUpdateResponse>(
+            `/api/plugin-system/semesters/${semesterId}/plugins/${pluginId}/setup`,
+            data,
+        );
+        return response.data;
+    },
+    reviewSemesterPluginSystem: async (semesterId: string) => {
+        const response = await axios.post<PluginSystemReviewResponse>(`/api/plugin-system/semesters/${semesterId}/review`);
+        return response.data;
     },
 
     // Semesters
@@ -802,8 +882,6 @@ const api = {
         pluginId: string,
         data: {
             is_enabled?: boolean;
-            semester_overrides?: Record<string, unknown>;
-            setup_state?: Record<string, unknown>;
         },
     ) => {
         const response = await axios.put<SemesterPluginActivation>(`/api/semesters/${semesterId}/plugin-activations/${pluginId}`, data);

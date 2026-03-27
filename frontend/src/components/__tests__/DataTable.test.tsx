@@ -1,6 +1,6 @@
-// input:  [`CrudPanel`, testing-library render helpers, and shared table-row primitives]
-// output: [test suite for mobile-safe CrudPanel overflow containment, responsive fixed-column layout, and default cell wrapping]
-// pos:    [Regression coverage for shared settings CRUD shell sizing, scrolling wrappers, shared column-layout defaults, and non-overflowing text behavior]
+// input:  [`DataTable`, testing-library render helpers, and shared table-row primitives]
+// output: [test suite for mobile-safe DataTable overflow containment, fit-content column sizing, and shared single-line ellipsis defaults]
+// pos:    [Regression coverage for shared settings data-table shell sizing, scrolling wrappers, and shared column-layout defaults that keep columns content-driven until the shared ellipsis cap]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,13 +9,13 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { CrudPanel } from '@/components/CrudPanel';
+import { DataTable } from '@/components/DataTable';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 
-describe('CrudPanel', () => {
-    it('keeps horizontal scrolling contained inside the table shell and uses responsive fixed column sizing', () => {
+describe('DataTable', () => {
+    it('keeps horizontal scrolling contained inside the table shell while capping cells with single-line ellipsis defaults', () => {
         const { container } = render(
-            <CrudPanel
+            <DataTable
                 title="Courses"
                 description="Manage semester courses."
                 items={[{ id: 'course-1', name: 'Course 1' }]}
@@ -44,14 +44,24 @@ describe('CrudPanel', () => {
         expect(root).toHaveClass('w-full', 'min-w-0');
         expect(shell).toHaveClass('w-full', 'min-w-0', 'max-w-full', 'overflow-x-auto');
         expect(minWidthWrapper).toHaveClass('min-w-[500px]', 'sm:min-w-[560px]');
-        expect(table).toHaveClass('table-fixed');
-        expect(root).toHaveClass('[&_[data-slot=table-cell]]:whitespace-normal', '[&_[data-slot=table-cell]]:break-words');
-        expect(root).toHaveClass('[&_[data-slot=table-head]]:whitespace-normal', '[&_[data-slot=table-head]]:break-words');
+        expect(table).toHaveClass(
+            'min-w-full',
+            'w-max',
+            'table-auto',
+            '[&_td]:max-w-[18rem]',
+            '[&_td]:overflow-hidden',
+            '[&_td]:text-ellipsis',
+            '[&_td]:whitespace-nowrap',
+            '[&_th]:max-w-[18rem]',
+            '[&_th]:overflow-hidden',
+            '[&_th]:text-ellipsis',
+            '[&_th]:whitespace-nowrap',
+        );
     });
 
     it('can hide the duplicate panel header when embedded in a parent settings section', () => {
         render(
-            <CrudPanel
+            <DataTable
                 title="Courses"
                 description="Manage semester courses."
                 showHeader={false}

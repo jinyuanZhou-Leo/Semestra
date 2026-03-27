@@ -1,0 +1,64 @@
+[
+  {
+    "plugin_id": "builtin-event-core",
+    "fields": [
+      {
+        "path": "calendarDefaultView",
+        "label": "Default view",
+        "type": "select",
+        "persist": "both",
+        "required": true,
+        "description": "Choose the starting calendar behavior for this Semester.",
+        "placeholder": "",
+        "default_value": "month",
+        "options": [
+          {
+            "label": "Month",
+            "value": "month"
+          },
+          {
+            "label": "Week",
+            "value": "week"
+          }
+        ],
+        "summary_labels": {
+          "month": "Month",
+          "week": "Week"
+        }
+      }
+    ],
+    "sections": [
+      {
+        "id": "calendar-setup",
+        "title": "Calendar Setup",
+        "description": "Choose the starting calendar behavior for this Semester.",
+        "fields": [
+          {
+            "path": "calendarDefaultView",
+            "label": "Default view",
+            "type": "select",
+            "persist": "both",
+            "required": true,
+            "description": "Choose the starting calendar behavior for this Semester.",
+            "placeholder": "",
+            "default_value": "month",
+            "options": [
+              {
+                "label": "Month",
+                "value": "month"
+              },
+              {
+                "label": "Week",
+                "value": "week"
+              }
+            ],
+            "summary_labels": {
+              "month": "Month",
+              "week": "Week"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

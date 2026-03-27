@@ -1,6 +1,6 @@
-// input:  [CRUD section copy, row/header render callbacks, shared table primitives, and optional loading/action controls, including embedded headerless settings usage and per-surface minimum table widths]
-// output: [`CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` helpers for settings CRUD tables]
-// pos:    [shared settings-table shell that keeps header actions and horizontal scrolling mobile-safe across CRUD surfaces, with fixed-layout responsive column distribution, default cell/header wrapping to avoid horizontal overflow, and optional compact embedding inside a parent settings section]
+// input:  [data-table section copy, row/header render callbacks, shared table primitives, optional loading/action controls, embedded headerless settings usage, per-surface minimum table widths, shared dropdown row-action composition, and shared fit-content column sizing defaults]
+// output: [`DataTable`, `DataTableActionMenu`, `TableShell`, `PanelHeader`, and `EmptyTableRow` helpers for settings data tables]
+// pos:    [shared settings-table shell that keeps header actions and horizontal scrolling mobile-safe across settings data tables, with fit-content column sizing capped by shared single-line ellipsis defaults above each surface minimum width plus a shadcn-aligned row-actions dropdown trigger]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,8 +9,14 @@
 "use no memo";
 
 import React from 'react';
-import { RefreshCw } from 'lucide-react';
+import { MoreHorizontal, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
     Table,
     TableBody,
@@ -56,7 +62,7 @@ const PanelHeader: React.FC<{
     </div>
 );
 
-export interface CrudPanelProps<T> {
+export interface DataTableProps<T> {
     title: string;
     description: string;
     actionButton?: React.ReactNode;
@@ -69,7 +75,7 @@ export interface CrudPanelProps<T> {
     isLoading?: boolean;
 }
 
-export function CrudPanel<T>({
+export function DataTable<T>({
     title,
     description,
     actionButton,
@@ -80,9 +86,9 @@ export function CrudPanel<T>({
     emptyMessage = 'No items found.',
     minWidthClassName,
     isLoading,
-}: CrudPanelProps<T>) {
+}: DataTableProps<T>) {
     return (
-        <div className="w-full min-w-0 space-y-4 [&_[data-slot=button][data-variant=destructive][data-size=icon]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]]:bg-transparent [&_[data-slot=button][data-variant=destructive][data-size=icon]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-sm]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-xs]:hover]:bg-destructive/20 [&_[data-slot=button][data-variant=destructive][data-size=icon-lg]:hover]:bg-destructive/20 [&_[data-slot=table-cell]]:whitespace-normal [&_[data-slot=table-cell]]:break-words [&_[data-slot=table-head]]:whitespace-normal [&_[data-slot=table-head]]:break-words">
+        <div className="w-full min-w-0 space-y-4">
             {showHeader ? (
                 <div className="w-full min-w-0 px-1">
                     <PanelHeader
@@ -97,7 +103,7 @@ export function CrudPanel<T>({
                 </div>
             ) : null}
             <TableShell minWidthClassName={minWidthClassName}>
-                <Table className="table-fixed">
+                <Table className="min-w-full w-max table-auto [&_td]:max-w-[18rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap [&_th]:max-w-[18rem] [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap">
                     <TableHeader>{renderHeader()}</TableHeader>
                     <TableBody>
                         {isLoading && (
@@ -115,6 +121,41 @@ export function CrudPanel<T>({
                 </Table>
             </TableShell>
         </div>
+    );
+}
+
+export function DataTableActionMenu({
+    children,
+    triggerLabel = 'Open menu',
+    contentClassName,
+    align = 'end',
+    disabled = false,
+}: {
+    children: React.ReactNode;
+    triggerLabel?: string;
+    contentClassName?: string;
+    align?: React.ComponentProps<typeof DropdownMenuContent>['align'];
+    disabled?: boolean;
+}) {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 data-[state=open]:bg-muted"
+                    disabled={disabled}
+                    aria-label={triggerLabel}
+                    title={triggerLabel}
+                >
+                    <span className="sr-only">{triggerLabel}</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align={align} className={cn('min-w-40', contentClassName)}>
+                {children}
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 

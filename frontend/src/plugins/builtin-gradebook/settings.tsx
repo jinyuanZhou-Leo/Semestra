@@ -1,6 +1,6 @@
-// input:  [course gradebook APIs, plugin settings contracts, and shared category helpers]
+// input:  [course gradebook APIs, plugin settings contracts, shared category helpers, and shared data-table row-actions dropdown helpers]
 // output: [builtin-gradebook shared settings sections for forecast preferences and categories]
-// pos:    [course-scoped gradebook settings surface for forecast-mode selection, Field-based category dialog inputs, and mobile-safe category management]
+// pos:    [course-scoped gradebook settings surface for forecast-mode selection, Field-based category dialog inputs, mobile-safe category management, and a shadcn-style row-actions dropdown for category edit/delete actions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -16,8 +16,9 @@ import type { PluginSettingsProps } from '@/services/pluginSettingsRegistry';
 import api, { type CourseGradebook, type GradebookAssessmentCategory } from '@/services/api';
 
 import { SettingsSection } from '@/components/SettingsSection';
-import { CrudPanel } from '@/components/CrudPanel';
+import { DataTable, DataTableActionMenu } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,7 +34,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
@@ -199,6 +199,7 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
     // category dialog state
     const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<GradebookAssessmentCategory | null>(null);
+    const [pendingDeleteCategory, setPendingDeleteCategory] = useState<GradebookAssessmentCategory | null>(null);
 
     /** Commits a gradebook mutation and refreshes the host settings shell after success. */
     const commitGradebook = useCallback(async (promise: Promise<CourseGradebook>) => {
@@ -301,10 +302,9 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
             </SettingsSection>
 
             <SettingsSection title="Categories" description="Organize the assessment labels used by the table and forecast model.">
-                <CrudPanel
+                <DataTable
                     title="Categories"
                     description="Manage the category labels available to this course."
-                    minWidthClassName="min-w-[400px] sm:min-w-[480px]"
                     items={gradebook.categories}
                     actionButton={(
                         <Button onClick={handleOpenCreate}>
@@ -333,51 +333,56 @@ const GradebookSettings: React.FC<PluginSettingsProps> = ({
                                 </TableCell>
 
                                 <TableCell className="text-right">
-                                    <div className="flex justify-end gap-1">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            aria-label={`Edit category ${category.name}`}
-                                            onClick={() => handleOpenEdit(category)}
-                                        >
-                                            <Edit className="h-4 w-4" />
-                                        </Button>
-
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button
-                                                    type="button"
-                                                    variant="destructive"
-                                                    size="icon"
-                                                    aria-label={`Delete category ${category.name}`}
-                                                    disabled={isMutating}
-                                                ><Trash2 className="h-4 w-4" /></Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent size="sm">
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Delete category "{category.name}"?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        This action cannot be undone. Assessments in this category will become uncategorized.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction
-                                                        variant="destructive"
-                                                        onClick={() => void commitGradebook(
-                                                            api.deleteCourseGradebookCategory(courseId, category.id)
-                                                        )}
-                                                    >Delete</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
+                                    <div className="flex justify-end">
+                                        <DataTableActionMenu triggerLabel={`Open actions for ${category.name}`}>
+                                            <DropdownMenuItem
+                                                disabled={isMutating}
+                                                onClick={() => handleOpenEdit(category)}
+                                            >
+                                                <Edit className="h-4 w-4" />
+                                                Edit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                variant="destructive"
+                                                disabled={isMutating}
+                                                onClick={() => setPendingDeleteCategory(category)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                Delete
+                                            </DropdownMenuItem>
+                                        </DataTableActionMenu>
                                     </div>
                                 </TableCell>
                             </TableRow>
                         );
                     }}
                 />
+                <AlertDialog open={pendingDeleteCategory !== null} onOpenChange={(open) => !open && setPendingDeleteCategory(null)}>
+                    <AlertDialogContent size="sm">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {pendingDeleteCategory ? `Delete category "${pendingDeleteCategory.name}"?` : 'Delete category?'}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. Assessments in this category will become uncategorized.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                variant="destructive"
+                                onClick={() => {
+                                    if (!pendingDeleteCategory) return;
+                                    void commitGradebook(api.deleteCourseGradebookCategory(courseId, pendingDeleteCategory.id));
+                                    setPendingDeleteCategory(null);
+                                }}
+                            >
+                                Delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </SettingsSection>
 
             {/* ── Category form dialog (shared create / edit) ─────────────── */}

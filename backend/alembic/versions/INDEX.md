@@ -21,3 +21,4 @@ Keep downgrade steps practical, but prioritize accurate forward migrations for a
 | 20260327_0012_add_widget_title.py | Schema migration | Restores first-class `widgets.title` persistence so widget CRUD responses preserve user-visible titles. |
 | 20260327_0013_repair_runtime_schema_drift.py | Schema migration | Repairs drifted local SQLite databases that were stamped to head while still missing `semesters.review_ready`, so Program/Semester reads no longer fail at runtime. |
 | 20260327_0014_add_plugin_enabled_flags.py | Schema migration | Adds `is_enabled` flags to Program plugin installations and Semester plugin activations so disable preserves data while delete still removes it. |
+| 20260327_0015_add_single_draft_index.py | Schema migration | Adds a partial unique index on `semesters.program_id` for `lifecycle_state = 'draft'` so each Program can have only one in-progress Semester draft. |

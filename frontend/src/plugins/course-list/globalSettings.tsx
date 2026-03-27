@@ -1,6 +1,6 @@
-// input:  [plugin settings props, semester/course API service, plugin-local GPA-percentage formatting, settings-section UI, CRUD panel shell, and modal/alert primitives]
+// input:  [plugin settings props, semester/course API service, plugin-local GPA-percentage formatting, settings-section UI, shared data-table shell, modal/alert primitives, and shared row-actions dropdown helpers]
 // output: [course-list plugin settings component for semester course management]
-// pos:    [plugin-global settings panel that loads semester courses, renders mobile-safe CRUD-panel-aligned course management, surfaces failures, and handles removal flows]
+// pos:    [plugin-global settings panel that loads semester courses, renders mobile-safe data-table-aligned course management, surfaces failures, and handles removal flows through a shadcn-style row-actions dropdown]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -19,11 +19,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { CrudPanel } from '@/components/CrudPanel';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { DataTable, DataTableActionMenu } from '@/components/DataTable';
 import { SettingsSection } from '@/components/SettingsSection';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { CourseManagerModal } from '@/components/CourseManagerModal';
@@ -44,6 +44,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
   const [semester, setSemester] = useState<Semester | null>(null);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
+  const [pendingRemoveCourse, setPendingRemoveCourse] = useState<Course | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const latestFetchRef = useRef(0);
@@ -137,7 +138,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
           </Alert>
         ) : null}
 
-        <CrudPanel
+        <DataTable
           title="Semester Courses"
           description="Review the courses assigned to this semester."
           actionButton={(
@@ -154,7 +155,6 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
           items={courses}
           isLoading={isLoading && !semester}
           emptyMessage="No courses assigned."
-          minWidthClassName="min-w-[500px] sm:min-w-[560px]"
           renderHeader={() => (
             <TableRow>
               <TableHead>Name</TableHead>
@@ -165,7 +165,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
           )}
           renderRow={(course: Course) => (
             <TableRow key={course.id}>
-              <TableCell className="max-w-[12rem] font-medium whitespace-normal break-words sm:max-w-[16rem]">
+              <TableCell className="font-medium">
                 <div className="flex flex-col">
                   <span>{course.name}</span>
                   {course.alias ? (
@@ -178,49 +178,53 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
               <TableCell>{course.credits}</TableCell>
               <TableCell>{formatCourseListGpaPercentage(course.grade_percentage)}</TableCell>
               <TableCell className="text-right">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="outline"
-                      aria-label={`Remove course ${course.name}`}
-                      title={`Remove course ${course.name}`}
-                      className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent size="sm">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Remove course from semester?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {course.name} will be removed from this semester but kept in the program.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel disabled={removingCourseId === course.id}>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        onClick={() => void handleRemoveCourse(course.id)}
-                        disabled={removingCourseId !== null}
-                      >
-                        {removingCourseId === course.id ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Removing...
-                          </>
-                        ) : (
-                          'Remove'
-                        )}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={removingCourseId !== null}
+                    onClick={() => setPendingRemoveCourse(course)}
+                  >
+                    <Trash2 className="size-4" />
+                    Remove
+                  </DropdownMenuItem>
+                </DataTableActionMenu>
               </TableCell>
             </TableRow>
           )}
         />
+        <AlertDialog open={pendingRemoveCourse !== null} onOpenChange={(open) => !open && setPendingRemoveCourse(null)}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove course from semester?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingRemoveCourse
+                  ? `${pendingRemoveCourse.name} will be removed from this semester but kept in the program.`
+                  : 'This course will be removed from this semester but kept in the program.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={removingCourseId !== null}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  if (!pendingRemoveCourse) return;
+                  void handleRemoveCourse(pendingRemoveCourse.id);
+                  setPendingRemoveCourse(null);
+                }}
+                disabled={removingCourseId !== null}
+              >
+                {removingCourseId !== null ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  'Remove'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {!canManageCourses ? (
           <p className="text-xs text-muted-foreground">

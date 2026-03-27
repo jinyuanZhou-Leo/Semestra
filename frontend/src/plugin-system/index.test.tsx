@@ -1,5 +1,5 @@
-// input:  [plugin facade helpers, lazy runtime loading, idle background preloading, and Vitest assertions]
-// output: [test suite covering plugin manifest icons, runtime instance settings resolution, eager plugin-global settings exposure, and idle preload behavior]
+// input:  [plugin facade helpers, lazy runtime loading, eager setup/settings registries, idle background preloading, and Vitest assertions]
+// output: [test suite covering plugin manifest icons, runtime instance settings resolution, eager plugin-global settings/setup exposure, and idle preload behavior]
 // pos:    [integration tests for the decoupled plugin-system public API and idle runtime warmup path]
 //
 // ⚠️ When this file is updated:
@@ -16,9 +16,12 @@ import {
   getWidgetPluginLoadState,
   ensureWidgetPluginByTypeLoaded,
   getPluginSettingsSections,
+  getPluginSetupDefinitionById,
+  getAllPluginSetupDefinitions,
   getPluginIconById,
   getTabSettingsComponentByType,
   getTabCatalog,
+  hasPluginSetupDefinition,
   getWidgetSettingsComponentByType,
   preloadRemainingPluginsWhenIdle,
 } from './index';
@@ -45,6 +48,17 @@ describe('plugin-system settings API', () => {
   it('exposes plugin-level manifest icons without reading tab or widget catalogs', () => {
     expect(getPluginIconById('builtin-event-core')).toBeTruthy();
     expect(getPluginIconById('world-clock')).toBeTruthy();
+  });
+
+  it('exposes eager plugin setup definitions through the facade', () => {
+    expect(hasPluginSetupDefinition('builtin-event-core')).toBe(true);
+    expect(hasPluginSetupDefinition('world-clock')).toBe(false);
+
+    const eventCoreSetup = getPluginSetupDefinitionById('builtin-event-core');
+    expect(eventCoreSetup?.sections[0]?.id).toBe('calendar-setup');
+    expect(eventCoreSetup?.fieldOrder).toEqual(['calendarDefaultView']);
+
+    expect(getAllPluginSetupDefinitions().map((definition) => definition.pluginId)).toContain('builtin-event-core');
   });
 
   it('treats maxInstances=0 builtin tabs as a single allowed instance', () => {

@@ -1,6 +1,6 @@
 // input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin governance payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
+// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -37,6 +37,7 @@ import { formatGpaPercentage } from '@/utils/percentage';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
+    getPluginIconById,
     getTabPluginLoadState,
     getTabComponentByType,
     getTabSettingsComponentByType,
@@ -427,12 +428,29 @@ const SemesterHomepageContent: React.FC = () => {
     ]);
 
     const pluginSettingsSections = useMemo(() => {
+        const pluginMetadataById = new Map(
+            (semester?.plugin_activations ?? []).map((activation) => [
+                activation.plugin_id,
+                {
+                    displayName: activation.display_name,
+                    description: activation.description,
+                },
+            ])
+        );
+        const renderedPluginHeaders = new Set<string>();
         const sections = pluginSettingsDefinitions
             .map((definition) => {
+                const pluginMetadata = pluginMetadataById.get(definition.pluginId);
+                const showPluginHeader = !renderedPluginHeaders.has(definition.pluginId);
+                renderedPluginHeaders.add(definition.pluginId);
                 return (
                     <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
                         <PluginSettingsSectionRenderer
                             pluginId={definition.pluginId}
+                            pluginIcon={getPluginIconById(definition.pluginId)}
+                            pluginDisplayName={pluginMetadata?.displayName}
+                            pluginDescription={pluginMetadata?.description}
+                            showPluginHeader={showPluginHeader}
                             component={definition.component}
                             semesterId={semester?.id}
                             initialSettings={resolvedPluginSettingsMap.get(definition.pluginId)}
@@ -449,7 +467,7 @@ const SemesterHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [pluginSettingsDefinitions, refreshSemester, resolvedPluginSettingsMap, semester?.id]);
+    }, [pluginSettingsDefinitions, refreshSemester, resolvedPluginSettingsMap, semester?.id, semester?.plugin_activations]);
 
     const hasPluginSettings = Boolean(pluginSettingsSections || tabInstanceSettingsSections);
 

@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin governance payloads, Semester draft lifecycle plus review payloads, Semester activation or override payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin governance or Semester draft contracts plus review state, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin governance payloads, manifest-backed plugin-system setup payloads, Semester draft lifecycle plus review payloads with typed draft-step validation, Semester activation payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin governance and plugin-system setup contracts plus validated Semester draft review state and step values, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -930,6 +930,10 @@ class GradebookAssessmentReorderRequest(BaseModel):
 
 
 # --- Semester Schemas ---
+SemesterLifecycleState = Literal["draft", "active", "abandoned"]
+SemesterDraftStep = Literal["basics", "courses", "plugins", "plugin-setup", "review"]
+
+
 class SemesterBase(BaseModel):
     name: str
     average_percentage: float = 0.0
@@ -945,8 +949,8 @@ class SemesterCreate(SemesterBase):
 class Semester(SemesterBase):
     id: str
     program_id: str
-    lifecycle_state: str = "active"
-    creation_step: str = "review"
+    lifecycle_state: SemesterLifecycleState = "active"
+    creation_step: SemesterDraftStep = "review"
     draft_updated_at: Optional[str] = None
     review_ready: bool = False
     model_config = ConfigDict(from_attributes=True)
@@ -1011,6 +1015,26 @@ class ProgramPluginField(BaseModel):
     options: List[dict[str, Any]] = []
 
 
+class ProgramPluginSetupField(BaseModel):
+    path: str
+    label: str
+    type: str
+    persist: str
+    required: bool = False
+    default_value: Any = None
+    description: str = ""
+    placeholder: str = ""
+    options: List[dict[str, Any]] = []
+    summary_labels: dict[str, str] = {}
+
+
+class ProgramPluginSetupSection(BaseModel):
+    id: str
+    title: str
+    description: str = ""
+    fields: List[ProgramPluginSetupField] = []
+
+
 class ProgramPluginInstallationUpsertRequest(BaseModel):
     version: Optional[str] = None
     is_enabled: Optional[bool] = None
@@ -1036,7 +1060,7 @@ class ProgramPluginInstallation(BaseModel):
     requires_authorization: bool = False
     requires_program_lms_integration: bool = False
     capabilities: dict[str, Any] = {}
-    setup_sections: List[dict[str, Any]] = []
+    setup_sections: List[ProgramPluginSetupSection] = []
     program_settings: dict[str, Any] = {}
     resolved_program_settings: dict[str, Any] = {}
     fields: List[ProgramPluginField] = []
@@ -1050,8 +1074,6 @@ class ProgramPluginCatalogItem(ProgramPluginInstallation):
 
 
 class SemesterPluginActivationUpsertRequest(BaseModel):
-    semester_overrides: dict[str, Any] = {}
-    setup_state: dict[str, Any] = {}
     is_enabled: Optional[bool] = None
 
 
@@ -1089,7 +1111,7 @@ class SemesterPluginActivation(BaseModel):
     is_enabled: bool = True
     auth_state: str
     capabilities: dict[str, Any] = {}
-    setup_sections: List[dict[str, Any]] = []
+    setup_sections: List[ProgramPluginSetupSection] = []
     semester_overrides: dict[str, Any] = {}
     setup_state: dict[str, Any] = {}
     resolved_settings: dict[str, Any] = {}
@@ -1100,13 +1122,62 @@ class SemesterPluginActivation(BaseModel):
     availability_reason: Optional[str] = None
 
 
+class PluginSystemSetupDefinitionResponse(BaseModel):
+    plugin_id: str
+    sections: List[ProgramPluginSetupSection] = []
+
+
+class PluginSystemSemesterSetupPlugin(BaseModel):
+    plugin_id: str
+    display_name: str
+    description: str
+    author: str
+    is_enabled: bool = True
+    available: bool = False
+    availability_reason: Optional[str] = None
+    setup_sections: List[ProgramPluginSetupSection] = []
+    setup_values: dict[str, Any] = {}
+    setup_summary: List[SemesterDraftReviewSummarySection] = []
+    review_errors: List[SemesterDraftReviewIssue] = []
+
+
+class PluginSystemSemesterSetupResponse(BaseModel):
+    semester_id: str
+    step: str = "plugin-setup"
+    plugins: List[PluginSystemSemesterSetupPlugin] = []
+
+
+class PluginSystemSemesterSetupUpdateRequest(BaseModel):
+    values: dict[str, Any] = {}
+
+
+class PluginSystemSemesterSetupUpdateResponse(BaseModel):
+    semester_id: str
+    plugin_id: str
+    setup_values: dict[str, Any] = {}
+    setup_summary: List[SemesterDraftReviewSummarySection] = []
+    review_errors: List[SemesterDraftReviewIssue] = []
+
+
+class PluginSystemReviewPlugin(BaseModel):
+    plugin_id: str
+    review_errors: List[SemesterDraftReviewIssue] = []
+    setup_summary: List[SemesterDraftReviewSummarySection] = []
+
+
+class PluginSystemReviewResponse(BaseModel):
+    semester_id: str
+    plugins: List[PluginSystemReviewPlugin] = []
+    has_errors: bool = False
+
+
 class SemesterDraftCreateRequest(BaseModel):
     name: str = "Untitled Semester"
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     reading_week_start: Optional[date] = None
     reading_week_end: Optional[date] = None
-    creation_step: str = "basics"
+    creation_step: SemesterDraftStep = "basics"
 
 
 class SemesterDraftUpdateRequest(BaseModel):
@@ -1115,7 +1186,7 @@ class SemesterDraftUpdateRequest(BaseModel):
     end_date: Optional[date] = None
     reading_week_start: Optional[date] = None
     reading_week_end: Optional[date] = None
-    creation_step: Optional[str] = None
+    creation_step: Optional[SemesterDraftStep] = None
 
 
 class SemesterDraft(Semester):

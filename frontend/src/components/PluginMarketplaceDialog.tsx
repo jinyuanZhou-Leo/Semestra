@@ -1,6 +1,6 @@
-// input:  [plugin marketplace items, shadcn dialog/input/scroll-area/button primitives, and add-plugin callbacks]
+// input:  [plugin marketplace items, shared app empty states, responsive dialog-drawer wrapper, shadcn input/scroll-area/button primitives, and add-plugin callbacks]
 // output: [`PluginMarketplaceDialog` component]
-// pos:    [Reusable searchable marketplace modal for Program plugin install flows with standard shadcn dialog/list composition]
+// pos:    [Reusable searchable marketplace overlay for Program plugin install flows with responsive dialog-drawer composition, shared empty states, and disabled installed rows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,19 +11,14 @@
 import React, { useDeferredValue, useMemo, useState } from "react";
 import { PackagePlus, Search } from "lucide-react";
 
+import { AppEmptyState } from "@/components/AppEmptyState";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 
 import { IconCircle } from "./IconCircle";
+import { ResponsiveDialogDrawer } from "./ResponsiveDialogDrawer";
 
 export interface PluginMarketplaceItem {
   pluginId: string;
@@ -43,6 +38,7 @@ interface PluginMarketplaceDialogProps {
   description: string;
   searchPlaceholder: string;
   emptyLabel: string;
+  noResultsLabel: string;
   items: PluginMarketplaceItem[];
   pendingPluginId?: string | null;
   onSelect: (pluginId: string) => Promise<void> | void;
@@ -55,6 +51,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
   description,
   searchPlaceholder,
   emptyLabel,
+  noResultsLabel,
   items,
   pendingPluginId,
   onSelect,
@@ -70,13 +67,25 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
     ].join(" ").toLowerCase().includes(deferredQuery));
   }, [deferredQuery, items]);
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setQuery("");
+    }
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="overflow-hidden border-border/70 p-0 sm:max-w-3xl">
-        <DialogHeader className="border-b border-border/70 px-6 py-5">
-          <DialogTitle className="text-xl">{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+    <ResponsiveDialogDrawer
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={title}
+      description={description}
+      desktopContentClassName="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-3xl h-[640px] flex flex-col"
+      mobileContentClassName="gap-0 overflow-hidden border-border/70 p-0 h-[85vh] max-h-[85vh] flex flex-col"
+      desktopHeaderClassName="border-b border-border/70 px-6 py-5 pr-14 flex-none"
+      mobileHeaderClassName="border-b border-border/70 px-6 py-5 flex-none"
+      titleClassName="text-xl"
+    >
         <div className="border-b border-border/70 px-6 py-4">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -88,13 +97,25 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
             />
           </div>
         </div>
-        <ScrollArea className="h-[420px]">
-          <div className="px-6 py-5">
-            {visibleItems.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-center text-sm text-muted-foreground">
-                {emptyLabel}
-              </div>
-            ) : (
+        <div className="flex-1 min-h-0 px-6 py-5">
+          {items.length === 0 ? (
+            <AppEmptyState
+              scenario="create"
+              size="modal"
+              title="No plugins available"
+              description={emptyLabel}
+              className="h-full"
+            />
+          ) : visibleItems.length === 0 ? (
+            <AppEmptyState
+              scenario="no-results"
+              size="modal"
+              title="No matching plugins"
+              description={noResultsLabel}
+              className="h-full"
+            />
+          ) : (
+            <ScrollArea className="h-full pr-3">
               <div className="overflow-hidden rounded-2xl border border-border/70">
                 {visibleItems.map((item, index) => {
                   const isPending = pendingPluginId === item.pluginId;
@@ -119,6 +140,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
                       <Button
                         type="button"
                         size="sm"
+                        variant={item.disabled ? "outline" : "default"}
                         disabled={item.disabled || isPending}
                         onClick={() => {
                           if (item.disabled || isPending) return;
@@ -132,10 +154,9 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
                   );
                 })}
               </div>
-            )}
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+            </ScrollArea>
+          )}
+        </div>
+    </ResponsiveDialogDrawer>
   );
 };

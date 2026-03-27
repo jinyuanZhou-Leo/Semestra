@@ -1,6 +1,6 @@
-# input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin governance rows with install enablement, Semester draft lifecycle state plus review readiness, Semester-level plugin activations with soft-disable support, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus review readiness, auth security state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
+# input:  [SQLAlchemy Base, Column types, relational constraints, and dialect-specific partial-index expressions]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin governance rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, auth security state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -19,6 +19,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -117,6 +118,13 @@ class Semester(Base):
     __tablename__ = "semesters"
     __table_args__ = (
         CheckConstraint("start_date <= end_date", name="ck_semesters_date_range"),
+        Index(
+            "uq_semesters_program_single_draft",
+            "program_id",
+            unique=True,
+            sqlite_where=text("lifecycle_state = 'draft'"),
+            postgresql_where=text("lifecycle_state = 'draft'"),
+        ),
     )
     
     id = Column(String, primary_key=True, index=True, default=generate_uuid)

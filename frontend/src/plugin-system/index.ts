@@ -1,6 +1,6 @@
-// input:  [plugin manifests/settings/runtime modules via `import.meta.glob`, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
-// output: [plugin facade helpers for plugin manifests, contribution catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
-// pos:    [Central plugin manager facade that validates plugin manifests, keeps plugin icons/settings eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs]
+// input:  [plugin manifests/settings/runtime modules via `import.meta.glob`, validated plugin setup registry facade, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
+// output: [plugin facade helpers for plugin manifests, contribution catalogs, setup definitions, load state, load-state subscriptions, metadata resolution, plugin-global settings, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
+// pos:    [Central plugin manager facade that validates plugin manifests, keeps plugin icons/settings/setup eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -44,6 +44,22 @@ import {
     definePluginRuntime,
     definePluginSettings,
 } from './contracts';
+export {
+    getAllPluginSetupDefinitions,
+    getPluginSetupDefinitionById,
+    hasPluginSetupDefinition,
+} from './setupRegistry';
+export {
+    booleanField,
+    dateField,
+    definePluginSetup,
+    jsonField,
+    numberField,
+    section,
+    selectField,
+    textField,
+    textareaField,
+} from './setup';
 import type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem, WidgetLayoutDefinition } from './types';
 import {
     isUnlimitedInstances,
@@ -55,6 +71,14 @@ export { PluginSettingsSectionRenderer } from './PluginSettingsSectionRenderer';
 
 export type { PluginMetadataDefinition, PluginRuntimeDefinition, PluginSettingsDefinition } from './contracts';
 export { definePluginMetadata, definePluginRuntime, definePluginSettings } from './contracts';
+export type {
+    InferPluginSetupValues,
+    PluginSetupDefinition,
+    PluginSetupFieldDefinition,
+    PluginSetupFieldType,
+    PluginSetupPersist,
+    PluginSetupSectionDefinition,
+} from './setup';
 export type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
 export type {
     PluginSettingsContext,

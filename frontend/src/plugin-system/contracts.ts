@@ -1,6 +1,6 @@
-// input:  [plugin-level manifest icon shape, runtime/settings shapes, and tab/widget registry types]
+// input:  [plugin-level manifest icon shape, runtime/settings/setup shapes, and tab/widget registry types]
 // output: [plugin declaration interfaces and `definePlugin*` helpers for plugin authors]
-// pos:    [Authoring contracts layer that keeps plugin-level manifest data and contribution catalogs normalized without depending on plugin loader runtime]
+// pos:    [Authoring contracts layer that keeps plugin-level manifest data plus runtime/settings/setup declarations normalized without depending on plugin loader runtime]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,6 +11,7 @@ import type { TabDefinition } from '../services/tabRegistry';
 import type { WidgetDefinition } from '../services/widgetRegistry';
 import type { PluginSettingsSectionDefinition } from '../services/pluginSettingsRegistry';
 import type { TabCatalogItem, WidgetCatalogItem } from './types';
+import type { PluginSetupDefinition } from './setup';
 
 export interface PluginMetadataDefinition {
     pluginId: string;
@@ -27,6 +28,8 @@ export interface PluginRuntimeDefinition {
 export interface PluginSettingsDefinition {
     pluginSettings?: PluginSettingsSectionDefinition[];
 }
+
+export type { PluginSetupDefinition };
 
 export const definePluginMetadata = (definition: PluginMetadataDefinition): PluginMetadataDefinition => ({
     pluginId: definition.pluginId,
