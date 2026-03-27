@@ -8,7 +8,8 @@ They run inside the jsdom test environment.
 |------|------|-------------|
 | AppEmptyState.test.tsx | Test file | Regression coverage for shared application empty-state rendering and inherit-surface behavior. |
 | Button.test.tsx | Test file | Test coverage for button.test behavior. |
-| CrudPanel.test.tsx | Test file | Regression coverage for shared CRUD-panel overflow containment and mobile-safe table-shell sizing. |
+| CrudPanel.test.tsx | Test file | Regression coverage for shared CRUD-panel overflow containment, mobile-safe table-shell sizing, and fixed-layout responsive column sizing defaults. |
 | GPAScalingTable.test.tsx | Test file | Regression coverage for GPA scaling table create-empty rendering, decimal-gap warnings, and delete confirmation. |
+| SemesterPluginGovernancePanel.test.tsx | Test file | Regression coverage for Semester-level enable toggles, missing marketplace entry points, and protected built-in delete rules inside the governance panel. |
 | SemesterSettingsPanel.test.tsx | Test file | Regression coverage for Semester settings invalid-state attributes so valid date ranges do not trip shadcn destructive styling. |
 | Tabs.test.tsx | Test file | Regression coverage for shared dashboard tab-shell alignment, horizontal overflow edge shadows, wheel-driven horizontal scrolling, and core tab actions. |

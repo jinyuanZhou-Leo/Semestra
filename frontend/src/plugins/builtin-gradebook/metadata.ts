@@ -16,13 +16,15 @@ import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
 } from './shared';
 
+const pluginIcon = createElement(NotebookTabs, { className: 'h-4 w-4' });
+
 const tabCatalog: TabCatalogItem[] = [
     {
         pluginId: BUILTIN_GRADEBOOK_PLUGIN_ID,
         type: BUILTIN_GRADEBOOK_TAB_TYPE,
         name: 'Gradebook',
         description: 'Track course assessments, enter percentage scores, and run plan-mode what-if projections.',
-        icon: createElement(NotebookTabs, { className: 'h-4 w-4' }),
+        icon: pluginIcon,
         maxInstances: 0,
         allowedContexts: ['course'],
     },
@@ -43,6 +45,7 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId: BUILTIN_GRADEBOOK_PLUGIN_ID,
+    icon: pluginIcon,
     tabCatalog,
     widgetCatalog,
 });

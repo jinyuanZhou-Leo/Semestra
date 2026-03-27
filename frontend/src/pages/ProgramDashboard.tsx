@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, and shadcn AlertDialog interactions]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, and shadcn AlertDialog interactions]
 // output: [`ProgramDashboard` route component for the Program workspace]
-// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, extracted semester dialog controls, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, edit-mode course deletion, tri-state course-list sorting, and shared empty-state treatment across Program sections]
+// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, edit-mode course deletion, tri-state course-list sorting, and shared empty-state treatment across Program sections]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -67,7 +67,7 @@ import {
 } from '@/components/ui/combobox';
 import { Settings, Plus, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, Tag, Calendar, Hash, TrendingUp, Layers, Pencil, CheckCheck } from 'lucide-react';
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
-import { CreateSemesterDialogButton } from './program-dashboard/CreateSemesterDialogButton';
+import { CreateSemesterWizardButton } from './program-dashboard/CreateSemesterWizardButton';
 import { DeleteSemesterButton } from './program-dashboard/DeleteSemesterButton';
 
 // Helper function to extract course level from course name
@@ -142,7 +142,9 @@ const ProgramDashboardContent: React.FC = () => {
     );
     const programCourses = useMemo<Array<CourseWithProgramContext>>(() => {
         if (!program) return [];
-        const semesterCourses = program.semesters.flatMap((semester) =>
+        const semesterCourses = program.semesters
+            .filter((semester) => semester.lifecycle_state !== 'draft')
+            .flatMap((semester) =>
             (semester.courses || []).map((course) => ({
                 ...course,
                 semesterName: semester.name,
@@ -159,8 +161,9 @@ const ProgramDashboardContent: React.FC = () => {
 
     const filteredSemesters = useMemo(() => {
         if (!program) return [];
-        if (!normalizedQuery) return program.semesters;
-        return program.semesters.filter(semester =>
+        const visibleSemesters = program.semesters.filter((semester) => semester.lifecycle_state !== 'draft');
+        if (!normalizedQuery) return visibleSemesters;
+        return visibleSemesters.filter(semester =>
             semester.name.toLowerCase().includes(normalizedQuery)
         );
     }, [program, normalizedQuery]);
@@ -473,17 +476,16 @@ const ProgramDashboardContent: React.FC = () => {
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Course
                             </Button>
-                            {program && (
-                                <CreateSemesterDialogButton
+                            {program ? (
+                                <CreateSemesterWizardButton
                                     programId={program.id}
-                                    onCreated={refreshDashboardData}
-                                    showAlert={showAlert}
+                                    onChanged={refreshDashboardData}
                                     size="sm"
                                 >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Semester
-                                </CreateSemesterDialogButton>
-                            )}
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Add Semester
+                                </CreateSemesterWizardButton>
+                            ) : null}
                         </div>
                     </div>
                 </Container>
@@ -743,13 +745,12 @@ const ProgramDashboardContent: React.FC = () => {
                                             title="No semesters yet"
                                             description="Create your first semester to start organizing courses and schedules."
                                             primaryAction={program ? (
-                                                <CreateSemesterDialogButton
+                                                <CreateSemesterWizardButton
                                                     programId={program.id}
-                                                    onCreated={refreshDashboardData}
-                                                    showAlert={showAlert}
+                                                    onChanged={refreshDashboardData}
                                                 >
                                                     Create Semester
-                                                </CreateSemesterDialogButton>
+                                                </CreateSemesterWizardButton>
                                             ) : undefined}
                                         />
                                     )}

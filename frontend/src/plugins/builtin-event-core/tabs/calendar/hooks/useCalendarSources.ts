@@ -54,9 +54,30 @@ const buildCachedState = (
 };
 
 export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptions) => {
+  const sourceIdentityKey = React.useMemo(
+    () => sources.map((source) => source.id).join('|'),
+    [sources],
+  );
+  const stableSources = React.useMemo(
+    () => sources,
+    [sourceIdentityKey],
+  );
+  const contextIdentityKey = React.useMemo(() => {
+    if (!context) return 'no-context';
+    return [
+      context.semesterId,
+      context.maxWeek,
+      context.semesterRange.startDate.getTime(),
+      context.semesterRange.endDate.getTime(),
+      context.semesterRange.readingWeekStart?.getTime() ?? 'none',
+      context.semesterRange.readingWeekEnd?.getTime() ?? 'none',
+      context.queryRange.start.getTime(),
+      context.queryRange.end.getTime(),
+    ].join('|');
+  }, [context]);
   const [state, setState] = React.useState<CalendarSourcesState>(() => {
     if (!context) return EMPTY_STATE;
-    return buildCachedState(sources, context);
+    return buildCachedState(stableSources, context);
   });
   const requestCounterRef = React.useRef(0);
   const previousSourceIdsRef = React.useRef<Set<string>>(new Set());
@@ -147,12 +168,12 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       return;
     }
 
-    const cachedState = buildCachedState(sources, context);
+    const cachedState = buildCachedState(stableSources, context);
     const previousSourceIds = previousSourceIdsRef.current;
-    const nextSourceIds = new Set(sources.map((source) => source.id));
+    const nextSourceIds = new Set(stableSources.map((source) => source.id));
     const reenabledSourceIds = !hasInitializedSourcesRef.current
       ? new Set<string>()
-      : new Set(sources
+      : new Set(stableSources
         .filter((source) => !previousSourceIds.has(source.id))
         .map((source) => source.id));
 
@@ -160,13 +181,13 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
     hasInitializedSourcesRef.current = true;
     setState(cachedState);
 
-    const sourcesToLoad = sources.filter((source) => (
+    const sourcesToLoad = stableSources.filter((source) => (
       reenabledSourceIds.has(source.id) || !cachedState.dataBySourceId.has(source.id)
     ));
     if (sourcesToLoad.length === 0) return;
 
     void loadSources(sourcesToLoad);
-  }, [context, loadSources, sources]);
+  }, [context, contextIdentityKey, loadSources, sourceIdentityKey, stableSources]);
 
   const reloadMatchingSources = React.useCallback(async (signal: CalendarRefreshSignal) => {
     if (!context) return;

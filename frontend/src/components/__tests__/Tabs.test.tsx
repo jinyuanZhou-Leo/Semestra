@@ -58,8 +58,8 @@ describe('Tabs component', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('tab', { name: 'Settings' }));
-        fireEvent.click(screen.getByRole('button'));
+        fireEvent.mouseDown(screen.getByRole('tab', { name: 'Settings' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add tab' }));
 
         expect(handleSelect).toHaveBeenCalledWith('settings');
         expect(handleAdd).toHaveBeenCalledTimes(1);

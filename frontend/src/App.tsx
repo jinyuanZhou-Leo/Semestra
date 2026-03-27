@@ -1,6 +1,6 @@
-// input:  [router primitives, auth/user-preference context, plugin idle-preload controller, global providers, route guards, lazily imported page modules, and TanStack Query client provider]
+// input:  [router primitives, auth/user-preference context, plugin idle-preload controller, global providers, route guards, lazily imported page modules including the standalone Create Semester wizard, and TanStack Query client provider]
 // output: [default `App` component and `RootGate` product-first root entry resolver]
-// pos:    [Root composition module that defines the app route tree, query cache boundary, provider stack, and authenticated idle plugin preload wiring]
+// pos:    [Root composition module that defines the app route tree, query cache boundary, provider stack, authenticated idle plugin preload wiring, and the Program-hosted Semester creation wizard route]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -26,6 +26,7 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage').then(module => ({
 const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
 const ProgramDashboard = lazy(() => import('./pages/ProgramDashboard').then(module => ({ default: module.ProgramDashboard })));
 const ProgramSettingsPage = lazy(() => import('./pages/ProgramSettingsPage').then(module => ({ default: module.ProgramSettingsPage })));
+const CreateSemesterWizardPage = lazy(() => import('./pages/CreateSemesterWizardPage').then(module => ({ default: module.CreateSemesterWizardPage })));
 const SemesterHomepage = lazy(() => import('./pages/SemesterHomepage').then(module => ({ default: module.SemesterHomepage })));
 const CourseHomepage = lazy(() => import('./pages/CourseHomepage').then(module => ({ default: module.CourseHomepage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
@@ -109,6 +110,16 @@ function App() {
                     <RequireAuth>
                       <Suspense fallback={<PageSkeleton />}>
                         <ProgramSettingsPage />
+                      </Suspense>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/programs/:id/semesters/create"
+                  element={
+                    <RequireAuth>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <CreateSemesterWizardPage />
                       </Suspense>
                     </RequireAuth>
                   }

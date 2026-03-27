@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Reusable UI building blocks shared by pages and plugin containers.
-Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, and business-layer empty-state wrappers.
+Includes modal workflows, settings panels, dashboard/tab shells, plugin governance surfaces, theme helpers, and business-layer empty-state wrappers.
 `ui/` holds shadcn primitives and is intentionally excluded from this documentation scope.
 
 | File | Role | Description |
@@ -14,11 +14,11 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome, edit-mode-only hover elevation, and forced delete affordances when plugin widgets become unavailable. |
 | AppEmptyState.tsx | UI component | Business-layer empty-state wrapper that standardizes scenario-based create, no-results, not-found, and unavailable states while composing shadcn `Empty` primitives without modifying `components/ui`. |
 | AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
-| AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation. |
+| AddWidgetModal.tsx | UI component | Reusable add-widget selector using desktop dialog and mobile drawer presentation, now optionally filtered by the current Semester-governed plugin/widget availability. |
 | AnimatedNumber.tsx | UI component | Reusable component for animated number UI/interaction flow. |
 | BackButton.tsx | UI component | Reusable component for back button UI/interaction flow. |
 | Container.tsx | UI component | Reusable component for container UI/interaction flow. |
-| CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces with mobile-safe header stacking and overflow-contained horizontal table scrolling. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
+| CrudPanel.tsx | CRUD shell | Reusable panel/table wrapper for settings management surfaces with mobile-safe header stacking, overflow-contained horizontal table scrolling, fixed-layout responsive column distribution above each surface minimum width, and default header/cell wrapping that prevents horizontal content overflow unless a caller explicitly keeps a column nowrap. Provides `CrudPanel`, `TableShell`, `PanelHeader`, and `EmptyTableRow` sub-exports. |
 | CourseManagerModal.tsx | UI component | Reusable add-course manager using desktop dialog and mobile drawer presentation, with height-stable select/create/calendar/LMS tabs, searchable existing-course selection, duplicate-name confirmation before manual creation, ICS parsing import, reusable LMS search-plus-year-filter course selection, split loading feedback, standardized modal no-results empty states, and shared one-decimal GPA-percentage display for existing-course rows. |
 | CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, close/unmount flush protection, shadcn `Field`-based standard form layout, right-aligned switch controls, Program-derived default-color guidance, optional per-course override controls, a clearer LMS status card with adjacent sync/disconnect actions, inline link-update controls, destructive disconnect confirmation, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | GPAScalingTable.tsx | UI component | GPA scaling-rule editor with descending range sorting, explicit min/max/GPA inputs, continuous full-range coverage warnings that catch decimal gaps, AlertDialog-backed delete confirmation, and standardized create-empty feedback when no rules exist yet. |
@@ -30,17 +30,22 @@ Includes modal workflows, settings panels, dashboard/tab shells, theme helpers, 
 | Layout.tsx | UI component | Shared authenticated layout chrome, including a stable brand-plus-breadcrumb header cluster, fixed-height overflow handling, and server-backed sign-out actions. |
 | LmsCourseSelectionList.tsx | UI component | Reusable LMS multi-select list with shadcn-native search/select chrome, linked-course disabled states with inline reasons, a single input-radius results shell, unclipped focus rings, and overflow-safe scrollable rows for Add Course/Add Semester flows. |
 | PageSkeleton.tsx | UI component | Reusable component for page skeleton UI/interaction flow. |
+| PluginMarketplaceDialog.tsx | UI component | Searchable Program-plugin install dialog built from shadcn dialog, input, scroll-area, and button primitives with icon-led rows and inline action states. |
+| PluginGovernanceFieldControl.tsx | UI component | Shared Program/Semester governance field renderer built on the same shadcn `Field` language as the rest of Settings, covering boolean, select, and text controls with readonly handling. |
 | PluginSettingsCard.tsx | UI component | Reusable component for plugin settings card UI/interaction flow. |
+| ProgramPluginGovernancePanel.tsx | UI component | Program-level plugin governance settings card that wraps a CRUD table with backend-sourced plugin identity plus frontend manifest icons, inline enable/delete controls, and a shadcn-native Marketplace dialog for installing workspace plugins. |
 | ProgramSettingsPanel.tsx | UI component | Program settings panel with debounced auto-save, close/unmount flush protection, separated General and LMS sections, Program-level LMS integration selection/lock behavior, discovered-code CRUD-style color management, an adaptive course-code color table that yields width on small screens, persisted stable subject-color assignments that reserve existing colors for future codes, JSON validation feedback, and draft-safe sync against optimistic program updates. |
 | ResponsiveDialogDrawer.tsx | UI component | Shared responsive overlay wrapper that renders desktop dialog and mobile drawer, with unified header/footer slots, optional built-in desktop close control, and open-time focus handoff. |
 | RequireAuth.tsx | UI component | Reusable component for require auth UI/interaction flow. |
+| SemesterBasicsFields.tsx | UI component | Shared Semester name plus date-range fields that compose shadcn date pickers, enforce the common Reading Week rules, and keep wizard/setup surfaces on one validation model. |
+| SemesterPluginGovernancePanel.tsx | UI component | Semester-level plugin governance settings card that limits the surface to enable/disable plus allowed deletes, reads plugin identity from backend governance payloads, hides the add-plugin flow, and relies on backend-locked built-in rows to block removal. |
 | StatusButton.tsx | UI component | Reusable in-place action-status button for save/validate flows with idle, loading, success, and error labels, using browser-safe timer handle typing for strict TS builds. |
-| SemesterSettingsPanel.tsx | UI component | Semester settings panel with debounced auto-save, close/unmount flush protection, shadcn `Field`-based standard form layout, inline Reading Week validation, correct invalid-state attribute wiring for date-range controls, draft-safe sync against refreshed semester payloads, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
+| SemesterSettingsPanel.tsx | UI component | Semester settings panel with debounced auto-save, close/unmount flush protection, the shared Semester basics date-picker fields, draft-safe sync against refreshed semester payloads, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | SessionExpiredModal.tsx | UI component | Reusable component for session expired modal UI/interaction flow. |
 | SettingsModal.tsx | UI component | Generic settings modal container with a wider desktop surface, fixed header, scrollable body, and async close handling so settings editors can flush pending autosaves before dismissing. |
 | SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles, shrink-safe content columns, and overflow-contained cards for mobile settings layouts. |
 | SettingsTabContent.tsx | UI component | Reusable component for settings tab content UI/interaction flow. |
-| Tabs.tsx | UI component | Reusable dashboard/homepage tab selector that composes shadcn `Tabs` primitives with non-passive wheel-driven horizontal overflow scrolling, drag-sort, add/remove controls, edge-shadow overflow affordances, and stable right-aligned workspace navigation behavior. |
+| Tabs.tsx | UI component | Reusable dashboard/homepage tab selector that composes shadcn `Tabs` primitives with non-passive wheel-driven horizontal overflow scrolling, drag-sort, optional add/remove controls, edge-shadow overflow affordances, and stable right-aligned workspace navigation behavior. |
 | TabSwitch.tsx | UI component | Reusable component for tab switch UI/interaction flow. |
 | ThemeProvider.tsx | UI component | Reusable component for theme provider UI/interaction flow. |
 | ThemeToggle.tsx | UI component | Reusable component for theme toggle UI/interaction flow. |

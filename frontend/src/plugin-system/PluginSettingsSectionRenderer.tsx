@@ -1,6 +1,6 @@
-// input:  [plugin id, plugin settings component, shared settings hook, and workspace refresh callback]
+// input:  [plugin id, plugin settings component, resolved runtime settings seed, shared settings hook, and workspace refresh callback]
 // output: [`PluginSettingsSectionRenderer` component that injects framework-managed plugin-global settings props]
-// pos:    [Bridge component between page-level plugin settings registration and framework-managed shared settings persistence]
+// pos:    [Bridge component between page-level plugin settings registration and framework-managed shared settings persistence seeded from runtime-governed config]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,6 +18,7 @@ interface PluginSettingsSectionRendererProps {
   component: React.FC<PluginSettingsProps>;
   semesterId?: string;
   courseId?: string;
+  initialSettings?: Record<string, unknown>;
   onRefresh: () => void;
 }
 
@@ -26,12 +27,14 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
   component: Component,
   semesterId,
   courseId,
+  initialSettings,
   onRefresh,
 }) => {
   const { settings, updateSettings, saveState, hasPendingChanges, isLoading } = usePluginSharedSettings({
     pluginId,
     semesterId,
     courseId,
+    initialSettings,
   });
 
   return (

@@ -1,5 +1,5 @@
-// input:  [Vitest global hooks, jest-dom matcher extensions, testing-library cleanup]
-// output: [test bootstrap side effects (`expect.extend`, global `afterEach(cleanup)`)]
+// input:  [Vitest global hooks, jest-dom matcher extensions, testing-library cleanup, and DOM API shims for jsdom]
+// output: [test bootstrap side effects (`expect.extend`, global `afterEach(cleanup)`, and shared browser API mocks)]
 // pos:    [Shared Vitest setup file loaded once for the frontend test environment]
 //
 // ⚠️ When this file is updated:
@@ -12,6 +12,26 @@ import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 
 expect.extend(matchers);
+
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class ResizeObserverMock {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    value: ResizeObserverMock,
+    writable: true,
+  });
+}
+
+if (!('scrollIntoView' in HTMLElement.prototype)) {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    value: () => {},
+    writable: true,
+  });
+}
 
 afterEach(() => {
   cleanup();

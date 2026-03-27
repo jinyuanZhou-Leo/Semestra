@@ -1,39 +1,22 @@
-// input:  [semester initial fields, date pickers, date-fns parse/format helpers, and auto-save callback]
+// input:  [semester initial fields, shared Semester basics fields, and debounced auto-save callback]
 // output: [`SemesterSettingsPanel` component]
-// pos:    [Semester settings form for term title, semester duration, and optional Reading Week management with a name-first General layout, vertically stacked date-range controls, debounced auto-save, and invalid-state attributes applied only for real validation failures]
+// pos:    [Semester settings form that reuses the shared shadcn Semester basics fields so settings and wizard flows stay on one date-picker and Reading Week validation implementation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useMemo, useRef, useState, useId } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SettingsSection } from "./SettingsSection";
-import { cn } from "@/lib/utils";
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
-import { CalendarDays } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
 import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field";
+  getSemesterBasicsValidation,
+  SemesterBasicsFields,
+  type SemesterBasicsValue,
+} from "@/components/SemesterBasicsFields";
+import { FieldSet } from "@/components/ui/field";
+import { useAutoSave } from "@/hooks/useAutoSave";
 
-const parseDateOrUndefined = (value?: string | null) => {
-  if (typeof value !== "string" || value.length === 0) {
-    return undefined;
-  }
-
-  const parsed = parseISO(value);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-};
+import { SettingsSection } from "./SettingsSection";
 
 interface SemesterSettingsPanelProps {
   initialName: string;
@@ -53,147 +36,72 @@ interface SemesterSettingsPanelProps {
   registerFlush?: (flush: () => Promise<void>) => void;
 }
 
+const buildSemesterDraft = (
+  initialName: string,
+  initialSettings: SemesterSettingsPanelProps["initialSettings"],
+): SemesterBasicsValue => ({
+  name: initialName,
+  start_date: initialSettings.start_date ?? "",
+  end_date: initialSettings.end_date ?? "",
+  reading_week_start: initialSettings.reading_week_start ?? "",
+  reading_week_end: initialSettings.reading_week_end ?? "",
+});
+
+const areSemesterDraftsEqual = (left: SemesterBasicsValue, right: SemesterBasicsValue) => {
+  return left.name === right.name
+    && left.start_date === right.start_date
+    && left.end_date === right.end_date
+    && left.reading_week_start === right.reading_week_start
+    && left.reading_week_end === right.reading_week_end;
+};
+
 export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   initialName,
   initialSettings,
   onSave,
   registerFlush,
 }) => {
-  const isMobile = useIsMobile();
-  const startDateRaw = initialSettings?.start_date;
-  const endDateRaw = initialSettings?.end_date;
-  const readingWeekStartRaw = initialSettings?.reading_week_start;
-  const readingWeekEndRaw = initialSettings?.reading_week_end;
-  const [name, setName] = useState(initialName);
-  const [startDate, setStartDate] = useState<Date | undefined>(() => parseDateOrUndefined(startDateRaw));
-  const [endDate, setEndDate] = useState<Date | undefined>(() => parseDateOrUndefined(endDateRaw));
-  const [readingWeekStart, setReadingWeekStart] = useState<Date | undefined>(() => parseDateOrUndefined(readingWeekStartRaw));
-  const [readingWeekEnd, setReadingWeekEnd] = useState<Date | undefined>(() => parseDateOrUndefined(readingWeekEndRaw));
-  const fieldId = useId();
-  const dateRangeLabel = startDate
-    ? endDate
-      ? `${format(startDate, "PP")} - ${format(endDate, "PP")}`
-      : format(startDate, "PP")
-    : "Pick a date range";
-  const readingWeekLabel = readingWeekStart && readingWeekEnd
-    ? `${format(readingWeekStart, "PP")} - ${format(readingWeekEnd, "PP")}`
-    : "Optional";
-
-  const normalizeToDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  const [draft, setDraft] = useState<SemesterBasicsValue>(() => buildSemesterDraft(initialName, initialSettings));
   const savedSnapshot = useMemo(
-    () => ({
-      name: initialName,
-      startDate: startDateRaw ?? null,
-      endDate: endDateRaw ?? null,
-      readingWeekStart: readingWeekStartRaw ?? null,
-      readingWeekEnd: readingWeekEndRaw ?? null,
-    }),
-    [endDateRaw, initialName, readingWeekEndRaw, readingWeekStartRaw, startDateRaw]
-  );
-  const draftSnapshot = useMemo(
-    () => ({
-      name,
-      startDate: startDate ? format(startDate, "yyyy-MM-dd") : null,
-      endDate: endDate ? format(endDate, "yyyy-MM-dd") : null,
-      readingWeekStart: readingWeekStart ? format(readingWeekStart, "yyyy-MM-dd") : null,
-      readingWeekEnd: readingWeekEnd ? format(readingWeekEnd, "yyyy-MM-dd") : null,
-    }),
-    [endDate, name, readingWeekEnd, readingWeekStart, startDate]
+    () => buildSemesterDraft(initialName, initialSettings),
+    [
+      initialName,
+      initialSettings.end_date,
+      initialSettings.reading_week_end,
+      initialSettings.reading_week_start,
+      initialSettings.start_date,
+    ],
   );
   const lastLoadedSnapshotRef = useRef(savedSnapshot);
-
-  const isReadingWeekDateDisabled = (day: Date) => {
-    if (!startDate || !endDate) return false;
-    const normalizedDay = normalizeToDay(day);
-    return normalizedDay < normalizeToDay(startDate) || normalizedDay > normalizeToDay(endDate);
-  };
+  const validation = useMemo(
+    () => getSemesterBasicsValidation(draft),
+    [draft.end_date, draft.reading_week_end, draft.reading_week_start, draft.start_date],
+  );
 
   useEffect(() => {
     const previousSnapshot = lastLoadedSnapshotRef.current;
-    const externalChanged =
-      previousSnapshot.name !== savedSnapshot.name ||
-      previousSnapshot.startDate !== savedSnapshot.startDate ||
-      previousSnapshot.endDate !== savedSnapshot.endDate ||
-      previousSnapshot.readingWeekStart !== savedSnapshot.readingWeekStart ||
-      previousSnapshot.readingWeekEnd !== savedSnapshot.readingWeekEnd;
-    const draftHasLocalChanges =
-      previousSnapshot.name !== draftSnapshot.name ||
-      previousSnapshot.startDate !== draftSnapshot.startDate ||
-      previousSnapshot.endDate !== draftSnapshot.endDate ||
-      previousSnapshot.readingWeekStart !== draftSnapshot.readingWeekStart ||
-      previousSnapshot.readingWeekEnd !== draftSnapshot.readingWeekEnd;
-    const incomingMatchesDraft =
-      savedSnapshot.name === draftSnapshot.name &&
-      savedSnapshot.startDate === draftSnapshot.startDate &&
-      savedSnapshot.endDate === draftSnapshot.endDate &&
-      savedSnapshot.readingWeekStart === draftSnapshot.readingWeekStart &&
-      savedSnapshot.readingWeekEnd === draftSnapshot.readingWeekEnd;
+    const externalChanged = !areSemesterDraftsEqual(previousSnapshot, savedSnapshot);
+    const draftHasLocalChanges = !areSemesterDraftsEqual(previousSnapshot, draft);
+    const incomingMatchesDraft = areSemesterDraftsEqual(savedSnapshot, draft);
 
     lastLoadedSnapshotRef.current = savedSnapshot;
     if (!externalChanged) return;
     if (draftHasLocalChanges && !incomingMatchesDraft) return;
 
-    setName(savedSnapshot.name);
-    setStartDate(parseDateOrUndefined(savedSnapshot.startDate));
-    setEndDate(parseDateOrUndefined(savedSnapshot.endDate));
-    setReadingWeekStart(parseDateOrUndefined(savedSnapshot.readingWeekStart));
-    setReadingWeekEnd(parseDateOrUndefined(savedSnapshot.readingWeekEnd));
-  }, [draftSnapshot, savedSnapshot]);
-
-  const durationError = useMemo(() => {
-    if (startDate && endDate && startDate > endDate) {
-      return "Start date must be earlier than or equal to end date.";
-    }
-
-    return "";
-  }, [endDate, startDate]);
-
-  const readingWeekError = useMemo(() => {
-    if ((readingWeekStart && !readingWeekEnd) || (!readingWeekStart && readingWeekEnd)) {
-      return "Reading Week must include both a start and end date.";
-    }
-
-    if (readingWeekStart && readingWeekEnd) {
-      if (!startDate || !endDate) {
-        return "Set the semester duration before selecting Reading Week.";
-      }
-
-      if (differenceInCalendarDays(readingWeekEnd, readingWeekStart) !== 6) {
-        return "Reading Week must span exactly one Monday-to-Sunday week.";
-      }
-
-      if (readingWeekStart.getDay() !== 1 || readingWeekEnd.getDay() !== 0) {
-        return "Reading Week must start on Monday and end on Sunday.";
-      }
-
-      if (
-        normalizeToDay(readingWeekStart) < normalizeToDay(startDate)
-        || normalizeToDay(readingWeekEnd) > normalizeToDay(endDate)
-      ) {
-        return "Reading Week must stay within the semester duration.";
-      }
-    }
-
-    return "";
-  }, [endDate, readingWeekEnd, readingWeekStart, startDate]);
-
-  const isValid = useMemo(() => {
-    return !durationError && !readingWeekError;
-  }, [durationError, readingWeekError]);
-  const hasDurationError = durationError.length > 0;
-  const hasReadingWeekError = readingWeekError.length > 0;
+    setDraft(savedSnapshot);
+  }, [draft, savedSnapshot]);
 
   const { flush } = useAutoSave({
-    value: draftSnapshot,
+    value: draft,
     savedValue: savedSnapshot,
-    validate: () => isValid,
+    validate: () => validation.isValid,
     onSave: async (snapshot) => {
       await onSave({
         name: snapshot.name,
-        start_date: snapshot.startDate,
-        end_date: snapshot.endDate,
-        reading_week_start: snapshot.readingWeekStart,
-        reading_week_end: snapshot.readingWeekEnd,
+        start_date: snapshot.start_date || null,
+        end_date: snapshot.end_date || null,
+        reading_week_start: snapshot.reading_week_start || null,
+        reading_week_end: snapshot.reading_week_end || null,
       });
     },
     onError: (error) => {
@@ -220,112 +128,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   return (
     <SettingsSection title="General" description="Update the name and key settings.">
       <FieldSet>
-        <FieldGroup className="space-y-6">
-          <Field>
-            <FieldLabel htmlFor={`${fieldId}-name`}>Name</FieldLabel>
-            <Input
-              id={`${fieldId}-name`}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </Field>
-
-          <Field data-invalid={hasDurationError ? true : undefined}>
-            <FieldLabel htmlFor={`${fieldId}-date`}>Semester Duration</FieldLabel>
-            <FieldDescription>Select the full semester date range.</FieldDescription>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id={`${fieldId}-date`}
-                  type="button"
-                  variant="outline"
-                  aria-invalid={hasDurationError ? true : undefined}
-                  className={cn(
-                    "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
-                    !startDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarDays className="mr-2 h-4 w-4" />
-                  <span className="truncate">{dateRangeLabel}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  autoFocus
-                  mode="range"
-                  defaultMonth={startDate}
-                  selected={{
-                    from: startDate,
-                    to: endDate,
-                  }}
-                  onSelect={(range) => {
-                    setStartDate(range?.from);
-                    setEndDate(range?.to);
-                  }}
-                  numberOfMonths={isMobile ? 1 : 2}
-                />
-              </PopoverContent>
-            </Popover>
-            {durationError ? <FieldError>{durationError}</FieldError> : null}
-          </Field>
-
-          <Field data-invalid={hasReadingWeekError ? true : undefined}>
-            <FieldLabel htmlFor={`${fieldId}-reading-week`}>Reading Week</FieldLabel>
-            <FieldDescription>
-              Optional. Select the full Reading Week date range. It must span exactly one Monday-to-Sunday week.
-            </FieldDescription>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id={`${fieldId}-reading-week`}
-                  type="button"
-                  variant="outline"
-                  aria-invalid={hasReadingWeekError ? true : undefined}
-                  className={cn(
-                    "w-full min-w-0 justify-start overflow-hidden text-left font-normal",
-                    !readingWeekStart && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarDays className="mr-2 h-4 w-4" />
-                  <span className="truncate">{readingWeekLabel}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  autoFocus
-                  mode="range"
-                  defaultMonth={readingWeekStart ?? startDate}
-                  selected={{
-                    from: readingWeekStart,
-                    to: readingWeekEnd,
-                  }}
-                  onSelect={(range) => {
-                    setReadingWeekStart(range?.from);
-                    setReadingWeekEnd(range?.to);
-                  }}
-                  disabled={isReadingWeekDateDisabled}
-                  numberOfMonths={isMobile ? 1 : 2}
-                />
-                <div className="flex justify-end border-t px-3 py-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setReadingWeekStart(undefined);
-                      setReadingWeekEnd(undefined);
-                    }}
-                    disabled={!readingWeekStart && !readingWeekEnd}
-                  >
-                    Clear Reading Week
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-            {readingWeekError ? <FieldError>{readingWeekError}</FieldError> : null}
-          </Field>
-        </FieldGroup>
+        <SemesterBasicsFields value={draft} onChange={(nextDraft) => setDraft(nextDraft)} />
       </FieldSet>
     </SettingsSection>
   );

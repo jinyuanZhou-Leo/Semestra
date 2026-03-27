@@ -1,6 +1,6 @@
 // input:  [registry context/max-instance types and icon node typing from React]
-// output: [`TabCatalogItem`, `WidgetCatalogItem`, `WidgetLayoutDefinition`, and `ResolvedPluginMetadata` interfaces]
-// pos:    [Shared type contracts for plugin metadata catalogs, widget layout metadata, and resolver outputs]
+// output: [`PluginManifestItem`, `TabCatalogItem`, `WidgetCatalogItem`, `WidgetLayoutDefinition`, and `ResolvedPluginMetadata` interfaces]
+// pos:    [Shared type contracts for plugin-level manifest icons, tab/widget contribution catalogs, widget layout metadata, and resolver outputs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,11 @@
 import type { ReactNode } from 'react';
 import type { MaxInstances as TabMaxInstances, TabContext } from '../services/tabRegistry';
 import type { MaxInstances as WidgetMaxInstances, WidgetContext } from '../services/widgetRegistry';
+
+export interface PluginManifestItem {
+    pluginId: string;
+    icon: ReactNode;
+}
 
 export interface WidgetLayoutDefinition {
     w: number;

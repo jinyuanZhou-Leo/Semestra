@@ -14,17 +14,19 @@ import type { TabCatalogItem } from '@/plugin-system/types';
 
 import { BUILTIN_CANVAS_INTEGRATION_PLUGIN_ID, BUILTIN_CANVAS_PAGES_TAB_TYPE } from './shared';
 
+const pluginIcon = createElement('img', {
+    src: canvasIcon,
+    alt: 'Canvas',
+    className: 'h-4 w-4 rounded-sm object-cover',
+});
+
 const tabCatalog: TabCatalogItem[] = [
     {
         pluginId: BUILTIN_CANVAS_INTEGRATION_PLUGIN_ID,
         type: BUILTIN_CANVAS_PAGES_TAB_TYPE,
         name: 'Canvas Pages',
         description: 'Browse Canvas course navigation and open same-course page links inside Semestra.',
-        icon: createElement('img', {
-            src: canvasIcon,
-            alt: 'Canvas',
-            className: 'h-4 w-4 rounded-sm object-cover',
-        }),
+        icon: pluginIcon,
         maxInstances: 1,
         allowedContexts: ['course'],
     },
@@ -32,5 +34,6 @@ const tabCatalog: TabCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId: BUILTIN_CANVAS_INTEGRATION_PLUGIN_ID,
+    icon: pluginIcon,
     tabCatalog,
 });

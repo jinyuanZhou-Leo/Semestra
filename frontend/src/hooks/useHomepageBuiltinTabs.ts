@@ -1,12 +1,12 @@
-// input:  [raw dashboard tabs, builtin-tab config, plugin metadata resolvers, tab registry updates]
+// input:  [raw dashboard tabs, builtin-tab config, plugin metadata resolvers, and tab registry updates]
 // output: [`useHomepageBuiltinTabs()` derived tab-bar state and reorder/filter helpers]
-// pos:    [Homepage-specific tab orchestration for builtin insertion, lazy readiness, and fixed shell-tab placement without overriding user reorder]
+// pos:    [Homepage-specific tab orchestration for governed runtime tabs, lazy readiness, and fixed shell-tab placement without overriding user reorder]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TabItem as TabsBarItem } from '../components/Tabs';
 import type { TabItem as DashboardTabItem } from './useDashboardTabs';
 import {
@@ -23,7 +23,6 @@ interface UseHomepageBuiltinTabsOptions {
     activeTabId: string;
     config: HomepageBuiltinTabConfig;
     isTabsInitialized: boolean;
-    ensureBuiltinTabInstance: (type: string) => void | Promise<void>;
 }
 
 interface UseHomepageBuiltinTabsResult {
@@ -40,11 +39,9 @@ export const useHomepageBuiltinTabs = ({
     activeTabId,
     config,
     isTabsInitialized,
-    ensureBuiltinTabInstance,
 }: UseHomepageBuiltinTabsOptions): UseHomepageBuiltinTabsResult => {
     const registeredTabs = useTabRegistry();
     const [isActiveTabPluginLoading, setIsActiveTabPluginLoading] = useState(false);
-    const pendingBuiltinTabTypesRef = useRef<Set<string>>(new Set());
 
     // Registry updates tell us when lazy-loaded tab plugins are finally ready to render.
     const registeredTabTypes = useMemo(
@@ -52,28 +49,9 @@ export const useHomepageBuiltinTabs = ({
         [registeredTabs]
     );
 
-    useEffect(() => {
-        if (!isTabsInitialized) return;
-
-        const nextMissingType = config.builtinTabTypes.find((type) => {
-            if (pendingBuiltinTabTypesRef.current.has(type)) return false;
-            return !tabs.some((tab) => tab.type === type);
-        });
-        if (!nextMissingType) return;
-
-        pendingBuiltinTabTypesRef.current.add(nextMissingType);
-        void Promise.resolve(ensureBuiltinTabInstance(nextMissingType))
-            .catch((error) => {
-                console.error(`Failed to ensure builtin tab instance for type: ${nextMissingType}`, error);
-            })
-            .finally(() => {
-                pendingBuiltinTabTypesRef.current.delete(nextMissingType);
-            });
-    }, [config.builtinTabTypes, ensureBuiltinTabInstance, isTabsInitialized, tabs]);
-
     const areBuiltinTabsReady = useMemo(
-        () => config.builtinTabTypes.every((type) => tabs.some((tab) => tab.type === type)),
-        [config.builtinTabTypes, tabs]
+        () => isTabsInitialized && (tabs.length > 0 || config.builtinTabTypes.length === 0),
+        [config.builtinTabTypes.length, isTabsInitialized, tabs.length]
     );
 
     const activeTabType = useMemo(() => {

@@ -1,6 +1,6 @@
-// input:  [plugin widget catalog, current dashboard widgets, widget add callback, search state, responsive overlay wrapper]
+// input:  [plugin widget catalog, runtime-governed allowed widget types, current dashboard widgets, widget add callback, search state, responsive overlay wrapper]
 // output: [`AddWidgetModal` component]
-// pos:    [Responsive add-widget selector surface for course/semester pages (desktop dialog + mobile drawer)]
+// pos:    [Responsive add-widget selector surface for course/semester pages that respects runtime plugin availability (desktop dialog + mobile drawer)]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -27,14 +27,26 @@ interface AddWidgetModalProps {
     onAdd: (type: string, title?: string) => void | Promise<void>;
     context: WidgetContext;
     widgets: WidgetItem[];
+    allowedTypes?: string[];
 }
 
-export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose, onAdd, context, widgets }) => {
+export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
+    isOpen,
+    onClose,
+    onAdd,
+    context,
+    widgets,
+    allowedTypes,
+}) => {
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddingPlugin, setIsAddingPlugin] = useState(false);
 
     const widgetCatalog = useMemo(() => getWidgetCatalog(context), [context]);
+    const allowedTypeSet = useMemo(
+        () => (allowedTypes && allowedTypes.length > 0 ? new Set(allowedTypes) : null),
+        [allowedTypes]
+    );
 
     const availableWidgets = useMemo(() => {
         const counts = new Map<string, number>();
@@ -43,10 +55,13 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({ isOpen, onClose,
         });
 
         return widgetCatalog.filter((item) => {
+            if (allowedTypeSet && !allowedTypeSet.has(item.type)) {
+                return false;
+            }
             const currentCount = counts.get(item.type) ?? 0;
             return canAddWidgetCatalogItem(item, context, currentCount);
         });
-    }, [context, widgets, widgetCatalog]);
+    }, [allowedTypeSet, context, widgets, widgetCatalog]);
 
     // Filter widgets based on search query
     const filteredWidgets = useMemo(() => {

@@ -12,6 +12,7 @@ import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { WidgetCatalogItem } from '../../plugin-system/types';
 
 const pluginId = 'habit-streak';
+const pluginIcon = createElement(Flame, { className: 'h-4 w-4' });
 
 const widgetCatalog: WidgetCatalogItem[] = [
     {
@@ -38,5 +39,6 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
+    icon: pluginIcon,
     widgetCatalog,
 });

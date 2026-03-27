@@ -12,6 +12,7 @@ import { definePluginMetadata } from '../../plugin-system/contracts';
 import type { WidgetCatalogItem } from '../../plugin-system/types';
 
 const pluginId = 'pomodoro';
+const pluginIcon = createElement(Timer, { className: 'h-4 w-4' });
 
 const widgetCatalog: WidgetCatalogItem[] = [
     {
@@ -19,7 +20,7 @@ const widgetCatalog: WidgetCatalogItem[] = [
         type: 'pomodoro',
         name: 'Pomodoro Timer',
         description: 'Focus timer with auto-switch between focus and break sessions.',
-        icon: createElement(Timer, { className: 'h-4 w-4' }),
+        icon: pluginIcon,
         layout: { w: 4, h: 4, minW: 3, minH: 3, maxW: 6, maxH: 8 },
         maxInstances: 'unlimited',
         allowedContexts: ['semester', 'course'],
@@ -28,5 +29,6 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
+    icon: pluginIcon,
     widgetCatalog,
 });

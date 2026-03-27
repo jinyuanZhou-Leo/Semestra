@@ -26,4 +26,4 @@ Build/test configs and scripts support local development, bundling, release meta
 | tsconfig.json | TypeScript config | Top-level TypeScript project references/config. |
 | tsconfig.node.json | TypeScript config | Node-targeted TypeScript config for tooling files. |
 | vercel.json | Deploy config | Vercel deployment behavior/configuration for frontend. |
-| vite.config.ts | Build config | Vite/Vitest config with Vite 8 plugin setup, Rolldown-backed React Compiler wiring limited to React view files, environment-gated standalone Vite DevTools enablement, aliases, proxying, and test settings. |
+| vite.config.ts | Build config | Vite/Vitest config with Vite 8 plugin setup, Rolldown-backed React Compiler wiring limited to React view files, environment-gated standalone Vite DevTools enablement, aliases, proxying, and test settings including reduced Vitest worker concurrency for stable full-suite execution. |

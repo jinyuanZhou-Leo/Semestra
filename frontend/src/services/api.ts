@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, and course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests]
-// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, and one-time LMS gradebook imports]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester runtime plugin-governance payloads, and Program-level plugin governance + Semester draft-wizard routes]
+// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types, Program plugin governance/draft-wizard plus review wire models, runtime governance wire models, and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, Program plugin lifecycle governance, Semester draft creation and review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin-governance driven tab resolution]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -21,6 +21,29 @@ export interface Program {
     lms_integration_id?: string | null;
     has_lms_dependencies?: boolean;
     lms_integration?: LmsIntegrationSummary | null;
+    plugin_installations?: ProgramPluginInstallation[];
+}
+
+export interface RuntimeResolvedTab {
+    id?: string;
+    type?: string;
+    tab_type?: string;
+    title?: string;
+    settings?: string | Record<string, unknown>;
+    resolved_settings?: string | Record<string, unknown>;
+    order_index?: number;
+    is_removable?: boolean;
+    is_draggable?: boolean;
+    plugin_id?: string;
+}
+
+export interface RuntimeResolvedPlugin {
+    id?: string;
+    plugin_id?: string;
+    available_tab_types?: string[];
+    available_widget_types?: string[];
+    settings?: string | Record<string, unknown>;
+    resolved_settings?: string | Record<string, unknown>;
 }
 
 export interface Semester {
@@ -33,7 +56,21 @@ export interface Semester {
     reading_week_start?: string | null;
     reading_week_end?: string | null;
     program_id?: string;
+    lifecycle_state?: 'draft' | 'active' | 'abandoned' | string;
+    creation_step?: string;
+    draft_updated_at?: string | null;
+    review_ready?: boolean;
+    review_errors?: SemesterDraftReviewIssue[];
     courses?: Course[];
+    plugin_activations?: SemesterPluginActivation[];
+    runtime_tabs?: RuntimeResolvedTab[];
+    resolved_tabs?: RuntimeResolvedTab[];
+    enabled_plugin_ids?: string[];
+    enabled_plugins?: RuntimeResolvedPlugin[];
+    runtime_plugins?: RuntimeResolvedPlugin[];
+    available_widget_types?: string[];
+    resolved_plugin_settings?: PluginSetting[];
+    runtime_plugin_settings?: PluginSetting[];
 }
 
 export interface Course {
@@ -55,6 +92,14 @@ export interface Course {
     lms_link?: LmsCourseLinkSummary | null;
     widgets?: Widget[];
     tabs?: Tab[];
+    runtime_tabs?: RuntimeResolvedTab[];
+    resolved_tabs?: RuntimeResolvedTab[];
+    enabled_plugin_ids?: string[];
+    enabled_plugins?: RuntimeResolvedPlugin[];
+    runtime_plugins?: RuntimeResolvedPlugin[];
+    available_widget_types?: string[];
+    resolved_plugin_settings?: PluginSetting[];
+    runtime_plugin_settings?: PluginSetting[];
 }
 
 export interface Widget {
@@ -80,8 +125,116 @@ export interface PluginSetting {
     id: string;
     plugin_id: string;
     settings: string;
+    resolved_settings?: string | Record<string, unknown>;
     semester_id?: string;
     course_id?: string;
+}
+
+export interface ProgramPluginField {
+    path: string;
+    label?: string | null;
+    type?: string | null;
+    scope: 'program-only' | 'semester-override' | string;
+    default?: unknown;
+    description?: string;
+    options?: Array<{ label: string; value: string }>;
+}
+
+export interface ProgramPluginSetupField {
+    path: string;
+    label: string;
+    type: string;
+    default?: unknown;
+    description?: string;
+    options?: Array<{ label: string; value: string }>;
+}
+
+export interface ProgramPluginSetupSection {
+    id: string;
+    title: string;
+    description?: string;
+    fields: ProgramPluginSetupField[];
+}
+
+export interface ProgramPluginInstallation {
+    id?: string | null;
+    plugin_id: string;
+    display_name: string;
+    description: string;
+    author: string;
+    default_version: string;
+    default_installed: boolean;
+    default_enabled: boolean;
+    locked: boolean;
+    version: string;
+    is_enabled: boolean;
+    requires_program_lms_integration: boolean;
+    capabilities: {
+        contexts?: string[];
+        available_tab_types?: string[];
+        available_widget_types?: string[];
+        has_settings?: boolean;
+    };
+    setup_sections: ProgramPluginSetupSection[];
+    program_settings: Record<string, unknown>;
+    resolved_program_settings: Record<string, unknown>;
+    fields: ProgramPluginField[];
+    available: boolean;
+    availability_reason?: string | null;
+    installed: boolean;
+    auth_state?: string;
+    auth_message?: string | null;
+    requires_authorization?: boolean;
+}
+
+export interface SemesterPluginActivation {
+    id?: string | null;
+    semester_id: string;
+    program_plugin_installation_id: string;
+    plugin_id: string;
+    display_name: string;
+    description: string;
+    author: string;
+    locked?: boolean;
+    version: string;
+    is_enabled: boolean;
+    capabilities: ProgramPluginInstallation['capabilities'];
+    setup_sections: ProgramPluginSetupSection[];
+    semester_overrides: Record<string, unknown>;
+    setup_state: Record<string, unknown>;
+    resolved_settings: Record<string, unknown>;
+    fields: ProgramPluginField[];
+    setup_summary?: SemesterDraftReviewSummarySection[];
+    review_errors?: SemesterDraftReviewIssue[];
+    available: boolean;
+    availability_reason?: string | null;
+    auth_state?: string;
+}
+
+export interface SemesterDraftReviewIssue {
+    code: string;
+    message: string;
+    step: string;
+    plugin_id?: string | null;
+    field_path?: string | null;
+}
+
+export interface SemesterDraftReviewSummaryItem {
+    path: string;
+    label: string;
+    value: string;
+}
+
+export interface SemesterDraftReviewSummarySection {
+    id: string;
+    title: string;
+    description?: string;
+    items: SemesterDraftReviewSummaryItem[];
+}
+
+export interface SemesterDraft extends Semester {
+    plugin_activations: SemesterPluginActivation[];
+    review_errors: SemesterDraftReviewIssue[];
 }
 
 export interface CourseResourceFile {
@@ -522,6 +675,77 @@ const api = {
     deleteProgram: async (id: string) => {
         await axios.delete(`/api/programs/${id}`);
     },
+    getProgramPluginCatalog: async (programId: string) => {
+        return dedupeGet(`GET:/api/programs/${programId}/plugins/catalog`, async () => {
+            const response = await axios.get<ProgramPluginInstallation[]>(`/api/programs/${programId}/plugins/catalog`);
+            return response.data;
+        });
+    },
+    getProgramPluginInstallations: async (programId: string) => {
+        return dedupeGet(`GET:/api/programs/${programId}/plugins/installations`, async () => {
+            const response = await axios.get<ProgramPluginInstallation[]>(`/api/programs/${programId}/plugins/installations`);
+            return response.data;
+        });
+    },
+    upsertProgramPluginInstallation: async (
+        programId: string,
+        pluginId: string,
+        data: {
+            is_enabled?: boolean;
+            version?: string;
+        },
+    ) => {
+        const response = await axios.put<ProgramPluginInstallation>(`/api/programs/${programId}/plugins/${pluginId}`, data);
+        return response.data;
+    },
+    deleteProgramPluginInstallation: async (programId: string, pluginId: string) => {
+        await axios.delete(`/api/programs/${programId}/plugins/${pluginId}`);
+    },
+    getCurrentSemesterDraft: async (programId: string) => {
+        return dedupeGet(`GET:/api/programs/${programId}/semester-draft`, async () => {
+            const response = await axios.get<SemesterDraft | null>(`/api/programs/${programId}/semester-draft`);
+            return response.data;
+        });
+    },
+    createSemesterDraft: async (
+        programId: string,
+        data: {
+            name?: string;
+            start_date?: string;
+            end_date?: string;
+            reading_week_start?: string | null;
+            reading_week_end?: string | null;
+            creation_step?: string;
+        },
+    ) => {
+        const response = await axios.post<SemesterDraft>(`/api/programs/${programId}/semester-draft`, data);
+        return response.data;
+    },
+    updateSemesterDraft: async (
+        semesterId: string,
+        data: {
+            name?: string;
+            start_date?: string;
+            end_date?: string;
+            reading_week_start?: string | null;
+            reading_week_end?: string | null;
+            creation_step?: string;
+        },
+    ) => {
+        const response = await axios.put<SemesterDraft>(`/api/semesters/${semesterId}/draft`, data);
+        return response.data;
+    },
+    finalizeSemesterDraft: async (semesterId: string) => {
+        const response = await axios.post<SemesterDraft>(`/api/semesters/${semesterId}/draft/finalize`);
+        return response.data;
+    },
+    reviewSemesterDraft: async (semesterId: string) => {
+        const response = await axios.post<SemesterDraft>(`/api/semesters/${semesterId}/draft/review`);
+        return response.data;
+    },
+    discardSemesterDraft: async (semesterId: string) => {
+        await axios.delete(`/api/semesters/${semesterId}/draft`);
+    },
 
     // Semesters
     createSemester: async (programId: string, data: { name: string }) => {
@@ -556,8 +780,7 @@ const api = {
     },
     getSemester: async (id: string) => {
         return dedupeGet(`GET:/api/semesters/${id}`, async () => {
-            // Requires backend to return widgets in response
-            const response = await axios.get<Semester & { courses: Course[], widgets: Widget[], tabs: Tab[] }>(`/api/semesters/${id}`);
+            const response = await axios.get<Semester & { courses: Course[], widgets: Widget[], tabs?: Tab[] }>(`/api/semesters/${id}`);
             return response.data;
         });
     },
@@ -567,6 +790,27 @@ const api = {
     },
     deleteSemester: async (id: string) => {
         await axios.delete(`/api/semesters/${id}`);
+    },
+    getSemesterPluginActivations: async (semesterId: string) => {
+        return dedupeGet(`GET:/api/semesters/${semesterId}/plugin-activations`, async () => {
+            const response = await axios.get<SemesterPluginActivation[]>(`/api/semesters/${semesterId}/plugin-activations`);
+            return response.data;
+        });
+    },
+    upsertSemesterPluginActivation: async (
+        semesterId: string,
+        pluginId: string,
+        data: {
+            is_enabled?: boolean;
+            semester_overrides?: Record<string, unknown>;
+            setup_state?: Record<string, unknown>;
+        },
+    ) => {
+        const response = await axios.put<SemesterPluginActivation>(`/api/semesters/${semesterId}/plugin-activations/${pluginId}`, data);
+        return response.data;
+    },
+    deleteSemesterPluginActivation: async (semesterId: string, pluginId: string) => {
+        await axios.delete(`/api/semesters/${semesterId}/plugin-activations/${pluginId}`);
     },
     getSemesterTodo: async (semesterId: string) => {
         return dedupeGet(`GET:/api/semesters/${semesterId}/todo`, async () => {
@@ -729,6 +973,27 @@ const api = {
     },
     deleteTab: async (tabId: string) => {
         await axios.delete(`/api/tabs/${tabId}`);
+    },
+    updateSemesterRuntimeTabSettings: async (semesterId: string, tabType: string, data: { settings: string }) => {
+        const response = await axios.put<RuntimeResolvedTab>(
+            `/api/semesters/${semesterId}/runtime-tabs/${encodeURIComponent(tabType)}/settings`,
+            data,
+        );
+        return response.data;
+    },
+    updateCourseRuntimeTabSettings: async (courseId: string, tabType: string, data: { settings: string }) => {
+        const response = await axios.put<RuntimeResolvedTab>(
+            `/api/courses/${courseId}/runtime-tabs/${encodeURIComponent(tabType)}/settings`,
+            data,
+        );
+        return response.data;
+    },
+    reorderSemesterRuntimeTabs: async (semesterId: string, tabTypes: string[]) => {
+        const response = await axios.put<RuntimeResolvedTab[]>(
+            `/api/semesters/${semesterId}/runtime-tabs/order`,
+            { tab_types: tabTypes },
+        );
+        return response.data;
     },
 
     // Plugin settings

@@ -4,12 +4,12 @@ This guide describes how to create and register new widget and tab plugins for t
 
 ## Overview
 
-Plugins can be one of two shapes:
-1. **Widget**: A small, grid-based component inside the Dashboard tab.
-2. **Tab**: A full-size panel that appears as a tab under the hero gradient.
+Plugins are the top-level extension unit. A single plugin can contribute:
+1. **Widget** entries: small, grid-based components inside the Dashboard tab.
+2. **Tab** entries: full-size panels that appear as workspace tabs.
 
-Both shapes share a similar definition structure but are registered separately.
-Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement a widget, a tab, or both.
+Both contribution shapes share a similar registration model but remain subordinate to the plugin.
+Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement any mix of tabs, widgets, and plugin-global settings.
 
 ### Runtime Architecture
 
@@ -43,15 +43,17 @@ default export definePluginSettings(...)"]
 ```
 
 The important split is:
-- `metadata.ts` drives add-modal catalogs and display metadata before runtime code is loaded.
+- `metadata.ts` drives plugin-local manifest data and tab/widget contribution catalogs before runtime code is loaded.
 - `index.ts` stays lazy and registers tab/widget runtime definitions plus instance settings when a type is actually needed.
 - `settings.ts` / `settings.tsx` is eager and reserved for plugin-global settings sections that are shared across instances.
+- Program-managed install/authorization/default-config state is declared in the host governance contract, and Semester wizard setup is declared as host-rendered setup sections instead of ad hoc plugin-controlled flows.
+- Plugin identity (`name`, `description`, `author`) is owned by backend governance, not by the frontend manifest.
 
 ### Plugin Folder Structure (Recommended)
 
 ```
 frontend/src/plugins/<plugin-name>/
-  metadata.ts     // REQUIRED: Plugin id, widget/tab catalog entries (name, icon, layout, etc.)
+  metadata.ts     // REQUIRED: Plugin id, plugin icon, and widget/tab contribution catalog entries
   index.ts        // REQUIRED: Default-exports definePluginRuntime(...) (lazy runtime UI entry)
   settings.ts(x)  // OPTIONAL: Default-exports definePluginSettings(...) when plugin exposes plugin-global settings
   widget.tsx      // Optional: widget implementation
@@ -59,19 +61,77 @@ frontend/src/plugins/<plugin-name>/
   shared.ts       // Optional: shared types/helpers
 ```
 
-> **Metadata-First Architecture**: `metadata.ts` is the **single source of truth** for display metadata (`name`, `description`, `icon`, `layout`, `maxInstances`, `allowedContexts`). Runtime definitions in `widget.tsx`/`tab.tsx` should only declare runtime-specific fields (`type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, `onCreate`, `onDelete`). Do not duplicate metadata fields in runtime definitions.
+> **Plugin Identity Split**:
+> - Backend governance is the source of truth for plugin identity: `name`, `description`, `author`, install defaults, availability, authorization, Program fields, Semester overrides, and setup sections.
+> - Frontend `metadata.ts` is the source of truth only for plugin-local runtime metadata: plugin `icon` plus tab/widget contribution catalogs (`type`, contribution `name`, contribution `description`, `layout`, `maxInstances`, `allowedContexts`).
+> - Runtime definitions in `widget.tsx`/`tab.tsx` should only declare runtime-specific fields (`type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, `onCreate`, `onDelete`). Do not duplicate catalog fields in runtime definitions.
 
 The current loader expects `metadata.ts` to default-export:
 
 ```typescript
 export default definePluginMetadata({
   pluginId: 'my-plugin',
+  icon: createElement(Puzzle, { className: 'h-4 w-4' }),
   widgetCatalog: [],
   tabCatalog: [],
 });
 ```
 
 Likewise, `index.ts` and `settings.ts(x)` should default-export `definePluginRuntime(...)` and `definePluginSettings(...)`.
+
+## Governance And Setup Contracts
+
+Program install state, authorization state, default configuration, Semester override scope, and wizard setup sections must be host-readable. Plugins do not own the lifecycle state machine.
+
+Current repository model:
+- The authoritative governance registry lives in [`backend/plugin_governance.py`](../backend/plugin_governance.py) because the backend must validate Program settings, Semester overrides, setup payloads, availability, and draft review blockers.
+- Frontend runtime/plugin authoring uses `metadata.ts`, `index.ts`, and optional `settings.ts(x)` for plugin-local manifest data, runtime registrations, and plugin-global settings UI.
+- If a plugin needs Program-governed settings or Semester wizard setup, add a corresponding definition to the backend governance registry and keep the plugin UI aligned with those declared fields.
+
+What the host contract controls:
+- Plugin identity: `plugin_id`, `display_name`, `description`, and `author`.
+- Program layer: install/uninstall, authorization requirement, pinned version display, default settings, and field schema.
+- Semester layer: enable/disable from already-installed Program plugins plus edits to fields explicitly marked as `semester-override`.
+- Wizard setup: fixed host-owned `Basics -> Courses -> Plugins -> Plugin Setup -> Review` flow where plugins may only contribute declared setup sections/fields and review summaries.
+- Runtime reads: plugins consume resolved config from the host instead of merging `defaults + program + semester` locally.
+
+What plugins may not do:
+- Inject their own top-level wizard steps.
+- Persist arbitrary wizard-time business objects outside Semester draft-owned activation/setup records.
+- Treat `program-only` fields as editable in Semester surfaces.
+- Recompute availability rules in runtime code independently from the host.
+
+### Field Scope Rules
+
+Governance field scopes are enforced server-side:
+- `program-only`: editable only from Program settings, read-only everywhere else.
+- `semester-override`: editable from Semester surfaces and the Create Semester wizard, merged on top of Program settings.
+
+Resolved config always follows:
+
+```text
+plugin defaults < program settings < semester overrides
+```
+
+Plugins should treat the resolved payload as the only runtime source of truth.
+
+### Setup Contributions
+
+Setup contributions are declaration-only and backend-owned.
+
+Each setup section in `backend/plugin_governance.py` should define:
+- Stable section id and title.
+- Host-renderable field list with field type, label, description, default, and select options.
+- Values that write into `semester_plugin_activations.setup_state` and, when the field is also a Semester override, into `semester_overrides`.
+
+Review summaries shown in the final wizard step must be derivable from the same declared setup fields. The backend currently builds these summaries in `plugin_governance.build_setup_summary(...)` so review/finalize behavior stays deterministic.
+
+### Runtime Consumption
+
+When a runtime component needs governance config:
+- Read resolved settings from the Semester/Course payload delivered by the backend.
+- Use shared host helpers such as the runtime governance adapter in `frontend/src/plugin-system/runtimeGovernance.ts`.
+- Keep runtime preferences separate from governance config. Install/default/override data belongs to governance; tab settings, widget settings, and plugin shared settings remain runtime preference state.
 
 ### Built-in Tabs
 
@@ -92,7 +152,7 @@ Framework behavior:
 ### Auto Registration
 
 The plugin system scans:
-- `metadata.ts` with eager `import.meta.glob` for catalog display (name, icon, layout).
+- `metadata.ts` with eager `import.meta.glob` for plugin manifests and contribution catalogs (plugin icon, contribution names, layout).
 - `index.ts` with `import.meta.glob` for lazy runtime registration (tab/widget UI).
 - `settings.ts` / `settings.tsx` with eager `import.meta.glob` for plugin-global settings registration (only if the file exists).
 
@@ -100,10 +160,11 @@ If `index.ts` default-exports `definePluginRuntime(...)`, runtime UI remains laz
 If `settings.ts` / `settings.tsx` default-exports `definePluginSettings(...)`, plugin-global settings panels are available without waiting for runtime UI modules.
 
 **Loading Model**
-- Metadata (`metadata.ts`): eagerly loaded — names, descriptions, icons, layout, context limits, and instance limits are available before runtime modules.
+- Backend governance payloads: fetched by host management/runtime pages when plugin identity, install state, availability, or resolved config is needed.
+- Metadata (`metadata.ts`): eagerly loaded — plugin icons plus contribution names, descriptions, layout, context limits, and instance limits are available before runtime modules.
 - Runtime UI (`index.ts` -> `tab.tsx` / `widget.tsx`): lazy-loaded.
 - Plugin-global settings UI (`settings.ts` / `settings.tsx`): eagerly loaded (optional).
-- This keeps catalogs and shared plugin settings available without loading runtime UI bundles.
+- This keeps plugin icons, add-modal contribution catalogs, and shared plugin settings available without loading runtime UI bundles.
 
 > **Note**: `settings.ts` is optional. Plugins without shared plugin settings do not need this file.
 
@@ -112,6 +173,7 @@ If `settings.ts` / `settings.tsx` default-exports `definePluginSettings(...)`, p
 Application code should consume the plugin system through `frontend/src/plugin-system/index.ts`, not by stitching registries together manually.
 
 Useful public helpers:
+- `getPluginIconById(pluginId)`
 - `getTabCatalog(context?)`
 - `getWidgetCatalog(context?)`
 - `getResolvedTabMetadataByType(type)`
@@ -126,6 +188,7 @@ Useful public helpers:
 - `usePluginSettingsRegistry(context?)`
 
 Important behavior:
+- Governance surfaces such as Program Settings, Semester Settings, and Create Semester should read plugin `display_name` / `description` / `author` from backend APIs and use `getPluginIconById(pluginId)` only for the local icon.
 - `ensure*PluginByTypeLoaded(...)` returns `true` only when runtime registration actually succeeds.
 - Failed runtime imports move the plugin into `error` state; consumers should not treat that as an unknown type.
 - `usePluginLoadStateVersion()` is useful when a page needs to react to multiple plugin load-state transitions while resolving several tab settings sections at once.
@@ -194,6 +257,15 @@ Rules:
 - If no matching tab exists, the host shows an alert and returns `missing`.
 - If multiple tabs share the same `tabType`, the host shows an alert and returns `ambiguous`; the caller must retry with `tabId`.
 - The host never auto-adds or auto-creates missing tabs.
+
+## Identity Rules
+
+When adding or changing a plugin, keep these boundaries strict:
+- If you are changing plugin `name`, `description`, `author`, install defaults, availability rules, Program fields, Semester overrides, or wizard setup sections, edit [`backend/plugin_governance.py`](../backend/plugin_governance.py).
+- If you are changing which tabs/widgets the plugin contributes, their contribution-level labels/descriptions, their icons in add flows, their layouts, or their allowed contexts, edit `frontend/src/plugins/<plugin-name>/metadata.ts`.
+- If you are changing runtime rendering or behavior, edit `index.ts`, `tab.tsx`, `widget.tsx`, or shared runtime helpers.
+
+Do not duplicate plugin `name` / `description` / `author` inside `metadata.ts`. That would create a second source of truth and eventually drift from the backend governance payloads.
 
 When to use it:
 - Jumping from one plugin tab to another existing plugin tab.

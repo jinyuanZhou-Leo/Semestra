@@ -1,15 +1,14 @@
-# input:  [Environment variables, SQLAlchemy engine/session/base]
-# output: [Database engine, session factory, declarative base, and FK pragma hook]
-# pos:    [Database bootstrap and connection configuration]
+# input:  [Environment variables, SQLAlchemy engine/session/base, and SQLAlchemy schema inspection helpers]
+# output: [Database engine, session factory, declarative base, FK pragma hook, and runtime schema compatibility checks]
+# pos:    [Database bootstrap and connection configuration plus startup-time schema drift detection]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
 #    2. Update the INDEX.md of the folder this file belongs to
 
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import event
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -51,6 +50,64 @@ def _set_sqlite_pragma(dbapi_connection, _connection_record):
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+REQUIRED_RUNTIME_SCHEMA = {
+    "semesters": {
+        "lifecycle_state",
+        "creation_step",
+        "draft_updated_at",
+        "review_ready",
+    },
+    "widgets": {
+        "title",
+    },
+    "program_plugin_installations": {
+        "id",
+        "program_id",
+        "plugin_id",
+        "version",
+        "is_enabled",
+        "auth_state",
+        "program_settings",
+    },
+    "semester_plugin_activations": {
+        "id",
+        "semester_id",
+        "program_plugin_installation_id",
+        "semester_overrides",
+        "setup_state",
+        "is_enabled",
+    },
+}
+
+
+def collect_runtime_schema_issues(bind) -> list[str]:
+    inspector = inspect(bind)
+    issues: list[str] = []
+    table_names = set(inspector.get_table_names())
+    for table_name, required_columns in REQUIRED_RUNTIME_SCHEMA.items():
+        if table_name not in table_names:
+            issues.append(f"missing table '{table_name}'")
+            continue
+        column_names = {
+            column["name"]
+            for column in inspector.get_columns(table_name)
+        }
+        for column_name in sorted(required_columns - column_names):
+            issues.append(f"missing column '{table_name}.{column_name}'")
+    return issues
+
+
+def assert_runtime_schema_compatible(bind) -> None:
+    issues = collect_runtime_schema_issues(bind)
+    if not issues:
+        return
+    issue_summary = ", ".join(issues)
+    raise RuntimeError(
+        "Database schema is incompatible with the running backend. "
+        f"Detected {issue_summary}. "
+        "Run `uv run alembic -c alembic.ini upgrade head` in `backend/`."
+    )
 
 def get_db():
     db = SessionLocal()

@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level visual settings, auth security state, multi-integration LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin governance rows with install enablement, Semester draft lifecycle state plus review readiness, Semester-level plugin activations with soft-disable support, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus review readiness, auth security state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -106,6 +106,7 @@ class Program(Base):
     semesters = relationship("Semester", back_populates="program", cascade="all, delete-orphan")
     courses = relationship("Course", back_populates="program")
     lms_course_links = relationship("CourseLmsLink", back_populates="program", cascade="all, delete-orphan")
+    plugin_installations = relationship("ProgramPluginInstallation", back_populates="program", cascade="all, delete-orphan")
 
     @property
     def has_lms_dependencies(self) -> bool:
@@ -125,6 +126,10 @@ class Semester(Base):
     end_date = Column(Date, nullable=False)
     reading_week_start = Column(Date, nullable=True)
     reading_week_end = Column(Date, nullable=True)
+    lifecycle_state = Column(String, nullable=False, default="active", index=True)
+    creation_step = Column(String, nullable=False, default="review")
+    draft_updated_at = Column(String, nullable=True)
+    review_ready = Column(Boolean, nullable=False, default=True)
     
     average_percentage = Column(Float, default=0.0)
     average_scaled = Column(Float, default=0.0)
@@ -135,8 +140,61 @@ class Semester(Base):
     widgets = relationship("Widget", back_populates="semester_context", cascade="all, delete-orphan")
     tabs = relationship("Tab", back_populates="semester_context", cascade="all, delete-orphan")
     plugin_settings = relationship("PluginSetting", back_populates="semester_context", cascade="all, delete-orphan")
+    plugin_activations = relationship("SemesterPluginActivation", back_populates="semester", cascade="all, delete-orphan")
     todo_sections = relationship("TodoSection", back_populates="semester", cascade="all, delete-orphan")
     todo_tasks = relationship("TodoTask", back_populates="semester", cascade="all, delete-orphan")
+
+
+class ProgramPluginInstallation(Base):
+    __tablename__ = "program_plugin_installations"
+    __table_args__ = (
+        UniqueConstraint("program_id", "plugin_id", name="uq_program_plugin_installations_program_plugin"),
+        Index("ix_program_plugin_installations_program", "program_id"),
+        Index("ix_program_plugin_installations_plugin", "plugin_id"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    program_id = Column(String, ForeignKey("programs.id", ondelete="CASCADE"), nullable=False)
+    plugin_id = Column(String, nullable=False, index=True)
+    version = Column(String, nullable=False, default="workspace")
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    auth_state = Column(String, nullable=False, default="not-required")
+    auth_message = Column(Text, nullable=True)
+    program_settings = Column(Text, nullable=False, default="{}")
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+    program = relationship("Program", back_populates="plugin_installations")
+    semester_activations = relationship("SemesterPluginActivation", back_populates="program_plugin_installation", cascade="all, delete-orphan")
+
+
+class SemesterPluginActivation(Base):
+    __tablename__ = "semester_plugin_activations"
+    __table_args__ = (
+        UniqueConstraint(
+            "semester_id",
+            "program_plugin_installation_id",
+            name="uq_semester_plugin_activations_semester_installation",
+        ),
+        Index("ix_semester_plugin_activations_semester", "semester_id"),
+        Index("ix_semester_plugin_activations_installation", "program_plugin_installation_id"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    semester_id = Column(String, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
+    program_plugin_installation_id = Column(
+        String,
+        ForeignKey("program_plugin_installations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    semester_overrides = Column(Text, nullable=False, default="{}")
+    setup_state = Column(Text, nullable=False, default="{}")
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+    semester = relationship("Semester", back_populates="plugin_activations")
+    program_plugin_installation = relationship("ProgramPluginInstallation", back_populates="semester_activations")
 
 
 class Course(Base):
@@ -502,6 +560,7 @@ class Widget(Base):
     
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
     widget_type = Column(String, index=True) # e.g., "course-list", "counter"
+    title = Column(String, nullable=False, default="")
     
     # Layout props
     layout_config = Column(Text, default="{}") # JSON: {x, y, w, h}

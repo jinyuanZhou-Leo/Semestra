@@ -1,6 +1,6 @@
-// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
+// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester runtime plugin governance payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-governed plugin inheritance from the parent semester, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,7 +15,6 @@ import { Layout } from '../components/Layout';
 import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { AddWidgetModal } from '../components/AddWidgetModal';
-import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
@@ -54,6 +53,12 @@ import {
     HOMEPAGE_SETTINGS_TAB_TYPE,
 } from '../utils/homepageBuiltinTabs';
 import { parseSubjectColorMap, resolveCourseColor } from '../utils/courseCategoryBadge';
+import {
+    resolveAvailableWidgetTypes,
+    resolveEnabledPluginIds,
+    resolveGovernedRuntimeTabs,
+    resolvePluginSettingsMap,
+} from '../plugin-system/runtimeGovernance';
 
 import {
     Breadcrumb,
@@ -86,7 +91,6 @@ const CourseHomepageContent: React.FC = () => {
     const queryClient = useQueryClient();
     const prefersReducedMotion = usePrefersReducedMotion();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
-    const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('');
     const [courseSwitchDirection, setCourseSwitchDirection] = useState<-1 | 0 | 1>(0);
@@ -99,14 +103,6 @@ const CourseHomepageContent: React.FC = () => {
         }
         setIsAddWidgetOpen(true);
     }, []);
-    const openAddTabModal = useCallback(() => {
-        const activeElement = document.activeElement;
-        if (activeElement instanceof HTMLElement) {
-            activeElement.blur();
-        }
-        setIsAddTabOpen(true);
-    }, []);
-
     const shouldCollapseProgram = Boolean(course?.program_id && course?.semester_id);
     const shouldShowProgramDirect = Boolean(course?.program_id && !shouldCollapseProgram);
     const shouldShowSemester = Boolean(course?.semester_id);
@@ -166,6 +162,31 @@ const CourseHomepageContent: React.FC = () => {
         if (!course) return null;
         return resolveCourseColor({ ...course, color: null }, programSubjectColorMap);
     }, [course, programSubjectColorMap]);
+    const runtimeTabs = useMemo(
+        () => resolveGovernedRuntimeTabs(course, `course:${course?.id ?? 'unknown'}`),
+        [course]
+    );
+    const enabledPluginIds = useMemo(() => {
+        const courseEnabledPluginIds = resolveEnabledPluginIds(course);
+        if (courseEnabledPluginIds.size > 0) {
+            return courseEnabledPluginIds;
+        }
+        return resolveEnabledPluginIds(parentSemesterQuery.data);
+    }, [course, parentSemesterQuery.data]);
+    const availableWidgetTypes = useMemo(() => {
+        const courseWidgetTypes = resolveAvailableWidgetTypes(course);
+        if (courseWidgetTypes.size > 0) {
+            return Array.from(courseWidgetTypes);
+        }
+        return Array.from(resolveAvailableWidgetTypes(parentSemesterQuery.data));
+    }, [course, parentSemesterQuery.data]);
+    const resolvedPluginSettingsMap = useMemo(() => {
+        const courseSettingsMap = resolvePluginSettingsMap(course);
+        if (courseSettingsMap.size > 0) {
+            return courseSettingsMap;
+        }
+        return resolvePluginSettingsMap(parentSemesterQuery.data);
+    }, [course, parentSemesterQuery.data]);
 
     const availableLmsCoursesQuery = useQuery({
         queryKey: queryKeys.programs.lmsCourses(course?.program_id ?? 'unknown', { mode: 'link-picker' }),
@@ -195,13 +216,13 @@ const CourseHomepageContent: React.FC = () => {
     const {
         tabs,
         isInitialized: isTabsInitialized,
-        addTab: handleAddTab,
-        removeTab: handleRemoveTab,
         updateTabSettingsDebounced,
         reorderTabs
     } = useDashboardTabs({
         courseId: course?.id,
-        initialTabs: course?.tabs,
+        orderOwnerSemesterId: course?.semester_id,
+        initialTabs: runtimeTabs,
+        governed: false,
         onRefresh: refreshCourse
     });
 
@@ -281,12 +302,6 @@ const CourseHomepageContent: React.FC = () => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
 
-    const ensureBuiltinTabInstance = useCallback((type: string) => {
-        const isShellTab = type === HOMEPAGE_DASHBOARD_TAB_TYPE || type === HOMEPAGE_SETTINGS_TAB_TYPE;
-        return handleAddTab(type, { isRemovable: false, isDraggable: !isShellTab });
-    }, [handleAddTab]);
-
-    // Centralize builtin-tab visibility/loading/order rules for homepage tabs.
     const {
         isActiveTabPluginLoading,
         tabBarItems,
@@ -298,10 +313,13 @@ const CourseHomepageContent: React.FC = () => {
         activeTabId,
         config: COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
         isTabsInitialized,
-        ensureBuiltinTabInstance,
     });
 
-    const pluginSettingsDefinitions = usePluginSettingsRegistry('course');
+    const allPluginSettingsDefinitions = usePluginSettingsRegistry('course');
+    const pluginSettingsDefinitions = useMemo(
+        () => allPluginSettingsDefinitions.filter((definition) => enabledPluginIds.has(definition.pluginId)),
+        [allPluginSettingsDefinitions, enabledPluginIds]
+    );
     const activeTabType = useMemo(
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
@@ -480,6 +498,7 @@ const CourseHomepageContent: React.FC = () => {
                             pluginId={definition.pluginId}
                             component={definition.component}
                             courseId={course?.id}
+                            initialSettings={resolvedPluginSettingsMap.get(definition.pluginId)}
                             onRefresh={refreshCourse}
                         />
                     </React.Fragment>
@@ -493,7 +512,7 @@ const CourseHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [pluginSettingsDefinitions, course?.id, refreshCourse]);
+    }, [course?.id, pluginSettingsDefinitions, refreshCourse, resolvedPluginSettingsMap]);
 
     const hasPluginSettings = Boolean(pluginSettingsSections || tabInstanceSettingsSections);
 
@@ -872,9 +891,7 @@ const CourseHomepageContent: React.FC = () => {
                                 items={tabBarItems}
                                 activeId={activeTabId}
                                 onSelect={setActiveTabId}
-                                onRemove={handleRemoveTab}
                                 onReorder={handleReorderTabs}
-                                onAdd={openAddTabModal}
                             />
                         )}
                     />
@@ -896,16 +913,10 @@ const CourseHomepageContent: React.FC = () => {
                                 <AddWidgetModal
                                     isOpen={isAddWidgetOpen}
                                     onClose={() => setIsAddWidgetOpen(false)}
-                                    onAdd={handleAddWidget}
-                                    context="course"
-                                    widgets={widgets}
-                                />
-                                <AddTabModal
-                                    isOpen={isAddTabOpen}
-                                    onClose={() => setIsAddTabOpen(false)}
-                                    onAdd={handleAddTab}
-                                    context="course"
-                                    tabs={tabs}
+                                onAdd={handleAddWidget}
+                                context="course"
+                                widgets={widgets}
+                                    allowedTypes={availableWidgetTypes}
                                 />
                                 <WidgetSettingsModal
                                     isOpen={!!editingWidget}

@@ -65,6 +65,17 @@ def raise_lms_http_error(exc: Exception) -> None:
     raise exc
 
 
+def raise_plugin_governance_http_error(exc: Exception) -> None:
+    if isinstance(exc, crud.PluginGovernanceError):
+        status_code = 422
+        if exc.code in {"PROGRAM_NOT_FOUND", "SEMESTER_NOT_FOUND", "PLUGIN_INSTALLATION_NOT_FOUND"}:
+            status_code = 404
+        elif exc.code in {"SEMESTER_DRAFT_EXISTS", "PLUGIN_LOCKED", "PLUGIN_NOT_AVAILABLE"}:
+            status_code = 409
+        raise HTTPException(status_code=status_code, detail=error_detail(exc.code, exc.message))
+    raise exc
+
+
 def validate_time_range(start_time: str, end_time: str):
     try:
         datetime.strptime(start_time, TIME_FORMAT)
@@ -145,6 +156,16 @@ def get_owned_course(db: Session, current_user: models.User, course_id: str) -> 
     if course is None:
         raise HTTPException(status_code=404, detail="Course not found")
     return course
+
+
+def get_owned_program(db: Session, current_user: models.User, program_id: str) -> models.Program:
+    program = db.query(models.Program).filter(
+        models.Program.id == program_id,
+        models.Program.owner_id == current_user.id,
+    ).first()
+    if program is None:
+        raise HTTPException(status_code=404, detail="Program not found")
+    return program
 
 
 def get_owned_semester(db: Session, current_user: models.User, semester_id: str) -> models.Semester:

@@ -1,6 +1,6 @@
-// input:  [semester context, query-backed parent Program breadcrumb data, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin governance payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
+// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,7 +17,6 @@ import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 
 import { AddWidgetModal } from '../components/AddWidgetModal';
-import { AddTabModal } from '../components/AddTabModal';
 import { Tabs } from '../components/Tabs';
 import type { WidgetItem } from '../components/widgets/DashboardGrid';
 import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
@@ -29,6 +28,7 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPreload';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
+import { SemesterPluginGovernancePanel } from '../components/SemesterPluginGovernancePanel';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
@@ -55,6 +55,12 @@ import {
     SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
 } from '../utils/homepageBuiltinTabs';
 import { queryKeys } from '../services/queryKeys';
+import {
+    resolveAvailableWidgetTypes,
+    resolveEnabledPluginIds,
+    resolveGovernedRuntimeTabs,
+    resolvePluginSettingsMap,
+} from '../plugin-system/runtimeGovernance';
 
 
 import {
@@ -70,7 +76,6 @@ const SemesterHomepageContent: React.FC = () => {
     const { semester, saveSemester, refreshSemester, isLoading } = useSemesterData();
     const queryClient = useQueryClient();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
-    const [isAddTabOpen, setIsAddTabOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('');
     const openAddWidgetModal = useCallback(() => {
@@ -80,14 +85,6 @@ const SemesterHomepageContent: React.FC = () => {
         }
         setIsAddWidgetOpen(true);
     }, []);
-    const openAddTabModal = useCallback(() => {
-        const activeElement = document.activeElement;
-        if (activeElement instanceof HTMLElement) {
-            activeElement.blur();
-        }
-        setIsAddTabOpen(true);
-    }, []);
-
     const parentProgramQuery = useQuery({
         queryKey: queryKeys.programs.detail(semester?.program_id ?? 'unknown'),
         queryFn: async () => {
@@ -107,6 +104,20 @@ const SemesterHomepageContent: React.FC = () => {
     });
     const programName = parentProgramQuery.data?.name ?? null;
 
+    const runtimeTabs = useMemo(
+        () => resolveGovernedRuntimeTabs(semester, `semester:${semester?.id ?? 'unknown'}`),
+        [semester]
+    );
+    const enabledPluginIds = useMemo(() => resolveEnabledPluginIds(semester), [semester]);
+    const availableWidgetTypes = useMemo(
+        () => Array.from(resolveAvailableWidgetTypes(semester)),
+        [semester]
+    );
+    const resolvedPluginSettingsMap = useMemo(
+        () => resolvePluginSettingsMap(semester),
+        [semester]
+    );
+
     const {
         widgets,
         addWidget: handleAddWidget,
@@ -125,13 +136,13 @@ const SemesterHomepageContent: React.FC = () => {
     const {
         tabs: customTabs,
         isInitialized: isTabsInitialized,
-        addTab: handleAddTab,
-        removeTab: handleRemoveTab,
         updateTabSettingsDebounced,
         reorderTabs
     } = useDashboardTabs({
         semesterId: semester?.id,
-        initialTabs: semester?.tabs,
+        orderOwnerSemesterId: semester?.id,
+        initialTabs: runtimeTabs,
+        governed: false,
         onRefresh: refreshSemester
     });
 
@@ -146,12 +157,6 @@ const SemesterHomepageContent: React.FC = () => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
 
-    const ensureBuiltinTabInstance = useCallback((type: string) => {
-        const isShellTab = type === HOMEPAGE_DASHBOARD_TAB_TYPE || type === HOMEPAGE_SETTINGS_TAB_TYPE;
-        return handleAddTab(type, { isRemovable: false, isDraggable: !isShellTab });
-    }, [handleAddTab]);
-
-    // Centralize builtin-tab visibility/loading/order rules for homepage tabs.
     const {
         isActiveTabPluginLoading,
         tabBarItems,
@@ -163,10 +168,13 @@ const SemesterHomepageContent: React.FC = () => {
         activeTabId,
         config: SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
         isTabsInitialized,
-        ensureBuiltinTabInstance,
     });
 
-    const pluginSettingsDefinitions = usePluginSettingsRegistry('semester');
+    const allPluginSettingsDefinitions = usePluginSettingsRegistry('semester');
+    const pluginSettingsDefinitions = useMemo(
+        () => allPluginSettingsDefinitions.filter((definition) => enabledPluginIds.has(definition.pluginId)),
+        [allPluginSettingsDefinitions, enabledPluginIds]
+    );
     const activeTabType = useMemo(
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
@@ -427,6 +435,7 @@ const SemesterHomepageContent: React.FC = () => {
                             pluginId={definition.pluginId}
                             component={definition.component}
                             semesterId={semester?.id}
+                            initialSettings={resolvedPluginSettingsMap.get(definition.pluginId)}
                             onRefresh={refreshSemester}
                         />
                     </React.Fragment>
@@ -440,7 +449,7 @@ const SemesterHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [pluginSettingsDefinitions, semester?.id, refreshSemester]);
+    }, [pluginSettingsDefinitions, refreshSemester, resolvedPluginSettingsMap, semester?.id]);
 
     const hasPluginSettings = Boolean(pluginSettingsSections || tabInstanceSettingsSections);
 
@@ -474,9 +483,22 @@ const SemesterHomepageContent: React.FC = () => {
             ),
             extraSections: hasPluginSettings ? (
                 <div className="space-y-6">
+                    {semester?.program_id ? (
+                        <SemesterPluginGovernancePanel
+                            semesterId={semester.id}
+                            pluginActivations={semester.plugin_activations ?? []}
+                            onChanged={refreshSemester}
+                        />
+                    ) : null}
                     {pluginSettingsSections}
                     {tabInstanceSettingsSections}
                 </div>
+            ) : semester?.program_id ? (
+                <SemesterPluginGovernancePanel
+                    semesterId={semester.id}
+                    pluginActivations={semester.plugin_activations ?? []}
+                    onChanged={refreshSemester}
+                />
             ) : undefined
         }
     }), [
@@ -510,9 +532,7 @@ const SemesterHomepageContent: React.FC = () => {
                                 items={tabBarItems}
                                 activeId={activeTabId}
                                 onSelect={setActiveTabId}
-                                onRemove={handleRemoveTab}
                                 onReorder={handleReorderTabs}
-                                onAdd={openAddTabModal}
                             />
                         )}
                     />
@@ -537,13 +557,7 @@ const SemesterHomepageContent: React.FC = () => {
                                 onAdd={handleAddWidget}
                                 context="semester"
                                 widgets={widgets}
-                            />
-                            <AddTabModal
-                                isOpen={isAddTabOpen}
-                                onClose={() => setIsAddTabOpen(false)}
-                                onAdd={handleAddTab}
-                                context="semester"
-                                tabs={customTabs}
+                                allowedTypes={availableWidgetTypes}
                             />
                             <WidgetSettingsModal
                                 isOpen={!!editingWidget}

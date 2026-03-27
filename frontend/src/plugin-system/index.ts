@@ -1,6 +1,6 @@
-// input:  [plugin metadata/settings/runtime modules via `import.meta.glob`, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
-// output: [plugin facade helpers for catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
-// pos:    [Central plugin manager facade that validates plugin declarations, keeps metadata/plugin settings eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs]
+// input:  [plugin manifests/settings/runtime modules via `import.meta.glob`, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
+// output: [plugin facade helpers for plugin manifests, contribution catalogs, load state, load-state subscriptions, metadata resolution, plugin-global settings, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
+// pos:    [Central plugin manager facade that validates plugin manifests, keeps plugin icons/settings eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -44,7 +44,7 @@ import {
     definePluginRuntime,
     definePluginSettings,
 } from './contracts';
-import type { ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem, WidgetLayoutDefinition } from './types';
+import type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem, WidgetLayoutDefinition } from './types';
 import {
     isUnlimitedInstances,
     DEFAULT_TAB_ALLOWED_CONTEXTS,
@@ -55,7 +55,7 @@ export { PluginSettingsSectionRenderer } from './PluginSettingsSectionRenderer';
 
 export type { PluginMetadataDefinition, PluginRuntimeDefinition, PluginSettingsDefinition } from './contracts';
 export { definePluginMetadata, definePluginRuntime, definePluginSettings } from './contracts';
-export type { ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
+export type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
 export type {
     PluginSettingsContext,
     PluginSettingsProps,
@@ -93,6 +93,7 @@ type BrowserIdleWindow = Window & {
 interface PluginEntry {
     id: string;
     directoryName: string;
+    icon: PluginManifestItem['icon'];
     loader: () => Promise<PluginRuntimeModule>;
     tabCatalog: TabCatalogItem[];
     widgetCatalog: WidgetCatalogItem[];
@@ -184,7 +185,7 @@ const failValidation = (message: string) => {
 
 const asMetadataDefinition = (value: PluginMetadataModule | undefined, path: string): PluginMetadataDefinition | null => {
     const definition = value?.default;
-    if (!definition || typeof definition.pluginId !== 'string' || !definition.pluginId) {
+    if (!definition || typeof definition.pluginId !== 'string' || !definition.pluginId || definition.icon == null) {
         failValidation(`[plugin-system] Invalid metadata module: ${path}`);
         return null;
     }
@@ -198,12 +199,14 @@ const asSettingsDefinition = (value: PluginSettingsModule | undefined): PluginSe
 const createPluginEntry = (
     id: string,
     directoryName: string,
+    icon: PluginManifestItem['icon'],
     loader: () => Promise<PluginRuntimeModule>,
     tabCatalog: TabCatalogItem[],
     widgetCatalog: WidgetCatalogItem[]
 ): PluginEntry => ({
     id,
     directoryName,
+    icon,
     loader,
     tabCatalog,
     widgetCatalog,
@@ -226,6 +229,7 @@ const rawEntries = metadataModulePaths.map((path) => {
     return createPluginEntry(
         metadata.pluginId,
         directoryName,
+        metadata.icon,
         loader,
         metadata.tabCatalog ?? [],
         metadata.widgetCatalog ?? []
@@ -290,12 +294,17 @@ const pluginEntries = rawEntries.filter((entry) => {
 
 const pluginsById = new Map(pluginEntries.map((entry) => [entry.id, entry]));
 const pluginsByDirectoryName = new Map(pluginEntries.map((entry) => [entry.directoryName, entry]));
+const pluginManifestById = new Map<string, PluginManifestItem>();
 const tabTypeToPluginId = new Map<string, string>();
 const widgetTypeToPluginId = new Map<string, string>();
 const tabCatalogByType = new Map<string, TabCatalogItem>();
 const widgetCatalogByType = new Map<string, WidgetCatalogItem>();
 
 pluginEntries.forEach((entry) => {
+    pluginManifestById.set(entry.id, {
+        pluginId: entry.id,
+        icon: entry.icon,
+    });
     entry.tabCatalog.forEach((item) => {
         tabTypeToPluginId.set(item.type, entry.id);
         tabCatalogByType.set(item.type, item);
@@ -561,6 +570,21 @@ export const getTabCatalog = (context?: TabContext): TabCatalogItem[] => {
     const items = pluginEntries.flatMap((entry) => entry.tabCatalog);
     if (!context) return items;
     return items.filter((item) => (item.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS).includes(context));
+};
+
+export const getPluginManifest = (): PluginManifestItem[] => {
+    return pluginEntries.map((entry) => ({
+        pluginId: entry.id,
+        icon: entry.icon,
+    }));
+};
+
+export const getPluginManifestItemById = (pluginId: string): PluginManifestItem | undefined => {
+    return pluginManifestById.get(pluginId);
+};
+
+export const getPluginIconById = (pluginId: string) => {
+    return getPluginManifestItemById(pluginId)?.icon;
 };
 
 export const getWidgetCatalog = (context?: WidgetContext): WidgetCatalogItem[] => {

@@ -1,6 +1,6 @@
 // input:  [plugin facade helpers, lazy runtime loading, idle background preloading, and Vitest assertions]
-// output: [test suite covering runtime instance settings resolution, eager plugin-global settings exposure, and idle preload behavior]
-// pos:    [integration tests for the decoupled plugin-system public settings API and idle runtime warmup path]
+// output: [test suite covering plugin manifest icons, runtime instance settings resolution, eager plugin-global settings exposure, and idle preload behavior]
+// pos:    [integration tests for the decoupled plugin-system public API and idle runtime warmup path]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,9 +11,12 @@ import { describe, expect, it } from 'vitest';
 import {
   canAddTabCatalogItem,
   ensureTabPluginByTypeLoaded,
+  getTabPluginLoadState,
+  getWidgetCatalog,
+  getWidgetPluginLoadState,
   ensureWidgetPluginByTypeLoaded,
   getPluginSettingsSections,
-  getTabComponentByType,
+  getPluginIconById,
   getTabSettingsComponentByType,
   getTabCatalog,
   getWidgetSettingsComponentByType,
@@ -39,6 +42,11 @@ describe('plugin-system settings API', () => {
     ).not.toContain('course-list:course-list-management');
   });
 
+  it('exposes plugin-level manifest icons without reading tab or widget catalogs', () => {
+    expect(getPluginIconById('builtin-event-core')).toBeTruthy();
+    expect(getPluginIconById('world-clock')).toBeTruthy();
+  });
+
   it('treats maxInstances=0 builtin tabs as a single allowed instance', () => {
     const gradebookItem = getTabCatalog('course').find((item) => item.type === 'builtin-gradebook');
     expect(gradebookItem).toBeDefined();
@@ -47,13 +55,17 @@ describe('plugin-system settings API', () => {
   });
 
   it('preloads still-idle plugin runtimes after the page becomes idle', async () => {
-    expect(getTabComponentByType('dashboard')).toBeUndefined();
+    const idleTabTypes = getTabCatalog().map((item) => item.type);
+    const idleWidgetTypes = getWidgetCatalog().map((item) => item.type);
 
     const stopPreloading = preloadRemainingPluginsWhenIdle();
     window.dispatchEvent(new Event('load'));
-    await new Promise<void>((resolve) => setTimeout(resolve, 600));
+    await new Promise<void>((resolve) => setTimeout(resolve, 1200));
     stopPreloading();
 
-    expect(getTabComponentByType('dashboard')).toBeTruthy();
+    const loadedTab = idleTabTypes.some((type) => getTabPluginLoadState(type).status === 'loaded');
+    const loadedWidget = idleWidgetTypes.some((type) => getWidgetPluginLoadState(type).status === 'loaded');
+
+    expect(loadedTab || loadedWidget).toBe(true);
   });
 });

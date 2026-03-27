@@ -1,8 +1,8 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Cross-page hooks for data sync, dashboard state, and UI responsiveness.
-Contains Query-backed entity/resource access plus optimistic CRUD orchestration for tabs/widgets with context-change cancellation guards.
-Includes stale-request-safe fetch primitives, framework-managed plugin shared-settings autosave, shared gradebook/todo query hooks, parallelized order/layout backend synchronization logic, and force-aware cleanup for unavailable widgets.
+Contains Query-backed entity/resource access plus governed runtime tab/widget orchestration with context-change cancellation guards.
+Includes stale-request-safe fetch primitives, framework-managed plugin shared-settings autosave seeded from resolved config, shared gradebook/todo query hooks, backend-backed runtime tab order/settings sync, and force-aware cleanup for unavailable widgets.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -11,13 +11,13 @@ Includes stale-request-safe fetch primitives, framework-managed plugin shared-se
 | useCourseGradebookQuery.ts | Hook module | Shared TanStack Query hook pair for course gradebook reads plus cache-updating mutations reused by Gradebook tab/settings surfaces. |
 | use-mobile.ts | Hook module | Mobile breakpoint hook (640px) with immediate client-side width initialization to avoid first-frame responsive surface mismatches. |
 | useAppStatus.ts | Hook module | Custom hook implementing use app status behavior. |
-| useDashboardTabs.ts | Hook module | Orchestrates tab CRUD with optimistic state, debounced settings sync, context-key reset safeguards, and parallelized order persistence retries. |
+| useDashboardTabs.ts | Hook module | Orchestrates Program/Semester-governed runtime tabs with optimistic local state, debounced tab-type settings sync, and Semester-owned order persistence. |
 | useDashboardWidgets.ts | Hook module | Orchestrates widget CRUD, unavailable-widget force cleanup, resilient settings/layout parsing, context-key reset safeguards, and split local layout sync with parallelized commit persistence. |
 | useDataFetch.ts | Hook module | Generic fetch hook with loading/error state plus stale-response guards to prevent older requests from overwriting newer state. |
 | useEntityContext.ts | Hook module | Generic optimistic entity-sync hook that now stores entity state in TanStack Query cache while keeping debounced persistence and entity-switch guards for pending update queues. |
-| useHomepageBuiltinTabs.ts | Hook module | Homepage tab orchestration that ensures required builtin tabs exist while pinning only shell tabs and preserving user reordering for Gradebook, Calendar, Schedule, Todo, and custom tabs. |
-| usePluginSharedSettings.ts | Hook module | Loads one plugin-level shared-settings record from shared Query cache for the active semester/course context and syncs updates through framework autosave with debounce and max-wait forcing. |
-| usePrefersReducedMotion.ts | Hook module | Custom hook implementing use prefers reduced motion behavior. |
+| useHomepageBuiltinTabs.ts | Hook module | Homepage tab orchestration that consumes governed runtime tabs, keeps shell tabs pinned, and preserves user reordering without locally creating builtin tabs. |
+| usePluginSharedSettings.ts | Hook module | Loads one plugin-level shared-settings record from shared Query cache, seeds from resolved runtime config when present, and syncs updates through framework autosave with debounce and max-wait forcing. |
+| usePrefersReducedMotion.ts | Hook module | Accessibility helper for `(prefers-reduced-motion)` that now safely falls back when `matchMedia` is unavailable in non-browser or stripped test environments. |
 | useScrollProgress.ts | Hook module | Custom hook implementing use scroll progress behavior. |
 | useSemesterTodoQuery.ts | Hook module | Shared TanStack Query hook pair for semester todo reads plus cache lookups/writes reused by Todo and Calendar-adjacent flows. |
 | useStickyCollapse.ts | Hook module | Custom hook implementing use sticky collapse behavior. |

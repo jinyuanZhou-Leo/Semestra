@@ -1,3 +1,11 @@
+// input:  [React icon factory, lucide icons, plugin metadata helpers, and built-in event contribution constants]
+// output: [default-exported builtin-event-core plugin manifest plus tab/widget catalog declaration]
+// pos:    [plugin manifest entry for the multi-surface academic events plugin]
+//
+// ⚠️ When this file is updated:
+//    1. Update these header comments
+//    2. Update the INDEX.md of the folder this file belongs to
+
 import { createElement } from 'react';
 import { CalendarDays, Clock3, ListTodo, NotebookPen } from 'lucide-react';
 import { definePluginMetadata } from '../../plugin-system/contracts';
@@ -10,6 +18,7 @@ import {
 } from './shared/constants';
 
 const pluginId = 'builtin-event-core';
+const pluginIcon = createElement(CalendarDays, { className: 'h-4 w-4' });
 
 const tabCatalog: TabCatalogItem[] = [
     {
@@ -17,7 +26,7 @@ const tabCatalog: TabCatalogItem[] = [
         type: BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
         name: 'Calendar',
         description: 'Semester calendar with schedule visualization',
-        icon: createElement(CalendarDays, { className: 'h-4 w-4' }),
+        icon: pluginIcon,
         maxInstances: 0,
         allowedContexts: ['semester'],
     },
@@ -56,6 +65,7 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
+    icon: pluginIcon,
     tabCatalog,
     widgetCatalog,
 });

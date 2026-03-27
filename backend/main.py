@@ -1,6 +1,6 @@
-# input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, and widget delete query flags]
-# output: [FastAPI app instance, router registration, production-safe docs configuration, remaining Program/Semester/Course route handlers, and Canvas module-file metadata/download routes]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, and keeps the remaining program/semester/course orchestration endpoints plus course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
+# input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, widget delete query flags, and backend schema compatibility checks]
+# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program plugin-governance + draft wizard routes, and Canvas module-file metadata/download routes]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program plugin governance, Semester draft wizard persistence, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -39,7 +39,7 @@ import todo
 import course_resources
 import auth
 import lms_service
-from database import engine, get_db
+from database import assert_runtime_schema_compatible, engine, get_db
 from schedule_support import import_course_schedule_from_ics
 
 BASE_DIR = Path(__file__).parent
@@ -52,6 +52,7 @@ if ENVIRONMENT == "development":
         load_dotenv(env_local_path)
 
 models.Base.metadata.create_all(bind=engine)
+assert_runtime_schema_compatible(engine)
 
 from fastapi import UploadFile, File
 import utils
@@ -92,6 +93,69 @@ app.include_router(auth_router)
 app.include_router(course_schedule_router)
 app.include_router(layout_router)
 
+
+def _raise_plugin_governance_http_error(exc: crud.PluginGovernanceError) -> None:
+    code_to_status = {
+        "PROGRAM_NOT_FOUND": 404,
+        "SEMESTER_NOT_FOUND": 404,
+        "PLUGIN_NOT_INSTALLED": 404,
+        "PLUGIN_LOCKED": 409,
+        "SEMESTER_DRAFT_EXISTS": 409,
+        "SEMESTER_NOT_DRAFT": 409,
+        "PLUGIN_NOT_AVAILABLE": 422,
+        "PLUGIN_AUTH_STATE_INVALID": 422,
+        "PROGRAM_PLUGIN_SETTINGS_INVALID": 422,
+        "SEMESTER_PLUGIN_OVERRIDES_INVALID": 422,
+        "SEMESTER_PLUGIN_SETUP_INVALID": 422,
+        "SEMESTER_DRAFT_REVIEW_FAILED": 422,
+    }
+    raise HTTPException(
+        status_code=code_to_status.get(exc.code, 422),
+        detail=error_detail(exc.code, exc.message),
+    )
+
+
+def _serialize_runtime_plugin_payloads(
+    activations: list[dict],
+    plugin_settings: list[models.PluginSetting],
+) -> dict[str, object]:
+    runtime_activations = [
+        activation
+        for activation in activations
+        if activation.get("is_enabled") and activation.get("available")
+    ]
+    enabled_plugin_ids = [activation["plugin_id"] for activation in runtime_activations]
+    runtime_plugins = [
+        {
+            "id": activation["id"],
+            "plugin_id": activation["plugin_id"],
+            "available_tab_types": list(activation.get("capabilities", {}).get("available_tab_types", [])),
+            "available_widget_types": list(activation.get("capabilities", {}).get("available_widget_types", [])),
+            "resolved_settings": activation.get("resolved_settings", {}),
+        }
+        for activation in runtime_activations
+    ]
+    available_widget_types = sorted({
+        widget_type
+        for activation in runtime_activations
+        for widget_type in activation.get("capabilities", {}).get("available_widget_types", [])
+    })
+    resolved_plugin_settings = []
+    for setting in plugin_settings:
+        resolved_plugin_settings.append({
+            "id": setting.id,
+            "plugin_id": setting.plugin_id,
+            "settings": setting.settings,
+            "resolved_settings": setting.settings,
+            "semester_id": setting.semester_id,
+            "course_id": setting.course_id,
+        })
+    return {
+        "enabled_plugin_ids": enabled_plugin_ids,
+        "runtime_plugins": runtime_plugins,
+        "available_widget_types": available_widget_types,
+        "resolved_plugin_settings": resolved_plugin_settings,
+    }
 # --- Programs ---
 @app.post("/programs/", response_model=schemas.Program)
 def create_program(program: schemas.ProgramCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -117,7 +181,22 @@ def read_program(program_id: str, db: Session = Depends(get_db), current_user: m
     program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
     if program is None:
         raise HTTPException(status_code=404, detail="Program not found")
-    return program
+    payload = schemas.Program.model_validate(program).model_dump()
+    payload["semesters"] = []
+    payload["plugin_installations"] = crud.get_program_plugin_installations(db, program_id)
+    for semester in program.semesters:
+        if semester.lifecycle_state == "draft":
+            continue
+        semester_payload = schemas.Semester.model_validate(semester).model_dump()
+        semester_payload["courses"] = [schemas.Course.model_validate(course).model_dump() for course in semester.courses]
+        semester_payload["widgets"] = [schemas.Widget.model_validate(widget).model_dump() for widget in semester.widgets]
+        semester_payload["tabs"] = [schemas.Tab.model_validate(tab).model_dump() for tab in semester.tabs]
+        semester_payload["plugin_settings"] = [
+            schemas.PluginSetting.model_validate(setting).model_dump()
+            for setting in semester.plugin_settings
+        ]
+        payload["semesters"].append(semester_payload)
+    return payload
 
 @app.put("/programs/{program_id}", response_model=schemas.Program)
 def update_program(program_id: str, program: schemas.ProgramUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -147,6 +226,158 @@ def delete_program(program_id: str, db: Session = Depends(get_db), current_user:
     db_program = crud.delete_program(db, program_id=program_id, user_id=current_user.id)
     if not db_program:
         raise HTTPException(status_code=404, detail="Program not found")
+    return {"ok": True}
+
+
+@app.get("/programs/{program_id}/plugins/catalog", response_model=list[schemas.ProgramPluginCatalogItem])
+def read_program_plugin_catalog(
+    program_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    return crud.get_program_plugin_catalog(db, program_id)
+
+
+@app.get("/programs/{program_id}/plugins/installations", response_model=list[schemas.ProgramPluginInstallation])
+def read_program_plugin_installations(
+    program_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    return crud.get_program_plugin_installations(db, program_id)
+
+
+@app.put("/programs/{program_id}/plugins/{plugin_id}", response_model=schemas.ProgramPluginInstallation)
+def upsert_program_plugin_installation(
+    program_id: str,
+    plugin_id: str,
+    payload: schemas.ProgramPluginInstallationUpsertRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    try:
+        return crud.upsert_program_plugin_installation(db, program_id, plugin_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.delete("/programs/{program_id}/plugins/{plugin_id}")
+def delete_program_plugin_installation(
+    program_id: str,
+    plugin_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    try:
+        installation = crud.delete_program_plugin_installation(db, program_id, plugin_id)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+    if installation is None:
+        raise HTTPException(status_code=404, detail=error_detail("PLUGIN_NOT_INSTALLED", "Plugin is not installed for this Program."))
+    return {"ok": True}
+
+
+@app.get("/programs/{program_id}/semester-draft", response_model=Optional[schemas.SemesterDraft])
+def read_current_semester_draft(
+    program_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    draft = crud.get_current_semester_draft(db, program_id)
+    if draft is None:
+        return None
+    return crud._serialize_semester_draft(draft)
+
+
+@app.post("/programs/{program_id}/semester-draft", response_model=schemas.SemesterDraft)
+def create_current_semester_draft(
+    program_id: str,
+    payload: schemas.SemesterDraftCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    try:
+        return crud.create_semester_draft(db, program_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.put("/semesters/{semester_id}/draft", response_model=schemas.SemesterDraft)
+def update_current_semester_draft(
+    semester_id: str,
+    payload: schemas.SemesterDraftUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    try:
+        return crud.update_semester_draft(db, semester_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.post("/semesters/{semester_id}/draft/finalize", response_model=schemas.SemesterDraft)
+def finalize_current_semester_draft(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    try:
+        return crud.finalize_semester_draft(db, semester_id)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.post("/semesters/{semester_id}/draft/review", response_model=schemas.SemesterDraft)
+def review_current_semester_draft(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    draft = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if draft is None:
+        raise HTTPException(status_code=404, detail="Semester not found")
+    if draft.lifecycle_state != "draft":
+        raise HTTPException(
+            status_code=409,
+            detail=error_detail("SEMESTER_NOT_DRAFT", "Only draft Semesters can be reviewed."),
+        )
+    return crud._serialize_semester_draft(draft)
+
+
+@app.delete("/semesters/{semester_id}/draft")
+def discard_current_semester_draft(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    try:
+        draft = crud.discard_semester_draft(db, semester_id)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+    if draft is None:
+        raise HTTPException(status_code=404, detail="Semester not found")
     return {"ok": True}
 
 
@@ -348,7 +579,32 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
     ).first()
     if semester is None:
         raise HTTPException(status_code=404, detail="Semester not found")
-    return semester
+    plugin_activations = crud.get_semester_plugin_activations(db, semester_id)
+    runtime_payload = _serialize_runtime_plugin_payloads(
+        plugin_activations,
+        crud.get_plugin_settings_for_context(db, semester_id=semester_id),
+    )
+    return {
+        "id": semester.id,
+        "name": semester.name,
+        "average_percentage": semester.average_percentage,
+        "average_scaled": semester.average_scaled,
+        "start_date": semester.start_date,
+        "end_date": semester.end_date,
+        "reading_week_start": semester.reading_week_start,
+        "reading_week_end": semester.reading_week_end,
+        "program_id": semester.program_id,
+        "lifecycle_state": semester.lifecycle_state,
+        "creation_step": semester.creation_step,
+        "draft_updated_at": semester.draft_updated_at,
+        "review_ready": semester.review_ready,
+        "courses": semester.courses,
+        "widgets": semester.widgets,
+        "tabs": semester.tabs,
+        "plugin_settings": semester.plugin_settings,
+        "plugin_activations": plugin_activations,
+        **runtime_payload,
+    }
 
 
 @app.get("/semesters/{semester_id}/lms/assignments", response_model=schemas.LmsAssignmentListResponse)
@@ -390,6 +646,48 @@ def read_semester_plugin_settings(
 ):
     get_owned_semester(db, current_user, semester_id)
     return crud.get_plugin_settings_for_context(db, semester_id=semester_id)
+
+
+@app.get("/semesters/{semester_id}/plugin-activations", response_model=list[schemas.SemesterPluginActivation])
+def read_semester_plugin_activations(
+    semester_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    return crud.get_semester_plugin_activations(db, semester_id)
+
+
+@app.put("/semesters/{semester_id}/plugin-activations/{plugin_id}", response_model=schemas.SemesterPluginActivation)
+def upsert_semester_plugin_activation(
+    semester_id: str,
+    plugin_id: str,
+    payload: schemas.SemesterPluginActivationUpsertRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    try:
+        return crud.upsert_semester_plugin_activation(db, semester_id, plugin_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.delete("/semesters/{semester_id}/plugin-activations/{plugin_id}")
+def delete_semester_plugin_activation(
+    semester_id: str,
+    plugin_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    try:
+        activation = crud.delete_semester_plugin_activation(db, semester_id, plugin_id)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+    if activation is None:
+        raise HTTPException(status_code=404, detail=error_detail("PLUGIN_NOT_ENABLED", "Plugin is not enabled for this Semester."))
+    return {"ok": True}
 
 @app.put("/semesters/{semester_id}/plugin-settings/{plugin_id}", response_model=schemas.PluginSetting)
 def upsert_semester_plugin_setting(
@@ -587,8 +885,33 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
     ).first()
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
-    # SQLAlchemy relationships (widgets) are lazy loaded, so pydantic will fetch them if in schema
-    return db_course
+    inherited_activations = crud.get_course_inherited_plugin_activations(db, course_id)
+    runtime_payload = _serialize_runtime_plugin_payloads(
+        inherited_activations,
+        crud.get_plugin_settings_for_context(db, course_id=course_id),
+    )
+    return {
+        "id": db_course.id,
+        "name": db_course.name,
+        "alias": db_course.alias,
+        "category": db_course.category,
+        "color": db_course.color,
+        "credits": db_course.credits,
+        "grade_scaled": db_course.grade_scaled,
+        "grade_percentage": db_course.grade_percentage,
+        "program_id": db_course.program_id,
+        "semester_id": db_course.semester_id,
+        "include_in_gpa": db_course.include_in_gpa,
+        "hide_gpa": db_course.hide_gpa,
+        "has_gradebook": db_course.has_gradebook,
+        "gradebook_revision": db_course.gradebook_revision,
+        "has_lms_link": db_course.has_lms_link,
+        "lms_link": db_course.lms_link,
+        "widgets": db_course.widgets,
+        "tabs": db_course.tabs,
+        "plugin_settings": db_course.plugin_settings,
+        **runtime_payload,
+    }
 
 
 @app.get("/courses/{course_id}/lms-link", response_model=Optional[schemas.LmsCourseLinkSummary])

@@ -135,7 +135,7 @@ export const CalendarToolbar: React.FC<CalendarToolbarProps> = ({
 
       <div
         data-slot="calendar-period-summary"
-        className="flex items-center justify-end gap-1.5 rounded-md border bg-background px-3 py-1.5 shadow-xs sm:ml-auto"
+        className="flex min-w-[208px] items-center justify-end gap-1.5 rounded-md border bg-background px-3 py-1.5 shadow-xs sm:ml-auto"
       >
         <span
           data-slot="calendar-period-badge"

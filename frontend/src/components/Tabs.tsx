@@ -56,7 +56,6 @@ const reorderIds = (ids: string[], fromId: string, toId: string) => {
 export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove, onReorder, onAdd }) => {
     const dragIdRef = React.useRef<string | null>(null);
     const scrollRef = React.useRef<HTMLDivElement | null>(null);
-    const wheelHandlerRef = React.useRef<(event: WheelEvent) => void>(() => {});
     const [draggingId, setDraggingId] = React.useState<string | null>(null);
     const [dragOverId, setDragOverId] = React.useState<string | null>(null);
     const [pendingRemoveId, setPendingRemoveId] = React.useState<string | null>(null);
@@ -150,7 +149,19 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
     }, [updateScrollShadows]);
 
     React.useEffect(() => {
-        wheelHandlerRef.current = handleWheel;
+        const container = scrollRef.current;
+        if (!container) {
+            return;
+        }
+
+        const nativeWheelHandler = (event: WheelEvent) => {
+            handleWheel(event);
+        };
+
+        container.addEventListener('wheel', nativeWheelHandler, { passive: false });
+        return () => {
+            container.removeEventListener('wheel', nativeWheelHandler);
+        };
     }, [handleWheel]);
 
     const handleDragStart = (id: string) => (event: React.DragEvent) => {
@@ -203,9 +214,6 @@ export const Tabs: React.FC<TabsProps> = ({ items, activeId, onSelect, onRemove,
                                 className="dashboard-tabs-scroll h-full w-full min-w-0 justify-start gap-1 overflow-x-auto overflow-y-hidden no-scrollbar rounded-[inherit] bg-transparent transition-[max-width,width] duration-300 ease-out"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                                 aria-label="Dashboard Tabs"
-                                onWheel={(event) => {
-                                    handleWheel(event.nativeEvent);
-                                }}
                             >
                                 <style>{`
                                     .dashboard-tabs-scroll::-webkit-scrollbar {

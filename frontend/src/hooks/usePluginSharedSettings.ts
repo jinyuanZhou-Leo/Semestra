@@ -1,6 +1,6 @@
-// input:  [plugin id/context ids, plugin settings REST APIs, TanStack Query cache/mutations, auto-save scheduler, and JSON equality helpers]
+// input:  [plugin id/context ids, plugin settings REST APIs, resolved runtime settings snapshots, TanStack Query cache/mutations, auto-save scheduler, and JSON equality helpers]
 // output: [`usePluginSharedSettings()` hook exposing framework-managed plugin-global settings state, shared caching, and debounced sync]
-// pos:    [Shared plugin-settings persistence hook that loads one plugin/context record from query cache and syncs it through framework autosave]
+// pos:    [Shared plugin-settings persistence hook that seeds from resolved runtime settings, loads one plugin/context record from query cache, and syncs editable state through framework autosave]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -23,14 +23,24 @@ interface UsePluginSharedSettingsOptions {
   pluginId: string;
   semesterId?: string;
   courseId?: string;
+  initialSettings?: Record<string, unknown>;
 }
 
 const EMPTY_SETTINGS: Record<string, unknown> = {};
 const DEBOUNCE_MS = 300;
 const MAX_WAIT_MS = 1500;
 
-const parsePluginSettings = (rawSettings: string | undefined): Record<string, unknown> => {
+const parsePluginSettings = (rawSettings: string | Record<string, unknown> | undefined): Record<string, unknown> => {
   if (!rawSettings) return EMPTY_SETTINGS;
+  if (Array.isArray(rawSettings)) {
+    return EMPTY_SETTINGS;
+  }
+  if (typeof rawSettings === 'object' && !Array.isArray(rawSettings)) {
+    return rawSettings;
+  }
+  if (typeof rawSettings !== 'string') {
+    return EMPTY_SETTINGS;
+  }
   try {
     const parsed = JSON.parse(rawSettings);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
@@ -46,6 +56,7 @@ export const usePluginSharedSettings = ({
   pluginId,
   semesterId,
   courseId,
+  initialSettings,
 }: UsePluginSharedSettingsOptions) => {
   const queryClient = useQueryClient();
   const queryKey = semesterId
@@ -90,13 +101,24 @@ export const usePluginSharedSettings = ({
     if (!pluginSettingsQuery.data) return;
 
     const match = pluginSettingsQuery.data.find((record) => record.plugin_id === pluginId);
-    const parsed = parsePluginSettings(match?.settings);
+    const parsed = parsePluginSettings(match?.resolved_settings ?? match?.settings);
 
     if (isDirty) return;
 
     setSavedSettings(parsed);
     setSettings(parsed);
   }, [courseId, isDirty, pluginId, pluginSettingsQuery.data, semesterId]);
+
+  useEffect(() => {
+    if (!pluginId || isDirty) return;
+    if (pluginSettingsQuery.data && pluginSettingsQuery.data.some((record) => record.plugin_id === pluginId)) {
+      return;
+    }
+    if (!initialSettings) return;
+
+    setSavedSettings(initialSettings);
+    setSettings(initialSettings);
+  }, [initialSettings, isDirty, pluginId, pluginSettingsQuery.data]);
 
   useEffect(() => {
     if (pluginSettingsQuery.error) {

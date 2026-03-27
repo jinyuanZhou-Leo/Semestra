@@ -92,7 +92,7 @@ describe('DashboardGrid', () => {
                 semesterId={'1'}
             />
         );
-        expect(screen.getByText('No Widgets')).toBeInTheDocument();
+        expect(screen.getByText('No widgets yet')).toBeInTheDocument();
     });
 
     it('renders the first widget immediately after leaving the empty state', () => {
@@ -105,7 +105,7 @@ describe('DashboardGrid', () => {
             />
         );
 
-        expect(screen.getByText('No Widgets')).toBeInTheDocument();
+        expect(screen.getByText('No widgets yet')).toBeInTheDocument();
 
         rerender(
             <DashboardGrid
@@ -118,7 +118,7 @@ describe('DashboardGrid', () => {
 
         expect(screen.getByTestId('rgl-grid')).toBeInTheDocument();
         expect(screen.getByTestId('counter-widget')).toBeInTheDocument();
-        expect(screen.queryByText('No Widgets')).not.toBeInTheDocument();
+        expect(screen.queryByText('No widgets yet')).not.toBeInTheDocument();
     });
 
     it('renders widgets', () => {

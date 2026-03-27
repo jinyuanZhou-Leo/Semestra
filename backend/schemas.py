@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, LMS connection wire contracts, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin governance payloads, Semester draft lifecycle plus review payloads, Semester activation or override payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin governance or Semester draft contracts plus review state, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -9,7 +9,7 @@
 import json
 import math
 from urllib.parse import urlparse
-from pydantic import BaseModel, Field, model_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import List, Optional, Any, Literal
 from enum import Enum
 from datetime import date
@@ -95,7 +95,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
 
-    @validator('password')
+    @field_validator('password')
     def validate_password(cls, value: str) -> str:
         if len(value) <= 8:
             raise ValueError('Password must be longer than 8 characters.')
@@ -111,8 +111,7 @@ class User(UserBase):
     is_active: bool = True
     user_setting: Optional[str] = None
     google_sub: Optional[str] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = None
@@ -158,8 +157,7 @@ class LmsIntegrationSummary(BaseModel):
     display_name: str
     provider: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LmsIntegrationCreateRequest(BaseModel):
@@ -168,22 +166,22 @@ class LmsIntegrationCreateRequest(BaseModel):
     config: dict[str, Any]
     credentials: dict[str, Any]
 
-    @validator("provider")
+    @field_validator("provider")
     def validate_provider(cls, value: str) -> str:
         return _validate_lms_provider(value)
 
-    @validator("display_name")
+    @field_validator("display_name")
     def validate_display_name(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
             raise ValueError("display_name is required.")
         return normalized
 
-    @validator("config")
+    @field_validator("config")
     def validate_config(cls, value: Any) -> dict[str, Any]:
         return _validate_lms_json_object("config", value)
 
-    @validator("credentials")
+    @field_validator("credentials")
     def validate_credentials(cls, value: Any) -> dict[str, Any]:
         return _validate_lms_json_object("credentials", value)
 
@@ -193,7 +191,7 @@ class LmsIntegrationUpdateRequest(BaseModel):
     config: Optional[dict[str, Any]] = None
     credentials: Optional[dict[str, Any]] = None
 
-    @validator("display_name")
+    @field_validator("display_name")
     def validate_optional_display_name(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
@@ -202,13 +200,13 @@ class LmsIntegrationUpdateRequest(BaseModel):
             raise ValueError("display_name cannot be empty.")
         return normalized
 
-    @validator("config")
+    @field_validator("config")
     def validate_optional_config(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
         if value is None:
             return value
         return _validate_lms_json_object("config", value)
 
-    @validator("credentials")
+    @field_validator("credentials")
     def validate_optional_credentials(cls, value: Optional[Any]) -> Optional[dict[str, Any]]:
         if value is None:
             return value
@@ -226,15 +224,15 @@ class LmsIntegrationValidationRequest(BaseModel):
     config: dict[str, Any]
     credentials: dict[str, Any]
 
-    @validator("provider")
+    @field_validator("provider")
     def validate_provider(cls, value: str) -> str:
         return _validate_lms_provider(value)
 
-    @validator("config")
+    @field_validator("config")
     def validate_config(cls, value: Any) -> dict[str, Any]:
         return _validate_lms_json_object("config", value)
 
-    @validator("credentials")
+    @field_validator("credentials")
     def validate_credentials(cls, value: Any) -> dict[str, Any]:
         return _validate_lms_json_object("credentials", value)
 
@@ -407,13 +405,14 @@ class LmsCourseLinkSummary(BaseModel):
     sync_enabled: bool = True
     last_synced_at: Optional[str] = None
     last_error: Optional[LmsIntegrationError] = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LmsCourseLinkUpdateRequest(BaseModel):
     external_course_id: str
     sync_enabled: bool = True
 
-    @validator("external_course_id")
+    @field_validator("external_course_id")
     def validate_external_course_id(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
@@ -429,7 +428,7 @@ class LmsCourseImportRequest(BaseModel):
     external_course_ids: List[str]
     semester_id: Optional[str] = None
 
-    @validator("external_course_ids")
+    @field_validator("external_course_ids")
     def validate_external_course_ids(cls, value: List[str]) -> List[str]:
         normalized = [item.strip() for item in value if item and item.strip()]
         if not normalized:
@@ -457,14 +456,14 @@ class LmsSemesterImportRequest(BaseModel):
     reading_week_end: Optional[date] = None
     external_course_ids: List[str]
 
-    @validator("name")
+    @field_validator("name")
     def validate_semester_name(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
             raise ValueError("name is required.")
         return normalized
 
-    @validator("external_course_ids")
+    @field_validator("external_course_ids")
     def validate_semester_external_course_ids(cls, value: List[str]) -> List[str]:
         normalized = [item.strip() for item in value if item and item.strip()]
         if not normalized:
@@ -550,11 +549,12 @@ class LmsSemesterImportResponse(BaseModel):
 # --- Widget Schemas ---
 class WidgetBase(BaseModel):
     widget_type: str
+    title: str = ""
     layout_config: str = "{}"
     settings: str = "{}"
     is_removable: bool = True
 
-    @validator('layout_config')
+    @field_validator('layout_config')
     def validate_layout_config(cls, value: str) -> str:
         return _validate_widget_layout_config(value)
 
@@ -565,15 +565,15 @@ class Widget(WidgetBase):
     id: str
     semester_id: Optional[str] = None
     course_id: Optional[str] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class WidgetUpdate(BaseModel):
     widget_type: Optional[str] = None
+    title: Optional[str] = None
     layout_config: Optional[str] = None
     settings: Optional[str] = None
 
-    @validator('layout_config')
+    @field_validator('layout_config')
     def validate_layout_config(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
@@ -594,8 +594,7 @@ class Tab(TabBase):
     id: str
     semester_id: Optional[str] = None
     course_id: Optional[str] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TabUpdate(BaseModel):
     settings: Optional[str] = None
@@ -615,8 +614,7 @@ class PluginSetting(PluginSettingBase):
     semester_id: Optional[str] = None
     course_id: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CourseResourceFile(BaseModel):
     id: str
@@ -631,13 +629,12 @@ class CourseResourceFile(BaseModel):
     created_at: str
     updated_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CourseResourceRenameRequest(BaseModel):
     filename_display: str
 
-    @validator("filename_display")
+    @field_validator("filename_display")
     def validate_filename_display(cls, value: str) -> str:
         normalized = " ".join(value.split()).strip()
         if not normalized:
@@ -648,7 +645,7 @@ class CourseResourceLinkCreate(BaseModel):
     url: str
     filename_display: Optional[str] = None
 
-    @validator("url")
+    @field_validator("url")
     def validate_url(cls, value: str) -> str:
         normalized = value.strip()
         parsed = urlparse(normalized)
@@ -656,7 +653,7 @@ class CourseResourceLinkCreate(BaseModel):
             raise ValueError("url must be a valid http or https URL.")
         return normalized
 
-    @validator("filename_display")
+    @field_validator("filename_display")
     def validate_optional_filename_display(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
@@ -691,7 +688,7 @@ class TodoPriority(str, Enum):
 class TodoSectionBase(BaseModel):
     name: str
 
-    @validator("name")
+    @field_validator("name")
     def validate_name(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
@@ -704,7 +701,7 @@ class TodoSectionCreate(TodoSectionBase):
 class TodoSectionUpdate(BaseModel):
     name: Optional[str] = None
 
-    @validator("name")
+    @field_validator("name")
     def validate_optional_name(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
@@ -719,8 +716,7 @@ class TodoSection(TodoSectionBase):
     created_at: str
     updated_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TodoTaskBase(BaseModel):
     title: str
@@ -732,14 +728,14 @@ class TodoTaskBase(BaseModel):
     course_id: Optional[str] = None
     section_id: Optional[str] = None
     origin_section_id: Optional[str] = None
-    @validator("title")
+    @field_validator("title")
     def validate_title(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
             raise ValueError("Task title is required.")
         return normalized
 
-    @validator("due_time")
+    @field_validator("due_time")
     def validate_due_time(cls, value: Optional[str]) -> Optional[str]:
         if value is None or value == "":
             return None
@@ -766,7 +762,7 @@ class TodoTaskUpdate(BaseModel):
     section_id: Optional[str] = None
     origin_section_id: Optional[str] = None
 
-    @validator("title")
+    @field_validator("title")
     def validate_optional_title(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
@@ -775,7 +771,7 @@ class TodoTaskUpdate(BaseModel):
             raise ValueError("Task title is required.")
         return normalized
 
-    @validator("due_time")
+    @field_validator("due_time")
     def validate_optional_due_time(cls, value: Optional[str]) -> Optional[str]:
         if value is None or value == "":
             return None
@@ -853,13 +849,16 @@ class Course(CourseBase):
     gradebook_revision: int = 0
     has_lms_link: bool = False
     lms_link: Optional[LmsCourseLinkSummary] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CourseWithWidgets(Course):
     widgets: List[Widget] = []
     tabs: List[Tab] = []
     plugin_settings: List[PluginSetting] = []
+    enabled_plugin_ids: List[str] = []
+    runtime_plugins: List[dict[str, Any]] = []
+    available_widget_types: List[str] = []
+    resolved_plugin_settings: List[PluginSetting] = []
 
 class GradebookForecastModel(str, Enum):
     AUTO = "auto"
@@ -876,8 +875,7 @@ class GradebookAssessmentCategoryBase(BaseModel):
 class GradebookAssessmentCategory(GradebookAssessmentCategoryBase):
     id: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class GradebookAssessmentBase(BaseModel):
     category_id: Optional[str] = None
@@ -892,8 +890,7 @@ class GradebookAssessmentBase(BaseModel):
 class GradebookAssessment(GradebookAssessmentBase):
     id: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CourseGradebook(BaseModel):
     course_id: str
@@ -948,14 +945,22 @@ class SemesterCreate(SemesterBase):
 class Semester(SemesterBase):
     id: str
     program_id: str
-    class Config:
-        from_attributes = True
+    lifecycle_state: str = "active"
+    creation_step: str = "review"
+    draft_updated_at: Optional[str] = None
+    review_ready: bool = False
+    model_config = ConfigDict(from_attributes=True)
 
 class SemesterWithDetails(Semester):
     courses: List[Course] = []
     widgets: List[Widget] = []
     tabs: List[Tab] = []
     plugin_settings: List[PluginSetting] = []
+    plugin_activations: List["SemesterPluginActivation"] = []
+    enabled_plugin_ids: List[str] = []
+    runtime_plugins: List[dict[str, Any]] = []
+    available_widget_types: List[str] = []
+    resolved_plugin_settings: List[PluginSetting] = []
 
 
 # --- Program Schemas ---
@@ -989,11 +994,133 @@ class Program(ProgramBase):
     owner_id: str
     has_lms_dependencies: bool = False
     lms_integration: Optional[LmsIntegrationSummary] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ProgramWithSemesters(Program):
     semesters: List[SemesterWithDetails] = []
+    plugin_installations: List["ProgramPluginInstallation"] = []
+
+
+class ProgramPluginField(BaseModel):
+    path: str
+    label: Optional[str] = None
+    type: Optional[str] = None
+    scope: str
+    default: Any = None
+    description: str = ""
+    options: List[dict[str, Any]] = []
+
+
+class ProgramPluginInstallationUpsertRequest(BaseModel):
+    version: Optional[str] = None
+    is_enabled: Optional[bool] = None
+    auth_state: Optional[str] = None
+    auth_message: Optional[str] = None
+    program_settings: dict[str, Any] = {}
+
+
+class ProgramPluginInstallation(BaseModel):
+    id: Optional[str] = None
+    plugin_id: str
+    display_name: str
+    description: str
+    author: str
+    default_version: str
+    default_installed: bool = False
+    default_enabled: bool = False
+    locked: bool = False
+    version: str
+    is_enabled: bool = True
+    auth_state: str
+    auth_message: Optional[str] = None
+    requires_authorization: bool = False
+    requires_program_lms_integration: bool = False
+    capabilities: dict[str, Any] = {}
+    setup_sections: List[dict[str, Any]] = []
+    program_settings: dict[str, Any] = {}
+    resolved_program_settings: dict[str, Any] = {}
+    fields: List[ProgramPluginField] = []
+    available: bool = False
+    availability_reason: Optional[str] = None
+    installed: bool = True
+
+
+class ProgramPluginCatalogItem(ProgramPluginInstallation):
+    installed: bool = False
+
+
+class SemesterPluginActivationUpsertRequest(BaseModel):
+    semester_overrides: dict[str, Any] = {}
+    setup_state: dict[str, Any] = {}
+    is_enabled: Optional[bool] = None
+
+
+class SemesterDraftReviewIssue(BaseModel):
+    code: str
+    message: str
+    step: str
+    plugin_id: Optional[str] = None
+    field_path: Optional[str] = None
+
+
+class SemesterDraftReviewSummaryItem(BaseModel):
+    path: str
+    label: str
+    value: str
+
+
+class SemesterDraftReviewSummarySection(BaseModel):
+    id: str
+    title: str
+    description: str = ""
+    items: List[SemesterDraftReviewSummaryItem] = []
+
+
+class SemesterPluginActivation(BaseModel):
+    id: Optional[str] = None
+    semester_id: str
+    program_plugin_installation_id: str
+    plugin_id: str
+    display_name: str
+    description: str
+    author: str
+    locked: bool = False
+    version: str
+    is_enabled: bool = True
+    auth_state: str
+    capabilities: dict[str, Any] = {}
+    setup_sections: List[dict[str, Any]] = []
+    semester_overrides: dict[str, Any] = {}
+    setup_state: dict[str, Any] = {}
+    resolved_settings: dict[str, Any] = {}
+    fields: List[ProgramPluginField] = []
+    setup_summary: List[SemesterDraftReviewSummarySection] = []
+    review_errors: List[SemesterDraftReviewIssue] = []
+    available: bool = False
+    availability_reason: Optional[str] = None
+
+
+class SemesterDraftCreateRequest(BaseModel):
+    name: str = "Untitled Semester"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    reading_week_start: Optional[date] = None
+    reading_week_end: Optional[date] = None
+    creation_step: str = "basics"
+
+
+class SemesterDraftUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    reading_week_start: Optional[date] = None
+    reading_week_end: Optional[date] = None
+    creation_step: Optional[str] = None
+
+
+class SemesterDraft(Semester):
+    plugin_activations: List[SemesterPluginActivation] = []
+    review_errors: List[SemesterDraftReviewIssue] = []
 
 class WeekPattern(str, Enum):
     EVERY = "EVERY"
@@ -1017,14 +1144,12 @@ class CourseEventTypeUpdate(BaseModel):
     icon: Optional[str] = None
     track_attendance: Optional[bool] = Field(default=None, alias="trackAttendance")
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class CourseEventType(CourseEventTypeBase):
     id: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CourseEventTypePatchResponse(BaseModel):
     event_type: CourseEventType
@@ -1044,8 +1169,7 @@ class CourseSectionBase(BaseModel):
     start_week: int = Field(default=1, alias="startWeek")
     end_week: int = Field(default=1, alias="endWeek")
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class CourseSectionCreate(CourseSectionBase):
     pass
@@ -1062,15 +1186,12 @@ class CourseSectionUpdate(BaseModel):
     start_week: Optional[int] = Field(default=None, alias="startWeek")
     end_week: Optional[int] = Field(default=None, alias="endWeek")
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class CourseSection(CourseSectionBase):
     id: str
 
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class CourseSectionImportItem(CourseSectionBase):
     pass
@@ -1093,8 +1214,7 @@ class CourseEventBase(BaseModel):
     skip: bool = False
     note: Optional[str] = None
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class CourseEventCreate(CourseEventBase):
     pass
@@ -1113,23 +1233,19 @@ class CourseEventUpdate(BaseModel):
     skip: Optional[bool] = None
     note: Optional[str] = None
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class CourseEvent(CourseEventBase):
     id: str
 
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class CourseEventBatchItem(BaseModel):
     op: Literal["create", "update", "delete"]
     event_id: Optional[str] = Field(default=None, alias="eventId")
     data: Optional[dict] = None
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class CourseEventBatchRequest(BaseModel):
     atomic: bool = True
@@ -1172,8 +1288,7 @@ class ScheduleEventItem(BaseModel):
     note: Optional[str] = None
     render_state: Optional[str] = Field(default=None, alias="renderState")
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class ScheduleResponse(BaseModel):
     week: int
@@ -1181,8 +1296,7 @@ class ScheduleResponse(BaseModel):
     items: List[ScheduleEventItem]
     warnings: List[str] = []
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class ScheduleRangeResponse(BaseModel):
     start: date
@@ -1190,8 +1304,7 @@ class ScheduleRangeResponse(BaseModel):
     items: List[ScheduleEventItem]
     warnings: List[str] = []
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class ExportScope(str, Enum):
     COURSE = "course"
@@ -1215,8 +1328,7 @@ class ScheduleExportRequest(BaseModel):
     end_week: Optional[int] = Field(default=None, alias="endWeek")
     skip_render_mode: SkipRenderMode = Field(default=SkipRenderMode.HIDE_SKIPPED, alias="skipRenderMode")
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class JsonExportResponse(BaseModel):
     format: str
@@ -1227,8 +1339,7 @@ class JsonExportResponse(BaseModel):
     skip_render_mode: SkipRenderMode = Field(alias="skipRenderMode")
     items: List[ScheduleEventItem]
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 # --- Export/Import Schemas ---
 class WidgetExport(BaseModel):
