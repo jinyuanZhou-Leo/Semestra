@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, shared color helpers, timezone/date helpers, plugin governance registry helpers, and transaction/integrity helpers]
-# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, Program-level plugin governance rows, manifest-backed plugin-system setup flows, Semester draft lifecycle flows with transactional draft initialization plus database-backed single-draft enforcement, Program-enabled-plus-Semester-state plugin activation payloads, homepage-tab defaults plus legacy tab-type normalization, user settings including background plugin preload preference defaults, gradebook initialization, validated course-to-semester reassignment, and stable Program subject-color synchronization]
-# pos:    [Database access layer for backend services, normalized user-setting persistence, Program plugin governance, manifest-backed Semester plugin setup state, transactional Semester draft creation plus Program-enabled plugin visibility and activation state, homepage-tab default repair plus legacy tab-type cleanup, gradebook-backed course creation, and stat-safe course/semester mutations]
+# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, Program-level plugin governance rows, manifest-backed plugin-system setup flows, Semester draft lifecycle flows with transactional draft initialization plus database-backed single-draft enforcement, Program-enabled-plus-Semester-state plugin activation payloads, legacy homepage-tab normalization helpers, user settings including background plugin preload preference defaults, gradebook initialization, validated course-to-semester reassignment, stable Program subject-color synchronization, and Program-plugin uninstall cleanup for plugin-owned runtime data]
+# pos:    [Database access layer for backend services, normalized user-setting persistence, Program plugin governance, manifest-backed Semester plugin setup state, transactional Semester draft creation plus Program-enabled plugin visibility and activation state, legacy tab-type cleanup, gradebook-backed course creation, Program-plugin uninstall cleanup, and stat-safe course/semester mutations]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -23,7 +23,6 @@ DEFAULT_GPA_SCALING = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3,
 DEFAULT_COURSE_CREDIT = 0.5
 DEFAULT_PROGRAM_TIMEZONE = "UTC"
 DEFAULT_SEMESTER_LENGTH_DAYS = 111
-DEFAULT_SEMESTER_HOMEPAGE_TAB_TYPES = ("builtin-dashboard", "builtin-setting")
 LEGACY_TAB_TYPE_ALIASES = {
     "dashboard": "builtin-dashboard",
     "settings": "builtin-setting",
@@ -633,6 +632,109 @@ def _ensure_default_program_plugin_installations(db: Session, program: models.Pr
         db.refresh(program)
 
 
+def _delete_program_plugin_runtime_data(
+    db: Session,
+    *,
+    program_id: str,
+    plugin_id: str,
+) -> None:
+    plugin_id = _canonical_plugin_id(plugin_id)
+    definition = plugin_governance.get_plugin_definition(plugin_id)
+    capabilities = definition.capabilities or {}
+    tab_types = {
+        str(tab_type).strip()
+        for tab_type in capabilities.get("available_tab_types", [])
+        if str(tab_type).strip()
+    }
+    widget_types = {
+        str(widget_type).strip()
+        for widget_type in capabilities.get("available_widget_types", [])
+        if str(widget_type).strip()
+    }
+    semester_ids = [
+        semester_id
+        for (semester_id,) in db.query(models.Semester.id).filter(models.Semester.program_id == program_id).all()
+    ]
+    course_ids = [
+        course_id
+        for (course_id,) in db.query(models.Course.id).filter(models.Course.program_id == program_id).all()
+    ]
+
+    if semester_ids:
+        db.query(models.PluginSetting).filter(
+            models.PluginSetting.plugin_id == plugin_id,
+            models.PluginSetting.semester_id.in_(semester_ids),
+        ).delete(synchronize_session=False)
+        if tab_types:
+            db.query(models.Tab).filter(
+                models.Tab.semester_id.in_(semester_ids),
+                models.Tab.tab_type.in_(tab_types),
+            ).delete(synchronize_session=False)
+        if widget_types:
+            db.query(models.Widget).filter(
+                models.Widget.semester_id.in_(semester_ids),
+                models.Widget.widget_type.in_(widget_types),
+            ).delete(synchronize_session=False)
+
+    if course_ids:
+        db.query(models.PluginSetting).filter(
+            models.PluginSetting.plugin_id == plugin_id,
+            models.PluginSetting.course_id.in_(course_ids),
+        ).delete(synchronize_session=False)
+        if tab_types:
+            db.query(models.Tab).filter(
+                models.Tab.course_id.in_(course_ids),
+                models.Tab.tab_type.in_(tab_types),
+            ).delete(synchronize_session=False)
+        if widget_types:
+            db.query(models.Widget).filter(
+                models.Widget.course_id.in_(course_ids),
+                models.Widget.widget_type.in_(widget_types),
+            ).delete(synchronize_session=False)
+
+    if plugin_id == "course-resources" and course_ids:
+        db.query(models.CourseResourceFile).filter(
+            models.CourseResourceFile.course_id.in_(course_ids),
+        ).delete(synchronize_session=False)
+
+    if plugin_id == "builtin-gradebook" and course_ids:
+        gradebook_ids = [
+            gradebook_id
+            for (gradebook_id,) in db.query(models.CourseGradebook.id).filter(
+                models.CourseGradebook.course_id.in_(course_ids),
+            ).all()
+        ]
+        if gradebook_ids:
+            db.query(models.GradebookAssessment).filter(
+                models.GradebookAssessment.gradebook_id.in_(gradebook_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.GradebookAssessmentCategory).filter(
+                models.GradebookAssessmentCategory.gradebook_id.in_(gradebook_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.CourseGradebook).filter(
+                models.CourseGradebook.id.in_(gradebook_ids),
+            ).delete(synchronize_session=False)
+
+    if plugin_id == "builtin-event-core":
+        if semester_ids:
+            db.query(models.TodoTask).filter(
+                models.TodoTask.semester_id.in_(semester_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.TodoSection).filter(
+                models.TodoSection.semester_id.in_(semester_ids),
+            ).delete(synchronize_session=False)
+        if course_ids:
+            db.query(models.CourseEvent).filter(
+                models.CourseEvent.course_id.in_(course_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.CourseSection).filter(
+                models.CourseSection.course_id.in_(course_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.CourseEventType).filter(
+                models.CourseEventType.course_id.in_(course_ids),
+            ).delete(synchronize_session=False)
+
+
 def _ensure_default_semester_plugin_activations(
     db: Session,
     semester: models.Semester,
@@ -688,48 +790,8 @@ def _ensure_default_semester_plugin_activations(
             db.flush()
 
 
-def _ensure_default_semester_homepage_tabs(
-    db: Session,
-    semester: models.Semester,
-    *,
-    commit: bool = True,
-) -> None:
-    _normalize_context_tabs(db, semester=semester, commit=commit)
-    existing_tab_types = {
-        _canonical_tab_type(tab.tab_type)
-        for tab in semester.tabs
-        if _canonical_tab_type(tab.tab_type)
-    }
-    next_order_index = max((int(tab.order_index or 0) for tab in semester.tabs), default=-1) + 1
-    did_change = False
-
-    for tab_type in DEFAULT_SEMESTER_HOMEPAGE_TAB_TYPES:
-        if tab_type in existing_tab_types:
-            continue
-        db.add(
-            models.Tab(
-                semester_id=semester.id,
-                tab_type=tab_type,
-                settings="{}",
-                order_index=next_order_index,
-                is_removable=False,
-                is_draggable=False,
-            )
-        )
-        existing_tab_types.add(tab_type)
-        next_order_index += 1
-        did_change = True
-
-    if did_change:
-        if commit:
-            db.commit()
-            db.refresh(semester)
-        else:
-            db.flush()
-
-
-def ensure_semester_homepage_tabs(db: Session, semester: models.Semester) -> None:
-    _ensure_default_semester_homepage_tabs(db, semester)
+def ensure_semester_tabs_normalized(db: Session, semester: models.Semester) -> None:
+    _normalize_context_tabs(db, semester=semester)
 
 
 def ensure_course_tabs_normalized(db: Session, course: models.Course) -> None:
@@ -1095,6 +1157,7 @@ def delete_program_plugin_installation(db: Session, program_id: str, plugin_id: 
     )
     if installation is None:
         return None
+    _delete_program_plugin_runtime_data(db, program_id=program_id, plugin_id=plugin_id)
     db.delete(installation)
     db.commit()
     return installation
@@ -1477,7 +1540,6 @@ def create_semester_draft(
     try:
         db.flush()
         _ensure_default_semester_plugin_activations(db, db_semester, commit=False)
-        _ensure_default_semester_homepage_tabs(db, db_semester, commit=False)
         db.add(
             models.Widget(
                 widget_type="course-list",
@@ -1543,7 +1605,6 @@ def finalize_semester_draft(db: Session, semester_id: str) -> dict:
             else "Resolve the draft review errors before finalizing this Semester."
         )
         raise PluginGovernanceError("SEMESTER_DRAFT_REVIEW_FAILED", message)
-    _ensure_default_semester_homepage_tabs(db, semester)
     semester.lifecycle_state = "active"
     semester.creation_step = "review"
     semester.draft_updated_at = _now_utc_iso()
@@ -1587,8 +1648,6 @@ def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: s
     db.commit()
     db.refresh(db_semester)
     _ensure_default_semester_plugin_activations(db, db_semester)
-    _ensure_default_semester_homepage_tabs(db, db_semester)
-    db.refresh(db_semester)
     _refresh_semester_review_ready(db_semester)
     db.add(db_semester)
     db.commit()
@@ -1602,7 +1661,6 @@ def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: s
             ),
             semester_id=db_semester.id,
         )
-    
     return db_semester
 
 def update_semester(db: Session, semester_id: str, semester_update: schemas.SemesterCreate):

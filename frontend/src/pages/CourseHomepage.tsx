@@ -1,6 +1,6 @@
-// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester runtime plugin governance payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, and shared business empty-state wrappers]
+// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester runtime plugin governance payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-governed plugin inheritance from the parent semester, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-governed plugin inheritance from the parent semester, plugin-derived dashboard/settings shell tabs, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -55,6 +55,7 @@ import {
 } from '../utils/homepageBuiltinTabs';
 import { parseSubjectColorMap, resolveCourseColor } from '../utils/courseCategoryBadge';
 import {
+    filterWidgetItemsByEnabledPlugins,
     resolveAvailableWidgetTypes,
     resolveEnabledPluginIds,
     resolveGovernedRuntimeTabs,
@@ -213,6 +214,10 @@ const CourseHomepageContent: React.FC = () => {
         initialWidgets: course?.widgets,
         onRefresh: refreshCourse
     });
+    const visibleWidgets = useMemo(
+        () => filterWidgetItemsByEnabledPlugins(widgets, enabledPluginIds),
+        [enabledPluginIds, widgets]
+    );
 
     const {
         tabs,
@@ -311,7 +316,9 @@ const CourseHomepageContent: React.FC = () => {
         filterReorderableTabIds,
     } = useHomepageBuiltinTabs({
         tabs,
+        enabledPluginIds,
         activeTabId,
+        scopeKey: `course:${course?.id ?? 'unknown'}`,
         config: COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
         isTabsInitialized,
     });
@@ -689,7 +696,7 @@ const CourseHomepageContent: React.FC = () => {
     const builtinTabContext = useMemo(() => ({
         isLoading,
         dashboard: {
-            widgets,
+            widgets: visibleWidgets,
             onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
             onRemoveUnavailableWidget: handleRemoveUnavailableWidget,
@@ -733,6 +740,7 @@ const CourseHomepageContent: React.FC = () => {
     }), [
         isLoading,
         widgets,
+        visibleWidgets,
         handleRemoveWidget,
         handleRemoveUnavailableWidget,
         handleUpdateWidget,
@@ -931,9 +939,9 @@ const CourseHomepageContent: React.FC = () => {
                                 <AddWidgetModal
                                     isOpen={isAddWidgetOpen}
                                     onClose={() => setIsAddWidgetOpen(false)}
-                                onAdd={handleAddWidget}
-                                context="course"
-                                widgets={widgets}
+                                    onAdd={handleAddWidget}
+                                    context="course"
+                                    widgets={visibleWidgets}
                                     allowedTypes={availableWidgetTypes}
                                 />
                                 <WidgetSettingsModal

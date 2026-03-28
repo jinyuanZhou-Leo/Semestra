@@ -1,5 +1,5 @@
 // input:  [`SemesterPluginGovernancePanel`, mocked governance APIs, QueryClient wrapper, and testing-library interactions]
-// output: [component regression tests covering Semester-level protected delete rules, reusable plugin info dialogs, Program-enabled off rows, and non-destructive enablement toggles]
+// output: [component regression tests covering Semester-level toggle-only governance, reusable plugin info dialogs, Program-enabled off rows, and non-destructive enablement toggles]
 // pos:    [UI regression suite for the shared data table used by Semester plugin management, including Program-enabled plugins that are still off at the Semester layer]
 //
 // ⚠️ When this file is updated:
@@ -16,7 +16,6 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     getProgramPluginCatalog: vi.fn(),
     upsertSemesterPluginActivation: vi.fn(),
-    deleteSemesterPluginActivation: vi.fn(),
   },
 }));
 
@@ -32,7 +31,6 @@ describe("SemesterPluginGovernancePanel", () => {
   beforeEach(() => {
     apiMock.getProgramPluginCatalog.mockReset();
     apiMock.upsertSemesterPluginActivation.mockReset();
-    apiMock.deleteSemesterPluginActivation.mockReset();
   });
 
   it("does not expose marketplace actions for Semester plugins", async () => {
@@ -93,10 +91,9 @@ describe("SemesterPluginGovernancePanel", () => {
         is_enabled: false,
       });
     });
-    expect(apiMock.deleteSemesterPluginActivation).not.toHaveBeenCalled();
   });
 
-  it("prevents deleting protected built-in Semester plugins", async () => {
+  it("does not expose delete actions for active Semester plugins", async () => {
     const { Wrapper } = createQueryClientWrapper();
     render(
       <SemesterPluginGovernancePanel
@@ -106,11 +103,11 @@ describe("SemesterPluginGovernancePanel", () => {
             id: "activation-2",
             semester_id: "semester-1",
             program_plugin_installation_id: "installation-3",
-            plugin_id: "builtin-setting",
-            display_name: "Settings",
-            description: "Built-in settings tab.",
+            plugin_id: "builtin-event-core",
+            display_name: "Academic Events",
+            description: "Calendar, course schedule, todo, and daily event surfaces.",
             author: "Jinyuan",
-            locked: true,
+            locked: false,
             version: "workspace",
             is_enabled: true,
             capabilities: {},
@@ -129,7 +126,8 @@ describe("SemesterPluginGovernancePanel", () => {
       { wrapper: Wrapper },
     );
 
-    expect(screen.queryByRole("button", { name: "Delete Settings" })).not.toBeInTheDocument();
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Open actions for Academic Events" }));
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
   });
 
   it("shows Program-enabled plugins without Semester activations as off and non-deletable", async () => {

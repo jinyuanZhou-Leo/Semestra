@@ -1,6 +1,6 @@
-// input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin governance payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin governance payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
+// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -57,6 +57,7 @@ import {
 } from '../utils/homepageBuiltinTabs';
 import { queryKeys } from '../services/queryKeys';
 import {
+    filterWidgetItemsByEnabledPlugins,
     resolveAvailableWidgetTypes,
     resolveEnabledPluginIds,
     resolveGovernedRuntimeTabs,
@@ -133,6 +134,10 @@ const SemesterHomepageContent: React.FC = () => {
         initialWidgets: semester?.widgets,
         onRefresh: refreshSemester
     });
+    const visibleWidgets = useMemo(
+        () => filterWidgetItemsByEnabledPlugins(widgets, enabledPluginIds),
+        [enabledPluginIds, widgets]
+    );
 
     const {
         tabs: customTabs,
@@ -166,7 +171,9 @@ const SemesterHomepageContent: React.FC = () => {
         filterReorderableTabIds,
     } = useHomepageBuiltinTabs({
         tabs: customTabs,
+        enabledPluginIds,
         activeTabId,
+        scopeKey: `semester:${semester?.id ?? 'unknown'}`,
         config: SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
         isTabsInitialized,
     });
@@ -473,8 +480,8 @@ const SemesterHomepageContent: React.FC = () => {
 
     const builtinTabContext = useMemo(() => ({
         isLoading: isLoading,
-        dashboard: {
-            widgets: widgets,
+            dashboard: {
+            widgets: visibleWidgets,
             overview: semesterOverview,
             onAddWidgetClick: openAddWidgetModal,
             onRemoveWidget: handleRemoveWidget,
@@ -522,6 +529,7 @@ const SemesterHomepageContent: React.FC = () => {
     }), [
         isLoading,
         widgets,
+        visibleWidgets,
         handleRemoveWidget,
         handleRemoveUnavailableWidget,
         handleUpdateWidget,
@@ -574,7 +582,7 @@ const SemesterHomepageContent: React.FC = () => {
                                 onClose={() => setIsAddWidgetOpen(false)}
                                 onAdd={handleAddWidget}
                                 context="semester"
-                                widgets={widgets}
+                                widgets={visibleWidgets}
                                 allowedTypes={availableWidgetTypes}
                             />
                             <WidgetSettingsModal

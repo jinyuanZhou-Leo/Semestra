@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, widget delete query flags, and backend schema compatibility checks]
-# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program plugin-governance + plugin-system + draft wizard routes, Semester/Course homepage-tab self-healing reads, and Canvas module-file metadata/download routes]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program plugin governance, explicit plugin-system setup APIs, Semester draft wizard persistence, Semester/Course homepage-tab repair on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
+# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program plugin-governance + plugin-system + draft wizard routes, legacy semester-tab normalization reads, and Canvas module-file metadata/download routes]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program plugin governance, explicit plugin-system setup APIs, Semester draft wizard persistence, legacy Semester/Course tab normalization on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -651,7 +651,7 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
     ).first()
     if semester is None:
         raise HTTPException(status_code=404, detail="Semester not found")
-    crud.ensure_semester_homepage_tabs(db, semester)
+    crud.ensure_semester_tabs_normalized(db, semester)
     plugin_activations = crud.get_semester_plugin_activations(db, semester_id)
     runtime_payload = _serialize_runtime_plugin_payloads(
         plugin_activations,

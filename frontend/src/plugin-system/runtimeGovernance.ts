@@ -1,10 +1,12 @@
 // input:  [runtime entity payloads returned by semester/course APIs]
 // output: [helpers that normalize Program/Semester-governed runtime plugin availability into tab/widget/settings state]
-// pos:    [Runtime governance adapter that decouples homepage/plugin pages from backend field-shape churn during the Program->Semester plugin hierarchy refactor]
+// pos:    [Runtime governance adapter that decouples homepage/plugin pages from backend field-shape churn during the Program->Semester plugin hierarchy refactor, including widget visibility filtering against enabled plugin ids]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
+
+import { getPluginIdByTabType, getPluginIdByWidgetType } from './index';
 
 type JsonObject = Record<string, unknown>;
 
@@ -58,6 +60,14 @@ export interface GovernedRuntimeTab {
   is_removable?: boolean;
   plugin_id?: string;
 }
+
+type RuntimeWidgetLike = {
+  type?: string;
+};
+
+type RuntimeTabItemLike = {
+  type?: string;
+};
 
 const EMPTY_OBJECT: JsonObject = {};
 
@@ -202,4 +212,24 @@ export const resolvePluginSettingsMap = (
   });
 
   return settingsMap;
+};
+
+export const filterWidgetItemsByEnabledPlugins = <T extends RuntimeWidgetLike>(
+  widgets: T[],
+  enabledPluginIds: Set<string>
+): T[] => {
+  return widgets.filter((widget) => {
+    const pluginId = getPluginIdByWidgetType(widget.type ?? '');
+    return !pluginId || enabledPluginIds.has(pluginId);
+  });
+};
+
+export const filterTabItemsByEnabledPlugins = <T extends RuntimeTabItemLike>(
+  tabs: T[],
+  enabledPluginIds: Set<string>
+): T[] => {
+  return tabs.filter((tab) => {
+    const pluginId = getPluginIdByTabType(tab.type ?? '');
+    return !pluginId || enabledPluginIds.has(pluginId);
+  });
 };

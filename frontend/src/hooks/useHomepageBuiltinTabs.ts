@@ -1,6 +1,6 @@
-// input:  [raw dashboard tabs, builtin-tab config, plugin metadata resolvers, and tab registry updates]
+// input:  [raw dashboard tabs, enabled plugin ids, homepage shell-tab config, plugin metadata resolvers, and tab registry updates]
 // output: [`useHomepageBuiltinTabs()` derived tab-bar state and reorder/filter helpers]
-// pos:    [Homepage-specific tab orchestration for governed runtime tabs, lazy readiness, and fixed shell-tab placement without overriding user reorder]
+// pos:    [Homepage-specific tab orchestration for governed runtime tabs plus synthetic shell tabs derived from enabled plugins]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,15 +12,19 @@ import type { TabItem as DashboardTabItem } from './useDashboardTabs';
 import {
     ensureTabPluginByTypeLoaded,
     getTabComponentByType,
+    getPluginIdByTabType,
     getResolvedTabMetadataByType,
     hasTabPluginForType,
 } from '../plugin-system';
+import { filterTabItemsByEnabledPlugins } from '../plugin-system/runtimeGovernance';
 import { useTabRegistry } from '../services/tabRegistry';
 import type { HomepageBuiltinTabConfig } from '../utils/homepageBuiltinTabs';
 
 interface UseHomepageBuiltinTabsOptions {
     tabs: DashboardTabItem[];
+    enabledPluginIds: Set<string>;
     activeTabId: string;
+    scopeKey: string;
     config: HomepageBuiltinTabConfig;
     isTabsInitialized: boolean;
 }
@@ -36,7 +40,9 @@ interface UseHomepageBuiltinTabsResult {
 
 export const useHomepageBuiltinTabs = ({
     tabs,
+    enabledPluginIds,
     activeTabId,
+    scopeKey,
     config,
     isTabsInitialized,
 }: UseHomepageBuiltinTabsOptions): UseHomepageBuiltinTabsResult => {
@@ -50,14 +56,93 @@ export const useHomepageBuiltinTabs = ({
     );
 
     const areBuiltinTabsReady = useMemo(
-        () => isTabsInitialized && (tabs.length > 0 || config.builtinTabTypes.length === 0),
-        [config.builtinTabTypes.length, isTabsInitialized, tabs.length]
+        () => isTabsInitialized,
+        [isTabsInitialized]
     );
 
+    const visibleTabs = useMemo(() => {
+        const runtimeVisibleTabs = filterTabItemsByEnabledPlugins(tabs, enabledPluginIds);
+        const tabsByType = new Map<string, DashboardTabItem[]>();
+        const leadingBuiltinTabTypes = config.leadingBuiltinTabTypes ?? [];
+        const trailingBuiltinTabTypes = config.trailingBuiltinTabTypes ?? [];
+        const leadingBuiltinTypeSet = new Set(leadingBuiltinTabTypes);
+        const trailingBuiltinTypeSet = new Set(trailingBuiltinTabTypes);
+        const makeSyntheticBuiltinTab = (type: string): DashboardTabItem | null => {
+            const pluginId = getPluginIdByTabType(type);
+            if (!pluginId || !enabledPluginIds.has(pluginId)) {
+                return null;
+            }
+
+            const metadata = getResolvedTabMetadataByType(type);
+            return {
+                id: `${scopeKey}:synthetic-builtin:${type}`,
+                type,
+                title: metadata.name ?? type,
+                settings: {},
+                order_index: -1,
+                is_draggable: false,
+                is_removable: false,
+                source: 'synthetic',
+            };
+        };
+
+        runtimeVisibleTabs.forEach((tab) => {
+            const group = tabsByType.get(tab.type);
+            if (group) {
+                group.push(tab);
+                return;
+            }
+            tabsByType.set(tab.type, [tab]);
+        });
+
+        const ordered: DashboardTabItem[] = [];
+        const consumedTabIds = new Set<string>();
+
+        leadingBuiltinTabTypes.forEach((type) => {
+            const matchingTabs = tabsByType.get(type);
+            if (!matchingTabs?.length) {
+                const syntheticTab = makeSyntheticBuiltinTab(type);
+                if (!syntheticTab) return;
+                ordered.push(syntheticTab);
+                consumedTabIds.add(syntheticTab.id);
+                return;
+            }
+            matchingTabs.forEach((tab) => {
+                ordered.push(tab);
+                consumedTabIds.add(tab.id);
+            });
+        });
+
+        runtimeVisibleTabs.forEach((tab) => {
+            if (consumedTabIds.has(tab.id)) return;
+            if (leadingBuiltinTypeSet.has(tab.type) || trailingBuiltinTypeSet.has(tab.type)) return;
+            ordered.push(tab);
+            consumedTabIds.add(tab.id);
+        });
+
+        trailingBuiltinTabTypes.forEach((type) => {
+            const matchingTabs = tabsByType.get(type);
+            if (!matchingTabs?.length) {
+                const syntheticTab = makeSyntheticBuiltinTab(type);
+                if (!syntheticTab) return;
+                ordered.push(syntheticTab);
+                consumedTabIds.add(syntheticTab.id);
+                return;
+            }
+            matchingTabs.forEach((tab) => {
+                if (consumedTabIds.has(tab.id)) return;
+                ordered.push(tab);
+                consumedTabIds.add(tab.id);
+            });
+        });
+
+        return ordered;
+    }, [config.leadingBuiltinTabTypes, config.trailingBuiltinTabTypes, enabledPluginIds, scopeKey, tabs]);
+
     const activeTabType = useMemo(() => {
-        const currentTab = tabs.find((tab) => tab.id === activeTabId);
+        const currentTab = visibleTabs.find((tab) => tab.id === activeTabId);
         return currentTab?.type;
-    }, [activeTabId, tabs]);
+    }, [activeTabId, visibleTabs]);
 
     useEffect(() => {
         let isActive = true;
@@ -92,54 +177,6 @@ export const useHomepageBuiltinTabs = ({
         };
     }, [activeTabType]);
 
-    const visibleTabs = useMemo(() => {
-        const tabsByType = new Map<string, DashboardTabItem[]>();
-        const leadingBuiltinTabTypes = config.leadingBuiltinTabTypes ?? [];
-        const trailingBuiltinTabTypes = config.trailingBuiltinTabTypes ?? [];
-        const leadingBuiltinTypeSet = new Set(leadingBuiltinTabTypes);
-        const trailingBuiltinTypeSet = new Set(trailingBuiltinTabTypes);
-
-        tabs.forEach((tab) => {
-            const group = tabsByType.get(tab.type);
-            if (group) {
-                group.push(tab);
-                return;
-            }
-            tabsByType.set(tab.type, [tab]);
-        });
-
-        const ordered: DashboardTabItem[] = [];
-        const consumedTabIds = new Set<string>();
-
-        leadingBuiltinTabTypes.forEach((type) => {
-            const matchingTabs = tabsByType.get(type);
-            if (!matchingTabs?.length) return;
-            matchingTabs.forEach((tab) => {
-                ordered.push(tab);
-                consumedTabIds.add(tab.id);
-            });
-        });
-
-        tabs.forEach((tab) => {
-            if (consumedTabIds.has(tab.id)) return;
-            if (leadingBuiltinTypeSet.has(tab.type) || trailingBuiltinTypeSet.has(tab.type)) return;
-            ordered.push(tab);
-            consumedTabIds.add(tab.id);
-        });
-
-        trailingBuiltinTabTypes.forEach((type) => {
-            const matchingTabs = tabsByType.get(type);
-            if (!matchingTabs?.length) return;
-            matchingTabs.forEach((tab) => {
-                if (consumedTabIds.has(tab.id)) return;
-                ordered.push(tab);
-                consumedTabIds.add(tab.id);
-            });
-        });
-
-        return ordered;
-    }, [config.leadingBuiltinTabTypes, config.trailingBuiltinTabTypes, tabs]);
-
     const tabBarItems: TabsBarItem[] = visibleTabs.map((tab) => {
         // Resolve basic display fields from metadata even when runtime component is still lazy.
         const metadata = getResolvedTabMetadataByType(tab.type);
@@ -158,13 +195,19 @@ export const useHomepageBuiltinTabs = ({
     );
 
     const nonReorderableTabIds = useMemo(() => {
+        const leadingBuiltinTypeSet = new Set(config.leadingBuiltinTabTypes ?? []);
         const trailingBuiltinTypeSet = new Set(config.trailingBuiltinTabTypes ?? []);
         return new Set(
             visibleTabs
-                .filter((tab) => trailingBuiltinTypeSet.has(tab.type))
+                .filter((tab) => (
+                    tab.source === 'synthetic'
+                    || tab.is_draggable === false
+                    || leadingBuiltinTypeSet.has(tab.type)
+                    || trailingBuiltinTypeSet.has(tab.type)
+                ))
                 .map((tab) => tab.id)
         );
-    }, [config.trailingBuiltinTabTypes, visibleTabs]);
+    }, [config.leadingBuiltinTabTypes, config.trailingBuiltinTabTypes, visibleTabs]);
 
     const filterReorderableTabIds = useCallback(
         (orderedIds: string[]) => orderedIds.filter((id) => visibleTabIds.has(id) && !nonReorderableTabIds.has(id)),

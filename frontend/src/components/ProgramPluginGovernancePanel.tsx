@@ -1,6 +1,6 @@
 // input:  [Program id, program plugin governance APIs, query cache, plugin-manifest icon helpers, shared settings-section primitives, the shared data-table shell, the responsive plugin marketplace surface, shared plugin details, and shared row-actions dropdown helpers]
 // output: [`ProgramPluginGovernancePanel` component]
-// pos:    [Program settings surface for plugin-level install, enable, disable, delete, and reusable plugin-info flows using the shared data-table pattern plus a shadcn-style row-actions dropdown]
+// pos:    [Program settings surface for plugin-level install, enable, disable, delete, and reusable plugin-info flows using the shared data-table pattern plus a shadcn-style row-actions dropdown, with downstream Semester/Course cache invalidation after Program plugin changes]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -96,6 +96,10 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
       queryClient.invalidateQueries({ queryKey: queryKeys.programs.pluginCatalog(programId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.programs.pluginInstallations(programId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.programs.semesterDraft(programId) }),
+      queryClient.invalidateQueries({ queryKey: ["semesters"] }),
+      queryClient.invalidateQueries({ queryKey: ["courses"] }),
+      queryClient.invalidateQueries({ queryKey: ["plugin-system", "semesters"] }),
     ]);
     await onChanged?.();
   };

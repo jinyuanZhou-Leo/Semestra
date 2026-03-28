@@ -1,6 +1,6 @@
 // input:  [plugin manifests/settings/runtime modules via `import.meta.glob`, validated plugin setup registry facade, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
-// output: [plugin facade helpers for plugin manifests, contribution catalogs, setup definitions, load state, load-state subscriptions, metadata resolution, plugin-global settings, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
-// pos:    [Central plugin manager facade that validates plugin manifests, keeps plugin icons/settings/setup eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs]
+// output: [plugin facade helpers for plugin manifests, contribution catalogs, setup definitions, load state, load-state subscriptions, metadata resolution, plugin-global settings, tab/widget ownership lookups, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
+// pos:    [Central plugin manager facade that validates plugin manifests, keeps plugin icons/settings/setup eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs including tab/widget ownership lookup helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -621,6 +621,10 @@ export const getTabCatalogItemByType = (type: string) => {
 };
 
 export const getWidgetCatalogItemByType = (type: string) => widgetCatalogByType.get(type);
+
+export const getPluginIdByTabType = (type: string) => tabTypeToPluginId.get(type);
+
+export const getPluginIdByWidgetType = (type: string) => widgetTypeToPluginId.get(type);
 
 export const getResolvedTabMetadataByType = (type: string): ResolvedPluginMetadata => {
     const catalogItem = getTabCatalogItemByType(type);

@@ -10,7 +10,7 @@ Also contains homepage builtin-tab configuration and widget layout normalization
 | courseCategoryBadge.ts | Utility module | Shared course color helper that parses subject codes, resolves stable Program default colors plus per-course overrides, reserves persisted assignments while choosing colors for new codes, and provides contrast-safe hex badge styles reused by ProgramDashboard, Course List, Course Settings, Todo, and Gradebook. |
 | googleIdentity.ts | Utility module | Lazy loader for Google Identity Services script. |
 | gpaUtils.ts | Utility module | GPA conversion helpers and default scaling table constants, including continuous matching for adjacent integer-authored bands. |
-| homepageBuiltinTabs.ts | Utility module | Homepage builtin-tab requirements/config constants that pin Dashboard first and Settings last while leaving Gradebook, Calendar, Schedule, and Todo reorderable. |
+| homepageBuiltinTabs.ts | Utility module | Homepage shell-tab config constants that pin the plugin-derived Dashboard and Settings tabs around user-managed workspace tabs without treating other plugin tabs as defaults. |
 | icon.ts | Utility module | Type guard for icon values that should render as images. |
 | passwordRules.ts | Utility module | Password validation rules and helper hint text. |
 | percentage.ts | Utility module | Shared one-decimal GPA percentage formatters reused by pages, components, and plugins without coupling plugin runtime code to host views. |

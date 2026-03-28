@@ -1,5 +1,5 @@
 // input:  [`ProgramPluginGovernancePanel`, mocked governance APIs, QueryClient wrapper, viewport-state hooks, and testing-library interactions]
-// output: [component regression tests covering Program-level plugin install, reusable plugin info dialogs, marketplace detail navigation, and enablement toggles]
+// output: [component regression tests covering Program-level plugin install, reusable plugin info dialogs, marketplace detail navigation, enablement toggles, and downstream cache invalidation]
 // pos:    [UI regression suite for the shared data table and responsive marketplace used by Program plugin management]
 //
 // ⚠️ When this file is updated:
@@ -181,6 +181,53 @@ describe("ProgramPluginGovernancePanel", () => {
       });
     });
     expect(apiMock.deleteProgramPluginInstallation).not.toHaveBeenCalled();
+  });
+
+  it("invalidates downstream semester and course caches after Program plugin changes", async () => {
+    apiMock.getProgramPluginCatalog.mockResolvedValue([
+      {
+        id: "installation-1",
+        plugin_id: "course-list",
+        display_name: "Course List",
+        description: "Semester course list widget and course-management defaults.",
+        author: "Jinyuan",
+        default_version: "workspace",
+        default_installed: true,
+        default_enabled: true,
+        locked: false,
+        version: "workspace",
+        is_enabled: true,
+        requires_program_lms_integration: false,
+        capabilities: { contexts: ["semester"], available_widget_types: ["course-list"] },
+        setup_sections: [],
+        program_settings: {},
+        resolved_program_settings: {},
+        fields: [],
+        available: true,
+        availability_reason: null,
+        installed: true,
+      },
+    ]);
+    apiMock.upsertProgramPluginInstallation.mockResolvedValue({});
+
+    const { Wrapper, queryClient } = createQueryClientWrapper();
+    const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    render(<ProgramPluginGovernancePanel programId="program-1" />, { wrapper: Wrapper });
+
+    const switches = await screen.findAllByRole("switch");
+    fireEvent.click(switches[0]);
+
+    await waitFor(() => {
+      expect(apiMock.upsertProgramPluginInstallation).toHaveBeenCalledWith("program-1", "course-list", {
+        is_enabled: false,
+      });
+    });
+
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["semesters"] });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["courses"] });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["plugin-system", "semesters"] });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["programs", "program-1", "semester-draft"] });
   });
 
   it("opens a reusable plugin info dialog from the row action menu", async () => {

@@ -22,7 +22,7 @@ export interface TabItem {
     order_index: number;
     is_removable?: boolean;
     is_draggable?: boolean;
-    source: 'governed' | 'legacy';
+    source: 'governed' | 'legacy' | 'synthetic';
 }
 
 interface UseDashboardTabsProps {

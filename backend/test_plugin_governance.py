@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy setup, backend CRUD helpers, schemas, and plugin governance contract]
-# output: [backend regression tests covering Program/Semester plugin governance, Program-enabled plugin visibility across Semester settings, manifest-backed plugin-system setup flows, homepage-tab defaults, resolved-config rules, and draft review lifecycle enforcement plus the single-draft database invariant]
-# pos:    [backend unit tests for Program/Semester plugin governance, Program-enabled Semester visibility rules, plugin-system setup contracts, Semester homepage-tab defaults, and draft flows plus draft-uniqueness enforcement without requiring a running Semestra server]
+# output: [backend regression tests covering Program/Semester plugin governance, Program-enabled plugin visibility across Semester settings, Program-disabled plugin hiding, manifest-backed plugin-system setup flows, legacy homepage-tab normalization, resolved-config rules, and draft review lifecycle enforcement plus the single-draft database invariant]
+# pos:    [backend unit tests for Program/Semester plugin governance, Program-enabled or Program-disabled Semester visibility rules, plugin-system setup contracts, legacy Semester tab normalization, and draft flows plus draft-uniqueness enforcement without requiring a running Semestra server]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -79,7 +79,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
 
         self.assertEqual(context.exception.code, "SEMESTER_DRAFT_REVIEW_FAILED")
 
-    def test_draft_creation_initializes_dashboard_and_settings_tabs(self) -> None:
+    def test_draft_creation_starts_without_homepage_shell_tabs(self) -> None:
         program = self._create_program()
 
         draft = crud.create_semester_draft(
@@ -95,10 +95,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
 
         stored_draft = self.db.query(models.Semester).filter(models.Semester.id == draft["id"]).first()
         self.assertIsNotNone(stored_draft)
-        self.assertEqual(
-            {tab.tab_type for tab in stored_draft.tabs},
-            {"builtin-dashboard", "builtin-setting"},
-        )
+        self.assertEqual(stored_draft.tabs, [])
 
     def test_database_enforces_one_draft_per_program(self) -> None:
         program = self._create_program()
@@ -136,34 +133,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         with self.assertRaises(Exception):
             schemas.SemesterDraftUpdateRequest(creation_step="not-a-real-step")
 
-    def test_homepage_tab_helper_repairs_existing_semester_without_builtin_tabs(self) -> None:
-        program = self._create_program()
-        semester = crud.create_semester(
-            self.db,
-            schemas.SemesterCreate(
-                name="Winter 2026",
-                start_date=date(2026, 1, 5),
-                end_date=date(2026, 4, 10),
-            ),
-            program.id,
-        )
-
-        for tab in list(semester.tabs):
-            self.db.delete(tab)
-        self.db.commit()
-        self.db.refresh(semester)
-        self.assertEqual(semester.tabs, [])
-
-        crud.ensure_semester_homepage_tabs(self.db, semester)
-
-        repaired_semester = self.db.query(models.Semester).filter(models.Semester.id == semester.id).first()
-        self.assertIsNotNone(repaired_semester)
-        self.assertEqual(
-            {tab.tab_type for tab in repaired_semester.tabs},
-            {"builtin-dashboard", "builtin-setting"},
-        )
-
-    def test_homepage_tab_helper_normalizes_legacy_dashboard_and_settings_tabs(self) -> None:
+    def test_semester_tab_normalizer_canonicalizes_legacy_dashboard_and_settings_tabs(self) -> None:
         program = self._create_program()
         semester = crud.create_semester(
             self.db,
@@ -198,7 +168,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.db.commit()
         self.db.refresh(semester)
 
-        crud.ensure_semester_homepage_tabs(self.db, semester)
+        crud.ensure_semester_tabs_normalized(self.db, semester)
 
         repaired_semester = self.db.query(models.Semester).filter(models.Semester.id == semester.id).first()
         self.assertIsNotNone(repaired_semester)
@@ -427,6 +397,351 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertEqual(course_resources_activation["availability_reason"], "Disabled for this Semester.")
         self.assertNotIn("course-resources", {item["plugin_id"] for item in course_activations})
 
+    def test_program_disabled_plugins_do_not_appear_in_semester_settings(self) -> None:
+        program = self._create_program()
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-resources",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        crud.upsert_semester_plugin_activation(
+            self.db,
+            semester.id,
+            "course-resources",
+            schemas.SemesterPluginActivationUpsertRequest(is_enabled=True),
+        )
+
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-resources",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=False),
+        )
+
+        semester_activations = crud.get_semester_plugin_activations(self.db, semester.id)
+
+        self.assertNotIn("course-resources", {item["plugin_id"] for item in semester_activations})
+
+    def test_deleting_program_plugin_removes_course_resources_runtime_data(self) -> None:
+        program = self._create_program()
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS105", credits=0.5),
+            program.id,
+            semester_id=semester.id,
+        )
+
+        installation = crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-resources",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        crud.upsert_semester_plugin_activation(
+            self.db,
+            semester.id,
+            "course-resources",
+            schemas.SemesterPluginActivationUpsertRequest(is_enabled=True),
+        )
+        self.db.add(
+            models.PluginSetting(
+                plugin_id="course-resources",
+                course_id=course.id,
+                settings='{"layout":"grid"}',
+            )
+        )
+        self.db.add(
+            models.Widget(
+                widget_type="course-resources-quick-open",
+                course_id=course.id,
+                title="Resources",
+                layout_config="{}",
+                settings="{}",
+                is_removable=True,
+            )
+        )
+        self.db.add(
+            models.Tab(
+                tab_type="course-resources-tab",
+                course_id=course.id,
+                settings="{}",
+                order_index=1,
+                is_removable=True,
+                is_draggable=True,
+            )
+        )
+        self.db.add(
+            models.CourseResourceFile(
+                course_id=course.id,
+                filename_original="syllabus.pdf",
+                filename_display="syllabus.pdf",
+                resource_kind="file",
+                external_url=None,
+                mime_type="application/pdf",
+                size_bytes=128,
+                storage_path="tests/course-resources/syllabus.pdf",
+                created_at="2026-03-27T10:00:00Z",
+                updated_at="2026-03-27T10:00:00Z",
+            )
+        )
+        self.db.commit()
+
+        crud.delete_program_plugin_installation(self.db, program.id, "course-resources")
+
+        self.assertIsNone(
+            self.db.query(models.ProgramPluginInstallation).filter(
+                models.ProgramPluginInstallation.id == installation["id"]
+            ).first()
+        )
+        self.assertEqual(
+            self.db.query(models.SemesterPluginActivation)
+            .join(models.ProgramPluginInstallation)
+            .filter(
+                models.SemesterPluginActivation.semester_id == semester.id,
+                models.ProgramPluginInstallation.plugin_id == "course-resources",
+            )
+            .count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.PluginSetting).filter(
+                models.PluginSetting.plugin_id == "course-resources",
+                models.PluginSetting.course_id == course.id,
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.Widget).filter(
+                models.Widget.course_id == course.id,
+                models.Widget.widget_type == "course-resources-quick-open",
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.Tab).filter(
+                models.Tab.course_id == course.id,
+                models.Tab.tab_type == "course-resources-tab",
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.CourseResourceFile).filter(
+                models.CourseResourceFile.course_id == course.id,
+            ).count(),
+            0,
+        )
+
+    def test_deleting_program_plugin_removes_event_core_owned_data(self) -> None:
+        program = self._create_program()
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS105", credits=0.5),
+            program.id,
+            semester_id=semester.id,
+        )
+
+        installation = crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "builtin-event-core",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        crud.upsert_semester_plugin_activation(
+            self.db,
+            semester.id,
+            "builtin-event-core",
+            schemas.SemesterPluginActivationUpsertRequest(is_enabled=True),
+        )
+        self.db.add(
+            models.PluginSetting(
+                plugin_id="builtin-event-core",
+                semester_id=semester.id,
+                settings='{"calendarDefaultView":"week"}',
+            )
+        )
+        self.db.add(
+            models.Widget(
+                widget_type="builtin-today-events",
+                semester_id=semester.id,
+                title="Today",
+                layout_config="{}",
+                settings="{}",
+                is_removable=True,
+            )
+        )
+        self.db.add(
+            models.Tab(
+                tab_type="builtin-todo",
+                semester_id=semester.id,
+                settings="{}",
+                order_index=2,
+                is_removable=True,
+                is_draggable=True,
+            )
+        )
+        todo_section = models.TodoSection(
+            semester_id=semester.id,
+            name="Week 1",
+            created_at="2026-03-27T10:00:00Z",
+            updated_at="2026-03-27T10:00:00Z",
+        )
+        self.db.add(todo_section)
+        self.db.flush()
+        self.db.add(
+            models.TodoTask(
+                semester_id=semester.id,
+                course_id=course.id,
+                section_id=todo_section.id,
+                origin_section_id=todo_section.id,
+                title="Read notes",
+                note="",
+                due_date=None,
+                due_time=None,
+                priority="",
+                completed=False,
+                created_at="2026-03-27T10:00:00Z",
+                updated_at="2026-03-27T10:00:00Z",
+            )
+        )
+        self.db.add(
+            models.CourseEventType(
+                course_id=course.id,
+                code="WORKSHOP",
+                abbreviation="WKS",
+                track_attendance=False,
+                color=None,
+                icon=None,
+                created_at="2026-03-27T10:00:00Z",
+                updated_at="2026-03-27T10:00:00Z",
+            )
+        )
+        self.db.add(
+            models.CourseSection(
+                course_id=course.id,
+                section_id="WKS0101",
+                event_type_code="WORKSHOP",
+                title="Lecture",
+                instructor=None,
+                location=None,
+                day_of_week=1,
+                start_time="09:00",
+                end_time="10:00",
+                week_pattern="EVERY",
+                start_week=1,
+                end_week=12,
+                created_at="2026-03-27T10:00:00Z",
+                updated_at="2026-03-27T10:00:00Z",
+            )
+        )
+        self.db.add(
+            models.CourseEvent(
+                course_id=course.id,
+                event_type_code="WORKSHOP",
+                section_id="WKS0101",
+                title="Lecture",
+                day_of_week=1,
+                start_time="09:00",
+                end_time="10:00",
+                week_pattern="EVERY",
+                start_week=1,
+                end_week=12,
+                enable=True,
+                skip=False,
+                note=None,
+                created_at="2026-03-27T10:00:00Z",
+                updated_at="2026-03-27T10:00:00Z",
+            )
+        )
+        self.db.commit()
+
+        crud.delete_program_plugin_installation(self.db, program.id, "builtin-event-core")
+
+        self.assertIsNone(
+            self.db.query(models.ProgramPluginInstallation).filter(
+                models.ProgramPluginInstallation.id == installation["id"]
+            ).first()
+        )
+        self.assertEqual(
+            self.db.query(models.PluginSetting).filter(
+                models.PluginSetting.plugin_id == "builtin-event-core",
+                models.PluginSetting.semester_id == semester.id,
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.Widget).filter(
+                models.Widget.semester_id == semester.id,
+                models.Widget.widget_type == "builtin-today-events",
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.Tab).filter(
+                models.Tab.semester_id == semester.id,
+                models.Tab.tab_type == "builtin-todo",
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.TodoSection).filter(
+                models.TodoSection.semester_id == semester.id,
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.TodoTask).filter(
+                models.TodoTask.semester_id == semester.id,
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.CourseEventType).filter(
+                models.CourseEventType.course_id == course.id,
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.CourseSection).filter(
+                models.CourseSection.course_id == course.id,
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.CourseEvent).filter(
+                models.CourseEvent.course_id == course.id,
+            ).count(),
+            0,
+        )
+
     def test_draft_resume_and_discard_remove_draft_children(self) -> None:
         program = self._create_program()
         crud.upsert_program_plugin_installation(
@@ -549,37 +864,6 @@ class PluginGovernanceDraftTests(unittest.TestCase):
 
         self.assertFalse(review_payload["has_errors"])
         self.assertEqual(event_core_review["setup_summary"][0]["items"][0]["value"], "Week")
-
-    def test_plugin_definitions_take_capabilities_from_manifest_metadata(self) -> None:
-        definitions = plugin_governance._build_plugin_definitions(
-            {
-                "manifest-driven-plugin": plugin_governance.PluginGovernanceDefinition(
-                    plugin_id="manifest-driven-plugin",
-                    install_by_default=True,
-                )
-            },
-            {
-                "manifest-driven-plugin": plugin_governance.PluginMetadata(
-                    display_name="Manifest Driven",
-                    description="Backend should read capabilities from manifest metadata.",
-                    long_description="Manifest capabilities stay authoritative for governance serialization.",
-                    author="Tests",
-                    capabilities={
-                        "contexts": ["semester"],
-                        "available_tab_types": ["manifest-tab"],
-                        "available_widget_types": ["manifest-widget"],
-                        "has_settings": True,
-                    },
-                )
-            },
-        )
-
-        definition = definitions["manifest-driven-plugin"]
-        self.assertEqual(definition.capabilities["available_tab_types"], ["manifest-tab"])
-        self.assertEqual(definition.capabilities["available_widget_types"], ["manifest-widget"])
-        self.assertTrue(definition.capabilities["has_settings"])
-        self.assertTrue(definition.install_by_default)
-
 
 if __name__ == "__main__":
     unittest.main()
