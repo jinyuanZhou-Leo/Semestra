@@ -1,6 +1,6 @@
 // input:  [plugin marketplace items, shared app empty states, responsive dialog-drawer wrapper, shared plugin detail view, shadcn input/scroll-area/button primitives, and add-plugin callbacks]
 // output: [`PluginMarketplaceDialog` component]
-// pos:    [Reusable searchable marketplace overlay for Program plugin install flows with responsive dialog-drawer composition, App Store-style list-to-detail navigation, shared plugin details, and disabled installed rows]
+// pos:    [Reusable searchable marketplace overlay for Program plugin install flows with responsive dialog-drawer composition, App Store-style list-to-detail navigation, larger shared plugin icon treatment, shared plugin details, and disabled installed rows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -187,7 +187,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
                               }}
                             >
                               <div className="space-y-3">
-                                <IconCircle icon={item.icon} label={item.displayName} size={52} className="bg-muted text-foreground ring-1 ring-border/60" />
+                                <IconCircle icon={item.icon} label={item.displayName} size={64} className="bg-muted text-foreground ring-1 ring-border/60" />
                                 <div className="space-y-1">
                                   <div className="truncate text-base font-semibold text-foreground">{item.displayName}</div>
                                   <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">{item.description}</p>
@@ -241,7 +241,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
                             }}
                           >
                             <div className="flex min-w-0 items-center gap-3">
-                              <IconCircle icon={item.icon} label={item.displayName} size={56} className="bg-muted text-foreground ring-1 ring-border/60" />
+                              <IconCircle icon={item.icon} label={item.displayName} size={58} className="bg-muted text-foreground ring-1 ring-border/60" />
                               <div className="min-w-0 space-y-0.5">
                                 <div className="truncate text-lg leading-6 font-semibold text-foreground">{item.displayName}</div>
                                 <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">{item.description}</p>

@@ -62,7 +62,7 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
-    displayName: 'Academic Events',
+    displayName: 'Builtin Event Core',
     author: 'Jinyuan',
     description: 'Plan schedules, deadlines, and daily workload across courses.',
     longDescription: 'Academic Events brings the core planning experience of Semestra into one place. It helps users organize class schedules, review calendars, manage upcoming work, and keep track of what needs attention today across both semester and course workflows. Instead of splitting time management across separate tools, it keeps the moving pieces of academic life connected so planning, scheduling, and daily follow-through feel like part of the same system.',

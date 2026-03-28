@@ -1,6 +1,6 @@
 // input:  [`CreateSemesterWizardPage`, mocked Semester wizard APIs, React Router memory routes, and QueryClient test wrappers]
-// output: [page-level regression tests for Semester basics validation, setup-aware wizard navigation, draft-conflict-safe resume behavior, finalize handoff safety, Program-installed plugin filtering, plugin-system setup rendering, draft review blockers, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
-// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, draft-create conflict regressions, setup-step drift, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, and invalid finalize states]
+// output: [page-level regression tests for Semester basics validation, setup-aware wizard navigation, draft-conflict-safe resume behavior, finalize handoff safety, Program-installed plugin filtering, Eventcore-excluded plugin-system setup rendering, draft review blockers, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
+// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, draft-create conflict regressions, setup-step drift, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, Eventcore setup re-entry, and invalid finalize states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -202,10 +202,9 @@ describe("CreateSemesterWizardPage", () => {
     expect(screen.getByText("Program LMS integration is required.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Basics$/ })).not.toBeInTheDocument();
 
-    const pluginSwitches = await screen.findAllByRole("switch");
-    expect(pluginSwitches).toHaveLength(2);
-    expect(pluginSwitches[0]).not.toBeDisabled();
-    expect(pluginSwitches[1]).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Toggle all editable plugins" })).not.toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Course List enabled" })).not.toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Canvas Integration enabled" })).toBeDisabled();
   });
 
   it("reuses Semester date-picker validation in the Basics step before navigation", async () => {
@@ -414,7 +413,7 @@ describe("CreateSemesterWizardPage", () => {
     renderWizard();
 
     expect(await screen.findByText("Reading week must stay inside the Semester date range.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Finalize Semester" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create Semester" })).toBeDisabled();
   });
 
   it("renders plugin setup fields from the plugin-system setup endpoint", async () => {
@@ -440,9 +439,9 @@ describe("CreateSemesterWizardPage", () => {
         {
           semester_id: "draft-1",
           program_plugin_installation_id: "installation-1",
-          plugin_id: "builtin-event-core",
-          display_name: "Academic Events",
-          description: "Calendar, course schedule, todo, and daily event surfaces.",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
           author: "Jinyuan",
           version: "workspace",
           is_enabled: true,
@@ -450,9 +449,9 @@ describe("CreateSemesterWizardPage", () => {
           capabilities: {},
           setup_sections: [
             {
-              id: "calendar-setup",
-              title: "Calendar Setup",
-              description: "Choose the starting calendar behavior for this Semester.",
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
               fields: [],
             },
           ],
@@ -483,9 +482,9 @@ describe("CreateSemesterWizardPage", () => {
         {
           semester_id: "draft-1",
           program_plugin_installation_id: "installation-1",
-          plugin_id: "builtin-event-core",
-          display_name: "Academic Events",
-          description: "Calendar, course schedule, todo, and daily event surfaces.",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
           author: "Jinyuan",
           version: "workspace",
           is_enabled: true,
@@ -493,9 +492,9 @@ describe("CreateSemesterWizardPage", () => {
           capabilities: {},
           setup_sections: [
             {
-              id: "calendar-setup",
-              title: "Calendar Setup",
-              description: "Choose the starting calendar behavior for this Semester.",
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
               fields: [],
             },
           ],
@@ -515,38 +514,38 @@ describe("CreateSemesterWizardPage", () => {
       step: "plugin-setup",
       plugins: [
         {
-          plugin_id: "builtin-event-core",
-          display_name: "Academic Events",
-          description: "Calendar, course schedule, todo, and daily event surfaces.",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
           author: "Jinyuan",
           is_enabled: true,
           available: true,
           availability_reason: null,
-          setup_values: { calendarDefaultView: "month" },
+          setup_values: { mockSetting: "enabled" },
           setup_summary: [],
           review_errors: [],
           setup_sections: [
             {
-              id: "calendar-setup",
-              title: "Calendar Setup",
-              description: "Choose the starting calendar behavior for this Semester.",
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
               fields: [
                 {
-                  path: "calendarDefaultView",
-                  label: "Default view",
+                  path: "mockSetting",
+                  label: "Mock setting",
                   type: "select",
                   persist: "both",
                   required: true,
-                  default_value: "month",
-                  description: "Choose the starting calendar behavior for this Semester.",
+                  default_value: "enabled",
+                  description: "Configure the mock plugin before activation.",
                   placeholder: "",
                   options: [
-                    { label: "Month", value: "month" },
-                    { label: "Week", value: "week" },
+                    { label: "Enabled", value: "enabled" },
+                    { label: "Disabled", value: "disabled" },
                   ],
                   summary_labels: {
-                    month: "Month",
-                    week: "Week",
+                    enabled: "Enabled",
+                    disabled: "Disabled",
                   },
                 },
               ],
@@ -558,8 +557,8 @@ describe("CreateSemesterWizardPage", () => {
 
     renderWizard();
 
-    expect(await screen.findByText("Calendar Setup")).toBeInTheDocument();
-    expect(screen.getByText("Default view")).toBeInTheDocument();
+    expect(await screen.findByText("Mock Setup")).toBeInTheDocument();
+    expect(screen.getByText("Mock setting")).toBeInTheDocument();
   });
 
   it("recovers from draft-create conflicts by resuming the existing draft and updating it", async () => {
@@ -679,7 +678,7 @@ describe("CreateSemesterWizardPage", () => {
 
     renderWizard();
 
-    expect(await screen.findByRole("button", { name: "Finalize Semester" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Create Semester" })).toBeInTheDocument();
     await waitFor(() => {
       expect(apiMock.updateSemesterDraft).toHaveBeenCalledWith("draft-1", { creation_step: "review" });
     });
@@ -689,9 +688,9 @@ describe("CreateSemesterWizardPage", () => {
   it("skips plugin setup immediately after disabling the last enabled plugin that contributes setup", async () => {
     const setupSection = [
       {
-        id: "calendar-setup",
-        title: "Calendar Setup",
-        description: "Choose the starting calendar behavior for this Semester.",
+        id: "mock-setup",
+        title: "Mock Setup",
+        description: "Configure the mock plugin before activation.",
         fields: [],
       },
     ];
@@ -712,9 +711,9 @@ describe("CreateSemesterWizardPage", () => {
         {
           semester_id: "draft-1",
           program_plugin_installation_id: "installation-1",
-          plugin_id: "builtin-event-core",
-          display_name: "Academic Events",
-          description: "Calendar, course schedule, todo, and daily event surfaces.",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
           author: "Jinyuan",
           version: "workspace",
           is_enabled: true,
@@ -751,38 +750,38 @@ describe("CreateSemesterWizardPage", () => {
       step: "plugin-setup",
       plugins: [
         {
-          plugin_id: "builtin-event-core",
-          display_name: "Academic Events",
-          description: "Calendar, course schedule, todo, and daily event surfaces.",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
           author: "Jinyuan",
           is_enabled: true,
           available: true,
           availability_reason: null,
-          setup_values: { calendarDefaultView: "month" },
+          setup_values: { mockSetting: "enabled" },
           setup_summary: [],
           review_errors: [],
           setup_sections: [
             {
-              id: "calendar-setup",
-              title: "Calendar Setup",
-              description: "Choose the starting calendar behavior for this Semester.",
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
               fields: [
                 {
-                  path: "calendarDefaultView",
-                  label: "Default view",
+                  path: "mockSetting",
+                  label: "Mock setting",
                   type: "select",
                   persist: "both",
                   required: true,
-                  default_value: "month",
-                  description: "Choose the starting calendar behavior for this Semester.",
+                  default_value: "enabled",
+                  description: "Configure the mock plugin before activation.",
                   placeholder: "",
                   options: [
-                    { label: "Month", value: "month" },
-                    { label: "Week", value: "week" },
+                    { label: "Enabled", value: "enabled" },
+                    { label: "Disabled", value: "disabled" },
                   ],
                   summary_labels: {
-                    month: "Month",
-                    week: "Week",
+                    enabled: "Enabled",
+                    disabled: "Disabled",
                   },
                 },
               ],
@@ -798,9 +797,9 @@ describe("CreateSemesterWizardPage", () => {
       plugin_installations: [
         {
           id: "installation-1",
-          plugin_id: "builtin-event-core",
-          display_name: "Academic Events",
-          description: "Calendar, course schedule, todo, and daily event surfaces.",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
           author: "Jinyuan",
           default_version: "workspace",
           default_installed: false,
@@ -812,7 +811,7 @@ describe("CreateSemesterWizardPage", () => {
           auth_message: null,
           requires_authorization: false,
           requires_program_lms_integration: false,
-          capabilities: { contexts: ["semester"], available_tab_types: ["builtin-event-core"] },
+          capabilities: { contexts: ["semester"], available_tab_types: ["mock-setup-plugin"] },
           setup_sections: setupSection,
           program_settings: {},
           resolved_program_settings: {},
@@ -975,10 +974,10 @@ describe("CreateSemesterWizardPage", () => {
 
     renderWizard();
 
-    await screen.findByRole("button", { name: "Finalize Semester" });
+    await screen.findByRole("button", { name: "Create Semester" });
     const setupCallCountBeforeFinalize = pluginSetupCallCount;
 
-    fireEvent.click(screen.getByRole("button", { name: "Finalize Semester" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Semester" }));
 
     expect(await screen.findByText("Semester homepage")).toBeInTheDocument();
     expect(reportErrorMock).not.toHaveBeenCalled();

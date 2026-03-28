@@ -1,6 +1,6 @@
 // input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, and shared data-table row-actions dropdown helpers]
-// output: [`CreateSemesterWizardPage` route component with step-scoped render blocks, draft-resume-safe create-or-update basics persistence, guarded server-to-local draft hydration, setup-aware step normalization, parallel plugin-setup saves, and finalize-safe draft teardown]
-// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, draft-conflict-safe resume behavior, refetch-safe local draft state, setup-aware plugin orchestration, finalize-safe review handoff, and a shadcn-style row-actions dropdown for course removal]
+// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, guarded server-to-local draft hydration, setup-aware step normalization, Eventcore-excluded plugin-setup saves, and finalize-safe draft teardown]
+// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, a course-list-settings-aligned courses table with AlertDialog-backed removal confirmation, draft-conflict-safe resume behavior, refetch-safe local draft state, setup-aware plugin orchestration that excludes Eventcore onboarding, finalize-safe review handoff, and a shadcn-style row-actions dropdown for course removal while keeping the file build-clean]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -28,11 +28,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Field, FieldSet } from "@/components/ui/field";
+import { FieldSet } from "@/components/ui/field";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
-import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -57,6 +56,7 @@ import { useAutoSave } from "../hooks/useAutoSave";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { reportError } from "../services/appStatus";
 import api, {
+  type Course,
   type PluginSystemSemesterSetupPlugin,
   type PluginSystemSemesterSetupResponse,
   type ProgramPluginInstallation,
@@ -64,6 +64,7 @@ import api, {
   type SemesterDraftStep,
   type SemesterPluginActivation,
 } from "../services/api";
+import { formatGpaPercentage } from "../utils/percentage";
 
 type StepId = SemesterDraftStep;
 
@@ -119,6 +120,10 @@ const STEP_ORDER: StepMeta[] = [
 const STEP_META_BY_ID = Object.fromEntries(STEP_ORDER.map((step) => [step.id, step])) as Record<StepId, StepMeta>;
 const STEP_INDEX_BY_ID = Object.fromEntries(STEP_ORDER.map((step, index) => [step.id, index])) as Record<StepId, number>;
 const REVIEW_COURSE_PREVIEW_LIMIT = 4;
+const SETUP_EXCLUDED_PLUGIN_IDS = new Set(["builtin-event-core"]);
+
+const contributesSemesterSetup = (pluginId: string, setupSections: { length: number }) =>
+  setupSections.length > 0 && !SETUP_EXCLUDED_PLUGIN_IDS.has(pluginId);
 
 const getVisibleStepOrder = (hasSetupPlugins: boolean): StepMeta[] =>
   hasSetupPlugins ? STEP_ORDER : STEP_ORDER.filter((step) => step.id !== "plugin-setup");
@@ -309,9 +314,11 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const [stepDirection, setStepDirection] = useState(1);
   const [basics, setBasics] = useState<BasicsDraft>(makeInitialBasics);
   const [isCourseManagerOpen, setIsCourseManagerOpen] = useState(false);
+  const [pendingRemoveCourse, setPendingRemoveCourse] = useState<Course | null>(null);
   const [isSavingStep, setIsSavingStep] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isUpdatingPluginSelection, setIsUpdatingPluginSelection] = useState(false);
+  const [isRemovingCourse, setIsRemovingCourse] = useState(false);
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
   const [pluginSetupDrafts, setPluginSetupDrafts] = useState<PluginSetupDraftMap>({});
   const [savedBasics, setSavedBasics] = useState<BasicsDraft>(makeInitialBasics);
@@ -366,7 +373,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
     [enabledPlugins],
   );
   const pluginSystemSetupPlugins = useMemo(
-    () => pluginSystemSetupQuery.data?.plugins ?? [],
+    () => (pluginSystemSetupQuery.data?.plugins ?? []).filter((plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections)),
     [pluginSystemSetupQuery.data?.plugins],
   );
   const serverBasics = useMemo<BasicsDraft | null>(() => {
@@ -400,12 +407,12 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const isBasicsDirty = !areBasicsEqual(basics, savedBasics);
   const isPluginSetupDirty = !arePluginSetupDraftsEqual(pluginSetupDrafts, savedPluginSetupDrafts);
   const setupPluginIds = useMemo(
-    () => enabledPlugins.filter((plugin) => plugin.setup_sections.length > 0).map((plugin) => plugin.plugin_id),
+    () => enabledPlugins.filter((plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections)).map((plugin) => plugin.plugin_id),
     [enabledPlugins],
   );
   const setupPlugins = useMemo(
     () => pluginSystemSetupPlugins.filter(
-      (plugin) => plugin.setup_sections.length > 0 && setupPluginIds.includes(plugin.plugin_id),
+      (plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections) && setupPluginIds.includes(plugin.plugin_id),
     ),
     [pluginSystemSetupPlugins, setupPluginIds],
   );
@@ -435,10 +442,6 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const activeStep = normalizeWizardStep(currentStep, hasSetupPlugins);
   const currentStepIndex = stepOrder.findIndex((step) => step.id === activeStep);
   const currentStepMeta = STEP_META_BY_ID[activeStep];
-  const progressValue = stepOrder.length > 1
-    ? (currentStepIndex / (stepOrder.length - 1)) * 100
-    : 0;
-
   useEffect(() => {
     if (activeStep === currentStep) {
       return;
@@ -659,13 +662,55 @@ export const CreateSemesterWizardPage: React.FC = () => {
     }
   };
 
+  const handleToggleAllPlugins = async (checked: boolean) => {
+    if (!draftId || !programId) return;
+
+    const targets = pluginCatalog.filter((plugin) => {
+      if (plugin.locked) {
+        return false;
+      }
+      const isEnabled = enabledPluginIds.has(plugin.plugin_id);
+      return checked
+        ? plugin.available && !isEnabled
+        : isEnabled;
+    });
+
+    if (targets.length === 0) {
+      return;
+    }
+
+    setIsUpdatingPluginSelection(true);
+    setCurrentStep("plugins");
+    try {
+      await Promise.all(
+        targets.map((plugin) =>
+          api.upsertSemesterPluginActivation(draftId, plugin.plugin_id, {
+            is_enabled: checked,
+          }),
+        ),
+      );
+      await api.updateSemesterDraft(draftId, { creation_step: "plugins" });
+      await invalidateDraftData();
+    } catch (error) {
+      console.error("Failed to toggle all plugins in Semester wizard", error);
+      reportError("Failed to update plugin enablement. Please retry.");
+    } finally {
+      setIsUpdatingPluginSelection(false);
+    }
+  };
+
   const handleDeleteCourse = async (courseId: string) => {
+    if (isRemovingCourse) return;
+    setIsRemovingCourse(true);
     try {
       await api.deleteCourse(courseId);
       await invalidateDraftData();
+      setPendingRemoveCourse(null);
     } catch (error) {
       console.error("Failed to delete course from Semester draft", error);
       reportError("Failed to delete the course. Please retry.");
+    } finally {
+      setIsRemovingCourse(false);
     }
   };
 
@@ -800,7 +845,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const isBasicsStep = activeStep === "basics";
   const isBasicsStepInvalid = !basics.name.trim() || !basics.start_date || !basics.end_date || !basicsValidation.isValid;
   const primaryActionLabel = isReviewStep
-    ? "Finalize Semester"
+    ? "Create Semester"
     : nextStepLabel
       ? `Continue to ${nextStepLabel}`
       : "Continue";
@@ -832,42 +877,50 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
   const coursesStepContent = (
     <DataTable
-      title="Courses"
-      description="Manage all courses in this Semester draft."
+      title="Semester Courses"
+      description="Review the courses assigned to this Semester draft."
       showHeader={false}
       items={courseList}
       actionButton={(
-        <Button onClick={() => setIsCourseManagerOpen(true)} disabled={!draftId} className="w-full sm:w-auto">
+        <Button
+          type="button"
+          onClick={() => setIsCourseManagerOpen(true)}
+          disabled={!draftId}
+          className="w-full shrink-0 sm:w-auto sm:self-start"
+        >
           <Plus className="mr-2 h-4 w-4" />
-          Add Course
+          Add / Manage Courses
         </Button>
       )}
-      emptyMessage="No courses have been added to this draft yet."
-      minWidthClassName="min-w-[560px] sm:min-w-[640px] lg:min-w-[720px]"
+      emptyMessage="No courses assigned."
+      minWidthClassName="min-w-[620px] sm:min-w-[720px]"
       renderHeader={() => (
         <TableRow>
-          <TableHead className="min-w-[220px]">Course</TableHead>
-          <TableHead className="min-w-[140px]">Alias</TableHead>
-          <TableHead className="w-px text-right">Credits</TableHead>
-          <TableHead className="w-px text-right">Actions</TableHead>
+          <TableHead>Name</TableHead>
+          <TableHead>Credits</TableHead>
+          <TableHead>Grade</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       )}
       renderRow={(course) => (
         <TableRow key={course.id}>
-          <TableCell className="py-3">
-            <div className="font-medium text-foreground">{course.name}</div>
+          <TableCell className="font-medium">
+            <div className="flex flex-col">
+              <span>{course.name}</span>
+              {course.alias ? (
+                <span className="mt-0.5 text-xs text-muted-foreground">
+                  {course.alias}
+                </span>
+              ) : null}
+            </div>
           </TableCell>
-          <TableCell className="py-3 text-muted-foreground">
-            {course.alias?.trim() || "—"}
-          </TableCell>
-          <TableCell className="w-px py-3 text-right text-muted-foreground whitespace-nowrap">
-            {course.credits.toFixed(1)}
-          </TableCell>
-          <TableCell className="w-px py-3 text-right">
+          <TableCell>{course.credits}</TableCell>
+          <TableCell>{formatGpaPercentage(course.grade_percentage)}</TableCell>
+          <TableCell className="text-right">
             <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
-              <DropdownMenuItem variant="destructive" onClick={() => void handleDeleteCourse(course.id)}>
+              <DropdownMenuItem variant="destructive" onClick={() => setPendingRemoveCourse(course)}>
                 <Trash2 className="h-4 w-4" />
-                Delete
+                Remove
               </DropdownMenuItem>
             </DataTableActionMenu>
           </TableCell>
@@ -882,6 +935,21 @@ export const CreateSemesterWizardPage: React.FC = () => {
       description="Enable or disable Program plugins for this Semester."
       showHeader={false}
       items={pluginCatalog}
+      actionButton={(
+        <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
+          <span className="text-xs text-muted-foreground">
+            Enable All Plugin
+          </span>
+          <Switch
+            checked={pluginCatalog.some((plugin) => !plugin.locked && plugin.available) && pluginCatalog.filter((plugin) => !plugin.locked && plugin.available).every((plugin) => enabledPluginIds.has(plugin.plugin_id))}
+            aria-label="Toggle all editable plugins"
+            disabled={isUpdatingPluginSelection || !pluginCatalog.some((plugin) => (!plugin.locked && plugin.available) || (!plugin.locked && enabledPluginIds.has(plugin.plugin_id)))}
+            onCheckedChange={(checked) => {
+              void handleToggleAllPlugins(Boolean(checked));
+            }}
+          />
+        </div>
+      )}
       emptyMessage="This Program does not have any installed plugins available for Semester configuration yet."
       minWidthClassName="min-w-[620px] sm:min-w-[720px] xl:min-w-[840px]"
       renderHeader={() => (
@@ -897,8 +965,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
         const switchDisabled = (!plugin.available && !isEnabled) || plugin.locked;
 
         return (
-          <TableRow key={plugin.plugin_id} className="align-top">
-            <TableCell className="py-3">
+          <TableRow key={plugin.plugin_id} className="align-middle">
+            <TableCell className="py-3 align-middle">
               <div className="flex items-start gap-3">
                 <IconCircle icon={pluginIcon} label={plugin.display_name} size={30} className="bg-muted text-foreground" />
                 <div className="min-w-0 space-y-1">
@@ -909,10 +977,10 @@ export const CreateSemesterWizardPage: React.FC = () => {
                 </div>
               </div>
             </TableCell>
-            <TableCell className="py-3 align-top">
+            <TableCell className="py-3 align-middle">
               <span className="text-sm text-muted-foreground">{plugin.author}</span>
             </TableCell>
-            <TableCell className="py-3 text-right align-top">
+            <TableCell className="py-3 text-right align-middle">
               <div className="ml-auto flex w-full max-w-[132px] items-center justify-end gap-3">
                 <span className="text-xs text-muted-foreground">{isEnabled ? "On" : "Off"}</span>
                 <Switch
@@ -938,93 +1006,112 @@ export const CreateSemesterWizardPage: React.FC = () => {
           No enabled plugins require setup.
         </div>
       ) : (
-        <Accordion type="single" collapsible defaultValue={setupPlugins[0]?.plugin_id} className="rounded-xl border border-border/70 px-4">
-          {setupPlugins.map((plugin) => (
-            <AccordionItem key={plugin.plugin_id} value={plugin.plugin_id}>
-              <AccordionTrigger className="gap-4 py-5 hover:no-underline">
-                <div className="space-y-1">
-                  <div className="font-medium text-foreground">{plugin.display_name}</div>
-                  <div className="text-sm text-muted-foreground">{plugin.description}</div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pb-1">
-                <div className="space-y-6">
-                  {plugin.setup_sections.map((section, sectionIndex) => (
-                    <div key={section.id} className="space-y-3">
-                      {sectionIndex > 0 ? <Separator /> : null}
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium text-foreground">{section.title}</div>
-                        <div className="text-sm text-muted-foreground">{section.description}</div>
-                      </div>
-                      <div className="space-y-4">
-                        {section.fields.map((field) => (
-                          <PluginGovernanceFieldControl
-                            key={`${plugin.plugin_id}:${section.id}:${field.path}`}
-                            field={field}
-                            value={pluginSetupDrafts[plugin.plugin_id]?.[field.path] ?? field.default_value}
-                            description={field.description}
-                            error={plugin.review_errors.find((issue) => issue.field_path === field.path)?.message ?? null}
-                            onChange={(value) => updatePluginSetupField(plugin, field.path, value)}
-                          />
-                        ))}
-                      </div>
+        <div className="space-y-8">
+          {setupPlugins.map((plugin, pluginIndex) => (
+            <section key={plugin.plugin_id} className="space-y-4">
+              {pluginIndex > 0 ? <Separator /> : null}
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-foreground sm:text-lg">{plugin.display_name}</h3>
+                <p className="text-sm text-muted-foreground">{plugin.description}</p>
+              </div>
+              <div className="space-y-6">
+                {plugin.setup_sections.map((section, sectionIndex) => (
+                  <div key={section.id} className="space-y-3">
+                    {sectionIndex > 0 ? <Separator /> : null}
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold text-foreground">{section.title}</div>
+                      <div className="text-sm text-muted-foreground">{section.description}</div>
                     </div>
-                  ))}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+                    <div className="space-y-4">
+                      {section.fields.map((field) => (
+                        <PluginGovernanceFieldControl
+                          key={`${plugin.plugin_id}:${section.id}:${field.path}`}
+                          field={field}
+                          value={pluginSetupDrafts[plugin.plugin_id]?.[field.path] ?? field.default_value}
+                          description={field.description}
+                          error={plugin.review_errors.find((issue) => issue.field_path === field.path)?.message ?? null}
+                          onChange={(value) => updatePluginSetupField(plugin, field.path, value)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
-        </Accordion>
+        </div>
       )}
     </div>
   );
 
   const reviewStepContent = (
     <div className="space-y-6">
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card size="sm" className="border-border/70 shadow-none">
-          <CardHeader>
-            <CardTitle>Basics</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <div className="font-medium text-foreground">{basics.name}</div>
-            <div>{basics.start_date} to {basics.end_date}</div>
-            <div>
-              {basics.reading_week_start && basics.reading_week_end
-                ? `Reading week: ${basics.reading_week_start} to ${basics.reading_week_end}`
-                : "No reading week configured"}
-            </div>
-          </CardContent>
-        </Card>
-        <Card size="sm" className="border-border/70 shadow-none">
-          <CardHeader>
-            <CardTitle>Courses</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <div className="font-medium text-foreground">{courseCount} courses</div>
-            {courseCount === 0 ? <div>No draft courses yet.</div> : null}
-            {courseList.slice(0, REVIEW_COURSE_PREVIEW_LIMIT).map((course) => (
-              <div key={course.id}>{course.name}</div>
-            ))}
-            {courseCount > REVIEW_COURSE_PREVIEW_LIMIT ? <div>and {courseCount - REVIEW_COURSE_PREVIEW_LIMIT} more</div> : null}
-          </CardContent>
-        </Card>
-        <Card size="sm" className="border-border/70 shadow-none">
-          <CardHeader>
-            <CardTitle>Plugins</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <div className="font-medium text-foreground">{enabledPluginCount} enabled</div>
-            {enabledPluginCount === 0 ? <div>No plugins enabled for this Semester.</div> : null}
-            {enabledPlugins.map((plugin) => (
-              <div key={plugin.plugin_id}>
-                {plugin.display_name}
-                {!plugin.available ? " · Blocked" : ""}
+      <section className="space-y-3">
+        <h3 className="text-lg font-semibold text-foreground sm:text-xl">Basics</h3>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <div className="text-xs font-medium tracking-wide text-muted-foreground">Semester Name</div>
+            <div className="text-base font-semibold text-foreground sm:text-lg">{basics.name || "Untitled Semester"}</div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <div className="text-xs font-medium tracking-wide text-muted-foreground">Date Range</div>
+              <div className="text-sm text-foreground">
+                {basics.start_date && basics.end_date
+                  ? `${basics.start_date} to ${basics.end_date}`
+                  : "Start and end dates are not set yet."}
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-medium tracking-wide text-muted-foreground">Reading Week</div>
+              <div className="text-sm text-foreground">
+                {basics.reading_week_start && basics.reading_week_end
+                  ? `${basics.reading_week_start} to ${basics.reading_week_end}`
+                  : "No reading week configured"}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Accordion type="multiple" defaultValue={["review-courses", "review-plugins"]} className="rounded-xl border border-border/70 px-4">
+        <AccordionItem value="review-courses">
+          <AccordionTrigger className="py-5 hover:no-underline">
+            <div className="space-y-1 text-left">
+              <div className="font-medium text-foreground">Courses</div>
+              <div className="text-sm text-muted-foreground">{courseCount} courses</div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pb-5">
+            <div className="space-y-2 text-sm text-muted-foreground">
+              {courseCount === 0 ? <div>No draft courses yet.</div> : null}
+              {courseList.slice(0, REVIEW_COURSE_PREVIEW_LIMIT).map((course) => (
+                <div key={course.id}>{course.name}</div>
+              ))}
+              {courseCount > REVIEW_COURSE_PREVIEW_LIMIT ? <div>and {courseCount - REVIEW_COURSE_PREVIEW_LIMIT} more</div> : null}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="review-plugins">
+          <AccordionTrigger className="py-5 hover:no-underline">
+            <div className="space-y-1 text-left">
+              <div className="font-medium text-foreground">Plugins</div>
+              <div className="text-sm text-muted-foreground">{enabledPluginCount} enabled</div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pb-5">
+            <div className="space-y-2 text-sm text-muted-foreground">
+              {enabledPluginCount === 0 ? <div>No plugins enabled for this Semester.</div> : null}
+              {enabledPlugins.map((plugin) => (
+                <div key={plugin.plugin_id}>
+                  {plugin.display_name}
+                  {!plugin.available ? " · Blocked" : ""}
+                </div>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       {reviewSummaryPlugins.length > 0 ? (
         <div className="space-y-4">
@@ -1098,26 +1185,27 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
   return (
     <Layout breadcrumb={breadcrumb}>
-      <Container className="flex h-[calc(100svh-60px)] flex-col gap-6 overflow-hidden pt-8 pb-0">
+      <Container className="flex h-[calc(100svh-60px)] flex-col gap-6 overflow-hidden pt-6 pb-0">
         <section className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <div className="flex h-full min-h-0 flex-col overflow-hidden">
           <header className="shrink-0 space-y-4">
-            <div className="flex items-center gap-3">
-              <Field className="min-w-0 flex-1">
-                <Progress value={progressValue} id="semester-setup-progress" />
-              </Field>
-              <div className="shrink-0 text-sm font-medium tabular-nums text-muted-foreground">
-                {progressValue.toFixed(0)}%
-              </div>
+            <div className="min-w-0 overflow-hidden">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={`wizard-header:${activeStep}`}
+                  initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: stepDirection > 0 ? 32 : -32 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: stepDirection > 0 ? -24 : 24 }}
+                  transition={prefersReducedMotion ? { duration: 0.12 } : { type: "spring", stiffness: 340, damping: 34, mass: 0.78 }}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <StepIcon className="h-6 w-6 shrink-0 text-muted-foreground sm:h-7 sm:w-7" />
+                    <h1 className="min-w-0 text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">{currentStepMeta.label}</h1>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
             </div>
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-3 overflow-hidden">
-                <StepIcon className="h-6 w-6 shrink-0 text-muted-foreground sm:h-7 sm:w-7" />
-                <h1 className="shrink-0 text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">{currentStepMeta.label}</h1>
-              </div>
-            </div>
-
             <Separator />
           </header>
 
@@ -1223,6 +1311,38 @@ export const CreateSemesterWizardPage: React.FC = () => {
         semesterId={draftId}
         onCourseAdded={() => invalidateDraftData()}
       />
+      <AlertDialog
+        open={pendingRemoveCourse !== null}
+        onOpenChange={(open) => {
+          if (!open && !isRemovingCourse) {
+            setPendingRemoveCourse(null);
+          }
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove course from draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRemoveCourse
+                ? `${pendingRemoveCourse.name} will be removed from this Semester draft.`
+                : "This course will be removed from this Semester draft."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemovingCourse}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={isRemovingCourse || !pendingRemoveCourse}
+              onClick={() => {
+                if (!pendingRemoveCourse) return;
+                void handleDeleteCourse(pendingRemoveCourse.id);
+              }}
+            >
+              {isRemovingCourse ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={isExitDialogOpen} onOpenChange={setIsExitDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

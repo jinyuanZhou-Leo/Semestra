@@ -1,6 +1,6 @@
 // input:  [plugin identity/capability metadata, plugin catalog metadata helpers, optional action callbacks, shared icon renderer, and shadcn content/collapsible primitives]
 // output: [`PluginDetailsView` component]
-// pos:    [shared App Store-inspired plugin detail body reused by settings action dialogs and marketplace detail pages, with compatibility summary and collapsible tab/widget catalogs]
+// pos:    [shared App Store-inspired plugin detail body reused by settings action dialogs and marketplace detail pages, with enlarged plugin identity presentation plus compatibility summary and collapsible tab/widget catalogs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -131,7 +131,7 @@ export const PluginDetailsView: React.FC<PluginDetailsViewProps> = ({
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-4">
-            <IconCircle icon={icon} label={displayName} size={68} className="bg-muted text-foreground ring-1 ring-border/70" />
+            <IconCircle icon={icon} label={displayName} size={76} className="bg-muted text-foreground ring-1 ring-border/70" />
             <div className="min-w-0 pt-1">
               <h3 className="text-[1.85rem] leading-none font-semibold tracking-tight text-foreground">{displayName}</h3>
               <p className="max-w-3xl text-base leading-7 text-muted-foreground">{description}</p>

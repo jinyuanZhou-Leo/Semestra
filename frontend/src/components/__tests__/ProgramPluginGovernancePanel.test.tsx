@@ -1,6 +1,6 @@
 // input:  [`ProgramPluginGovernancePanel`, mocked governance APIs, QueryClient wrapper, viewport-state hooks, and testing-library interactions]
-// output: [component regression tests covering Program-level plugin install, reusable plugin info dialogs, marketplace detail navigation, enablement toggles, and downstream cache invalidation]
-// pos:    [UI regression suite for the shared data table and responsive marketplace used by Program plugin management]
+// output: [component regression tests covering Program-level plugin install, reusable plugin info dialogs, marketplace detail navigation, locked-plugin constraints, and downstream cache invalidation]
+// pos:    [UI regression suite for the shared data table and responsive marketplace used by Program plugin management, including required-plugin lock behavior]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -142,7 +142,7 @@ describe("ProgramPluginGovernancePanel", () => {
     });
   });
 
-  it("toggles an installed plugin off without deleting it", async () => {
+  it("prevents toggling a required plugin off", async () => {
     apiMock.getProgramPluginCatalog.mockResolvedValue([
       {
         id: "installation-1",
@@ -153,7 +153,7 @@ describe("ProgramPluginGovernancePanel", () => {
         default_version: "workspace",
         default_installed: true,
         default_enabled: true,
-        locked: false,
+        locked: true,
         version: "workspace",
         is_enabled: true,
         requires_program_lms_integration: false,
@@ -173,12 +173,11 @@ describe("ProgramPluginGovernancePanel", () => {
     render(<ProgramPluginGovernancePanel programId="program-1" />, { wrapper: Wrapper });
 
     const switches = await screen.findAllByRole("switch");
+    expect(switches[0]).toBeDisabled();
     fireEvent.click(switches[0]);
 
     await waitFor(() => {
-      expect(apiMock.upsertProgramPluginInstallation).toHaveBeenCalledWith("program-1", "course-list", {
-        is_enabled: false,
-      });
+      expect(apiMock.upsertProgramPluginInstallation).not.toHaveBeenCalled();
     });
     expect(apiMock.deleteProgramPluginInstallation).not.toHaveBeenCalled();
   });
@@ -263,5 +262,38 @@ describe("ProgramPluginGovernancePanel", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Plugin Info" }));
 
     expect((await screen.findAllByText("Semester course list widget and course-management defaults.")).length).toBeGreaterThan(0);
+  });
+
+  it("disables delete for a required plugin", async () => {
+    apiMock.getProgramPluginCatalog.mockResolvedValue([
+      {
+        id: "installation-1",
+        plugin_id: "course-list",
+        display_name: "Course List",
+        description: "Semester course list widget and course-management defaults.",
+        author: "Jinyuan",
+        default_version: "workspace",
+        default_installed: true,
+        default_enabled: true,
+        locked: true,
+        version: "workspace",
+        is_enabled: true,
+        requires_program_lms_integration: false,
+        capabilities: { contexts: ["semester"], available_widget_types: ["course-list"] },
+        setup_sections: [],
+        program_settings: {},
+        resolved_program_settings: {},
+        fields: [],
+        available: true,
+        availability_reason: null,
+        installed: true,
+      },
+    ]);
+
+    const { Wrapper } = createQueryClientWrapper();
+    render(<ProgramPluginGovernancePanel programId="program-1" />, { wrapper: Wrapper });
+
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Open actions for Course List" }));
+    expect(await screen.findByRole("menuitem", { name: "Delete" })).toHaveAttribute("data-disabled", "");
   });
 });

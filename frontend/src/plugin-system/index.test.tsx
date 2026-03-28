@@ -1,6 +1,6 @@
 // input:  [plugin facade helpers, lazy runtime loading, eager setup/settings registries, idle background preloading, and Vitest assertions]
-// output: [test suite covering plugin manifest icons, runtime instance settings resolution, eager plugin-global settings/setup exposure, and idle preload behavior]
-// pos:    [integration tests for the decoupled plugin-system public API and idle runtime warmup path]
+// output: [test suite covering plugin manifest icons, runtime instance settings resolution, eager plugin-global settings exposure, absence of Eventcore setup registration, and idle preload behavior]
+// pos:    [integration tests for the decoupled plugin-system public API, setup-registry exposure, and idle runtime warmup path]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -51,14 +51,13 @@ describe('plugin-system settings API', () => {
   });
 
   it('exposes eager plugin setup definitions through the facade', () => {
-    expect(hasPluginSetupDefinition('builtin-event-core')).toBe(true);
+    expect(hasPluginSetupDefinition('builtin-event-core')).toBe(false);
     expect(hasPluginSetupDefinition('world-clock')).toBe(false);
 
     const eventCoreSetup = getPluginSetupDefinitionById('builtin-event-core');
-    expect(eventCoreSetup?.sections[0]?.id).toBe('calendar-setup');
-    expect(eventCoreSetup?.fieldOrder).toEqual(['calendarDefaultView']);
+    expect(eventCoreSetup).toBeUndefined();
 
-    expect(getAllPluginSetupDefinitions().map((definition) => definition.pluginId)).toContain('builtin-event-core');
+    expect(getAllPluginSetupDefinitions()).toEqual([]);
   });
 
   it('treats maxInstances=0 builtin tabs as a single allowed instance', () => {

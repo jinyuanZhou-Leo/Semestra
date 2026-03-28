@@ -1,6 +1,6 @@
 # input:  [Program model records, generated plugin metadata/setup manifests, plugin governance payloads, and platform-level availability requirements]
-# output: [manifest-backed plugin catalog helpers for Program installs, Semester activation, generated setup definitions, settings validation, setup summaries, and resolved-config computation]
-# pos:    [Backend governance registry for Program-managed plugin lifecycle and Semester-scoped plugin activation rules plus manifest-backed metadata/setup validation helpers]
+# output: [manifest-backed plugin catalog helpers for Program installs, Semester activation, generated setup definitions, plugin-owned setup review hooks, settings validation, setup summaries, and resolved-config computation]
+# pos:    [Backend governance registry for Program-managed plugin lifecycle and Semester-scoped plugin activation rules plus manifest-backed metadata/setup validation helpers and plugin-owned setup review dispatch]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 FIELD_SCOPE_PROGRAM_ONLY = "program-only"
@@ -100,6 +100,36 @@ class PluginMetadata:
 
 
 @dataclass(frozen=True)
+class PluginSetupReviewIssue:
+    code: str
+    message: str
+    field_path: str | None = None
+
+
+@dataclass(frozen=True)
+class PluginSetupReviewContext:
+    plugin_id: str
+    program_settings: dict[str, Any]
+    semester_overrides: dict[str, Any]
+    setup_state: dict[str, Any]
+    resolved_settings: dict[str, Any]
+    setup_values: dict[str, Any]
+    program: Any = None
+    semester: Any = None
+
+
+@dataclass(frozen=True)
+class PluginSetupReviewResult:
+    review_errors: tuple[PluginSetupReviewIssue, ...] = ()
+    setup_summary: list[dict[str, Any]] | None = None
+    resolved_settings: dict[str, Any] | None = None
+    setup_values: dict[str, Any] | None = None
+
+
+PluginSetupReviewCallback = Callable[[PluginSetupReviewContext], PluginSetupReviewResult | None]
+
+
+@dataclass(frozen=True)
 class PluginGovernanceDefinition:
     plugin_id: str
     default_version: str = "workspace"
@@ -110,6 +140,7 @@ class PluginGovernanceDefinition:
     requires_program_lms_integration: bool = False
     default_settings: dict[str, Any] = field(default_factory=dict)
     fields: tuple[PluginFieldDefinition, ...] = ()
+    setup_review: PluginSetupReviewCallback | None = None
 
 
 @dataclass(frozen=True)
@@ -125,6 +156,7 @@ class PluginDefinition:
     capabilities: dict[str, Any] = field(default_factory=dict)
     default_settings: dict[str, Any] = field(default_factory=dict)
     fields: tuple[PluginFieldDefinition, ...] = ()
+    setup_review: PluginSetupReviewCallback | None = None
 
     @property
     def display_name(self) -> str:
@@ -172,6 +204,7 @@ PLUGIN_GOVERNANCE_DEFINITIONS: dict[str, PluginGovernanceDefinition] = {
         plugin_id="course-list",
         install_by_default=True,
         enable_by_default=True,
+        is_required=True,
         default_settings={
             "allowCourseCreation": True,
             "badgeStyle": "compact",
@@ -390,6 +423,7 @@ def _build_plugin_definitions(
             capabilities=deepcopy(metadata.capabilities),
             default_settings=deepcopy(governance.default_settings) if governance is not None else {},
             fields=governance.fields if governance is not None else (),
+            setup_review=governance.setup_review if governance is not None else None,
         )
 
     return runtime_definitions
@@ -966,6 +1000,67 @@ def validate_plugin_setup_values(plugin_id: str, values: dict[str, Any] | None) 
 
 def validate_resolved_plugin_setup_values(plugin_id: str, values: dict[str, Any] | None) -> dict[str, Any]:
     return _validate_plugin_setup_values(plugin_id, values, require_explicit_required_fields=False)
+
+
+def review_plugin_setup(
+    plugin_id: str,
+    *,
+    program_settings: dict[str, Any] | None = None,
+    semester_overrides: dict[str, Any] | None = None,
+    setup_state: dict[str, Any] | None = None,
+    program: Any = None,
+    semester: Any = None,
+) -> dict[str, Any]:
+    normalized_program_settings = normalize_program_settings(plugin_id, program_settings)
+    normalized_overrides = normalize_semester_overrides(plugin_id, semester_overrides)
+    normalized_setup_state = normalize_setup_state(plugin_id, setup_state)
+    resolved_settings = resolve_plugin_settings(
+        plugin_id,
+        program_settings=normalized_program_settings,
+        semester_overrides=normalized_overrides,
+    )
+    setup_values = validate_resolved_plugin_setup_values(
+        plugin_id,
+        resolve_plugin_setup_values(
+            plugin_id,
+            semester_overrides=normalized_overrides,
+            setup_state=normalized_setup_state,
+        ),
+    )
+    setup_summary = build_plugin_setup_summary(
+        plugin_id,
+        setup_values=setup_values,
+    )
+    review_errors: list[PluginSetupReviewIssue] = []
+
+    definition = get_plugin_definition(plugin_id)
+    if definition.setup_review is not None:
+        review_context = PluginSetupReviewContext(
+            plugin_id=plugin_id,
+            program_settings=deepcopy(normalized_program_settings),
+            semester_overrides=deepcopy(normalized_overrides),
+            setup_state=deepcopy(normalized_setup_state),
+            resolved_settings=deepcopy(resolved_settings),
+            setup_values=deepcopy(setup_values),
+            program=program,
+            semester=semester,
+        )
+        review_result = definition.setup_review(review_context)
+        if review_result is not None:
+            if review_result.resolved_settings is not None:
+                resolved_settings = deepcopy(review_result.resolved_settings)
+            if review_result.setup_values is not None:
+                setup_values = validate_resolved_plugin_setup_values(plugin_id, review_result.setup_values)
+            if review_result.setup_summary is not None:
+                setup_summary = deepcopy(review_result.setup_summary)
+            review_errors = list(review_result.review_errors)
+
+    return {
+        "resolved_settings": resolved_settings,
+        "setup_values": setup_values,
+        "setup_summary": setup_summary,
+        "review_errors": review_errors,
+    }
 
 
 def write_plugin_setup_values(

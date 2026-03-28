@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 `builtin-event-core/` is the core domain plugin that bundles schedule, calendar, and todo experiences.
-It exposes plugin metadata/runtime entrypoints plus a frontend-owned `setup.ts` declaration that generates the backend plugin-system setup contract for Semester onboarding.
+It exposes plugin metadata/runtime entrypoints without a Semester setup onboarding flow.
 Subfolders split reusable dialogs/utilities from tab-specific UI to keep semester workflows cohesive while preserving keyboard access, scoped schedule refreshes, source-driven Calendar rendering, buffered range-based Calendar fetching, cached-detail-backed export settings that avoid eager all-week schedule preloads, configurable week-view scroll width, DST-safe academic week math, persisted Calendar navigation UI state, inline-first Todo editing, persisted Todo section visibility, and safer destructive flows.
 
 | File | Role | Description |
@@ -11,7 +11,6 @@ Subfolders split reusable dialogs/utilities from tab-specific UI to keep semeste
 | components/INDEX.md | Shared components architecture index | File map for reusable event-core dialogs and weekly conflict-aware schedule rendering. |
 | index.ts | Runtime entry | Exports plugin definitions and metadata bindings for loader integration. |
 | metadata.ts | Plugin metadata | Declares plugin id and catalog-visible tab/widget metadata. |
-| setup.ts | Setup definition | Declares the host-rendered Semester setup DSL for Academic Events and feeds the generated backend plugin setup manifest. |
 | settings.tsx | Settings entry | Keeps plugin-global settings discovery stable without opting built-in event-core behavior into the framework-managed shared-settings persistence path. |
 | shared/ | Shared domain layer | Constants, event bus, hooks, types, and helpers shared by event-core tabs/widgets, including source ids, gradebook-aware refresh payloads, and Reading Week-aware calendar semantics. |
 | shared/INDEX.md | Shared architecture index | File map for shared schedule payloads, event bus contracts, and cache-aware hooks. |

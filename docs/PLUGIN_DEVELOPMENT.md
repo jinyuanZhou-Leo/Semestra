@@ -133,6 +133,115 @@ Each setup section in `frontend/src/plugins/<plugin-id>/setup.ts` should define:
 
 Review summaries shown in the final wizard step must be derivable from the same declared setup fields. The backend currently builds these summaries from the generated manifest in `plugin_governance.build_plugin_setup_summary(...)` so review/finalize behavior stays deterministic.
 
+### Plugin Setup DSL Reference
+
+The setup DSL lives in [`frontend/src/plugin-system/setup.ts`](../frontend/src/plugin-system/setup.ts). It is intentionally pure data: no React components, hooks, async work, or runtime-only imports.
+
+Author a setup file like this:
+
+```typescript
+import { definePluginSetup, section, selectField, textField, booleanField } from '@/plugin-system/setup';
+
+export default definePluginSetup({
+  fields: {
+    calendarDefaultView: selectField({
+      label: 'Default view',
+      persist: 'both',
+      required: true,
+      defaultValue: 'month',
+      description: 'Choose the starting calendar behavior for this Semester.',
+      options: [
+        { label: 'Month', value: 'month' },
+        { label: 'Week', value: 'week' },
+      ],
+      summaryLabels: {
+        month: 'Month',
+        week: 'Week',
+      },
+    }),
+    syncLmsCalendar: booleanField({
+      label: 'Sync LMS calendar',
+      persist: 'semesterOverride',
+      defaultValue: true,
+      description: 'Merge LMS events into the Semester calendar when available.',
+    }),
+    calendarTitle: textField({
+      label: 'Calendar title',
+      persist: 'setupState',
+      placeholder: 'Optional onboarding label',
+    }),
+  },
+  sections: [
+    section('calendar-setup', {
+      title: 'Calendar Setup',
+      description: 'Choose the starting calendar behavior for this Semester.',
+      fieldKeys: ['calendarDefaultView', 'syncLmsCalendar', 'calendarTitle'],
+    }),
+  ],
+});
+```
+
+`definePluginSetup(...)` accepts:
+- `fields`: a keyed map of reusable field declarations. Keys become the persisted payload keys.
+- `sections`: ordered host-rendered sections. Each section references existing field keys through `fieldKeys`.
+
+`section(id, { ... })` accepts:
+- `id`: stable section id used by the generated manifest.
+- `title`: required section title shown by the host.
+- `description`: optional helper copy.
+- `fieldKeys`: ordered array of field ids declared in `fields`.
+
+Available field helpers:
+
+| Helper | Field type | Value shape | Required extra keys |
+|------|------|-------------|---------------------|
+| `textField(...)` | `text` | `string` | None |
+| `textareaField(...)` | `textarea` | `string` | None |
+| `numberField(...)` | `number` | `number` | None |
+| `booleanField(...)` | `boolean` | `boolean` | None |
+| `selectField(...)` | `select` | `string` | `options: Array<{ label, value }>` |
+| `dateField(...)` | `date` | `string` | None |
+| `jsonField(...)` | `json` | `unknown` | None |
+
+Shared field properties:
+
+| Property | Required | Meaning |
+|------|----------|---------|
+| `label` | Yes | Human-readable field label shown by the host. |
+| `persist` | Yes | Controls where the saved value is written. |
+| `required` | No | Marks the field as required during setup validation. |
+| `description` | No | Helper text rendered under the field. |
+| `placeholder` | No | Placeholder text for text-like inputs. |
+| `defaultValue` | No | Host-side initial value used before the user edits the field. |
+| `summaryLabels` | No | Optional display labels used when the Review step summarizes stored values, mainly for select-like values. |
+
+`persist` supports exactly three values:
+- `setupState`: write only to `semester_plugin_activations.setup_state`. Use this for onboarding-only values that should not become runtime governance config.
+- `semesterOverride`: write only to `semester_plugin_activations.semester_overrides`. Use this only for values that correspond to backend-declared `semester-override` governance fields.
+- `both`: write to both `setup_state` and `semester_overrides`. Use this when the wizard should both remember the onboarding answer and apply it as the Semester runtime override.
+
+Practical rules:
+- Use `setupState` when the value is only needed for setup progress, review, or future setup revisits.
+- Use `semesterOverride` when the field is purely a Semester-level governance value and does not need separate setup memory.
+- Use `both` when the same answer should appear in review/setup history and immediately affect resolved runtime config.
+- Do not use `semesterOverride` or `both` unless the backend governance contract already declares the same field path as `semester-override`.
+- Keep field keys and section ids stable once released; changing them breaks persisted draft/setup continuity.
+- Keep `setup.ts` data-only. Import only from the setup DSL or other pure constants.
+
+Generation pipeline:
+- `frontend/src/plugins/<plugin-id>/setup.ts` is discovered eagerly by `frontend/src/plugin-system/setupRegistry.ts`.
+- `frontend/scripts/generate-plugin-setup-manifest.mjs` loads the setup registry through Vite SSR.
+- The script writes [`backend/generated/plugin_setup_manifest.json`](../backend/generated/plugin_setup_manifest.json).
+- `backend/plugin_governance.py` validates that generated manifest at import time and uses it for setup APIs, validation, and review summaries.
+
+After editing any plugin `setup.ts`, regenerate the manifest:
+
+```bash
+npm --prefix frontend run generate-plugin-setup-manifest
+```
+
+If the generated manifest is stale or missing, backend import will fail with an instruction to rerun that command.
+
 ### Runtime Consumption
 
 When a runtime component needs governance config:

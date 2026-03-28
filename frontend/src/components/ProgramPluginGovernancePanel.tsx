@@ -10,7 +10,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleHelp, PackagePlus, Trash2 } from "lucide-react";
+import { Info , PackagePlus, Trash2 } from "lucide-react";
 
 import {
   AlertDialog,
@@ -202,7 +202,7 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
               <TableCell className="py-3 text-right">
                 <DataTableActionMenu triggerLabel={`Open actions for ${plugin.display_name}`}>
                   <DropdownMenuItem onClick={() => setDetailPlugin(plugin)}>
-                    <CircleHelp className="h-4 w-4" />
+                    <Info className="h-4 w-4" />
                     Plugin Info
                   </DropdownMenuItem>
                   <DropdownMenuItem

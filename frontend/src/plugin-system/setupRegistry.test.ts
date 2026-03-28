@@ -1,5 +1,5 @@
 // input:  [setup registry pure helpers, setup DSL helpers, and Vitest assertions]
-// output: [unit tests covering setup-definition validation and manifest serialization]
+// output: [unit tests covering setup-definition validation and empty-manifest serialization after removing Eventcore setup]
 // pos:    [pure setup-registry regression suite for plugin setup validation rules and generated backend manifest output]
 //
 // ⚠️ When this file is updated:
@@ -69,21 +69,9 @@ describe("plugin-system setup registry", () => {
     }))).toThrow('Duplicate setup section id "duplicate"');
   });
 
-  it("serializes a stable backend manifest payload for registered plugins", () => {
+  it("serializes an empty backend manifest when no plugins declare setup", () => {
     const manifest = buildPluginSetupManifest();
-    const eventCore = manifest.find((entry) => entry.plugin_id === "builtin-event-core");
 
-    expect(eventCore).toBeDefined();
-    expect(eventCore?.fields[0]).toMatchObject({
-      path: "calendarDefaultView",
-      type: "select",
-      persist: "both",
-      required: true,
-      default_value: "month",
-    });
-    expect(eventCore?.sections[0]?.fields[0]?.summary_labels).toEqual({
-      month: "Month",
-      week: "Week",
-    });
+    expect(manifest).toEqual([]);
   });
 });

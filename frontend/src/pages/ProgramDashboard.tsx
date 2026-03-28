@@ -1,6 +1,6 @@
 // input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, and shadcn AlertDialog interactions]
 // output: [`ProgramDashboard` route component for the Program workspace]
-// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, edit-mode course deletion, tri-state course-list sorting, and shared empty-state treatment across Program sections]
+// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, edit-mode course deletion, semester-card delete actions that stay below the sticky page header, tri-state course-list sorting, and shared empty-state treatment across Program sections]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -727,7 +727,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                 </CardContent>
                                             </Card>
                                         </Link>
-                                        <div className="absolute right-4 top-4 z-20">
+                                        <div className="absolute right-4 top-4">
                                             <DeleteSemesterButton
                                                 semesterId={semester.id}
                                                 semesterName={semester.name}

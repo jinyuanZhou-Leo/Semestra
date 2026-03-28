@@ -1,6 +1,6 @@
 // input:  [icon source (ReactNode or image URL), size/label props, class overrides, and `isImageIcon` guard]
 // output: [`IconCircle` component]
-// pos:    [Unified circular icon/avatar renderer across catalog and dashboard UI, including full-bleed image icons]
+// pos:    [Unified circular icon/avatar renderer across catalog and dashboard UI, including full-bleed image icons and more restrained vector icon scaling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,6 +17,11 @@ interface IconCircleProps {
     className?: string; // Allow external class overrides
 }
 
+interface IconElementProps {
+    className?: string;
+    style?: React.CSSProperties;
+}
+
 export const IconCircle: React.FC<IconCircleProps> = ({
     icon,
     label,
@@ -26,6 +31,17 @@ export const IconCircle: React.FC<IconCircleProps> = ({
     const fallbackText = (label || '?').trim().charAt(0).toUpperCase() || '?';
     const isImage = typeof icon === 'string' && isImageIcon(icon);
     const showPlaceholder = !icon;
+    const glyphSize = Math.max(16, Math.floor(size * 0.46));
+    const renderedIcon = React.isValidElement<IconElementProps>(icon)
+        ? React.cloneElement(icon, {
+            className: cn(icon.props.className, "h-full w-full"),
+            style: {
+                ...(icon.props.style ?? {}),
+                width: "100%",
+                height: "100%",
+            },
+        })
+        : icon;
 
     return (
         <span
@@ -53,8 +69,11 @@ export const IconCircle: React.FC<IconCircleProps> = ({
                     {fallbackText}
                 </span>
             ) : (
-                <span style={{ fontSize: Math.max(12, Math.floor(size * 0.55)) }}>
-                    {icon}
+                <span
+                    className="inline-flex items-center justify-center"
+                    style={{ width: glyphSize, height: glyphSize, fontSize: glyphSize }}
+                >
+                    {renderedIcon}
                 </span>
             )}
         </span>

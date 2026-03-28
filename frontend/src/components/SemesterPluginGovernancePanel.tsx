@@ -10,7 +10,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CircleHelp } from "lucide-react";
+import { Info } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
@@ -120,7 +120,7 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
               <TableCell className="py-3 text-right">
                 <DataTableActionMenu triggerLabel={`Open actions for ${plugin.display_name}`}>
                   <DropdownMenuItem onClick={() => setDetailPlugin(plugin)}>
-                    <CircleHelp className="h-4 w-4" />
+                    <Info className="h-4 w-4" />
                     Plugin Info
                   </DropdownMenuItem>
                 </DataTableActionMenu>

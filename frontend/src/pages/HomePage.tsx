@@ -1,6 +1,6 @@
 // input:  [program list/create/delete APIs, dialog context, route links, loading skeletons, responsive overlay wrapper, shared business empty-state wrappers, and shadcn scroll-area]
 // output: [`HomePage` plus local create/delete program confirmation and responsive create surface components]
-// pos:    [Authenticated root workspace page showing programs, standardized create-empty feedback, and mobile drawer program creation]
+// pos:    [Authenticated root workspace page showing programs, standardized create-empty feedback, mobile drawer program creation, and card delete actions that stay below the sticky page header]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -336,7 +336,7 @@ export const HomePage: React.FC = () => {
                                         </CardContent>
                                     </Card>
                                 </Link>
-                                <div className="absolute right-4 top-4 z-20">
+                                <div className="absolute right-4 top-4">
                                         <DeleteProgramButton
                                             programId={program.id}
                                             onDeleted={fetchPrograms}

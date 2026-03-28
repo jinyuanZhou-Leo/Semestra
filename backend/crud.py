@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, shared color helpers, timezone/date helpers, plugin governance registry helpers, and transaction/integrity helpers]
-# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, Program-level plugin governance rows, manifest-backed plugin-system setup flows, Semester draft lifecycle flows with transactional draft initialization plus database-backed single-draft enforcement, Program-enabled-plus-Semester-state plugin activation payloads, legacy homepage-tab normalization helpers, user settings including background plugin preload preference defaults, gradebook initialization, validated course-to-semester reassignment, stable Program subject-color synchronization, and Program-plugin uninstall cleanup for plugin-owned runtime data]
-# pos:    [Database access layer for backend services, normalized user-setting persistence, Program plugin governance, manifest-backed Semester plugin setup state, transactional Semester draft creation plus Program-enabled plugin visibility and activation state, legacy tab-type cleanup, gradebook-backed course creation, Program-plugin uninstall cleanup, and stat-safe course/semester mutations]
+# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, Program-level plugin governance rows, manifest-backed plugin-system setup flows with plugin-owned setup review dispatch, Semester draft lifecycle flows with transactional draft initialization plus database-backed single-draft enforcement, Program-enabled-plus-Semester-state plugin activation payloads, legacy homepage-tab normalization helpers, user settings including background plugin preload preference defaults, gradebook initialization, validated course-to-semester reassignment, stable Program subject-color synchronization, and Program-plugin uninstall cleanup for plugin-owned runtime data]
+# pos:    [Database access layer for backend services, normalized user-setting persistence, Program plugin governance, manifest-backed Semester plugin setup state plus plugin-owned review dispatch, transactional Semester draft creation plus Program-enabled plugin visibility and activation state, legacy tab-type cleanup, gradebook-backed course creation, Program-plugin uninstall cleanup, and stat-safe course/semester mutations]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -304,25 +304,13 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
         setup_state = _parse_json_object(activation.setup_state)
 
         try:
-            normalized_program_settings = plugin_governance.normalize_program_settings(plugin_id, program_settings)
-            normalized_overrides = plugin_governance.normalize_semester_overrides(plugin_id, semester_overrides)
-            normalized_setup_state = plugin_governance.normalize_setup_state(plugin_id, setup_state)
-            resolved_settings = plugin_governance.resolve_plugin_settings(
+            plugin_review_state = plugin_governance.review_plugin_setup(
                 plugin_id,
-                program_settings=normalized_program_settings,
-                semester_overrides=normalized_overrides,
-            )
-            setup_values = plugin_governance.validate_resolved_plugin_setup_values(
-                plugin_id,
-                plugin_governance.resolve_plugin_setup_values(
-                    plugin_id,
-                    semester_overrides=normalized_overrides,
-                    setup_state=normalized_setup_state,
-                ),
-            )
-            setup_summary = plugin_governance.build_plugin_setup_summary(
-                plugin_id,
-                setup_values=setup_values,
+                program_settings=program_settings,
+                semester_overrides=semester_overrides,
+                setup_state=setup_state,
+                program=semester.program,
+                semester=semester,
             )
         except plugin_governance.PluginGovernanceValidationError as exc:
             plugin_errors.append(_build_review_issue(
@@ -336,6 +324,19 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
             setup_values = {}
             setup_summary = []
         else:
+            resolved_settings = plugin_review_state["resolved_settings"]
+            setup_values = plugin_review_state["setup_values"]
+            setup_summary = plugin_review_state["setup_summary"]
+            plugin_errors.extend(
+                _build_review_issue(
+                    code=issue.code,
+                    message=issue.message,
+                    step="plugin-setup",
+                    plugin_id=plugin_id,
+                    field_path=issue.field_path,
+                )
+                for issue in plugin_review_state["review_errors"]
+            )
             available, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
             if activation.is_enabled and not available:
                 plugin_errors.append(_build_review_issue(
