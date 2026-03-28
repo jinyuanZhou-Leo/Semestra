@@ -21,13 +21,16 @@ const tabCatalog: TabCatalogItem[] = [
         name: 'Tab Template',
         description: 'Starter tab with editable settings and layout scaffolding.',
         icon: pluginIcon,
-        maxInstances: 'unlimited',
         allowedContexts: ['semester', 'course'],
     },
 ];
 
 export default definePluginMetadata({
     pluginId,
+    displayName: 'Tab Template',
+    author: 'Jinyuan',
+    description: 'Prototype new workspace experiences and interaction patterns.',
+    longDescription: 'Tab Template is a development-oriented starting point for building new workspace experiences inside Semestra. It gives plugin authors a clean reference for structure, settings flow, and host integration so ideas can move from experiment to implementation quickly. It is most useful when exploring new product directions or validating a concept before investing in a more complete build.',
     icon: pluginIcon,
     tabCatalog,
 });

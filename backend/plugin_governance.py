@@ -1,6 +1,6 @@
-# input:  [Program model records, generated plugin setup manifest, plugin governance payloads, and platform-level availability requirements]
-# output: [plugin catalog helpers for Program installs, Semester activation, generated setup definitions, settings validation, setup summaries, and resolved-config computation]
-# pos:    [Backend governance registry for Program-managed plugin lifecycle and Semester-scoped plugin activation rules plus manifest-backed plugin-setup validation helpers]
+# input:  [Program model records, generated plugin metadata/setup manifests, plugin governance payloads, and platform-level availability requirements]
+# output: [manifest-backed plugin catalog helpers for Program installs, Semester activation, generated setup definitions, settings validation, setup summaries, and resolved-config computation]
+# pos:    [Backend governance registry for Program-managed plugin lifecycle and Semester-scoped plugin activation rules plus manifest-backed metadata/setup validation helpers]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -15,11 +15,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
-AUTH_NOT_REQUIRED = "not-required"
-AUTH_PENDING = "pending"
-AUTH_AUTHORIZED = "authorized"
-AUTH_FAILED = "failed"
 
 FIELD_SCOPE_PROGRAM_ONLY = "program-only"
 FIELD_SCOPE_SEMESTER_OVERRIDE = "semester-override"
@@ -40,6 +35,10 @@ VALID_SETUP_FIELD_TYPES = {
     "select",
     "date",
     "json",
+}
+
+LEGACY_PLUGIN_ID_ALIASES = {
+    "builtin-settings": "builtin-setting",
 }
 
 
@@ -92,11 +91,31 @@ class PluginSetupDefinition:
 
 
 @dataclass(frozen=True)
-class PluginDefinition:
-    plugin_id: str
+class PluginMetadata:
     display_name: str
     description: str
     author: str
+    long_description: str = ""
+    capabilities: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PluginGovernanceDefinition:
+    plugin_id: str
+    default_version: str = "workspace"
+    install_by_default: bool = False
+    enable_by_default: bool = False
+    is_required: bool = False
+    requires_authorization: bool = False
+    requires_program_lms_integration: bool = False
+    default_settings: dict[str, Any] = field(default_factory=dict)
+    fields: tuple[PluginFieldDefinition, ...] = ()
+
+
+@dataclass(frozen=True)
+class PluginDefinition:
+    plugin_id: str
+    metadata: PluginMetadata
     default_version: str = "workspace"
     install_by_default: bool = False
     enable_by_default: bool = False
@@ -106,6 +125,22 @@ class PluginDefinition:
     capabilities: dict[str, Any] = field(default_factory=dict)
     default_settings: dict[str, Any] = field(default_factory=dict)
     fields: tuple[PluginFieldDefinition, ...] = ()
+
+    @property
+    def display_name(self) -> str:
+        return self.metadata.display_name
+
+    @property
+    def description(self) -> str:
+        return self.metadata.description
+
+    @property
+    def author(self) -> str:
+        return self.metadata.author
+
+    @property
+    def long_description(self) -> str:
+        return self.metadata.long_description
 
     @property
     def default_installed(self) -> bool:
@@ -120,50 +155,23 @@ class PluginDefinition:
         return self.is_required
 
 
-PLUGIN_DEFINITIONS: dict[str, PluginDefinition] = {
-    "builtin-dashboard": PluginDefinition(
+PLUGIN_GOVERNANCE_DEFINITIONS: dict[str, PluginGovernanceDefinition] = {
+    "builtin-dashboard": PluginGovernanceDefinition(
         plugin_id="builtin-dashboard",
-        display_name="Dashboard",
-        description="Core dashboard tab for workspace overviews and widgets.",
-        author="Jinyuan",
         install_by_default=True,
         enable_by_default=True,
         is_required=True,
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": ["dashboard"],
-            "available_widget_types": [],
-            "has_settings": False,
-        },
     ),
-    "builtin-settings": PluginDefinition(
-        plugin_id="builtin-settings",
-        display_name="Settings",
-        description="Core settings tab for workspace configuration surfaces.",
-        author="Jinyuan",
+    "builtin-setting": PluginGovernanceDefinition(
+        plugin_id="builtin-setting",
         install_by_default=True,
         enable_by_default=True,
         is_required=True,
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": ["settings"],
-            "available_widget_types": [],
-            "has_settings": True,
-        },
     ),
-    "course-list": PluginDefinition(
+    "course-list": PluginGovernanceDefinition(
         plugin_id="course-list",
-        display_name="Course List",
-        description="Semester course list widget and course-management defaults.",
-        author="Jinyuan",
         install_by_default=True,
         enable_by_default=True,
-        capabilities={
-            "contexts": ["semester"],
-            "available_tab_types": [],
-            "available_widget_types": ["course-list"],
-            "has_settings": True,
-        },
         default_settings={
             "allowCourseCreation": True,
             "badgeStyle": "compact",
@@ -191,21 +199,8 @@ PLUGIN_DEFINITIONS: dict[str, PluginDefinition] = {
             ),
         ),
     ),
-    "builtin-event-core": PluginDefinition(
+    "builtin-event-core": PluginGovernanceDefinition(
         plugin_id="builtin-event-core",
-        display_name="Academic Events",
-        description="Calendar, course schedule, todo, and daily event surfaces.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": [
-                "builtin-academic-calendar",
-                "builtin-course-schedule",
-                "builtin-todo",
-            ],
-            "available_widget_types": ["builtin-today-events"],
-            "has_settings": True,
-        },
         default_settings={
             "syncLmsCalendar": True,
             "calendarDefaultView": "month",
@@ -233,116 +228,174 @@ PLUGIN_DEFINITIONS: dict[str, PluginDefinition] = {
             ),
         ),
     ),
-    "builtin-gradebook": PluginDefinition(
+    "builtin-gradebook": PluginGovernanceDefinition(
         plugin_id="builtin-gradebook",
-        display_name="Gradebook",
-        description="Course-level gradebook tab and summary widget.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["course"],
-            "available_tab_types": ["builtin-gradebook"],
-            "available_widget_types": ["builtin-gradebook-summary"],
-            "has_settings": True,
-        },
     ),
-    "builtin-canvas-integration": PluginDefinition(
+    "builtin-canvas-integration": PluginGovernanceDefinition(
         plugin_id="builtin-canvas-integration",
-        display_name="Canvas Integration",
-        description="Canvas course navigation and content browsing plugin.",
-        author="Jinyuan",
         requires_program_lms_integration=True,
-        capabilities={
-            "contexts": ["course"],
-            "available_tab_types": ["builtin-canvas-integration"],
-            "available_widget_types": [],
-            "has_settings": False,
-        },
     ),
-    "course-resources": PluginDefinition(
+    "course-resources": PluginGovernanceDefinition(
         plugin_id="course-resources",
-        display_name="Course Resources",
-        description="Course resources tab and quick-open widget.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["course"],
-            "available_tab_types": ["course-resources-tab"],
-            "available_widget_types": ["course-resources-quick-open"],
-            "has_settings": False,
-        },
     ),
-    "world-clock": PluginDefinition(
+    "world-clock": PluginGovernanceDefinition(
         plugin_id="world-clock",
-        display_name="World Clock",
-        description="Dashboard widget showing selected time zones.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": [],
-            "available_widget_types": ["world-clock"],
-            "has_settings": False,
-        },
     ),
-    "habit-streak": PluginDefinition(
+    "habit-streak": PluginGovernanceDefinition(
         plugin_id="habit-streak",
-        display_name="Habit Streak",
-        description="Habit streak widgets for dashboard tracking.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": [],
-            "available_widget_types": ["habit-streak-duolingo", "habit-streak-ring"],
-            "has_settings": False,
-        },
     ),
-    "pomodoro": PluginDefinition(
+    "pomodoro": PluginGovernanceDefinition(
         plugin_id="pomodoro",
-        display_name="Pomodoro",
-        description="Pomodoro dashboard widget.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": [],
-            "available_widget_types": ["pomodoro"],
-            "has_settings": False,
-        },
     ),
-    "sticky-note": PluginDefinition(
+    "sticky-note": PluginGovernanceDefinition(
         plugin_id="sticky-note",
-        display_name="Sticky Note",
-        description="Sticky-note dashboard widget.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": [],
-            "available_widget_types": ["sticky-note"],
-            "has_settings": False,
-        },
     ),
-    "counter": PluginDefinition(
+    "counter": PluginGovernanceDefinition(
         plugin_id="counter",
-        display_name="Counter",
-        description="Counter dashboard widget.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": [],
-            "available_widget_types": ["counter"],
-            "has_settings": False,
-        },
     ),
-    "tab-template": PluginDefinition(
+    "tab-template": PluginGovernanceDefinition(
         plugin_id="tab-template",
-        display_name="Tab Template",
-        description="Template tab plugin used for experimentation.",
-        author="Jinyuan",
-        capabilities={
-            "contexts": ["semester", "course"],
-            "available_tab_types": ["tab-template"],
-            "available_widget_types": [],
-            "has_settings": False,
-        },
     ),
 }
+
+
+def _generated_metadata_manifest_path() -> Path:
+    return Path(__file__).resolve().parent / "generated" / "plugin_metadata_manifest.json"
+
+
+def _load_generated_plugin_metadata_manifest() -> list[dict[str, Any]]:
+    manifest_path = _generated_metadata_manifest_path()
+    if not manifest_path.exists():
+        _raise_manifest_error(
+            f"Missing generated plugin metadata manifest at '{manifest_path}'. Run `npm --prefix frontend run generate-plugin-setup-manifest`."
+        )
+    try:
+        raw_value = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - startup failure path
+        _raise_manifest_error(f"Failed to parse generated plugin metadata manifest: {exc}.")
+    if not isinstance(raw_value, list):
+        _raise_manifest_error("Generated plugin metadata manifest must be a JSON array.")
+    return raw_value
+
+
+def _load_manifest_string_list(
+    plugin_id: str,
+    field_name: str,
+    raw_value: Any,
+) -> list[str]:
+    if not isinstance(raw_value, list):
+        _raise_manifest_error(f"Generated plugin metadata manifest entry '{plugin_id}' field '{field_name}' must be a JSON array.")
+    normalized_values: list[str] = []
+    seen_values: set[str] = set()
+    for raw_item in raw_value:
+        if not isinstance(raw_item, str) or not raw_item.strip():
+            _raise_manifest_error(
+                f"Generated plugin metadata manifest entry '{plugin_id}' field '{field_name}' must contain non-empty strings."
+            )
+        if raw_item in seen_values:
+            _raise_manifest_error(
+                f"Generated plugin metadata manifest entry '{plugin_id}' field '{field_name}' repeats value '{raw_item}'."
+            )
+        seen_values.add(raw_item)
+        normalized_values.append(raw_item)
+    return normalized_values
+
+
+def _load_manifest_capabilities(plugin_id: str, raw_capabilities: Any) -> dict[str, Any]:
+    if not isinstance(raw_capabilities, dict):
+        _raise_manifest_error(f"Generated plugin metadata manifest entry '{plugin_id}' is missing capabilities.")
+    has_settings = raw_capabilities.get("has_settings")
+    if not isinstance(has_settings, bool):
+        _raise_manifest_error(
+            f"Generated plugin metadata manifest entry '{plugin_id}' capability 'has_settings' must be a boolean."
+        )
+    return {
+        "contexts": _load_manifest_string_list(plugin_id, "capabilities.contexts", raw_capabilities.get("contexts")),
+        "available_tab_types": _load_manifest_string_list(
+            plugin_id,
+            "capabilities.available_tab_types",
+            raw_capabilities.get("available_tab_types"),
+        ),
+        "available_widget_types": _load_manifest_string_list(
+            plugin_id,
+            "capabilities.available_widget_types",
+            raw_capabilities.get("available_widget_types"),
+        ),
+        "has_settings": has_settings,
+    }
+
+
+def _load_generated_plugin_metadata() -> dict[str, PluginMetadata]:
+    raw_manifest = _load_generated_plugin_metadata_manifest()
+    metadata_by_plugin_id: dict[str, PluginMetadata] = {}
+
+    for raw_entry in raw_manifest:
+        if not isinstance(raw_entry, dict):
+            _raise_manifest_error("Generated plugin metadata manifest contains a non-object entry.")
+        plugin_id = raw_entry.get("plugin_id")
+        display_name = raw_entry.get("display_name")
+        description = raw_entry.get("description")
+        long_description = raw_entry.get("long_description")
+        author = raw_entry.get("author")
+        capabilities = raw_entry.get("capabilities")
+
+        if not isinstance(plugin_id, str) or not plugin_id.strip():
+            _raise_manifest_error("Generated plugin metadata manifest entry is missing plugin_id.")
+        if not isinstance(display_name, str) or not display_name.strip():
+            _raise_manifest_error(f"Generated plugin metadata manifest entry '{plugin_id}' is missing display_name.")
+        if not isinstance(description, str) or not description.strip():
+            _raise_manifest_error(f"Generated plugin metadata manifest entry '{plugin_id}' is missing description.")
+        if not isinstance(long_description, str) or not long_description.strip():
+            _raise_manifest_error(f"Generated plugin metadata manifest entry '{plugin_id}' is missing long_description.")
+        if not isinstance(author, str) or not author.strip():
+            _raise_manifest_error(f"Generated plugin metadata manifest entry '{plugin_id}' is missing author.")
+        if plugin_id in metadata_by_plugin_id:
+            _raise_manifest_error(f"Generated plugin metadata manifest repeats plugin_id '{plugin_id}'.")
+        metadata_by_plugin_id[plugin_id] = PluginMetadata(
+            display_name=display_name,
+            description=description,
+            long_description=long_description,
+            author=author,
+            capabilities=_load_manifest_capabilities(plugin_id, capabilities),
+        )
+
+    return metadata_by_plugin_id
+
+
+PLUGIN_METADATA = _load_generated_plugin_metadata()
+
+
+def _build_plugin_definitions(
+    governance_definitions: dict[str, PluginGovernanceDefinition],
+    metadata_by_plugin_id: dict[str, PluginMetadata],
+) -> dict[str, PluginDefinition]:
+    runtime_definitions: dict[str, PluginDefinition] = {}
+    all_plugin_ids = sorted(set(governance_definitions.keys()) | set(metadata_by_plugin_id.keys()))
+
+    for plugin_id in all_plugin_ids:
+        governance = governance_definitions.get(plugin_id)
+        metadata = metadata_by_plugin_id.get(plugin_id)
+        if metadata is None:
+            _raise_manifest_error(f"Generated plugin metadata manifest is missing plugin_id '{plugin_id}'.")
+
+        runtime_definitions[plugin_id] = PluginDefinition(
+            plugin_id=plugin_id,
+            metadata=metadata,
+            default_version=governance.default_version if governance is not None else "workspace",
+            install_by_default=governance.install_by_default if governance is not None else False,
+            enable_by_default=governance.enable_by_default if governance is not None else False,
+            is_required=governance.is_required if governance is not None else False,
+            requires_authorization=governance.requires_authorization if governance is not None else False,
+            requires_program_lms_integration=governance.requires_program_lms_integration if governance is not None else False,
+            capabilities=deepcopy(metadata.capabilities),
+            default_settings=deepcopy(governance.default_settings) if governance is not None else {},
+            fields=governance.fields if governance is not None else (),
+        )
+
+    return runtime_definitions
+
+
+PLUGIN_DEFINITIONS = _build_plugin_definitions(PLUGIN_GOVERNANCE_DEFINITIONS, PLUGIN_METADATA)
 
 
 def _raise_manifest_error(message: str) -> None:
@@ -533,19 +586,24 @@ def list_plugin_definitions() -> list[PluginDefinition]:
     return list(PLUGIN_DEFINITIONS.values())
 
 
+def normalize_plugin_id(plugin_id: str) -> str:
+    normalized_plugin_id = (plugin_id or "").strip()
+    return LEGACY_PLUGIN_ID_ALIASES.get(normalized_plugin_id, normalized_plugin_id)
+
+
 def get_plugin_definition(plugin_id: str) -> PluginDefinition:
-    definition = PLUGIN_DEFINITIONS.get(plugin_id)
+    definition = PLUGIN_DEFINITIONS.get(normalize_plugin_id(plugin_id))
     if definition is None:
         raise KeyError(f"Unknown plugin_id '{plugin_id}'.")
     return definition
 
 
 def get_plugin_setup_definition(plugin_id: str) -> PluginSetupDefinition | None:
-    return PLUGIN_SETUP_DEFINITIONS.get(plugin_id)
+    return PLUGIN_SETUP_DEFINITIONS.get(normalize_plugin_id(plugin_id))
 
 
 def has_plugin_setup_definition(plugin_id: str) -> bool:
-    return plugin_id in PLUGIN_SETUP_DEFINITIONS
+    return normalize_plugin_id(plugin_id) in PLUGIN_SETUP_DEFINITIONS
 
 
 def get_default_program_plugin_ids() -> list[str]:
@@ -615,9 +673,9 @@ def resolve_plugin_availability(
     definition = get_plugin_definition(plugin_id)
     if definition.requires_program_lms_integration and not program_has_lms_integration:
         return False, "Program LMS integration is required."
-    if definition.requires_authorization and auth_state != AUTH_AUTHORIZED:
+    if definition.requires_authorization and auth_state != "authorized":
         return False, "Program authorization is incomplete."
-    if auth_state == AUTH_FAILED:
+    if auth_state == "failed":
         return False, "Plugin authorization failed."
     return True, None
 

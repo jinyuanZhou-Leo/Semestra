@@ -27,7 +27,6 @@ const tabCatalog: TabCatalogItem[] = [
         name: 'Course Resources',
         description: 'Manage course files with drag-and-drop upload, quick open, and lightweight file actions.',
         icon: pluginIcon,
-        maxInstances: 1,
         allowedContexts: ['course'],
     },
 ];
@@ -47,6 +46,10 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId: COURSE_RESOURCES_PLUGIN_ID,
+    displayName: 'Course Resources',
+    author: 'Jinyuan',
+    description: 'Keep course files and links organized for quick access.',
+    longDescription: 'Course Resources gives each course a dedicated place to collect files, links, and frequently used materials. Instead of hunting through LMS pages, browser bookmarks, and scattered downloads, users can keep important content grouped by course and reach it quickly when studying. It is designed for everyday retrieval: lecture slides, reference sheets, assignment links, and anything else that should stay easy to open throughout the term.',
     icon: pluginIcon,
     tabCatalog,
     widgetCatalog,

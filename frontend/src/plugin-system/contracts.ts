@@ -15,6 +15,10 @@ import type { PluginSetupDefinition } from './setup';
 
 export interface PluginMetadataDefinition {
     pluginId: string;
+    displayName: string;
+    author: string;
+    description: string;
+    longDescription: string;
     icon: ReactNode;
     tabCatalog?: TabCatalogItem[];
     widgetCatalog?: WidgetCatalogItem[];
@@ -33,6 +37,10 @@ export type { PluginSetupDefinition };
 
 export const definePluginMetadata = (definition: PluginMetadataDefinition): PluginMetadataDefinition => ({
     pluginId: definition.pluginId,
+    displayName: definition.displayName,
+    author: definition.author,
+    description: definition.description,
+    longDescription: definition.longDescription,
     icon: definition.icon,
     tabCatalog: definition.tabCatalog ?? [],
     widgetCatalog: definition.widgetCatalog ?? [],

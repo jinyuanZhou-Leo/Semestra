@@ -25,7 +25,6 @@ const tabCatalog: TabCatalogItem[] = [
         name: 'Gradebook',
         description: 'Track course assessments, enter percentage scores, and run plan-mode what-if projections.',
         icon: pluginIcon,
-        maxInstances: 0,
         allowedContexts: ['course'],
     },
 ];
@@ -45,6 +44,10 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId: BUILTIN_GRADEBOOK_PLUGIN_ID,
+    displayName: 'Gradebook',
+    author: 'Jinyuan',
+    description: 'Track assessments, understand progress, and plan toward targets.',
+    longDescription: 'Gradebook gives each course a clear place to record assessments, enter scores, and understand how every result affects the overall picture. It supports ongoing progress checks, target setting, and what-if planning so students can see where they stand before final grades are locked in. The experience is built for day-to-day academic decision making, helping users connect effort, weighting, and expected outcomes with less guesswork.',
     icon: pluginIcon,
     tabCatalog,
     widgetCatalog,

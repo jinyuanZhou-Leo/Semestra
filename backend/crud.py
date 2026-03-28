@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, shared color helpers, timezone/date helpers, plugin governance registry helpers, and transaction/integrity helpers]
-# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, Program-level plugin governance rows, manifest-backed plugin-system setup flows, Semester draft lifecycle flows with transactional draft initialization plus database-backed single-draft enforcement, Program-enabled-plus-Semester-state plugin activation payloads, homepage-tab defaults, user settings including background plugin preload preference defaults, gradebook initialization, validated course-to-semester reassignment, and stable Program subject-color synchronization]
-# pos:    [Database access layer for backend services, normalized user-setting persistence, Program plugin governance, manifest-backed Semester plugin setup state, transactional Semester draft creation plus Program-enabled plugin visibility and activation state, homepage-tab default repair, gradebook-backed course creation, and stat-safe course/semester mutations]
+# output: [CRUD functions for users, tasks, courses, widgets, plugin-shared settings, Program-level plugin governance rows, manifest-backed plugin-system setup flows, Semester draft lifecycle flows with transactional draft initialization plus database-backed single-draft enforcement, Program-enabled-plus-Semester-state plugin activation payloads, homepage-tab defaults plus legacy tab-type normalization, user settings including background plugin preload preference defaults, gradebook initialization, validated course-to-semester reassignment, and stable Program subject-color synchronization]
+# pos:    [Database access layer for backend services, normalized user-setting persistence, Program plugin governance, manifest-backed Semester plugin setup state, transactional Semester draft creation plus Program-enabled plugin visibility and activation state, homepage-tab default repair plus legacy tab-type cleanup, gradebook-backed course creation, and stat-safe course/semester mutations]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -23,7 +23,12 @@ DEFAULT_GPA_SCALING = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3,
 DEFAULT_COURSE_CREDIT = 0.5
 DEFAULT_PROGRAM_TIMEZONE = "UTC"
 DEFAULT_SEMESTER_LENGTH_DAYS = 111
-DEFAULT_SEMESTER_HOMEPAGE_TAB_TYPES = ("dashboard", "settings")
+DEFAULT_SEMESTER_HOMEPAGE_TAB_TYPES = ("builtin-dashboard", "builtin-setting")
+LEGACY_TAB_TYPE_ALIASES = {
+    "dashboard": "builtin-dashboard",
+    "settings": "builtin-setting",
+    "builtin-settings": "builtin-setting",
+}
 BUILTIN_EVENT_TYPES = [
     {"code": "LECTURE", "abbreviation": "LEC"},
     {"code": "TUTORIAL", "abbreviation": "TUT"},
@@ -62,6 +67,120 @@ def _parse_json_object(raw_value: str | None) -> dict:
 
 def _serialize_json_object(value: dict | None) -> str:
     return json.dumps(value or {}, sort_keys=True)
+
+
+def _canonical_plugin_id(plugin_id: str) -> str:
+    return plugin_governance.normalize_plugin_id(plugin_id)
+
+
+def _canonical_tab_type(tab_type: str | None) -> str:
+    value = str(tab_type or "").strip()
+    return LEGACY_TAB_TYPE_ALIASES.get(value, value)
+
+
+def _normalize_context_tabs(
+    db: Session,
+    *,
+    semester: models.Semester | None = None,
+    course: models.Course | None = None,
+    commit: bool = True,
+) -> None:
+    tabs = list(semester.tabs if semester is not None else course.tabs if course is not None else [])
+    tabs_by_type: dict[str, models.Tab] = {
+        tab.tab_type: tab
+        for tab in tabs
+        if tab.tab_type == _canonical_tab_type(tab.tab_type)
+    }
+    did_change = False
+
+    for tab in sorted(tabs, key=lambda item: (int(item.order_index or 0), item.id or "")):
+        canonical_tab_type = _canonical_tab_type(tab.tab_type)
+        if canonical_tab_type == tab.tab_type:
+            continue
+
+        canonical_tab = tabs_by_type.get(canonical_tab_type)
+        if canonical_tab is None:
+            tab.tab_type = canonical_tab_type
+            tabs_by_type[canonical_tab_type] = tab
+            db.add(tab)
+            did_change = True
+            continue
+
+        if canonical_tab.settings in {"", "{}"} and tab.settings not in {"", "{}"}:
+            canonical_tab.settings = tab.settings
+        canonical_tab.order_index = min(int(canonical_tab.order_index or 0), int(tab.order_index or 0))
+        canonical_tab.is_removable = bool(canonical_tab.is_removable and tab.is_removable)
+        canonical_tab.is_draggable = bool(canonical_tab.is_draggable and tab.is_draggable)
+        db.add(canonical_tab)
+        db.delete(tab)
+        did_change = True
+
+    if did_change:
+        if commit:
+            db.commit()
+            if semester is not None:
+                db.refresh(semester)
+            if course is not None:
+                db.refresh(course)
+        else:
+            db.flush()
+
+
+def _normalize_program_plugin_installations(
+    db: Session,
+    program: models.Program,
+    *,
+    commit: bool = True,
+) -> None:
+    installations = list(program.plugin_installations)
+    installations_by_plugin_id: dict[str, models.ProgramPluginInstallation] = {
+        installation.plugin_id: installation
+        for installation in installations
+        if installation.plugin_id == _canonical_plugin_id(installation.plugin_id)
+    }
+    did_change = False
+
+    for installation in sorted(installations, key=lambda item: item.created_at or ""):
+        canonical_plugin_id = _canonical_plugin_id(installation.plugin_id)
+        if canonical_plugin_id == installation.plugin_id:
+            continue
+
+        canonical_installation = installations_by_plugin_id.get(canonical_plugin_id)
+        if canonical_installation is None:
+            installation.plugin_id = canonical_plugin_id
+            installations_by_plugin_id[canonical_plugin_id] = installation
+            db.add(installation)
+            did_change = True
+            continue
+
+        if canonical_installation.version == canonical_installation.version.__class__() and installation.version:
+            canonical_installation.version = installation.version
+        canonical_installation.is_enabled = bool(canonical_installation.is_enabled or installation.is_enabled)
+        if canonical_installation.auth_state == "not-required" and installation.auth_state:
+            canonical_installation.auth_state = installation.auth_state
+        if not canonical_installation.auth_message and installation.auth_message:
+            canonical_installation.auth_message = installation.auth_message
+        if canonical_installation.program_settings in {"", "{}"} and installation.program_settings not in {"", "{}"}:
+            canonical_installation.program_settings = installation.program_settings
+        if not canonical_installation.created_at and installation.created_at:
+            canonical_installation.created_at = installation.created_at
+        if installation.updated_at and installation.updated_at > (canonical_installation.updated_at or ""):
+            canonical_installation.updated_at = installation.updated_at
+
+        for activation in installation.semester_activations:
+            activation.program_plugin_installation = canonical_installation
+            db.add(activation)
+
+        db.add(canonical_installation)
+        db.delete(installation)
+        did_change = True
+
+    if did_change:
+        if commit:
+            db.commit()
+            db.refresh(program)
+        else:
+            db.flush()
 
 
 def _wrap_plugin_validation(exc: Exception) -> None:
@@ -488,7 +607,8 @@ def delete_program(db: Session, program_id: str, user_id: str):
 
 
 def _ensure_default_program_plugin_installations(db: Session, program: models.Program) -> None:
-    existing_plugin_ids = {installation.plugin_id for installation in program.plugin_installations}
+    _normalize_program_plugin_installations(db, program)
+    existing_plugin_ids = {_canonical_plugin_id(installation.plugin_id) for installation in program.plugin_installations}
     now = _now_utc_iso()
     did_change = False
     for plugin_id in plugin_governance.get_default_program_plugin_ids():
@@ -574,10 +694,11 @@ def _ensure_default_semester_homepage_tabs(
     *,
     commit: bool = True,
 ) -> None:
+    _normalize_context_tabs(db, semester=semester, commit=commit)
     existing_tab_types = {
-        (tab.tab_type or "").strip()
+        _canonical_tab_type(tab.tab_type)
         for tab in semester.tabs
-        if (tab.tab_type or "").strip()
+        if _canonical_tab_type(tab.tab_type)
     }
     next_order_index = max((int(tab.order_index or 0) for tab in semester.tabs), default=-1) + 1
     did_change = False
@@ -611,21 +732,25 @@ def ensure_semester_homepage_tabs(db: Session, semester: models.Semester) -> Non
     _ensure_default_semester_homepage_tabs(db, semester)
 
 
+def ensure_course_tabs_normalized(db: Session, course: models.Course) -> None:
+    _normalize_context_tabs(db, course=course)
+
+
 def _normalize_auth_state(plugin_id: str, auth_state: str | None) -> str:
     try:
         definition = plugin_governance.get_plugin_definition(plugin_id)
     except Exception as exc:
         _wrap_plugin_validation(exc)
     value = (auth_state or "").strip() or (
-        plugin_governance.AUTH_NOT_REQUIRED
+        "not-required"
         if not definition.requires_authorization
-        else plugin_governance.AUTH_PENDING
+        else "pending"
     )
     allowed = {
-        plugin_governance.AUTH_NOT_REQUIRED,
-        plugin_governance.AUTH_PENDING,
-        plugin_governance.AUTH_AUTHORIZED,
-        plugin_governance.AUTH_FAILED,
+        "not-required",
+        "pending",
+        "authorized",
+        "failed",
     }
     if value not in allowed:
         raise PluginGovernanceError(
@@ -644,7 +769,7 @@ def _resolve_program_plugin_availability(
     auth_state = (
         installation.auth_state
         if installation is not None
-        else plugin_governance.AUTH_NOT_REQUIRED
+        else "not-required"
     )
     available, availability_reason = plugin_governance.resolve_plugin_availability(
         plugin_id,
@@ -693,6 +818,7 @@ def _serialize_program_plugin_installation(
     *,
     plugin_id: str,
 ) -> dict:
+    plugin_id = _canonical_plugin_id(plugin_id)
     try:
         definition = plugin_governance.get_plugin_definition(plugin_id)
     except Exception as exc:
@@ -701,9 +827,9 @@ def _serialize_program_plugin_installation(
         installation.auth_state
         if installation is not None
         else (
-            plugin_governance.AUTH_NOT_REQUIRED
+            "not-required"
             if not definition.requires_authorization
-            else plugin_governance.AUTH_PENDING
+            else "pending"
         )
     )
     program_settings = _parse_json_object(installation.program_settings) if installation is not None else {}
@@ -724,6 +850,7 @@ def _serialize_program_plugin_installation(
         "plugin_id": plugin_id,
         "display_name": definition.display_name,
         "description": definition.description,
+        "long_description": definition.long_description,
         "author": definition.author,
         "default_version": definition.default_version,
         "default_installed": definition.default_installed,
@@ -767,6 +894,7 @@ def _serialize_semester_plugin_activation(
             "PROGRAM_NOT_FOUND",
             f"Semester '{semester.id}' is missing its parent Program.",
         )
+    installation.plugin_id = _canonical_plugin_id(installation.plugin_id)
     installation_payload = _serialize_program_plugin_installation(
         program,
         installation,
@@ -786,6 +914,7 @@ def _serialize_semester_plugin_activation(
         "plugin_id": installation.plugin_id,
         "display_name": installation_payload["display_name"],
         "description": installation_payload["description"],
+        "long_description": installation_payload["long_description"],
         "author": installation_payload["author"],
         "locked": installation_payload["locked"],
         "version": installation.version,
@@ -825,6 +954,7 @@ def _serialize_plugin_system_setup_plugin(
         "plugin_id": installation.plugin_id,
         "display_name": plugin_governance.get_plugin_definition(installation.plugin_id).display_name,
         "description": plugin_governance.get_plugin_definition(installation.plugin_id).description,
+        "long_description": plugin_governance.get_plugin_definition(installation.plugin_id).long_description,
         "author": plugin_governance.get_plugin_definition(installation.plugin_id).author,
         "is_enabled": activation.is_enabled,
         "available": _resolve_semester_plugin_availability(semester, installation, activation)[0],
@@ -864,6 +994,7 @@ def get_program_plugin_installations(db: Session, program_id: str) -> list[dict]
     program = db.query(models.Program).filter(models.Program.id == program_id).first()
     if program is None:
         return []
+    _normalize_program_plugin_installations(db, program)
     _ensure_default_program_plugin_installations(db, program)
     return [
         _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
@@ -877,9 +1008,11 @@ def upsert_program_plugin_installation(
     plugin_id: str,
     payload: schemas.ProgramPluginInstallationUpsertRequest,
 ) -> dict:
+    plugin_id = _canonical_plugin_id(plugin_id)
     program = db.query(models.Program).filter(models.Program.id == program_id).first()
     if program is None:
         raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Program not found.")
+    _normalize_program_plugin_installations(db, program)
 
     try:
         definition = plugin_governance.get_plugin_definition(plugin_id)
@@ -942,6 +1075,7 @@ def upsert_program_plugin_installation(
 
 
 def delete_program_plugin_installation(db: Session, program_id: str, plugin_id: str) -> models.ProgramPluginInstallation | None:
+    plugin_id = _canonical_plugin_id(plugin_id)
     try:
         definition = plugin_governance.get_plugin_definition(plugin_id)
     except Exception as exc:
@@ -971,6 +1105,7 @@ def get_semester_plugin_activations(db: Session, semester_id: str) -> list[dict]
     if semester is None:
         return []
     if semester.program is not None:
+        _normalize_program_plugin_installations(db, semester.program)
         _ensure_default_program_plugin_installations(db, semester.program)
     _ensure_default_semester_plugin_activations(db, semester)
     if semester.lifecycle_state == "draft":
@@ -1001,6 +1136,7 @@ def get_semester_plugin_activations(db: Session, semester_id: str) -> list[dict]
 
 
 def get_plugin_system_setup_definition(plugin_id: str) -> dict:
+    plugin_id = _canonical_plugin_id(plugin_id)
     try:
         plugin_governance.get_plugin_definition(plugin_id)
     except KeyError as exc:
@@ -1224,6 +1360,7 @@ def upsert_semester_plugin_activation(
 
 
 def delete_semester_plugin_activation(db: Session, semester_id: str, plugin_id: str) -> models.SemesterPluginActivation | None:
+    plugin_id = _canonical_plugin_id(plugin_id)
     try:
         definition = plugin_governance.get_plugin_definition(plugin_id)
     except Exception as exc:
@@ -1677,6 +1814,7 @@ def _get_next_tab_order(db: Session, semester_id: str | None, course_id: str | N
 def create_tab(db: Session, tab: schemas.TabCreate, semester_id: str | None = None, course_id: str | None = None):
     _ensure_tab_context(semester_id, course_id)
     data = tab.model_dump()
+    data["tab_type"] = _canonical_tab_type(data.get("tab_type"))
     order_index = data.pop("order_index", None)
     if order_index is None:
         order_index = _get_next_tab_order(db, semester_id, course_id)
@@ -1698,7 +1836,10 @@ def update_tab(db: Session, tab_id: str, tab_update: schemas.TabUpdate):
     db_tab = db.query(models.Tab).filter(models.Tab.id == tab_id).first()
     if not db_tab:
         return None
-    for key, value in tab_update.model_dump(exclude_unset=True).items():
+    update_data = tab_update.model_dump(exclude_unset=True)
+    if "tab_type" in update_data:
+        update_data["tab_type"] = _canonical_tab_type(update_data["tab_type"])
+    for key, value in update_data.items():
         setattr(db_tab, key, value)
     db.add(db_tab)
     db.commit()

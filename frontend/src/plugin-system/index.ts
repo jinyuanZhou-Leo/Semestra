@@ -117,7 +117,7 @@ type BrowserIdleWindow = Window & {
 interface PluginEntry {
     id: string;
     directoryName: string;
-    icon: PluginManifestItem['icon'];
+    manifest: PluginManifestItem;
     loader: () => Promise<PluginRuntimeModule>;
     tabCatalog: TabCatalogItem[];
     widgetCatalog: WidgetCatalogItem[];
@@ -221,16 +221,15 @@ const asSettingsDefinition = (value: PluginSettingsModule | undefined): PluginSe
 };
 
 const createPluginEntry = (
-    id: string,
+    manifest: PluginManifestItem,
     directoryName: string,
-    icon: PluginManifestItem['icon'],
     loader: () => Promise<PluginRuntimeModule>,
     tabCatalog: TabCatalogItem[],
     widgetCatalog: WidgetCatalogItem[]
 ): PluginEntry => ({
-    id,
+    id: manifest.pluginId,
     directoryName,
-    icon,
+    manifest,
     loader,
     tabCatalog,
     widgetCatalog,
@@ -251,9 +250,15 @@ const rawEntries = metadataModulePaths.map((path) => {
         return null;
     }
     return createPluginEntry(
-        metadata.pluginId,
+        {
+            pluginId: metadata.pluginId,
+            displayName: metadata.displayName,
+            author: metadata.author,
+            description: metadata.description,
+            longDescription: metadata.longDescription,
+            icon: metadata.icon,
+        },
         directoryName,
-        metadata.icon,
         loader,
         metadata.tabCatalog ?? [],
         metadata.widgetCatalog ?? []
@@ -325,10 +330,7 @@ const tabCatalogByType = new Map<string, TabCatalogItem>();
 const widgetCatalogByType = new Map<string, WidgetCatalogItem>();
 
 pluginEntries.forEach((entry) => {
-    pluginManifestById.set(entry.id, {
-        pluginId: entry.id,
-        icon: entry.icon,
-    });
+    pluginManifestById.set(entry.id, entry.manifest);
     entry.tabCatalog.forEach((item) => {
         tabTypeToPluginId.set(item.type, entry.id);
         tabCatalogByType.set(item.type, item);
@@ -597,10 +599,7 @@ export const getTabCatalog = (context?: TabContext): TabCatalogItem[] => {
 };
 
 export const getPluginManifest = (): PluginManifestItem[] => {
-    return pluginEntries.map((entry) => ({
-        pluginId: entry.id,
-        icon: entry.icon,
-    }));
+    return pluginEntries.map((entry) => entry.manifest);
 };
 
 export const getPluginManifestItemById = (pluginId: string): PluginManifestItem | undefined => {
@@ -652,10 +651,7 @@ export const canAddTabCatalogItem = (
 ) => {
     const allowedContexts = item.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS;
     if (!allowedContexts.includes(context)) return false;
-    if (isUnlimitedInstances(item.maxInstances)) return true;
-    if (item.maxInstances === 0) return currentCount < 1;
-    if (typeof item.maxInstances === 'number') return currentCount < item.maxInstances;
-    return true;
+    return currentCount < 1;
 };
 
 export const canAddWidgetCatalogItem = (

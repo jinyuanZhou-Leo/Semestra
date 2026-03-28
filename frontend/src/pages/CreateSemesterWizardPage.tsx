@@ -253,42 +253,6 @@ const getPreviousStepId = (step: StepId, hasSetupPlugins: boolean): StepId | nul
   }
 };
 
-const getCurrentStepDetail = ({
-  currentStep,
-  courseCount,
-  enabledPluginCount,
-  setupPluginCount,
-  reviewBlockerCount,
-  reviewReady,
-  defaultDetail,
-}: {
-  currentStep: StepId;
-  courseCount: number;
-  enabledPluginCount: number;
-  setupPluginCount: number;
-  reviewBlockerCount: number;
-  reviewReady: boolean;
-  defaultDetail: string;
-}): string => {
-  switch (currentStep) {
-    case "courses":
-      return courseCount > 0 ? `${courseCount} courses added so far.` : "Add the courses included in this Semester.";
-    case "plugins":
-      return enabledPluginCount > 0
-        ? `${enabledPluginCount} plugins enabled for this Semester.`
-        : "Choose which Program plugins should be available in this Semester.";
-    case "plugin-setup":
-      return setupPluginCount > 0 ? `${setupPluginCount} plugins still need setup.` : "No additional plugin setup is required.";
-    case "review":
-      if (reviewBlockerCount > 0) {
-        return "Resolve blockers before finalizing.";
-      }
-      return reviewReady ? "Review complete. Ready to finalize." : "Review pending.";
-    case "basics":
-      return defaultDetail;
-  }
-};
-
 const getReviewErrorStepLabel = (step: string): string => {
   switch (step) {
     case "plugin-setup":
@@ -821,7 +785,6 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const courseCount = courseList.length;
   const enabledPluginCount = enabledPlugins.length;
   const reviewSummaryPlugins = enabledPlugins.filter((plugin) => (plugin.setup_summary ?? []).length > 0);
-  const reviewBlockerCount = reviewErrors.length + blockedEnabledPlugins.length;
   const canFinalize = Boolean(
     draftId &&
     reviewReady &&
@@ -832,15 +795,6 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const previousStepLabel = previousStepId ? STEP_META_BY_ID[previousStepId].label : null;
   const nextStepId = getNextStepId(activeStep, hasSetupPlugins);
   const nextStepLabel = nextStepId ? STEP_META_BY_ID[nextStepId].label : null;
-  const currentStepDetail = getCurrentStepDetail({
-    currentStep: activeStep,
-    courseCount,
-    enabledPluginCount,
-    setupPluginCount: setupPluginIds.length,
-    reviewBlockerCount,
-    reviewReady,
-    defaultDetail: currentStepMeta.detail,
-  });
   const basicsValidation = getSemesterBasicsValidation(basics);
   const isReviewStep = activeStep === "review";
   const isBasicsStep = activeStep === "basics";

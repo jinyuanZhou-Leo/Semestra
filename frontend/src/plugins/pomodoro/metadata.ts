@@ -29,6 +29,10 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
+    displayName: 'Pomodoro',
+    author: 'Jinyuan',
+    description: 'Stay focused with structured work and break sessions.',
+    longDescription: 'Pomodoro supports focused study sessions with a simple rhythm of work periods and breaks. It is meant for people who want help starting deep work, maintaining concentration, and avoiding burnout during longer blocks of study. By keeping timing close to the rest of the workspace, it becomes easier to move from planning into action without switching tools or losing momentum.',
     icon: pluginIcon,
     widgetCatalog,
 });

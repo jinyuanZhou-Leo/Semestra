@@ -1,6 +1,6 @@
 // input:  [`SemesterPluginGovernancePanel`, mocked governance APIs, QueryClient wrapper, and testing-library interactions]
-// output: [component regression tests covering Semester-level protected delete rules, Program-enabled off rows, and non-destructive enablement toggles]
-// pos:    [UI regression suite for the shared CRUD panel used by Semester plugin management, including Program-enabled plugins that are still off at the Semester layer]
+// output: [component regression tests covering Semester-level protected delete rules, reusable plugin info dialogs, Program-enabled off rows, and non-destructive enablement toggles]
+// pos:    [UI regression suite for the shared data table used by Semester plugin management, including Program-enabled plugins that are still off at the Semester layer]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,6 +22,10 @@ const { apiMock } = vi.hoisted(() => ({
 
 vi.mock("@/services/api", () => ({
   default: apiMock,
+}));
+
+vi.mock("@/hooks/use-mobile", () => ({
+  useIsMobile: () => true,
 }));
 
 describe("SemesterPluginGovernancePanel", () => {
@@ -102,7 +106,7 @@ describe("SemesterPluginGovernancePanel", () => {
             id: "activation-2",
             semester_id: "semester-1",
             program_plugin_installation_id: "installation-3",
-            plugin_id: "builtin-settings",
+            plugin_id: "builtin-setting",
             display_name: "Settings",
             description: "Built-in settings tab.",
             author: "Jinyuan",
@@ -164,5 +168,44 @@ describe("SemesterPluginGovernancePanel", () => {
     expect(screen.getByText("Course Resources")).toBeInTheDocument();
     expect(screen.getByText("Off")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete Course Resources" })).not.toBeInTheDocument();
+  });
+
+  it("opens plugin info even when Semester deletion is unavailable", async () => {
+    const { Wrapper } = createQueryClientWrapper();
+    render(
+      <SemesterPluginGovernancePanel
+        semesterId="semester-1"
+        pluginActivations={[
+          {
+            id: null,
+            semester_id: "semester-1",
+            program_plugin_installation_id: "installation-9",
+            plugin_id: "course-resources",
+            display_name: "Course Resources",
+            description: "Manage files and links for each course.",
+            author: "Jinyuan",
+            locked: false,
+            version: "workspace",
+            is_enabled: false,
+            capabilities: { contexts: ["course"], available_tab_types: ["course-resources"] },
+            setup_sections: [],
+            semester_overrides: {},
+            setup_state: {},
+            resolved_settings: {},
+            fields: [],
+            setup_summary: [],
+            review_errors: [],
+            available: false,
+            availability_reason: "Disabled for this Semester.",
+          },
+        ]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Open actions for Course Resources" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Plugin Info" }));
+
+    expect((await screen.findAllByText("Manage files and links for each course.")).length).toBeGreaterThan(0);
   });
 });

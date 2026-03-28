@@ -29,6 +29,10 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
+    displayName: 'World Clock',
+    author: 'Jinyuan',
+    description: 'Track time across cities and time zones at a glance.',
+    longDescription: 'World Clock makes it easy to stay aware of multiple time zones while studying, collaborating, or planning across regions. It is useful for international students, remote teammates, and anyone balancing classes or meetings across different locations. The experience focuses on fast recognition, so users can check the time they need without extra setup, extra context switching, or mental math.',
     icon: pluginIcon,
     widgetCatalog,
 });

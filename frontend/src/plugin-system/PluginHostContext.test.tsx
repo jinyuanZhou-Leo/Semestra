@@ -29,7 +29,7 @@ const buildWrapper = (visibleTabs: PluginHostTabLike[], setActiveTabId = vi.fn()
 describe('PluginHostContext', () => {
     it('confirms and jumps by tabId', async () => {
         const visibleTabs: PluginHostTabLike[] = [
-            { id: 'dashboard-tab', type: 'dashboard', title: 'Dashboard' },
+            { id: 'dashboard-tab', type: 'builtin-dashboard', title: 'Dashboard' },
             { id: 'gradebook-tab', type: 'builtin-gradebook', title: 'Gradebook' },
         ];
         const { wrapper, setActiveTabId } = buildWrapper(visibleTabs);
@@ -49,14 +49,14 @@ describe('PluginHostContext', () => {
 
     it('allows canceling a confirmed jump', async () => {
         const visibleTabs: PluginHostTabLike[] = [
-            { id: 'settings-tab', type: 'settings', title: 'Settings' },
+            { id: 'settings-tab', type: 'builtin-setting', title: 'Settings' },
         ];
         const { wrapper, setActiveTabId } = buildWrapper(visibleTabs);
         const { result } = renderHook(() => usePluginHost(), { wrapper });
 
         let jumpPromise: Promise<PluginHostJumpResult>;
         act(() => {
-            jumpPromise = result.current.jumpToTab({ tabType: 'settings' });
+            jumpPromise = result.current.jumpToTab({ tabType: 'builtin-setting' });
         });
 
         expect(screen.getByRole('dialog')).toHaveTextContent('Jump to tab?');

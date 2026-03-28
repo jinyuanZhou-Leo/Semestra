@@ -1048,6 +1048,7 @@ class ProgramPluginInstallation(BaseModel):
     plugin_id: str
     display_name: str
     description: str
+    long_description: str = ""
     author: str
     default_version: str
     default_installed: bool = False
@@ -1105,6 +1106,7 @@ class SemesterPluginActivation(BaseModel):
     plugin_id: str
     display_name: str
     description: str
+    long_description: str = ""
     author: str
     locked: bool = False
     version: str
@@ -1131,6 +1133,7 @@ class PluginSystemSemesterSetupPlugin(BaseModel):
     plugin_id: str
     display_name: str
     description: str
+    long_description: str = ""
     author: str
     is_enabled: bool = True
     available: bool = False

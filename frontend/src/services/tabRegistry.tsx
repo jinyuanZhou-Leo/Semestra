@@ -33,7 +33,6 @@ export interface TabLifecycleContext {
 }
 
 export type TabContext = 'semester' | 'course';
-export type { MaxInstances } from '../plugin-system/utils';
 
 export interface TabDefinition {
     type: string;

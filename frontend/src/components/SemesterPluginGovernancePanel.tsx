@@ -1,6 +1,6 @@
-// input:  [Semester plugin activations spanning all Program-enabled plugins, Semester id, plugin-manifest icon helpers, refresh callback, shared settings-section primitives, the shared data-table shell, and shared row-actions dropdown helpers]
+// input:  [Semester plugin activations spanning all Program-enabled plugins, Semester id, plugin-manifest icon helpers, refresh callback, shared settings-section primitives, the shared data-table shell, shared plugin details, and shared row-actions dropdown helpers]
 // output: [`SemesterPluginGovernancePanel` component]
-// pos:    [Semester settings surface for Program-enabled plugin visibility, Semester-level enable/disable state, plugin icons, and protected delete rules using the shared data-table pattern plus a shadcn-style row-actions dropdown]
+// pos:    [Semester settings surface for Program-enabled plugin visibility, Semester-level enable/disable state, reusable plugin info, and protected delete rules using the shared data-table pattern plus a shadcn-style row-actions dropdown]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { CircleHelp, Trash2 } from "lucide-react";
 
 import {
   AlertDialog,
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
@@ -32,6 +33,8 @@ import { queryKeys } from "@/services/queryKeys";
 import api, { type SemesterPluginActivation } from "../services/api";
 import { DataTable, DataTableActionMenu } from "./DataTable";
 import { IconCircle } from "./IconCircle";
+import { PluginDetailsView } from "./PluginDetailsView";
+import { ResponsiveDialogDrawer } from "./ResponsiveDialogDrawer";
 import { SettingsSection } from "./SettingsSection";
 
 interface SemesterPluginGovernancePanelProps {
@@ -47,6 +50,7 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
   onChanged,
 }) => {
   const queryClient = useQueryClient();
+  const [detailPlugin, setDetailPlugin] = useState<SemesterPluginActivation | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SemesterPluginActivation | null>(null);
   const [togglingPluginId, setTogglingPluginId] = useState<string | null>(null);
   const [deletingPluginId, setDeletingPluginId] = useState<string | null>(null);
@@ -116,17 +120,17 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
           const deleteDisabled = Boolean(plugin.locked) || !plugin.id || deletingPluginId === plugin.plugin_id;
 
           return (
-            <TableRow key={plugin.plugin_id} className="align-top">
+            <TableRow key={plugin.plugin_id}>
               <TableCell className="py-3">
                 <div className="flex items-center gap-3">
                   <IconCircle icon={pluginIcon} label={plugin.display_name} size={30} className="bg-muted text-foreground" />
                   <div className="text-sm font-medium">{plugin.display_name}</div>
                 </div>
               </TableCell>
-              <TableCell className="py-3 align-top">
+              <TableCell className="py-3">
                 <span className="text-sm text-muted-foreground">{plugin.author}</span>
               </TableCell>
-              <TableCell className="py-3 text-right align-top">
+              <TableCell className="py-3 text-right">
                 <div className="ml-auto flex items-center justify-end gap-3">
                   <span className="text-xs text-muted-foreground">{plugin.is_enabled ? "On" : "Off"}</span>
                   <Switch
@@ -139,9 +143,13 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
                   />
                 </div>
               </TableCell>
-              <TableCell className="py-3 text-right align-top">
-                {!plugin.locked && plugin.id ? (
-                  <DataTableActionMenu triggerLabel={`Open actions for ${plugin.display_name}`}>
+              <TableCell className="py-3 text-right">
+                <DataTableActionMenu triggerLabel={`Open actions for ${plugin.display_name}`}>
+                  <DropdownMenuItem onClick={() => setDetailPlugin(plugin)}>
+                    <CircleHelp className="h-4 w-4" />
+                    Plugin Info
+                  </DropdownMenuItem>
+                  {!plugin.locked && plugin.id ? (
                     <DropdownMenuItem
                       variant="destructive"
                       disabled={deleteDisabled}
@@ -150,13 +158,41 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
                       <Trash2 className="h-4 w-4" />
                       Delete
                     </DropdownMenuItem>
-                  </DataTableActionMenu>
-                ) : null}
+                  ) : null}
+                </DataTableActionMenu>
               </TableCell>
             </TableRow>
           );
         }}
       />
+
+      <ResponsiveDialogDrawer
+        open={detailPlugin !== null}
+        onOpenChange={(open) => !open && setDetailPlugin(null)}
+        title="Plugin Information"
+        desktopContentClassName="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-3xl h-[640px] flex flex-col"
+        mobileContentClassName="gap-0 overflow-hidden border-border/70 p-0 h-[85vh] max-h-[85vh] flex flex-col"
+        desktopHeaderClassName="border-b border-border/70 px-6 py-5 pr-14 flex-none"
+        mobileHeaderClassName="border-b border-border/70 px-6 py-5 flex-none"
+      >
+        {detailPlugin ? (
+          <ScrollArea className="min-h-0 flex-1 px-6 py-5">
+            <PluginDetailsView
+              pluginId={detailPlugin.plugin_id}
+              displayName={detailPlugin.display_name}
+              description={detailPlugin.description}
+              longDescription={detailPlugin.long_description}
+              author={detailPlugin.author}
+              version={detailPlugin.version}
+              icon={getPluginIconById(detailPlugin.plugin_id)}
+              disabledReason={detailPlugin.availability_reason}
+              contexts={detailPlugin.capabilities.contexts}
+              availableTabTypes={detailPlugin.capabilities.available_tab_types}
+              availableWidgetTypes={detailPlugin.capabilities.available_widget_types}
+            />
+          </ScrollArea>
+        ) : null}
+      </ResponsiveDialogDrawer>
 
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent size="sm">

@@ -97,7 +97,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertIsNotNone(stored_draft)
         self.assertEqual(
             {tab.tab_type for tab in stored_draft.tabs},
-            {"dashboard", "settings"},
+            {"builtin-dashboard", "builtin-setting"},
         )
 
     def test_database_enforces_one_draft_per_program(self) -> None:
@@ -160,8 +160,55 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertIsNotNone(repaired_semester)
         self.assertEqual(
             {tab.tab_type for tab in repaired_semester.tabs},
-            {"dashboard", "settings"},
+            {"builtin-dashboard", "builtin-setting"},
         )
+
+    def test_homepage_tab_helper_normalizes_legacy_dashboard_and_settings_tabs(self) -> None:
+        program = self._create_program()
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+
+        self.db.add(
+            models.Tab(
+                semester_id=semester.id,
+                tab_type="dashboard",
+                settings='{"legacy": true}',
+                order_index=-2,
+                is_removable=False,
+                is_draggable=False,
+            )
+        )
+        self.db.add(
+            models.Tab(
+                semester_id=semester.id,
+                tab_type="settings",
+                settings="{}",
+                order_index=99,
+                is_removable=False,
+                is_draggable=False,
+            )
+        )
+        self.db.commit()
+        self.db.refresh(semester)
+
+        crud.ensure_semester_homepage_tabs(self.db, semester)
+
+        repaired_semester = self.db.query(models.Semester).filter(models.Semester.id == semester.id).first()
+        self.assertIsNotNone(repaired_semester)
+        self.assertEqual(
+            sorted(tab.tab_type for tab in repaired_semester.tabs),
+            ["builtin-dashboard", "builtin-setting"],
+        )
+        dashboard_tab = next(tab for tab in repaired_semester.tabs if tab.tab_type == "builtin-dashboard")
+        self.assertEqual(dashboard_tab.settings, '{"legacy": true}')
+        self.assertEqual(int(dashboard_tab.order_index or 0), -2)
 
     def test_review_serialization_includes_plugin_setup_summary(self) -> None:
         program = self._create_program()
@@ -305,15 +352,43 @@ class PluginGovernanceDraftTests(unittest.TestCase):
 
         activations = crud.get_semester_plugin_activations(self.db, semester.id)
         settings_activation = next(
-            item for item in activations if item["plugin_id"] == "builtin-settings"
+            item for item in activations if item["plugin_id"] == "builtin-setting"
         )
 
         self.assertTrue(settings_activation["locked"])
 
         with self.assertRaises(crud.PluginGovernanceError) as context:
-            crud.delete_semester_plugin_activation(self.db, semester.id, "builtin-settings")
+            crud.delete_semester_plugin_activation(self.db, semester.id, "builtin-setting")
 
         self.assertEqual(context.exception.code, "PLUGIN_LOCKED")
+
+    def test_legacy_builtin_settings_installation_is_normalized(self) -> None:
+        program = self._create_program()
+        legacy_installation = models.ProgramPluginInstallation(
+            program_id=program.id,
+            plugin_id="builtin-settings",
+            version="workspace",
+            is_enabled=True,
+            auth_state="not-required",
+            auth_message=None,
+            program_settings="{}",
+            created_at="2026-03-28T00:00:00Z",
+            updated_at="2026-03-28T00:00:00Z",
+        )
+        self.db.add(legacy_installation)
+        self.db.commit()
+
+        installations = crud.get_program_plugin_installations(self.db, program.id)
+        settings_installation = next(
+            item for item in installations if item["plugin_id"] == "builtin-setting"
+        )
+
+        self.assertEqual(settings_installation["display_name"], "Settings")
+        stored_installations = self.db.query(models.ProgramPluginInstallation).filter(
+            models.ProgramPluginInstallation.program_id == program.id,
+            models.ProgramPluginInstallation.plugin_id == "builtin-setting",
+        ).all()
+        self.assertEqual(len(stored_installations), 1)
 
     def test_program_enabled_plugins_appear_in_semester_settings_before_activation(self) -> None:
         program = self._create_program()
@@ -474,6 +549,36 @@ class PluginGovernanceDraftTests(unittest.TestCase):
 
         self.assertFalse(review_payload["has_errors"])
         self.assertEqual(event_core_review["setup_summary"][0]["items"][0]["value"], "Week")
+
+    def test_plugin_definitions_take_capabilities_from_manifest_metadata(self) -> None:
+        definitions = plugin_governance._build_plugin_definitions(
+            {
+                "manifest-driven-plugin": plugin_governance.PluginGovernanceDefinition(
+                    plugin_id="manifest-driven-plugin",
+                    install_by_default=True,
+                )
+            },
+            {
+                "manifest-driven-plugin": plugin_governance.PluginMetadata(
+                    display_name="Manifest Driven",
+                    description="Backend should read capabilities from manifest metadata.",
+                    long_description="Manifest capabilities stay authoritative for governance serialization.",
+                    author="Tests",
+                    capabilities={
+                        "contexts": ["semester"],
+                        "available_tab_types": ["manifest-tab"],
+                        "available_widget_types": ["manifest-widget"],
+                        "has_settings": True,
+                    },
+                )
+            },
+        )
+
+        definition = definitions["manifest-driven-plugin"]
+        self.assertEqual(definition.capabilities["available_tab_types"], ["manifest-tab"])
+        self.assertEqual(definition.capabilities["available_widget_types"], ["manifest-widget"])
+        self.assertTrue(definition.capabilities["has_settings"])
+        self.assertTrue(definition.install_by_default)
 
 
 if __name__ == "__main__":

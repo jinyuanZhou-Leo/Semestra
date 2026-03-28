@@ -1,5 +1,5 @@
 // input:  [built-in settings tab context, sticky title offset provider, and shared UI primitives]
-// output: [`BuiltinSettingsTab` runtime and tab definition export]
+// output: [`BuiltinSettingTab` runtime and tab definition export]
 // pos:    [settings-tab entry that injects a live sticky offset so section titles stay clear of the workspace header]
 //
 // ⚠️ When this file is updated:
@@ -21,7 +21,7 @@ const GLOBAL_HEADER_HEIGHT = 60;
 const SETTINGS_TITLE_GAP = 24;
 const FALLBACK_WORKSPACE_NAV_HEIGHT = 104;
 
-const BuiltinSettingsTabComponent: React.FC<TabProps> = () => {
+const BuiltinSettingTabComponent: React.FC<TabProps> = () => {
     const { isLoading, settings } = useBuiltinTabContext();
     const [stickyTop, setStickyTop] = React.useState(
         GLOBAL_HEADER_HEIGHT + FALLBACK_WORKSPACE_NAV_HEIGHT + SETTINGS_TITLE_GAP,
@@ -97,9 +97,9 @@ const BuiltinSettingsTabComponent: React.FC<TabProps> = () => {
     );
 };
 
-export const BuiltinSettingsTab = BuiltinSettingsTabComponent;
+export const BuiltinSettingTab = BuiltinSettingTabComponent;
 
-export const BuiltinSettingsTabDefinition: TabDefinition = {
-    type: 'settings',
-    component: BuiltinSettingsTab,
+export const BuiltinSettingTabDefinition: TabDefinition = {
+    type: 'builtin-setting',
+    component: BuiltinSettingTab,
 };

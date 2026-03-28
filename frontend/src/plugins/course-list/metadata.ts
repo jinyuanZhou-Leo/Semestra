@@ -29,6 +29,10 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
+    displayName: 'Course List',
+    author: 'Jinyuan',
+    description: 'See every course in a semester and manage the overall roster.',
+    longDescription: 'Course List is the central overview for the courses that belong to a semester. It helps users scan what they are taking, keep the roster organized, and manage the overall structure of the term from one place. It is especially useful at the start of a semester, when plans are still changing, and later as a stable overview of the academic load that ties the rest of the workspace together.',
     icon: pluginIcon,
     widgetCatalog,
 });

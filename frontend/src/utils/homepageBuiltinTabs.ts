@@ -15,8 +15,8 @@ import {
 } from '../plugins/builtin-event-core/shared/constants';
 import { BUILTIN_GRADEBOOK_TAB_TYPE } from '../plugins/builtin-gradebook/shared';
 
-export const HOMEPAGE_DASHBOARD_TAB_TYPE = 'dashboard';
-export const HOMEPAGE_SETTINGS_TAB_TYPE = 'settings';
+export const HOMEPAGE_DASHBOARD_TAB_TYPE = 'builtin-dashboard';
+export const HOMEPAGE_SETTINGS_TAB_TYPE = 'builtin-setting';
 
 export interface HomepageBuiltinTabConfig {
     builtinTabTypes: readonly string[];

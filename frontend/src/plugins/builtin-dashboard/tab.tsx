@@ -1,5 +1,5 @@
 // input:  [builtin tab context state, optional dashboard overview nodes, dashboard widget callbacks (including unavailable-widget delete routing plus local layout sync + commit persistence), plugin UI-state hook, motion + icon dependencies, and shared button variant classes]
-// output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` plugin metadata]
+// output: [`BuiltinDashboardTab` component and `BuiltinDashboardTabDefinition` runtime definition]
 // pos:    [Built-in dashboard tab UI entry handling dashboard overview rendering, plugin-local edit-mode UI-state persistence, theme-adaptive floating action controls, and split layout callback wiring]
 //
 // ⚠️ When this file is updated:
@@ -142,6 +142,6 @@ const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
 export const BuiltinDashboardTab = BuiltinDashboardTabComponent;
 
 export const BuiltinDashboardTabDefinition: TabDefinition = {
-    type: 'dashboard',
+    type: 'builtin-dashboard',
     component: BuiltinDashboardTab,
 };

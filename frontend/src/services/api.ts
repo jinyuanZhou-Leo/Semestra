@@ -167,6 +167,7 @@ export interface ProgramPluginInstallation {
     plugin_id: string;
     display_name: string;
     description: string;
+    long_description?: string;
     author: string;
     default_version: string;
     default_installed: boolean;
@@ -200,6 +201,7 @@ export interface SemesterPluginActivation {
     plugin_id: string;
     display_name: string;
     description: string;
+    long_description?: string;
     author: string;
     locked?: boolean;
     version: string;
@@ -226,6 +228,7 @@ export interface PluginSystemSemesterSetupPlugin {
     plugin_id: string;
     display_name: string;
     description: string;
+    long_description?: string;
     author: string;
     is_enabled: boolean;
     available: boolean;

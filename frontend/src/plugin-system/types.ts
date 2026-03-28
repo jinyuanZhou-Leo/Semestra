@@ -7,11 +7,15 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { ReactNode } from 'react';
-import type { MaxInstances as TabMaxInstances, TabContext } from '../services/tabRegistry';
+import type { TabContext } from '../services/tabRegistry';
 import type { MaxInstances as WidgetMaxInstances, WidgetContext } from '../services/widgetRegistry';
 
 export interface PluginManifestItem {
     pluginId: string;
+    displayName: string;
+    author: string;
+    description: string;
+    longDescription: string;
     icon: ReactNode;
 }
 
@@ -30,7 +34,6 @@ export interface TabCatalogItem {
     name: string;
     description?: string;
     icon?: ReactNode;
-    maxInstances?: TabMaxInstances;
     allowedContexts?: TabContext[];
 }
 

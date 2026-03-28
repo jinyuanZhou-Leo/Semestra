@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, widget delete query flags, and backend schema compatibility checks]
-# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program plugin-governance + plugin-system + draft wizard routes, Semester homepage-tab self-healing reads, and Canvas module-file metadata/download routes]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program plugin governance, explicit plugin-system setup APIs, Semester draft wizard persistence, Semester homepage-tab repair on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
+# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program plugin-governance + plugin-system + draft wizard routes, Semester/Course homepage-tab self-healing reads, and Canvas module-file metadata/download routes]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program plugin governance, explicit plugin-system setup APIs, Semester draft wizard persistence, Semester/Course homepage-tab repair on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -958,6 +958,7 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
     ).first()
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
+    crud.ensure_course_tabs_normalized(db, db_course)
     inherited_activations = crud.get_course_inherited_plugin_activations(db, course_id)
     runtime_payload = _serialize_runtime_plugin_payloads(
         inherited_activations,

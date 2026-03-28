@@ -27,7 +27,6 @@ const tabCatalog: TabCatalogItem[] = [
         name: 'Calendar',
         description: 'Semester calendar with schedule visualization',
         icon: pluginIcon,
-        maxInstances: 0,
         allowedContexts: ['semester'],
     },
     {
@@ -36,7 +35,6 @@ const tabCatalog: TabCatalogItem[] = [
         name: 'Course Schedule',
         description: 'Manage course sections, event types, and recurring slot rules',
         icon: createElement(NotebookPen, { className: 'h-4 w-4' }),
-        maxInstances: 0,
         allowedContexts: ['course'],
     },
     {
@@ -45,7 +43,6 @@ const tabCatalog: TabCatalogItem[] = [
         name: 'Todo',
         description: 'Context-aware todo lists with sections, priorities, and due scheduling',
         icon: createElement(ListTodo, { className: 'h-4 w-4' }),
-        maxInstances: 0,
         allowedContexts: ['semester', 'course'],
     },
 ];
@@ -65,6 +62,10 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
+    displayName: 'Academic Events',
+    author: 'Jinyuan',
+    description: 'Plan schedules, deadlines, and daily workload across courses.',
+    longDescription: 'Academic Events brings the core planning experience of Semestra into one place. It helps users organize class schedules, review calendars, manage upcoming work, and keep track of what needs attention today across both semester and course workflows. Instead of splitting time management across separate tools, it keeps the moving pieces of academic life connected so planning, scheduling, and daily follow-through feel like part of the same system.',
     icon: pluginIcon,
     tabCatalog,
     widgetCatalog,

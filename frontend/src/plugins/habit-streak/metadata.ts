@@ -39,6 +39,10 @@ const widgetCatalog: WidgetCatalogItem[] = [
 
 export default definePluginMetadata({
     pluginId,
+    displayName: 'Habit Streak',
+    author: 'Jinyuan',
+    description: 'Build consistency with simple daily streak tracking.',
+    longDescription: 'Habit Streak helps users stay consistent with routines that matter during the semester, whether that means studying, reviewing notes, exercising, or keeping up with personal goals. It turns daily follow-through into a visible pattern, making momentum easier to notice and easier to protect. The experience is intentionally lightweight so habits feel easy to check, easy to maintain, and easy to fit into everyday academic life.',
     icon: pluginIcon,
     widgetCatalog,
 });

@@ -1,13 +1,13 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
-`src/plugins/` contains plugin implementations that extend dashboard widgets and homepage tabs.
+`src/plugins/` contains plugin implementations that extend workspace widgets and homepage tabs.
 Each plugin folder provides runtime entrypoints, plugin-manifest declarations, contribution catalogs, optional host-rendered setup definitions, and optional plugin-global settings/test files.
 The plugin-system auto-loads `metadata.ts`, `setup.ts`, and `settings.ts(x)` eagerly, and `index.ts` lazily per plugin.
 
 **Conventions:**
-- `metadata.ts` default-exports `definePluginMetadata(...)` and is the frontend source of truth only for plugin-local runtime metadata such as the plugin icon plus tab/widget contribution catalogs.
+- `metadata.ts` default-exports `definePluginMetadata(...)` and is the frontend source of truth for plugin display metadata plus tab/widget contribution catalogs.
 - `setup.ts` is **optional** and default-exports `definePluginSetup(...)` only when the plugin contributes host-rendered Semester setup sections to the plugin-system manifest.
-- Backend plugin governance remains the source of truth for plugin `name`, `description`, and `author` on Program/Semester/SetupWizard management surfaces.
+- Backend plugin governance consumes the generated metadata manifest so Program/Semester management surfaces stay aligned with frontend-authored plugin display metadata.
 - `index.ts` default-exports `definePluginRuntime(...)`; runtime definitions in `widget.tsx`/`tab.tsx` declare runtime-specific fields like `component`, `defaultSettings`, tab/widget `SettingsComponent`, `headerButtons`, and lifecycle hooks.
 - `settings.ts(x)` is **optional** and default-exports `definePluginSettings(...)` only when the plugin defines shared plugin-level settings sections.
 - Regular plugins can use framework-managed shared settings through `PluginSettingsProps.settings` and `updateSettings(...)`; transient per-instance UI state should use the plugin UI-state hook instead of backend persistence.
@@ -22,8 +22,8 @@ The plugin-system auto-loads `metadata.ts`, `setup.ts`, and `settings.ts(x)` eag
 | builtin-event-core/INDEX.md | Plugin architecture index | File map for event-core plugin entries, shared domain primitives, scoped refresh payloads, retrying todo sync, and tab/widget runtime responsibilities. |
 | builtin-gradebook/ | Built-in grade domain plugin | Course gradebook tab and read-only course-metrics widget backed by fact-only gradebook APIs with client-derived projections, validation, and plugin-local persisted Plan Mode drafts. |
 | builtin-gradebook/INDEX.md | Plugin architecture index | File map for the builtin-gradebook command-center tab, moved course stat strip, stable fixed-height Plan Mode toolbar layout, persisted What If drafts, clarified forecast settings UI, compact course-metrics widget, grade-calculator-style dashboard-stat syncing after gradebook saves, shared client-side gradebook calculators, and backend gradebook integration. |
-| builtin-settings/ | Built-in tab plugin | Default settings tab plugin implementation and settings entry. |
-| builtin-settings/INDEX.md | Plugin architecture index | File map for the built-in Settings tab runtime and its dynamic sticky-title offset behavior. |
+| builtin-setting/ | Built-in tab plugin | Default settings tab plugin implementation and settings entry. |
+| builtin-setting/INDEX.md | Plugin architecture index | File map for the built-in Settings tab runtime and its dynamic sticky-title offset behavior. |
 | counter/ | Widget plugin | Numeric counter widget with inline controls and per-instance settings. |
 | counter/INDEX.md | Plugin architecture index | File map for counter plugin runtime, metadata, settings, bound validation, and design notes. |
 | course-resources/ | Course resource plugin | Course-only resource manager tab plus pinned quick-open widget backed by account-wide resource quota APIs, with a height-stable add-resource dialog whose link form uses plugin-local UI state. |

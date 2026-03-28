@@ -70,7 +70,7 @@ export const ResponsiveDialogDrawer: React.FC<ResponsiveDialogDrawerProps> = ({
     if (isMobile) {
         return (
             <Drawer open={open} onOpenChange={onOpenChange}>
-                <DrawerContent tabIndex={-1} className={mobileContentClassName}>
+                <DrawerContent tabIndex={-1} className={mobileContentClassName} aria-describedby={description ? undefined : undefined}>
                     <DrawerHeader className={cn("text-left", mobileHeaderClassName)}>
                         <DrawerTitle className={titleClassName}>{title}</DrawerTitle>
                         {description ? (
@@ -92,7 +92,7 @@ export const ResponsiveDialogDrawer: React.FC<ResponsiveDialogDrawerProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent tabIndex={-1} className={desktopContentClassName} showCloseButton={showDesktopCloseButton}>
+            <DialogContent tabIndex={-1} className={desktopContentClassName} showCloseButton={showDesktopCloseButton} aria-describedby={description ? undefined : undefined}>
                 <DialogHeader className={desktopHeaderClassName}>
                     <DialogTitle className={titleClassName}>{title}</DialogTitle>
                     {description ? (

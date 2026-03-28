@@ -27,13 +27,16 @@ const tabCatalog: TabCatalogItem[] = [
         name: 'Canvas Pages',
         description: 'Browse Canvas course navigation and open same-course page links inside Semestra.',
         icon: pluginIcon,
-        maxInstances: 1,
         allowedContexts: ['course'],
     },
 ];
 
 export default definePluginMetadata({
     pluginId: BUILTIN_CANVAS_INTEGRATION_PLUGIN_ID,
+    displayName: 'Canvas Integration',
+    author: 'Jinyuan',
+    description: 'Browse Canvas course content without leaving the workspace.',
+    longDescription: 'Canvas Integration brings supported Canvas course content into Semestra so students can stay in one workflow while reviewing materials, checking course pages, and following the structure of a class. It keeps familiar Canvas navigation close at hand, opens linked content in context, and reduces the friction of bouncing between systems during study sessions. The goal is straightforward: make course content easier to reach, easier to browse, and easier to follow while working inside Semestra.',
     icon: pluginIcon,
     tabCatalog,
 });
