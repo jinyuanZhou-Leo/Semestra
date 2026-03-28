@@ -1,6 +1,6 @@
 // input:  [plugin governance/setup field metadata, current value, change handler, optional validation copy, and readonly mode]
 // output: [`PluginGovernanceFieldControl` component]
-// pos:    [Shared field renderer for Program/Semester governance forms and plugin-system wizard setup sections]
+// pos:    [Shared field renderer for Program/Semester governance forms and plugin-system wizard setup sections using shadcn-aligned Field layouts]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -73,6 +73,8 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
   const fieldId = useId();
   const [jsonDraft, setJsonDraft] = useState(() => formatJsonValue(value));
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const isInvalid = Boolean(error);
+  const requiredMarker = field.required ? <span aria-hidden="true" className="text-destructive">*</span> : null;
 
   useEffect(() => {
     if (field.type === "json") {
@@ -86,12 +88,12 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
       <Field
         orientation="responsive"
         className="rounded-2xl border border-border/70 bg-background px-4 py-3"
-        data-invalid={Boolean(error)}
+        data-invalid={isInvalid || undefined}
       >
         <FieldContent>
           <FieldLabel htmlFor={fieldId}>
             {label}
-            {field.required ? <span aria-hidden="true" className="text-destructive">*</span> : null}
+            {requiredMarker}
           </FieldLabel>
           {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
           {error ? <FieldError>{error}</FieldError> : null}
@@ -110,12 +112,11 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
 
   if (field.type === "select") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={Boolean(error)}>
+      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
-          {field.required ? <span aria-hidden="true" className="text-destructive">*</span> : null}
+          {requiredMarker}
         </FieldLabel>
-        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         <Select value={String(value ?? "")} onValueChange={onChange} disabled={readOnly}>
           <SelectTrigger id={fieldId} aria-invalid={Boolean(error)}>
             <SelectValue placeholder={field.placeholder || "Select a value"} />
@@ -128,6 +129,7 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
             ))}
           </SelectContent>
         </Select>
+        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         {error ? <FieldError>{error}</FieldError> : null}
       </Field>
     );
@@ -135,12 +137,11 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
 
   if (field.type === "textarea") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={Boolean(error)}>
+      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
-          {field.required ? <span aria-hidden="true" className="text-destructive">*</span> : null}
+          {requiredMarker}
         </FieldLabel>
-        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         <Textarea
           id={fieldId}
           value={String(value ?? "")}
@@ -149,6 +150,7 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
           readOnly={readOnly}
           aria-invalid={Boolean(error)}
         />
+        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         {error ? <FieldError>{error}</FieldError> : null}
       </Field>
     );
@@ -156,12 +158,11 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
 
   if (field.type === "number") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={Boolean(error)}>
+      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
-          {field.required ? <span aria-hidden="true" className="text-destructive">*</span> : null}
+          {requiredMarker}
         </FieldLabel>
-        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         <Input
           id={fieldId}
           type="number"
@@ -174,6 +175,7 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
           readOnly={readOnly}
           aria-invalid={Boolean(error)}
         />
+        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         {error ? <FieldError>{error}</FieldError> : null}
       </Field>
     );
@@ -181,12 +183,11 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
 
   if (field.type === "date") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={Boolean(error)}>
+      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
-          {field.required ? <span aria-hidden="true" className="text-destructive">*</span> : null}
+          {requiredMarker}
         </FieldLabel>
-        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         <Input
           id={fieldId}
           type="date"
@@ -196,6 +197,7 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
           readOnly={readOnly}
           aria-invalid={Boolean(error)}
         />
+        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         {error ? <FieldError>{error}</FieldError> : null}
       </Field>
     );
@@ -203,12 +205,11 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
 
   if (field.type === "json") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={Boolean(error || jsonError)}>
+      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={Boolean(error || jsonError) || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
-          {field.required ? <span aria-hidden="true" className="text-destructive">*</span> : null}
+          {requiredMarker}
         </FieldLabel>
-        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         <Textarea
           id={fieldId}
           value={jsonDraft}
@@ -232,6 +233,7 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
           aria-invalid={Boolean(error || jsonError)}
           className="font-mono text-xs"
         />
+        {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         {error ? <FieldError>{error}</FieldError> : null}
         {!error && jsonError ? <FieldError>{jsonError}</FieldError> : null}
       </Field>
@@ -239,12 +241,11 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
   }
 
   return (
-    <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={Boolean(error)}>
+    <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
       <FieldLabel htmlFor={fieldId}>
         {label}
-        {field.required ? <span aria-hidden="true" className="text-destructive">*</span> : null}
+        {requiredMarker}
       </FieldLabel>
-      {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
       <Input
         id={fieldId}
         value={String(value ?? "")}
@@ -253,6 +254,7 @@ export const PluginGovernanceFieldControl: React.FC<PluginGovernanceFieldControl
         readOnly={readOnly}
         aria-invalid={Boolean(error)}
       />
+      {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
       {error ? <FieldError>{error}</FieldError> : null}
     </Field>
   );

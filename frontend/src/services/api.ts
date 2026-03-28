@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester runtime plugin-governance payloads, and Program-level plugin governance + plugin-system + Semester draft-wizard routes]
-// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types, Program plugin governance plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime governance wire models, and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, Program plugin lifecycle governance, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin-governance driven tab resolution]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester->unassigned-Course runtime plugin-governance payloads, and Program/Semester/Course plugin governance + plugin-system + Semester draft-wizard routes]
+// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types, Program/Semester/unassigned-Course plugin-governance plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime governance wire models, and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, Program plugin lifecycle governance, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin-governance driven tab resolution]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -94,6 +94,7 @@ export interface Course {
     lms_link?: LmsCourseLinkSummary | null;
     widgets?: Widget[];
     tabs?: Tab[];
+    plugin_activations?: CoursePluginActivation[];
     runtime_tabs?: RuntimeResolvedTab[];
     resolved_tabs?: RuntimeResolvedTab[];
     enabled_plugin_ids?: string[];
@@ -181,6 +182,7 @@ export interface ProgramPluginInstallation {
         available_tab_types?: string[];
         available_widget_types?: string[];
         has_settings?: boolean;
+        supports_unassigned_course?: boolean;
     };
     setup_sections: ProgramPluginSetupSection[];
     program_settings: Record<string, unknown>;
@@ -217,6 +219,26 @@ export interface SemesterPluginActivation {
     available: boolean;
     availability_reason?: string | null;
     auth_state?: string;
+}
+
+export interface CoursePluginActivation {
+    id?: string | null;
+    course_id: string;
+    program_plugin_installation_id: string;
+    plugin_id: string;
+    display_name: string;
+    description: string;
+    long_description?: string;
+    author: string;
+    locked?: boolean;
+    version: string;
+    is_enabled: boolean;
+    auth_state?: string;
+    capabilities: ProgramPluginInstallation['capabilities'];
+    resolved_settings: Record<string, unknown>;
+    available: boolean;
+    availability_reason?: string | null;
+    source: 'course' | 'semester';
 }
 
 export interface PluginSystemSetupDefinitionResponse {
@@ -747,9 +769,22 @@ const api = {
         data: {
             is_enabled?: boolean;
             version?: string;
+            auth_state?: string;
+            auth_message?: string | null;
+            program_settings?: Record<string, unknown>;
         },
     ) => {
         const response = await axios.put<ProgramPluginInstallation>(`/api/programs/${programId}/plugins/${pluginId}`, data);
+        return response.data;
+    },
+    bulkUpdateProgramPluginInstallations: async (
+        programId: string,
+        data: {
+            plugin_ids: string[];
+            is_enabled: boolean;
+        },
+    ) => {
+        const response = await axios.put<ProgramPluginInstallation[]>(`/api/programs/${programId}/plugins:bulk`, data);
         return response.data;
     },
     deleteProgramPluginInstallation: async (programId: string, pluginId: string) => {
@@ -890,6 +925,16 @@ const api = {
         const response = await axios.put<SemesterPluginActivation>(`/api/semesters/${semesterId}/plugin-activations/${pluginId}`, data);
         return response.data;
     },
+    bulkUpdateSemesterPluginActivations: async (
+        semesterId: string,
+        data: {
+            plugin_ids: string[];
+            is_enabled: boolean;
+        },
+    ) => {
+        const response = await axios.put<Semester>(`/api/semesters/${semesterId}/plugin-activations:bulk`, data);
+        return response.data;
+    },
     deleteSemesterPluginActivation: async (semesterId: string, pluginId: string) => {
         await axios.delete(`/api/semesters/${semesterId}/plugin-activations/${pluginId}`);
     },
@@ -972,7 +1017,7 @@ const api = {
     },
     getCourse: async (id: string) => {
         return dedupeGet(`GET:/api/courses/${id}`, async () => {
-            const response = await axios.get<Course & { widgets?: Widget[]; tabs?: Tab[] }>(`/api/courses/${id}`);
+            const response = await axios.get<Course & { widgets?: Widget[]; tabs?: Tab[]; plugin_activations?: CoursePluginActivation[] }>(`/api/courses/${id}`);
             return response.data;
         });
     },
@@ -982,6 +1027,32 @@ const api = {
     },
     deleteCourse: async (id: string) => {
         await axios.delete(`/api/courses/${id}`);
+    },
+    getCoursePluginActivations: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/plugin-activations`, async () => {
+            const response = await axios.get<CoursePluginActivation[]>(`/api/courses/${courseId}/plugin-activations`);
+            return response.data;
+        });
+    },
+    upsertCoursePluginActivation: async (
+        courseId: string,
+        pluginId: string,
+        data: {
+            is_enabled?: boolean;
+        },
+    ) => {
+        const response = await axios.put<CoursePluginActivation>(`/api/courses/${courseId}/plugin-activations/${pluginId}`, data);
+        return response.data;
+    },
+    bulkUpdateCoursePluginActivations: async (
+        courseId: string,
+        data: {
+            plugin_ids: string[];
+            is_enabled: boolean;
+        },
+    ) => {
+        const response = await axios.put<CoursePluginActivation[]>(`/api/courses/${courseId}/plugin-activations:bulk`, data);
+        return response.data;
     },
     getCourseResources: async (courseId: string) => {
         return dedupeGet(`GET:/api/courses/${courseId}/resources`, async () => {

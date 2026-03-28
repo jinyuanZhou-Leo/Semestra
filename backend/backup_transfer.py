@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, backend models/schemas/crud/domain services, course-resource storage helpers, LMS crypto/service modules, runtime validation callbacks, and base-dir filesystem access]
-# output: [backup export/import service functions plus runtime callback container for account data transfer across current persisted features]
-# pos:    [backend backup-transfer domain module that serializes and restores account state outside the FastAPI entrypoint]
+# output: [backup export/import service functions plus runtime callback container for account data transfer across current persisted features, including unassigned-Course plugin activations]
+# pos:    [backend backup-transfer domain module that serializes and restores account state outside the FastAPI entrypoint, including unassigned-Course plugin enablement state]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -28,7 +28,7 @@ import schemas
 import todo
 from lms_crypto import decrypt_credentials, encrypt_credentials
 
-BACKUP_FORMAT_VERSION = "2.2.2"
+BACKUP_FORMAT_VERSION = "2.2.3"
 
 
 @dataclass(frozen=True)
@@ -198,6 +198,20 @@ def _export_course(
         widgets=[_export_widget(widget) for widget in course.widgets],
         tabs=[_export_tab(tab) for tab in course.tabs],
         plugin_settings=[_export_plugin_setting(setting) for setting in course.plugin_settings],
+        plugin_activations=[
+            schemas.CoursePluginActivationExport(
+                plugin_id=activation.program_plugin_installation.plugin_id,
+                is_enabled=activation.is_enabled,
+            )
+            for activation in sorted(
+                course.plugin_activations,
+                key=lambda item: (
+                    item.program_plugin_installation.plugin_id if item.program_plugin_installation is not None else "",
+                    item.id,
+                ),
+            )
+            if activation.program_plugin_installation is not None
+        ],
         gradebook=gradebook.export_course_gradebook(course),
         resource_files=_export_course_resources(course, base_dir=base_dir, error_detail=error_detail),
         lms_link=lms_link,
@@ -398,6 +412,52 @@ def _import_plugin_settings(
         )
 
 
+def _import_course_plugin_activations(
+    db: Session,
+    activations: list[schemas.CoursePluginActivationExport],
+    *,
+    course: models.Course,
+    now_utc_iso: Callable[[], str],
+) -> None:
+    if not activations:
+        return
+    program = db.query(models.Program).filter(models.Program.id == course.program_id).first()
+    if program is None:
+        return
+    crud._normalize_program_plugin_installations(db, program)
+    crud._ensure_default_program_plugin_installations(db, program)
+    installations_by_plugin_id = {
+        installation.plugin_id: installation
+        for installation in program.plugin_installations
+    }
+    for activation_data in activations:
+        installation = installations_by_plugin_id.get(activation_data.plugin_id)
+        if installation is None:
+            crud.upsert_program_plugin_installation(
+                db,
+                program.id,
+                activation_data.plugin_id,
+                schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+            )
+            db.refresh(program)
+            installations_by_plugin_id = {
+                current_installation.plugin_id: current_installation
+                for current_installation in program.plugin_installations
+            }
+            installation = installations_by_plugin_id.get(activation_data.plugin_id)
+        if installation is None:
+            continue
+        row = models.ProgramCoursePluginActivation(
+            course_id=course.id,
+            program_plugin_installation_id=installation.id,
+            is_enabled=activation_data.is_enabled,
+            created_at=now_utc_iso(),
+            updated_at=now_utc_iso(),
+        )
+        db.add(row)
+    db.commit()
+
+
 def _import_course_resources(
     db: Session,
     resources: list[schemas.CourseResourceExport],
@@ -565,6 +625,12 @@ def _import_course_export(
     _import_widgets(db, course_data.widgets, course_id=course.id)
     _import_tabs(db, course_data.tabs, course_id=course.id)
     _import_plugin_settings(db, course_data.plugin_settings, course_id=course.id)
+    _import_course_plugin_activations(
+        db,
+        course_data.plugin_activations,
+        course=course,
+        now_utc_iso=runtime.now_utc_iso,
+    )
     if course_data.gradebook is not None:
         gradebook.import_course_gradebook(db, course.id, course_data.gradebook)
     _import_course_event_types(db, course.id, course_data.event_types, touch_model_timestamp=runtime.touch_model_timestamp)

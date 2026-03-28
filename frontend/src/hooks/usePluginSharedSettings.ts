@@ -1,6 +1,6 @@
-// input:  [plugin id/context ids, plugin settings REST APIs, resolved runtime settings snapshots, TanStack Query cache/mutations, auto-save scheduler, and JSON equality helpers]
+// input:  [plugin id/context ids, plugin settings REST APIs, Program plugin-installation settings snapshots, TanStack Query cache/mutations, auto-save scheduler, and JSON equality helpers]
 // output: [`usePluginSharedSettings()` hook exposing framework-managed plugin-global settings state, shared caching, and debounced sync]
-// pos:    [Shared plugin-settings persistence hook that seeds from resolved runtime settings, loads one plugin/context record from query cache, and syncs editable state through framework autosave]
+// pos:    [Shared plugin-settings persistence hook that seeds from resolved runtime config, loads one plugin/context record from query cache, and syncs editable state through framework autosave for Program, Semester, and Course settings]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -21,6 +21,7 @@ import { useAutoSave } from './useAutoSave';
 
 interface UsePluginSharedSettingsOptions {
   pluginId: string;
+  programId?: string;
   semesterId?: string;
   courseId?: string;
   initialSettings?: Record<string, unknown>;
@@ -29,6 +30,9 @@ interface UsePluginSharedSettingsOptions {
 const EMPTY_SETTINGS: Record<string, unknown> = {};
 const DEBOUNCE_MS = 300;
 const MAX_WAIT_MS = 1500;
+
+type ProgramPluginInstallationRecord = Awaited<ReturnType<typeof api.getProgramPluginInstallations>>[number];
+type ContextPluginSettingRecord = Awaited<ReturnType<typeof api.getPluginSettingsForSemester>>[number];
 
 const parsePluginSettings = (rawSettings: string | Record<string, unknown> | undefined): Record<string, unknown> => {
   if (!rawSettings) return EMPTY_SETTINGS;
@@ -54,16 +58,19 @@ const parsePluginSettings = (rawSettings: string | Record<string, unknown> | und
 
 export const usePluginSharedSettings = ({
   pluginId,
+  programId,
   semesterId,
   courseId,
   initialSettings,
 }: UsePluginSharedSettingsOptions) => {
   const queryClient = useQueryClient();
-  const queryKey = semesterId
-    ? queryKeys.semesters.pluginSettings(semesterId)
-    : courseId
-      ? queryKeys.courses.pluginSettings(courseId)
-      : ['plugin-settings', 'disabled'] as const;
+  const queryKey = programId
+    ? queryKeys.programs.pluginInstallations(programId)
+    : semesterId
+      ? queryKeys.semesters.pluginSettings(semesterId)
+      : courseId
+        ? queryKeys.courses.pluginSettings(courseId)
+        : ['plugin-settings', 'disabled'] as const;
 
   const [settings, setSettings] = useState<Record<string, unknown>>(EMPTY_SETTINGS);
   const [savedSettings, setSavedSettings] = useState<Record<string, unknown>>(EMPTY_SETTINGS);
@@ -73,16 +80,23 @@ export const usePluginSharedSettings = ({
   const pluginSettingsQuery = useQuery({
     queryKey,
     queryFn: async () => (
-      semesterId
+      programId
+        ? api.getProgramPluginInstallations(programId)
+        : semesterId
         ? api.getPluginSettingsForSemester(semesterId)
         : api.getPluginSettingsForCourse(courseId!)
     ),
-    enabled: Boolean(pluginId) && Boolean(semesterId || courseId),
+    enabled: Boolean(pluginId) && Boolean(programId || semesterId || courseId),
     staleTime: 60_000,
   });
 
   const mutation = useMutation({
     mutationFn: async (snapshot: Record<string, unknown>) => {
+      if (programId) {
+        return api.upsertProgramPluginInstallation(programId, pluginId, {
+          program_settings: snapshot ?? EMPTY_SETTINGS,
+        });
+      }
       const payload = { settings: JSON.stringify(snapshot ?? EMPTY_SETTINGS) };
       return semesterId
         ? api.upsertPluginSettingsForSemester(semesterId, pluginId, payload)
@@ -91,7 +105,7 @@ export const usePluginSharedSettings = ({
   });
 
   useEffect(() => {
-    if (!pluginId || (!semesterId && !courseId)) {
+    if (!pluginId || (!programId && !semesterId && !courseId)) {
       setSettings(EMPTY_SETTINGS);
       setSavedSettings(EMPTY_SETTINGS);
       setIsDirty(false);
@@ -101,13 +115,21 @@ export const usePluginSharedSettings = ({
     if (!pluginSettingsQuery.data) return;
 
     const match = pluginSettingsQuery.data.find((record) => record.plugin_id === pluginId);
-    const parsed = parsePluginSettings(match?.resolved_settings ?? match?.settings);
+    const parsed = programId
+      ? parsePluginSettings(
+        (match as ProgramPluginInstallationRecord | undefined)?.resolved_program_settings
+          ?? (match as ProgramPluginInstallationRecord | undefined)?.program_settings,
+      )
+      : parsePluginSettings(
+        (match as ContextPluginSettingRecord | undefined)?.resolved_settings
+          ?? (match as ContextPluginSettingRecord | undefined)?.settings,
+      );
 
     if (isDirty) return;
 
     setSavedSettings(parsed);
     setSettings(parsed);
-  }, [courseId, isDirty, pluginId, pluginSettingsQuery.data, semesterId]);
+  }, [courseId, isDirty, pluginId, pluginSettingsQuery.data, programId, semesterId]);
 
   useEffect(() => {
     if (!pluginId || isDirty) return;
@@ -128,6 +150,21 @@ export const usePluginSharedSettings = ({
   }, [pluginId, pluginSettingsQuery.error]);
 
   const updateQueryCache = useCallback((nextSettings: Record<string, unknown>) => {
+      if (programId) {
+        queryClient.setQueryData<Awaited<ReturnType<typeof api.getProgramPluginInstallations>>>(queryKey, (current = []) => (
+          current.map((record): ProgramPluginInstallationRecord => (
+            record.plugin_id === pluginId
+              ? {
+                ...record,
+                program_settings: nextSettings,
+                resolved_program_settings: nextSettings,
+            }
+            : record
+        ))
+      ));
+      return;
+    }
+
     queryClient.setQueryData<Awaited<ReturnType<typeof api.getPluginSettingsForSemester>>>(queryKey, (current = []) => {
       const serialized = JSON.stringify(nextSettings ?? EMPTY_SETTINGS);
       const matchIndex = current.findIndex((record) => record.plugin_id === pluginId);
@@ -151,7 +188,7 @@ export const usePluginSharedSettings = ({
         },
       ];
     });
-  }, [courseId, pluginId, queryClient, queryKey, semesterId]);
+  }, [courseId, pluginId, programId, queryClient, queryKey, semesterId]);
 
   const updateSettings = useCallback((nextSettings: Record<string, unknown>) => {
     const normalized = nextSettings ?? EMPTY_SETTINGS;
@@ -164,16 +201,25 @@ export const usePluginSharedSettings = ({
     value: settings,
     savedValue: savedSettings,
     isEqual: jsonDeepEqual,
-    enabled: !pluginSettingsQuery.isLoading && Boolean(pluginId) && Boolean(semesterId || courseId),
+    enabled: !pluginSettingsQuery.isLoading && Boolean(pluginId) && Boolean(programId || semesterId || courseId),
     debounceMs: DEBOUNCE_MS,
     maxWaitMs: MAX_WAIT_MS,
     onSave: async (snapshot) => {
       const response = await mutation.mutateAsync(snapshot ?? EMPTY_SETTINGS);
-      queryClient.setQueryData<Awaited<ReturnType<typeof api.getPluginSettingsForSemester>>>(queryKey, (current = []) => {
-        const withoutOptimistic = current.filter((record) => record.plugin_id !== pluginId);
-        return [...withoutOptimistic, response].sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
-      });
-      setSavedSettings(parsePluginSettings(response.settings));
+      if (programId) {
+        queryClient.setQueryData<Awaited<ReturnType<typeof api.getProgramPluginInstallations>>>(queryKey, (current = []) => (
+          current.map((record): ProgramPluginInstallationRecord => (
+            record.plugin_id === pluginId ? response as ProgramPluginInstallationRecord : record
+          ))
+        ));
+        setSavedSettings(parsePluginSettings((response as ProgramPluginInstallationRecord).program_settings));
+      } else {
+        queryClient.setQueryData<Awaited<ReturnType<typeof api.getPluginSettingsForSemester>>>(queryKey, (current = []) => {
+          const withoutOptimistic = current.filter((record) => record.plugin_id !== pluginId);
+          return [...withoutOptimistic, response as ContextPluginSettingRecord].sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
+        });
+        setSavedSettings(parsePluginSettings((response as ContextPluginSettingRecord).settings));
+      }
       setIsDirty(false);
     },
     onError: async (error) => {

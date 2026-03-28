@@ -1,6 +1,6 @@
 // input:  [`CreateSemesterWizardPage`, mocked Semester wizard APIs, React Router memory routes, and QueryClient test wrappers]
-// output: [page-level regression tests for Semester basics validation, setup-aware wizard navigation, draft-conflict-safe resume behavior, finalize handoff safety, Program-installed plugin filtering, Eventcore-excluded plugin-system setup rendering, draft review blockers, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
-// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, draft-create conflict regressions, setup-step drift, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, Eventcore setup re-entry, and invalid finalize states]
+// output: [page-level regression tests for Semester basics validation, setup-aware wizard navigation, draft-conflict-safe resume behavior, finalize handoff safety, Program-installed plugin filtering, plugin-system setup rendering, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
+// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, draft-create conflict regressions, setup-step drift, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, and invalid finalize states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,7 +15,12 @@ import { createQueryClientWrapper } from "@/test/queryClientWrapper";
 
 import { CreateSemesterWizardPage } from "./CreateSemesterWizardPage";
 
-const { apiMock, reportErrorMock } = vi.hoisted(() => ({
+const {
+  apiMock,
+  reportErrorMock,
+  getPluginSetupDefinitionByIdMock,
+  validatePluginSetupDefinitionMock,
+} = vi.hoisted(() => ({
   apiMock: {
     getProgram: vi.fn(),
     getCurrentSemesterDraft: vi.fn(),
@@ -29,11 +34,14 @@ const { apiMock, reportErrorMock } = vi.hoisted(() => ({
     getSemesterPluginSystemSetup: vi.fn(),
     updateSemesterPluginSystemSetup: vi.fn(),
     upsertSemesterPluginActivation: vi.fn(),
+    bulkUpdateSemesterPluginActivations: vi.fn(),
     deleteSemesterPluginActivation: vi.fn(),
     createCourse: vi.fn(),
     deleteCourse: vi.fn(),
   },
   reportErrorMock: vi.fn(),
+  getPluginSetupDefinitionByIdMock: vi.fn(),
+  validatePluginSetupDefinitionMock: vi.fn(),
 }));
 
 vi.mock("@/services/api", () => ({
@@ -46,6 +54,17 @@ vi.mock("../services/appStatus", () => ({
 
 vi.mock("@/plugin-system", () => ({
   getPluginIconById: () => null,
+  getPluginSetupDefinitionById: getPluginSetupDefinitionByIdMock,
+  resolvePluginSetupValues: (definition: { fields: Record<string, { defaultValue?: unknown }> }, values: Record<string, unknown>) => (
+    Object.fromEntries(
+      Object.entries(definition.fields).map(([fieldKey, field]) => (
+        Object.prototype.hasOwnProperty.call(values, fieldKey)
+          ? [fieldKey, values[fieldKey]]
+          : [fieldKey, field.defaultValue ?? null]
+      )),
+    )
+  ),
+  validatePluginSetupDefinition: validatePluginSetupDefinitionMock,
 }));
 
 vi.mock("../components/Layout", () => ({
@@ -96,6 +115,25 @@ describe("CreateSemesterWizardPage", () => {
   beforeEach(() => {
     Object.values(apiMock).forEach((mock) => mock.mockReset());
     reportErrorMock.mockReset();
+    getPluginSetupDefinitionByIdMock.mockReset();
+    validatePluginSetupDefinitionMock.mockReset();
+    getPluginSetupDefinitionByIdMock.mockReturnValue(undefined);
+    validatePluginSetupDefinitionMock.mockResolvedValue([]);
+    apiMock.updateSemesterDraft.mockImplementation(async (_draftId: string, data: Record<string, unknown>) => ({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: String(data.creation_step ?? "basics"),
+      draft_updated_at: "2026-03-27T10:00:00Z",
+      review_ready: false,
+      review_errors: [],
+      plugin_activations: [],
+    }));
     apiMock.getSemesterPluginSystemSetup.mockResolvedValue({
       semester_id: "draft-1",
       step: "plugin-setup",
@@ -561,6 +599,480 @@ describe("CreateSemesterWizardPage", () => {
     expect(screen.getByText("Mock setting")).toBeInTheDocument();
   });
 
+  it("treats each enabled plugin setup as its own wizard step", async () => {
+    apiMock.getProgram.mockResolvedValue({
+      id: "program-1",
+      name: "Engineering",
+      plugin_installations: [],
+    });
+    apiMock.getCurrentSemesterDraft.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "plugin-setup",
+      draft_updated_at: "2026-03-27T10:00:00Z",
+      review_ready: false,
+      review_errors: [],
+      plugin_activations: [
+        {
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-1",
+          plugin_id: "first-plugin",
+          display_name: "First Plugin",
+          description: "First setup step.",
+          author: "Jinyuan",
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          capabilities: {},
+          setup_sections: [{ id: "first", title: "First", description: "", fields: [] }],
+          semester_overrides: {},
+          setup_state: {},
+          resolved_settings: {},
+          fields: [],
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+        {
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-2",
+          plugin_id: "second-plugin",
+          display_name: "Second Plugin",
+          description: "Second setup step.",
+          author: "Jinyuan",
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          capabilities: {},
+          setup_sections: [{ id: "second", title: "Second", description: "", fields: [] }],
+          semester_overrides: {},
+          setup_state: {},
+          resolved_settings: {},
+          fields: [],
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+      ],
+    });
+    apiMock.getSemester.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "plugin-setup",
+      review_ready: false,
+      courses: [],
+      plugin_activations: [
+        {
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-1",
+          plugin_id: "first-plugin",
+          display_name: "First Plugin",
+          description: "First setup step.",
+          author: "Jinyuan",
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          capabilities: {},
+          setup_sections: [{ id: "first", title: "First", description: "", fields: [] }],
+          semester_overrides: {},
+          setup_state: {},
+          resolved_settings: {},
+          fields: [],
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+        {
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-2",
+          plugin_id: "second-plugin",
+          display_name: "Second Plugin",
+          description: "Second setup step.",
+          author: "Jinyuan",
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          capabilities: {},
+          setup_sections: [{ id: "second", title: "Second", description: "", fields: [] }],
+          semester_overrides: {},
+          setup_state: {},
+          resolved_settings: {},
+          fields: [],
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+      ],
+    });
+    apiMock.updateSemesterDraft.mockImplementation(async (_draftId: string, data: Record<string, unknown>) => ({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: String(data.creation_step ?? "plugin-setup"),
+      draft_updated_at: "2026-03-27T10:00:00Z",
+      review_ready: false,
+      review_errors: [],
+      plugin_activations: [],
+    }));
+    apiMock.getSemesterPluginSystemSetup.mockResolvedValue({
+      semester_id: "draft-1",
+      step: "plugin-setup",
+      plugins: [
+        {
+          plugin_id: "first-plugin",
+          display_name: "First Plugin",
+          description: "First setup step.",
+          author: "Jinyuan",
+          is_enabled: true,
+          available: true,
+          availability_reason: null,
+          setup_values: {},
+          setup_summary: [],
+          review_errors: [],
+          setup_sections: [{ id: "first", title: "First", description: "", fields: [] }],
+        },
+        {
+          plugin_id: "second-plugin",
+          display_name: "Second Plugin",
+          description: "Second setup step.",
+          author: "Jinyuan",
+          is_enabled: true,
+          available: true,
+          availability_reason: null,
+          setup_values: {},
+          setup_summary: [],
+          review_errors: [],
+          setup_sections: [{ id: "second", title: "Second", description: "", fields: [] }],
+        },
+      ],
+    });
+
+    renderWizard();
+
+    expect((await screen.findAllByRole("heading", { name: "First Plugin" })).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Continue to Second Plugin" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Second Plugin" }));
+
+    expect((await screen.findAllByRole("heading", { name: "Second Plugin" })).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Continue to Review" })).toBeInTheDocument();
+  });
+
+  it("runs plugin-defined setup validation before moving to the next step", async () => {
+    getPluginSetupDefinitionByIdMock.mockReturnValue({
+      fields: {
+        mockSetting: {
+          type: "text",
+          label: "Mock setting",
+          persist: "setupState",
+          required: true,
+        },
+      },
+      sections: [
+        {
+          id: "mock-setup",
+          title: "Mock Setup",
+          fieldKeys: ["mockSetting"],
+        },
+      ],
+      ui: { kind: "dsl" },
+    });
+    validatePluginSetupDefinitionMock.mockResolvedValue([
+      {
+        fieldPath: "mockSetting",
+        message: "Mock setting must be configured before continuing.",
+      },
+    ]);
+    apiMock.getProgram.mockResolvedValue({
+      id: "program-1",
+      name: "Engineering",
+      plugin_installations: [],
+    });
+    apiMock.getCurrentSemesterDraft.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "plugin-setup",
+      draft_updated_at: "2026-03-27T10:00:00Z",
+      review_ready: false,
+      review_errors: [],
+      plugin_activations: [
+        {
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-1",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
+          author: "Jinyuan",
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          capabilities: {},
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [],
+            },
+          ],
+          semester_overrides: {},
+          setup_state: {},
+          resolved_settings: {},
+          fields: [],
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+      ],
+    });
+    apiMock.getSemester.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "plugin-setup",
+      review_ready: false,
+      courses: [],
+      plugin_activations: [
+        {
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-1",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
+          author: "Jinyuan",
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          capabilities: {},
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [],
+            },
+          ],
+          semester_overrides: {},
+          setup_state: {},
+          resolved_settings: {},
+          fields: [],
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+      ],
+    });
+    apiMock.getSemesterPluginSystemSetup.mockResolvedValue({
+      semester_id: "draft-1",
+      step: "plugin-setup",
+      plugins: [
+        {
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
+          author: "Jinyuan",
+          is_enabled: true,
+          available: true,
+          availability_reason: null,
+          setup_values: { mockSetting: "" },
+          setup_summary: [],
+          review_errors: [],
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [
+                {
+                  path: "mockSetting",
+                  label: "Mock setting",
+                  type: "text",
+                  persist: "setupState",
+                  required: true,
+                  default_value: "",
+                  description: "Provide the setup value.",
+                  placeholder: "Enabled",
+                  options: [],
+                  summary_labels: {},
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    renderWizard();
+
+    expect(await screen.findByText("Mock setting")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Review" }));
+
+    expect(await screen.findByText("Mock setting must be configured before continuing.")).toBeInTheDocument();
+    expect(reportErrorMock).toHaveBeenCalledWith("Resolve the highlighted plugin setup issues before continuing.");
+    expect(apiMock.reviewSemesterDraft).not.toHaveBeenCalled();
+  });
+
+  it("uses the plugin custom review UI when the setup definition opts into it", async () => {
+    getPluginSetupDefinitionByIdMock.mockReturnValue({
+      fields: {
+        mockSetting: {
+          type: "text",
+          label: "Mock setting",
+          persist: "setupState",
+        },
+      },
+      sections: [
+        {
+          id: "mock-setup",
+          title: "Mock Setup",
+          fieldKeys: ["mockSetting"],
+        },
+      ],
+      ui: {
+        kind: "custom",
+        setupComponent: () => <div>Custom setup</div>,
+        reviewComponent: ({ values }: { values: Record<string, unknown> }) => <div>Custom review value: {String(values.mockSetting ?? "")}</div>,
+      },
+    });
+    apiMock.getProgram.mockResolvedValue({
+      id: "program-1",
+      name: "Engineering",
+      plugin_installations: [],
+    });
+    apiMock.getCurrentSemesterDraft.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "review",
+      draft_updated_at: "2026-03-27T10:00:00Z",
+      review_ready: true,
+      review_errors: [],
+      plugin_activations: [
+        {
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-1",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
+          author: "Jinyuan",
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          capabilities: {},
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [],
+            },
+          ],
+          semester_overrides: {},
+          setup_state: { mockSetting: "enabled" },
+          resolved_settings: {},
+          fields: [],
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+      ],
+    });
+    apiMock.getSemester.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "review",
+      review_ready: true,
+      courses: [],
+      plugin_activations: [
+        {
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-1",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Mock setup contribution for wizard coverage.",
+          author: "Jinyuan",
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          capabilities: {},
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [],
+            },
+          ],
+          semester_overrides: {},
+          setup_state: { mockSetting: "enabled" },
+          resolved_settings: {},
+          fields: [],
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+      ],
+    });
+
+    renderWizard();
+
+    const reviewSummarySection = (await screen.findByText("Plugin setup summary")).parentElement;
+    expect(reviewSummarySection).not.toBeNull();
+    const reviewTrigger = reviewSummarySection!.querySelector<HTMLButtonElement>('[data-slot="accordion-trigger"]');
+    expect(reviewTrigger).not.toBeNull();
+    fireEvent.click(reviewTrigger!);
+
+    expect(await screen.findByText("Custom review value: enabled")).toBeInTheDocument();
+  });
+
   it("recovers from draft-create conflicts by resuming the existing draft and updating it", async () => {
     const existingDraft = {
       id: "draft-1",
@@ -825,49 +1337,40 @@ describe("CreateSemesterWizardPage", () => {
     apiMock.getCurrentSemesterDraft.mockImplementation(async () => draftResponse);
     apiMock.getSemester.mockImplementation(async () => semesterResponse);
     apiMock.getSemesterPluginSystemSetup.mockImplementation(async () => pluginSetupResponse);
-    apiMock.upsertSemesterPluginActivation.mockImplementation(async (_draftId: string, _pluginId: string, data: { is_enabled: boolean }) => {
+    apiMock.bulkUpdateSemesterPluginActivations.mockImplementation(async (_draftId: string, data: { plugin_ids: string[]; is_enabled: boolean }) => {
       draftResponse = {
         ...draftResponse,
         plugin_activations: draftResponse.plugin_activations.map((activation) => ({
           ...activation,
-          is_enabled: data.is_enabled,
+          is_enabled: data.plugin_ids.includes(String(activation.plugin_id)) ? data.is_enabled : activation.is_enabled,
         })),
+        creation_step: "plugins",
       };
       semesterResponse = {
         ...semesterResponse,
         plugin_activations: draftResponse.plugin_activations,
+        creation_step: "plugins",
       };
       pluginSetupResponse = {
         ...pluginSetupResponse,
         plugins: pluginSetupResponse.plugins.map((plugin) => ({
           ...plugin,
-          is_enabled: data.is_enabled,
+          is_enabled: data.plugin_ids.includes(String(plugin.plugin_id)) ? data.is_enabled : plugin.is_enabled,
         })),
-      };
-      return draftResponse.plugin_activations[0];
-    });
-    apiMock.updateSemesterDraft.mockImplementation(async (_draftId: string, data: Record<string, unknown>) => {
-      draftResponse = {
-        ...draftResponse,
-        creation_step: String(data.creation_step ?? draftResponse.creation_step),
-      };
-      semesterResponse = {
-        ...semesterResponse,
-        creation_step: draftResponse.creation_step,
       };
       return draftResponse;
     });
 
     renderWizard();
 
-    expect(await screen.findByRole("button", { name: "Continue to Plugin Setup" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Continue to Mock Setup Plugin" })).toBeInTheDocument();
 
     fireEvent.click((await screen.findAllByRole("switch"))[0]);
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Continue to Review" })).toBeInTheDocument();
     });
-    expect(screen.queryByRole("button", { name: "Continue to Plugin Setup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue to Mock Setup Plugin" })).not.toBeInTheDocument();
   });
 
   it("finalizes the draft without refetching draft-only plugin setup endpoints after activation", async () => {

@@ -100,8 +100,8 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
       title={selectedItem ? "Plugin Information" : title}
       desktopContentClassName="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-3xl h-[640px] flex flex-col"
       mobileContentClassName="gap-0 overflow-hidden border-border/70 p-0 h-[85vh] max-h-[85vh] flex flex-col"
-      desktopHeaderClassName="border-b border-border/70 px-6 py-5 pr-14 flex-none"
-      mobileHeaderClassName="border-b border-border/70 px-6 py-5 flex-none"
+      desktopHeaderClassName="border-b border-border/70 px-6 pt-6 pb-4 flex-none"
+      mobileHeaderClassName="border-b border-border/70 px-6 pt-6 pb-4 flex-none text-left"
       titleClassName="text-xl"
     >
       {selectedItem ? (

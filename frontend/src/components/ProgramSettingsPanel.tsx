@@ -1,6 +1,6 @@
 // input:  [program name/credits/GPA defaults, discovered subject codes, available LMS integrations, course color-picker presets, auto-save lifecycle callbacks, and shared data-table row-actions dropdown helpers]
 // output: [`ProgramSettingsPanel` component]
-// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, vertically stacked General settings rows, separated LMS/general sections, shared section-shell composition, stable subject-color management, adaptive mobile-safe course-color table sizing, and a row-actions dropdown reset affordance]
+// pos:    [Program-level settings form used by the dedicated Program settings route with debounced auto-save persistence, vertically stacked General settings rows, separated LMS/general sections, shared section-shell composition, stable subject-color management, adaptive mobile-safe course-color table sizing with an explicit subject-code minimum width, and a row-actions dropdown reset affordance]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -367,6 +367,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
           description="Manage the default color used for each course code prefix in this Program."
           items={visibleSubjectCodes}
           emptyMessage="Subject codes appear here after courses such as APS105 or MAT180 are detected."
+          minWidthClassName="min-w-[34rem] sm:min-w-[40rem]"
           renderHeader={() => (
             <TableRow>
               <TableHead>Code</TableHead>

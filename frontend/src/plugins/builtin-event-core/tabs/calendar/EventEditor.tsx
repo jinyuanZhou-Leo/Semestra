@@ -1,6 +1,6 @@
-// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, source label, LMS HTML safety setting, save callback, and shadcn scroll-area]
+// input:  [selected calendar event, optional conflict peers, dialog state, week-label formatter, source label, LMS HTML safety setting, save callback, and shadcn scroll-area/dialog footer]
 // output: [`EventEditor` modal for source-aware event details plus optional skip editing and conflict context]
-// pos:    [Calendar detail dialog that explains schedule conflicts while optionally editing occurrence skip state with Reading Week-aware labels and source-aware description sanitization]
+// pos:    [Calendar detail dialog that explains schedule conflicts while optionally editing occurrence skip state with Reading Week-aware labels, source-aware description sanitization, and a scroll-safe long-content layout]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,7 +12,7 @@ import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
@@ -78,8 +78,8 @@ export const EventEditor: React.FC<EventEditorProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-[520px]">
+        <DialogHeader className="shrink-0 border-b pb-4">
           <DialogTitle className="flex items-center gap-2">
             Event Details
             <Badge variant="secondary">{sourceLabel}</Badge>
@@ -90,76 +90,80 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         </DialogHeader>
 
         {!event ? null : (
-          <div className="space-y-4">
-            <div>
-              <p className="font-medium">{event.title}</p>
-              {event.subtitle ? (
-                <p className="mt-1 text-sm text-muted-foreground">{event.subtitle}</p>
-              ) : null}
-              <p className="mt-1 text-sm text-muted-foreground">
-                {formatWeekLabel ? formatWeekLabel(event.week) : `Week ${event.week}`}, {event.start.toLocaleDateString()} {event.startTime}-{event.endTime}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {event.courseName}
-              </p>
-              {event.note ? (
-                <ScrollArea className="mt-3 h-48 rounded border bg-muted/30">
-                  <div
-                    className="px-3 py-2 text-sm text-foreground/90 [&_a]:text-primary [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-medium [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:rounded [&_pre]:bg-background/80 [&_pre]:p-2 [&_ul]:list-disc [&_ul]:pl-5]"
-                    dangerouslySetInnerHTML={sanitizedDescription ? { __html: sanitizedDescription } : undefined}
-                  >
-                    {sanitizedDescription ? null : event.note}
-                  </div>
-                </ScrollArea>
-              ) : null}
-            </div>
-
-            {event.isConflict ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/8 p-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  Conflict detected
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  This event overlaps with {conflictingPeers.length === 0 ? 'another scheduled event' : `${conflictingPeers.length} other event${conflictingPeers.length === 1 ? '' : 's'}`}.
-                </p>
-                {conflictingPeers.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {conflictingPeers.map((item) => (
-                      <div key={item.id} className="rounded border border-destructive/20 bg-background/70 px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-medium text-foreground">{item.courseName}</p>
-                          <Badge variant="outline" className="shrink-0 border-destructive/30 text-destructive">
-                            {item.eventTypeCode}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {formatWeekLabel ? formatWeekLabel(item.week) : `Week ${item.week}`} · {item.start.toLocaleDateString()} · {item.startTime}-{item.endTime}
-                        </p>
+          <>
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="space-y-4 pr-4">
+                <div>
+                  <p className="font-medium">{event.title}</p>
+                  {event.subtitle ? (
+                    <p className="mt-1 text-sm text-muted-foreground">{event.subtitle}</p>
+                  ) : null}
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {formatWeekLabel ? formatWeekLabel(event.week) : `Week ${event.week}`}, {event.start.toLocaleDateString()} {event.startTime}-{event.endTime}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {event.courseName}
+                  </p>
+                  {event.note ? (
+                    <ScrollArea className="mt-3 h-48 rounded border bg-muted/30">
+                      <div
+                        className="px-3 py-2 text-sm text-foreground/90 [&_a]:text-primary [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-medium [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:rounded [&_pre]:bg-background/80 [&_pre]:p-2 [&_ul]:list-disc [&_ul]:pl-5]"
+                        dangerouslySetInnerHTML={sanitizedDescription ? { __html: sanitizedDescription } : undefined}
+                      >
+                        {sanitizedDescription ? null : event.note}
                       </div>
-                    ))}
+                    </ScrollArea>
+                  ) : null}
+                </div>
+
+                {event.isConflict ? (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/8 p-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      Conflict detected
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      This event overlaps with {conflictingPeers.length === 0 ? 'another scheduled event' : `${conflictingPeers.length} other event${conflictingPeers.length === 1 ? '' : 's'}`}.
+                    </p>
+                    {conflictingPeers.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {conflictingPeers.map((item) => (
+                          <div key={item.id} className="rounded border border-destructive/20 bg-background/70 px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="truncate text-sm font-medium text-foreground">{item.courseName}</p>
+                              <Badge variant="outline" className="shrink-0 border-destructive/30 text-destructive">
+                                {item.eventTypeCode}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {formatWeekLabel ? formatWeekLabel(item.week) : `Week ${item.week}`} · {item.start.toLocaleDateString()} · {item.startTime}-{item.endTime}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {canEdit ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="event-editor-skip" className="cursor-pointer">Skip this event</Label>
+                        <p className="text-xs text-muted-foreground">Skipped events can be grayed or hidden in calendar settings.</p>
+                      </div>
+                      <Switch
+                        id="event-editor-skip"
+                        checked={isSkipped}
+                        onCheckedChange={setIsSkipped}
+                      />
+                    </div>
                   </div>
                 ) : null}
               </div>
-            ) : null}
+            </ScrollArea>
 
-            {canEdit ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="event-editor-skip" className="cursor-pointer">Skip this event</Label>
-                    <p className="text-xs text-muted-foreground">Skipped events can be grayed or hidden in calendar settings.</p>
-                  </div>
-                  <Switch
-                    id="event-editor-skip"
-                    checked={isSkipped}
-                    onCheckedChange={setIsSkipped}
-                  />
-                </div>
-              </div>
-            ) : null}
-
-            <div className="flex justify-end gap-2">
+            <DialogFooter className="shrink-0 border-t pt-4">
               <Button type="button" variant={canEdit ? 'outline' : 'default'} onClick={() => onOpenChange(false)} disabled={isSaving}>
                 {canEdit ? 'Cancel' : 'Close'}
               </Button>
@@ -168,8 +172,8 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                   {isSaving ? 'Saving...' : 'Save'}
                 </Button>
               ) : null}
-            </div>
-          </div>
+            </DialogFooter>
+          </>
         )}
       </DialogContent>
     </Dialog>

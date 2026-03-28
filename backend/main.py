@@ -1,6 +1,6 @@
 # input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, widget delete query flags, and backend schema compatibility checks]
-# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program plugin-governance + plugin-system + draft wizard routes, legacy semester-tab normalization reads, and Canvas module-file metadata/download routes]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program plugin governance, explicit plugin-system setup APIs, Semester draft wizard persistence, legacy Semester/Course tab normalization on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
+# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program/Semester/unassigned-Course plugin-governance APIs, plugin-system + draft wizard routes, legacy semester-tab normalization reads, and Canvas module-file metadata/download routes]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program governance, explicit plugin-system setup APIs, Semester draft wizard persistence, unassigned-Course plugin activation APIs, legacy Semester/Course tab normalization on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -98,12 +98,15 @@ def _raise_plugin_governance_http_error(exc: crud.PluginGovernanceError) -> None
     code_to_status = {
         "PROGRAM_NOT_FOUND": 404,
         "SEMESTER_NOT_FOUND": 404,
+        "COURSE_NOT_FOUND": 404,
         "PLUGIN_NOT_INSTALLED": 404,
         "PLUGIN_LOCKED": 409,
         "SEMESTER_DRAFT_EXISTS": 409,
         "SEMESTER_NOT_DRAFT": 409,
+        "COURSE_NOT_UNASSIGNED": 409,
         "PLUGIN_NOT_AVAILABLE": 422,
         "PLUGIN_AUTH_STATE_INVALID": 422,
+        "PLUGIN_IDS_REQUIRED": 422,
         "PROGRAM_PLUGIN_SETTINGS_INVALID": 422,
         "SEMESTER_PLUGIN_OVERRIDES_INVALID": 422,
         "SEMESTER_PLUGIN_SETUP_INVALID": 422,
@@ -266,6 +269,22 @@ def upsert_program_plugin_installation(
         raise HTTPException(status_code=404, detail="Program not found")
     try:
         return crud.upsert_program_plugin_installation(db, program_id, plugin_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.put("/programs/{program_id}/plugins:bulk", response_model=list[schemas.ProgramPluginInstallation])
+def bulk_update_program_plugin_installations(
+    program_id: str,
+    payload: schemas.ProgramPluginInstallationBulkUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    try:
+        return crud.bulk_update_program_plugin_installations(db, program_id, payload)
     except crud.PluginGovernanceError as exc:
         _raise_plugin_governance_http_error(exc)
 
@@ -746,6 +765,20 @@ def upsert_semester_plugin_activation(
         _raise_plugin_governance_http_error(exc)
 
 
+@app.put("/semesters/{semester_id}/plugin-activations:bulk", response_model=schemas.SemesterDraft)
+def bulk_update_semester_plugin_activations(
+    semester_id: str,
+    payload: schemas.SemesterPluginActivationBulkUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    try:
+        return crud.bulk_update_semester_plugin_activations(db, semester_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
 @app.delete("/semesters/{semester_id}/plugin-activations/{plugin_id}")
 def delete_semester_plugin_activation(
     semester_id: str,
@@ -959,9 +992,9 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
     crud.ensure_course_tabs_normalized(db, db_course)
-    inherited_activations = crud.get_course_inherited_plugin_activations(db, course_id)
+    course_plugin_activations = crud.get_course_plugin_activations(db, course_id)
     runtime_payload = _serialize_runtime_plugin_payloads(
-        inherited_activations,
+        course_plugin_activations,
         crud.get_plugin_settings_for_context(db, course_id=course_id),
     )
     return {
@@ -984,8 +1017,60 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
         "widgets": db_course.widgets,
         "tabs": db_course.tabs,
         "plugin_settings": db_course.plugin_settings,
+        "plugin_activations": course_plugin_activations,
         **runtime_payload,
     }
+
+
+@app.get("/courses/{course_id}/plugin-activations", response_model=list[schemas.CoursePluginActivation])
+def read_course_plugin_activations(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    db_course = db.query(models.Course).join(models.Program).filter(
+        models.Course.id == course_id, models.Program.owner_id == current_user.id
+    ).first()
+    if not db_course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return crud.get_course_plugin_activations(db, course_id)
+
+
+@app.put("/courses/{course_id}/plugin-activations/{plugin_id}", response_model=schemas.CoursePluginActivation)
+def upsert_course_plugin_activation(
+    course_id: str,
+    plugin_id: str,
+    payload: schemas.CoursePluginActivationUpsertRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    db_course = db.query(models.Course).join(models.Program).filter(
+        models.Course.id == course_id, models.Program.owner_id == current_user.id
+    ).first()
+    if not db_course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    try:
+        return crud.upsert_course_plugin_activation(db, course_id, plugin_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
+
+
+@app.put("/courses/{course_id}/plugin-activations:bulk", response_model=list[schemas.CoursePluginActivation])
+def bulk_update_course_plugin_activations(
+    course_id: str,
+    payload: schemas.CoursePluginActivationBulkUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    db_course = db.query(models.Course).join(models.Program).filter(
+        models.Course.id == course_id, models.Program.owner_id == current_user.id
+    ).first()
+    if not db_course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    try:
+        return crud.bulk_update_course_plugin_activations(db, course_id, payload)
+    except crud.PluginGovernanceError as exc:
+        _raise_plugin_governance_http_error(exc)
 
 
 @app.get("/courses/{course_id}/lms-link", response_model=Optional[schemas.LmsCourseLinkSummary])

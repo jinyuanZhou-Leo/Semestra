@@ -49,6 +49,7 @@ export default definePluginMetadata({
     description: 'Track assessments, understand progress, and plan toward targets.',
     longDescription: 'Gradebook gives each course a clear place to record assessments, enter scores, and understand how every result affects the overall picture. It supports ongoing progress checks, target setting, and what-if planning so students can see where they stand before final grades are locked in. The experience is built for day-to-day academic decision making, helping users connect effort, weighting, and expected outcomes with less guesswork.',
     icon: pluginIcon,
+    supportsUnassignedCourse: true,
     tabCatalog,
     widgetCatalog,
 });

@@ -83,7 +83,7 @@ const BuiltinSettingTabComponent: React.FC<TabProps> = () => {
                             <Separator />
                         </div>
                         <div className="flex items-center gap-2 pt-2">
-                            <Badge variant="secondary" className="uppercase tracking-wide text-[10px] text-muted-foreground font-semibold">
+                            <Badge variant="secondary" className="tracking-wide text-[10px] text-muted-foreground font-semibold">
                                 <Puzzle className="h-3 w-3 mr-1" />
                                 Plugins
                             </Badge>

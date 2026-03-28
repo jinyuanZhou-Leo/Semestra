@@ -77,7 +77,13 @@ class RuntimeSchemaCompatibilityTests(unittest.TestCase):
 
         issues = collect_runtime_schema_issues(engine)
 
-        self.assertEqual(issues, ["missing column 'semesters.review_ready'"])
+        self.assertEqual(
+            issues,
+            [
+                "missing table 'program_course_plugin_activations'",
+                "missing column 'semesters.review_ready'",
+            ],
+        )
 
     def test_assert_runtime_schema_compatible_raises_clear_error(self) -> None:
         engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})

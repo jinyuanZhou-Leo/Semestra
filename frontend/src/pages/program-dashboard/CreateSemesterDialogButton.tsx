@@ -233,8 +233,8 @@ export const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProp
                 description="Create or import a semester."
                 desktopContentClassName="gap-0 p-0 sm:max-w-[640px] h-[85vh] max-h-[44rem] flex flex-col overflow-hidden"
                 mobileContentClassName="gap-0 p-0 h-[85vh] max-h-[85vh] flex flex-col overflow-hidden"
-                desktopHeaderClassName="border-b px-6 py-4 flex-none"
-                mobileHeaderClassName="border-b px-6 py-4 flex-none"
+                desktopHeaderClassName="border-b px-6 pt-6 pb-4 flex-none"
+                mobileHeaderClassName="border-b px-6 pt-6 pb-4 flex-none text-left"
                 footer={(
                     <>
                         <Button type="button" variant="outline" onClick={() => setOpen(false)}>
@@ -251,8 +251,8 @@ export const CreateSemesterDialogButton: React.FC<CreateSemesterDialogButtonProp
                         </Button>
                     </>
                 )}
-                desktopFooterClassName="border-t px-6 py-4 flex-none"
-                mobileFooterClassName="border-t px-6 py-4 flex-none"
+                desktopFooterClassName="px-6 pb-6 pt-4 border-t flex-none"
+                mobileFooterClassName="pt-2 border-t flex-none"
             >
                 <form
                     id={createSemesterFormId}

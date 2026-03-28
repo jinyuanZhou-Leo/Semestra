@@ -1,6 +1,6 @@
 // input:  [plugin id, optional plugin display metadata, plugin settings component, resolved runtime settings seed, shared settings hook, manifest icon helpers, and workspace refresh callback]
 // output: [`PluginSettingsSectionRenderer` component that injects framework-managed plugin-global settings props and a consistent plugin header]
-// pos:    [Bridge component between page-level plugin settings registration and framework-managed shared settings persistence seeded from runtime-governed config, with a shared plugin identity header for settings surfaces]
+// pos:    [Bridge component between page-level plugin settings registration and framework-managed shared settings persistence seeded from runtime-governed config, with a shared plugin identity header for Program, Semester, and Course settings surfaces]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,6 +22,7 @@ interface PluginSettingsSectionRendererProps {
   pluginDescription?: string;
   showPluginHeader?: boolean;
   component: React.FC<PluginSettingsProps>;
+  programId?: string;
   semesterId?: string;
   courseId?: string;
   initialSettings?: Record<string, unknown>;
@@ -41,6 +42,7 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
   pluginDescription,
   showPluginHeader = true,
   component: Component,
+  programId,
   semesterId,
   courseId,
   initialSettings,
@@ -48,6 +50,7 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
 }) => {
   const { settings, updateSettings, saveState, hasPendingChanges, isLoading } = usePluginSharedSettings({
     pluginId,
+    programId,
     semesterId,
     courseId,
     initialSettings,
@@ -74,6 +77,7 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
         saveState={saveState}
         hasPendingChanges={hasPendingChanges}
         isLoading={isLoading}
+        programId={programId}
         semesterId={semesterId}
         courseId={courseId}
         onRefresh={onRefresh}

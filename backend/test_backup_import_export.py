@@ -181,6 +181,18 @@ class BackupImportExportTests(unittest.TestCase):
             program.id,
             None,
         )
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-resources",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        crud.upsert_course_plugin_activation(
+            self.db,
+            program_course.id,
+            "course-resources",
+            schemas.CoursePluginActivationUpsertRequest(is_enabled=True),
+        )
 
         crud.upsert_plugin_setting(
             self.db,
@@ -337,10 +349,11 @@ class BackupImportExportTests(unittest.TestCase):
         self.db.commit()
 
         exported = asyncio.run(main.export_user_data(db=self.db, current_user=self.source_user))
-        self.assertEqual(exported.version, "2.2.2")
+        self.assertEqual(exported.version, "2.2.3")
         self.assertEqual(exported.settings.background_plugin_preload, False)
         self.assertEqual(len(exported.lms_integrations), 1)
         self.assertEqual(len(exported.programs[0].courses), 1)
+        self.assertEqual(exported.programs[0].courses[0].plugin_activations[0].plugin_id, "course-resources")
         self.assertEqual(len(exported.programs[0].semesters[0].courses[0].resource_files), 2)
         self.assertEqual(len(exported.programs[0].semesters[0].todo.tasks), 1)
 
@@ -388,6 +401,13 @@ class BackupImportExportTests(unittest.TestCase):
 
         restored_program_courses = crud.get_courses(self.db, restored_program.id, unassigned=True)
         self.assertEqual([course.name for course in restored_program_courses], ["APS500"])
+        self.assertEqual(len(restored_program_courses[0].plugin_activations), 1)
+        restored_program_course_activation = restored_program_courses[0].plugin_activations[0]
+        self.assertTrue(restored_program_course_activation.is_enabled)
+        self.assertEqual(
+            restored_program_course_activation.program_plugin_installation.plugin_id,
+            "course-resources",
+        )
 
         restored_semester_course = (
             self.db.query(models.Course)

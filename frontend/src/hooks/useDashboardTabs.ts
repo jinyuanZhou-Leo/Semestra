@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { getResolvedTabMetadataByType } from '../plugin-system';
 import type { GovernedRuntimeTab } from '../plugin-system/runtimeGovernance';
 import api, { type RuntimeResolvedTab, type Tab } from '../services/api';
 import { reportError } from '../services/appStatus';
@@ -70,6 +71,9 @@ const toTabItem = (
     const title = ('title' in tab && typeof tab.title === 'string' && tab.title.length > 0)
         ? tab.title
         : type;
+    const resolvedTitle = title === type
+        ? (getResolvedTabMetadataByType(type).name || title)
+        : title;
     const settings = 'resolved_settings' in tab
         ? parseSettingsObject(tab.resolved_settings ?? tab.settings)
         : parseSettingsObject(tab.settings);
@@ -77,7 +81,7 @@ const toTabItem = (
     return {
         id,
         type,
-        title,
+        title: resolvedTitle,
         settings,
         order_index: typeof tab.order_index === 'number' ? tab.order_index : index,
         is_removable: tab.is_removable,

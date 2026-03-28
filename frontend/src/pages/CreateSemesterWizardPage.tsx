@@ -1,6 +1,6 @@
-// input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, and shared data-table row-actions dropdown helpers]
-// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, guarded server-to-local draft hydration, setup-aware step normalization, Eventcore-excluded plugin-setup saves, and finalize-safe draft teardown]
-// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, a course-list-settings-aligned courses table with AlertDialog-backed removal confirmation, draft-conflict-safe resume behavior, refetch-safe local draft state, setup-aware plugin orchestration that excludes Eventcore onboarding, finalize-safe review handoff, and a shadcn-style row-actions dropdown for course removal while keeping the file build-clean]
+// input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, plugin setup definitions/validation helpers, and shared data-table row-actions dropdown helpers]
+// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step saves, finalize-safe draft teardown, and mobile-safe course/plugin review layouts]
+// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, and a concise single-panel review summary while keeping the file build-clean]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -37,7 +37,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { getPluginIconById } from "@/plugin-system";
+import { getPluginIconById, getPluginSetupDefinitionById, validatePluginSetupDefinition, type PluginSetupValidationIssue } from "@/plugin-system";
 import { queryKeys } from "@/services/queryKeys";
 
 import { AppEmptyState } from "../components/AppEmptyState";
@@ -45,8 +45,8 @@ import { Container } from "../components/Container";
 import { CourseManagerModal } from "../components/CourseManagerModal";
 import { DataTable, DataTableActionMenu } from "../components/DataTable";
 import { IconCircle } from "../components/IconCircle";
+import { PluginSetupReviewRenderer, PluginSetupStepRenderer } from "../components/PluginSetupRenderers";
 import { Layout } from "../components/Layout";
-import { PluginGovernanceFieldControl } from "../components/PluginGovernanceFieldControl";
 import {
   getSemesterBasicsValidation,
   SemesterBasicsFields,
@@ -66,7 +66,11 @@ import api, {
 } from "../services/api";
 import { formatGpaPercentage } from "../utils/percentage";
 
-type StepId = SemesterDraftStep;
+type PersistedStepId = SemesterDraftStep;
+type StaticStepId = "basics" | "courses" | "plugins" | "review";
+type PluginSetupStepId = `plugin-setup:${string}`;
+type StepId = StaticStepId | PluginSetupStepId;
+type StoredStepId = StepId | PersistedStepId;
 
 type BasicsDraft = SemesterBasicsValue;
 type StepMeta = {
@@ -74,11 +78,31 @@ type StepMeta = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   detail: string;
+  persistedStep: PersistedStepId;
+  pluginId?: string;
 };
 
 type PluginSetupDraftMap = Record<string, Record<string, unknown>>;
 
-const isStepId = (value: string): value is StepId => value in STEP_META_BY_ID;
+const getPluginSetupStepId = (pluginId: string): PluginSetupStepId => `plugin-setup:${pluginId}`;
+
+const isPluginSetupStepId = (value: string): value is PluginSetupStepId => value.startsWith("plugin-setup:");
+
+const getPluginIdFromStepId = (step: StepId): string | null => (
+  isPluginSetupStepId(step) ? step.slice("plugin-setup:".length) : null
+);
+
+const getPersistedStepId = (step: StoredStepId): PersistedStepId => (
+  isPluginSetupStepId(step) ? "plugin-setup" : step
+);
+
+const getPluginReviewValues = (
+  plugin: SemesterPluginActivation,
+  draftValues: Record<string, unknown> | undefined,
+): Record<string, unknown> => ({
+  ...(plugin.setup_state ?? {}),
+  ...(draftValues ?? {}),
+});
 
 const areBasicsEqual = (left: BasicsDraft, right: BasicsDraft) => (
   left.name === right.name
@@ -110,26 +134,64 @@ const arePluginSetupDraftsEqual = (left: PluginSetupDraftMap, right: PluginSetup
   });
 };
 
-const STEP_ORDER: StepMeta[] = [
-  { id: "basics", label: "Basics", icon: Sparkles, detail: "" },
-  { id: "courses", label: "Courses", icon: BookOpen, detail: "Populate the initial draft-owned course set." },
-  { id: "plugins", label: "Plugins", icon: Layers3, detail: "Choose which Program plugins this Semester can use." },
-  { id: "plugin-setup", label: "Plugin Setup", icon: Settings2, detail: "Resolve host-rendered plugin setup contributions." },
-  { id: "review", label: "Review", icon: CheckCircle2, detail: "Validate every blocker before activation." },
+const STATIC_STEP_ORDER: StepMeta[] = [
+  { id: "basics", label: "Basics", icon: Sparkles, detail: "", persistedStep: "basics" },
+  { id: "courses", label: "Courses", icon: BookOpen, detail: "Populate the initial draft-owned course set.", persistedStep: "courses" },
+  { id: "plugins", label: "Plugins", icon: Layers3, detail: "Choose which Program plugins this Semester can use.", persistedStep: "plugins" },
+  { id: "review", label: "Review", icon: CheckCircle2, detail: "Validate every blocker before activation.", persistedStep: "review" },
 ];
-const STEP_META_BY_ID = Object.fromEntries(STEP_ORDER.map((step) => [step.id, step])) as Record<StepId, StepMeta>;
-const STEP_INDEX_BY_ID = Object.fromEntries(STEP_ORDER.map((step, index) => [step.id, index])) as Record<StepId, number>;
 const REVIEW_COURSE_PREVIEW_LIMIT = 4;
-const SETUP_EXCLUDED_PLUGIN_IDS = new Set(["builtin-event-core"]);
 
-const contributesSemesterSetup = (pluginId: string, setupSections: { length: number }) =>
-  setupSections.length > 0 && !SETUP_EXCLUDED_PLUGIN_IDS.has(pluginId);
+const buildReviewPreviewText = (items: string[], limit = REVIEW_COURSE_PREVIEW_LIMIT) => {
+  if (items.length === 0) {
+    return "";
+  }
 
-const getVisibleStepOrder = (hasSetupPlugins: boolean): StepMeta[] =>
-  hasSetupPlugins ? STEP_ORDER : STEP_ORDER.filter((step) => step.id !== "plugin-setup");
+  const previewItems = items.slice(0, limit);
+  if (items.length <= limit) {
+    return `${previewItems.join(", ")}.`;
+  }
 
-const normalizeWizardStep = (step: StepId, hasSetupPlugins: boolean): StepId =>
-  step === "plugin-setup" && !hasSetupPlugins ? "review" : step;
+  return `${previewItems.join(", ")}, and ${items.length - limit} more.`;
+};
+
+const contributesSemesterSetup = (_pluginId: string, setupSections: { length: number }) =>
+  setupSections.length > 0;
+
+const getVisibleStepOrder = (setupPlugins: Array<{ plugin_id: string; display_name: string }>): StepMeta[] => {
+  const pluginSetupSteps = setupPlugins.map((plugin) => ({
+    id: getPluginSetupStepId(plugin.plugin_id),
+    label: plugin.display_name,
+    icon: Settings2,
+    detail: `Configure ${plugin.display_name} before activation.`,
+    persistedStep: "plugin-setup" as const,
+    pluginId: plugin.plugin_id,
+  }));
+
+  return [
+    STATIC_STEP_ORDER[0],
+    STATIC_STEP_ORDER[1],
+    STATIC_STEP_ORDER[2],
+    ...pluginSetupSteps,
+    STATIC_STEP_ORDER[3],
+  ];
+};
+
+const normalizeWizardStep = (step: StoredStepId, setupPlugins: Array<{ plugin_id: string }>): StepId => {
+  const fallbackPluginStep = setupPlugins[0] ? getPluginSetupStepId(setupPlugins[0].plugin_id) : "review";
+
+  if (step === "plugin-setup") {
+    return fallbackPluginStep;
+  }
+
+  if (isPluginSetupStepId(step)) {
+    return setupPlugins.some((plugin) => getPluginSetupStepId(plugin.plugin_id) === step)
+      ? step
+      : fallbackPluginStep;
+  }
+
+  return step;
+};
 
 const buildSemesterPluginActivation = (
   plugin: ProgramPluginInstallation,
@@ -228,40 +290,42 @@ const syncPluginSystemSetupResponse = (
   };
 };
 
-const getNextStepId = (step: StepId, hasSetupPlugins: boolean): StepId | null => {
-  switch (step) {
-    case "basics":
-      return "courses";
-    case "courses":
-      return "plugins";
-    case "plugins":
-      return hasSetupPlugins ? "plugin-setup" : "review";
-    case "plugin-setup":
-      return "review";
-    case "review":
-      return null;
-  }
+const applyDraftPayloadToWizardCaches = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  programId: string,
+  draft: Semester,
+) => {
+  queryClient.setQueryData(queryKeys.programs.semesterDraft(programId), draft);
+  queryClient.setQueryData(queryKeys.semesters.detail(draft.id), draft);
+  queryClient.setQueryData(queryKeys.semesters.pluginActivations(draft.id), draft.plugin_activations ?? []);
 };
 
-const getPreviousStepId = (step: StepId, hasSetupPlugins: boolean): StepId | null => {
-  switch (step) {
-    case "basics":
-      return null;
-    case "courses":
-      return "basics";
-    case "plugins":
-      return "courses";
-    case "plugin-setup":
-      return "plugins";
-    case "review":
-      return hasSetupPlugins ? "plugin-setup" : "plugins";
+const mergeSemesterDraftPayload = (
+  previous: Semester | undefined | null,
+  next: Semester | null | undefined,
+): Semester | null | undefined => {
+  if (!next) {
+    return next;
   }
+  if (!previous) {
+    return next;
+  }
+  return {
+    ...previous,
+    ...next,
+    plugin_activations: next.plugin_activations ?? previous.plugin_activations,
+    review_errors: next.review_errors ?? previous.review_errors,
+    review_ready: next.review_ready ?? previous.review_ready,
+    courses: next.courses ?? previous.courses,
+  };
 };
 
 const getReviewErrorStepLabel = (step: string): string => {
+  if (step === "plugin-setup" || step.startsWith("plugin-setup:")) {
+    return "Plugin Setup";
+  }
+
   switch (step) {
-    case "plugin-setup":
-      return "Plugin Setup";
     case "plugins":
       return "Plugins";
     case "courses":
@@ -310,7 +374,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const queryClient = useQueryClient();
   const prefersReducedMotion = usePrefersReducedMotion();
 
-  const [currentStep, setCurrentStep] = useState<StepId>("basics");
+  const [currentStep, setCurrentStep] = useState<StoredStepId>("basics");
   const [stepDirection, setStepDirection] = useState(1);
   const [basics, setBasics] = useState<BasicsDraft>(makeInitialBasics);
   const [isCourseManagerOpen, setIsCourseManagerOpen] = useState(false);
@@ -321,6 +385,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const [isRemovingCourse, setIsRemovingCourse] = useState(false);
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
   const [pluginSetupDrafts, setPluginSetupDrafts] = useState<PluginSetupDraftMap>({});
+  const [pluginSetupValidationErrors, setPluginSetupValidationErrors] = useState<Record<string, PluginSetupValidationIssue[]>>({});
   const [savedBasics, setSavedBasics] = useState<BasicsDraft>(makeInitialBasics);
   const [savedPluginSetupDrafts, setSavedPluginSetupDrafts] = useState<PluginSetupDraftMap>({});
   const basicsFlushRef = useRef<() => Promise<void>>(async () => {});
@@ -410,14 +475,16 @@ export const CreateSemesterWizardPage: React.FC = () => {
     () => enabledPlugins.filter((plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections)).map((plugin) => plugin.plugin_id),
     [enabledPlugins],
   );
+  const setupStepPlugins = useMemo(
+    () => enabledPlugins.filter((plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections)),
+    [enabledPlugins],
+  );
   const setupPlugins = useMemo(
     () => pluginSystemSetupPlugins.filter(
       (plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections) && setupPluginIds.includes(plugin.plugin_id),
     ),
     [pluginSystemSetupPlugins, setupPluginIds],
   );
-  const hasSetupPlugins = setupPluginIds.length > 0;
-
   useEffect(() => {
     if (!draftId || !serverBasics) {
       hydratedBasicsDraftIdRef.current = null;
@@ -430,7 +497,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
       setSavedBasics(serverBasics);
       if (isNewDraft) {
         const persistedStep = currentDraftQuery.data?.creation_step;
-        if (persistedStep && isStepId(persistedStep)) {
+        if (persistedStep) {
           setCurrentStep(persistedStep);
         }
       }
@@ -438,27 +505,31 @@ export const CreateSemesterWizardPage: React.FC = () => {
     }
   }, [currentDraftQuery.data?.creation_step, draftId, isBasicsDirty, savedBasics, serverBasics]);
 
-  const stepOrder = useMemo(() => getVisibleStepOrder(hasSetupPlugins), [hasSetupPlugins]);
-  const activeStep = normalizeWizardStep(currentStep, hasSetupPlugins);
+  const stepOrder = useMemo(() => getVisibleStepOrder(setupStepPlugins), [setupStepPlugins]);
+  const activeStep = normalizeWizardStep(currentStep, setupStepPlugins);
   const currentStepIndex = stepOrder.findIndex((step) => step.id === activeStep);
-  const currentStepMeta = STEP_META_BY_ID[activeStep];
+  const currentStepMeta = stepOrder[currentStepIndex] ?? stepOrder[0];
   useEffect(() => {
     if (activeStep === currentStep) {
       return;
     }
-    setStepDirection(STEP_INDEX_BY_ID[activeStep] >= STEP_INDEX_BY_ID[currentStep] ? 1 : -1);
+    const nextIndex = stepOrder.findIndex((step) => step.id === activeStep);
+    const previousIndex = stepOrder.findIndex((step) => step.id === normalizeWizardStep(currentStep, setupStepPlugins));
+    setStepDirection(nextIndex >= previousIndex ? 1 : -1);
     setCurrentStep(activeStep);
     if (!draftId || !programId) {
       return;
     }
-    void api.updateSemesterDraft(draftId, { creation_step: activeStep })
+    void api.updateSemesterDraft(draftId, { creation_step: getPersistedStepId(activeStep) })
       .then((result) => {
-        queryClient.setQueryData(queryKeys.programs.semesterDraft(programId), result);
+        queryClient.setQueryData<Semester | null | undefined>(queryKeys.programs.semesterDraft(programId), (current) => (
+          mergeSemesterDraftPayload(current, result)
+        ));
       })
       .catch((error) => {
         console.error("Failed to normalize Semester wizard step", error);
       });
-  }, [activeStep, currentStep, draftId, programId, queryClient]);
+  }, [activeStep, currentStep, draftId, programId, queryClient, setupStepPlugins, stepOrder]);
 
   useEffect(() => {
     if (!draftId) {
@@ -473,6 +544,16 @@ export const CreateSemesterWizardPage: React.FC = () => {
       hydratedPluginSetupDraftIdRef.current = draftId;
     }
   }, [draftId, isPluginSetupDirty, savedPluginSetupDrafts, serverPluginSetupDrafts]);
+
+  useEffect(() => {
+    setPluginSetupValidationErrors((current) => {
+      const nextEntries = Object.entries(current).filter(([pluginId]) => setupPlugins.some((plugin) => plugin.plugin_id === pluginId));
+      if (nextEntries.length === Object.keys(current).length) {
+        return current;
+      }
+      return Object.fromEntries(nextEntries);
+    });
+  }, [setupPlugins]);
 
   const invalidateDraftData = async ({ includeProgramDetail = false }: { includeProgramDetail?: boolean } = {}) => {
     if (!programId) return;
@@ -494,7 +575,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
       end_date: draftSnapshot.end_date || undefined,
       reading_week_start: draftSnapshot.reading_week_start || null,
       reading_week_end: draftSnapshot.reading_week_end || null,
-      creation_step: nextStep ?? activeStep,
+      creation_step: getPersistedStepId(nextStep ?? activeStep),
     };
 
     if (!draftId) {
@@ -551,7 +632,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const { flush: flushPluginSetup } = useAutoSave({
     value: pluginSetupDrafts,
     savedValue: savedPluginSetupDrafts,
-    enabled: Boolean(draftId) && activeStep === "plugin-setup",
+    enabled: Boolean(draftId) && getPersistedStepId(activeStep) === "plugin-setup",
     debounceMs: 400,
     maxWaitMs: 1500,
     onSave: async (snapshot) => {
@@ -590,24 +671,53 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
   const flushStepDraftChanges = async (nextStep: StepId) => {
     await basicsFlushRef.current();
-    if (activeStep === "plugin-setup" || nextStep === "review") {
+    if (getPersistedStepId(activeStep) === "plugin-setup" || nextStep === "review") {
       await pluginSetupFlushRef.current();
     }
   };
 
   const saveStepTransition = async (nextStep: StepId) => {
-    const normalizedNextStep = normalizeWizardStep(nextStep, hasSetupPlugins);
+    const normalizedNextStep = normalizeWizardStep(nextStep, setupStepPlugins);
     if (!draftId) {
       return persistBasics(normalizedNextStep);
     }
     await flushStepDraftChanges(normalizedNextStep);
-    return api.updateSemesterDraft(draftId, { creation_step: normalizedNextStep });
+    return api.updateSemesterDraft(draftId, { creation_step: getPersistedStepId(normalizedNextStep) });
+  };
+
+  const validateActivePluginSetupStep = async () => {
+    const pluginId = getPluginIdFromStepId(activeStep);
+    if (!pluginId) {
+      return true;
+    }
+
+    const plugin = setupPlugins.find((entry) => entry.plugin_id === pluginId);
+    const definition = getPluginSetupDefinitionById(pluginId);
+    if (!plugin || !definition) {
+      return true;
+    }
+
+    const issues = await validatePluginSetupDefinition(definition, pluginSetupDrafts[pluginId] ?? plugin.setup_values);
+    setPluginSetupValidationErrors((current) => ({
+      ...current,
+      [pluginId]: issues,
+    }));
+    return issues.length === 0;
   };
 
   const goToStep = async (step: StepId) => {
-    const nextStep = normalizeWizardStep(step, hasSetupPlugins);
+    const nextStep = normalizeWizardStep(step, setupStepPlugins);
     const nextIndex = stepOrder.findIndex((item) => item.id === nextStep);
     const currentIndex = stepOrder.findIndex((item) => item.id === activeStep);
+
+    if (nextIndex > currentIndex) {
+      const isCurrentPluginStepValid = await validateActivePluginSetupStep();
+      if (!isCurrentPluginStepValid) {
+        reportError("Resolve the highlighted plugin setup issues before continuing.");
+        return;
+      }
+    }
+
     setStepDirection(nextIndex >= currentIndex ? 1 : -1);
     setIsSavingStep(true);
     try {
@@ -618,7 +728,9 @@ export const CreateSemesterWizardPage: React.FC = () => {
       }
       await invalidateDraftData();
       if (result?.id) {
-        queryClient.setQueryData(queryKeys.programs.semesterDraft(programId!), result);
+        queryClient.setQueryData<Semester | null | undefined>(queryKeys.programs.semesterDraft(programId!), (current) => (
+          mergeSemesterDraftPayload(current, result)
+        ));
       }
       setCurrentStep(nextStep);
     } catch (error) {
@@ -679,19 +791,48 @@ export const CreateSemesterWizardPage: React.FC = () => {
       return;
     }
 
+    const draftQueryKey = queryKeys.programs.semesterDraft(programId);
+    const semesterDetailQueryKey = queryKeys.semesters.detail(draftId);
+    const pluginSystemSetupQueryKey = queryKeys.semesters.pluginSystemSetup(draftId);
+    const previousDraft = queryClient.getQueryData<Semester>(draftQueryKey);
+    const previousSemester = queryClient.getQueryData<Semester>(semesterDetailQueryKey);
+    const previousSetup = queryClient.getQueryData<PluginSystemSemesterSetupResponse>(pluginSystemSetupQueryKey);
+    const targetPluginIds = targets.map((plugin) => plugin.plugin_id);
+
     setIsUpdatingPluginSelection(true);
     setCurrentStep("plugins");
+    queryClient.setQueryData<Semester>(draftQueryKey, (current) => {
+      let nextSemester = current;
+      for (const plugin of targets) {
+        nextSemester = syncSemesterPluginToggle(nextSemester, plugin, checked);
+      }
+      return nextSemester;
+    });
+    queryClient.setQueryData<Semester>(semesterDetailQueryKey, (current) => {
+      let nextSemester = current;
+      for (const plugin of targets) {
+        nextSemester = syncSemesterPluginToggle(nextSemester, plugin, checked);
+      }
+      return nextSemester;
+    });
+    queryClient.setQueryData<PluginSystemSemesterSetupResponse>(pluginSystemSetupQueryKey, (current) => {
+      let nextResponse = current;
+      for (const pluginId of targetPluginIds) {
+        nextResponse = syncPluginSystemSetupResponse(nextResponse, pluginId, checked);
+      }
+      return nextResponse;
+    });
     try {
-      await Promise.all(
-        targets.map((plugin) =>
-          api.upsertSemesterPluginActivation(draftId, plugin.plugin_id, {
-            is_enabled: checked,
-          }),
-        ),
-      );
-      await api.updateSemesterDraft(draftId, { creation_step: "plugins" });
-      await invalidateDraftData();
+      const updatedDraft = await api.bulkUpdateSemesterPluginActivations(draftId, {
+        plugin_ids: targetPluginIds,
+        is_enabled: checked,
+      });
+      applyDraftPayloadToWizardCaches(queryClient, programId, updatedDraft);
+      await queryClient.invalidateQueries({ queryKey: pluginSystemSetupQueryKey });
     } catch (error) {
+      queryClient.setQueryData(draftQueryKey, previousDraft);
+      queryClient.setQueryData(semesterDetailQueryKey, previousSemester);
+      queryClient.setQueryData(pluginSystemSetupQueryKey, previousSetup);
       console.error("Failed to toggle all plugins in Semester wizard", error);
       reportError("Failed to update plugin enablement. Please retry.");
     } finally {
@@ -765,6 +906,14 @@ export const CreateSemesterWizardPage: React.FC = () => {
   };
 
   const updatePluginSetupField = (plugin: PluginSystemSemesterSetupPlugin, fieldPath: string, value: unknown) => {
+    setPluginSetupValidationErrors((current) => {
+      if (!current[plugin.plugin_id]) {
+        return current;
+      }
+      const nextErrors = { ...current };
+      delete nextErrors[plugin.plugin_id];
+      return nextErrors;
+    });
     setPluginSetupDrafts((current) => ({
       ...current,
       [plugin.plugin_id]: {
@@ -829,17 +978,29 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const hasBlockedEnabledPlugins = blockedEnabledPlugins.length > 0;
   const courseCount = courseList.length;
   const enabledPluginCount = enabledPlugins.length;
-  const reviewSummaryPlugins = enabledPlugins.filter((plugin) => (plugin.setup_summary ?? []).length > 0);
+  const blockedPluginCount = enabledPlugins.filter((plugin) => !plugin.available).length;
+  const courseReviewSummary = courseCount === 0
+    ? "No draft courses yet."
+    : buildReviewPreviewText(courseList.map((course) => course.name));
+  const pluginReviewSummary = enabledPluginCount === 0
+    ? "No plugins enabled for this Semester."
+    : buildReviewPreviewText(enabledPlugins.map((plugin) => (
+      plugin.available ? plugin.display_name : `${plugin.display_name} (blocked)`
+    )));
+  const reviewSummaryPlugins = enabledPlugins.filter((plugin) => (
+    (plugin.setup_summary ?? []).length > 0
+    || getPluginSetupDefinitionById(plugin.plugin_id)?.ui.kind === "custom"
+  ));
   const canFinalize = Boolean(
     draftId &&
     reviewReady &&
     !hasBlockedEnabledPlugins,
   );
   const StepIcon = currentStepMeta.icon;
-  const previousStepId = getPreviousStepId(activeStep, hasSetupPlugins);
-  const previousStepLabel = previousStepId ? STEP_META_BY_ID[previousStepId].label : null;
-  const nextStepId = getNextStepId(activeStep, hasSetupPlugins);
-  const nextStepLabel = nextStepId ? STEP_META_BY_ID[nextStepId].label : null;
+  const previousStepId = currentStepIndex > 0 ? stepOrder[currentStepIndex - 1]?.id ?? null : null;
+  const previousStepLabel = previousStepId ? stepOrder[currentStepIndex - 1]?.label ?? null : null;
+  const nextStepId = currentStepIndex >= 0 && currentStepIndex < stepOrder.length - 1 ? stepOrder[currentStepIndex + 1]?.id ?? null : null;
+  const nextStepLabel = nextStepId ? stepOrder[currentStepIndex + 1]?.label ?? null : null;
   const basicsValidation = getSemesterBasicsValidation(basics);
   const isReviewStep = activeStep === "review";
   const isBasicsStep = activeStep === "basics";
@@ -880,6 +1041,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
       title="Semester Courses"
       description="Review the courses assigned to this Semester draft."
       showHeader={false}
+      rootClassName="flex h-full min-h-0 flex-col"
       items={courseList}
       actionButton={(
         <Button
@@ -893,30 +1055,33 @@ export const CreateSemesterWizardPage: React.FC = () => {
         </Button>
       )}
       emptyMessage="No courses assigned."
-      minWidthClassName="min-w-[620px] sm:min-w-[720px]"
+      minWidthClassName="min-w-[34rem] sm:min-w-[42rem]"
+      shellClassName="min-h-[18rem] min-w-0 flex-1 overflow-y-auto"
+      emptyRowClassName="h-[15rem] align-middle sm:h-full"
+      tableClassName="h-full w-full min-w-full table-auto sm:w-max sm:min-w-full [&_td]:max-w-[14rem] sm:[&_td]:max-w-[18rem] [&_td]:whitespace-normal sm:[&_td]:whitespace-nowrap [&_th]:max-w-[14rem] sm:[&_th]:max-w-[18rem] [&_th]:whitespace-normal sm:[&_th]:whitespace-nowrap"
       renderHeader={() => (
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Credits</TableHead>
-          <TableHead>Grade</TableHead>
+          <TableHead className="min-w-[13rem]">Name</TableHead>
+          <TableHead className="w-[6.5rem]">Credits</TableHead>
+          <TableHead className="w-[7rem]">Grade</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       )}
       renderRow={(course) => (
-        <TableRow key={course.id}>
-          <TableCell className="font-medium">
-            <div className="flex flex-col">
-              <span>{course.name}</span>
+        <TableRow key={course.id} className="align-middle">
+          <TableCell className="align-middle font-medium">
+            <div className="flex flex-col gap-1">
+              <span className="break-words">{course.name}</span>
               {course.alias ? (
-                <span className="mt-0.5 text-xs text-muted-foreground">
+                <span className="break-words text-xs text-muted-foreground">
                   {course.alias}
                 </span>
               ) : null}
             </div>
           </TableCell>
-          <TableCell>{course.credits}</TableCell>
-          <TableCell>{formatGpaPercentage(course.grade_percentage)}</TableCell>
-          <TableCell className="text-right">
+          <TableCell className="align-middle whitespace-nowrap">{course.credits}</TableCell>
+          <TableCell className="align-middle whitespace-nowrap">{formatGpaPercentage(course.grade_percentage)}</TableCell>
+          <TableCell className="w-[3.5rem] text-right align-middle">
             <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
               <DropdownMenuItem variant="destructive" onClick={() => setPendingRemoveCourse(course)}>
                 <Trash2 className="h-4 w-4" />
@@ -934,29 +1099,30 @@ export const CreateSemesterWizardPage: React.FC = () => {
       title="Plugins"
       description="Enable or disable Program plugins for this Semester."
       showHeader={false}
+      rootClassName="flex h-full min-h-0 flex-col"
       items={pluginCatalog}
-      actionButton={(
-        <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
-          <span className="text-xs text-muted-foreground">
-            Enable All Plugin
-          </span>
-          <Switch
-            checked={pluginCatalog.some((plugin) => !plugin.locked && plugin.available) && pluginCatalog.filter((plugin) => !plugin.locked && plugin.available).every((plugin) => enabledPluginIds.has(plugin.plugin_id))}
-            aria-label="Toggle all editable plugins"
-            disabled={isUpdatingPluginSelection || !pluginCatalog.some((plugin) => (!plugin.locked && plugin.available) || (!plugin.locked && enabledPluginIds.has(plugin.plugin_id)))}
-            onCheckedChange={(checked) => {
-              void handleToggleAllPlugins(Boolean(checked));
-            }}
-          />
-        </div>
-      )}
       emptyMessage="This Program does not have any installed plugins available for Semester configuration yet."
-      minWidthClassName="min-w-[620px] sm:min-w-[720px] xl:min-w-[840px]"
+      minWidthClassName="min-w-[36rem] sm:min-w-[44rem] xl:min-w-[52rem]"
+      shellClassName="min-h-[20rem] min-w-0 flex-1 overflow-y-auto"
+      emptyRowClassName="h-[17rem] align-middle sm:h-full"
+      tableClassName="h-full w-full min-w-full table-auto sm:w-max sm:min-w-full [&_td]:max-w-[16rem] sm:[&_td]:max-w-[22rem] [&_td]:whitespace-normal sm:[&_td]:whitespace-nowrap [&_th]:max-w-[16rem] sm:[&_th]:max-w-[22rem] [&_th]:whitespace-normal sm:[&_th]:whitespace-nowrap"
       renderHeader={() => (
         <TableRow>
           <TableHead className="min-w-[220px]">Plugin</TableHead>
           <TableHead className="min-w-[120px]">Author</TableHead>
-          <TableHead className="w-[140px] text-right">Enabled</TableHead>
+          <TableHead className="w-[180px] text-right">
+            <div className="ml-auto flex w-full max-w-[172px] items-center justify-end gap-3">
+              <span>Enabled</span>
+              <Switch
+                checked={pluginCatalog.some((plugin) => !plugin.locked && plugin.available) && pluginCatalog.filter((plugin) => !plugin.locked && plugin.available).every((plugin) => enabledPluginIds.has(plugin.plugin_id))}
+                aria-label="Toggle all editable plugins"
+                disabled={isUpdatingPluginSelection || !pluginCatalog.some((plugin) => (!plugin.locked && plugin.available) || (!plugin.locked && enabledPluginIds.has(plugin.plugin_id)))}
+                onCheckedChange={(checked) => {
+                  void handleToggleAllPlugins(Boolean(checked));
+                }}
+              />
+            </div>
+          </TableHead>
         </TableRow>
       )}
       renderRow={(plugin) => {
@@ -1001,117 +1167,81 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
   const pluginSetupStepContent = (
     <div className="space-y-6">
-      {setupPlugins.length === 0 ? (
+      {setupPlugins.length === 0 || !isPluginSetupStepId(activeStep) ? (
         <div className="rounded-lg border border-dashed border-border/70 px-4 py-12 text-center text-sm text-muted-foreground">
           No enabled plugins require setup.
         </div>
       ) : (
-        <div className="space-y-8">
-          {setupPlugins.map((plugin, pluginIndex) => (
-            <section key={plugin.plugin_id} className="space-y-4">
-              {pluginIndex > 0 ? <Separator /> : null}
-              <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground sm:text-lg">{plugin.display_name}</h3>
-                <p className="text-sm text-muted-foreground">{plugin.description}</p>
-              </div>
-              <div className="space-y-6">
-                {plugin.setup_sections.map((section, sectionIndex) => (
-                  <div key={section.id} className="space-y-3">
-                    {sectionIndex > 0 ? <Separator /> : null}
-                    <div className="space-y-1">
-                      <div className="text-sm font-semibold text-foreground">{section.title}</div>
-                      <div className="text-sm text-muted-foreground">{section.description}</div>
-                    </div>
-                    <div className="space-y-4">
-                      {section.fields.map((field) => (
-                        <PluginGovernanceFieldControl
-                          key={`${plugin.plugin_id}:${section.id}:${field.path}`}
-                          field={field}
-                          value={pluginSetupDrafts[plugin.plugin_id]?.[field.path] ?? field.default_value}
-                          description={field.description}
-                          error={plugin.review_errors.find((issue) => issue.field_path === field.path)?.message ?? null}
-                          onChange={(value) => updatePluginSetupField(plugin, field.path, value)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+        setupPlugins
+          .filter((plugin) => plugin.plugin_id === getPluginIdFromStepId(activeStep))
+          .map((plugin) => (
+            <section key={plugin.plugin_id}>
+              <PluginSetupStepRenderer
+                plugin={plugin}
+                values={pluginSetupDrafts[plugin.plugin_id] ?? plugin.setup_values}
+                localErrors={pluginSetupValidationErrors[plugin.plugin_id] ?? []}
+                onValueChange={(fieldPath, value) => updatePluginSetupField(plugin, fieldPath, value)}
+              />
             </section>
-          ))}
-        </div>
+          ))
       )}
     </div>
   );
 
   const reviewStepContent = (
     <div className="space-y-6">
-      <section className="space-y-3">
-        <h3 className="text-lg font-semibold text-foreground sm:text-xl">Basics</h3>
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <div className="text-xs font-medium tracking-wide text-muted-foreground">Semester Name</div>
-            <div className="text-base font-semibold text-foreground sm:text-lg">{basics.name || "Untitled Semester"}</div>
+      <section className="rounded-2xl border border-border/70 bg-card px-5 py-5 shadow-none">
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-muted-foreground">Semester</div>
+            <div className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              {basics.name || "Untitled Semester"}
+            </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+
+          <div className="grid gap-4 border-t border-border/70 pt-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <div className="text-xs font-medium tracking-wide text-muted-foreground">Date Range</div>
-              <div className="text-sm text-foreground">
+              <div className="text-sm font-medium text-muted-foreground">Date Range</div>
+              <div className="text-base font-medium text-foreground sm:text-lg">
                 {basics.start_date && basics.end_date
                   ? `${basics.start_date} to ${basics.end_date}`
                   : "Start and end dates are not set yet."}
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-xs font-medium tracking-wide text-muted-foreground">Reading Week</div>
-              <div className="text-sm text-foreground">
+              <div className="text-sm font-medium text-muted-foreground">Reading Week</div>
+              <div className="text-base font-medium text-foreground sm:text-lg">
                 {basics.reading_week_start && basics.reading_week_end
                   ? `${basics.reading_week_start} to ${basics.reading_week_end}`
                   : "No reading week configured"}
               </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <Accordion type="multiple" defaultValue={["review-courses", "review-plugins"]} className="rounded-xl border border-border/70 px-4">
-        <AccordionItem value="review-courses">
-          <AccordionTrigger className="py-5 hover:no-underline">
-            <div className="space-y-1 text-left">
+          <div className="grid gap-4 border-t border-border/70 pt-4 lg:grid-cols-2">
+            <div className="space-y-1">
               <div className="font-medium text-foreground">Courses</div>
               <div className="text-sm text-muted-foreground">{courseCount} courses</div>
             </div>
-          </AccordionTrigger>
-          <AccordionContent className="pb-5">
-            <div className="space-y-2 text-sm text-muted-foreground">
-              {courseCount === 0 ? <div>No draft courses yet.</div> : null}
-              {courseList.slice(0, REVIEW_COURSE_PREVIEW_LIMIT).map((course) => (
-                <div key={course.id}>{course.name}</div>
-              ))}
-              {courseCount > REVIEW_COURSE_PREVIEW_LIMIT ? <div>and {courseCount - REVIEW_COURSE_PREVIEW_LIMIT} more</div> : null}
+            <div className="text-sm leading-6 text-muted-foreground">
+              {courseReviewSummary}
             </div>
-          </AccordionContent>
-        </AccordionItem>
-        <AccordionItem value="review-plugins">
-          <AccordionTrigger className="py-5 hover:no-underline">
-            <div className="space-y-1 text-left">
+          </div>
+
+          <div className="grid gap-4 border-t border-border/70 pt-4 lg:grid-cols-2">
+            <div className="space-y-1">
               <div className="font-medium text-foreground">Plugins</div>
-              <div className="text-sm text-muted-foreground">{enabledPluginCount} enabled</div>
+              <div className="text-sm text-muted-foreground">
+                {enabledPluginCount} enabled
+                {blockedPluginCount > 0 ? ` · ${blockedPluginCount} blocked` : ""}
+              </div>
             </div>
-          </AccordionTrigger>
-          <AccordionContent className="pb-5">
-            <div className="space-y-2 text-sm text-muted-foreground">
-              {enabledPluginCount === 0 ? <div>No plugins enabled for this Semester.</div> : null}
-              {enabledPlugins.map((plugin) => (
-                <div key={plugin.plugin_id}>
-                  {plugin.display_name}
-                  {!plugin.available ? " · Blocked" : ""}
-                </div>
-              ))}
+            <div className="text-sm leading-6 text-muted-foreground">
+              {pluginReviewSummary}
             </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+          </div>
+        </div>
+      </section>
 
       {reviewSummaryPlugins.length > 0 ? (
         <div className="space-y-4">
@@ -1126,25 +1256,10 @@ export const CreateSemesterWizardPage: React.FC = () => {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pb-1">
-                  <div className="space-y-6">
-                    {(plugin.setup_summary ?? []).map((section, sectionIndex) => (
-                      <div key={`${plugin.plugin_id}:${section.id}`} className="space-y-3">
-                        {sectionIndex > 0 ? <Separator /> : null}
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium text-foreground">{section.title}</div>
-                          {section.description ? <div className="text-sm text-muted-foreground">{section.description}</div> : null}
-                        </div>
-                        <div className="space-y-2">
-                          {section.items.map((item) => (
-                            <div key={`${section.id}:${item.path}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-3 text-sm">
-                              <span className="text-muted-foreground">{item.label}</span>
-                              <span className="font-medium text-foreground">{item.value}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <PluginSetupReviewRenderer
+                    plugin={plugin}
+                    values={getPluginReviewValues(plugin, pluginSetupDrafts[plugin.plugin_id])}
+                  />
                 </AccordionContent>
               </AccordionItem>
             ))}
@@ -1218,7 +1333,10 @@ export const CreateSemesterWizardPage: React.FC = () => {
                   animate={{ opacity: 1, x: 0 }}
                   exit={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: stepDirection > 0 ? -24 : 24 }}
                   transition={prefersReducedMotion ? { duration: 0.12 } : { type: "spring", stiffness: 340, damping: 34, mass: 0.78 }}
-                  className="space-y-6 pr-1"
+                  className={cn(
+                    "space-y-6 pr-1",
+                    activeStep === "courses" || activeStep === "plugins" ? "flex h-full min-h-0 flex-col" : "",
+                  )}
                 >
               {activeStep === "basics" ? basicsStepContent : null}
 
@@ -1226,7 +1344,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
               {activeStep === "plugins" ? pluginsStepContent : null}
 
-              {activeStep === "plugin-setup" ? pluginSetupStepContent : null}
+              {isPluginSetupStepId(activeStep) ? pluginSetupStepContent : null}
 
               {activeStep === "review" ? reviewStepContent : null}
                 </motion.div>
@@ -1296,7 +1414,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
               <div className="sm:order-3 sm:flex sm:justify-end">
                 <Button onClick={handlePrimaryAction} disabled={isPrimaryActionDisabled} className="w-full sm:w-auto">
                   {primaryActionLabel}
-                  {isReviewStep ? null : <ArrowRight className="ml-2 h-4 w-4" />}
+                  {isReviewStep ? <Check className="ml-2 h-4 w-4" /> : <ArrowRight className="ml-2 h-4 w-4" />}
                 </Button>
               </div>
             </div>
@@ -1309,6 +1427,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
         onClose={() => setIsCourseManagerOpen(false)}
         programId={programId!}
         semesterId={draftId}
+        closeOnSuccess
         onCourseAdded={() => invalidateDraftData()}
       />
       <AlertDialog

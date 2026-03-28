@@ -32,5 +32,6 @@ export default definePluginMetadata({
     description: 'Workspace overview tab and widget entry point.',
     longDescription: 'Dashboard is the default workspace landing tab. It collects widgets, summaries, and shortcuts into a single overview surface for semester and course workspaces.',
     icon: pluginIcon,
+    supportsUnassignedCourse: true,
     tabCatalog,
 });

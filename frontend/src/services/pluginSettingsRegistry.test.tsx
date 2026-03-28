@@ -1,6 +1,6 @@
 // input:  [plugin settings registry class, React component stubs, and Vitest assertions]
 // output: [test suite covering plugin-global settings ordering, filtering, and replacement behavior]
-// pos:    [unit tests for the plugin-global settings registry after the API decoupling cleanup]
+// pos:    [unit tests for the plugin-global settings registry after the API decoupling cleanup, including Program context filtering]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -31,12 +31,15 @@ describe('PluginSettingsRegistryClass', () => {
 
     const firstAll = registry.getAllPluginSettingsSections();
     const secondAll = registry.getAllPluginSettingsSections();
+    const firstProgram = registry.getAllPluginSettingsSections('program');
+    const secondProgram = registry.getAllPluginSettingsSections('program');
     const firstSemester = registry.getAllPluginSettingsSections('semester');
     const secondSemester = registry.getAllPluginSettingsSections('semester');
     const firstCourse = registry.getAllPluginSettingsSections('course');
     const secondCourse = registry.getAllPluginSettingsSections('course');
 
     expect(secondAll).toBe(firstAll);
+    expect(secondProgram).toBe(firstProgram);
     expect(secondSemester).toBe(firstSemester);
     expect(secondCourse).toBe(firstCourse);
   });
@@ -50,6 +53,11 @@ describe('PluginSettingsRegistryClass', () => {
         component: NullSettingsSection,
       },
       {
+        id: 'program-only',
+        component: NullSettingsSection,
+        allowedContexts: ['program'],
+      },
+      {
         id: 'semester-only',
         component: NullSettingsSection,
         allowedContexts: ['semester'],
@@ -61,6 +69,13 @@ describe('PluginSettingsRegistryClass', () => {
         component: NullSettingsSection,
         allowedContexts: ['course'],
       },
+    ]);
+
+    expect(
+      registry.getAllPluginSettingsSections('program').map(({ pluginId, id }) => `${pluginId}:${id}`)
+    ).toEqual([
+      'plugin-alpha:shared',
+      'plugin-alpha:program-only',
     ]);
 
     expect(

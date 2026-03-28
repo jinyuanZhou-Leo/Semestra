@@ -38,7 +38,6 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus, Trash2 } from 'lucide-react';
 import { ResponsiveDialogDrawer } from '../components/ResponsiveDialogDrawer';
 
@@ -114,7 +113,7 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
                 title="Create Program"
                 description="Enter a program name and graduation requirement credits."
                 desktopContentClassName="sm:max-w-[425px]"
-                mobileContentClassName="h-[85vh] max-h-[85vh]"
+                mobileHeaderClassName="text-left"
                 footer={(
                     <>
                         <Button type="button" variant="outline" onClick={() => setOpen(false)}>
@@ -125,40 +124,37 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
                         </Button>
                     </>
                 )}
-                desktopFooterClassName="pt-4"
-                mobileFooterClassName="px-0"
+                mobileFooterClassName="pt-2"
             >
-                <ScrollArea className="min-h-0">
-                    <form
-                        id={createProgramFormId}
-                        onSubmit={handleCreateProgram}
-                        className="space-y-4 px-4 pb-4 sm:px-0 sm:pb-0 sm:space-y-4 sm:py-4"
-                    >
-                        <div className="grid gap-2">
-                            <Label htmlFor={programNameId}>Program Name</Label>
-                            <Input
-                                id={programNameId}
-                                placeholder="e.g. Computer Science"
-                                value={newProgramName}
-                                onChange={(e) => setNewProgramName(e.target.value)}
-                                required
-                                autoFocus
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor={programCreditsId}>Graduation Requirement (Credits)</Label>
-                            <Input
-                                id={programCreditsId}
-                                type="number"
-                                step="0.5"
-                                placeholder="e.g. 120"
-                                value={newProgramCredits}
-                                onChange={(e) => setNewProgramCredits(e.target.value)}
-                                required
-                            />
-                        </div>
-                    </form>
-                </ScrollArea>
+                <form
+                    id={createProgramFormId}
+                    onSubmit={handleCreateProgram}
+                    className="grid gap-4 px-4 md:px-0"
+                >
+                    <div className="grid gap-2">
+                        <Label htmlFor={programNameId}>Program Name</Label>
+                        <Input
+                            id={programNameId}
+                            placeholder="e.g. Computer Science"
+                            value={newProgramName}
+                            onChange={(e) => setNewProgramName(e.target.value)}
+                            required
+                            autoFocus
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor={programCreditsId}>Graduation Requirement (Credits)</Label>
+                        <Input
+                            id={programCreditsId}
+                            type="number"
+                            step="0.5"
+                            placeholder="e.g. 120"
+                            value={newProgramCredits}
+                            onChange={(e) => setNewProgramCredits(e.target.value)}
+                            required
+                        />
+                    </div>
+                </form>
             </ResponsiveDialogDrawer>
         </>
     );

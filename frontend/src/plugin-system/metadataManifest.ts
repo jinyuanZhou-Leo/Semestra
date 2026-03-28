@@ -1,6 +1,6 @@
 // input:  [frontend plugin metadata modules, optional settings/setup module discovery, and default context helpers]
 // output: [`buildPluginMetadataManifest` helper plus manifest entry type for backend consumption]
-// pos:    [build-time serialization bridge that converts frontend plugin metadata into a backend-readable JSON manifest]
+// pos:    [build-time serialization bridge that converts frontend plugin metadata, including unassigned-Course capability flags, into a backend-readable JSON manifest]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -24,6 +24,7 @@ export interface PluginMetadataManifestEntry {
     available_tab_types: string[];
     available_widget_types: string[];
     has_settings: boolean;
+    supports_unassigned_course: boolean;
   };
 }
 
@@ -70,6 +71,7 @@ export const buildPluginMetadataManifest = (): PluginMetadataManifestEntry[] => 
             || Boolean(settingsModules[`../plugins/${directoryName}/settings.tsx`])
             || Boolean(setupModules[`../plugins/${directoryName}/setup.ts`])
             || Boolean(setupModules[`../plugins/${directoryName}/setup.tsx`]),
+          supports_unassigned_course: Boolean(definition.supportsUnassignedCourse),
         },
       };
     })

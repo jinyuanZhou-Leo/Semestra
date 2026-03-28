@@ -1,13 +1,20 @@
-// input:  [plugin metadata modules, optional plugin setup modules, setup DSL contracts, and Vite eager module discovery]
+// input:  [plugin metadata modules, optional plugin setup modules, setup contracts including UI/validation hooks, and Vite eager module discovery]
 // output: [validated plugin setup registry facade plus backend-manifest serialization helpers]
-// pos:    [Pure plugin setup registry that bridges frontend-authored setup DSL definitions into host/runtime facades and generated backend setup manifests]
+// pos:    [Plugin setup registry that bridges frontend-authored DSL-or-custom setup definitions into wizard/runtime facades while serializing only backend-safe field and section manifests]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { PluginMetadataDefinition } from "./contracts";
-import { definePluginSetup, type PluginSetupDefinition, type PluginSetupFieldDefinition, type PluginSetupPersist, type PluginSetupSectionDefinition } from "./setup";
+import {
+    definePluginSetup,
+    type PluginSetupDefinition,
+    type PluginSetupFieldDefinition,
+    type PluginSetupPersist,
+    type PluginSetupSectionDefinition,
+    type PluginSetupUiDefinition,
+} from "./setup";
 
 type PluginMetadataModule = {
     default?: PluginMetadataDefinition;
@@ -22,6 +29,8 @@ export interface RegisteredPluginSetupDefinition {
     fields: Record<string, PluginSetupFieldDefinition>;
     fieldOrder: string[];
     sections: PluginSetupSectionDefinition[];
+    ui: PluginSetupUiDefinition;
+    validate?: PluginSetupDefinition["validate"];
 }
 
 export interface PluginSetupManifestField {
@@ -51,7 +60,10 @@ export interface PluginSetupManifestEntry {
 }
 
 const metadataModules = import.meta.glob("../plugins/*/metadata.ts", { eager: true }) as Record<string, PluginMetadataModule>;
-const setupModules = import.meta.glob("../plugins/*/setup.ts", { eager: true }) as Record<string, PluginSetupModule>;
+const setupModules = {
+    ...import.meta.glob("../plugins/*/setup.ts", { eager: true }),
+    ...import.meta.glob("../plugins/*/setup.tsx", { eager: true }),
+} as Record<string, PluginSetupModule>;
 
 const isDev = import.meta.env.DEV;
 
@@ -100,9 +112,9 @@ const validateSetupFieldDefinition = (
     }
 };
 
-export const createRegisteredPluginSetupDefinition = (
+export const createRegisteredPluginSetupDefinition = <TFields extends Record<string, PluginSetupFieldDefinition>>(
     pluginId: string,
-    definition: PluginSetupDefinition,
+    definition: PluginSetupDefinition<TFields>,
 ): RegisteredPluginSetupDefinition => {
     const normalized = definePluginSetup(definition);
     const fieldEntries = Object.entries(normalized.fields);
@@ -150,11 +162,13 @@ export const createRegisteredPluginSetupDefinition = (
             ...sectionDefinition,
             fieldKeys: [...sectionDefinition.fieldKeys],
         })),
+        ui: normalized.ui ?? { kind: "dsl" },
+        validate: normalized.validate as RegisteredPluginSetupDefinition["validate"],
     };
 };
 
 const setupEntries = Object.entries(setupModules).flatMap(([path, moduleValue]) => {
-    const directoryName = getDirectoryName(path, "setup\\.ts");
+    const directoryName = getDirectoryName(path, "setup\\.(ts|tsx)");
     if (!directoryName) {
         failValidation(`[plugin-system] Invalid setup module path: ${path}`);
         return [];
@@ -233,6 +247,8 @@ export const getAllPluginSetupDefinitions = (): RegisteredPluginSetupDefinition[
             ...sectionDefinition,
             fieldKeys: [...sectionDefinition.fieldKeys],
         })),
+        ui: definition.ui,
+        validate: definition.validate,
     }));
 };
 
@@ -249,6 +265,8 @@ export const getPluginSetupDefinitionById = (pluginId: string): RegisteredPlugin
             ...sectionDefinition,
             fieldKeys: [...sectionDefinition.fieldKeys],
         })),
+        ui: definition.ui,
+        validate: definition.validate,
     };
 };
 

@@ -1,6 +1,6 @@
-// input:  [open state + change callback, viewport breakpoint state, title/description metadata, dialog/drawer surface classes, body/footer content, and optional close-button visibility flags]
+// input:  [open state + change callback, viewport breakpoint state, title/description metadata, and dialog/drawer surface classes plus body/footer content]
 // output: [`ResponsiveDialogDrawer` component]
-// pos:    [Shared responsive overlay wrapper that renders Dialog on desktop and Drawer on mobile with configurable built-in close affordances]
+// pos:    [Shared responsive overlay wrapper that renders Dialog on desktop and Drawer on mobile with the same minimal composition as the shadcn responsive demo]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -27,7 +27,6 @@ interface ResponsiveDialogDrawerProps {
     mobileFooterClassName?: string;
     titleClassName?: string;
     descriptionClassName?: string;
-    showDesktopCloseButton?: boolean;
 }
 
 export const ResponsiveDialogDrawer: React.FC<ResponsiveDialogDrawerProps> = ({
@@ -45,32 +44,13 @@ export const ResponsiveDialogDrawer: React.FC<ResponsiveDialogDrawerProps> = ({
     mobileFooterClassName,
     titleClassName,
     descriptionClassName,
-    showDesktopCloseButton = true,
 }) => {
     const isMobile = useIsMobile();
-
-    React.useEffect(() => {
-        if (!open || typeof document === 'undefined') return;
-
-        const focusIntoOverlay = () => {
-            const activeElement = document.activeElement as HTMLElement | null;
-            const selector = isMobile ? '[data-slot="drawer-content"]' : '[data-slot="dialog-content"]';
-            const overlayContent = document.querySelector<HTMLElement>(selector);
-            if (!overlayContent) return;
-
-            if (activeElement && overlayContent.contains(activeElement)) return;
-            if (activeElement) activeElement.blur();
-            overlayContent.focus({ preventScroll: true });
-        };
-
-        const rafId = window.requestAnimationFrame(focusIntoOverlay);
-        return () => window.cancelAnimationFrame(rafId);
-    }, [open, isMobile]);
 
     if (isMobile) {
         return (
             <Drawer open={open} onOpenChange={onOpenChange}>
-                <DrawerContent tabIndex={-1} className={mobileContentClassName} aria-describedby={description ? undefined : undefined}>
+                <DrawerContent className={mobileContentClassName}>
                     <DrawerHeader className={cn("text-left", mobileHeaderClassName)}>
                         <DrawerTitle className={titleClassName}>{title}</DrawerTitle>
                         {description ? (
@@ -92,7 +72,7 @@ export const ResponsiveDialogDrawer: React.FC<ResponsiveDialogDrawerProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent tabIndex={-1} className={desktopContentClassName} showCloseButton={showDesktopCloseButton} aria-describedby={description ? undefined : undefined}>
+            <DialogContent className={desktopContentClassName}>
                 <DialogHeader className={desktopHeaderClassName}>
                     <DialogTitle className={titleClassName}>{title}</DialogTitle>
                     {description ? (

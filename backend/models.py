@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints, and dialect-specific partial-index expressions]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin governance rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, auth security state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin governance rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, unassigned-Course plugin activation rows with per-course enablement, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, unassigned-Course plugin activation state, auth security state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -174,6 +174,7 @@ class ProgramPluginInstallation(Base):
 
     program = relationship("Program", back_populates="plugin_installations")
     semester_activations = relationship("SemesterPluginActivation", back_populates="program_plugin_installation", cascade="all, delete-orphan")
+    course_activations = relationship("ProgramCoursePluginActivation", back_populates="program_plugin_installation", cascade="all, delete-orphan")
 
 
 class SemesterPluginActivation(Base):
@@ -205,6 +206,33 @@ class SemesterPluginActivation(Base):
     program_plugin_installation = relationship("ProgramPluginInstallation", back_populates="semester_activations")
 
 
+class ProgramCoursePluginActivation(Base):
+    __tablename__ = "program_course_plugin_activations"
+    __table_args__ = (
+        UniqueConstraint(
+            "course_id",
+            "program_plugin_installation_id",
+            name="uq_program_course_plugin_activations_course_installation",
+        ),
+        Index("ix_program_course_plugin_activations_course", "course_id"),
+        Index("ix_program_course_plugin_activations_installation", "program_plugin_installation_id"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    course_id = Column(String, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    program_plugin_installation_id = Column(
+        String,
+        ForeignKey("program_plugin_installations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+    course = relationship("Course", back_populates="plugin_activations")
+    program_plugin_installation = relationship("ProgramPluginInstallation", back_populates="course_activations")
+
+
 class Course(Base):
     __tablename__ = "courses"
     
@@ -228,6 +256,7 @@ class Course(Base):
     widgets = relationship("Widget", back_populates="course_context", cascade="all, delete-orphan")
     tabs = relationship("Tab", back_populates="course_context", cascade="all, delete-orphan")
     plugin_settings = relationship("PluginSetting", back_populates="course_context", cascade="all, delete-orphan")
+    plugin_activations = relationship("ProgramCoursePluginActivation", back_populates="course", cascade="all, delete-orphan")
     event_types = relationship("CourseEventType", back_populates="course", cascade="all, delete-orphan")
     sections = relationship("CourseSection", back_populates="course", cascade="all, delete-orphan")
     events = relationship("CourseEvent", back_populates="course", cascade="all, delete-orphan")

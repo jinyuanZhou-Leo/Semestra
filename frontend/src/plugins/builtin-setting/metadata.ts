@@ -32,5 +32,6 @@ export default definePluginMetadata({
     description: 'Workspace settings and configuration surfaces.',
     longDescription: 'Settings is the built-in configuration surface for semester and course workspaces. It centralizes plugin setup, workspace preferences, and integration-specific controls.',
     icon: pluginIcon,
+    supportsUnassignedCourse: true,
     tabCatalog,
 });

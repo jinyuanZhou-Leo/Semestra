@@ -1,6 +1,6 @@
-// input:  [active widget payload, widget registry settings component lookup, status-button feedback, save callback, and dialog open state]
+// input:  [active widget payload, widget registry settings component lookup, status-button feedback, save callback, dialog open state, and shadcn scroll area]
 // output: [`WidgetSettingsModal` component]
-// pos:    [Per-widget settings editor modal that preserves the last widget payload through close animation and commits changes on explicit save]
+// pos:    [Per-widget settings editor modal that preserves the last widget payload through close animation, keeps long settings forms scroll-safe, and commits changes on explicit save]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,8 +9,9 @@
 "use no memo";
 
 import React, { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { StatusButton } from "./StatusButton";
 import {
   getResolvedWidgetMetadataByType,
@@ -76,14 +77,14 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
   if (!SettingsComponent) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="p-0 sm:max-w-[520px]">
-          <DialogHeader className="border-b px-6 py-4">
+        <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
+          <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
             <DialogTitle className="text-base font-semibold">{displayWidgetName} Settings</DialogTitle>
             <DialogDescription className="sr-only">
               Configure settings for {displayWidgetName}.
             </DialogDescription>
           </DialogHeader>
-          <div className="p-6">
+          <div className="px-6 py-5">
             <div
               className="relative w-full rounded-lg border bg-background p-4 text-foreground [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7"
               role="alert"
@@ -108,8 +109,8 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
         if (!open && saveState !== "saving") onClose();
       }}
     >
-      <DialogContent className="p-0 sm:max-w-[520px]">
-        <DialogHeader className="border-b px-6 py-4">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle className="text-base font-semibold">
             {displayWidgetName} Settings
           </DialogTitle>
@@ -117,17 +118,19 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
             Configure settings for {displayWidgetName}.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSave} className="p-6">
-          <div className="space-y-4">
-            <SettingsComponent
-              widgetId={activeWidget?.id}
-              semesterId={semesterId}
-              courseId={courseId}
-              settings={draftSettings}
-              onSettingsChange={setDraftSettings}
-            />
-          </div>
-          <div className="mt-6 flex justify-end gap-3">
+        <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="space-y-4 px-6 py-5">
+              <SettingsComponent
+                widgetId={activeWidget?.id}
+                semesterId={semesterId}
+                courseId={courseId}
+                settings={draftSettings}
+                onSettingsChange={setDraftSettings}
+              />
+            </div>
+          </ScrollArea>
+          <DialogFooter className="shrink-0 border-t px-6 pt-4 pb-6">
             <Button
               type="button"
               variant="secondary"
@@ -142,7 +145,7 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
               status={saveState}
               animated={false}
             />
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

@@ -1,5 +1,5 @@
 // input:  [course-list global settings runtime, mocked semester API responses, and testing-library helpers]
-// output: [test suite validating stale-response protection and guarded course-manager entry states]
+// output: [test suite validating stale-response protection, the narrowed table minimum width, and guarded course-manager entry states]
 // pos:    [Plugin-level regression tests for the course-list global settings surface]
 //
 // ⚠️ When this file is updated:
@@ -120,5 +120,17 @@ describe('CourseListGlobalSettings', () => {
         fireEvent.click(manageButton);
         expect(screen.queryByTestId('course-manager-modal')).not.toBeInTheDocument();
         expect(toastError).not.toHaveBeenCalled();
+    });
+
+    it('uses a narrower table minimum width than the shared default for the semester courses table', async () => {
+        vi.spyOn(api, 'getSemester').mockResolvedValueOnce(buildSemesterResponse('semester-1', 'Physics'));
+
+        render(<CourseListGlobalSettings {...buildPluginSettingsProps('semester-1')} />);
+
+        const table = await screen.findByRole('table');
+        const minWidthWrapper = table.parentElement?.parentElement;
+
+        expect(minWidthWrapper).toHaveClass('min-w-[34rem]', 'sm:min-w-[38rem]');
+        expect(minWidthWrapper).not.toHaveClass('min-w-[720px]');
     });
 });

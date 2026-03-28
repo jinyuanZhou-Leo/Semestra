@@ -34,5 +34,6 @@ export default definePluginMetadata({
     description: 'Track simple counts with fast manual updates.',
     longDescription: 'Counter is a minimal tool for keeping track of values that change over time and do not need a full spreadsheet or database. It can be used for repetitions, reading progress, task counts, attendance, or any other quick-running total. Its strength is speed: a clear number, quick controls, and almost no overhead between noticing a change and recording it.',
     icon: pluginIcon,
+    supportsUnassignedCourse: true,
     widgetCatalog,
 });

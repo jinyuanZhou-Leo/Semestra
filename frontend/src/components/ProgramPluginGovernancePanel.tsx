@@ -1,6 +1,6 @@
 // input:  [Program id, program plugin governance APIs, query cache, plugin-manifest icon helpers, shared settings-section primitives, the shared data-table shell, the responsive plugin marketplace surface, shared plugin details, and shared row-actions dropdown helpers]
 // output: [`ProgramPluginGovernancePanel` component]
-// pos:    [Program settings surface for plugin-level install, enable, disable, delete, and reusable plugin-info flows using the shared data-table pattern plus a shadcn-style row-actions dropdown, with downstream Semester/Course cache invalidation after Program plugin changes]
+// pos:    [Program settings surface for plugin-level install, enable, disable, delete, and reusable plugin-info flows using the shared data-table pattern plus an explicit plugin-table minimum width and a shadcn-style row-actions dropdown, with downstream Semester/Course cache invalidation after Program plugin changes]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -70,6 +70,23 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
     () => (pluginCatalogQuery.data ?? []).filter(isInstalled),
     [pluginCatalogQuery.data],
   );
+  const bulkToggleCandidates = useMemo(
+    () => installedPlugins.filter((plugin) => !plugin.locked),
+    [installedPlugins],
+  );
+  const canEnableAll = useMemo(
+    () => bulkToggleCandidates.some((plugin) => {
+      const localDisableReason = isLocalDisableReason(plugin);
+      const blockedByPrerequisite = plugin.available === false && !localDisableReason;
+      return !plugin.is_enabled && !blockedByPrerequisite;
+    }),
+    [bulkToggleCandidates],
+  );
+  const canDisableAll = useMemo(
+    () => bulkToggleCandidates.some((plugin) => plugin.is_enabled),
+    [bulkToggleCandidates],
+  );
+  const areAllBulkToggleCandidatesEnabled = bulkToggleCandidates.length > 0 && bulkToggleCandidates.every((plugin) => plugin.is_enabled);
   const marketplaceDialogItems = useMemo(
     () => (pluginCatalogQuery.data ?? []).map((plugin) => ({
       pluginId: plugin.plugin_id,
@@ -130,6 +147,33 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
     }
   };
 
+  const handleToggleAllEnabled = async (nextEnabled: boolean) => {
+    const targetPluginIds = bulkToggleCandidates
+      .filter((plugin) => {
+        const localDisableReason = isLocalDisableReason(plugin);
+        const blockedByPrerequisite = plugin.available === false && !localDisableReason;
+        return nextEnabled
+          ? !plugin.is_enabled && !blockedByPrerequisite
+          : plugin.is_enabled;
+      })
+      .map((plugin) => plugin.plugin_id);
+
+    if (targetPluginIds.length === 0) {
+      return;
+    }
+
+    setTogglingPluginId("__bulk__");
+    try {
+      await api.bulkUpdateProgramPluginInstallations(programId, {
+        plugin_ids: targetPluginIds,
+        is_enabled: nextEnabled,
+      });
+      await invalidateAll();
+    } finally {
+      setTogglingPluginId(null);
+    }
+  };
+
   const handleDelete = async () => {
     if (!pendingDelete) return;
     setDeletingPluginId(pendingDelete.plugin_id);
@@ -154,6 +198,7 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
         items={installedPlugins}
         isLoading={pluginCatalogQuery.isLoading}
         emptyMessage="No plugins are installed for this Program yet."
+        minWidthClassName="min-w-[40rem] sm:min-w-[48rem]"
         actionButton={(
           <Button type="button" className="shrink-0 self-start" onClick={() => setIsMarketplaceOpen(true)}>
             <PackagePlus className="mr-2 h-4 w-4" />
@@ -164,7 +209,19 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
           <TableRow>
             <TableHead>Plugin</TableHead>
             <TableHead>Author</TableHead>
-            <TableHead className="text-right">Enabled</TableHead>
+            <TableHead className="w-[180px] text-right">
+              <div className="ml-auto flex w-full max-w-[172px] items-center justify-end gap-3">
+                <span>Enabled</span>
+                <Switch
+                  checked={areAllBulkToggleCandidatesEnabled}
+                  aria-label="Toggle all editable Program plugins"
+                  disabled={togglingPluginId !== null || (!canEnableAll && !canDisableAll)}
+                  onCheckedChange={(checked) => {
+                    void handleToggleAllEnabled(Boolean(checked));
+                  }}
+                />
+              </div>
+            </TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         )}
@@ -243,8 +300,8 @@ export const ProgramPluginGovernancePanel: React.FC<ProgramPluginGovernancePanel
         title="Plugin Information"
         desktopContentClassName="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-3xl h-[640px] flex flex-col"
         mobileContentClassName="gap-0 overflow-hidden border-border/70 p-0 h-[85vh] max-h-[85vh] flex flex-col"
-        desktopHeaderClassName="border-b border-border/70 px-6 py-5 pr-14 flex-none"
-        mobileHeaderClassName="border-b border-border/70 px-6 py-5 flex-none"
+        desktopHeaderClassName="border-b border-border/70 px-6 pt-6 pb-4 flex-none"
+        mobileHeaderClassName="border-b border-border/70 px-6 pt-6 pb-4 flex-none text-left"
       >
         {detailPlugin ? (
           <ScrollArea className="min-h-0 flex-1 px-6 py-5">

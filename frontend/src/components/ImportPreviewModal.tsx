@@ -248,7 +248,7 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
             }}
         >
             <DialogContent className="select-none flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
-                <DialogHeader className="gap-1 border-b bg-muted/20 px-5 py-4">
+                <DialogHeader className="gap-1 border-b bg-muted/20 px-6 pt-6 pb-4">
                     <DialogTitle className="flex items-center gap-2 text-base font-semibold sm:text-lg">
                         <FileDown className="size-4 text-primary" />
                         Import Preview

@@ -1,6 +1,6 @@
-// input:  [plugin manifests/settings/runtime modules via `import.meta.glob`, validated plugin setup registry facade, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
-// output: [plugin facade helpers for plugin manifests, contribution catalogs, setup definitions, load state, load-state subscriptions, metadata resolution, plugin-global settings, tab/widget ownership lookups, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
-// pos:    [Central plugin manager facade that validates plugin manifests, keeps plugin icons/settings/setup eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs including tab/widget ownership lookup helpers]
+// input:  [plugin manifests/settings/runtime modules via `import.meta.glob`, validated plugin setup registry facade, setup validation/render contracts, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
+// output: [plugin facade helpers for plugin manifests, contribution catalogs, setup definitions plus validation/render helpers, load state, load-state subscriptions, metadata resolution, plugin-global settings, tab/widget ownership lookups, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
+// pos:    [Central plugin manager facade that validates plugin manifests, keeps plugin icons/settings/setup eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs including tab/widget ownership lookup helpers and plugin setup authoring primitives]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -55,10 +55,12 @@ export {
     definePluginSetup,
     jsonField,
     numberField,
+    resolvePluginSetupValues,
     section,
     selectField,
     textField,
     textareaField,
+    validatePluginSetupDefinition,
 } from './setup';
 import type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem, WidgetLayoutDefinition } from './types';
 import {
@@ -73,11 +75,21 @@ export type { PluginMetadataDefinition, PluginRuntimeDefinition, PluginSettingsD
 export { definePluginMetadata, definePluginRuntime, definePluginSettings } from './contracts';
 export type {
     InferPluginSetupValues,
+    PluginSetupCustomUiDefinition,
     PluginSetupDefinition,
     PluginSetupFieldDefinition,
     PluginSetupFieldType,
     PluginSetupPersist,
+    PluginSetupRenderDefinition,
+    PluginSetupReviewRenderProps,
+    PluginSetupReviewSummaryItem,
+    PluginSetupReviewSummarySection,
     PluginSetupSectionDefinition,
+    PluginSetupUiDefinition,
+    PluginSetupValidationContext,
+    PluginSetupValidationIssue,
+    PluginSetupValidator,
+    PluginSetupWizardRenderProps,
 } from './setup';
 export type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
 export type {

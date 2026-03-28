@@ -338,9 +338,14 @@ def _load_manifest_capabilities(plugin_id: str, raw_capabilities: Any) -> dict[s
     if not isinstance(raw_capabilities, dict):
         _raise_manifest_error(f"Generated plugin metadata manifest entry '{plugin_id}' is missing capabilities.")
     has_settings = raw_capabilities.get("has_settings")
+    supports_unassigned_course = raw_capabilities.get("supports_unassigned_course")
     if not isinstance(has_settings, bool):
         _raise_manifest_error(
             f"Generated plugin metadata manifest entry '{plugin_id}' capability 'has_settings' must be a boolean."
+        )
+    if not isinstance(supports_unassigned_course, bool):
+        _raise_manifest_error(
+            f"Generated plugin metadata manifest entry '{plugin_id}' capability 'supports_unassigned_course' must be a boolean."
         )
     return {
         "contexts": _load_manifest_string_list(plugin_id, "capabilities.contexts", raw_capabilities.get("contexts")),
@@ -355,6 +360,7 @@ def _load_manifest_capabilities(plugin_id: str, raw_capabilities: Any) -> dict[s
             raw_capabilities.get("available_widget_types"),
         ),
         "has_settings": has_settings,
+        "supports_unassigned_course": supports_unassigned_course,
     }
 
 

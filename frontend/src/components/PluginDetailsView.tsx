@@ -130,7 +130,7 @@ export const PluginDetailsView: React.FC<PluginDetailsViewProps> = ({
     <div className="flex min-h-0 flex-1 flex-col gap-6">
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <IconCircle icon={icon} label={displayName} size={76} className="bg-muted text-foreground ring-1 ring-border/70" />
             <div className="min-w-0 pt-1">
               <h3 className="text-[1.85rem] leading-none font-semibold tracking-tight text-foreground">{displayName}</h3>

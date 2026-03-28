@@ -1,6 +1,6 @@
 // input:  [plugin settings props, semester/course API service, plugin-local GPA-percentage formatting, settings-section UI, shared data-table shell, modal/alert primitives, and shared row-actions dropdown helpers]
 // output: [course-list plugin settings component for semester course management]
-// pos:    [plugin-global settings panel that loads semester courses, renders mobile-safe data-table-aligned course management, surfaces failures, and handles removal flows through a shadcn-style row-actions dropdown]
+// pos:    [plugin-global settings panel that loads semester courses, renders a narrower four-column data-table-aligned course management surface that does not inherit an overly wide shared minimum width, surfaces failures, and handles removal flows through a shadcn-style row-actions dropdown]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -155,6 +155,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
           items={courses}
           isLoading={isLoading && !semester}
           emptyMessage="No courses assigned."
+          minWidthClassName="min-w-[34rem] sm:min-w-[38rem]"
           renderHeader={() => (
             <TableRow>
               <TableHead>Name</TableHead>

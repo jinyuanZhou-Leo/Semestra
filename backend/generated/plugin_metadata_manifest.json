@@ -13,7 +13,8 @@
         "builtin-canvas-integration"
       ],
       "available_widget_types": [],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -31,7 +32,8 @@
         "builtin-dashboard"
       ],
       "available_widget_types": [],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -53,7 +55,8 @@
       "available_widget_types": [
         "builtin-today-events"
       ],
-      "has_settings": true
+      "has_settings": true,
+      "supports_unassigned_course": false
     }
   },
   {
@@ -72,7 +75,8 @@
       "available_widget_types": [
         "builtin-gradebook-summary"
       ],
-      "has_settings": true
+      "has_settings": true,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -90,7 +94,8 @@
         "builtin-setting"
       ],
       "available_widget_types": [],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -108,7 +113,8 @@
       "available_widget_types": [
         "counter"
       ],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -125,7 +131,8 @@
       "available_widget_types": [
         "course-list"
       ],
-      "has_settings": true
+      "has_settings": true,
+      "supports_unassigned_course": false
     }
   },
   {
@@ -144,7 +151,8 @@
       "available_widget_types": [
         "course-resources-quick-open"
       ],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -163,7 +171,8 @@
         "habit-streak-duolingo",
         "habit-streak-ring"
       ],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -181,7 +190,8 @@
       "available_widget_types": [
         "pomodoro"
       ],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -199,7 +209,8 @@
       "available_widget_types": [
         "sticky-note"
       ],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   },
   {
@@ -217,7 +228,8 @@
         "tab-template"
       ],
       "available_widget_types": [],
-      "has_settings": true
+      "has_settings": true,
+      "supports_unassigned_course": false
     }
   },
   {
@@ -235,7 +247,8 @@
       "available_widget_types": [
         "world-clock"
       ],
-      "has_settings": false
+      "has_settings": false,
+      "supports_unassigned_course": true
     }
   }
 ]

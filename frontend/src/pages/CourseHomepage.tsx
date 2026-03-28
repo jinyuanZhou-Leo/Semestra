@@ -1,6 +1,6 @@
-// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester runtime plugin governance payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, and shared business empty-state wrappers]
+// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester->unassigned-Course runtime plugin governance payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-governed plugin inheritance from the parent semester, plugin-derived dashboard/settings shell tabs, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-governed plugin inheritance for Semester courses plus lightweight plugin governance for unassigned Courses, plugin-derived dashboard/settings shell tabs, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -29,6 +29,7 @@ import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPreload';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
+import { CoursePluginGovernancePanel } from '../components/CoursePluginGovernancePanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
@@ -169,26 +170,14 @@ const CourseHomepageContent: React.FC = () => {
         [course]
     );
     const enabledPluginIds = useMemo(() => {
-        const courseEnabledPluginIds = resolveEnabledPluginIds(course);
-        if (courseEnabledPluginIds.size > 0) {
-            return courseEnabledPluginIds;
-        }
-        return resolveEnabledPluginIds(parentSemesterQuery.data);
-    }, [course, parentSemesterQuery.data]);
+        return resolveEnabledPluginIds(course);
+    }, [course]);
     const availableWidgetTypes = useMemo(() => {
-        const courseWidgetTypes = resolveAvailableWidgetTypes(course);
-        if (courseWidgetTypes.size > 0) {
-            return Array.from(courseWidgetTypes);
-        }
-        return Array.from(resolveAvailableWidgetTypes(parentSemesterQuery.data));
-    }, [course, parentSemesterQuery.data]);
+        return Array.from(resolveAvailableWidgetTypes(course));
+    }, [course]);
     const resolvedPluginSettingsMap = useMemo(() => {
-        const courseSettingsMap = resolvePluginSettingsMap(course);
-        if (courseSettingsMap.size > 0) {
-            return courseSettingsMap;
-        }
-        return resolvePluginSettingsMap(parentSemesterQuery.data);
-    }, [course, parentSemesterQuery.data]);
+        return resolvePluginSettingsMap(course);
+    }, [course]);
 
     const availableLmsCoursesQuery = useQuery({
         queryKey: queryKeys.programs.lmsCourses(course?.program_id ?? 'unknown', { mode: 'link-picker' }),
@@ -499,16 +488,19 @@ const CourseHomepageContent: React.FC = () => {
 
     const pluginSettingsSections = useMemo(() => {
         const pluginMetadataById = new Map(
-            (parentSemesterQuery.data?.plugin_activations ?? []).map((activation) => [
-                activation.plugin_id,
-                {
-                    displayName: activation.display_name,
-                    description: activation.description,
-                },
-            ])
+            (course?.plugin_activations ?? parentSemesterQuery.data?.plugin_activations ?? [])
+                .filter((activation) => enabledPluginIds.has(activation.plugin_id))
+                .map((activation) => [
+                    activation.plugin_id,
+                    {
+                        displayName: activation.display_name,
+                        description: activation.description,
+                    },
+                ])
         );
         const renderedPluginHeaders = new Set<string>();
         const sections = pluginSettingsDefinitions
+            .filter((definition) => enabledPluginIds.has(definition.pluginId))
             .map((definition) => {
                 const pluginMetadata = pluginMetadataById.get(definition.pluginId);
                 const showPluginHeader = !renderedPluginHeaders.has(definition.pluginId);
@@ -537,9 +529,22 @@ const CourseHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [course?.id, parentSemesterQuery.data?.plugin_activations, pluginSettingsDefinitions, refreshCourse, resolvedPluginSettingsMap]);
+    }, [course?.id, course?.plugin_activations, enabledPluginIds, parentSemesterQuery.data?.plugin_activations, pluginSettingsDefinitions, refreshCourse, resolvedPluginSettingsMap]);
 
-    const hasPluginSettings = Boolean(pluginSettingsSections || tabInstanceSettingsSections);
+    const coursePluginGovernanceSection = useMemo(() => {
+        if (!course?.id || course.semester_id) {
+            return null;
+        }
+        return (
+            <CoursePluginGovernancePanel
+                courseId={course.id}
+                pluginActivations={course.plugin_activations ?? []}
+                onChanged={refreshCourse}
+            />
+        );
+    }, [course?.id, course?.plugin_activations, course?.semester_id, refreshCourse]);
+
+    const hasPluginSettings = Boolean(coursePluginGovernanceSection || pluginSettingsSections || tabInstanceSettingsSections);
 
     const handleUpdateCourse = useCallback(async (data: any) => {
         if (!course) return;
@@ -732,6 +737,7 @@ const CourseHomepageContent: React.FC = () => {
             ),
             extraSections: hasPluginSettings ? (
                 <div className="space-y-6">
+                    {coursePluginGovernanceSection}
                     {pluginSettingsSections}
                     {tabInstanceSettingsSections}
                 </div>
@@ -765,6 +771,7 @@ const CourseHomepageContent: React.FC = () => {
         updateCourse,
         handleUpdateCourse,
         hasPluginSettings,
+        coursePluginGovernanceSection,
         pluginSettingsSections,
         tabInstanceSettingsSections,
         openAddWidgetModal

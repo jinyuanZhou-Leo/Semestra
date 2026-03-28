@@ -1,6 +1,6 @@
 // input:  [`ProgramPluginGovernancePanel`, mocked governance APIs, QueryClient wrapper, viewport-state hooks, and testing-library interactions]
-// output: [component regression tests covering Program-level plugin install, reusable plugin info dialogs, marketplace detail navigation, locked-plugin constraints, and downstream cache invalidation]
-// pos:    [UI regression suite for the shared data table and responsive marketplace used by Program plugin management, including required-plugin lock behavior]
+// output: [component regression tests covering Program-level plugin install, reusable plugin info dialogs, marketplace detail navigation, locked-plugin constraints, bulk header toggles, and downstream cache invalidation]
+// pos:    [UI regression suite for the shared data table and responsive marketplace used by Program plugin management, including required-plugin lock behavior and header-level bulk enablement controls]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -16,6 +16,7 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     getProgramPluginCatalog: vi.fn(),
     upsertProgramPluginInstallation: vi.fn(),
+    bulkUpdateProgramPluginInstallations: vi.fn(),
     deleteProgramPluginInstallation: vi.fn(),
   },
 }));
@@ -32,6 +33,7 @@ describe("ProgramPluginGovernancePanel", () => {
   beforeEach(() => {
     apiMock.getProgramPluginCatalog.mockReset();
     apiMock.upsertProgramPluginInstallation.mockReset();
+    apiMock.bulkUpdateProgramPluginInstallations.mockReset();
     apiMock.deleteProgramPluginInstallation.mockReset();
   });
 
@@ -214,8 +216,7 @@ describe("ProgramPluginGovernancePanel", () => {
 
     render(<ProgramPluginGovernancePanel programId="program-1" />, { wrapper: Wrapper });
 
-    const switches = await screen.findAllByRole("switch");
-    fireEvent.click(switches[0]);
+    fireEvent.click(await screen.findByRole("switch", { name: "Course List enabled" }));
 
     await waitFor(() => {
       expect(apiMock.upsertProgramPluginInstallation).toHaveBeenCalledWith("program-1", "course-list", {
@@ -227,6 +228,69 @@ describe("ProgramPluginGovernancePanel", () => {
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["courses"] });
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["plugin-system", "semesters"] });
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["programs", "program-1", "semester-draft"] });
+  });
+
+  it("uses the header switch to bulk-enable editable Program plugins", async () => {
+    apiMock.getProgramPluginCatalog.mockResolvedValue([
+      {
+        id: "installation-1",
+        plugin_id: "course-list",
+        display_name: "Course List",
+        description: "Semester course list widget and course-management defaults.",
+        author: "Jinyuan",
+        default_version: "workspace",
+        default_installed: true,
+        default_enabled: true,
+        locked: true,
+        version: "workspace",
+        is_enabled: true,
+        requires_program_lms_integration: false,
+        capabilities: { contexts: ["semester"], available_widget_types: ["course-list"] },
+        setup_sections: [],
+        program_settings: {},
+        resolved_program_settings: {},
+        fields: [],
+        available: true,
+        availability_reason: null,
+        installed: true,
+      },
+      {
+        id: "installation-2",
+        plugin_id: "world-clock",
+        display_name: "World Clock",
+        description: "Dashboard widget showing selected time zones.",
+        author: "Jinyuan",
+        default_version: "workspace",
+        default_installed: false,
+        default_enabled: false,
+        locked: false,
+        version: "workspace",
+        is_enabled: false,
+        requires_program_lms_integration: false,
+        capabilities: { contexts: ["semester"] },
+        setup_sections: [],
+        program_settings: {},
+        resolved_program_settings: {},
+        fields: [],
+        available: true,
+        availability_reason: null,
+        installed: true,
+      },
+    ]);
+    apiMock.bulkUpdateProgramPluginInstallations.mockResolvedValue([]);
+
+    const { Wrapper } = createQueryClientWrapper();
+    render(<ProgramPluginGovernancePanel programId="program-1" />, { wrapper: Wrapper });
+
+    await screen.findByText("World Clock");
+    fireEvent.click(await screen.findByRole("switch", { name: "Toggle all editable Program plugins" }));
+
+    await waitFor(() => {
+      expect(apiMock.bulkUpdateProgramPluginInstallations).toHaveBeenCalledWith("program-1", {
+        plugin_ids: ["world-clock"],
+        is_enabled: true,
+      });
+    });
   });
 
   it("opens a reusable plugin info dialog from the row action menu", async () => {

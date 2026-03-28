@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, and shadcn AlertDialog interactions]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, shared DataTable row-action patterns, and shadcn AlertDialog/menu interactions]
 // output: [`ProgramDashboard` route component for the Program workspace]
-// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, edit-mode course deletion, semester-card delete actions that stay below the sticky page header, tri-state course-list sorting, and shared empty-state treatment across Program sections]
+// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, always-visible DataTable-style course row actions with destructive confirmation, semester-card delete actions that stay below the sticky page header, tri-state course-list sorting, and shared empty-state treatment across Program sections]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -27,6 +27,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
+import { DataTableActionMenu } from '../components/DataTable';
 import api, { type Course } from '../services/api';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
@@ -53,6 +54,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
     Combobox,
     ComboboxChip,
@@ -65,7 +67,7 @@ import {
     ComboboxValue,
     useComboboxAnchor,
 } from '@/components/ui/combobox';
-import { Settings, Plus, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, Tag, Calendar, Hash, TrendingUp, Layers, Pencil, CheckCheck } from 'lucide-react';
+import { Settings, Plus, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
 import { CreateSemesterWizardButton } from './program-dashboard/CreateSemesterWizardButton';
 import { DeleteSemesterButton } from './program-dashboard/DeleteSemesterButton';
@@ -95,7 +97,6 @@ const ProgramDashboardContent: React.FC = () => {
     const { program, saveProgram, refreshProgram, isLoading } = useProgramData();
     const { alert: showAlert } = useDialog();
     const [unassignedCourses, setUnassignedCourses] = useState<Array<CourseWithProgramContext>>([]);
-    const [isCourseEditMode, setIsCourseEditMode] = useState(false);
     const [coursePendingDelete, setCoursePendingDelete] = useState<CourseWithProgramContext | null>(null);
     const [isDeletingCourse, setIsDeletingCourse] = useState(false);
 
@@ -106,7 +107,6 @@ const ProgramDashboardContent: React.FC = () => {
     const [sortConfig, setSortConfig] = useState<CourseSortConfig | null>(null);
     const [activeFilters, setActiveFilters] = useState<CourseFilterSuggestion[]>([]);
     const suggestionsAnchor = useComboboxAnchor();
-    const courseEditModeLabel = isCourseEditMode ? 'Exit course edit mode' : 'Enter course edit mode';
 
     const refreshUnassignedCourses = useCallback(async () => {
         if (!program?.id) {
@@ -760,34 +760,9 @@ const ProgramDashboardContent: React.FC = () => {
                             {/* All Courses Section */}
                             <section className="space-y-6">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <div className="flex items-center gap-2 md:mt-auto">
-                                        <h2 className="text-lg font-semibold tracking-tight">
-                                            All Courses
-                                        </h2>
-                                        <Button
-                                            type="button"
-                                            variant={isCourseEditMode ? 'secondary' : 'ghost'}
-                                            size="icon"
-                                            className={isCourseEditMode ? 'text-foreground' : 'text-muted-foreground'}
-                                            aria-label={courseEditModeLabel}
-                                            title={courseEditModeLabel}
-                                            aria-pressed={isCourseEditMode}
-                                            onClick={() => {
-                                                setIsCourseEditMode((current) => {
-                                                    if (current) {
-                                                        setCoursePendingDelete(null);
-                                                    }
-                                                    return !current;
-                                                });
-                                            }}
-                                        >
-                                            {isCourseEditMode ? (
-                                                <CheckCheck className="h-4 w-4" />
-                                            ) : (
-                                                <Pencil className="h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </div>
+                                    <h2 className="text-lg font-semibold tracking-tight md:mt-auto">
+                                        All Courses
+                                    </h2>
                                     <div className="flex-1 max-w-sm space-y-1.5">
                                         {/* Search with Suggestions */}
                                         <Combobox<CourseFilterSuggestion, true>
@@ -971,18 +946,15 @@ const ProgramDashboardContent: React.FC = () => {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="w-[52px] text-right align-middle">
-                                                            <Button
-                                                                type="button"
-                                                                variant="destructive"
-                                                                size="icon"
-                                                                className={isCourseEditMode ? 'h-8 w-8' : 'h-8 w-8 opacity-0 pointer-events-none'}
-                                                                aria-label={`Delete ${course.name}`}
-                                                                aria-hidden={!isCourseEditMode}
-                                                                tabIndex={isCourseEditMode ? 0 : -1}
-                                                                onClick={() => setCoursePendingDelete(course)}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
+                                                            <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
+                                                                <DropdownMenuItem
+                                                                    variant="destructive"
+                                                                    onClick={() => setCoursePendingDelete(course)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                    Delete
+                                                                </DropdownMenuItem>
+                                                            </DataTableActionMenu>
                                                         </TableCell>
                                                     </TableRow>
                                                     ))}

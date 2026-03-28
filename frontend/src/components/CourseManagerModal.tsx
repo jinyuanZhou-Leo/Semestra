@@ -1,6 +1,6 @@
-// input:  [program/semester identifiers, course CRUD and LMS/calendar import APIs, auth default credit, dialog state, global confirm/alert dialogs, responsive overlay wrapper, shared LMS course picker, shared GPA-percentage formatting, business empty-state wrappers, and shadcn field/input/scroll-area primitives]
+// input:  [program/semester identifiers, optional close-on-success preference, course CRUD and LMS/calendar import APIs, auth default credit, dialog state, global confirm/alert dialogs, responsive dialog/drawer wrapper, shared LMS course picker, shared GPA-percentage formatting, business empty-state wrappers, and shadcn field/input/error/scroll-area primitives]
 // output: [`CourseManagerModal` component]
-// pos:    [Program dashboard responsive add-course surface with reliable close-after-create behavior, manually validated submit-driven shadcn-invalid create-field semantics, wrapper-light select/create/calendar/LMS flows, searchable existing-course selection, duplicate-name confirmation, reusable LMS course selection, and import feedback]
+// pos:    [Program dashboard and Semester-wizard responsive add-course surface with reliable close-after-success behavior, doc-aligned responsive dialog/drawer composition, shared sticky footer actions, submit-driven field validation semantics, searchable existing-course selection, duplicate-name confirmation, reusable LMS course selection, and import feedback]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppEmptyState } from '@/components/AppEmptyState';
 import { Button } from '@/components/ui/button';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -22,6 +22,7 @@ import { Plus, Search, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatGpaPercentage } from '@/utils/percentage';
 import { ResponsiveDialogDrawer } from './ResponsiveDialogDrawer';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { LmsCourseSelectionList } from './LmsCourseSelectionList';
 
 interface CourseManagerModalProps {
@@ -29,6 +30,7 @@ interface CourseManagerModalProps {
     onClose: () => void;
     programId: string;
     semesterId?: string;
+    closeOnSuccess?: boolean;
     onCourseAdded: () => void | Promise<void>;
 }
 
@@ -37,10 +39,12 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     onClose,
     programId,
     semesterId,
+    closeOnSuccess = false,
     onCourseAdded
 }) => {
     const { user } = useAuth();
     const { alert: showAlert, confirm } = useDialog();
+    const isMobile = useIsMobile();
     const defaultCredit = (user?.default_course_credit ?? 0.5).toString();
 
     const [mode, setMode] = useState<'list' | 'create' | 'calendar' | 'import'>(semesterId ? 'list' : 'create');
@@ -187,13 +191,29 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
         }
     }, []);
 
+    const shouldCloseOnSuccessfulSubmit = !semesterId || closeOnSuccess;
+
+    const finalizeSuccessfulSubmit = useCallback(async (label: string, tasks: Array<Promise<unknown>>) => {
+        if (shouldCloseOnSuccessfulSubmit) {
+            onClose();
+        }
+        await runPostSubmitSync(label, tasks);
+    }, [onClose, runPostSubmitSync, shouldCloseOnSuccessfulSubmit]);
+
     const handleAddExisting = async (courseId: string) => {
         try {
             await api.updateCourse(courseId, { semester_id: semesterId });
-            onCourseAdded();
-            fetchUnassigned(); // Refresh list
+            await finalizeSuccessfulSubmit('adding existing course', [
+                Promise.resolve(onCourseAdded()),
+                fetchProgramCourses(),
+                fetchUnassigned(),
+            ]);
         } catch (error) {
             console.error("Failed to add course to semester", error);
+            await showAlert({
+                title: 'Add failed',
+                description: 'Failed to add the course to this Semester.',
+            });
         }
     };
 
@@ -251,20 +271,11 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
             }
 
             resetCreateDraft();
-            if (semesterId) {
-                setMode('list');
-                await runPostSubmitSync('creating course', [
-                    Promise.resolve(onCourseAdded()),
-                    fetchProgramCourses(),
-                    fetchUnassigned(),
-                ]);
-            } else {
-                onClose();
-                await runPostSubmitSync('creating course', [
-                    Promise.resolve(onCourseAdded()),
-                    fetchProgramCourses(),
-                ]);
-            }
+            await finalizeSuccessfulSubmit('creating course', [
+                Promise.resolve(onCourseAdded()),
+                fetchProgramCourses(),
+                ...(semesterId ? [fetchUnassigned()] : []),
+            ]);
         } catch (error) {
             console.error("Failed to create course", error);
             await showAlert({
@@ -272,7 +283,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 description: 'Failed to create course.',
             });
         }
-    }, [confirm, fetchProgramCourses, fetchUnassigned, findDuplicateCourses, isCreateFormInvalid, newAlias, newCategory, newCredits, newGrade, newName, onClose, onCourseAdded, programId, resetCreateDraft, runPostSubmitSync, semesterId, showAlert]);
+    }, [confirm, fetchProgramCourses, fetchUnassigned, finalizeSuccessfulSubmit, findDuplicateCourses, isCreateFormInvalid, newAlias, newCategory, newCredits, newGrade, newName, onCourseAdded, programId, resetCreateDraft, semesterId, showAlert]);
 
     const handleImportFromLms = useCallback(async () => {
         if (selectedLmsCourseIds.length === 0) return;
@@ -282,27 +293,34 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 external_course_ids: selectedLmsCourseIds,
                 semester_id: semesterId,
             });
-            await onCourseAdded();
             setSelectedLmsCourseIds([]);
-            await fetchProgramLmsCourses();
-            await fetchProgramCourses();
-            if (semesterId) {
-                await fetchUnassigned();
-            }
+            await runPostSubmitSync('importing LMS courses', [
+                Promise.resolve(onCourseAdded()),
+                fetchProgramLmsCourses(),
+                fetchProgramCourses(),
+                ...(semesterId ? [fetchUnassigned()] : []),
+            ]);
 
             const summary = buildImportSummary(response.results);
-            if (summary.conflictCount > 0 || summary.skippedCount > 0) {
+            const hasImportWarnings = summary.conflictCount > 0 || summary.skippedCount > 0;
+            if (semesterId && closeOnSuccess && summary.createdCount > 0) {
+                onClose();
+            } else if (!semesterId && !hasImportWarnings) {
+                onClose();
+            }
+
+            if (hasImportWarnings) {
                 await showAlert({
                     title: summary.createdCount > 0 ? 'Import completed with conflicts' : 'Import blocked',
                     description: summary.description,
                 });
-            } else if (!semesterId) {
-                onClose();
             } else {
-                await showAlert({
-                    title: 'Import completed',
-                    description: summary.description,
-                });
+                if (!(semesterId && closeOnSuccess)) {
+                    await showAlert({
+                        title: 'Import completed',
+                        description: summary.description,
+                    });
+                }
             }
         } catch (error) {
             console.error('Failed to import LMS courses', error);
@@ -313,7 +331,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
         } finally {
             setIsImporting(false);
         }
-    }, [buildImportSummary, fetchProgramCourses, fetchProgramLmsCourses, fetchUnassigned, onClose, onCourseAdded, programId, selectedLmsCourseIds, semesterId, showAlert]);
+    }, [buildImportSummary, closeOnSuccess, fetchProgramCourses, fetchProgramLmsCourses, fetchUnassigned, onClose, onCourseAdded, programId, runPostSubmitSync, selectedLmsCourseIds, semesterId, showAlert]);
 
     const syncCalendarFileSelection = useCallback((file: File | null) => {
         if (!file) return false;
@@ -330,13 +348,12 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
         setIsCalendarImporting(true);
         try {
             await api.uploadProgramCourseICS(programId, selectedCalendarFile, semesterId);
-            await onCourseAdded();
             setSelectedCalendarFile(null);
-            if (semesterId) {
-                await fetchUnassigned();
-            } else {
-                onClose();
-            }
+            await finalizeSuccessfulSubmit('importing calendar courses', [
+                Promise.resolve(onCourseAdded()),
+                fetchProgramCourses(),
+                ...(semesterId ? [fetchUnassigned()] : []),
+            ]);
         } catch (error) {
             console.error('Failed to import ICS courses', error);
             await showAlert({
@@ -371,10 +388,52 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     const dialogDescription = semesterId
         ? 'Add an existing course to the semester, create a new course, or import from calendar/LMS.'
         : 'Create a new course in this program or import from calendar/LMS.';
-    const desktopContentClassName = "p-0 flex h-[85vh] max-h-[44rem] flex-col overflow-hidden sm:max-w-[640px]";
-    const mobileContentClassName = "p-0 flex h-[85vh] max-h-[85vh] flex-col overflow-hidden";
-    const surfaceBodyClassName = "flex min-h-0 flex-1 flex-col p-4";
-    const headerTitleClassName = "text-base font-semibold";
+    const createCourseFormId = `course-create-form-${semesterId ?? programId}`;
+    const desktopContentClassName = "flex h-[85vh] max-h-[44rem] flex-col overflow-hidden sm:max-w-[640px]";
+    const mobileContentClassName = "flex h-[85vh] max-h-[85vh] flex-col overflow-hidden";
+    const surfaceBodyClassName = cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+        isMobile && "px-4"
+    );
+
+    const footer = (
+        <>
+            <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isLoading || isImporting || isCalendarImporting}
+            >
+                {mode === 'list' ? 'Close' : 'Cancel'}
+            </Button>
+            {mode === 'create' ? (
+                <Button type="submit" form={createCourseFormId}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Course
+                </Button>
+            ) : null}
+            {mode === 'calendar' ? (
+                <Button
+                    type="button"
+                    disabled={!selectedCalendarFile || isCalendarImporting}
+                    onClick={() => void handleImportFromCalendar()}
+                >
+                    <Upload className="mr-2 h-4 w-4" />
+                    {isCalendarImporting ? 'Importing...' : 'Import Courses From Calendar'}
+                </Button>
+            ) : null}
+            {mode === 'import' ? (
+                <Button
+                    type="button"
+                    disabled={selectedLmsCourseIds.length === 0 || isImporting}
+                    onClick={() => void handleImportFromLms()}
+                >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {isImporting ? 'Importing...' : `Import ${selectedLmsCourseIds.length || ''} LMS Course${selectedLmsCourseIds.length === 1 ? '' : 's'}`}
+                </Button>
+            ) : null}
+        </>
+    );
 
     const modalBody = (
         <div className={surfaceBodyClassName}>
@@ -418,9 +477,9 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                     </TabsList>
                 </div>
 
-                <TabsContent value="list" className="mt-4 min-h-0 flex-1">
+                <TabsContent value="list" className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     {semesterId ? (
-                        <div className="flex h-full min-h-0 flex-col">
+                        <div className="flex h-full min-h-0 flex-col overflow-hidden">
                             <div className="relative flex-none">
                                 <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
@@ -503,13 +562,14 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                     ) : null}
                 </TabsContent>
 
-                <TabsContent value="create" className="mt-4 min-h-0 flex-1">
+                <TabsContent value="create" className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     <form
+                        id={createCourseFormId}
                         noValidate
                         onSubmit={handleCreateNew}
-                        className="flex h-full min-h-0 flex-col gap-4"
+                        className="flex h-full min-h-0 flex-col overflow-hidden"
                     >
-                        <ScrollArea className="min-h-0 flex-1">
+                        <ScrollArea className="h-full min-h-0 flex-1">
                             <div className="grid content-start gap-4 pr-3">
                             <Field data-invalid={showNameInvalid ? true : undefined}>
                                 <FieldLabel htmlFor="course-name">
@@ -532,11 +592,13 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                     aria-invalid={showNameInvalid ? true : undefined}
                                     placeholder="e.g. Introduction to Computer Science"
                                 />
-                                <FieldDescription>
-                                    {showNameInvalid
-                                        ? 'Enter a course name before creating the course.'
-                                        : 'Name this course as it should appear across the Program.'}
-                                </FieldDescription>
+                                {showNameInvalid ? (
+                                    <FieldError>Enter a course name before creating the course.</FieldError>
+                                ) : (
+                                    <FieldDescription>
+                                        Name this course as it should appear across the Program.
+                                    </FieldDescription>
+                                )}
                             </Field>
                             <Field>
                                 <FieldLabel htmlFor="course-category">Category</FieldLabel>
@@ -573,7 +635,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                         aria-invalid={showCreditsInvalid ? true : undefined}
                                     />
                                     {showCreditsInvalid ? (
-                                        <FieldDescription>Enter a valid credit value greater than 0.</FieldDescription>
+                                        <FieldError>Enter a valid credit value greater than 0.</FieldError>
                                     ) : null}
                                 </Field>
                                 <Field data-invalid={showGradeInvalid ? true : undefined}>
@@ -590,25 +652,18 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                         aria-invalid={showGradeInvalid ? true : undefined}
                                     />
                                     {showGradeInvalid ? (
-                                        <FieldDescription>Enter a valid grade between 0 and 100.</FieldDescription>
+                                        <FieldError>Enter a valid grade between 0 and 100.</FieldError>
                                     ) : null}
                                 </Field>
                             </div>
                             </div>
                         </ScrollArea>
-
-                        <div className="mt-auto border-t pt-4">
-                            <Button type="submit" className="w-full">
-                                <Plus className="mr-2 h-4 w-4" />
-                                Create Course
-                            </Button>
-                        </div>
                     </form>
                 </TabsContent>
 
-                <TabsContent value="calendar" className="mt-4 min-h-0 flex-1">
-                    <div className="flex h-full min-h-0 flex-col gap-4">
-                        <div className="grid gap-3">
+                <TabsContent value="calendar" className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    <ScrollArea className="h-full min-h-0 flex-1">
+                        <div className="grid gap-3 pr-3">
                             <FieldLabel>ICS File</FieldLabel>
                             <div
                                 className={cn(
@@ -664,40 +719,17 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                 </div>
                             </div>
                         </div>
-
-                        <div className="mt-auto border-t pt-4">
-                            <Button
-                                type="button"
-                                className="w-full"
-                                disabled={!selectedCalendarFile || isCalendarImporting}
-                                onClick={() => void handleImportFromCalendar()}
-                            >
-                                <Upload className="mr-2 h-4 w-4" />
-                                {isCalendarImporting ? 'Importing...' : 'Import Courses From Calendar'}
-                            </Button>
-                        </div>
-                    </div>
+                    </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="import" className="mt-4 min-h-0 flex-1">
-                    <div className="flex h-full min-h-0 flex-col">
+                <TabsContent value="import" className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden">
                         <LmsCourseSelectionList
                             courses={availableLmsCourses}
                             selectedCourseIds={selectedLmsCourseIds}
                             onSelectionChange={setSelectedLmsCourseIds}
                             disabledCourseReasons={linkedLmsCourseReasons}
                         />
-                        <div className="mt-4 border-t pt-4">
-                            <Button
-                                type="button"
-                                className="w-full"
-                                disabled={selectedLmsCourseIds.length === 0 || isImporting}
-                                onClick={() => void handleImportFromLms()}
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                {isImporting ? 'Importing...' : `Import ${selectedLmsCourseIds.length || ''} LMS Course${selectedLmsCourseIds.length === 1 ? '' : 's'}`}
-                            </Button>
-                        </div>
                     </div>
                 </TabsContent>
             </Tabs>
@@ -710,12 +742,12 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
             onOpenChange={(open) => !open && onClose()}
             title={dialogTitle}
             description={dialogDescription}
-            titleClassName={headerTitleClassName}
             descriptionClassName="sr-only"
             desktopContentClassName={desktopContentClassName}
             mobileContentClassName={mobileContentClassName}
-            desktopHeaderClassName="border-b px-6 py-4 flex-none"
-            mobileHeaderClassName="border-b px-6 py-4 flex-none"
+            footer={footer}
+            desktopFooterClassName="border-t bg-background pt-4"
+            mobileFooterClassName="border-t bg-background pt-2"
         >
             {modalBody}
         </ResponsiveDialogDrawer>

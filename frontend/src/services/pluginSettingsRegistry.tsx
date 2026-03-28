@@ -1,6 +1,6 @@
 // input:  [plugin-global settings definitions, shared-settings prop contracts, and React subscription state]
 // output: [`PluginSettingsRegistry`, plugin settings sync prop types, and registry subscription hooks]
-// pos:    [Settings registry that exposes plugin-global settings sections plus framework-managed shared-settings props to settings pages]
+// pos:    [Settings registry that exposes plugin-global settings sections plus framework-managed shared-settings props to Program, Semester, and Course settings pages]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,7 @@
 
 import React, { useSyncExternalStore } from 'react';
 
-export type PluginSettingsContext = 'semester' | 'course';
+export type PluginSettingsContext = 'program' | 'semester' | 'course';
 export type PluginSettingsSaveState = 'idle' | 'saving' | 'success';
 
 export interface PluginSettingsProps<S = any> {
@@ -19,6 +19,7 @@ export interface PluginSettingsProps<S = any> {
   saveState: PluginSettingsSaveState;
   hasPendingChanges: boolean;
   isLoading: boolean;
+  programId?: string;
   semesterId?: string;
   courseId?: string;
   onRefresh: () => void;
@@ -36,13 +37,14 @@ export interface RegisteredPluginSettingsSectionDefinition extends PluginSetting
 
 type Listener = () => void;
 
-const DEFAULT_ALLOWED_CONTEXTS: PluginSettingsContext[] = ['semester', 'course'];
+const DEFAULT_ALLOWED_CONTEXTS: PluginSettingsContext[] = ['program', 'semester', 'course'];
 
 export class PluginSettingsRegistryClass {
   private pluginSettingsSections: RegisteredPluginSettingsSectionDefinition[] = [];
   private listeners: Set<Listener> = new Set();
   private snapshot: RegisteredPluginSettingsSectionDefinition[] = [];
   private snapshotByContext: Record<PluginSettingsContext, RegisteredPluginSettingsSectionDefinition[]> = {
+    program: [],
     semester: [],
     course: [],
   };
@@ -50,6 +52,10 @@ export class PluginSettingsRegistryClass {
   private rebuildSnapshots() {
     this.snapshot = [...this.pluginSettingsSections];
     this.snapshotByContext = {
+      program: this.snapshot.filter((definition) => {
+        const allowedContexts = definition.allowedContexts ?? DEFAULT_ALLOWED_CONTEXTS;
+        return allowedContexts.includes('program');
+      }),
       semester: this.snapshot.filter((definition) => {
         const allowedContexts = definition.allowedContexts ?? DEFAULT_ALLOWED_CONTEXTS;
         return allowedContexts.includes('semester');

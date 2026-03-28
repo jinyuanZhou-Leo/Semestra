@@ -1,6 +1,6 @@
 // input:  [course context, course/event-type APIs, shared timetable event bus, settings data-table UI, and shared row-actions dropdown helpers]
 // output: [`CourseScheduleSettings` settings panel for course event-type management]
-// pos:    [Course-schedule settings surface that edits event-type definitions, keeps data tables mobile-safe, publishes scoped refresh events, and uses a shadcn-style row-actions dropdown for edit/delete actions]
+// pos:    [Course-schedule settings surface that edits event-type definitions, keeps data tables mobile-safe with an explicit four-column minimum width, publishes scoped refresh events, and uses a shadcn-style row-actions dropdown for edit/delete actions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -155,6 +155,7 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
           description="Manage the types of events available for this course (e.g., Lecture, Tutorial, Lab)."
           items={eventTypes}
           isLoading={isLoading}
+          minWidthClassName="min-w-[34rem] sm:min-w-[38rem]"
           actionButton={(
             <Button onClick={handleOpenCreate}>
               <Plus className="mr-2 h-4 w-4" />

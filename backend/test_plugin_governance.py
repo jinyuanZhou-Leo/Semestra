@@ -308,7 +308,79 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertIsNotNone(stored_activation)
         self.assertFalse(bool(stored_activation.is_enabled))
 
-    def test_locked_semester_plugins_serialize_and_refuse_delete(self) -> None:
+    def test_bulk_enabling_semester_plugins_updates_draft_in_one_payload(self) -> None:
+        program = self._create_program()
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "builtin-event-core",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-list",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        draft = crud.create_semester_draft(
+            self.db,
+            program.id,
+            schemas.SemesterDraftCreateRequest(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+                creation_step="courses",
+            ),
+        )
+
+        updated_draft = crud.bulk_update_semester_plugin_activations(
+            self.db,
+            draft["id"],
+            schemas.SemesterPluginActivationBulkUpdateRequest(
+                plugin_ids=["builtin-event-core", "course-list", "builtin-event-core"],
+                is_enabled=True,
+            ),
+        )
+
+        self.assertEqual(updated_draft["creation_step"], "plugins")
+        activation_by_plugin_id = {
+            activation["plugin_id"]: activation
+            for activation in updated_draft["plugin_activations"]
+        }
+        self.assertTrue(activation_by_plugin_id["builtin-event-core"]["is_enabled"])
+        self.assertTrue(activation_by_plugin_id["course-list"]["is_enabled"])
+
+    def test_bulk_enabling_unavailable_plugin_is_rejected(self) -> None:
+        program = self._create_program()
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "builtin-canvas-integration",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        draft = crud.create_semester_draft(
+            self.db,
+            program.id,
+            schemas.SemesterDraftCreateRequest(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+        )
+
+        with self.assertRaises(crud.PluginGovernanceError) as context:
+            crud.bulk_update_semester_plugin_activations(
+                self.db,
+                draft["id"],
+                schemas.SemesterPluginActivationBulkUpdateRequest(
+                    plugin_ids=["builtin-canvas-integration"],
+                    is_enabled=True,
+                ),
+            )
+
+        self.assertEqual(context.exception.code, "PLUGIN_NOT_AVAILABLE")
+
+    def test_locked_semester_plugins_serialize_and_refuse_disable_or_delete(self) -> None:
         program = self._create_program()
         semester = crud.create_semester(
             self.db,
@@ -326,6 +398,28 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         )
 
         self.assertTrue(settings_activation["locked"])
+
+        with self.assertRaises(crud.PluginGovernanceError) as context:
+            crud.upsert_semester_plugin_activation(
+                self.db,
+                semester.id,
+                "builtin-setting",
+                schemas.SemesterPluginActivationUpsertRequest(is_enabled=False),
+            )
+
+        self.assertEqual(context.exception.code, "PLUGIN_LOCKED")
+
+        with self.assertRaises(crud.PluginGovernanceError) as context:
+            crud.bulk_update_semester_plugin_activations(
+                self.db,
+                semester.id,
+                schemas.SemesterPluginActivationBulkUpdateRequest(
+                    plugin_ids=["builtin-setting"],
+                    is_enabled=False,
+                ),
+            )
+
+        self.assertEqual(context.exception.code, "PLUGIN_LOCKED")
 
         with self.assertRaises(crud.PluginGovernanceError) as context:
             crud.delete_semester_plugin_activation(self.db, semester.id, "builtin-setting")
@@ -396,6 +490,210 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertFalse(course_resources_activation["is_enabled"])
         self.assertEqual(course_resources_activation["availability_reason"], "Disabled for this Semester.")
         self.assertNotIn("course-resources", {item["plugin_id"] for item in course_activations})
+
+    def test_assigned_course_inherits_enabled_semester_plugin_runtime(self) -> None:
+        program = self._create_program()
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS106", credits=0.5),
+            program.id,
+            semester_id=semester.id,
+        )
+
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-resources",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        crud.upsert_semester_plugin_activation(
+            self.db,
+            semester.id,
+            "course-resources",
+            schemas.SemesterPluginActivationUpsertRequest(is_enabled=True),
+        )
+
+        activations = crud.get_course_plugin_activations(self.db, course.id)
+        resources_activation = next(
+            item for item in activations if item["plugin_id"] == "course-resources"
+        )
+
+        self.assertTrue(resources_activation["is_enabled"])
+        self.assertTrue(resources_activation["available"])
+        self.assertEqual(resources_activation["source"], "semester")
+        self.assertEqual(
+            resources_activation["capabilities"]["available_tab_types"],
+            ["course-resources-tab"],
+        )
+        self.assertIsInstance(resources_activation["resolved_settings"], dict)
+
+    def test_unassigned_course_plugins_default_to_off_rows_and_can_enable(self) -> None:
+        program = self._create_program()
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS500", credits=1.0),
+            program.id,
+            semester_id=None,
+        )
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-resources",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+
+        activations = crud.get_course_plugin_activations(self.db, course.id)
+        resources_activation = next(
+            item for item in activations if item["plugin_id"] == "course-resources"
+        )
+
+        self.assertIsNone(resources_activation["id"])
+        self.assertFalse(resources_activation["is_enabled"])
+        self.assertFalse(resources_activation["available"])
+        self.assertEqual(resources_activation["availability_reason"], "Disabled for this Course.")
+
+        enabled = crud.upsert_course_plugin_activation(
+            self.db,
+            course.id,
+            "course-resources",
+            schemas.CoursePluginActivationUpsertRequest(is_enabled=True),
+        )
+
+        self.assertTrue(enabled["is_enabled"])
+        self.assertTrue(enabled["available"])
+        self.assertEqual(enabled["source"], "course")
+        self.db.refresh(course)
+        self.assertEqual(
+            [tab.tab_type for tab in course.tabs],
+            enabled["capabilities"]["available_tab_types"],
+        )
+
+    def test_unassigned_course_filters_plugins_without_unassigned_support(self) -> None:
+        program = self._create_program()
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS500", credits=1.0),
+            program.id,
+            semester_id=None,
+        )
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "builtin-event-core",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+
+        self.assertEqual(crud.get_course_plugin_activations(self.db, course.id), [])
+
+    def test_assigned_course_rejects_course_level_plugin_governance(self) -> None:
+        program = self._create_program()
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS105", credits=0.5),
+            program.id,
+            semester_id=semester.id,
+        )
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-resources",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+
+        with self.assertRaises(crud.PluginGovernanceError) as context:
+            crud.upsert_course_plugin_activation(
+                self.db,
+                course.id,
+                "course-resources",
+                schemas.CoursePluginActivationUpsertRequest(is_enabled=True),
+            )
+
+        self.assertEqual(context.exception.code, "COURSE_NOT_UNASSIGNED")
+
+        with self.assertRaises(crud.PluginGovernanceError) as context:
+            crud.bulk_update_course_plugin_activations(
+                self.db,
+                course.id,
+                schemas.CoursePluginActivationBulkUpdateRequest(
+                    plugin_ids=["course-resources"],
+                    is_enabled=True,
+                ),
+            )
+
+        self.assertEqual(context.exception.code, "COURSE_NOT_UNASSIGNED")
+
+    def test_course_plugin_activation_is_ignored_in_semester_and_restored_when_unassigned(self) -> None:
+        program = self._create_program()
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS500", credits=1.0),
+            program.id,
+            semester_id=None,
+        )
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "course-resources",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        crud.upsert_course_plugin_activation(
+            self.db,
+            course.id,
+            "course-resources",
+            schemas.CoursePluginActivationUpsertRequest(is_enabled=True),
+        )
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+
+        crud.update_course(
+            self.db,
+            course.id,
+            schemas.CourseUpdate(semester_id=semester.id),
+        )
+
+        semester_governed_plugin_ids = {
+            item["plugin_id"]
+            for item in crud.get_course_plugin_activations(self.db, course.id)
+        }
+        self.assertNotIn("course-resources", semester_governed_plugin_ids)
+
+        crud.update_course(
+            self.db,
+            course.id,
+            schemas.CourseUpdate(semester_id=None),
+        )
+
+        restored_activations = crud.get_course_plugin_activations(self.db, course.id)
+        restored_resources_activation = next(
+            item for item in restored_activations if item["plugin_id"] == "course-resources"
+        )
+        self.assertTrue(restored_resources_activation["is_enabled"])
+        self.assertTrue(restored_resources_activation["available"])
 
     def test_program_disabled_plugins_do_not_appear_in_semester_settings(self) -> None:
         program = self._create_program()
@@ -856,7 +1154,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         ).join(models.ProgramPluginInstallation).filter(
             models.ProgramPluginInstallation.plugin_id == "builtin-event-core"
         ).first()
-        self.assertEqual(activation.setup_state, '{"calendarDefaultView": "week"}')
+        self.assertEqual(activation.setup_state, '{"calendarDefaultView": "week", "eventTypes": null}')
         self.assertEqual(activation.semester_overrides, '{"calendarDefaultView": "week"}')
 
         review_payload = crud.review_semester_plugin_system(self.db, draft["id"])

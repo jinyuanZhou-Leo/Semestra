@@ -1,6 +1,6 @@
 // input:  [TanStack Query, LMS API service, settings-local LMS provider definitions, data-table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, dialog-context alerts, and shared row-actions dropdown helpers]
 // output: [`LmsIntegrationManager` component]
-// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving mobile-safe data-table layout, validation, dialog flows, parent-owned settings section chrome, and a shadcn-style row-actions dropdown]
+// pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving mobile-safe data-table layout with an explicit integration-table minimum width, validation, shadcn-aligned responsive dialog flows, scrollable drawer bodies, parent-owned settings section chrome, and a shadcn-style row-actions dropdown]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -352,6 +352,7 @@ export const LmsIntegrationManager: React.FC = () => {
         title="LMS Integrations"
         description="Save reusable LMS connections for Program binding and Course linking."
         showHeader={false}
+        minWidthClassName="min-w-[42rem] sm:min-w-[52rem]"
         actionButton={(
           <Button type="button" className="shrink-0 self-start" onClick={openCreateDialog}>
             <Plus className="mr-2 h-4 w-4" />
@@ -444,155 +445,158 @@ export const LmsIntegrationManager: React.FC = () => {
         title={draft.id ? 'Edit LMS Integration' : 'Add LMS Integration'}
         description={providerDefinition.description}
         desktopContentClassName="sm:max-w-2xl"
-        showDesktopCloseButton={false}
+        mobileContentClassName="flex max-h-[85vh] flex-col overflow-hidden"
         footer={(
-          <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" disabled={isBusy} onClick={() => closeDialog(false)}>
-                Cancel
-              </Button>
-              <Button type="button" disabled={isBusy} onClick={() => void handleSave()}>
-                {draft.id ? 'Save Changes' : 'Create Integration'}
-              </Button>
-          </div>
+          <>
+            <Button type="button" variant="outline" disabled={isBusy} onClick={() => closeDialog(false)}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={isBusy} onClick={() => void handleSave()}>
+              {draft.id ? 'Save Changes' : 'Create Integration'}
+            </Button>
+          </>
         )}
+        mobileFooterClassName="pt-2"
       >
-        <div className="px-4 pb-4 sm:px-0 sm:pb-0">
-          <FieldSet>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="lms-provider-type">LMS Type</FieldLabel>
-                <Select
-                  value={draft.provider}
-                  disabled={Boolean(draft.id)}
-                  onValueChange={(value) => {
-                    setDraft((current) => ({ ...current, provider: value as SupportedLmsProvider }));
-                    setTouched(true);
-                    resetFeedback();
-                  }}
-                >
-                  <SelectTrigger id="lms-provider-type" className="w-full">
-                    <SelectValue placeholder="Select LMS type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {getSupportedLmsProviderDefinitions().map((definition) => (
-                        <SelectItem key={definition.value} value={definition.value}>
-                          {definition.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  {draft.id ? 'Provider type cannot be changed after creation.' : 'Choose the LMS adapter for this integration.'}
-                </FieldDescription>
-              </Field>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 md:overflow-visible md:px-0">
+          <div className="grid gap-4">
+            <FieldSet>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="lms-provider-type">LMS Type</FieldLabel>
+                  <Select
+                    value={draft.provider}
+                    disabled={Boolean(draft.id)}
+                    onValueChange={(value) => {
+                      setDraft((current) => ({ ...current, provider: value as SupportedLmsProvider }));
+                      setTouched(true);
+                      resetFeedback();
+                    }}
+                  >
+                    <SelectTrigger id="lms-provider-type" className="w-full">
+                      <SelectValue placeholder="Select LMS type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {getSupportedLmsProviderDefinitions().map((definition) => (
+                          <SelectItem key={definition.value} value={definition.value}>
+                            {definition.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    {draft.id ? 'Provider type cannot be changed after creation.' : 'Choose the LMS adapter for this integration.'}
+                  </FieldDescription>
+                </Field>
 
-              <Field>
-                <FieldLabel htmlFor="lms-display-name">Name</FieldLabel>
-                <Input
-                  id="lms-display-name"
-                  value={draft.displayName}
-                  onChange={(event) => {
-                    setDraft((current) => ({ ...current, displayName: event.target.value }));
-                    setTouched(true);
-                    resetFeedback();
-                  }}
-                  placeholder="e.g. UofT Canvas"
-                />
-              </Field>
-
-              <Field data-invalid={instanceUrlInvalid}>
-                <FieldLabel htmlFor="lms-instance-url">{providerDefinition.instanceUrlLabel}</FieldLabel>
-                <Input
-                  id="lms-instance-url"
-                  value={draft.instanceUrl}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  onChange={(event) => {
-                    setDraft((current) => ({ ...current, instanceUrl: event.target.value }));
-                    setTouched(true);
-                    resetFeedback();
-                  }}
-                  placeholder={providerDefinition.instanceUrlPlaceholder}
-                  aria-invalid={instanceUrlInvalid}
-                />
-                <FieldDescription>
-                  {draft.id
-                    ? `Leave the saved ${providerDefinition.instanceUrlLabel.toLowerCase()} unchanged if you only want to rename this integration.`
-                    : `Enter the ${providerDefinition.label} instance host for this connection.`}
-                </FieldDescription>
-              </Field>
-
-              <Field data-invalid={apiKeyInvalid}>
-                <FieldLabel htmlFor="lms-api-key">{providerDefinition.apiKeyLabel}</FieldLabel>
-                <div className="flex items-center gap-2">
+                <Field>
+                  <FieldLabel htmlFor="lms-display-name">Name</FieldLabel>
                   <Input
-                    id="lms-api-key"
-                    type={draft.id && !draft.isEditingApiKey ? 'text' : 'password'}
-                    value={draft.id && !draft.isEditingApiKey ? displayedMaskedApiKey : draft.apiKey}
-                    disabled={Boolean(draft.id) && !draft.isEditingApiKey}
-                    autoComplete="new-password"
+                    id="lms-display-name"
+                    value={draft.displayName}
+                    onChange={(event) => {
+                      setDraft((current) => ({ ...current, displayName: event.target.value }));
+                      setTouched(true);
+                      resetFeedback();
+                    }}
+                    placeholder="e.g. UofT Canvas"
+                  />
+                </Field>
+
+                <Field data-invalid={instanceUrlInvalid}>
+                  <FieldLabel htmlFor="lms-instance-url">{providerDefinition.instanceUrlLabel}</FieldLabel>
+                  <Input
+                    id="lms-instance-url"
+                    value={draft.instanceUrl}
+                    autoComplete="off"
                     autoCorrect="off"
                     autoCapitalize="none"
                     spellCheck={false}
                     onChange={(event) => {
-                      setDraft((current) => ({
-                        ...current,
-                        apiKey: event.target.value,
-                        hasApiKeyChange: true,
-                      }));
+                      setDraft((current) => ({ ...current, instanceUrl: event.target.value }));
                       setTouched(true);
                       resetFeedback();
                     }}
-                    placeholder={providerDefinition.apiKeyPlaceholder}
-                    aria-invalid={apiKeyInvalid}
-                    className="flex-1"
+                    placeholder={providerDefinition.instanceUrlPlaceholder}
+                    aria-invalid={instanceUrlInvalid}
                   />
-                  {draft.id ? (
-                    <Button
-                      type="button"
-                      variant={draft.isEditingApiKey ? 'default' : 'outline'}
-                      className="h-9 w-9 shrink-0"
-                      aria-label={draft.isEditingApiKey ? 'Save API key edit' : 'Edit API key'}
-                      title={draft.isEditingApiKey ? 'Save API key edit' : 'Edit API key'}
-                      onClick={() => {
-                        if (draft.isEditingApiKey) {
-                          setTouched(true);
-                          if (draft.apiKey.trim() && !apiKeyValid) {
-                            return;
-                          }
-                          setDraft((current) => ({ ...current, isEditingApiKey: false }));
-                          resetFeedback();
-                          return;
-                        }
+                  <FieldDescription>
+                    {draft.id
+                      ? `Leave the saved ${providerDefinition.instanceUrlLabel.toLowerCase()} unchanged if you only want to rename this integration.`
+                      : `Enter the ${providerDefinition.label} instance host for this connection.`}
+                  </FieldDescription>
+                </Field>
 
+                <Field data-invalid={apiKeyInvalid}>
+                  <FieldLabel htmlFor="lms-api-key">{providerDefinition.apiKeyLabel}</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="lms-api-key"
+                      type={draft.id && !draft.isEditingApiKey ? 'text' : 'password'}
+                      value={draft.id && !draft.isEditingApiKey ? displayedMaskedApiKey : draft.apiKey}
+                      disabled={Boolean(draft.id) && !draft.isEditingApiKey}
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      onChange={(event) => {
                         setDraft((current) => ({
                           ...current,
-                          isEditingApiKey: true,
-                          apiKey: current.hasApiKeyChange ? current.apiKey : '',
+                          apiKey: event.target.value,
+                          hasApiKeyChange: true,
                         }));
+                        setTouched(true);
                         resetFeedback();
                       }}
-                    >
-                      {draft.isEditingApiKey ? <Check className="size-4" /> : <Pencil className="size-4" />}
-                    </Button>
-                  ) : null}
-                </div>
-                <FieldDescription>
-                  Saved API keys stay encrypted. Click the pencil to replace the key, then enter the full API key value.
-                </FieldDescription>
-              </Field>
-            </FieldGroup>
-          </FieldSet>
-          <div className="min-h-5 pt-3 text-left text-sm">
-            {saveErrorMessage ? (
-              <p className="truncate whitespace-nowrap text-destructive">
-                {saveErrorMessage}
-              </p>
-            ) : null}
+                      placeholder={providerDefinition.apiKeyPlaceholder}
+                      aria-invalid={apiKeyInvalid}
+                      className="flex-1"
+                    />
+                    {draft.id ? (
+                      <Button
+                        type="button"
+                        variant={draft.isEditingApiKey ? 'default' : 'outline'}
+                        className="h-9 w-9 shrink-0"
+                        aria-label={draft.isEditingApiKey ? 'Save API key edit' : 'Edit API key'}
+                        title={draft.isEditingApiKey ? 'Save API key edit' : 'Edit API key'}
+                        onClick={() => {
+                          if (draft.isEditingApiKey) {
+                            setTouched(true);
+                            if (draft.apiKey.trim() && !apiKeyValid) {
+                              return;
+                            }
+                            setDraft((current) => ({ ...current, isEditingApiKey: false }));
+                            resetFeedback();
+                            return;
+                          }
+
+                          setDraft((current) => ({
+                            ...current,
+                            isEditingApiKey: true,
+                            apiKey: current.hasApiKeyChange ? current.apiKey : '',
+                          }));
+                          resetFeedback();
+                        }}
+                      >
+                        {draft.isEditingApiKey ? <Check className="size-4" /> : <Pencil className="size-4" />}
+                      </Button>
+                    ) : null}
+                  </div>
+                  <FieldDescription>
+                    Saved API keys stay encrypted. Click the pencil to replace the key, then enter the full API key value.
+                  </FieldDescription>
+                </Field>
+              </FieldGroup>
+            </FieldSet>
+            <div className="min-h-5 text-left text-sm">
+              {saveErrorMessage ? (
+                <p className="text-destructive">
+                  {saveErrorMessage}
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
       </ResponsiveDialogDrawer>

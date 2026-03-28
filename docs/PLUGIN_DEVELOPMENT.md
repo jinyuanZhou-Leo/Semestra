@@ -9,7 +9,22 @@ Plugins are the top-level extension unit. A single plugin can contribute:
 2. **Tab** entries: full-size panels that appear as workspace tabs.
 
 Both contribution shapes share a similar registration model but remain subordinate to the plugin.
-Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement any mix of tabs, widgets, plugin-global settings, and optional host-rendered setup definitions.
+Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement any mix of tabs, widgets, plugin-global settings, and optional Semester setup definitions.
+
+Plugin-global settings now support three host contexts:
+1. `program`
+2. `semester`
+3. `course`
+
+The framework manages persistence for these settings. Program-scoped plugin settings are stored through Program plugin installations in backend `program_settings`, while Semester and Course plugin settings continue using the shared plugin-settings records.
+
+### Unassigned Course Compatibility
+
+If a plugin can run inside a Course that does not belong to any Semester, set `supportsUnassignedCourse: true` in its `metadata.ts`.
+
+- Leave this flag unset, or set it to `false`, when the plugin depends on Semester-only concepts such as semester date windows or Semester setup state.
+- This flag does not replace `contexts: ['course']`; it is an extra capability that tells the backend and Course settings UI the plugin may appear in unassigned Course governance.
+- Unassigned Course governance is intentionally lightweight: the host only exposes enable/disable controls there, not Course-level setup, auth, or override surfaces.
 
 ### Runtime Architecture
 
@@ -49,10 +64,10 @@ default export definePluginSettings(...)"]
 
 The important split is:
 - `metadata.ts` drives plugin-local manifest data and tab/widget contribution catalogs before runtime code is loaded.
-- `setup.ts` stays eager, pure-data-only, and feeds the generated backend plugin setup manifest.
+- `setup.ts` / `setup.tsx` stays eager and defines the plugin's Semester setup contract, including field/section metadata, validation, and optional custom setup/review UI.
 - `index.ts` stays lazy and registers tab/widget runtime definitions plus instance settings when a type is actually needed.
-- `settings.ts` / `settings.tsx` is eager and reserved for plugin-global settings sections that are shared across instances.
-- Program-managed install/authorization/default-config state is declared in the host governance contract, and Semester wizard setup is declared as host-rendered setup sections instead of ad hoc plugin-controlled flows.
+- `settings.ts` / `settings.tsx` is eager and reserved for plugin-global settings sections that are shared across instances and may target Program, Semester, and/or Course settings pages.
+- Program-managed install/authorization/default-config state is declared in the host governance contract, and Semester wizard setup is declared through the setup contract instead of ad hoc plugin-controlled flows.
 - Plugin identity (`name`, `description`, `author`) is owned by backend governance, not by the frontend manifest.
 
 ### Plugin Folder Structure (Recommended)
@@ -60,7 +75,7 @@ The important split is:
 ```
 frontend/src/plugins/<plugin-name>/
   metadata.ts     // REQUIRED: Plugin id, plugin icon, and widget/tab contribution catalog entries
-  setup.ts        // OPTIONAL: Default-exports definePluginSetup(...) when the plugin contributes host-rendered Semester setup
+  setup.ts(x)     // OPTIONAL: Default-exports definePluginSetup(...) when the plugin contributes Semester setup
   index.ts        // REQUIRED: Default-exports definePluginRuntime(...) (lazy runtime UI entry)
   settings.ts(x)  // OPTIONAL: Default-exports definePluginSettings(...) when plugin exposes plugin-global settings
   widget.tsx      // Optional: widget implementation
@@ -72,6 +87,89 @@ frontend/src/plugins/<plugin-name>/
 > - Backend governance is the source of truth for plugin identity: `name`, `description`, `author`, install defaults, availability, authorization, Program fields, Semester overrides, and setup sections.
 > - Frontend `metadata.ts` is the source of truth only for plugin-local runtime metadata: plugin `icon` plus tab/widget contribution catalogs (`type`, contribution `name`, contribution `description`, `layout`, `maxInstances`, `allowedContexts`).
 > - Runtime definitions in `widget.tsx`/`tab.tsx` should only declare runtime-specific fields (`type`, `component`, `SettingsComponent`, `defaultSettings`, `headerButtons`, `onCreate`, `onDelete`). Do not duplicate catalog fields in runtime definitions.
+
+## Plugin-Global Settings
+
+Plugin-global settings are declared in `frontend/src/plugins/<plugin-id>/settings.ts` or `settings.tsx` and are registered eagerly through `definePluginSettings(...)`.
+
+Use them when the plugin needs host-managed settings UI that is:
+- shared across tab/widget instances
+- scoped to Program, Semester, or Course settings
+- persisted by the framework instead of by plugin-local API code
+
+### Supported Contexts
+
+`allowedContexts` now supports:
+- `program`
+- `semester`
+- `course`
+
+If `allowedContexts` is omitted, the settings section is considered available in all three contexts.
+
+Example:
+
+```typescript
+import { definePluginSettings } from '@/plugin-system/contracts';
+import type { PluginSettingsSectionDefinition } from '@/services/pluginSettingsRegistry';
+
+import { CourseListProgramSettings } from './programSettings';
+import { CourseListSemesterSettings } from './semesterSettings';
+
+export default definePluginSettings({
+  pluginSettings: [
+    {
+      id: 'course-list-program',
+      component: CourseListProgramSettings,
+      allowedContexts: ['program'],
+    },
+    {
+      id: 'course-list-semester',
+      component: CourseListSemesterSettings,
+      allowedContexts: ['semester'],
+    },
+  ] satisfies PluginSettingsSectionDefinition[],
+});
+```
+
+### Component Props
+
+Plugin settings components receive `PluginSettingsProps` from `frontend/src/services/pluginSettingsRegistry.tsx`.
+
+Relevant props:
+- `settings`: current JSON-like settings snapshot
+- `updateSettings(nextSettings)`: framework-managed update entrypoint
+- `saveState`: `idle | saving | success`
+- `hasPendingChanges`: whether the current draft differs from the last saved snapshot
+- `isLoading`: whether the host is still loading the backing record
+- `programId?`: present for Program settings sections
+- `semesterId?`: present for Semester settings sections
+- `courseId?`: present for Course settings sections
+- `onRefresh()`: host callback for refreshing the surrounding workspace after plugin-owned side effects
+
+Program settings components should prefer `programId` as their primary context identifier and should treat `semesterId`/`courseId` as absent there.
+
+### Persistence Model
+
+The host owns persistence semantics:
+- Program settings sections read/write `ProgramPluginInstallation.program_settings` through `PUT /programs/{program_id}/plugins/{plugin_id}`.
+- Semester settings sections read/write `PluginSetting` rows under `/semesters/{semester_id}/plugin-settings/{plugin_id}`.
+- Course settings sections read/write `PluginSetting` rows under `/courses/{course_id}/plugin-settings/{plugin_id}`.
+
+This matters for plugin authors:
+- Program settings belong to plugin governance state. They should be used for Program-level defaults and switches that conceptually belong with Program installation/governance.
+- Semester and Course plugin settings remain runtime shared-settings records, separate from Program governance.
+- If the value is a governed Program/Semester config field already enforced by backend governance, keep the runtime aligned with the resolved host payload instead of creating a conflicting plugin-global settings record.
+
+### Authoring Rules
+
+When deciding where a setting should live:
+- Use Program plugin settings for Program-scoped defaults or operational switches that should apply across the Program.
+- Use Semester plugin settings for Semester-local shared behavior that is not part of Semester setup/governance fields.
+- Use Course plugin settings for Course-local shared behavior that is not per-tab or per-widget instance state.
+- Use tab/widget instance settings when the value belongs to one runtime instance instead of the whole workspace.
+- Use `setup.ts(x)` only for Semester wizard setup inputs, not as a replacement for steady-state Program settings.
+
+Avoid duplicating the same conceptual setting in both Program plugin settings and backend governance fields unless the contract explicitly requires it.
 
 The current loader expects `metadata.ts` to default-export:
 
@@ -92,14 +190,14 @@ Program install state, authorization state, default configuration, Semester over
 
 Current repository model:
 - The authoritative plugin identity and governance registry lives in [`backend/plugin_governance.py`](../backend/plugin_governance.py) because the backend must validate Program settings, Semester overrides, setup payloads, availability, and draft review blockers.
-- Frontend runtime/plugin authoring uses `metadata.ts`, optional `setup.ts`, `index.ts`, and optional `settings.ts(x)` for plugin-local manifest data, host-rendered setup DSL, runtime registrations, and plugin-global settings UI.
-- If a plugin needs Semester wizard setup, declare it in `frontend/src/plugins/<plugin-id>/setup.ts`, regenerate the backend manifest, and keep any runtime UI aligned with the resolved config returned by the host.
+- Frontend runtime/plugin authoring uses `metadata.ts`, optional `setup.ts(x)`, `index.ts`, and optional `settings.ts(x)` for plugin-local manifest data, setup declarations, runtime registrations, and plugin-global settings UI.
+- If a plugin needs Semester wizard setup, declare it in `frontend/src/plugins/<plugin-id>/setup.ts(x)`, regenerate the backend manifest, and keep any runtime UI aligned with the resolved config returned by the host.
 
 What the host contract controls:
 - Plugin identity: `plugin_id`, `display_name`, `description`, and `author`.
 - Program layer: install/uninstall, authorization requirement, pinned version display, default settings, and field schema.
 - Semester layer: enable/disable from already-installed Program plugins plus edits to fields explicitly marked as `semester-override`.
-- Wizard setup: fixed host-owned `Basics -> Courses -> Plugins -> Plugin Setup -> Review` flow where plugins may only contribute declared setup sections/fields and review summaries.
+- Wizard setup: fixed host-owned `Basics -> Courses -> Plugins -> per-plugin Setup -> Review` flow where each enabled plugin with setup contributes exactly one step and plugins may only contribute declared setup sections/fields, validation, and review summaries or review UI.
 - Runtime reads: plugins consume resolved config from the host instead of merging `defaults + program + semester` locally.
 
 What plugins may not do:
@@ -124,18 +222,41 @@ Plugins should treat the resolved payload as the only runtime source of truth.
 
 ### Setup Contributions
 
-Setup contributions are declaration-only and frontend-authored through the setup DSL, then materialized into a backend-owned generated manifest.
+Setup contributions are frontend-authored through the setup contract, then materialized into a backend-owned generated manifest.
 
-Each setup section in `frontend/src/plugins/<plugin-id>/setup.ts` should define:
+Each setup definition in `frontend/src/plugins/<plugin-id>/setup.ts(x)` should define:
 - Stable section id and title.
 - Host-renderable field list with field type, label, description, default, and select options.
 - Values that write into `semester_plugin_activations.setup_state` and, when the field is also a Semester override, into `semester_overrides`.
+- Optional custom setup/review UI when the plugin cannot use the default host-rendered field UI.
+- Optional field-level and definition-level validation for Next-step gating.
 
-Review summaries shown in the final wizard step must be derivable from the same declared setup fields. The backend currently builds these summaries from the generated manifest in `plugin_governance.build_plugin_setup_summary(...)` so review/finalize behavior stays deterministic.
+Review surfaces shown in the final wizard step must be derivable from the same declared setup fields. DSL-based plugins use host-rendered summaries derived from the generated manifest, while custom-UI plugins must also provide a custom review component so Review stays deterministic and aligned with setup.
+
+### Setup Modes
+
+Each plugin setup definition supports exactly two UI modes:
+
+1. `dsl`
+   This is the default. The plugin declares fields, sections, and optional validation. The app renders the inputs and review summary with the shared host UI.
+2. `custom`
+   The plugin declares the same fields and sections, but also provides a custom `setupComponent` and `reviewComponent`. The app still owns step order, saving, validation timing, and layout constraints.
+
+Use `dsl` unless the plugin genuinely needs a bespoke composition that cannot be expressed through the host field renderer.
+
+### Wizard Behavior
+
+The Create Semester wizard treats setup as a host-owned workflow:
+- Each enabled plugin with setup contributes one wizard step.
+- Step order is `Basics -> Courses -> Plugins -> one step per setup plugin -> Review`.
+- Clicking `Next` on a plugin setup step runs required-field checks, field-level validators, and definition-level validators.
+- The host blocks navigation when validation fails.
+- Custom setup UI does not change navigation ownership. It only changes the content rendered inside the host step shell.
+- If a plugin uses custom setup UI, it must also provide custom review UI.
 
 ### Plugin Setup DSL Reference
 
-The setup DSL lives in [`frontend/src/plugin-system/setup.ts`](../frontend/src/plugin-system/setup.ts). It is intentionally pure data: no React components, hooks, async work, or runtime-only imports.
+The setup contract lives in [`frontend/src/plugin-system/setup.ts`](../frontend/src/plugin-system/setup.ts). It supports both host-rendered DSL mode and plugin-rendered custom UI mode.
 
 Author a setup file like this:
 
@@ -184,6 +305,8 @@ export default definePluginSetup({
 `definePluginSetup(...)` accepts:
 - `fields`: a keyed map of reusable field declarations. Keys become the persisted payload keys.
 - `sections`: ordered host-rendered sections. Each section references existing field keys through `fieldKeys`.
+- `ui`: optional UI mode. Omit it or use `{ kind: 'dsl' }` for host-rendered setup. Use `{ kind: 'custom', setupComponent, reviewComponent }` for plugin-rendered setup/review UI.
+- `validate`: optional async or sync definition-level validator invoked when the user clicks `Next`.
 
 `section(id, { ... })` accepts:
 - `id`: stable section id used by the generated manifest.
@@ -214,6 +337,7 @@ Shared field properties:
 | `placeholder` | No | Placeholder text for text-like inputs. |
 | `defaultValue` | No | Host-side initial value used before the user edits the field. |
 | `summaryLabels` | No | Optional display labels used when the Review step summarizes stored values, mainly for select-like values. |
+| `validate` | No | Optional field-level validator invoked when the user clicks `Next`. Return a message or validation issue to block navigation. |
 
 `persist` supports exactly three values:
 - `setupState`: write only to `semester_plugin_activations.setup_state`. Use this for onboarding-only values that should not become runtime governance config.
@@ -226,15 +350,94 @@ Practical rules:
 - Use `both` when the same answer should appear in review/setup history and immediately affect resolved runtime config.
 - Do not use `semesterOverride` or `both` unless the backend governance contract already declares the same field path as `semester-override`.
 - Keep field keys and section ids stable once released; changing them breaks persisted draft/setup continuity.
-- Keep `setup.ts` data-only. Import only from the setup DSL or other pure constants.
+- Keep field declarations backend-safe even when the UI mode is `custom`; the manifest is still generated from `fields` and `sections`.
+- Use custom UI only for presentation and input composition. Do not move persistence rules or step navigation into plugin code.
+- If you choose `custom`, provide both `setupComponent` and `reviewComponent`.
+
+### Custom UI Example
+
+```tsx
+import { definePluginSetup, section, textField } from '@/plugin-system';
+
+export default definePluginSetup({
+  fields: {
+    workspaceName: textField({
+      label: 'Workspace name',
+      persist: 'setupState',
+      required: true,
+    }),
+  },
+  sections: [
+    section('workspace', {
+      title: 'Workspace Setup',
+      fieldKeys: ['workspaceName'],
+    }),
+  ],
+  ui: {
+    kind: 'custom',
+    setupComponent: ({ values, getFieldError, onValueChange }) => (
+      <div className="space-y-3">
+        <label className="text-sm font-medium">Workspace name</label>
+        <input
+          value={String(values.workspaceName ?? '')}
+          onChange={(event) => onValueChange('workspaceName', event.target.value)}
+        />
+        {getFieldError('workspaceName') ? (
+          <p className="text-sm text-destructive">{getFieldError('workspaceName')}</p>
+        ) : null}
+      </div>
+    ),
+    reviewComponent: ({ values }) => (
+      <div>Workspace name: {String(values.workspaceName ?? '')}</div>
+    ),
+  },
+});
+```
+
+The host still saves values, runs validation on `Next`, and places both components inside the wizard shell.
+
+### Validation Example
+
+```typescript
+export default definePluginSetup({
+  fields: {
+    apiBaseUrl: textField({
+      label: 'API base URL',
+      persist: 'setupState',
+      required: true,
+      validate: (value) => (
+        typeof value === 'string' && value.startsWith('https://')
+          ? null
+          : 'API base URL must start with https://'
+      ),
+    }),
+  },
+  sections: [
+    section('connection', {
+      title: 'Connection',
+      fieldKeys: ['apiBaseUrl'],
+    }),
+  ],
+  validate: ({ values }) => (
+    values.apiBaseUrl === 'https://localhost'
+      ? { fieldPath: 'apiBaseUrl', message: 'Use the real service URL for Semester setup.' }
+      : null
+  ),
+});
+```
+
+Validation order is:
+1. Host required-field checks.
+2. Field-level `validate`.
+3. Definition-level `validate`.
 
 Generation pipeline:
-- `frontend/src/plugins/<plugin-id>/setup.ts` is discovered eagerly by `frontend/src/plugin-system/setupRegistry.ts`.
+- `frontend/src/plugins/<plugin-id>/setup.ts` or `setup.tsx` is discovered eagerly by `frontend/src/plugin-system/setupRegistry.ts`.
 - `frontend/scripts/generate-plugin-setup-manifest.mjs` loads the setup registry through Vite SSR.
 - The script writes [`backend/generated/plugin_setup_manifest.json`](../backend/generated/plugin_setup_manifest.json).
 - `backend/plugin_governance.py` validates that generated manifest at import time and uses it for setup APIs, validation, and review summaries.
 
-After editing any plugin `setup.ts`, regenerate the manifest:
+After editing any plugin `setup.ts(x)`, regenerate the manifest:
 
 ```bash
 npm --prefix frontend run generate-plugin-setup-manifest
@@ -269,7 +472,7 @@ Framework behavior:
 
 The plugin system scans:
 - `metadata.ts` with eager `import.meta.glob` for plugin manifests and contribution catalogs (plugin icon, contribution names, layout).
-- `setup.ts` with eager `import.meta.glob` for plugin setup registration and backend-manifest generation (only if the file exists).
+- `setup.ts` / `setup.tsx` with eager `import.meta.glob` for plugin setup registration and backend-manifest generation (only if the file exists).
 - `index.ts` with `import.meta.glob` for lazy runtime registration (tab/widget UI).
 - `settings.ts` / `settings.tsx` with eager `import.meta.glob` for plugin-global settings registration (only if the file exists).
 
@@ -279,7 +482,7 @@ If `settings.ts` / `settings.tsx` default-exports `definePluginSettings(...)`, p
 **Loading Model**
 - Backend governance payloads: fetched by host management/runtime pages when plugin identity, install state, availability, or resolved config is needed.
 - Metadata (`metadata.ts`): eagerly loaded — plugin icons plus contribution names, descriptions, layout, context limits, and instance limits are available before runtime modules.
-- Setup (`setup.ts`): eagerly loaded and validated — host-rendered setup sections are available for frontend facades and for generating the backend plugin setup manifest.
+- Setup (`setup.ts` / `setup.tsx`): eagerly loaded and validated — setup fields, sections, validation hooks, and optional custom setup/review UI are available for frontend facades, while backend-safe manifest data is generated from the same declaration.
 - Runtime UI (`index.ts` -> `tab.tsx` / `widget.tsx`): lazy-loaded.
 - Plugin-global settings UI (`settings.ts` / `settings.tsx`): eagerly loaded (optional).
 - This keeps plugin icons, add-modal contribution catalogs, and shared plugin settings available without loading runtime UI bundles.

@@ -69,7 +69,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       <Dialog open={Boolean(state)} onOpenChange={(open) => !open && resolveAndClose(state?.type === "alert")}>
         <DialogContent className="p-0 sm:max-w-[420px]">
           {state?.title && (
-            <DialogHeader className="border-b px-6 py-4">
+            <DialogHeader className="border-b px-6 pt-6 pb-4">
               <DialogTitle className="text-base font-semibold">{state.title}</DialogTitle>
               <DialogDescription className="sr-only">
                 {state?.description ?? (state?.type === "confirm" ? "Please confirm this action." : "Please review this message.")}

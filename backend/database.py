@@ -78,6 +78,12 @@ REQUIRED_RUNTIME_SCHEMA = {
         "setup_state",
         "is_enabled",
     },
+    "program_course_plugin_activations": {
+        "id",
+        "course_id",
+        "program_plugin_installation_id",
+        "is_enabled",
+    },
 }
 
 
@@ -95,7 +101,13 @@ def collect_runtime_schema_issues(bind) -> list[str]:
         }
         for column_name in sorted(required_columns - column_names):
             issues.append(f"missing column '{table_name}.{column_name}'")
-    return issues
+    return sorted(
+        issues,
+        key=lambda item: (
+            0 if item.startswith("missing table") else 1,
+            item,
+        ),
+    )
 
 
 def assert_runtime_schema_compatible(bind) -> None:

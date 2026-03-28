@@ -196,10 +196,10 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
             desktopContentClassName="gap-0 p-0 sm:max-w-xl h-[600px] flex flex-col"
             mobileContentClassName="gap-0 p-0 h-[85vh] max-h-[85vh] flex flex-col"
             desktopHeaderClassName="px-6 pt-6 pb-4 flex-none"
-            mobileHeaderClassName="px-6 pt-6 pb-4 flex-none"
+            mobileHeaderClassName="px-6 pt-6 pb-4 flex-none text-left"
             footer={actionButtons}
             desktopFooterClassName="px-6 pb-6 pt-4 flex-none border-t"
-            mobileFooterClassName="px-6 pb-6 pt-4 flex-none border-t flex-row justify-end"
+            mobileFooterClassName="pt-2 border-t flex-row justify-end"
         >
             {listContent}
         </ResponsiveDialogDrawer>

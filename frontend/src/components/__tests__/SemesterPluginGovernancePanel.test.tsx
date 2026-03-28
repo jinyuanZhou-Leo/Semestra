@@ -1,6 +1,6 @@
 // input:  [`SemesterPluginGovernancePanel`, mocked governance APIs, QueryClient wrapper, and testing-library interactions]
-// output: [component regression tests covering Semester-level toggle-only governance, reusable plugin info dialogs, Program-enabled off rows, and non-destructive enablement toggles]
-// pos:    [UI regression suite for the shared data table used by Semester plugin management, including Program-enabled plugins that are still off at the Semester layer]
+// output: [component regression tests covering Semester-level toggle-only governance, reusable plugin info dialogs, Program-enabled off rows, non-destructive enablement toggles, and header-level bulk toggles]
+// pos:    [UI regression suite for the shared data table used by Semester plugin management, including Program-enabled plugins that are still off at the Semester layer and header-level bulk enablement controls]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -16,6 +16,7 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     getProgramPluginCatalog: vi.fn(),
     upsertSemesterPluginActivation: vi.fn(),
+    bulkUpdateSemesterPluginActivations: vi.fn(),
   },
 }));
 
@@ -31,6 +32,7 @@ describe("SemesterPluginGovernancePanel", () => {
   beforeEach(() => {
     apiMock.getProgramPluginCatalog.mockReset();
     apiMock.upsertSemesterPluginActivation.mockReset();
+    apiMock.bulkUpdateSemesterPluginActivations.mockReset();
   });
 
   it("does not expose marketplace actions for Semester plugins", async () => {
@@ -51,7 +53,8 @@ describe("SemesterPluginGovernancePanel", () => {
     apiMock.getProgramPluginCatalog.mockResolvedValue([]);
     apiMock.upsertSemesterPluginActivation.mockResolvedValue({});
 
-    const { Wrapper } = createQueryClientWrapper();
+    const { Wrapper, queryClient } = createQueryClientWrapper();
+    const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
     render(
       <SemesterPluginGovernancePanel
         semesterId="semester-1"
@@ -83,13 +86,58 @@ describe("SemesterPluginGovernancePanel", () => {
       { wrapper: Wrapper },
     );
 
-    const switches = await screen.findAllByRole("switch");
-    fireEvent.click(switches[0]);
+    fireEvent.click(await screen.findByRole("switch", { name: "Academic Events enabled" }));
 
     await waitFor(() => {
       expect(apiMock.upsertSemesterPluginActivation).toHaveBeenCalledWith("semester-1", "builtin-event-core", {
         is_enabled: false,
       });
+    });
+
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["courses", "detail"] });
+  });
+
+  it("prevents toggling a locked Semester plugin off", async () => {
+    apiMock.upsertSemesterPluginActivation.mockResolvedValue({});
+
+    const { Wrapper } = createQueryClientWrapper();
+    render(
+      <SemesterPluginGovernancePanel
+        semesterId="semester-1"
+        pluginActivations={[
+          {
+            id: "activation-locked",
+            semester_id: "semester-1",
+            program_plugin_installation_id: "installation-locked",
+            plugin_id: "course-list",
+            display_name: "Course List",
+            description: "Semester course list widget and course-management defaults.",
+            author: "Jinyuan",
+            locked: true,
+            version: "workspace",
+            is_enabled: true,
+            capabilities: {},
+            setup_sections: [],
+            semester_overrides: {},
+            setup_state: {},
+            resolved_settings: {},
+            fields: [],
+            setup_summary: [],
+            review_errors: [],
+            available: true,
+            availability_reason: null,
+          },
+        ]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    const lockedSwitch = await screen.findByRole("switch", { name: "Course List enabled" });
+    expect(lockedSwitch).toBeDisabled();
+    fireEvent.click(lockedSwitch);
+
+    await waitFor(() => {
+      expect(apiMock.upsertSemesterPluginActivation).not.toHaveBeenCalled();
     });
   });
 
@@ -205,5 +253,72 @@ describe("SemesterPluginGovernancePanel", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Plugin Info" }));
 
     expect((await screen.findAllByText("Manage files and links for each course.")).length).toBeGreaterThan(0);
+  });
+
+  it("uses the header switch to bulk-enable editable Semester plugins", async () => {
+    apiMock.bulkUpdateSemesterPluginActivations.mockResolvedValue({});
+
+    const { Wrapper } = createQueryClientWrapper();
+    render(
+      <SemesterPluginGovernancePanel
+        semesterId="semester-1"
+        pluginActivations={[
+          {
+            id: "activation-1",
+            semester_id: "semester-1",
+            program_plugin_installation_id: "installation-1",
+            plugin_id: "course-list",
+            display_name: "Course List",
+            description: "Semester course list widget and course-management defaults.",
+            author: "Jinyuan",
+            locked: true,
+            version: "workspace",
+            is_enabled: true,
+            capabilities: {},
+            setup_sections: [],
+            semester_overrides: {},
+            setup_state: {},
+            resolved_settings: {},
+            fields: [],
+            setup_summary: [],
+            review_errors: [],
+            available: true,
+            availability_reason: null,
+          },
+          {
+            id: null,
+            semester_id: "semester-1",
+            program_plugin_installation_id: "installation-9",
+            plugin_id: "course-resources",
+            display_name: "Course Resources",
+            description: "Manage files and links for each course.",
+            author: "Jinyuan",
+            locked: false,
+            version: "workspace",
+            is_enabled: false,
+            capabilities: {},
+            setup_sections: [],
+            semester_overrides: {},
+            setup_state: {},
+            resolved_settings: {},
+            fields: [],
+            setup_summary: [],
+            review_errors: [],
+            available: false,
+            availability_reason: "Disabled for this Semester.",
+          },
+        ]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    fireEvent.click(await screen.findByRole("switch", { name: "Toggle all editable Semester plugins" }));
+
+    await waitFor(() => {
+      expect(apiMock.bulkUpdateSemesterPluginActivations).toHaveBeenCalledWith("semester-1", {
+        plugin_ids: ["course-resources"],
+        is_enabled: true,
+      });
+    });
   });
 });

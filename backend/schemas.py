@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin governance payloads, manifest-backed plugin-system setup payloads, Semester draft lifecycle plus review payloads with typed draft-step validation, Semester activation payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin governance and plugin-system setup contracts plus validated Semester draft review state and step values, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin governance payloads, manifest-backed plugin-system setup payloads, Semester draft lifecycle plus review payloads with typed draft-step validation, Semester activation payloads, unassigned-Course plugin activation payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, plugin-shared settings payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin governance and plugin-system setup contracts plus validated Semester draft review state and step values, unassigned-Course plugin activation contracts, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -855,6 +855,7 @@ class CourseWithWidgets(Course):
     widgets: List[Widget] = []
     tabs: List[Tab] = []
     plugin_settings: List[PluginSetting] = []
+    plugin_activations: List["CoursePluginActivation"] = []
     enabled_plugin_ids: List[str] = []
     runtime_plugins: List[dict[str, Any]] = []
     available_widget_types: List[str] = []
@@ -1043,6 +1044,11 @@ class ProgramPluginInstallationUpsertRequest(BaseModel):
     program_settings: dict[str, Any] = {}
 
 
+class ProgramPluginInstallationBulkUpdateRequest(BaseModel):
+    plugin_ids: List[str]
+    is_enabled: bool
+
+
 class ProgramPluginInstallation(BaseModel):
     id: Optional[str] = None
     plugin_id: str
@@ -1076,6 +1082,11 @@ class ProgramPluginCatalogItem(ProgramPluginInstallation):
 
 class SemesterPluginActivationUpsertRequest(BaseModel):
     is_enabled: Optional[bool] = None
+
+
+class SemesterPluginActivationBulkUpdateRequest(BaseModel):
+    plugin_ids: List[str]
+    is_enabled: bool
 
 
 class SemesterDraftReviewIssue(BaseModel):
@@ -1122,6 +1133,35 @@ class SemesterPluginActivation(BaseModel):
     review_errors: List[SemesterDraftReviewIssue] = []
     available: bool = False
     availability_reason: Optional[str] = None
+
+
+class CoursePluginActivationUpsertRequest(BaseModel):
+    is_enabled: Optional[bool] = None
+
+
+class CoursePluginActivationBulkUpdateRequest(BaseModel):
+    plugin_ids: List[str]
+    is_enabled: bool
+
+
+class CoursePluginActivation(BaseModel):
+    id: Optional[str] = None
+    course_id: str
+    program_plugin_installation_id: str
+    plugin_id: str
+    display_name: str
+    description: str
+    long_description: str = ""
+    author: str
+    locked: bool = False
+    version: str
+    is_enabled: bool = True
+    auth_state: str
+    capabilities: dict[str, Any] = {}
+    resolved_settings: dict[str, Any] = {}
+    available: bool = False
+    availability_reason: Optional[str] = None
+    source: Literal["course", "semester"]
 
 
 class PluginSystemSetupDefinitionResponse(BaseModel):
@@ -1518,6 +1558,12 @@ class TodoSemesterExport(BaseModel):
     sections: List[TodoSectionExport] = []
     tasks: List[TodoTaskExport] = []
 
+
+class CoursePluginActivationExport(BaseModel):
+    plugin_id: str
+    is_enabled: bool = True
+
+
 class CourseExport(BaseModel):
     id: Optional[str] = None
     name: str
@@ -1532,6 +1578,7 @@ class CourseExport(BaseModel):
     widgets: List[WidgetExport] = []
     tabs: List[TabExport] = []
     plugin_settings: List[PluginSettingExport] = []
+    plugin_activations: List[CoursePluginActivationExport] = []
     gradebook: Optional[CourseGradebookExport] = None
     resource_files: List[CourseResourceExport] = []
     lms_link: Optional[LmsCourseLinkExport] = None

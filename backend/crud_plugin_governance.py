@@ -1,0 +1,1242 @@
+# input:  [SQLAlchemy session, plugin governance registry, Program/Semester/Course models, shared CRUD helpers, and layout persistence helpers]
+# output: [Program/Semester/Course plugin-governance helpers, setup flows, review serialization, and default activation/install maintenance]
+# pos:    [Plugin-governance slice of backend CRUD that owns install/activation/setup/readiness state across Program, Semester, and unassigned Course scopes]
+#
+# ⚠️ When this file is updated:
+#    1. Update these header comments
+#    2. Update the INDEX.md of the folder this file belongs to
+
+from __future__ import annotations
+
+from sqlalchemy.orm import Session
+
+import models
+import plugin_governance
+import schemas
+from crud_layout import _ensure_course_plugin_tabs
+from crud_shared import (
+    PluginGovernanceError,
+    _build_review_issue,
+    _canonical_plugin_id,
+    _now_utc_iso,
+    _parse_json_object,
+    _serialize_json_object,
+    _validate_reading_week,
+    _wrap_plugin_validation,
+)
+
+
+def _normalize_program_plugin_installations(
+    db: Session,
+    program: models.Program,
+    *,
+    commit: bool = True,
+) -> None:
+    installations = list(program.plugin_installations)
+    installations_by_plugin_id: dict[str, models.ProgramPluginInstallation] = {
+        installation.plugin_id: installation
+        for installation in installations
+        if installation.plugin_id == _canonical_plugin_id(installation.plugin_id)
+    }
+    did_change = False
+
+    for installation in sorted(installations, key=lambda item: item.created_at or ""):
+        canonical_plugin_id = _canonical_plugin_id(installation.plugin_id)
+        if canonical_plugin_id == installation.plugin_id:
+            continue
+
+        canonical_installation = installations_by_plugin_id.get(canonical_plugin_id)
+        if canonical_installation is None:
+            installation.plugin_id = canonical_plugin_id
+            installations_by_plugin_id[canonical_plugin_id] = installation
+            db.add(installation)
+            did_change = True
+            continue
+
+        if canonical_installation.version == canonical_installation.version.__class__() and installation.version:
+            canonical_installation.version = installation.version
+        canonical_installation.is_enabled = bool(canonical_installation.is_enabled or installation.is_enabled)
+        if canonical_installation.auth_state == "not-required" and installation.auth_state:
+            canonical_installation.auth_state = installation.auth_state
+        if not canonical_installation.auth_message and installation.auth_message:
+            canonical_installation.auth_message = installation.auth_message
+        if canonical_installation.program_settings in {"", "{}"} and installation.program_settings not in {"", "{}"}:
+            canonical_installation.program_settings = installation.program_settings
+        if not canonical_installation.created_at and installation.created_at:
+            canonical_installation.created_at = installation.created_at
+        if installation.updated_at and installation.updated_at > (canonical_installation.updated_at or ""):
+            canonical_installation.updated_at = installation.updated_at
+
+        for activation in installation.semester_activations:
+            activation.program_plugin_installation = canonical_installation
+            db.add(activation)
+
+        for activation in installation.course_activations:
+            activation.program_plugin_installation = canonical_installation
+            db.add(activation)
+
+        db.add(canonical_installation)
+        db.delete(installation)
+        did_change = True
+
+    if did_change:
+        if commit:
+            db.commit()
+            db.refresh(program)
+        else:
+            db.flush()
+
+
+def _build_semester_review_state(semester: models.Semester) -> dict[str, object]:
+    review_errors: list[dict] = []
+    plugin_reviews: dict[str, dict[str, object]] = {}
+
+    normalized_name = (semester.name or "").strip()
+    if not normalized_name:
+        review_errors.append(_build_review_issue(
+            code="SEMESTER_NAME_REQUIRED",
+            message="Semester name is required.",
+            step="basics",
+        ))
+
+    if semester.start_date is None or semester.end_date is None:
+        review_errors.append(_build_review_issue(
+            code="SEMESTER_DATES_REQUIRED",
+            message="Semester start_date and end_date are required.",
+            step="basics",
+        ))
+    elif semester.start_date > semester.end_date:
+        review_errors.append(_build_review_issue(
+            code="INVALID_SEMESTER_DATE_RANGE",
+            message="start_date must be earlier than or equal to end_date.",
+            step="basics",
+        ))
+    else:
+        review_errors.extend(_validate_reading_week(
+            semester_start=semester.start_date,
+            semester_end=semester.end_date,
+            reading_week_start=semester.reading_week_start,
+            reading_week_end=semester.reading_week_end,
+        ))
+
+    for activation in semester.plugin_activations:
+        plugin_id = activation.program_plugin_installation.plugin_id if activation.program_plugin_installation else None
+        plugin_errors: list[dict] = []
+        if activation.program_plugin_installation is None or semester.program is None or plugin_id is None:
+            plugin_errors.append(_build_review_issue(
+                code="PLUGIN_INSTALLATION_NOT_FOUND",
+                message="Semester activation is missing its Program plugin installation.",
+                step="plugins",
+                plugin_id=plugin_id,
+            ))
+            plugin_reviews[plugin_id or activation.id] = {
+                "resolved_settings": {},
+                "setup_values": {},
+                "setup_summary": [],
+                "review_errors": plugin_errors,
+            }
+            review_errors.extend(plugin_errors)
+            continue
+
+        installation = activation.program_plugin_installation
+        program_settings = _parse_json_object(installation.program_settings)
+        semester_overrides = _parse_json_object(activation.semester_overrides)
+        setup_state = _parse_json_object(activation.setup_state)
+
+        try:
+            plugin_review_state = plugin_governance.review_plugin_setup(
+                plugin_id,
+                program_settings=program_settings,
+                semester_overrides=semester_overrides,
+                setup_state=setup_state,
+                program=semester.program,
+                semester=semester,
+            )
+        except plugin_governance.PluginGovernanceValidationError as exc:
+            plugin_errors.append(_build_review_issue(
+                code=exc.code,
+                message=exc.message,
+                step="plugin-setup",
+                plugin_id=plugin_id,
+                field_path=exc.field_path,
+            ))
+            resolved_settings = {}
+            setup_values = {}
+            setup_summary = []
+        else:
+            resolved_settings = plugin_review_state["resolved_settings"]
+            setup_values = plugin_review_state["setup_values"]
+            setup_summary = plugin_review_state["setup_summary"]
+            plugin_errors.extend(
+                _build_review_issue(
+                    code=issue.code,
+                    message=issue.message,
+                    step="plugin-setup",
+                    plugin_id=plugin_id,
+                    field_path=issue.field_path,
+                )
+                for issue in plugin_review_state["review_errors"]
+            )
+            available, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
+            if activation.is_enabled and not available:
+                plugin_errors.append(_build_review_issue(
+                    code="PLUGIN_NOT_AVAILABLE",
+                    message=availability_reason or f"Plugin '{plugin_id}' is not available.",
+                    step="plugins",
+                    plugin_id=plugin_id,
+                ))
+
+        plugin_reviews[plugin_id] = {
+            "resolved_settings": resolved_settings,
+            "setup_values": setup_values,
+            "setup_summary": setup_summary,
+            "review_errors": plugin_errors,
+        }
+        review_errors.extend(plugin_errors)
+
+    return {
+        "review_ready": len(review_errors) == 0,
+        "review_errors": review_errors,
+        "plugin_reviews": plugin_reviews,
+    }
+
+
+def _refresh_semester_review_ready(semester: models.Semester) -> dict[str, object]:
+    review_state = _build_semester_review_state(semester)
+    semester.review_ready = bool(review_state["review_ready"])
+    return review_state
+
+
+def _normalize_auth_state(plugin_id: str, auth_state: str | None) -> str:
+    try:
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    value = (auth_state or "").strip() or ("not-required" if not definition.requires_authorization else "pending")
+    allowed = {"not-required", "pending", "authorized", "failed"}
+    if value not in allowed:
+        raise PluginGovernanceError(
+            "PLUGIN_AUTH_STATE_INVALID",
+            f"Unsupported auth_state '{value}' for plugin '{plugin_id}'.",
+        )
+    return value
+
+
+def _ensure_default_program_plugin_installations(db: Session, program: models.Program) -> None:
+    _normalize_program_plugin_installations(db, program)
+    existing_plugin_ids = {_canonical_plugin_id(installation.plugin_id) for installation in program.plugin_installations}
+    now = _now_utc_iso()
+    did_change = False
+    for plugin_id in plugin_governance.get_default_program_plugin_ids():
+        if plugin_id in existing_plugin_ids:
+            continue
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+        db.add(
+            models.ProgramPluginInstallation(
+                program_id=program.id,
+                plugin_id=plugin_id,
+                version=definition.default_version,
+                is_enabled=definition.default_enabled,
+                auth_state=_normalize_auth_state(plugin_id, None),
+                program_settings="{}",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        did_change = True
+    if did_change:
+        db.commit()
+        db.refresh(program)
+
+
+def _delete_program_plugin_runtime_data(
+    db: Session,
+    *,
+    program_id: str,
+    plugin_id: str,
+) -> None:
+    plugin_id = _canonical_plugin_id(plugin_id)
+    definition = plugin_governance.get_plugin_definition(plugin_id)
+    capabilities = definition.capabilities or {}
+    tab_types = {
+        str(tab_type).strip()
+        for tab_type in capabilities.get("available_tab_types", [])
+        if str(tab_type).strip()
+    }
+    widget_types = {
+        str(widget_type).strip()
+        for widget_type in capabilities.get("available_widget_types", [])
+        if str(widget_type).strip()
+    }
+    semester_ids = [semester_id for (semester_id,) in db.query(models.Semester.id).filter(models.Semester.program_id == program_id).all()]
+    course_ids = [course_id for (course_id,) in db.query(models.Course.id).filter(models.Course.program_id == program_id).all()]
+
+    if semester_ids:
+        db.query(models.PluginSetting).filter(
+            models.PluginSetting.plugin_id == plugin_id,
+            models.PluginSetting.semester_id.in_(semester_ids),
+        ).delete(synchronize_session=False)
+        if tab_types:
+            db.query(models.Tab).filter(
+                models.Tab.semester_id.in_(semester_ids),
+                models.Tab.tab_type.in_(tab_types),
+            ).delete(synchronize_session=False)
+        if widget_types:
+            db.query(models.Widget).filter(
+                models.Widget.semester_id.in_(semester_ids),
+                models.Widget.widget_type.in_(widget_types),
+            ).delete(synchronize_session=False)
+
+    if course_ids:
+        db.query(models.PluginSetting).filter(
+            models.PluginSetting.plugin_id == plugin_id,
+            models.PluginSetting.course_id.in_(course_ids),
+        ).delete(synchronize_session=False)
+        if tab_types:
+            db.query(models.Tab).filter(
+                models.Tab.course_id.in_(course_ids),
+                models.Tab.tab_type.in_(tab_types),
+            ).delete(synchronize_session=False)
+        if widget_types:
+            db.query(models.Widget).filter(
+                models.Widget.course_id.in_(course_ids),
+                models.Widget.widget_type.in_(widget_types),
+            ).delete(synchronize_session=False)
+
+    if plugin_id == "course-resources" and course_ids:
+        db.query(models.CourseResourceFile).filter(
+            models.CourseResourceFile.course_id.in_(course_ids),
+        ).delete(synchronize_session=False)
+
+    if plugin_id == "builtin-gradebook" and course_ids:
+        gradebook_ids = [
+            gradebook_id
+            for (gradebook_id,) in db.query(models.CourseGradebook.id).filter(
+                models.CourseGradebook.course_id.in_(course_ids),
+            ).all()
+        ]
+        if gradebook_ids:
+            db.query(models.GradebookAssessment).filter(
+                models.GradebookAssessment.gradebook_id.in_(gradebook_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.GradebookAssessmentCategory).filter(
+                models.GradebookAssessmentCategory.gradebook_id.in_(gradebook_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.CourseGradebook).filter(
+                models.CourseGradebook.id.in_(gradebook_ids),
+            ).delete(synchronize_session=False)
+
+    if plugin_id == "builtin-event-core":
+        if semester_ids:
+            db.query(models.TodoTask).filter(models.TodoTask.semester_id.in_(semester_ids)).delete(synchronize_session=False)
+            db.query(models.TodoSection).filter(models.TodoSection.semester_id.in_(semester_ids)).delete(synchronize_session=False)
+        if course_ids:
+            db.query(models.CourseEvent).filter(models.CourseEvent.course_id.in_(course_ids)).delete(synchronize_session=False)
+            db.query(models.CourseSection).filter(models.CourseSection.course_id.in_(course_ids)).delete(synchronize_session=False)
+            db.query(models.CourseEventType).filter(models.CourseEventType.course_id.in_(course_ids)).delete(synchronize_session=False)
+
+
+def _ensure_default_semester_plugin_activations(
+    db: Session,
+    semester: models.Semester,
+    *,
+    commit: bool = True,
+) -> None:
+    if semester.program is None:
+        db.refresh(semester, attribute_names=["program"])
+    program = semester.program
+    if program is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Semester is missing its parent Program.")
+    _ensure_default_program_plugin_installations(db, program)
+    existing_installations = {installation.plugin_id: installation for installation in program.plugin_installations}
+    existing_activation_installation_ids = {activation.program_plugin_installation_id for activation in semester.plugin_activations}
+    now = _now_utc_iso()
+    did_change = False
+    for plugin_id in plugin_governance.get_default_semester_plugin_ids():
+        installation = existing_installations.get(plugin_id)
+        if installation is None or not installation.is_enabled or installation.id in existing_activation_installation_ids:
+            continue
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+        available, _ = plugin_governance.resolve_plugin_availability(
+            plugin_id,
+            program_has_lms_integration=bool(program.lms_integration_id),
+            auth_state=installation.auth_state,
+        )
+        if not available:
+            continue
+        db.add(
+            models.SemesterPluginActivation(
+                semester_id=semester.id,
+                program_plugin_installation_id=installation.id,
+                semester_overrides="{}",
+                setup_state="{}",
+                is_enabled=definition.default_enabled,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        did_change = True
+    if did_change:
+        if commit:
+            db.commit()
+            db.refresh(semester)
+        else:
+            db.flush()
+
+
+def _resolve_program_plugin_availability(
+    program: models.Program,
+    installation: models.ProgramPluginInstallation | None,
+    *,
+    plugin_id: str,
+) -> tuple[bool, str | None]:
+    auth_state = installation.auth_state if installation is not None else "not-required"
+    available, availability_reason = plugin_governance.resolve_plugin_availability(
+        plugin_id,
+        program_has_lms_integration=bool(program.lms_integration_id),
+        auth_state=auth_state,
+    )
+    if not available:
+        return available, availability_reason
+    if installation is not None and not installation.is_enabled:
+        return False, "Disabled at Program level."
+    return True, None
+
+
+def _resolve_semester_plugin_availability(
+    semester: models.Semester,
+    installation: models.ProgramPluginInstallation,
+    activation: models.SemesterPluginActivation | None,
+) -> tuple[bool, str | None]:
+    available, availability_reason = _resolve_program_plugin_availability(
+        semester.program or installation.program,
+        installation,
+        plugin_id=installation.plugin_id,
+    )
+    if not available:
+        return available, availability_reason
+    if activation is None or not activation.is_enabled:
+        return False, "Disabled for this Semester."
+    return True, None
+
+
+def _supports_unassigned_course(plugin_id: str) -> bool:
+    try:
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    return bool((definition.capabilities or {}).get("supports_unassigned_course"))
+
+
+def _resolve_course_plugin_availability(
+    course: models.Course,
+    installation: models.ProgramPluginInstallation,
+    activation: models.ProgramCoursePluginActivation | None,
+) -> tuple[bool, str | None]:
+    program = course.program or installation.program
+    if program is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", f"Course '{course.id}' is missing its parent Program.")
+    available, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=installation.plugin_id)
+    if not available:
+        return available, availability_reason
+    if course.semester_id is not None:
+        return False, "Course-level plugin activation is only available for Courses without a Semester."
+    if not _supports_unassigned_course(installation.plugin_id):
+        return False, "This plugin does not support Courses without a Semester."
+    if activation is None or not activation.is_enabled:
+        return False, "Disabled for this Course."
+    return True, None
+
+
+def _resolve_course_plugin_availability_reason(
+    course: models.Course,
+    installation: models.ProgramPluginInstallation,
+    activation: models.ProgramCoursePluginActivation | None,
+    default_reason: str | None,
+) -> str | None:
+    available, availability_reason = _resolve_course_plugin_availability(course, installation, activation)
+    if available:
+        return default_reason
+    return availability_reason
+
+
+def _resolve_semester_plugin_availability_reason(
+    semester: models.Semester,
+    installation: models.ProgramPluginInstallation,
+    activation: models.SemesterPluginActivation | None,
+    default_reason: str | None,
+) -> str | None:
+    available, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
+    if available:
+        return default_reason
+    return availability_reason
+
+
+def _serialize_program_plugin_installation(program: models.Program, installation: models.ProgramPluginInstallation | None, *, plugin_id: str) -> dict:
+    plugin_id = _canonical_plugin_id(plugin_id)
+    try:
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    auth_state = installation.auth_state if installation is not None else ("not-required" if not definition.requires_authorization else "pending")
+    program_settings = _parse_json_object(installation.program_settings) if installation is not None else {}
+    try:
+        resolved_program_settings = plugin_governance.resolve_plugin_settings(plugin_id, program_settings=program_settings)
+        available, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    return {
+        "id": installation.id if installation is not None else None,
+        "plugin_id": plugin_id,
+        "display_name": definition.display_name,
+        "description": definition.description,
+        "long_description": definition.long_description,
+        "author": definition.author,
+        "default_version": definition.default_version,
+        "default_installed": definition.default_installed,
+        "default_enabled": definition.default_enabled,
+        "locked": definition.locked,
+        "version": installation.version if installation is not None else definition.default_version,
+        "is_enabled": installation.is_enabled if installation is not None else False,
+        "auth_state": auth_state,
+        "auth_message": installation.auth_message if installation is not None else None,
+        "requires_authorization": definition.requires_authorization,
+        "requires_program_lms_integration": definition.requires_program_lms_integration,
+        "capabilities": dict(definition.capabilities),
+        "setup_sections": plugin_governance.build_setup_section_payloads(plugin_id),
+        "program_settings": program_settings,
+        "resolved_program_settings": resolved_program_settings,
+        "fields": plugin_governance.build_field_payloads(plugin_id),
+        "available": available,
+        "availability_reason": availability_reason,
+        "installed": installation is not None,
+    }
+
+
+def _serialize_semester_plugin_activation(
+    semester: models.Semester,
+    activation: models.SemesterPluginActivation | None,
+    review_state: dict[str, object] | None = None,
+    *,
+    installation: models.ProgramPluginInstallation | None = None,
+) -> dict:
+    if installation is None:
+        installation = activation.program_plugin_installation if activation is not None else None
+    if installation is None:
+        activation_id = activation.id if activation is not None else "missing"
+        raise PluginGovernanceError("PLUGIN_INSTALLATION_NOT_FOUND", f"Semester activation '{activation_id}' is missing its Program plugin installation.")
+    program = semester.program
+    if program is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", f"Semester '{semester.id}' is missing its parent Program.")
+    installation.plugin_id = _canonical_plugin_id(installation.plugin_id)
+    installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
+    semester_overrides = _parse_json_object(activation.semester_overrides) if activation is not None else {}
+    setup_state = _parse_json_object(activation.setup_state) if activation is not None else {}
+    current_review_state = review_state or _build_semester_review_state(semester)
+    plugin_review = (current_review_state.get("plugin_reviews") or {}).get(installation.plugin_id, {})
+    resolved_settings = plugin_review.get("resolved_settings") or {}
+    setup_summary = plugin_review.get("setup_summary") or []
+    review_errors = plugin_review.get("review_errors") or []
+    return {
+        "id": activation.id if activation is not None else None,
+        "semester_id": semester.id,
+        "program_plugin_installation_id": installation.id,
+        "plugin_id": installation.plugin_id,
+        "display_name": installation_payload["display_name"],
+        "description": installation_payload["description"],
+        "long_description": installation_payload["long_description"],
+        "author": installation_payload["author"],
+        "locked": installation_payload["locked"],
+        "version": installation.version,
+        "is_enabled": bool(activation.is_enabled) if activation is not None else False,
+        "auth_state": installation.auth_state,
+        "capabilities": installation_payload["capabilities"],
+        "setup_sections": installation_payload["setup_sections"],
+        "semester_overrides": semester_overrides,
+        "setup_state": setup_state,
+        "resolved_settings": resolved_settings,
+        "fields": installation_payload["fields"],
+        "setup_summary": setup_summary,
+        "review_errors": review_errors,
+        "available": _resolve_semester_plugin_availability(semester, installation, activation)[0],
+        "availability_reason": _resolve_semester_plugin_availability_reason(semester, installation, activation, installation_payload["availability_reason"]),
+    }
+
+
+def _serialize_course_plugin_activation(
+    course: models.Course,
+    activation: models.ProgramCoursePluginActivation | None,
+    *,
+    installation: models.ProgramPluginInstallation | None = None,
+    source: str = "course",
+    is_enabled: bool | None = None,
+    available: bool | None = None,
+    availability_reason: str | None = None,
+    resolved_settings: dict | None = None,
+) -> dict:
+    if installation is None:
+        installation = activation.program_plugin_installation if activation is not None else None
+    if installation is None:
+        activation_id = activation.id if activation is not None else "missing"
+        raise PluginGovernanceError("PLUGIN_INSTALLATION_NOT_FOUND", f"Course activation '{activation_id}' is missing its Program plugin installation.")
+    program = course.program or installation.program
+    if program is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", f"Course '{course.id}' is missing its parent Program.")
+    installation.plugin_id = _canonical_plugin_id(installation.plugin_id)
+    installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
+    resolved_is_enabled = is_enabled if is_enabled is not None else (bool(activation.is_enabled) if activation is not None else False)
+    resolved_available = available if available is not None else _resolve_course_plugin_availability(course, installation, activation)[0]
+    resolved_availability_reason = availability_reason if availability_reason is not None else _resolve_course_plugin_availability_reason(course, installation, activation, installation_payload["availability_reason"])
+    return {
+        "id": activation.id if activation is not None else None,
+        "course_id": course.id,
+        "program_plugin_installation_id": installation.id,
+        "plugin_id": installation.plugin_id,
+        "display_name": installation_payload["display_name"],
+        "description": installation_payload["description"],
+        "long_description": installation_payload["long_description"],
+        "author": installation_payload["author"],
+        "locked": installation_payload["locked"],
+        "version": installation.version,
+        "is_enabled": resolved_is_enabled,
+        "auth_state": installation.auth_state,
+        "capabilities": installation_payload["capabilities"],
+        "resolved_settings": resolved_settings or {},
+        "available": resolved_available,
+        "availability_reason": resolved_availability_reason,
+        "source": source,
+    }
+
+
+def _serialize_plugin_system_setup_plugin(semester: models.Semester, activation: models.SemesterPluginActivation, review_state: dict[str, object]) -> dict:
+    installation = activation.program_plugin_installation
+    if installation is None:
+        raise PluginGovernanceError("PLUGIN_INSTALLATION_NOT_FOUND", f"Semester activation '{activation.id}' is missing its Program plugin installation.")
+    plugin_review = (review_state.get("plugin_reviews") or {}).get(installation.plugin_id, {})
+    definition = plugin_governance.get_plugin_definition(installation.plugin_id)
+    return {
+        "plugin_id": installation.plugin_id,
+        "display_name": definition.display_name,
+        "description": definition.description,
+        "long_description": definition.long_description,
+        "author": definition.author,
+        "is_enabled": activation.is_enabled,
+        "available": _resolve_semester_plugin_availability(semester, installation, activation)[0],
+        "availability_reason": _resolve_semester_plugin_availability_reason(semester, installation, activation, None),
+        "setup_sections": plugin_governance.build_plugin_setup_sections(installation.plugin_id),
+        "setup_values": plugin_review.get("setup_values") or {},
+        "setup_summary": plugin_review.get("setup_summary") or [],
+        "review_errors": plugin_review.get("review_errors") or [],
+    }
+
+
+def get_program_plugin_catalog(db: Session, program_id: str) -> list[dict]:
+    program = db.query(models.Program).filter(models.Program.id == program_id).first()
+    if program is None:
+        return []
+    _ensure_default_program_plugin_installations(db, program)
+    installations_by_plugin = {installation.plugin_id: installation for installation in program.plugin_installations}
+    return [
+        _serialize_program_plugin_installation(program, installations_by_plugin.get(definition.plugin_id), plugin_id=definition.plugin_id)
+        for definition in plugin_governance.list_plugin_definitions()
+    ]
+
+
+def get_program_plugin_installations(db: Session, program_id: str) -> list[dict]:
+    program = db.query(models.Program).filter(models.Program.id == program_id).first()
+    if program is None:
+        return []
+    _normalize_program_plugin_installations(db, program)
+    _ensure_default_program_plugin_installations(db, program)
+    return [
+        _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
+        for installation in sorted(program.plugin_installations, key=lambda item: item.plugin_id)
+    ]
+
+
+def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: str, payload: schemas.ProgramPluginInstallationUpsertRequest) -> dict:
+    plugin_id = _canonical_plugin_id(plugin_id)
+    program = db.query(models.Program).filter(models.Program.id == program_id).first()
+    if program is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Program not found.")
+    _normalize_program_plugin_installations(db, program)
+    try:
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    installation = (
+        db.query(models.ProgramPluginInstallation)
+        .filter(models.ProgramPluginInstallation.program_id == program_id, models.ProgramPluginInstallation.plugin_id == plugin_id)
+        .first()
+    )
+    update_data = payload.model_dump(exclude_unset=True)
+    now = _now_utc_iso()
+
+    if installation is None:
+        installation = models.ProgramPluginInstallation(program_id=program_id, plugin_id=plugin_id, is_enabled=True, created_at=now)
+
+    if "version" in update_data:
+        installation.version = str(update_data["version"] or "").strip() or definition.default_version
+    elif not installation.version:
+        installation.version = definition.default_version
+    if "is_enabled" in update_data:
+        installation.is_enabled = bool(update_data["is_enabled"])
+    elif installation.is_enabled is None:
+        installation.is_enabled = True
+    if "auth_state" in update_data or installation.auth_state is None:
+        installation.auth_state = _normalize_auth_state(plugin_id, update_data.get("auth_state"))
+    else:
+        installation.auth_state = _normalize_auth_state(plugin_id, installation.auth_state)
+    if "auth_message" in update_data:
+        installation.auth_message = str(update_data.get("auth_message") or "").strip() or None
+    if "program_settings" in update_data:
+        try:
+            normalized_program_settings = plugin_governance.normalize_program_settings(plugin_id, update_data["program_settings"])
+        except Exception as exc:
+            _wrap_plugin_validation(exc)
+        installation.program_settings = _serialize_json_object(normalized_program_settings)
+    elif not installation.program_settings:
+        installation.program_settings = "{}"
+    installation.updated_at = now
+    db.add(installation)
+    db.commit()
+    db.refresh(installation)
+    return _serialize_program_plugin_installation(program, installation, plugin_id=plugin_id)
+
+
+def bulk_update_program_plugin_installations(db: Session, program_id: str, payload: schemas.ProgramPluginInstallationBulkUpdateRequest) -> list[dict]:
+    program = db.query(models.Program).filter(models.Program.id == program_id).first()
+    if program is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Program not found.")
+    _normalize_program_plugin_installations(db, program)
+    canonical_plugin_ids: list[str] = []
+    seen_plugin_ids: set[str] = set()
+    for plugin_id in payload.plugin_ids:
+        canonical_plugin_id = _canonical_plugin_id(plugin_id)
+        if canonical_plugin_id in seen_plugin_ids:
+            continue
+        seen_plugin_ids.add(canonical_plugin_id)
+        canonical_plugin_ids.append(canonical_plugin_id)
+    if not canonical_plugin_ids:
+        raise PluginGovernanceError("PLUGIN_IDS_REQUIRED", "Provide at least one plugin id.")
+
+    installations = (
+        db.query(models.ProgramPluginInstallation)
+        .filter(models.ProgramPluginInstallation.program_id == program_id, models.ProgramPluginInstallation.plugin_id.in_(canonical_plugin_ids))
+        .all()
+    )
+    installations_by_plugin_id = {installation.plugin_id: installation for installation in installations}
+    missing_plugin_id = next((plugin_id for plugin_id in canonical_plugin_ids if plugin_id not in installations_by_plugin_id), None)
+    if missing_plugin_id is not None:
+        raise PluginGovernanceError("PLUGIN_NOT_INSTALLED", f"Plugin '{missing_plugin_id}' is not installed for this Program.")
+
+    now = _now_utc_iso()
+    for plugin_id in canonical_plugin_ids:
+        installation = installations_by_plugin_id[plugin_id]
+        try:
+            definition = plugin_governance.get_plugin_definition(plugin_id)
+        except Exception as exc:
+            _wrap_plugin_validation(exc)
+        if definition.locked:
+            raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
+        available, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
+        if payload.is_enabled and not available:
+            raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
+        installation.is_enabled = payload.is_enabled
+        if not installation.version:
+            installation.version = definition.default_version
+        if installation.auth_state is None:
+            installation.auth_state = _normalize_auth_state(plugin_id, None)
+        if not installation.program_settings:
+            installation.program_settings = "{}"
+        installation.updated_at = now
+        db.add(installation)
+
+    db.commit()
+    db.refresh(program)
+    return [
+        _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
+        for installation in sorted(program.plugin_installations, key=lambda item: item.plugin_id)
+    ]
+
+
+def delete_program_plugin_installation(db: Session, program_id: str, plugin_id: str) -> models.ProgramPluginInstallation | None:
+    plugin_id = _canonical_plugin_id(plugin_id)
+    try:
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    if definition.locked:
+        raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be uninstalled.")
+    installation = (
+        db.query(models.ProgramPluginInstallation)
+        .filter(models.ProgramPluginInstallation.program_id == program_id, models.ProgramPluginInstallation.plugin_id == plugin_id)
+        .first()
+    )
+    if installation is None:
+        return None
+    _delete_program_plugin_runtime_data(db, program_id=program_id, plugin_id=plugin_id)
+    db.delete(installation)
+    db.commit()
+    return installation
+
+
+def get_semester_plugin_activations(db: Session, semester_id: str) -> list[dict]:
+    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if semester is None:
+        return []
+    if semester.program is not None:
+        _normalize_program_plugin_installations(db, semester.program)
+        _ensure_default_program_plugin_installations(db, semester.program)
+    _ensure_default_semester_plugin_activations(db, semester)
+    if semester.lifecycle_state == "draft":
+        semester.draft_updated_at = semester.draft_updated_at or _now_utc_iso()
+    review_state = _refresh_semester_review_ready(semester)
+    activations_by_installation_id = {
+        activation.program_plugin_installation_id: activation
+        for activation in semester.plugin_activations
+        if activation.program_plugin_installation_id
+    }
+    enabled_installations = sorted(
+        (installation for installation in (semester.program.plugin_installations if semester.program is not None else []) if installation.is_enabled),
+        key=lambda item: item.plugin_id,
+    )
+    return [
+        _serialize_semester_plugin_activation(semester, activations_by_installation_id.get(installation.id), installation=installation, review_state=review_state)
+        for installation in enabled_installations
+    ]
+
+
+def get_plugin_system_setup_definition(plugin_id: str) -> dict:
+    plugin_id = _canonical_plugin_id(plugin_id)
+    try:
+        plugin_governance.get_plugin_definition(plugin_id)
+    except KeyError as exc:
+        raise PluginGovernanceError("PLUGIN_NOT_FOUND", str(exc)) from exc
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    return {"plugin_id": plugin_id, "sections": plugin_governance.build_plugin_setup_sections(plugin_id)}
+
+
+def get_semester_plugin_system_setup(db: Session, semester_id: str) -> dict:
+    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if semester is None:
+        raise PluginGovernanceError("SEMESTER_NOT_FOUND", "Semester not found.")
+    if semester.program is not None:
+        _ensure_default_program_plugin_installations(db, semester.program)
+    _ensure_default_semester_plugin_activations(db, semester)
+    review_state = _refresh_semester_review_ready(semester)
+    enabled_activations = sorted((activation for activation in semester.plugin_activations if activation.is_enabled), key=lambda item: item.program_plugin_installation.plugin_id if item.program_plugin_installation is not None else "")
+    return {
+        "semester_id": semester.id,
+        "step": "plugin-setup",
+        "plugins": [_serialize_plugin_system_setup_plugin(semester, activation, review_state) for activation in enabled_activations],
+    }
+
+
+def review_semester_plugin_system(db: Session, semester_id: str) -> dict:
+    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if semester is None:
+        raise PluginGovernanceError("SEMESTER_NOT_FOUND", "Semester not found.")
+    if semester.program is not None:
+        _ensure_default_program_plugin_installations(db, semester.program)
+    _ensure_default_semester_plugin_activations(db, semester)
+    review_state = _refresh_semester_review_ready(semester)
+    enabled_activations = sorted((activation for activation in semester.plugin_activations if activation.is_enabled), key=lambda item: item.program_plugin_installation.plugin_id if item.program_plugin_installation is not None else "")
+    serialized_plugins = [_serialize_plugin_system_setup_plugin(semester, activation, review_state) for activation in enabled_activations]
+    return {
+        "semester_id": semester.id,
+        "plugins": [{"plugin_id": plugin["plugin_id"], "review_errors": plugin["review_errors"], "setup_summary": plugin["setup_summary"]} for plugin in serialized_plugins],
+        "has_errors": any(plugin["review_errors"] for plugin in serialized_plugins),
+    }
+
+
+def update_semester_plugin_system_setup(db: Session, semester_id: str, plugin_id: str, payload: schemas.PluginSystemSemesterSetupUpdateRequest) -> dict:
+    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if semester is None:
+        raise PluginGovernanceError("SEMESTER_NOT_FOUND", "Semester not found.")
+    if semester.program_id is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Semester is missing its parent Program.")
+    installation = (
+        db.query(models.ProgramPluginInstallation)
+        .filter(models.ProgramPluginInstallation.program_id == semester.program_id, models.ProgramPluginInstallation.plugin_id == plugin_id)
+        .first()
+    )
+    if installation is None:
+        raise PluginGovernanceError("PLUGIN_NOT_INSTALLED", f"Plugin '{plugin_id}' is not installed for this Program.")
+    activation = (
+        db.query(models.SemesterPluginActivation)
+        .filter(models.SemesterPluginActivation.semester_id == semester_id, models.SemesterPluginActivation.program_plugin_installation_id == installation.id)
+        .first()
+    )
+    if activation is None or not activation.is_enabled:
+        raise PluginGovernanceError("PLUGIN_NOT_ENABLED", f"Plugin '{plugin_id}' is not enabled for this Semester.")
+
+    current_semester_overrides = _parse_json_object(activation.semester_overrides)
+    current_setup_state = _parse_json_object(activation.setup_state)
+    try:
+        next_setup_state, next_semester_overrides, normalized_values = plugin_governance.write_plugin_setup_values(
+            plugin_id,
+            semester_overrides=current_semester_overrides,
+            setup_state=current_setup_state,
+            values=payload.values,
+        )
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+
+    now = _now_utc_iso()
+    activation.setup_state = _serialize_json_object(next_setup_state)
+    activation.semester_overrides = _serialize_json_object(next_semester_overrides)
+    activation.updated_at = now
+    semester.draft_updated_at = now if semester.lifecycle_state == "draft" else semester.draft_updated_at
+    _refresh_semester_review_ready(semester)
+    db.add(activation)
+    db.add(semester)
+    db.commit()
+    db.refresh(activation)
+    db.refresh(semester)
+    review_state = _build_semester_review_state(semester)
+    plugin_review = (review_state.get("plugin_reviews") or {}).get(plugin_id, {})
+    return {
+        "semester_id": semester.id,
+        "plugin_id": plugin_id,
+        "setup_values": normalized_values,
+        "setup_summary": plugin_review.get("setup_summary") or [],
+        "review_errors": plugin_review.get("review_errors") or [],
+    }
+
+
+def upsert_semester_plugin_activation(db: Session, semester_id: str, plugin_id: str, payload: schemas.SemesterPluginActivationUpsertRequest) -> dict:
+    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if semester is None:
+        raise PluginGovernanceError("SEMESTER_NOT_FOUND", "Semester not found.")
+    if semester.program_id is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Semester is missing its parent Program.")
+    installation = (
+        db.query(models.ProgramPluginInstallation)
+        .filter(models.ProgramPluginInstallation.program_id == semester.program_id, models.ProgramPluginInstallation.plugin_id == plugin_id)
+        .first()
+    )
+    if installation is None:
+        raise PluginGovernanceError("PLUGIN_NOT_INSTALLED", f"Plugin '{plugin_id}' is not installed for this Program.")
+    try:
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    activation = (
+        db.query(models.SemesterPluginActivation)
+        .filter(models.SemesterPluginActivation.semester_id == semester_id, models.SemesterPluginActivation.program_plugin_installation_id == installation.id)
+        .first()
+    )
+    requested_enabled = payload.is_enabled if payload.is_enabled is not None else (activation.is_enabled if activation is not None else True)
+    if not requested_enabled and definition.locked:
+        raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
+    available, availability_reason = _resolve_program_plugin_availability(semester.program, installation, plugin_id=plugin_id)
+    if requested_enabled and not available:
+        raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
+    update_data = payload.model_dump(exclude_unset=True)
+    now = _now_utc_iso()
+
+    if activation is None:
+        activation = models.SemesterPluginActivation(
+            semester_id=semester_id,
+            program_plugin_installation_id=installation.id,
+            is_enabled=True,
+            created_at=now,
+        )
+    if not activation.semester_overrides:
+        activation.semester_overrides = "{}"
+    if not activation.setup_state:
+        activation.setup_state = "{}"
+    if "is_enabled" in update_data:
+        activation.is_enabled = bool(update_data["is_enabled"])
+    elif activation.is_enabled is None:
+        activation.is_enabled = True
+    activation.updated_at = now
+    semester.draft_updated_at = now if semester.lifecycle_state == "draft" else semester.draft_updated_at
+    _refresh_semester_review_ready(semester)
+    db.add(activation)
+    db.add(semester)
+    db.commit()
+    db.refresh(activation)
+    db.refresh(semester)
+    review_state = _build_semester_review_state(semester)
+    return _serialize_semester_plugin_activation(semester, activation, review_state)
+
+
+def bulk_update_semester_plugin_activations(db: Session, semester_id: str, payload: schemas.SemesterPluginActivationBulkUpdateRequest) -> dict:
+    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if semester is None:
+        raise PluginGovernanceError("SEMESTER_NOT_FOUND", "Semester not found.")
+    if semester.program_id is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Semester is missing its parent Program.")
+    canonical_plugin_ids: list[str] = []
+    seen_plugin_ids: set[str] = set()
+    for plugin_id in payload.plugin_ids:
+        canonical_plugin_id = _canonical_plugin_id(plugin_id)
+        if canonical_plugin_id in seen_plugin_ids:
+            continue
+        seen_plugin_ids.add(canonical_plugin_id)
+        canonical_plugin_ids.append(canonical_plugin_id)
+    if not canonical_plugin_ids:
+        raise PluginGovernanceError("PLUGIN_IDS_REQUIRED", "Provide at least one plugin id.")
+
+    installations = (
+        db.query(models.ProgramPluginInstallation)
+        .filter(models.ProgramPluginInstallation.program_id == semester.program_id, models.ProgramPluginInstallation.plugin_id.in_(canonical_plugin_ids))
+        .all()
+    )
+    installations_by_plugin_id = {installation.plugin_id: installation for installation in installations}
+    missing_plugin_id = next((plugin_id for plugin_id in canonical_plugin_ids if plugin_id not in installations_by_plugin_id), None)
+    if missing_plugin_id is not None:
+        raise PluginGovernanceError("PLUGIN_NOT_INSTALLED", f"Plugin '{missing_plugin_id}' is not installed for this Program.")
+
+    activations = (
+        db.query(models.SemesterPluginActivation)
+        .filter(
+            models.SemesterPluginActivation.semester_id == semester_id,
+            models.SemesterPluginActivation.program_plugin_installation_id.in_([installation.id for installation in installations]),
+        )
+        .all()
+    )
+    activations_by_installation_id = {activation.program_plugin_installation_id: activation for activation in activations}
+
+    now = _now_utc_iso()
+    for plugin_id in canonical_plugin_ids:
+        installation = installations_by_plugin_id[plugin_id]
+        activation = activations_by_installation_id.get(installation.id)
+        try:
+            definition = plugin_governance.get_plugin_definition(plugin_id)
+        except Exception as exc:
+            _wrap_plugin_validation(exc)
+        if not payload.is_enabled and definition.locked:
+            raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
+        available, availability_reason = _resolve_program_plugin_availability(semester.program, installation, plugin_id=plugin_id)
+        if payload.is_enabled and not available:
+            raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
+        if activation is None:
+            activation = models.SemesterPluginActivation(semester_id=semester_id, program_plugin_installation_id=installation.id, is_enabled=True, created_at=now)
+            activations_by_installation_id[installation.id] = activation
+        if not activation.semester_overrides:
+            activation.semester_overrides = "{}"
+        if not activation.setup_state:
+            activation.setup_state = "{}"
+        activation.is_enabled = payload.is_enabled
+        activation.updated_at = now
+        db.add(activation)
+
+    if semester.lifecycle_state == "draft":
+        semester.creation_step = "plugins"
+        semester.draft_updated_at = now
+    _refresh_semester_review_ready(semester)
+    db.add(semester)
+    db.commit()
+    db.refresh(semester)
+    from crud_academics import _serialize_semester_draft
+    return _serialize_semester_draft(semester)
+
+
+def delete_semester_plugin_activation(db: Session, semester_id: str, plugin_id: str) -> models.SemesterPluginActivation | None:
+    plugin_id = _canonical_plugin_id(plugin_id)
+    try:
+        definition = plugin_governance.get_plugin_definition(plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    if definition.locked:
+        raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
+    activation = (
+        db.query(models.SemesterPluginActivation)
+        .join(models.ProgramPluginInstallation)
+        .filter(models.SemesterPluginActivation.semester_id == semester_id, models.ProgramPluginInstallation.plugin_id == plugin_id)
+        .first()
+    )
+    if activation is None:
+        return None
+    semester = activation.semester
+    db.delete(activation)
+    if semester is not None:
+        if semester.lifecycle_state == "draft":
+            semester.draft_updated_at = _now_utc_iso()
+        _refresh_semester_review_ready(semester)
+        db.add(semester)
+    db.commit()
+    return activation
+
+
+def get_course_plugin_activations(db: Session, course_id: str) -> list[dict]:
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if course is None:
+        return []
+    if course.semester_id is not None:
+        return get_course_inherited_plugin_activations(db, course_id)
+    if course.program is None:
+        db.refresh(course, attribute_names=["program"])
+    program = course.program
+    if program is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Course is missing its parent Program.")
+    _normalize_program_plugin_installations(db, program)
+    _ensure_default_program_plugin_installations(db, program)
+    activations_by_installation_id = {
+        activation.program_plugin_installation_id: activation
+        for activation in course.plugin_activations
+        if activation.program_plugin_installation_id
+    }
+    eligible_installations = sorted(
+        (
+            installation
+            for installation in program.plugin_installations
+            if installation.is_enabled and not plugin_governance.get_plugin_definition(installation.plugin_id).locked and _supports_unassigned_course(installation.plugin_id)
+        ),
+        key=lambda item: item.plugin_id,
+    )
+    return [
+        _serialize_course_plugin_activation(course, activations_by_installation_id.get(installation.id), installation=installation, source="course")
+        for installation in eligible_installations
+    ]
+
+
+def upsert_course_plugin_activation(db: Session, course_id: str, plugin_id: str, payload: schemas.CoursePluginActivationUpsertRequest) -> dict:
+    plugin_id = _canonical_plugin_id(plugin_id)
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if course is None:
+        raise PluginGovernanceError("COURSE_NOT_FOUND", "Course not found.")
+    if course.semester_id is not None:
+        raise PluginGovernanceError("COURSE_NOT_UNASSIGNED", "Course-level plugin activation is only available for Courses without a Semester.")
+    if course.program_id is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Course is missing its parent Program.")
+    if not _supports_unassigned_course(plugin_id):
+        raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", f"Plugin '{plugin_id}' does not support Courses without a Semester.")
+    definition = plugin_governance.get_plugin_definition(plugin_id)
+    if definition.locked:
+        raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be managed at the Course level.")
+    installation = (
+        db.query(models.ProgramPluginInstallation)
+        .filter(models.ProgramPluginInstallation.program_id == course.program_id, models.ProgramPluginInstallation.plugin_id == plugin_id)
+        .first()
+    )
+    if installation is None:
+        raise PluginGovernanceError("PLUGIN_NOT_INSTALLED", f"Plugin '{plugin_id}' is not installed for this Program.")
+    activation = (
+        db.query(models.ProgramCoursePluginActivation)
+        .filter(models.ProgramCoursePluginActivation.course_id == course_id, models.ProgramCoursePluginActivation.program_plugin_installation_id == installation.id)
+        .first()
+    )
+    requested_enabled = payload.is_enabled if payload.is_enabled is not None else (activation.is_enabled if activation is not None else True)
+    available, availability_reason = _resolve_program_plugin_availability(course.program or installation.program, installation, plugin_id=plugin_id)
+    if requested_enabled and not available:
+        raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
+    now = _now_utc_iso()
+    if activation is None:
+        activation = models.ProgramCoursePluginActivation(course_id=course_id, program_plugin_installation_id=installation.id, is_enabled=True, created_at=now)
+    if payload.is_enabled is not None:
+        activation.is_enabled = bool(payload.is_enabled)
+    elif activation.is_enabled is None:
+        activation.is_enabled = True
+    if activation.is_enabled:
+        _ensure_course_plugin_tabs(db, course, plugin_id)
+    activation.updated_at = now
+    db.add(activation)
+    db.commit()
+    db.refresh(activation)
+    return _serialize_course_plugin_activation(course, activation, installation=installation, source="course")
+
+
+def bulk_update_course_plugin_activations(db: Session, course_id: str, payload: schemas.CoursePluginActivationBulkUpdateRequest) -> list[dict]:
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if course is None:
+        raise PluginGovernanceError("COURSE_NOT_FOUND", "Course not found.")
+    if course.semester_id is not None:
+        raise PluginGovernanceError("COURSE_NOT_UNASSIGNED", "Course-level plugin activation is only available for Courses without a Semester.")
+    if course.program_id is None:
+        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Course is missing its parent Program.")
+    canonical_plugin_ids: list[str] = []
+    seen_plugin_ids: set[str] = set()
+    for plugin_id in payload.plugin_ids:
+        canonical_plugin_id = _canonical_plugin_id(plugin_id)
+        if canonical_plugin_id in seen_plugin_ids:
+            continue
+        seen_plugin_ids.add(canonical_plugin_id)
+        canonical_plugin_ids.append(canonical_plugin_id)
+    if not canonical_plugin_ids:
+        raise PluginGovernanceError("PLUGIN_IDS_REQUIRED", "Provide at least one plugin id.")
+    unsupported_plugin_id = next((plugin_id for plugin_id in canonical_plugin_ids if not _supports_unassigned_course(plugin_id)), None)
+    if unsupported_plugin_id is not None:
+        raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", f"Plugin '{unsupported_plugin_id}' does not support Courses without a Semester.")
+    locked_plugin_id = next((plugin_id for plugin_id in canonical_plugin_ids if plugin_governance.get_plugin_definition(plugin_id).locked), None)
+    if locked_plugin_id is not None:
+        raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{locked_plugin_id}' is locked and cannot be managed at the Course level.")
+
+    installations = (
+        db.query(models.ProgramPluginInstallation)
+        .filter(models.ProgramPluginInstallation.program_id == course.program_id, models.ProgramPluginInstallation.plugin_id.in_(canonical_plugin_ids))
+        .all()
+    )
+    installations_by_plugin_id = {installation.plugin_id: installation for installation in installations}
+    missing_plugin_id = next((plugin_id for plugin_id in canonical_plugin_ids if plugin_id not in installations_by_plugin_id), None)
+    if missing_plugin_id is not None:
+        raise PluginGovernanceError("PLUGIN_NOT_INSTALLED", f"Plugin '{missing_plugin_id}' is not installed for this Program.")
+
+    activations = (
+        db.query(models.ProgramCoursePluginActivation)
+        .filter(
+            models.ProgramCoursePluginActivation.course_id == course_id,
+            models.ProgramCoursePluginActivation.program_plugin_installation_id.in_([installation.id for installation in installations]),
+        )
+        .all()
+    )
+    activations_by_installation_id = {activation.program_plugin_installation_id: activation for activation in activations}
+
+    now = _now_utc_iso()
+    for plugin_id in canonical_plugin_ids:
+        installation = installations_by_plugin_id[plugin_id]
+        activation = activations_by_installation_id.get(installation.id)
+        available, availability_reason = _resolve_program_plugin_availability(course.program or installation.program, installation, plugin_id=plugin_id)
+        if payload.is_enabled and not available:
+            raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
+        if activation is None:
+            activation = models.ProgramCoursePluginActivation(course_id=course_id, program_plugin_installation_id=installation.id, is_enabled=True, created_at=now)
+            activations_by_installation_id[installation.id] = activation
+        activation.is_enabled = payload.is_enabled
+        if activation.is_enabled:
+            _ensure_course_plugin_tabs(db, course, plugin_id)
+        activation.updated_at = now
+        db.add(activation)
+
+    db.commit()
+    db.refresh(course)
+    return get_course_plugin_activations(db, course_id)
+
+
+def get_course_inherited_plugin_activations(db: Session, course_id: str) -> list[dict]:
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if course is None or course.semester_id is None:
+        return []
+    if course.program is None:
+        db.refresh(course, attribute_names=["program"])
+    if course.program is not None:
+        _normalize_program_plugin_installations(db, course.program)
+        _ensure_default_program_plugin_installations(db, course.program)
+    installations_by_id = {
+        installation.id: installation
+        for installation in ((course.program.plugin_installations if course.program is not None else []) or [])
+    }
+    inherited_activations: list[dict] = []
+    for activation in get_semester_plugin_activations(db, course.semester_id):
+        if not activation.get("is_enabled"):
+            continue
+        installation = installations_by_id.get(activation["program_plugin_installation_id"])
+        if installation is None:
+            continue
+        inherited_activations.append(
+            _serialize_course_plugin_activation(
+                course,
+                None,
+                installation=installation,
+                source="semester",
+                is_enabled=bool(activation.get("is_enabled")),
+                available=bool(activation.get("available")),
+                availability_reason=activation.get("availability_reason"),
+                resolved_settings=activation.get("resolved_settings") or {},
+            )
+        )
+    return inherited_activations

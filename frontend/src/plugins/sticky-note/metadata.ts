@@ -34,5 +34,6 @@ export default definePluginMetadata({
     description: 'Capture quick ideas, reminders, and scratch notes instantly.',
     longDescription: 'Sticky Note is a lightweight place for thoughts that are useful now but do not need full structure. It works well for reminders, rough plans, short checklists, temporary references, or anything that should remain visible while studying. The goal is immediacy: open it, write something down, and keep moving without turning a small thought into a larger workflow.',
     icon: pluginIcon,
+    supportsUnassignedCourse: true,
     widgetCatalog,
 });

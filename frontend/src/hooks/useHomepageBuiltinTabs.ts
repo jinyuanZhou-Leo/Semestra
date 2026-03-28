@@ -1,6 +1,6 @@
 // input:  [raw dashboard tabs, enabled plugin ids, homepage shell-tab config, plugin metadata resolvers, and tab registry updates]
 // output: [`useHomepageBuiltinTabs()` derived tab-bar state and reorder/filter helpers]
-// pos:    [Homepage-specific tab orchestration for governed runtime tabs plus synthetic shell tabs derived from enabled plugins]
+// pos:    [Homepage-specific tab orchestration for governed runtime tabs plus synthetic shell tabs whose host availability can stay independent from ordinary plugin enablement]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -69,7 +69,7 @@ export const useHomepageBuiltinTabs = ({
         const trailingBuiltinTypeSet = new Set(trailingBuiltinTabTypes);
         const makeSyntheticBuiltinTab = (type: string): DashboardTabItem | null => {
             const pluginId = getPluginIdByTabType(type);
-            if (!pluginId || !enabledPluginIds.has(pluginId)) {
+            if (!pluginId) {
                 return null;
             }
 

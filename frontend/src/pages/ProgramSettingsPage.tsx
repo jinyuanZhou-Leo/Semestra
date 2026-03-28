@@ -1,6 +1,6 @@
-// input:  [route params/navigation primitives, shared layout/container/back button components, program entity context, LMS integration query, reusable Program settings form, and Program plugin governance panel]
+// input:  [route params/navigation primitives, shared layout/container/back button components, program entity context, LMS integration query, reusable Program settings form, plugin settings registry helpers, and Program plugin governance panel]
 // output: [`ProgramSettingsPage` route component]
-// pos:    [Dedicated Program settings workspace route with breadcrumb-aware navigation, single-current-page breadcrumb semantics, query-backed Program/LMS data loading, Program-level plugin lifecycle governance, and page-based autosaving settings management]
+// pos:    [Dedicated Program settings workspace route with breadcrumb-aware navigation, single-current-page breadcrumb semantics, query-backed Program/LMS data loading, Program-level plugin lifecycle governance plus plugin settings sections, and page-based autosaving settings management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { getPluginIconById, PluginSettingsSectionRenderer, usePluginSettingsRegistry } from "@/plugin-system";
 import { Layout } from "../components/Layout";
 import { Container } from "../components/Container";
 import { BackButton } from "../components/BackButton";
@@ -42,6 +43,13 @@ const ProgramSettingsPageContent: React.FC = () => {
         queryFn: api.listLmsIntegrations,
         retry: false,
     });
+    const programPluginInstallationsQuery = useQuery({
+        queryKey: queryKeys.programs.pluginInstallations(program?.id ?? "__missing__"),
+        queryFn: () => api.getProgramPluginInstallations(program!.id),
+        enabled: Boolean(program?.id),
+        staleTime: 30_000,
+    });
+    const allPluginSettingsDefinitions = usePluginSettingsRegistry("program");
 
     const discoveredSubjectCodes = useMemo(() => {
         if (!program) return [];
@@ -52,6 +60,61 @@ const ProgramSettingsPageContent: React.FC = () => {
                 .filter(Boolean),
         )).sort((left, right) => left.localeCompare(right));
     }, [program]);
+    const programPluginSettingsSections = useMemo(() => {
+        if (!program?.id) {
+            return null;
+        }
+
+        const installations = programPluginInstallationsQuery.data ?? [];
+        const installedPluginIds = new Set(
+            installations
+                .filter((installation) => installation.installed !== false)
+                .map((installation) => installation.plugin_id),
+        );
+        const pluginSettingsDefinitions = allPluginSettingsDefinitions.filter((definition) => installedPluginIds.has(definition.pluginId));
+
+        if (pluginSettingsDefinitions.length === 0) {
+            return null;
+        }
+
+        const pluginMetadataById = new Map(
+            installations.map((installation) => [
+                installation.plugin_id,
+                {
+                    displayName: installation.display_name,
+                    description: installation.description,
+                    resolvedSettings: installation.resolved_program_settings,
+                },
+            ]),
+        );
+        const renderedPluginHeaders = new Set<string>();
+        const sections = pluginSettingsDefinitions.map((definition) => {
+            const pluginMetadata = pluginMetadataById.get(definition.pluginId);
+            const showPluginHeader = !renderedPluginHeaders.has(definition.pluginId);
+            renderedPluginHeaders.add(definition.pluginId);
+            return (
+                <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
+                    <PluginSettingsSectionRenderer
+                        pluginId={definition.pluginId}
+                        pluginIcon={getPluginIconById(definition.pluginId)}
+                        pluginDisplayName={pluginMetadata?.displayName}
+                        pluginDescription={pluginMetadata?.description}
+                        showPluginHeader={showPluginHeader}
+                        component={definition.component}
+                        programId={program.id}
+                        initialSettings={pluginMetadata?.resolvedSettings}
+                        onRefresh={refreshProgram}
+                    />
+                </React.Fragment>
+            );
+        });
+
+        return (
+            <div className="flex flex-col gap-4">
+                {sections}
+            </div>
+        );
+    }, [allPluginSettingsDefinitions, program?.id, programPluginInstallationsQuery.data, refreshProgram]);
 
     const handleBack = async () => {
         await settingsFlushRef.current?.();
@@ -141,6 +204,7 @@ const ProgramSettingsPageContent: React.FC = () => {
                             programId={program.id}
                             onChanged={refreshProgram}
                         />
+                        {programPluginSettingsSections}
                     </div>
                 ) : null}
             </Container>

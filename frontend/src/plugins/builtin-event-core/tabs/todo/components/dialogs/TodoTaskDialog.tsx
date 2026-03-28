@@ -1,6 +1,6 @@
-// input:  [Task draft state, semester course options, available sections, and save/cancel callbacks]
+// input:  [Task draft state, semester course options, available sections, save/cancel callbacks, and shadcn scroll area]
 // output: [TodoTaskDialog React component]
-// pos:    [Modal task editor used for explicit create/edit flows alongside the inline composer]
+// pos:    [Modal task editor used for explicit create/edit flows alongside the inline composer, with a scroll-safe long-form layout]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import type { TaskDraft, TodoCourseOption, TodoPriority, TodoPriorityOption, TodoSection } from '../../types';
 
@@ -63,125 +64,127 @@ export const TodoTaskDialog: React.FC<TodoTaskDialogProps> = ({
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="select-none sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden select-none sm:max-w-lg">
+        <DialogHeader className="shrink-0 border-b pb-4">
           <DialogTitle>{editingTaskId ? 'Edit Task' : 'Create Task'}</DialogTitle>
           <DialogDescription>Set task details, schedule, and priority.</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="todo-task-title">Title</Label>
-            <Input
-              id="todo-task-title"
-              value={taskDraft.title}
-              onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, title: event.target.value }))}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="todo-task-note">Note</Label>
-            <Textarea
-              id="todo-task-note"
-              value={taskDraft.note}
-              onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, note: event.target.value }))}
-              className="max-h-32 resize-none overflow-y-auto"
-              rows={3}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label>Section</Label>
-            <Select
-              value={taskDraft.sectionId || unsectionedBucketId}
-              onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, sectionId: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select section" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value={unsectionedBucketId}>{unsectionedBucketName}</SelectItem>
-                  {sections.map((section) => (
-                    <SelectItem key={section.id} value={section.id}>
-                      {section.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {showCourseField ? (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="grid gap-4 pr-4">
             <div className="grid gap-2">
-              <Label>Course</Label>
+              <Label htmlFor="todo-task-title">Title</Label>
+              <Input
+                id="todo-task-title"
+                value={taskDraft.title}
+                onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, title: event.target.value }))}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="todo-task-note">Note</Label>
+              <Textarea
+                id="todo-task-note"
+                value={taskDraft.note}
+                onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, note: event.target.value }))}
+                className="max-h-32 resize-none overflow-y-auto"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Section</Label>
               <Select
-                value={taskDraft.courseId || '__none__'}
-                onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, courseId: value === '__none__' ? '' : value }))}
+                value={taskDraft.sectionId || unsectionedBucketId}
+                onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, sectionId: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select course" />
+                  <SelectValue placeholder="Select section" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="__none__">No Course</SelectItem>
-                    {courseOptions.map((course) => (
-                      <SelectItem key={course.id} value={course.id}>
-                        {course.name}
+                    <SelectItem value={unsectionedBucketId}>{unsectionedBucketName}</SelectItem>
+                    {sections.map((section) => (
+                      <SelectItem key={section.id} value={section.id}>
+                        {section.name}
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-          ) : null}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="todo-task-date">Date</Label>
-              <Input
-                id="todo-task-date"
-                type="date"
-                value={taskDraft.dueDate}
-                onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, dueDate: event.target.value }))}
-              />
+            {showCourseField ? (
+              <div className="grid gap-2">
+                <Label>Course</Label>
+                <Select
+                  value={taskDraft.courseId || '__none__'}
+                  onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, courseId: value === '__none__' ? '' : value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select course" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="__none__">No Course</SelectItem>
+                      {courseOptions.map((course) => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="todo-task-date">Date</Label>
+                <Input
+                  id="todo-task-date"
+                  type="date"
+                  value={taskDraft.dueDate}
+                  onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, dueDate: event.target.value }))}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="todo-task-time">Time</Label>
+                <Input
+                  id="todo-task-time"
+                  type="time"
+                  value={taskDraft.dueTime}
+                  onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, dueTime: event.target.value }))}
+                />
+              </div>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="todo-task-time">Time</Label>
-              <Input
-                id="todo-task-time"
-                type="time"
-                value={taskDraft.dueTime}
-                onChange={(event) => onTaskDraftChange((previous) => ({ ...previous, dueTime: event.target.value }))}
-              />
+              <Label>Priority</Label>
+              <Select
+                value={taskDraft.priority || EMPTY_PRIORITY_VALUE}
+                onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, priority: value === EMPTY_PRIORITY_VALUE ? '' : value as TodoPriority }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value={EMPTY_PRIORITY_VALUE}>No Priority</SelectItem>
+                    {priorityOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
           </div>
+        </ScrollArea>
 
-          <div className="grid gap-2">
-            <Label>Priority</Label>
-            <Select
-              value={taskDraft.priority || EMPTY_PRIORITY_VALUE}
-              onValueChange={(value) => onTaskDraftChange((previous) => ({ ...previous, priority: value === EMPTY_PRIORITY_VALUE ? '' : value as TodoPriority }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value={EMPTY_PRIORITY_VALUE}>No Priority</SelectItem>
-                  {priorityOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t pt-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
