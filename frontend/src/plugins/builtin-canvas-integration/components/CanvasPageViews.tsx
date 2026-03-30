@@ -1,6 +1,6 @@
 // input:  [Canvas page payloads, shared HTML fragment renderer, shadcn alert or badge or button or scroll-area primitives, and iconography]
-// output: [CanvasPageDetailView and CanvasPageListView presentational components]
-// pos:    [page list/detail components for the Canvas integration tab, including Home/front-page detail rendering and locked-page alert callouts]
+// output: [CanvasPageDetailView and CanvasPageListView presentational components with list-scroll restoration support]
+// pos:    [page list/detail components for the Canvas integration tab, including Home/front-page detail rendering, locked-page alert callouts, and stable list scroll restoration after returning from detail]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -89,8 +89,19 @@ export const CanvasPageListView: React.FC<{
     heading: string;
     pages: LmsCoursePageSummary[];
     selectedPageRef: string | null;
-    onSelectPage: (pageRef: string) => void;
-}> = ({ heading, pages, selectedPageRef, onSelectPage }) => {
+    initialScrollTop?: number;
+    onSelectPage: (pageRef: string, scrollTop: number) => void;
+}> = ({ heading, pages, selectedPageRef, initialScrollTop = 0, onSelectPage }) => {
+    const scrollAreaRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+        const viewport = scrollAreaRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+        if (!viewport) {
+            return;
+        }
+        viewport.scrollTop = initialScrollTop;
+    }, [initialScrollTop]);
+
     if (pages.length === 0) {
         return (
             <AppEmptyState
@@ -105,7 +116,7 @@ export const CanvasPageListView: React.FC<{
     }
 
     return (
-        <ScrollArea className="min-h-0">
+        <ScrollArea ref={scrollAreaRef} className="min-h-0">
             <div className="border-b border-border/60 px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
                     <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
@@ -121,7 +132,10 @@ export const CanvasPageListView: React.FC<{
                             'flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40',
                             selectedPageRef === page.url ? 'bg-primary/5' : '',
                         )}
-                        onClick={() => onSelectPage(page.url)}
+                        onClick={() => onSelectPage(
+                            page.url,
+                            scrollAreaRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]')?.scrollTop ?? 0,
+                        )}
                     >
                         <div className="min-w-0 space-y-1">
                             <div className="flex flex-wrap items-center gap-2">

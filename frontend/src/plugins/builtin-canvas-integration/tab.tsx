@@ -1,6 +1,6 @@
 // input:  [Canvas navigation, announcement, assignment, grade, module summary/item, page, quiz, syllabus APIs, course context state, plugin host + UI-state hooks, extracted tab helpers, and extracted tab UI components]
-// output: [builtin-canvas-integration course tab runtime and tab definition with framework-aligned unavailable states, persisted local navigation UI state, host-aware sticky navigation offset, and in-app module-item drill-down behavior]
-// pos:    [course-scoped Canvas navigation controller that resolves Home fallback targets, restores local section/page selection UI state, orchestrates Canvas queries, keeps supported module items in-app, requests Gradebook handoff through the host API, and renders extracted Canvas views inside the host tab shell]
+// output: [builtin-canvas-integration course tab runtime and tab definition with framework-aligned unavailable states, persisted local navigation plus list-scroll UI state, host-aware sticky navigation offset, and in-app module-item drill-down behavior]
+// pos:    [course-scoped Canvas navigation controller that resolves Home fallback targets, restores local section/page selection plus list-scroll UI state, orchestrates Canvas queries, keeps supported module items in-app, requests Gradebook handoff through the host API, and renders extracted Canvas views inside the host tab shell]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -65,7 +65,9 @@ interface CanvasNavigationUiState {
     activeEntryId: string;
     homePageRef: string | null;
     pagesSelectedPageRef: string | null;
+    pagesListScrollTop: number;
     selectedAnnouncementId: string | null;
+    announcementsListScrollTop: number;
 }
 
 export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
@@ -78,7 +80,9 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         activeEntryId: 'home',
         homePageRef: null,
         pagesSelectedPageRef: null,
+        pagesListScrollTop: 0,
         selectedAnnouncementId: null,
+        announcementsListScrollTop: 0,
     }));
     const [railStickyTop, setRailStickyTop] = React.useState(
         GLOBAL_HEADER_HEIGHT + FALLBACK_WORKSPACE_NAV_HEIGHT + CANVAS_RAIL_STICKY_GAP,
@@ -86,7 +90,9 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
     const activeEntryId = state.activeEntryId;
     const homePageRef = state.homePageRef;
     const pagesSelectedPageRef = state.pagesSelectedPageRef;
+    const pagesListScrollTop = state.pagesListScrollTop;
     const selectedAnnouncementId = state.selectedAnnouncementId;
+    const announcementsListScrollTop = state.announcementsListScrollTop;
 
     const lmsLink = course?.lms_link ?? null;
     const isCanvasLinked = lmsLink?.provider === 'canvas';
@@ -449,7 +455,11 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                     heading="Pages"
                     pages={pages}
                     selectedPageRef={pagesSelectedPageRef}
-                    onSelectPage={(pageRef) => updateNavigationState({ pagesSelectedPageRef: pageRef })}
+                    initialScrollTop={pagesListScrollTop}
+                    onSelectPage={(pageRef, scrollTop) => updateNavigationState({
+                        pagesSelectedPageRef: pageRef,
+                        pagesListScrollTop: scrollTop,
+                    })}
                 />
             );
         } else if (activePageRef && activePageQuery.isLoading && !activePageQuery.data) {
@@ -530,7 +540,11 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                     heading={activeSection === 'home' ? homeEntryLabel : 'Announcements'}
                     items={announcements}
                     selectedAnnouncementId={selectedAnnouncementId}
-                    onSelectAnnouncement={(announcementId) => updateNavigationState({ selectedAnnouncementId: announcementId })}
+                    initialScrollTop={announcementsListScrollTop}
+                    onSelectAnnouncement={(announcementId, scrollTop) => updateNavigationState({
+                        selectedAnnouncementId: announcementId,
+                        announcementsListScrollTop: scrollTop,
+                    })}
                 />
             );
         }

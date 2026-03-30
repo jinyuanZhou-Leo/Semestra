@@ -1,6 +1,6 @@
 // input:  [Canvas module summary/item APIs returned from the modules list, Canvas page APIs, Canvas file-download proxy routes, Canvas link helpers, TanStack Query, shadcn alert/button/collapsible/scroll-area primitives, and shared class merging]
-// output: [CanvasModulesView presentational component plus private windowed module-section, item-row, and detail renderers]
-// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, windows offscreen sections, reads inline module item summaries from the modules payload, and caches proxied file previews for native rendering]
+// output: [CanvasModulesView presentational component plus private windowed module-section, item-row, and single-surface detail renderers with list-scroll restoration]
+// pos:    [module content renderer for the Canvas integration tab that keeps supported module items in-app, windows offscreen sections, reads inline module item summaries from the modules payload, caches proxied file previews for native rendering, reuses the host content surface for detail drill-down, and restores the module list scroll position after returning from detail]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -54,6 +54,8 @@ const MODULE_WINDOW_OVERSCAN = 720;
 const MODULE_DEFAULT_ITEM_COUNT_ESTIMATE = 6;
 const MODULE_DEFAULT_VIEWPORT_HEIGHT = 720;
 const FILE_TEXT_MIME_PREFIXES = ['text/', 'application/json', 'application/xml', 'image/svg+xml'];
+
+const getScrollAreaViewport = (host: HTMLDivElement | null) => host?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]') ?? null;
 
 const buildModuleFileDownloadUrl = (courseId: string, moduleId: string, moduleItemId: string) => (
     `/api/courses/${encodeURIComponent(courseId)}/lms/modules/${encodeURIComponent(moduleId)}/items/${encodeURIComponent(moduleItemId)}/file/download`
@@ -161,12 +163,14 @@ const CanvasModuleItemRow = React.memo(function CanvasModuleItemRow({
 });
 
 const CanvasModuleItemDetailLoading: React.FC = () => (
-    <div className="space-y-4 border border-border/60 rounded-2xl p-5">
-        <div className="space-y-2">
+    <div className="flex h-full min-h-0 flex-col">
+        <div className="space-y-2 border-b border-border/60 px-5 py-4">
             <Skeleton className="h-4 w-32 rounded-full" />
             <Skeleton className="h-7 w-64 rounded-md" />
         </div>
-        <Skeleton className="h-44 rounded-2xl" />
+        <div className="flex-1 px-5 py-5">
+            <Skeleton className="h-44 rounded-2xl" />
+        </div>
     </div>
 );
 
@@ -249,7 +253,7 @@ const CanvasModuleFilePreview: React.FC<{
     })();
 
     return (
-        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-background">
+        <section className="flex h-full min-h-0 flex-col overflow-hidden">
             <header className="space-y-2 border-b border-border/60 px-5 py-4">
                 <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
                     <ArrowLeft className="size-3.5" />
@@ -363,7 +367,7 @@ const CanvasModuleItemDetail: React.FC<{
         }
 
         return (
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">
                 <div className="border-b border-border/60 px-5 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 space-y-2">
@@ -417,31 +421,35 @@ const CanvasModuleItemDetail: React.FC<{
     }
 
     return (
-        <div className="space-y-4 rounded-2xl border border-border/60 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 space-y-2">
-                    <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
-                        <ArrowLeft className="size-3.5" />
-                        Back to modules
-                    </Button>
-                    <h3 className="text-xl font-semibold text-foreground">{moduleItem.title}</h3>
+        <div className="flex h-full min-h-0 flex-col">
+            <div className="border-b border-border/60 px-5 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-2">
+                        <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
+                            <ArrowLeft className="size-3.5" />
+                            Back to modules
+                        </Button>
+                        <h3 className="text-xl font-semibold text-foreground">{moduleItem.title}</h3>
+                    </div>
                 </div>
             </div>
 
-            {(detailItemType.includes('assignment') && onOpenAssignments) || (detailItemType.includes('quiz') && onOpenQuizzes) ? (
-                <div className="flex flex-wrap gap-2">
-                    {detailItemType.includes('assignment') && onOpenAssignments ? (
-                        <Button type="button" variant="outline" size="sm" onClick={onOpenAssignments}>
-                            Open Assignments
-                        </Button>
-                    ) : null}
-                    {detailItemType.includes('quiz') && onOpenQuizzes ? (
-                        <Button type="button" variant="outline" size="sm" onClick={onOpenQuizzes}>
-                            Open Quizzes
-                        </Button>
-                    ) : null}
-                </div>
-            ) : null}
+            <div className="px-5 py-5">
+                {(detailItemType.includes('assignment') && onOpenAssignments) || (detailItemType.includes('quiz') && onOpenQuizzes) ? (
+                    <div className="flex flex-wrap gap-2">
+                        {detailItemType.includes('assignment') && onOpenAssignments ? (
+                            <Button type="button" variant="outline" size="sm" onClick={onOpenAssignments}>
+                                Open Assignments
+                            </Button>
+                        ) : null}
+                        {detailItemType.includes('quiz') && onOpenQuizzes ? (
+                            <Button type="button" variant="outline" size="sm" onClick={onOpenQuizzes}>
+                                Open Quizzes
+                            </Button>
+                        ) : null}
+                    </div>
+                ) : null}
+            </div>
         </div>
     );
 };
@@ -554,6 +562,7 @@ export const CanvasModulesView: React.FC<{
     onOpenQuizzes?: () => void;
 }> = ({ courseId, heading, items, courseExternalId, canvasOrigin, onOpenAssignments, onOpenQuizzes }) => {
     const scrollAreaHostRef = React.useRef<HTMLDivElement | null>(null);
+    const listScrollTopRef = React.useRef(0);
     const [scrollTop, setScrollTop] = React.useState(0);
     const [viewportHeight, setViewportHeight] = React.useState(MODULE_DEFAULT_VIEWPORT_HEIGHT);
     const [selectedModuleItem, setSelectedModuleItem] = React.useState<{ moduleId: string; item: LmsModuleItem } | null>(null);
@@ -577,7 +586,7 @@ export const CanvasModulesView: React.FC<{
 
     React.useEffect(() => {
         const host = scrollAreaHostRef.current;
-        const viewport = host?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+        const viewport = getScrollAreaViewport(host);
         if (!viewport) {
             return;
         }
@@ -605,6 +614,20 @@ export const CanvasModulesView: React.FC<{
             viewport.removeEventListener('scroll', syncViewport);
             window.removeEventListener('resize', syncViewport);
         };
+    }, []);
+
+    const restoreListScrollPosition = React.useCallback(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        window.requestAnimationFrame(() => {
+            const viewport = getScrollAreaViewport(scrollAreaHostRef.current);
+            if (!viewport) {
+                return;
+            }
+            viewport.scrollTop = listScrollTopRef.current;
+            setScrollTop(listScrollTopRef.current);
+        });
     }, []);
 
     const windowedModules = React.useMemo(() => {
@@ -689,18 +712,19 @@ export const CanvasModulesView: React.FC<{
                     <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
                 </div>
                 {selectedModuleItem ? (
-                    <div className="px-5 py-5">
-                        <CanvasModuleItemDetail
-                            courseId={courseId}
-                            moduleId={selectedModuleItem.moduleId}
-                            moduleItem={selectedModuleItem.item}
-                            courseExternalId={courseExternalId}
-                            canvasOrigin={canvasOrigin}
-                            onOpenAssignments={onOpenAssignments}
-                            onOpenQuizzes={onOpenQuizzes}
-                            onBack={() => setSelectedModuleItem(null)}
-                        />
-                    </div>
+                    <CanvasModuleItemDetail
+                        courseId={courseId}
+                        moduleId={selectedModuleItem.moduleId}
+                        moduleItem={selectedModuleItem.item}
+                        courseExternalId={courseExternalId}
+                        canvasOrigin={canvasOrigin}
+                        onOpenAssignments={onOpenAssignments}
+                        onOpenQuizzes={onOpenQuizzes}
+                        onBack={() => {
+                            setSelectedModuleItem(null);
+                            restoreListScrollPosition();
+                        }}
+                    />
                 ) : (
                     <div className="px-5 py-5">
                         {windowedModules.topSpacer > 0 ? <div aria-hidden="true" style={{ height: `${windowedModules.topSpacer}px` }} /> : null}
@@ -716,7 +740,10 @@ export const CanvasModulesView: React.FC<{
                                             [moduleItem.module_id]: nextOpen,
                                         }));
                                     }}
-                                    onSelectItem={(selectedModuleId, item) => setSelectedModuleItem({ moduleId: selectedModuleId, item })}
+                                    onSelectItem={(selectedModuleId, item) => {
+                                        listScrollTopRef.current = getScrollAreaViewport(scrollAreaHostRef.current)?.scrollTop ?? 0;
+                                        setSelectedModuleItem({ moduleId: selectedModuleId, item });
+                                    }}
                                     canvasOrigin={canvasOrigin}
                                 />
                             ))}

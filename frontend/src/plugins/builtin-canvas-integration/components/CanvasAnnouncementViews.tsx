@@ -1,6 +1,6 @@
 // input:  [Canvas announcement payloads, shared HTML fragment renderer, and shadcn UI/scroll-area primitives]
-// output: [CanvasAnnouncementListView and CanvasAnnouncementDetailView presentational components]
-// pos:    [announcement list/detail components for the Canvas integration tab]
+// output: [CanvasAnnouncementListView and CanvasAnnouncementDetailView presentational components with list-scroll restoration support]
+// pos:    [announcement list/detail components for the Canvas integration tab, including stable list scroll restoration after returning from detail]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -24,8 +24,19 @@ export const CanvasAnnouncementListView: React.FC<{
     heading: string;
     items: LmsAnnouncementSummary[];
     selectedAnnouncementId: string | null;
-    onSelectAnnouncement: (announcementId: string) => void;
-}> = ({ heading, items, selectedAnnouncementId, onSelectAnnouncement }) => {
+    initialScrollTop?: number;
+    onSelectAnnouncement: (announcementId: string, scrollTop: number) => void;
+}> = ({ heading, items, selectedAnnouncementId, initialScrollTop = 0, onSelectAnnouncement }) => {
+    const scrollAreaRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+        const viewport = scrollAreaRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+        if (!viewport) {
+            return;
+        }
+        viewport.scrollTop = initialScrollTop;
+    }, [initialScrollTop]);
+
     if (items.length === 0) {
         return (
             <AppEmptyState
@@ -40,7 +51,7 @@ export const CanvasAnnouncementListView: React.FC<{
     }
 
     return (
-        <ScrollArea className="min-h-0">
+        <ScrollArea ref={scrollAreaRef} className="min-h-0">
             <div className="border-b border-border/60 px-5 py-4">
                 <h2 className="text-xl font-semibold text-foreground">{heading}</h2>
             </div>
@@ -53,7 +64,10 @@ export const CanvasAnnouncementListView: React.FC<{
                             'flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40',
                             selectedAnnouncementId === announcement.announcement_id ? 'bg-primary/5' : '',
                         )}
-                        onClick={() => onSelectAnnouncement(announcement.announcement_id)}
+                        onClick={() => onSelectAnnouncement(
+                            announcement.announcement_id,
+                            scrollAreaRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]')?.scrollTop ?? 0,
+                        )}
                     >
                         <div className="min-w-0 space-y-1">
                             <h3 className="truncate text-base font-semibold text-foreground">{announcement.title}</h3>
