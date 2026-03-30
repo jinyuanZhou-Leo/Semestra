@@ -9,8 +9,7 @@ Assignments and Grades now render their own native views, with a standalone rest
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for the Canvas integration plugin files. |
 | components/ | UI subdirectory | Extracted semantic Canvas tab UI components grouped by rail, loading, assignment/grade, HTML, CTA prompt, page, announcement, module, quiz, and syllabus responsibilities. |
-| plugin.json | Plugin manifest | Static public manifest for plugin identity plus course-tab metadata shared with the backend. |
-| plugin.ts | Plugin entry | Binds the descriptor to lazy runtime loading through the frontend plugin SDK. |
+| plugin.ts | Plugin entry | Single typed plugin authoring entry that declares course-tab metadata and lazy runtime loading through the frontend plugin SDK. |
 | index.ts | Runtime entry | Registers the Canvas pages tab runtime through `definePluginRuntime(...)`. |
 | shared.ts | Shared helpers | Stores plugin constants plus LMS URL resolution, page-link parsing, and timestamp formatting helpers. |
 | tab-helpers.ts | Runtime helpers | Holds query defaults, hidden-tab filtering, navigation-entry mapping, Home fallback resolution, LMS URL helpers, and other non-visual runtime utilities shared by the extracted tab files. |

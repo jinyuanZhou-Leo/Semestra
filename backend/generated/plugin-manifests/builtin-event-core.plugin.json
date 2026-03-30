@@ -40,7 +40,7 @@
       "type": "builtin-today-events",
       "title": "Today Events",
       "description": "See today's schedule and upcoming event summary.",
-      "icon": "clock-3",
+      "icon": "clock3",
       "contexts": [
         "semester",
         "course"
@@ -48,8 +48,8 @@
       "layout": {
         "w": 4,
         "h": 4,
-        "minW": 3,
-        "minH": 3,
+        "minW": 2,
+        "minH": 2,
         "maxW": 6,
         "maxH": 6
       },

@@ -1,6 +1,6 @@
 // input:  [plugin schema field metadata, current value, change handler, optional validation copy, and readonly mode]
 // output: [`PluginFieldControl` component]
-// pos:    [Shared field renderer for Program/Semester plugin management forms and plugin-system wizard setup sections using shadcn-aligned Field layouts]
+// pos:    [Shared field renderer for Program/Semester plugin management forms and plugin-system wizard setup sections using wrapper-light shadcn-aligned Field layouts]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,7 +9,11 @@
 "use no memo";
 
 import React, { useEffect, useId, useState } from "react";
+import { format, parseISO } from "date-fns";
+import { CalendarDays } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Field,
   FieldContent,
@@ -18,9 +22,11 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 type SelectOption = {
   label: string;
@@ -60,6 +66,17 @@ const formatJsonValue = (value: unknown) => {
   }
 };
 
+const parseDateOrUndefined = (value: unknown) => {
+  if (typeof value !== "string" || value.length === 0) {
+    return undefined;
+  }
+
+  const parsed = parseISO(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const toIsoDate = (value?: Date) => (value ? format(value, "yyyy-MM-dd") : "");
+
 export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
   field,
   value,
@@ -87,7 +104,7 @@ export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
     return (
       <Field
         orientation="responsive"
-        className="rounded-2xl border border-border/70 bg-background px-4 py-3"
+        className="gap-3 py-1"
         data-invalid={isInvalid || undefined}
       >
         <FieldContent>
@@ -112,7 +129,7 @@ export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
 
   if (field.type === "select") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
+      <Field className="gap-2" data-invalid={isInvalid || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
           {requiredMarker}
@@ -122,11 +139,13 @@ export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
             <SelectValue placeholder={field.placeholder || "Select a value"} />
           </SelectTrigger>
           <SelectContent>
-            {(field.options ?? []).map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {(field.options ?? []).map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
@@ -137,7 +156,7 @@ export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
 
   if (field.type === "textarea") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
+      <Field className="gap-2" data-invalid={isInvalid || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
           {requiredMarker}
@@ -158,7 +177,7 @@ export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
 
   if (field.type === "number") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
+      <Field className="gap-2" data-invalid={isInvalid || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
           {requiredMarker}
@@ -182,21 +201,43 @@ export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
   }
 
   if (field.type === "date") {
+    const selectedDate = parseDateOrUndefined(value);
+    const dateLabel = selectedDate
+      ? format(selectedDate, "PP")
+      : field.placeholder || "Pick a date";
+
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
+      <Field className="gap-2" data-invalid={isInvalid || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
           {requiredMarker}
         </FieldLabel>
-        <Input
-          id={fieldId}
-          type="date"
-          value={String(value ?? "")}
-          placeholder={field.placeholder}
-          onChange={(event) => onChange?.(event.target.value)}
-          readOnly={readOnly}
-          aria-invalid={Boolean(error)}
-        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              id={fieldId}
+              type="button"
+              variant="outline"
+              data-empty={!selectedDate}
+              aria-invalid={Boolean(error)}
+              disabled={readOnly}
+              className={cn(
+                "w-full min-w-0 justify-start overflow-hidden text-left font-normal data-[empty=true]:text-muted-foreground",
+              )}
+            >
+              <CalendarDays className="mr-2 h-4 w-4" />
+              <span className="truncate">{dateLabel}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              autoFocus
+              mode="single"
+              selected={selectedDate}
+              onSelect={(nextDate) => onChange?.(toIsoDate(nextDate))}
+            />
+          </PopoverContent>
+        </Popover>
         {helperText ? <FieldDescription>{helperText}</FieldDescription> : null}
         {error ? <FieldError>{error}</FieldError> : null}
       </Field>
@@ -205,7 +246,7 @@ export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
 
   if (field.type === "json") {
     return (
-      <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={Boolean(error || jsonError) || undefined}>
+      <Field className="gap-2" data-invalid={Boolean(error || jsonError) || undefined}>
         <FieldLabel htmlFor={fieldId}>
           {label}
           {requiredMarker}
@@ -241,7 +282,7 @@ export const PluginFieldControl: React.FC<PluginFieldControlProps> = ({
   }
 
   return (
-    <Field className="rounded-2xl border border-border/70 bg-background p-4" data-invalid={isInvalid || undefined}>
+    <Field className="gap-2" data-invalid={isInvalid || undefined}>
       <FieldLabel htmlFor={fieldId}>
         {label}
         {requiredMarker}

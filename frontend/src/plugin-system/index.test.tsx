@@ -52,6 +52,7 @@ describe('plugin-system settings API', () => {
 
   it('exposes eager plugin setup definitions through the facade', () => {
     expect(hasPluginSetupDefinition('builtin-event-core')).toBe(true);
+    expect(hasPluginSetupDefinition('tab-template')).toBe(true);
     expect(hasPluginSetupDefinition('world-clock')).toBe(false);
 
     const eventCoreSetup = getPluginSetupDefinitionById('builtin-event-core');
@@ -61,7 +62,17 @@ describe('plugin-system settings API', () => {
       'event-type-setup',
     ]);
 
+    const templateSetup = getPluginSetupDefinitionById('tab-template');
+    expect(templateSetup).toBeDefined();
+    expect(templateSetup?.sections.map((section) => section.id)).toEqual([
+      'template-setup',
+      'template-behavior',
+      'template-blocks',
+    ]);
+    expect(templateSetup?.ui.kind).toBe('dsl');
+
     expect(getAllPluginSetupDefinitions().map((definition) => definition.pluginId)).toContain('builtin-event-core');
+    expect(getAllPluginSetupDefinitions().map((definition) => definition.pluginId)).toContain('tab-template');
   });
 
   it('treats maxInstances=0 builtin tabs as a single allowed instance', () => {

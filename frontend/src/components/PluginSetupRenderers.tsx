@@ -1,6 +1,6 @@
 // input:  [plugin setup registry definitions, semester setup/review API payloads, local draft values, and shared shadcn/plugin management primitives]
 // output: [`PluginSetupStepRenderer` and `PluginSetupReviewRenderer` components]
-// pos:    [Shared bridge that renders either host-owned DSL setup/review surfaces or plugin-owned custom setup/review components inside the Semester wizard with shadcn-aligned setup section shells]
+// pos:    [Shared bridge that renders either host-owned DSL setup/review surfaces or plugin-owned custom setup/review components inside the Semester wizard with wrapper-light shadcn-aligned setup section shells]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,7 +22,7 @@ import {
 } from "@/plugin-system";
 import type { PluginSystemSemesterSetupPlugin, ProgramPluginSetupField, ProgramPluginSetupSection, SemesterDraftReviewIssue, SemesterPluginActivation } from "@/services/api";
 
-import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FieldDescription, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 
@@ -122,25 +122,24 @@ const DefaultPluginSetupStepView: React.FC<{
       {generalErrors.length > 0 ? (
         <div className="space-y-3">
           {generalErrors.map((message, index) => (
-            <Card key={`${plugin.plugin_id}:general-error:${index}`} size="sm" className="border-amber-500/30 shadow-none">
-              <CardContent className="text-sm text-muted-foreground">{message}</CardContent>
-            </Card>
+            <Alert key={`${plugin.plugin_id}:general-error:${index}`} variant="destructive">
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
           ))}
         </div>
       ) : null}
 
-      <div className="space-y-6">
-        {plugin.setup_sections.map((section, sectionIndex) => (
-          <div key={section.id} className="space-y-4">
-            {sectionIndex > 0 ? <Separator /> : null}
-            <FieldSet className="gap-4">
-              <div className="space-y-1">
-                <FieldLegend>{section.title}</FieldLegend>
-                {section.description ? (
-                  <FieldDescription>{section.description}</FieldDescription>
-                ) : null}
-              </div>
-              <FieldGroup className="gap-4">
+      {plugin.setup_sections.map((section, sectionIndex) => (
+        <React.Fragment key={section.id}>
+          {sectionIndex > 0 ? <Separator /> : null}
+          <FieldSet className="gap-5">
+            <div className="space-y-1">
+              <FieldLegend>{section.title}</FieldLegend>
+              {section.description ? (
+                <FieldDescription>{section.description}</FieldDescription>
+              ) : null}
+            </div>
+            <FieldGroup className="gap-5">
               {section.fields.map((field) => (
                 <PluginFieldControl
                   key={`${plugin.plugin_id}:${section.id}:${field.path}`}
@@ -151,11 +150,10 @@ const DefaultPluginSetupStepView: React.FC<{
                   onChange={(nextValue) => onValueChange(field.path, nextValue)}
                 />
               ))}
-              </FieldGroup>
-            </FieldSet>
-          </div>
-        ))}
-      </div>
+            </FieldGroup>
+          </FieldSet>
+        </React.Fragment>
+      ))}
     </div>
   );
 };

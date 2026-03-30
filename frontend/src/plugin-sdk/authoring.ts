@@ -1,6 +1,6 @@
-// input:  [descriptor-backed plugin SDK types, typed manifest authoring helpers, and host/runtime helper modules]
-// output: [single public plugin authoring entrypoint with define helpers, typed manifest helpers, host APIs, runtime instance APIs, and setup UI types]
-// pos:    [Stable frontend plugin SDK that hides internal registries behind a descriptor-first authoring surface]
+// input:  [plugin SDK types plus typed manifest authoring helpers without runtime host re-exports]
+// output: [node-safe plugin authoring helpers for plugin definitions, manifests, setup schemas, and settings sections]
+// pos:    [Pure authoring entry used by plugin.ts files and manifest generation without depending on runtime-only alias exports]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,14 +15,14 @@ import type {
   PluginSetupUiDefinition,
   PluginTabDefinition,
   PluginWidgetDefinition,
-} from './types';
-
-export type * from './types';
-export {
+} from './types.ts';
+import {
   definePluginManifest,
   definePluginSetupSchema,
 } from './manifest-authoring.ts';
-export type { MaxInstances } from './manifest-types.ts';
+
+export { definePluginManifest, definePluginSetupSchema };
+export type * from './types.ts';
 
 export const definePlugin = (definition: PluginDefinition): PluginDefinition => ({
   descriptor: {
@@ -98,27 +98,3 @@ export const defineSetup = (definition: PluginSetupUiDefinition): PluginSetupUiD
   ui: definition.ui,
   validate: definition.validate,
 });
-
-export { PluginHostProvider, usePluginHost } from '@/plugin-system/PluginHostContext';
-export type {
-  PluginHostJumpOptions,
-  PluginHostJumpResult,
-  PluginHostJumpTarget,
-  PluginHostTabLike,
-} from '@/plugin-system/PluginHostContext';
-export {
-  PluginRuntimeInstanceProvider,
-  buildPluginUiStateStorageKey,
-  usePluginRuntimeInstanceContext as usePluginRuntimeInstance,
-} from '@/plugin-system/PluginRuntimeInstanceContext';
-export type {
-  PluginRuntimeInstanceValue,
-  PluginRuntimeSlotKind,
-  PluginRuntimeWorkspaceKind,
-} from '@/plugin-system/PluginRuntimeInstanceContext';
-export {
-  PluginContentFadeIn,
-  PluginTabSkeleton,
-  PluginWidgetSkeleton,
-} from '@/plugin-system/PluginLoadSkeleton';
-export { resetPluginUiStateCacheForTests, usePluginUiState } from '@/plugin-system/PluginUiState';

@@ -1,6 +1,6 @@
-# input:  [Program model records, descriptor-backed plugin JSON files, plugin registry payloads, and platform-level availability requirements]
-# output: [descriptor-backed plugin catalog helpers for Program installs, Semester activation, setup definitions, builtin-only setup review hooks, settings validation, setup summaries, and resolved-config computation with tab/widget context metadata]
-# pos:    [Backend plugin registry for Program-managed plugin lifecycle and Semester-scoped activation rules plus descriptor validation, host-policy overlays, tab/widget context lookups, and builtin-only setup review dispatch]
+# input:  [Program model records, generated plugin manifest JSON files, plugin registry payloads, and platform-level availability requirements]
+# output: [generated-manifest-backed plugin catalog helpers for Program installs, Semester activation, setup definitions, builtin-only setup review hooks, settings validation, setup summaries, and resolved-config computation with tab/widget context metadata]
+# pos:    [Backend plugin registry for Program-managed plugin lifecycle and Semester-scoped activation rules plus generated descriptor validation, host-policy overlays, tab/widget context lookups, and builtin-only setup review dispatch]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -50,6 +50,10 @@ class PluginRegistryValidationError(Exception):
         self.code = code
         self.message = message
         self.field_path = field_path
+
+
+def _raise_manifest_error(message: str) -> None:
+    raise RuntimeError(f"[plugin-governance] {message}")
 
 
 @dataclass(frozen=True)
@@ -201,16 +205,20 @@ class PluginDefinition:
 PLUGIN_REGISTRY_OVERRIDES: dict[str, PluginRegistryDefinition] = {}
 
 
-def _plugin_descriptor_root() -> Path:
+def _plugin_authoring_root() -> Path:
     return Path(__file__).resolve().parent.parent / "frontend" / "src" / "plugins"
 
 
+def _plugin_manifest_root() -> Path:
+    return Path(__file__).resolve().parent / "generated" / "plugin-manifests"
+
+
 def _setup_schema_path(directory_name: str) -> Path:
-    return _plugin_descriptor_root() / directory_name / "setup.schema.json"
+    return _plugin_manifest_root() / f"{directory_name}.setup.schema.json"
 
 
 def _host_policy_path() -> Path:
-    return _plugin_descriptor_root() / "host-policy.json"
+    return _plugin_authoring_root() / "host-policy.json"
 
 
 def _load_json_file(path: Path, *, label: str) -> Any:
@@ -251,17 +259,25 @@ HOST_POLICY_BY_PLUGIN_ID = _load_host_policy()
 
 
 def _load_plugin_descriptors() -> list[dict[str, Any]]:
-    root = _plugin_descriptor_root()
+    root = _plugin_manifest_root()
     if not root.exists():
-        _raise_manifest_error(f"Missing plugin descriptor root at '{root}'.")
+        _raise_manifest_error(
+            f"Missing generated plugin descriptor root at '{root}'. "
+            "Run `npm --prefix frontend run generate-plugin-manifests` before starting the backend."
+        )
 
     descriptors: list[dict[str, Any]] = []
-    for descriptor_path in sorted(root.glob("*/plugin.json")):
+    for descriptor_path in sorted(root.glob("*.plugin.json")):
         raw_value = _load_json_file(descriptor_path, label="plugin descriptor")
         if not isinstance(raw_value, dict):
             _raise_manifest_error(f"Plugin descriptor '{descriptor_path}' must be a JSON object.")
-        raw_value["_directory_name"] = descriptor_path.parent.name
+        raw_value["_directory_name"] = str(raw_value.get("id") or "").strip()
         descriptors.append(raw_value)
+    if not descriptors:
+        _raise_manifest_error(
+            f"No generated plugin descriptors were found in '{root}'. "
+            "Run `npm --prefix frontend run generate-plugin-manifests` before starting the backend."
+        )
     return descriptors
 
 
@@ -581,11 +597,6 @@ WIDGET_TYPE_TO_PLUGIN_ID = {
     for plugin_id, definition in PLUGIN_DEFINITIONS.items()
     for widget_type in definition.capabilities.get("available_widget_types", [])
 }
-
-
-def _raise_manifest_error(message: str) -> None:
-    raise RuntimeError(f"[plugin-governance] {message}")
-
 
 def _load_manifest_field(
     plugin_id: str,

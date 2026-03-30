@@ -11,7 +11,7 @@ Build/test configs and scripts support local development, bundling, release meta
 | File | Role | Description |
 |------|------|-------------|
 | public/ | Subdirectory | Public static asset directory served as-is by Vite. |
-| scripts/ | Subdirectory | Tooling scripts triggered by npm lifecycle hooks, including version generation and backend plugin setup manifest generation from frontend setup DSL definitions. |
+| scripts/ | Subdirectory | Tooling scripts triggered by npm lifecycle hooks, including version generation and backend plugin manifest generation from typed frontend `plugin.ts` entries. |
 | src/ | Subdirectory | Frontend application source code root, including dashboard empty-state-safe first-widget rendering and opacity-only plugin fade-ins that keep fixed overlays stable. |
 | src/plugins/INDEX.md | Plugin architecture index | Catalog map of built-in and custom plugin folders with loader contracts, including the built-in settings tab architecture index. |
 | src/plugins/pomodoro/INDEX.md | Plugin architecture index | File map for Pomodoro timer widget plugin runtime, metadata, and tests. |

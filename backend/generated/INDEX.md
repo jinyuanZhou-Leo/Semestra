@@ -1,9 +1,10 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
-Generated backend artifact folder retained only as a placeholder after the descriptor-first plugin refactor.
-The old frontend-generated manifests were removed because runtime plugin management no longer consumes generated metadata.
-The backend now reads `frontend/src/plugins/*/plugin.json` and optional `setup.schema.json` directly.
+Generated backend artifact folder for build-produced metadata that backend startup and migrations can consume without importing frontend code.
+Plugin manifest artifacts now live under `plugin-manifests/` and are generated from typed frontend `plugin.ts` authoring files.
+The backend still reads host-only visibility/kind policy from `frontend/src/plugins/host-policy.json`.
 
 | File | Role | Description |
 |------|------|-------------|
-| INDEX.md | Architecture index | Notes that runtime plugin management no longer uses generated manifest artifacts in this folder. |
+| INDEX.md | Architecture index | Notes the purpose and ownership of backend generated artifacts. |
+| plugin-manifests/ | Generated manifests | Backend-readable plugin descriptor and setup-schema JSON emitted from typed frontend single-entry plugin definitions. |

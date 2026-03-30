@@ -4,13 +4,13 @@
   "author": "Jinyuan",
   "description": "Render the default workspace settings shell.",
   "long_description": "Settings is the host-managed shell tab for workspace configuration.",
-  "icon": "settings-2",
+  "icon": "settings2",
   "tabs": [
     {
       "type": "builtin-setting",
       "title": "Settings",
       "description": "Open the host-managed workspace settings surface.",
-      "icon": "settings-2",
+      "icon": "settings2",
       "contexts": [
         "semester",
         "course"

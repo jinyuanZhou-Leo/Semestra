@@ -1,6 +1,6 @@
-// input:  [event-core tab modules, public plugin-system tab contracts, and shared built-in tab type constants]
+// input:  [event-core tab modules, public plugin-system tab contracts, settings entry exports, and shared built-in tab type constants]
 // output: [event-core tab components and `BuiltinTimetableTabDefinitions` runtime registrations]
-// pos:    [tab-definition entry that keeps generic tab instance settings inside runtime definitions]
+// pos:    [tab-definition entry that wires event-core tabs to settings owned by the plugin settings entry]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,16 +10,16 @@
 
 import React from 'react';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { TabDefinition, TabProps, TabSettingsProps } from '@/plugin-system';
+import type { TabDefinition, TabProps } from '@/plugin-system';
 import {
   BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
   BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,
   BUILTIN_TIMETABLE_TODO_TAB_TYPE,
 } from './shared/constants';
-import { CalendarSettingsSection, CalendarTab } from './tabs/calendar';
-import { CourseScheduleSettings, CourseScheduleTab } from './tabs/course-schedule';
+import { BuiltinAcademicCalendarTabSettings, BuiltinCourseScheduleTabSettings, TodoSettingsSection } from './settings';
+import { CalendarTab } from './tabs/calendar';
+import { CourseScheduleTab } from './tabs/course-schedule';
 import { TodoTab } from './tabs/todo';
-import { TodoSettingsSection } from './tabs/todo/TodoSettingsSection';
 
 const UnsupportedContextCard: React.FC<{ title: string; description: string }> = ({ title, description }) => (
   <Card>
@@ -72,22 +72,6 @@ const BuiltinTodoTab: React.FC<TabProps> = ({ settings, updateSettings, semester
       courseId={courseId}
     />
   );
-};
-
-const BuiltinAcademicCalendarTabSettings: React.FC<TabSettingsProps> = ({ semesterId, settings, updateSettings }) => {
-  if (!semesterId) return null;
-  return (
-    <CalendarSettingsSection
-      semesterId={semesterId}
-      settings={settings}
-      updateSettings={updateSettings}
-    />
-  );
-};
-
-const BuiltinCourseScheduleTabSettings: React.FC<TabSettingsProps> = ({ courseId }) => {
-  if (!courseId) return null;
-  return <CourseScheduleSettings courseId={courseId} />;
 };
 
 export const BuiltinAcademicCalendarTabDefinition: TabDefinition = {

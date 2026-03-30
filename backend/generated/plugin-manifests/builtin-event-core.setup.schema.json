@@ -14,8 +14,14 @@
           "description": "Choose the initial Calendar view for this Semester.",
           "default_value": "month",
           "options": [
-            { "label": "Month", "value": "month" },
-            { "label": "Week", "value": "week" }
+            {
+              "label": "Month",
+              "value": "month"
+            },
+            {
+              "label": "Week",
+              "value": "week"
+            }
           ],
           "summary_labels": {
             "month": "Month",
@@ -61,7 +67,9 @@
               "color": null,
               "icon": null
             }
-          ]
+          ],
+          "options": [],
+          "summary_labels": {}
         }
       ]
     }
@@ -76,7 +84,10 @@
     {
       "type": "json-array-unique-keys",
       "field": "eventTypes",
-      "keys": ["code", "abbreviation"],
+      "keys": [
+        "code",
+        "abbreviation"
+      ],
       "message": "Event type names and abbreviations must be unique."
     }
   ]

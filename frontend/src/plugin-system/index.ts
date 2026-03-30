@@ -152,7 +152,7 @@ const validateSettingsSectionBindings = (definition: PluginDefinition) => {
   settingsSections.forEach((section) => {
     if (!declaredSectionIds.has(section.id)) {
       throw new Error(
-        `[plugin-system] Settings section "${section.id}" in plugin "${definition.descriptor.id}" is missing from plugin.json settings.sections.`
+        `[plugin-system] Settings section "${section.id}" in plugin "${definition.descriptor.id}" is missing from plugin.ts descriptor.settings.sections.`
       );
     }
   });

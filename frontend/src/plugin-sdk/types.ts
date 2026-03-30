@@ -1,6 +1,6 @@
-// input:  [React runtime types, plugin setup UI contracts, and shared max-instance utility types]
-// output: [stable plugin SDK descriptor/runtime/settings/setup types that do not expose service-registry internals]
-// pos:    [Public plugin authoring type surface used by plugin.ts entrypoints and descriptor-backed runtime loading]
+// input:  [React runtime types, shared manifest contracts, plugin setup UI contracts, and max-instance utility types]
+// output: [stable plugin SDK runtime/settings/setup types layered on top of shared plugin manifest authoring contracts]
+// pos:    [Public plugin authoring type surface used by plugin.ts entrypoints, typed manifest authoring, and runtime loading]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,114 +8,18 @@
 
 import type { FC, ReactNode } from 'react';
 
-import type { MaxInstances } from '@/plugin-system/utils';
 import type {
   PluginSetupCustomUiDefinition,
   PluginSetupReviewRenderProps,
   PluginSetupValidationIssue,
   PluginSetupWizardRenderProps,
 } from '@/plugin-system/setup';
-
-export type PluginContext = 'program' | 'semester' | 'course';
-export type PluginWorkspaceContext = Extract<PluginContext, 'semester' | 'course'>;
-
-export interface PluginDescriptorFieldOption {
-  label: string;
-  value: string;
-}
-
-export interface PluginSettingsFieldDefinition {
-  path: string;
-  label: string;
-  type: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'date' | 'json';
-  scope: 'program-only' | 'semester-override';
-  default?: unknown;
-  description?: string;
-  options?: PluginDescriptorFieldOption[];
-}
-
-export interface PluginDescriptorSetupFieldDefinition {
-  path: string;
-  label: string;
-  type: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'date' | 'json';
-  persist: 'setupState' | 'semesterOverride' | 'both';
-  required?: boolean;
-  default_value?: unknown;
-  description?: string;
-  placeholder?: string;
-  options?: PluginDescriptorFieldOption[];
-  summary_labels?: Record<string, string>;
-}
-
-export interface PluginDescriptorSetupSectionDefinition {
-  id: string;
-  title: string;
-  description?: string;
-  fields: PluginDescriptorSetupFieldDefinition[];
-}
-
-export interface PluginDescriptorValidationRule {
-  type: 'json-array-min-length' | 'json-array-unique-keys';
-  field: string;
-  min_length?: number;
-  keys?: string[];
-  message: string;
-}
-
-export interface PluginDescriptorSetupSchema {
-  sections: PluginDescriptorSetupSectionDefinition[];
-  validation_rules?: PluginDescriptorValidationRule[];
-}
-
-export interface PluginDescriptorTabDefinition {
-  type: string;
-  title: string;
-  description?: string;
-  icon?: string;
-  contexts: PluginWorkspaceContext[];
-}
-
-export interface PluginDescriptorWidgetLayout {
-  w: number;
-  h: number;
-  minW?: number;
-  minH?: number;
-  maxW?: number;
-  maxH?: number;
-}
-
-export interface PluginDescriptorWidgetDefinition {
-  type: string;
-  title: string;
-  description?: string;
-  icon?: string;
-  contexts: PluginWorkspaceContext[];
-  layout?: PluginDescriptorWidgetLayout;
-  max_instances?: MaxInstances;
-}
-
-export interface PluginSettingsSectionBinding {
-  id: string;
-  contexts: PluginContext[];
-}
-
-export interface PluginSettingsDescriptor {
-  defaults?: Record<string, unknown>;
-  fields?: PluginSettingsFieldDefinition[];
-  sections?: PluginSettingsSectionBinding[];
-}
-
-export interface PluginDescriptor {
-  id: string;
-  display_name: string;
-  author: string;
-  description: string;
-  long_description: string;
-  icon?: string;
-  tabs?: PluginDescriptorTabDefinition[];
-  widgets?: PluginDescriptorWidgetDefinition[];
-  settings?: PluginSettingsDescriptor;
-}
+import type {
+  PluginContext,
+  PluginDescriptor,
+  PluginDescriptorSetupSchema,
+} from './manifest-types.ts';
+export type * from './manifest-types.ts';
 
 export interface PluginTabProps<S = any> {
   tabId: string;

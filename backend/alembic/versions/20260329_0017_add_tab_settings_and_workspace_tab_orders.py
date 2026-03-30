@@ -82,11 +82,12 @@ def _merge_json_objects(*values: object) -> dict[str, object]:
 
 
 def _load_single_tab_plugin_map() -> dict[str, str]:
-    descriptor_root = Path(__file__).resolve().parents[3] / "frontend" / "src" / "plugins"
-    host_policy_path = descriptor_root / "host-policy.json"
+    authoring_root = Path(__file__).resolve().parents[3] / "frontend" / "src" / "plugins"
+    descriptor_root = Path(__file__).resolve().parents[3] / "backend" / "generated" / "plugin-manifests"
+    host_policy_path = authoring_root / "host-policy.json"
     host_policy = json.loads(host_policy_path.read_text(encoding="utf-8")) if host_policy_path.exists() else {}
     single_tab_plugin_map: dict[str, str] = {}
-    for descriptor_path in sorted(descriptor_root.glob("*/plugin.json")):
+    for descriptor_path in sorted(descriptor_root.glob("*.plugin.json")):
         item = json.loads(descriptor_path.read_text(encoding="utf-8"))
         plugin_id = str(item.get("id") or "").strip()
         if not plugin_id:

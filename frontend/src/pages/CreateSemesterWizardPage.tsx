@@ -1,6 +1,6 @@
 // input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, plugin setup definitions/validation helpers, and shared data-table row-actions dropdown helpers]
-// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step saves, finalize-safe draft teardown, and mobile-safe course/plugin review layouts]
-// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, and a concise single-panel review summary while keeping the file build-clean]
+// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step visibility sourced from activation-plus-plugin-system payloads, setup-step saves, finalize-safe draft teardown, and tighter review-summary typography/layout]
+// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, activation-plus-plugin-system-aware setup-step visibility, and a concise review summary with reduced layout nesting]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -58,7 +58,6 @@ import { reportError } from "../services/appStatus";
 import api, {
   type Course,
   type PluginSystemSemesterSetupPlugin,
-  type PluginSystemSemesterSetupResponse,
   type ProgramPluginInstallation,
   type Semester,
   type SemesterDraftStep,
@@ -155,8 +154,13 @@ const buildReviewPreviewText = (items: string[], limit = REVIEW_COURSE_PREVIEW_L
   return `${previewItems.join(", ")}, and ${items.length - limit} more.`;
 };
 
-const contributesSemesterSetup = (_pluginId: string, setupSections: { length: number }) =>
-  setupSections.length > 0;
+const contributesSemesterSetup = ({
+  activationSetupSections,
+  pluginSystemSetupSections,
+}: {
+  activationSetupSections: { length: number };
+  pluginSystemSetupSections?: { length: number } | null;
+}) => activationSetupSections.length > 0 || Boolean(pluginSystemSetupSections && pluginSystemSetupSections.length > 0);
 
 const getVisibleStepOrder = (setupPlugins: Array<{ plugin_id: string; display_name: string }>): StepMeta[] => {
   const pluginSetupSteps = setupPlugins.map((plugin) => ({
@@ -270,25 +274,23 @@ const syncSemesterPluginToggle = (
   };
 };
 
-const syncPluginSystemSetupResponse = (
-  response: PluginSystemSemesterSetupResponse | undefined,
-  pluginId: string,
-  isEnabled: boolean,
-): PluginSystemSemesterSetupResponse | undefined => {
-  if (!response) {
-    return response;
-  }
-
-  return {
-    ...response,
-    step: "plugins",
-    plugins: response.plugins.map((plugin) => (
-      plugin.plugin_id === pluginId
-        ? { ...plugin, is_enabled: isEnabled }
-        : plugin
-    )),
-  };
-};
+const buildSetupStepPlugin = (
+  plugin: SemesterPluginActivation,
+  setupPayload: PluginSystemSemesterSetupPlugin | undefined,
+): PluginSystemSemesterSetupPlugin => ({
+  plugin_id: plugin.plugin_id,
+  display_name: plugin.display_name,
+  description: plugin.description,
+  long_description: plugin.long_description,
+  author: plugin.author,
+  is_enabled: plugin.is_enabled,
+  available: plugin.available,
+  availability_reason: plugin.availability_reason ?? null,
+  setup_sections: setupPayload?.setup_sections ?? plugin.setup_sections,
+  setup_values: { ...(setupPayload?.setup_values ?? plugin.setup_state ?? {}) },
+  setup_summary: setupPayload?.setup_summary ?? plugin.setup_summary ?? [],
+  review_errors: setupPayload?.review_errors ?? plugin.review_errors ?? [],
+});
 
 const applyDraftPayloadToWizardCaches = (
   queryClient: ReturnType<typeof useQueryClient>,
@@ -437,8 +439,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
     () => new Set(enabledPlugins.map((plugin) => plugin.plugin_id)),
     [enabledPlugins],
   );
-  const pluginSystemSetupPlugins = useMemo(
-    () => (pluginSystemSetupQuery.data?.plugins ?? []).filter((plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections)),
+  const pluginSystemSetupById = useMemo(
+    () => new Map((pluginSystemSetupQuery.data?.plugins ?? []).map((plugin) => [plugin.plugin_id, plugin])),
     [pluginSystemSetupQuery.data?.plugins],
   );
   const serverBasics = useMemo<BasicsDraft | null>(() => {
@@ -460,30 +462,27 @@ export const CreateSemesterWizardPage: React.FC = () => {
     currentDraftQuery.data?.reading_week_start,
     currentDraftQuery.data?.start_date,
   ]);
+  const isBasicsDirty = !areBasicsEqual(basics, savedBasics);
+  const isPluginSetupDirty = !arePluginSetupDraftsEqual(pluginSetupDrafts, savedPluginSetupDrafts);
+  const setupStepPlugins = useMemo(
+    () => enabledPlugins.filter((plugin) => contributesSemesterSetup({
+      activationSetupSections: plugin.setup_sections,
+      pluginSystemSetupSections: pluginSystemSetupById.get(plugin.plugin_id)?.setup_sections,
+    })),
+    [enabledPlugins, pluginSystemSetupById],
+  );
+  const setupPlugins = useMemo(
+    () => setupStepPlugins.map((plugin) => buildSetupStepPlugin(plugin, pluginSystemSetupById.get(plugin.plugin_id))),
+    [pluginSystemSetupById, setupStepPlugins],
+  );
   const serverPluginSetupDrafts = useMemo<PluginSetupDraftMap>(
     () => Object.fromEntries(
-      pluginSystemSetupPlugins.map((plugin) => [
+      setupPlugins.map((plugin) => [
         plugin.plugin_id,
         { ...plugin.setup_values },
       ]),
     ),
-    [pluginSystemSetupPlugins],
-  );
-  const isBasicsDirty = !areBasicsEqual(basics, savedBasics);
-  const isPluginSetupDirty = !arePluginSetupDraftsEqual(pluginSetupDrafts, savedPluginSetupDrafts);
-  const setupPluginIds = useMemo(
-    () => enabledPlugins.filter((plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections)).map((plugin) => plugin.plugin_id),
-    [enabledPlugins],
-  );
-  const setupStepPlugins = useMemo(
-    () => enabledPlugins.filter((plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections)),
-    [enabledPlugins],
-  );
-  const setupPlugins = useMemo(
-    () => pluginSystemSetupPlugins.filter(
-      (plugin) => contributesSemesterSetup(plugin.plugin_id, plugin.setup_sections) && setupPluginIds.includes(plugin.plugin_id),
-    ),
-    [pluginSystemSetupPlugins, setupPluginIds],
+    [setupPlugins],
   );
   useEffect(() => {
     if (!draftId || !serverBasics) {
@@ -745,18 +744,13 @@ export const CreateSemesterWizardPage: React.FC = () => {
     if (!draftId || !programId) return;
     const draftQueryKey = queryKeys.programs.semesterDraft(programId);
     const semesterDetailQueryKey = queryKeys.semesters.detail(draftId);
-    const pluginSystemSetupQueryKey = queryKeys.semesters.pluginSystemSetup(draftId);
     const previousDraft = queryClient.getQueryData<Semester>(draftQueryKey);
     const previousSemester = queryClient.getQueryData<Semester>(semesterDetailQueryKey);
-    const previousSetup = queryClient.getQueryData<PluginSystemSemesterSetupResponse>(pluginSystemSetupQueryKey);
 
     setIsUpdatingPluginSelection(true);
     setCurrentStep("plugins");
     queryClient.setQueryData<Semester>(draftQueryKey, (current) => syncSemesterPluginToggle(current, plugin, checked));
     queryClient.setQueryData<Semester>(semesterDetailQueryKey, (current) => syncSemesterPluginToggle(current, plugin, checked));
-    queryClient.setQueryData<PluginSystemSemesterSetupResponse>(pluginSystemSetupQueryKey, (current) => (
-      syncPluginSystemSetupResponse(current, plugin.plugin_id, checked)
-    ));
     try {
       await api.upsertSemesterPluginActivation(draftId, plugin.plugin_id, {
         is_enabled: checked,
@@ -766,7 +760,6 @@ export const CreateSemesterWizardPage: React.FC = () => {
     } catch (error) {
       queryClient.setQueryData(draftQueryKey, previousDraft);
       queryClient.setQueryData(semesterDetailQueryKey, previousSemester);
-      queryClient.setQueryData(pluginSystemSetupQueryKey, previousSetup);
       console.error("Failed to toggle plugin in Semester wizard", error);
       reportError("Failed to update plugin enablement. Please retry.");
     } finally {
@@ -793,10 +786,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
     const draftQueryKey = queryKeys.programs.semesterDraft(programId);
     const semesterDetailQueryKey = queryKeys.semesters.detail(draftId);
-    const pluginSystemSetupQueryKey = queryKeys.semesters.pluginSystemSetup(draftId);
     const previousDraft = queryClient.getQueryData<Semester>(draftQueryKey);
     const previousSemester = queryClient.getQueryData<Semester>(semesterDetailQueryKey);
-    const previousSetup = queryClient.getQueryData<PluginSystemSemesterSetupResponse>(pluginSystemSetupQueryKey);
     const targetPluginIds = targets.map((plugin) => plugin.plugin_id);
 
     setIsUpdatingPluginSelection(true);
@@ -815,24 +806,16 @@ export const CreateSemesterWizardPage: React.FC = () => {
       }
       return nextSemester;
     });
-    queryClient.setQueryData<PluginSystemSemesterSetupResponse>(pluginSystemSetupQueryKey, (current) => {
-      let nextResponse = current;
-      for (const pluginId of targetPluginIds) {
-        nextResponse = syncPluginSystemSetupResponse(nextResponse, pluginId, checked);
-      }
-      return nextResponse;
-    });
     try {
       const updatedDraft = await api.bulkUpdateSemesterPluginActivations(draftId, {
         plugin_ids: targetPluginIds,
         is_enabled: checked,
       });
       applyDraftPayloadToWizardCaches(queryClient, programId, updatedDraft);
-      await queryClient.invalidateQueries({ queryKey: pluginSystemSetupQueryKey });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.semesters.pluginSystemSetup(draftId) });
     } catch (error) {
       queryClient.setQueryData(draftQueryKey, previousDraft);
       queryClient.setQueryData(semesterDetailQueryKey, previousSemester);
-      queryClient.setQueryData(pluginSystemSetupQueryKey, previousSetup);
       console.error("Failed to toggle all plugins in Semester wizard", error);
       reportError("Failed to update plugin enablement. Please retry.");
     } finally {
@@ -991,6 +974,16 @@ export const CreateSemesterWizardPage: React.FC = () => {
     (plugin.setup_summary ?? []).length > 0
     || getPluginSetupDefinitionById(plugin.plugin_id)?.ui.kind === "custom"
   ));
+  const reviewDateRangeValue = basics.start_date && basics.end_date
+    ? `${basics.start_date} to ${basics.end_date}`
+    : "Start and end dates are not set yet.";
+  const reviewReadingWeekValue = basics.reading_week_start && basics.reading_week_end
+    ? `${basics.reading_week_start} to ${basics.reading_week_end}`
+    : "No reading week configured.";
+  const courseReviewMeta = courseCount === 1 ? "1 course" : `${courseCount} courses`;
+  const pluginReviewMeta = blockedPluginCount > 0
+    ? `${enabledPluginCount} enabled, ${blockedPluginCount} blocked`
+    : `${enabledPluginCount} enabled`;
   const canFinalize = Boolean(
     draftId &&
     reviewReady &&
@@ -1190,57 +1183,50 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
   const reviewStepContent = (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-border/70 bg-card px-5 py-5 shadow-none">
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-muted-foreground">Semester</div>
-            <div className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              {basics.name || "Untitled Semester"}
-            </div>
-          </div>
-
-          <div className="grid gap-4 border-t border-border/70 pt-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-muted-foreground">Date Range</div>
-              <div className="text-base font-medium text-foreground sm:text-lg">
-                {basics.start_date && basics.end_date
-                  ? `${basics.start_date} to ${basics.end_date}`
-                  : "Start and end dates are not set yet."}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-muted-foreground">Reading Week</div>
-              <div className="text-base font-medium text-foreground sm:text-lg">
-                {basics.reading_week_start && basics.reading_week_end
-                  ? `${basics.reading_week_start} to ${basics.reading_week_end}`
-                  : "No reading week configured"}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 border-t border-border/70 pt-4 lg:grid-cols-2">
-            <div className="space-y-1">
-              <div className="font-medium text-foreground">Courses</div>
-              <div className="text-sm text-muted-foreground">{courseCount} courses</div>
-            </div>
-            <div className="text-sm leading-6 text-muted-foreground">
-              {courseReviewSummary}
-            </div>
-          </div>
-
-          <div className="grid gap-4 border-t border-border/70 pt-4 lg:grid-cols-2">
-            <div className="space-y-1">
-              <div className="font-medium text-foreground">Plugins</div>
-              <div className="text-sm text-muted-foreground">
-                {enabledPluginCount} enabled
-                {blockedPluginCount > 0 ? ` · ${blockedPluginCount} blocked` : ""}
-              </div>
-            </div>
-            <div className="text-sm leading-6 text-muted-foreground">
-              {pluginReviewSummary}
-            </div>
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <div className="text-sm font-medium text-muted-foreground">Semester</div>
+          <div className="text-2xl leading-tight font-semibold tracking-tight text-foreground sm:text-3xl">
+            {basics.name || "Untitled Semester"}
           </div>
         </div>
+
+        <dl className="grid gap-y-3 border-t border-border/70 pt-4">
+          {[
+            {
+              label: "Date range",
+              value: reviewDateRangeValue,
+            },
+            {
+              label: "Reading week",
+              value: reviewReadingWeekValue,
+            },
+            {
+              label: "Courses",
+              value: courseReviewMeta,
+              detail: courseReviewSummary,
+            },
+            {
+              label: "Plugins",
+              value: pluginReviewMeta,
+              detail: pluginReviewSummary,
+            },
+          ].map((item) => (
+            <div key={item.label} className="grid gap-1 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-x-4">
+              <dt className="text-sm font-medium text-muted-foreground">{item.label}</dt>
+              <div className="min-w-0">
+                <dd className="text-sm leading-6 font-medium text-foreground">
+                  {item.value}
+                </dd>
+                {item.detail ? (
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {item.detail}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </dl>
       </section>
 
       {reviewSummaryPlugins.length > 0 ? (
