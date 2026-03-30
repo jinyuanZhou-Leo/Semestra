@@ -1,0 +1,44 @@
+{
+  "id": "course-resources",
+  "display_name": "Course Resources",
+  "author": "Jinyuan",
+  "description": "Keep course files and links organized for quick access.",
+  "long_description": "Course Resources gives each course a dedicated place to collect files, links, and frequently used materials. Instead of hunting through LMS pages, browser bookmarks, and scattered downloads, users can keep important content grouped by course and reach it quickly when studying. It is designed for everyday retrieval: lecture slides, reference sheets, assignment links, and anything else that should stay easy to open throughout the term.",
+  "icon": "folder-open-dot",
+  "tabs": [
+    {
+      "type": "course-resources-tab",
+      "title": "Course Resources",
+      "description": "Manage course files with drag-and-drop upload, quick open, and lightweight file actions.",
+      "icon": "folder-open-dot",
+      "contexts": [
+        "course"
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "type": "course-resources-quick-open",
+      "title": "Course Resources Quick Open",
+      "description": "Open one, two, or four pinned course resources from the dashboard.",
+      "icon": "panels-top-left",
+      "contexts": [
+        "course"
+      ],
+      "layout": {
+        "w": 3,
+        "h": 3,
+        "minW": 2,
+        "minH": 2,
+        "maxW": 4,
+        "maxH": 4
+      },
+      "max_instances": "unlimited"
+    }
+  ],
+  "settings": {
+    "defaults": {},
+    "fields": [],
+    "sections": []
+  }
+}

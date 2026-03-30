@@ -1,6 +1,6 @@
-// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester->unassigned-Course runtime plugin governance payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, and shared business empty-state wrappers]
+// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-governed plugin inheritance for Semester courses plus lightweight plugin governance for unassigned Courses, plugin-derived dashboard/settings shell tabs, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-managed plugin inheritance for Semester courses plus lightweight plugin management for unassigned Courses, plugin-derived dashboard/settings shell tabs, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -29,7 +29,7 @@ import { useDashboardWidgets } from '../hooks/useDashboardWidgets';
 import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPreload';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
-import { CoursePluginGovernancePanel } from '../components/CoursePluginGovernancePanel';
+import { CoursePluginManagementPanel } from '../components/CoursePluginManagementPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
@@ -59,8 +59,8 @@ import {
     filterWidgetItemsByEnabledPlugins,
     resolveAvailableWidgetTypes,
     resolveEnabledPluginIds,
-    resolveGovernedRuntimeTabs,
-} from '../plugin-system/runtimeGovernance';
+    resolveRuntimeTabs,
+} from '../plugin-system/runtimeAvailability';
 
 import {
     Breadcrumb,
@@ -165,7 +165,7 @@ const CourseHomepageContent: React.FC = () => {
         return resolveCourseColor({ ...course, color: null }, programSubjectColorMap);
     }, [course, programSubjectColorMap]);
     const runtimeTabs = useMemo(
-        () => resolveGovernedRuntimeTabs(course?.runtime, `course:${course?.id ?? 'unknown'}`),
+        () => resolveRuntimeTabs(course?.runtime, `course:${course?.id ?? 'unknown'}`),
         [course?.id, course?.runtime]
     );
     const enabledPluginIds = useMemo(() => {
@@ -212,7 +212,7 @@ const CourseHomepageContent: React.FC = () => {
         courseId: course?.id,
         orderOwnerSemesterId: course?.semester_id,
         initialTabs: runtimeTabs,
-        governed: true,
+        managed: true,
         onRefresh: refreshCourse
     });
 
@@ -542,7 +542,7 @@ const CourseHomepageContent: React.FC = () => {
             return null;
         }
         return (
-            <CoursePluginGovernancePanel
+            <CoursePluginManagementPanel
                 courseId={course.id}
                 pluginActivations={course.plugin_activations ?? []}
                 onChanged={refreshCourse}

@@ -1,0 +1,51 @@
+{
+  "id": "builtin-gradebook",
+  "display_name": "Gradebook",
+  "author": "Jinyuan",
+  "description": "Track assessments, understand progress, and plan toward targets.",
+  "long_description": "Gradebook gives each course a clear place to record assessments, enter scores, and understand how every result affects the overall picture. It supports ongoing progress checks, target setting, and what-if planning so students can see where they stand before final grades are locked in. The experience is built for day-to-day academic decision making, helping users connect effort, weighting, and expected outcomes with less guesswork.",
+  "icon": "notebook-tabs",
+  "tabs": [
+    {
+      "type": "builtin-gradebook",
+      "title": "Gradebook",
+      "description": "Track assessments and grade projections for this course.",
+      "icon": "notebook-tabs",
+      "contexts": [
+        "course"
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "type": "builtin-gradebook-summary",
+      "title": "Gradebook Summary",
+      "description": "See a quick grade summary for this course.",
+      "icon": "book-open-check",
+      "contexts": [
+        "course"
+      ],
+      "layout": {
+        "w": 3,
+        "h": 3,
+        "minW": 2,
+        "minH": 2,
+        "maxW": 4,
+        "maxH": 4
+      },
+      "max_instances": "unlimited"
+    }
+  ],
+  "settings": {
+    "defaults": {},
+    "fields": [],
+    "sections": [
+      {
+        "id": "gradebook-forecast-and-categories",
+        "contexts": [
+          "course"
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
-// input:  [route params/navigation primitives, shared layout/container/back button components, program entity context, LMS integration query, reusable Program settings form, plugin settings registry helpers, and Program plugin governance panel]
+// input:  [route params/navigation primitives, shared layout/container/back button components, program entity context, LMS integration query, reusable Program settings form, plugin settings registry helpers, and Program plugin management panel]
 // output: [`ProgramSettingsPage` route component]
-// pos:    [Dedicated Program settings workspace route with breadcrumb-aware navigation, single-current-page breadcrumb semantics, query-backed Program/LMS data loading, Program-level plugin lifecycle governance plus plugin settings sections, and page-based autosaving settings management]
+// pos:    [Dedicated Program settings workspace route with breadcrumb-aware navigation, single-current-page breadcrumb semantics, query-backed Program/LMS data loading, Program-level plugin lifecycle management plus plugin settings sections, and page-based autosaving settings management]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -26,7 +26,7 @@ import { Layout } from "../components/Layout";
 import { Container } from "../components/Container";
 import { BackButton } from "../components/BackButton";
 import { AppEmptyState } from "../components/AppEmptyState";
-import { ProgramPluginGovernancePanel } from "../components/ProgramPluginGovernancePanel";
+import { ProgramPluginManagementPanel } from "../components/ProgramPluginManagementPanel";
 import { ProgramSettingsPanel } from "../components/ProgramSettingsPanel";
 import { ProgramDataProvider, useProgramData } from "../contexts/ProgramDataContext";
 import api from "../services/api";
@@ -174,7 +174,7 @@ const ProgramSettingsPageContent: React.FC = () => {
                 <div className="space-y-2">
                     <h1 className="text-3xl font-bold tracking-tight">Program Settings</h1>
                     <p className="text-muted-foreground">
-                        Configure Program details, LMS defaults, plugin governance, and course-code color mappings.
+                        Configure Program details, LMS defaults, plugin management, and course-code color mappings.
                     </p>
                 </div>
 
@@ -199,7 +199,7 @@ const ProgramSettingsPageContent: React.FC = () => {
                                 settingsFlushRef.current = flush;
                             }}
                         />
-                        <ProgramPluginGovernancePanel
+                        <ProgramPluginManagementPanel
                             programId={program.id}
                             onChanged={refreshProgram}
                         />

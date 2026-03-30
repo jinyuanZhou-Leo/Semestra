@@ -23,7 +23,7 @@ from color_utils import (
 )
 
 import models
-import plugin_governance
+import plugin_registry
 import schemas
 
 DEFAULT_GPA_SCALING = '{"90-100": 4.0, "85-89": 4.0, "80-84": 3.7, "77-79": 3.3, "73-76": 3.0, "70-72": 2.7, "67-69": 2.3, "63-66": 2.0, "60-62": 1.7, "57-59": 1.3, "53-56": 1.0, "50-52": 0.7, "0-49": 0}'
@@ -50,7 +50,7 @@ class CourseSemesterAssignmentError(Exception):
     pass
 
 
-class PluginGovernanceError(Exception):
+class PluginRegistryError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
@@ -76,7 +76,7 @@ def _serialize_json_object(value: dict | None) -> str:
 
 
 def _canonical_plugin_id(plugin_id: str) -> str:
-    return plugin_governance.normalize_plugin_id(plugin_id)
+    return plugin_registry.normalize_plugin_id(plugin_id)
 
 
 def _canonical_tab_type(tab_type: str | None) -> str:
@@ -85,8 +85,8 @@ def _canonical_tab_type(tab_type: str | None) -> str:
 
 
 def _wrap_plugin_validation(exc: Exception) -> None:
-    if isinstance(exc, plugin_governance.PluginGovernanceValidationError):
-        raise PluginGovernanceError(exc.code, exc.message) from exc
+    if isinstance(exc, plugin_registry.PluginRegistryValidationError):
+        raise PluginRegistryError(exc.code, exc.message) from exc
     raise exc
 
 

@@ -95,7 +95,7 @@ app.include_router(course_schedule_router)
 app.include_router(layout_router)
 
 
-def _raise_plugin_governance_http_error(exc: crud.PluginGovernanceError) -> None:
+def _raise_plugin_registry_http_error(exc: crud.PluginRegistryError) -> None:
     code_to_status = {
         "PROGRAM_NOT_FOUND": 404,
         "SEMESTER_NOT_FOUND": 404,
@@ -257,8 +257,8 @@ def upsert_program_plugin_installation(
         raise HTTPException(status_code=404, detail="Program not found")
     try:
         return crud.upsert_program_plugin_installation(db, program_id, plugin_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.put("/programs/{program_id}/plugins:bulk", response_model=list[schemas.ProgramPluginInstallation])
@@ -273,8 +273,8 @@ def bulk_update_program_plugin_installations(
         raise HTTPException(status_code=404, detail="Program not found")
     try:
         return crud.bulk_update_program_plugin_installations(db, program_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.delete("/programs/{program_id}/plugins/{plugin_id}")
@@ -289,8 +289,8 @@ def delete_program_plugin_installation(
         raise HTTPException(status_code=404, detail="Program not found")
     try:
         installation = crud.delete_program_plugin_installation(db, program_id, plugin_id)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
     if installation is None:
         raise HTTPException(status_code=404, detail=error_detail("PLUGIN_NOT_INSTALLED", "Plugin is not installed for this Program."))
     return {"ok": True}
@@ -323,8 +323,8 @@ def create_current_semester_draft(
         raise HTTPException(status_code=404, detail="Program not found")
     try:
         return crud.create_semester_draft(db, program_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.put("/semesters/{semester_id}/draft", response_model=schemas.SemesterDraft)
@@ -337,8 +337,8 @@ def update_current_semester_draft(
     get_owned_semester(db, current_user, semester_id)
     try:
         return crud.update_semester_draft(db, semester_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.post("/semesters/{semester_id}/draft/finalize", response_model=schemas.SemesterDraft)
@@ -350,8 +350,8 @@ def finalize_current_semester_draft(
     get_owned_semester(db, current_user, semester_id)
     try:
         return crud.finalize_semester_draft(db, semester_id)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.post("/semesters/{semester_id}/draft/review", response_model=schemas.SemesterDraft)
@@ -381,8 +381,8 @@ def read_plugin_system_setup_definition(
     del db, current_user
     try:
         return crud.get_plugin_system_setup_definition(plugin_id)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.get("/plugin-system/semesters/{semester_id}/setup", response_model=schemas.PluginSystemSemesterSetupResponse)
@@ -399,8 +399,8 @@ def read_semester_plugin_system_setup(
         )
     try:
         return crud.get_semester_plugin_system_setup(db, semester_id)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.put(
@@ -422,8 +422,8 @@ def update_semester_plugin_system_setup(
         )
     try:
         return crud.update_semester_plugin_system_setup(db, semester_id, plugin_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.post("/plugin-system/semesters/{semester_id}/review", response_model=schemas.PluginSystemReviewResponse)
@@ -440,8 +440,8 @@ def review_semester_plugin_system(
         )
     try:
         return crud.review_semester_plugin_system(db, semester_id)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.delete("/semesters/{semester_id}/draft")
@@ -453,8 +453,8 @@ def discard_current_semester_draft(
     get_owned_semester(db, current_user, semester_id)
     try:
         draft = crud.discard_semester_draft(db, semester_id)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
     if draft is None:
         raise HTTPException(status_code=404, detail="Semester not found")
     return {"ok": True}
@@ -745,8 +745,8 @@ def upsert_semester_plugin_activation(
     get_owned_semester(db, current_user, semester_id)
     try:
         return crud.upsert_semester_plugin_activation(db, semester_id, plugin_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.put("/semesters/{semester_id}/plugin-activations:bulk", response_model=schemas.SemesterDraft)
@@ -759,8 +759,8 @@ def bulk_update_semester_plugin_activations(
     get_owned_semester(db, current_user, semester_id)
     try:
         return crud.bulk_update_semester_plugin_activations(db, semester_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.delete("/semesters/{semester_id}/plugin-activations/{plugin_id}")
@@ -773,8 +773,8 @@ def delete_semester_plugin_activation(
     get_owned_semester(db, current_user, semester_id)
     try:
         activation = crud.delete_semester_plugin_activation(db, semester_id, plugin_id)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
     if activation is None:
         raise HTTPException(status_code=404, detail=error_detail("PLUGIN_NOT_ENABLED", "Plugin is not enabled for this Semester."))
     return {"ok": True}
@@ -1118,8 +1118,8 @@ def upsert_course_plugin_activation(
         raise HTTPException(status_code=404, detail="Course not found")
     try:
         return crud.upsert_course_plugin_activation(db, course_id, plugin_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.put("/courses/{course_id}/plugin-activations:bulk", response_model=list[schemas.CoursePluginActivation])
@@ -1136,8 +1136,8 @@ def bulk_update_course_plugin_activations(
         raise HTTPException(status_code=404, detail="Course not found")
     try:
         return crud.bulk_update_course_plugin_activations(db, course_id, payload)
-    except crud.PluginGovernanceError as exc:
-        _raise_plugin_governance_http_error(exc)
+    except crud.PluginRegistryError as exc:
+        _raise_plugin_registry_http_error(exc)
 
 
 @app.get("/courses/{course_id}/lms-link", response_model=Optional[schemas.LmsCourseLinkSummary])

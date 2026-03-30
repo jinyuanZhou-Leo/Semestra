@@ -1,12 +1,13 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 World-clock plugin renders timezone-aware time/date output with configurable second-level or minute-level refresh cadence.
-`metadata.ts` provides eager plugin catalog metadata while `index.ts` lazily registers widget runtime exports.
+`plugin.json` and `plugin.ts` now provide the eager descriptor-backed entry while `index.ts` lazily registers widget runtime exports.
 `widget.tsx` contains both settings controls and the runtime clock formatter/update loop, now using the browser locale for date/time formatting.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for world-clock plugin files and responsibilities. |
-| metadata.ts | Plugin metadata | Declares plugin id and widget catalog listing metadata (name, icon, layout, etc.). |
+| plugin.json | Plugin manifest | Static public manifest for plugin identity plus widget metadata shared with the backend. |
+| plugin.ts | Plugin entry | Binds the descriptor to lazy runtime loading through the frontend plugin SDK. |
 | index.ts | Runtime entry | Exports runtime widget definition and metadata exports for plugin loading. |
 | widget.tsx | Widget runtime | Renders timezone clock UI with locale-aware formatting and updates at 1s or 60s cadence based on `showSeconds`. |

@@ -1,6 +1,6 @@
-// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester->unassigned-Course runtime plugin-governance payloads, and Program/Semester/Course plugin governance + plugin-system + Semester draft-wizard routes]
-// output: [Program/Semester/Course/Widget/Tab/TabSetting/Todo/Gradebook/LMS contract types, Program/Semester/unassigned-Course plugin-governance plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime governance wire models, and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, Program plugin lifecycle governance, V2 Program/Semester/Course tab-settings and runtime-tab persistence, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin-governance driven tab resolution]
+// input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester->unassigned-Course runtime plugin payloads, and Program/Semester/Course plugin management + plugin-system + Semester draft-wizard routes]
+// output: [Program/Semester/Course/Widget/Tab/TabSetting/Todo/Gradebook/LMS contract types, Program/Semester/unassigned-Course plugin management plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime availability wire models, and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, Program plugin lifecycle management, V2 Program/Semester/Course tab-settings and runtime-tab persistence, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin availability driven tab resolution]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,7 @@ import axios from 'axios';
 
 export type SemesterDraftStep = 'basics' | 'courses' | 'plugins' | 'plugin-setup' | 'review';
 
-export interface ContributionAvailability {
+export interface RuntimeAvailability {
     state: 'available' | 'unavailable';
     reason_code?: string | null;
     reason_message?: string | null;
@@ -54,7 +54,7 @@ interface RuntimeResolvedTabWire {
     is_removable?: boolean;
     is_draggable?: boolean;
     plugin_id?: string;
-    availability?: ContributionAvailability;
+    availability?: RuntimeAvailability;
 }
 
 interface RuntimeResolvedPluginWire {
@@ -75,7 +75,7 @@ export interface RuntimeResolvedTab {
     is_removable?: boolean;
     is_draggable?: boolean;
     plugin_id?: string;
-    availability: ContributionAvailability;
+    availability: RuntimeAvailability;
 }
 
 export interface RuntimeResolvedPlugin {
@@ -88,8 +88,8 @@ export interface RuntimeResolvedPlugin {
 
 export interface RuntimeWorkspacePayload {
     runtime_tabs: RuntimeResolvedTab[];
-    tab_catalog_items: RuntimeTabContribution[];
-    widget_catalog_items: RuntimeWidgetContribution[];
+    tab_catalog_items: RuntimeTabCatalogItem[];
+    widget_catalog_items: RuntimeWidgetCatalogItem[];
     enabled_plugin_ids: string[];
     enabled_plugins: RuntimeResolvedPlugin[];
     available_widget_types: string[];
@@ -98,26 +98,26 @@ export interface RuntimeWorkspacePayload {
 interface RuntimeWorkspaceWirePayload {
     runtime_tabs?: RuntimeResolvedTabWire[];
     resolved_tabs?: RuntimeResolvedTabWire[];
-    tab_catalog_items?: RuntimeTabContribution[];
-    widget_catalog_items?: RuntimeWidgetContribution[];
+    tab_catalog_items?: RuntimeTabCatalogItem[];
+    widget_catalog_items?: RuntimeWidgetCatalogItem[];
     enabled_plugin_ids?: string[];
     enabled_plugins?: RuntimeResolvedPluginWire[];
     runtime_plugins?: RuntimeResolvedPluginWire[];
     available_widget_types?: string[];
 }
 
-export interface RuntimeTabContribution {
+export interface RuntimeTabCatalogItem {
     plugin_id?: string | null;
     tab_type: string;
     title?: string;
     selected?: boolean;
-    availability: ContributionAvailability;
+    availability: RuntimeAvailability;
 }
 
-export interface RuntimeWidgetContribution {
+export interface RuntimeWidgetCatalogItem {
     plugin_id?: string | null;
     widget_type: string;
-    availability: ContributionAvailability;
+    availability: RuntimeAvailability;
 }
 
 export interface Semester {
@@ -222,18 +222,14 @@ export interface ProgramPluginInstallation {
     long_description?: string;
     author: string;
     default_version: string;
-    default_installed: boolean;
-    default_enabled: boolean;
     locked: boolean;
     version: string;
     is_enabled: boolean;
-    requires_program_lms_integration: boolean;
     capabilities: {
         contexts?: string[];
         available_tab_types?: string[];
         available_widget_types?: string[];
         has_settings?: boolean;
-        supports_unassigned_course?: boolean;
     };
     setup_sections: ProgramPluginSetupSection[];
     program_settings: Record<string, unknown>;
@@ -241,11 +237,10 @@ export interface ProgramPluginInstallation {
     fields: ProgramPluginField[];
     available: boolean;
     availability_reason?: string | null;
-    availability?: ContributionAvailability | null;
+    availability?: RuntimeAvailability | null;
     installed: boolean;
     auth_state?: string;
     auth_message?: string | null;
-    requires_authorization?: boolean;
 }
 
 export interface SemesterPluginActivation {
@@ -270,7 +265,7 @@ export interface SemesterPluginActivation {
     review_errors?: SemesterDraftReviewIssue[];
     available: boolean;
     availability_reason?: string | null;
-    availability?: ContributionAvailability | null;
+    availability?: RuntimeAvailability | null;
     auth_state?: string;
 }
 
@@ -291,7 +286,7 @@ export interface CoursePluginActivation {
     resolved_settings?: Record<string, unknown>;
     available: boolean;
     availability_reason?: string | null;
-    availability?: ContributionAvailability | null;
+    availability?: RuntimeAvailability | null;
     source: 'course' | 'semester';
 }
 

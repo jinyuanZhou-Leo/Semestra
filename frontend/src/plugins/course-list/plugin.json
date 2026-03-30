@@ -1,0 +1,64 @@
+{
+  "id": "course-list",
+  "display_name": "Course List",
+  "author": "Jinyuan",
+  "description": "See every course in a semester and manage the overall roster.",
+  "long_description": "Course List is the central overview for the courses that belong to a semester. It helps users scan what they are taking, keep the roster organized, and manage the overall structure of the term from one place. It is especially useful at the start of a semester, when plans are still changing, and later as a stable overview of the academic load that ties the rest of the workspace together.",
+  "icon": "book-open-text",
+  "tabs": [],
+  "widgets": [
+    {
+      "type": "course-list",
+      "title": "Course List",
+      "description": "Review and manage semester courses.",
+      "icon": "book-open-text",
+      "contexts": [
+        "semester"
+      ],
+      "layout": {
+        "w": 6,
+        "h": 5,
+        "minW": 4,
+        "minH": 4,
+        "maxW": 12,
+        "maxH": 8
+      },
+      "max_instances": 1
+    }
+  ],
+  "settings": {
+    "defaults": {
+      "allowCourseCreation": true,
+      "badgeStyle": "compact"
+    },
+    "fields": [
+      {
+        "path": "allowCourseCreation",
+        "label": "Allow course creation",
+        "type": "boolean",
+        "scope": "program-only",
+        "default": true,
+        "description": "Control whether the Course List widget exposes create-course entry points."
+      },
+      {
+        "path": "badgeStyle",
+        "label": "Badge style",
+        "type": "select",
+        "scope": "semester-override",
+        "default": "compact",
+        "description": "Control how dense the course badges feel inside this Semester.",
+        "options": [
+          {
+            "label": "Compact",
+            "value": "compact"
+          },
+          {
+            "label": "Detailed",
+            "value": "detailed"
+          }
+        ]
+      }
+    ],
+    "sections": []
+  }
+}

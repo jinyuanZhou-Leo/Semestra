@@ -1,0 +1,35 @@
+{
+  "id": "sticky-note",
+  "display_name": "Sticky Note",
+  "author": "Jinyuan",
+  "description": "Capture quick ideas, reminders, and scratch notes instantly.",
+  "long_description": "Sticky Note is a lightweight place for thoughts that are useful now but do not need full structure. It works well for reminders, rough plans, short checklists, temporary references, or anything that should remain visible while studying. The goal is immediacy: open it, write something down, and keep moving without turning a small thought into a larger workflow.",
+  "icon": "sticky-note",
+  "tabs": [],
+  "widgets": [
+    {
+      "type": "sticky-note",
+      "title": "Sticky Note",
+      "description": "Quickly capture short notes directly on your dashboard.",
+      "icon": "sticky-note",
+      "contexts": [
+        "semester",
+        "course"
+      ],
+      "layout": {
+        "w": 2,
+        "h": 2,
+        "minW": 1,
+        "minH": 1,
+        "maxW": 5,
+        "maxH": 5
+      },
+      "max_instances": "unlimited"
+    }
+  ],
+  "settings": {
+    "defaults": {},
+    "fields": [],
+    "sections": []
+  }
+}

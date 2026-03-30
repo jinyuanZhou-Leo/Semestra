@@ -1,6 +1,6 @@
-// input:  [plugin runtime declaration helpers, tab/widget registries, plugin manifest/catalog types, and load-state contracts]
+// input:  [plugin SDK runtime definitions, internal registries, plugin manifest/catalog types, and load-state contracts]
 // output: [plugin entry types plus runtime validation/register/unregister helpers]
-// pos:    [Internal runtime-loader helper that owns plugin entry shape and keeps runtime registration logic out of the public facade file]
+// pos:    [Internal runtime-loader helper that validates descriptor-backed runtime definitions before registry registration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,19 +8,15 @@
 
 import { TabRegistry } from '../services/tabRegistry';
 import { WidgetRegistry } from '../services/widgetRegistry';
-import { definePluginRuntime, type PluginRuntimeDefinition } from './contracts';
+import { definePluginRuntime, type PluginRuntimeDefinition } from '@/plugin-sdk';
 import type { PluginLoadState } from './pluginLoadState';
 import type { PluginManifestItem, TabCatalogItem, WidgetCatalogItem } from './types';
-
-export type PluginRuntimeModule = {
-  default?: PluginRuntimeDefinition;
-};
 
 export interface PluginEntry {
   id: string;
   directoryName: string;
   manifest: PluginManifestItem;
-  loader: () => Promise<PluginRuntimeModule>;
+  loader: () => Promise<PluginRuntimeDefinition>;
   tabCatalog: TabCatalogItem[];
   widgetCatalog: WidgetCatalogItem[];
   loadState: PluginLoadState;
@@ -32,7 +28,7 @@ export interface PluginEntry {
 export const createPluginEntry = (
   manifest: PluginManifestItem,
   directoryName: string,
-  loader: () => Promise<PluginRuntimeModule>,
+  loader: () => Promise<PluginRuntimeDefinition>,
   tabCatalog: TabCatalogItem[],
   widgetCatalog: WidgetCatalogItem[],
 ): PluginEntry => ({

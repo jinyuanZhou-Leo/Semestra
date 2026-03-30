@@ -1,12 +1,13 @@
 # Plugin Inheritance Architecture
 
-This document explains how plugin activation, host-governed config, tab settings, and runtime inheritance currently work in Semestra.
+This document explains how plugin activation, host-managed config, tab settings, and runtime inheritance currently work in Semestra.
 
 It reflects the current implementation in:
-- `backend/plugin_governance.py`
-- `backend/crud_plugin_governance.py`
+- `backend/plugin_registry.py`
+- `backend/crud_plugin_registry.py`
 - `backend/runtime_payloads.py`
-- `frontend/src/plugin-system/metadataManifest.ts`
+- `frontend/src/plugins/*/plugin.json`
+- `frontend/src/plugins/host-policy.json`
 - `frontend/src/pages/CourseHomepage.tsx`
 
 ## Goals
@@ -14,17 +15,17 @@ It reflects the current implementation in:
 The current model is designed to keep plugin ownership simple while separating two different concerns:
 
 - `plugin activation`: whether a plugin is allowed to run in a workspace
-- `runtime config`: what host-governed config and tab settings a running contribution receives
+- `runtime config`: what host-managed config and tab settings a running plugin surface receives
 
 The current model is designed to keep those concerns separate:
 
 - `Program` owns plugin installation.
 - `Semester` owns plugin enablement for Semester-scoped workspaces.
 - An unassigned `Course` may own only lightweight enablement when `semester_id = null`.
-- Program governance owns resolved plugin config through `plugin defaults < program settings < semester overrides`.
+- Program management owns resolved plugin config through `plugin defaults < program settings < semester overrides`.
 - `Program`, `Semester`, and `Course` may each own `tab_settings` rows for tab-type-specific runtime state.
 - Runtime activation and runtime config are resolved by the host, not by plugin code.
-- Plugin authors declare whether an unassigned Course is supported through metadata capability flags.
+- Plugin authors declare Course-visible surfaces through `plugin.json` contexts, while host-private builtin policy stays outside plugin-authored files.
 
 ## Two Independent Chains
 
@@ -102,7 +103,7 @@ If a plugin is not installed at the Program layer, no Semester or Course may ena
 
 #### 2. Semester activation
 
-`SemesterPluginActivation` is the only editable runtime governance layer for:
+`SemesterPluginActivation` is the only editable runtime availability layer for:
 - the Semester itself
 - Courses that belong to that Semester
 
@@ -137,7 +138,7 @@ must be enabled"]
     CourseCheck{"Course has semester_id?"}
     SemesterPath["Read SemesterPluginActivation"]
     CoursePath["Read ProgramCoursePluginActivation"]
-    SupportsCheck{"supports_unassigned_course?"}
+    SupportsCheck{"course-visible plugin surfaces?"}
     AvailableCheck{"availability checks pass?"}
     Runtime["Runtime plugin payload
 enabled_plugin_ids
@@ -164,7 +165,7 @@ When `course.semester_id != null`:
 3. It filters out plugins that are disabled or unavailable.
 4. The resulting activation payload is used by Semester pages and Semester-owned Course pages.
 
-In this path, Course does not have its own editable plugin governance.
+In this path, Course does not have its own editable plugin management.
 
 ### Unassigned Course activation path
 
@@ -205,7 +206,7 @@ program / semester / course scoped"]
 
 - Program installation settings are the Program-wide default settings for the plugin.
 - Semester override settings are the Semester-level governance overrides for that plugin.
-- `tab_settings` rows hold contribution-level runtime state for a tab type in Program, Semester, or Course scope.
+- `tab_settings` rows hold item-level runtime state for a tab type in Program, Semester, or Course scope.
 
 These config scopes are independent from activation scopes.
 
@@ -222,7 +223,7 @@ There are two different host-owned config mechanisms in the current system:
 
 #### Host-governed plugin config
 
-This is the config resolved by plugin governance and serialized in activation/runtime payloads.
+This is the config resolved by plugin management and serialized in activation/runtime payloads.
 
 It follows:
 
@@ -274,38 +275,34 @@ Practical rule:
 
 ## Capability Gate
 
-Plugin authors control unassigned Course compatibility through metadata.
+Unassigned Course compatibility is now derived from checked-in descriptors plus host policy.
 
-Authoring side:
-- frontend plugin metadata uses `supportsUnassignedCourse`
-
-Generated backend manifest:
-- backend capability becomes `supports_unassigned_course`
+Source of truth:
+- frontend plugin authors declare Course-visible tabs/widgets in `plugin.json`
+- the host applies builtin/private rules from `host-policy.json`
+- the backend reads both through `plugin_registry.py`
 
 ```mermaid
 flowchart LR
-    Metadata["frontend metadata.ts
-supportsUnassignedCourse"]
-    Manifest["backend/generated/plugin_metadata_manifest.json
-supports_unassigned_course"]
-    Registry["backend/plugin_governance.py"]
-    CourseUI["Course Settings governance panel"]
+    Descriptor["frontend plugin.json
+tabs / widgets / contexts"]
+    HostPolicy["frontend host-policy.json
+private builtin / host-shell rules"]
+    Registry["backend/plugin_registry.py"]
+    CourseUI["Course Settings management panel"]
     Runtime["Course runtime filtering"]
 
-    Metadata --> Manifest
-    Manifest --> Registry
+    Descriptor --> Registry
+    HostPolicy --> Registry
     Registry --> CourseUI
     Registry --> Runtime
 ```
 
-If this capability is false:
-- the plugin does not appear in the unassigned Course governance panel
+If a plugin has no Course-visible surfaces after registry resolution:
+- the plugin does not appear in the unassigned Course management panel
 - the plugin does not enter unassigned Course runtime payloads
 
-This capability does not replace `contexts: ['course']`.
-It is an extra gate that answers a narrower question:
-
-> Can this plugin run in a Course that does not belong to any Semester?
+The decision is host-resolved; external plugin authors do not maintain a separate `supportsUnassignedCourse` flag anymore.
 
 ## Why This Model Exists
 
@@ -340,7 +337,7 @@ That Course may still resolve Course-scoped tab settings.
 
 If `course-resources` is:
 - installed on the Program
-- marked `supports_unassigned_course = true`
+- marked `course-visible plugin surfaces = true`
 
 then an unassigned Course may enable it through `ProgramCoursePluginActivation`.
 
@@ -373,20 +370,20 @@ If you need a compact mental model, use these rules:
 ## Source Map
 
 - Program install and capability registry:
-  - `backend/plugin_governance.py`
-  - `backend/crud_plugin_governance.py`
+  - `backend/plugin_registry.py`
+  - `backend/crud_plugin_registry.py`
 - Semester draft/setup/review flow:
-  - `backend/crud_plugin_governance.py`
+  - `backend/crud_plugin_registry.py`
   - `backend/crud_academics.py`
 - Unassigned Course activation persistence:
   - `backend/models.py`
   - `backend/alembic/versions/20260328_0016_add_program_course_plugin_activations.py`
-  - `backend/crud_plugin_governance.py`
+  - `backend/crud_plugin_registry.py`
 - Runtime payload assembly:
   - `backend/runtime_payloads.py`
 - Frontend metadata capability authoring:
   - `frontend/src/plugin-system/contracts.ts`
   - `frontend/src/plugin-system/metadataManifest.ts`
 - Frontend unassigned Course governance UI:
-  - `frontend/src/components/CoursePluginGovernancePanel.tsx`
+  - `frontend/src/components/CoursePluginManagementPanel.tsx`
   - `frontend/src/pages/CourseHomepage.tsx`

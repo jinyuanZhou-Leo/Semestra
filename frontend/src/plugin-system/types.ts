@@ -1,14 +1,20 @@
-// input:  [registry context/max-instance types and icon node typing from React]
+// input:  [plugin SDK runtime-context types plus icon node typing from React]
 // output: [`PluginManifestItem`, `TabCatalogItem`, `WidgetCatalogItem`, `WidgetLayoutDefinition`, and `ResolvedPluginMetadata` interfaces]
-// pos:    [Shared type contracts for plugin-level manifest icons, tab/widget contribution catalogs, widget layout metadata, and resolver outputs]
+// pos:    [Internal runtime catalog contracts derived from descriptor-backed plugin definitions plus host-only plugin policy]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { ReactNode } from 'react';
-import type { TabContext } from '../services/tabRegistry';
-import type { MaxInstances as WidgetMaxInstances, WidgetContext } from '../services/widgetRegistry';
+import type {
+    PluginWorkspaceContext as TabContext,
+    PluginWorkspaceContext as WidgetContext,
+} from '@/plugin-sdk';
+import type { MaxInstances as WidgetMaxInstances } from './utils';
+
+export type PluginKind = 'host-shell' | 'builtin' | 'external';
+export type PluginManifestVisibility = 'public' | 'hidden';
 
 export interface PluginManifestItem {
     pluginId: string;
@@ -16,6 +22,8 @@ export interface PluginManifestItem {
     author: string;
     description: string;
     longDescription: string;
+    kind: PluginKind;
+    visibility: PluginManifestVisibility;
     icon: ReactNode;
 }
 

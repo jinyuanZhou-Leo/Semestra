@@ -1,0 +1,83 @@
+{
+  "sections": [
+    {
+      "id": "calendar-default-view",
+      "title": "Calendar Setup",
+      "description": "Choose the default Calendar view for this Semester.",
+      "fields": [
+        {
+          "path": "calendarDefaultView",
+          "label": "Calendar default view",
+          "type": "select",
+          "persist": "both",
+          "required": true,
+          "description": "Choose the initial Calendar view for this Semester.",
+          "default_value": "month",
+          "options": [
+            { "label": "Month", "value": "month" },
+            { "label": "Week", "value": "week" }
+          ],
+          "summary_labels": {
+            "month": "Month",
+            "week": "Week"
+          }
+        }
+      ]
+    },
+    {
+      "id": "event-type-setup",
+      "title": "Event Types",
+      "description": "Configure the default event-type catalog for course scheduling.",
+      "fields": [
+        {
+          "path": "eventTypes",
+          "label": "Default event types",
+          "type": "json",
+          "persist": "setupState",
+          "required": false,
+          "description": "Configure the event types that this Semester should start with.",
+          "default_value": [
+            {
+              "id": "builtin-lecture",
+              "code": "LECTURE",
+              "abbreviation": "LEC",
+              "track_attendance": false,
+              "color": null,
+              "icon": null
+            },
+            {
+              "id": "builtin-practical",
+              "code": "PRACTICAL",
+              "abbreviation": "PRA",
+              "track_attendance": false,
+              "color": null,
+              "icon": null
+            },
+            {
+              "id": "builtin-tutorial",
+              "code": "TUTORIAL",
+              "abbreviation": "TUT",
+              "track_attendance": false,
+              "color": null,
+              "icon": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "validation_rules": [
+    {
+      "type": "json-array-min-length",
+      "field": "eventTypes",
+      "min_length": 1,
+      "message": "Add at least one event type before continuing."
+    },
+    {
+      "type": "json-array-unique-keys",
+      "field": "eventTypes",
+      "keys": ["code", "abbreviation"],
+      "message": "Event type names and abbreviations must be unique."
+    }
+  ]
+}

@@ -12,12 +12,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import models
-import plugin_governance
+import plugin_registry
 import schemas
 from crud_shared import _canonical_tab_type, _parse_json_object, _serialize_json_object
 
 
-HOST_RESERVED_TAB_TYPES = {"builtin-dashboard", "builtin-setting"}
 SEMESTER_HOMEPAGE_TAB_ORDER_BUCKET = "semester_homepage"
 SEMESTER_COURSE_SHARED_TAB_ORDER_BUCKET = "semester_course_shared"
 UNASSIGNED_COURSE_HOMEPAGE_TAB_ORDER_BUCKET = "unassigned_course_homepage"
@@ -105,7 +104,7 @@ def _ensure_course_plugin_tabs(
     plugin_id: str,
 ) -> None:
     available_tab_types = []
-    definition = plugin_governance.get_plugin_definition(plugin_id)
+    definition = plugin_registry.get_plugin_definition(plugin_id)
     for raw_tab_type in definition.capabilities.get("available_tab_types", []):
         canonical_tab_type = _canonical_tab_type(raw_tab_type)
         if canonical_tab_type:
@@ -211,7 +210,7 @@ def set_workspace_tab_order(
     seen_tab_types: set[str] = set()
     for raw_tab_type in tab_types:
         tab_type = _canonical_tab_type(raw_tab_type)
-        if not tab_type or tab_type in HOST_RESERVED_TAB_TYPES or tab_type in seen_tab_types:
+        if not tab_type or plugin_registry.is_host_reserved_tab_type(tab_type) or tab_type in seen_tab_types:
             continue
         seen_tab_types.add(tab_type)
         normalized_tab_types.append(tab_type)
@@ -249,7 +248,7 @@ def add_workspace_tab_selection(
 ) -> models.WorkspaceTabOrderEntry | None:
     _ensure_tab_order_context(bucket_type, semester_id=semester_id, course_id=course_id)
     normalized_tab_type = _canonical_tab_type(tab_type)
-    if not normalized_tab_type or normalized_tab_type in HOST_RESERVED_TAB_TYPES:
+    if not normalized_tab_type or plugin_registry.is_host_reserved_tab_type(normalized_tab_type):
         return None
     existing = get_workspace_tab_order_entries(
         db,

@@ -21,7 +21,7 @@ if str(BACKEND_DIR) not in sys.path:
 import crud
 from database import Base
 import models
-import plugin_governance
+import plugin_registry
 import schemas
 
 
@@ -36,17 +36,17 @@ class PluginSetupReviewHookTests(unittest.TestCase):
         self.db.commit()
         self.db.refresh(self.user)
 
-        self.original_governance_definitions = dict(plugin_governance.PLUGIN_GOVERNANCE_DEFINITIONS)
-        self.original_plugin_definitions = dict(plugin_governance.PLUGIN_DEFINITIONS)
-        self.original_setup_definitions = dict(plugin_governance.PLUGIN_SETUP_DEFINITIONS)
+        self.original_registry_overrides = dict(plugin_registry.PLUGIN_REGISTRY_OVERRIDES)
+        self.original_plugin_definitions = dict(plugin_registry.PLUGIN_DEFINITIONS)
+        self.original_setup_definitions = dict(plugin_registry.PLUGIN_SETUP_DEFINITIONS)
 
     def tearDown(self) -> None:
-        plugin_governance.PLUGIN_GOVERNANCE_DEFINITIONS.clear()
-        plugin_governance.PLUGIN_GOVERNANCE_DEFINITIONS.update(self.original_governance_definitions)
-        plugin_governance.PLUGIN_DEFINITIONS.clear()
-        plugin_governance.PLUGIN_DEFINITIONS.update(self.original_plugin_definitions)
-        plugin_governance.PLUGIN_SETUP_DEFINITIONS.clear()
-        plugin_governance.PLUGIN_SETUP_DEFINITIONS.update(self.original_setup_definitions)
+        plugin_registry.PLUGIN_REGISTRY_OVERRIDES.clear()
+        plugin_registry.PLUGIN_REGISTRY_OVERRIDES.update(self.original_registry_overrides)
+        plugin_registry.PLUGIN_DEFINITIONS.clear()
+        plugin_registry.PLUGIN_DEFINITIONS.update(self.original_plugin_definitions)
+        plugin_registry.PLUGIN_SETUP_DEFINITIONS.clear()
+        plugin_registry.PLUGIN_SETUP_DEFINITIONS.update(self.original_setup_definitions)
         self.db.close()
         self.engine.dispose()
 
@@ -58,11 +58,11 @@ class PluginSetupReviewHookTests(unittest.TestCase):
         )
 
     def _register_mock_setup_plugin(self) -> None:
-        mode_field = plugin_governance.PluginSetupFieldDefinition(
+        mode_field = plugin_registry.PluginSetupFieldDefinition(
             path="mode",
             label="Mode",
             field_type="select",
-            persist=plugin_governance.SETUP_PERSIST_SETUP_STATE,
+            persist=plugin_registry.SETUP_PERSIST_SETUP_STATE,
             required=True,
             default="basic",
             options=(
@@ -75,36 +75,38 @@ class PluginSetupReviewHookTests(unittest.TestCase):
             },
         )
 
-        def review_hook(context: plugin_governance.PluginSetupReviewContext) -> plugin_governance.PluginSetupReviewResult:
+        def review_hook(context: plugin_registry.PluginSetupReviewContext) -> plugin_registry.PluginSetupReviewResult:
             if context.setup_values["mode"] == "advanced" and not context.program_settings.get("allowAdvancedMode", False):
-                return plugin_governance.PluginSetupReviewResult(
+                return plugin_registry.PluginSetupReviewResult(
                     review_errors=(
-                        plugin_governance.PluginSetupReviewIssue(
+                        plugin_registry.PluginSetupReviewIssue(
                             code="ADVANCED_MODE_REQUIRES_PROGRAM_OPT_IN",
                             message="Advanced mode requires a Program-level opt-in.",
                             field_path="mode",
                         ),
                     ),
                 )
-            return plugin_governance.PluginSetupReviewResult()
+            return plugin_registry.PluginSetupReviewResult()
 
-        plugin_governance.PLUGIN_GOVERNANCE_DEFINITIONS["mock-setup-plugin"] = plugin_governance.PluginGovernanceDefinition(
+        plugin_registry.PLUGIN_REGISTRY_OVERRIDES["mock-setup-plugin"] = plugin_registry.PluginRegistryDefinition(
             plugin_id="mock-setup-plugin",
             default_settings={"allowAdvancedMode": False},
             fields=(
-                plugin_governance.PluginFieldDefinition(
+                plugin_registry.PluginFieldDefinition(
                     path="allowAdvancedMode",
                     label="Allow advanced mode",
                     field_type="boolean",
-                    scope=plugin_governance.FIELD_SCOPE_PROGRAM_ONLY,
+                    scope=plugin_registry.FIELD_SCOPE_PROGRAM_ONLY,
                     default=False,
                 ),
             ),
             setup_review=review_hook,
         )
-        plugin_governance.PLUGIN_DEFINITIONS["mock-setup-plugin"] = plugin_governance.PluginDefinition(
+        plugin_registry.PLUGIN_DEFINITIONS["mock-setup-plugin"] = plugin_registry.PluginDefinition(
             plugin_id="mock-setup-plugin",
-            metadata=plugin_governance.PluginMetadata(
+            metadata=plugin_registry.PluginMetadata(
+                kind="builtin",
+                visibility="public",
                 display_name="Mock Setup Plugin",
                 description="Test-only plugin-owned setup review hook.",
                 long_description="Test-only plugin-owned setup review hook.",
@@ -113,21 +115,21 @@ class PluginSetupReviewHookTests(unittest.TestCase):
             ),
             default_settings={"allowAdvancedMode": False},
             fields=(
-                plugin_governance.PluginFieldDefinition(
+                plugin_registry.PluginFieldDefinition(
                     path="allowAdvancedMode",
                     label="Allow advanced mode",
                     field_type="boolean",
-                    scope=plugin_governance.FIELD_SCOPE_PROGRAM_ONLY,
+                    scope=plugin_registry.FIELD_SCOPE_PROGRAM_ONLY,
                     default=False,
                 ),
             ),
             setup_review=review_hook,
         )
-        plugin_governance.PLUGIN_SETUP_DEFINITIONS["mock-setup-plugin"] = plugin_governance.PluginSetupDefinition(
+        plugin_registry.PLUGIN_SETUP_DEFINITIONS["mock-setup-plugin"] = plugin_registry.PluginSetupDefinition(
             plugin_id="mock-setup-plugin",
             fields=(mode_field,),
             sections=(
-                plugin_governance.PluginSetupSectionDefinition(
+                plugin_registry.PluginSetupSectionDefinition(
                     id="mock-setup",
                     title="Mock Setup",
                     fields=(mode_field,),

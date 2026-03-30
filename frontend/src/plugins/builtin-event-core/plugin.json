@@ -1,0 +1,94 @@
+{
+  "id": "builtin-event-core",
+  "display_name": "Builtin Event Core",
+  "author": "Jinyuan",
+  "description": "Plan schedules, deadlines, and daily workload across courses.",
+  "long_description": "Academic Events brings the core planning experience of Semestra into one place. It helps users organize class schedules, review calendars, manage upcoming work, and keep track of what needs attention today across both semester and course workflows. Instead of splitting time management across separate tools, it keeps the moving pieces of academic life connected so planning, scheduling, and daily follow-through feel like part of the same system.",
+  "icon": "calendar-days",
+  "tabs": [
+    {
+      "type": "builtin-academic-calendar",
+      "title": "Calendar",
+      "description": "Review semester events and deadlines on a calendar.",
+      "icon": "calendar-days",
+      "contexts": [
+        "semester"
+      ]
+    },
+    {
+      "type": "builtin-course-schedule",
+      "title": "Course Schedule",
+      "description": "Manage course schedule details.",
+      "icon": "notebook-pen",
+      "contexts": [
+        "course"
+      ]
+    },
+    {
+      "type": "builtin-todo",
+      "title": "Todo",
+      "description": "Track upcoming work across the workspace.",
+      "icon": "list-todo",
+      "contexts": [
+        "semester",
+        "course"
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "type": "builtin-today-events",
+      "title": "Today Events",
+      "description": "See today's schedule and upcoming event summary.",
+      "icon": "clock-3",
+      "contexts": [
+        "semester",
+        "course"
+      ],
+      "layout": {
+        "w": 4,
+        "h": 4,
+        "minW": 3,
+        "minH": 3,
+        "maxW": 6,
+        "maxH": 6
+      },
+      "max_instances": 1
+    }
+  ],
+  "settings": {
+    "defaults": {
+      "syncLmsCalendar": true,
+      "calendarDefaultView": "month"
+    },
+    "fields": [
+      {
+        "path": "syncLmsCalendar",
+        "label": "Sync LMS calendar",
+        "type": "boolean",
+        "scope": "program-only",
+        "default": true,
+        "description": "Allow Semesters to merge LMS events into Calendar when the Program has LMS configured."
+      },
+      {
+        "path": "calendarDefaultView",
+        "label": "Calendar default view",
+        "type": "select",
+        "scope": "semester-override",
+        "default": "month",
+        "description": "Choose the initial Calendar view for this Semester.",
+        "options": [
+          {
+            "label": "Month",
+            "value": "month"
+          },
+          {
+            "label": "Week",
+            "value": "week"
+          }
+        ]
+      }
+    ],
+    "sections": []
+  }
+}

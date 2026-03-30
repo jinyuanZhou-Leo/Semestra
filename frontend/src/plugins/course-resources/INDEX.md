@@ -8,8 +8,9 @@ Shared helpers normalize widget settings and format file metadata consistently a
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for the course-resources plugin files. |
+| plugin.json | Plugin manifest | Static public manifest for plugin identity plus course tab/widget metadata shared with the backend. |
+| plugin.ts | Plugin entry | Binds the descriptor to lazy runtime loading through the frontend plugin SDK. |
 | index.ts | Runtime entry | Registers the course resource tab and quick-open widget runtime definitions. |
-| metadata.ts | Plugin metadata | Declares the course-only tab/widget catalog entries shown in add flows. |
 | shared.ts | Shared helpers | Normalizes widget settings, formats byte/date labels, and exposes plugin constants. |
 | shared.test.ts | Test file | Verifies widget setting normalization plus shared byte/extension formatting helpers. |
 | tab.tsx | Tab runtime | Renders the course resource manager with a scrollable file list, a reduced-height stable drag-drop/upload dialog body across file/link tabs, plugin-local link-form UI-state persistence, shared footer action alignment, saved-URL support, and file actions. |

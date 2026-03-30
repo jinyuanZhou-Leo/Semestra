@@ -5,10 +5,9 @@
   "type": "module",
   "scripts": {
     "generate-version": "node scripts/generate-version.js",
-    "generate-plugin-setup-manifest": "node scripts/generate-plugin-setup-manifest.mjs",
-    "predev": "npm run generate-version && npm run generate-plugin-setup-manifest",
+    "predev": "npm run generate-version",
     "dev": "vite",
-    "prebuild": "npm run generate-version && npm run generate-plugin-setup-manifest",
+    "prebuild": "npm run generate-version",
     "build": "tsc -b && vite build",
     "build:devtools": "SEMETRA_VITE_DEVTOOLS=1 npm run build",
     "lint": "eslint .",

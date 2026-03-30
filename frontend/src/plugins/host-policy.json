@@ -1,0 +1,22 @@
+{
+  "builtin-canvas-integration": {
+    "kind": "builtin",
+    "visibility": "public"
+  },
+  "builtin-dashboard": {
+    "kind": "host-shell",
+    "visibility": "hidden"
+  },
+  "builtin-event-core": {
+    "kind": "builtin",
+    "visibility": "public"
+  },
+  "builtin-gradebook": {
+    "kind": "builtin",
+    "visibility": "public"
+  },
+  "builtin-setting": {
+    "kind": "host-shell",
+    "visibility": "hidden"
+  }
+}

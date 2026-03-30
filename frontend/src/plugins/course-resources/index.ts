@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { definePluginRuntime } from '@/plugin-system/contracts';
+import { definePluginRuntime } from '@/plugin-sdk';
 
 import { CourseResourcesTabDefinition } from './tab';
 import { CourseResourcesQuickOpenWidgetDefinition } from './widget';

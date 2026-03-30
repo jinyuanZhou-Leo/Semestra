@@ -82,17 +82,24 @@ def _merge_json_objects(*values: object) -> dict[str, object]:
 
 
 def _load_single_tab_plugin_map() -> dict[str, str]:
-    manifest_path = Path(__file__).resolve().parents[2] / "generated" / "plugin_metadata_manifest.json"
-    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    descriptor_root = Path(__file__).resolve().parents[3] / "frontend" / "src" / "plugins"
+    host_policy_path = descriptor_root / "host-policy.json"
+    host_policy = json.loads(host_policy_path.read_text(encoding="utf-8")) if host_policy_path.exists() else {}
     single_tab_plugin_map: dict[str, str] = {}
-    for item in manifest_payload:
-        plugin_id = str(item.get("plugin_id") or "").strip()
+    for descriptor_path in sorted(descriptor_root.glob("*/plugin.json")):
+        item = json.loads(descriptor_path.read_text(encoding="utf-8"))
+        plugin_id = str(item.get("id") or "").strip()
         if not plugin_id:
             continue
+        policy = host_policy.get(plugin_id) if isinstance(host_policy, dict) else None
+        if isinstance(policy, dict) and str(policy.get("kind") or "").strip() == "host-shell":
+            continue
         available_tab_types = [
-            _canonical_tab_type(raw_tab_type)
-            for raw_tab_type in item.get("capabilities", {}).get("available_tab_types", [])
-            if _canonical_tab_type(raw_tab_type) and _canonical_tab_type(raw_tab_type) not in HOST_RESERVED_TAB_TYPES
+            _canonical_tab_type(raw_type)
+            for raw_tab in item.get("tabs", [])
+            if isinstance(raw_tab, dict)
+            for raw_type in [raw_tab.get("type")]
+            if _canonical_tab_type(raw_type) and _canonical_tab_type(raw_type) not in HOST_RESERVED_TAB_TYPES
         ]
         if len(available_tab_types) == 1:
             single_tab_plugin_map[plugin_id] = available_tab_types[0]

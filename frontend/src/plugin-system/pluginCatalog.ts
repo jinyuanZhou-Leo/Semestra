@@ -1,12 +1,11 @@
-// input:  [plugin entries, catalog/max-instance utilities, and host-reserved tab/plugin guards]
+// input:  [descriptor-backed plugin entries and catalog/max-instance utilities]
 // output: [catalog index builder plus catalog/filter helpers used by the plugin facade]
-// pos:    [Internal catalog helper that centralizes manifest lookup, ownership maps, resolved metadata, and addability rules]
+// pos:    [Internal catalog helper that centralizes manifest lookup, ownership maps, host-policy visibility filtering, and addability rules]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { isHostReservedPluginId, isHostReservedTabType } from '@/utils/homepageBuiltinTabs';
 import type { TabContext, WidgetContext } from './public-types';
 import type { PluginEntry } from './pluginRuntimeLoader';
 import type {
@@ -60,7 +59,7 @@ export const buildPluginCatalogIndex = (pluginEntries: PluginEntry[]): PluginCat
 export const getTabCatalogItems = (pluginEntries: PluginEntry[], context?: TabContext): TabCatalogItem[] => {
   const items = pluginEntries
     .flatMap((entry) => entry.tabCatalog)
-    .filter((item) => !isHostReservedTabType(item.type));
+    .filter((item) => entryOwnsPublicContribution(pluginEntries, item.pluginId));
   if (!context) {
     return items;
   }
@@ -68,7 +67,9 @@ export const getTabCatalogItems = (pluginEntries: PluginEntry[], context?: TabCo
 };
 
 export const getWidgetCatalogItems = (pluginEntries: PluginEntry[], context?: WidgetContext): WidgetCatalogItem[] => {
-  const items = pluginEntries.flatMap((entry) => entry.widgetCatalog);
+  const items = pluginEntries
+    .flatMap((entry) => entry.widgetCatalog)
+    .filter((item) => entryOwnsPublicContribution(pluginEntries, item.pluginId));
   if (!context) {
     return items;
   }
@@ -78,7 +79,15 @@ export const getWidgetCatalogItems = (pluginEntries: PluginEntry[], context?: Wi
 export const getPublicPluginManifest = (pluginEntries: PluginEntry[]): PluginManifestItem[] => {
   return pluginEntries
     .map((entry) => entry.manifest)
-    .filter((manifest) => !isHostReservedPluginId(manifest.pluginId));
+    .filter((manifest) => manifest.kind !== 'host-shell' && manifest.visibility === 'public');
+};
+
+const entryOwnsPublicContribution = (pluginEntries: PluginEntry[], pluginId: string): boolean => {
+  const entry = pluginEntries.find((candidate) => candidate.id === pluginId);
+  if (!entry) {
+    return false;
+  }
+  return entry.manifest.kind !== 'host-shell' && entry.manifest.visibility === 'public';
 };
 
 export const resolveCatalogMetadata = (

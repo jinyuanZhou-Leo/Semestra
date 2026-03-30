@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 import logic
 import models
 import schemas
-from crud_plugin_governance import _ensure_default_program_plugin_installations
+from crud_plugin_registry import _ensure_default_program_plugin_installations
 from crud_shared import (
     ProgramLmsDependencyError,
     _sync_program_subject_color_map,

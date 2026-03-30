@@ -1,0 +1,35 @@
+{
+  "id": "counter",
+  "display_name": "Counter",
+  "author": "Jinyuan",
+  "description": "Track simple counts with fast manual updates.",
+  "long_description": "Counter is a minimal tool for keeping track of values that change over time and do not need a full spreadsheet or database. It can be used for repetitions, reading progress, task counts, attendance, or any other quick-running total. Its strength is speed: a clear number, quick controls, and almost no overhead between noticing a change and recording it.",
+  "icon": "hash",
+  "tabs": [],
+  "widgets": [
+    {
+      "type": "counter",
+      "title": "Counter",
+      "description": "Track simple counts with fast manual updates.",
+      "icon": "hash",
+      "contexts": [
+        "semester",
+        "course"
+      ],
+      "layout": {
+        "w": 2,
+        "h": 2,
+        "minW": 2,
+        "minH": 2,
+        "maxW": 4,
+        "maxH": 4
+      },
+      "max_instances": "unlimited"
+    }
+  ],
+  "settings": {
+    "defaults": {},
+    "fields": [],
+    "sections": []
+  }
+}

@@ -9,8 +9,9 @@ The add-assessment dialog also supports one-time LMS assignment import into loca
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local architecture summary and file map for the builtin-gradebook plugin. |
+| plugin.json | Plugin manifest | Static public manifest for plugin identity plus gradebook tab/widget/settings metadata shared with the backend. |
+| plugin.ts | Plugin entry | Binds the descriptor, lazy runtime loader, and course settings sections into one frontend plugin definition. |
 | index.ts | Runtime entry | Registers the builtin-gradebook tab and summary widget with the plugin runtime loader. |
-| metadata.ts | Plugin metadata | Declares the course builtin tab and responsive course-metrics widget catalog entries. |
 | settings.tsx | Plugin settings | Provides course-level forecast mode radio selection plus an Event-types-style category management table with an explicit two-column minimum width, a shadcn-style row-actions dropdown for edit/delete actions, and a shadcn `Field`-based category form dialog for the Gradebook plugin, now consuming the stable course-scope settings-section contract and the same query-backed gradebook cache as the tab. |
 | shared.ts | Shared helpers | Exposes plugin constants, client-side forecast/plan calculators, exact-100 total-weight gating that disables calculations when weights are under or over 100%, plugin-local GPA-percentage/date/percent formatters, band-aware numeric-or-range GPA threshold parsing for target conversion, continuous matching for adjacent integer-authored GPA ranges, upward-rounded Auto-fill What If scores, slate-consistent fallback color helpers, and contrast-safe hex badge styling without the old Canvas handoff event bridge. |
 | shared.test.ts | Test file | Covers client-side gradebook summary, exact-weight calculation gating, plan-mode helper math, matched-band GPA resolution for numeric thresholds, adjacent integer-band continuity, upward-rounded Auto-fill scores, fallback category colors, and custom-hex badge styling. |

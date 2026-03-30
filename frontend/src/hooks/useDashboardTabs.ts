@@ -1,6 +1,6 @@
-// input:  [runtime tab settings/order APIs, initial resolved tab payloads from semester/course detail, normalized governance adapters, and retry/status helpers]
-// output: [`TabItem` type and `useDashboardTabs()` state/actions for Program->Semester governed runtime tabs]
-// pos:    [Runtime tab orchestration hook that treats semester/course tabs as governed API state instead of locally created plugin instances]
+// input:  [runtime tab settings/order APIs, initial resolved tab payloads from semester/course detail, normalized runtime availability adapters, and retry/status helpers]
+// output: [`TabItem` type and `useDashboardTabs()` state/actions for Program->Semester managed runtime tabs]
+// pos:    [Runtime tab orchestration hook that treats semester/course tabs as host-managed API state instead of locally created plugin instances]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,15 +11,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getResolvedTabMetadataByType } from '../plugin-system';
-import type { GovernedRuntimeTab } from '../plugin-system/runtimeGovernance';
-import api, { type RuntimeResolvedTab, type Tab } from '../services/api';
+import type { ResolvedRuntimeTab } from '../plugin-system/runtimeAvailability';
+import api, { type RuntimeAvailability, type RuntimeResolvedTab, type Tab } from '../services/api';
 import { reportError } from '../services/appStatus';
-
-interface ContributionAvailability {
-    state: 'available' | 'unavailable';
-    reason_code?: string | null;
-    reason_message?: string | null;
-}
 
 export interface TabItem {
     id: string;
@@ -30,15 +24,15 @@ export interface TabItem {
     is_removable?: boolean;
     is_draggable?: boolean;
     source: 'governed' | 'legacy' | 'synthetic';
-    availability?: ContributionAvailability;
+    availability?: RuntimeAvailability;
 }
 
 interface UseDashboardTabsProps {
     courseId?: string;
     semesterId?: string;
     orderOwnerSemesterId?: string;
-    initialTabs?: Array<Tab | RuntimeResolvedTab | GovernedRuntimeTab>;
-    governed?: boolean;
+    initialTabs?: Array<Tab | RuntimeResolvedTab | ResolvedRuntimeTab>;
+    managed?: boolean;
     onRefresh?: () => void;
 }
 
@@ -64,10 +58,10 @@ const parseSettingsObject = (rawSettings: unknown): Record<string, unknown> => {
 };
 
 const toTabItem = (
-    tab: Tab | RuntimeResolvedTab | GovernedRuntimeTab,
+    tab: Tab | RuntimeResolvedTab | ResolvedRuntimeTab,
     scopeKey: string,
     index: number,
-    governed: boolean
+    managed: boolean
 ): TabItem | null => {
     const type = 'tab_type' in tab ? tab.tab_type : tab.type;
     if (!type) return null;
@@ -93,8 +87,8 @@ const toTabItem = (
         order_index: typeof tab.order_index === 'number' ? tab.order_index : index,
         is_removable: tab.is_removable,
         is_draggable: tab.is_draggable,
-        source: governed ? 'governed' : 'legacy',
-        availability: 'availability' in tab && tab.availability ? tab.availability as ContributionAvailability : undefined,
+        source: managed ? 'governed' : 'legacy',
+        availability: 'availability' in tab && tab.availability ? tab.availability as RuntimeAvailability : undefined,
     };
 };
 
@@ -105,7 +99,7 @@ export const useDashboardTabs = ({
     semesterId,
     orderOwnerSemesterId,
     initialTabs,
-    governed = true,
+    managed = true,
     onRefresh,
 }: UseDashboardTabsProps) => {
     const [tabs, setTabs] = useState<TabItem[]>([]);
@@ -119,10 +113,10 @@ export const useDashboardTabs = ({
     const scopeKey = courseId ? `course:${courseId}` : `semester:${semesterId ?? 'unknown'}`;
     const normalizedInitialTabs = useMemo(() => (
         (initialTabs ?? [])
-            .map((tab, index) => toTabItem(tab, scopeKey, index, governed))
+            .map((tab, index) => toTabItem(tab, scopeKey, index, managed))
             .filter((tab): tab is TabItem => tab !== null)
             .sort((left, right) => left.order_index - right.order_index)
-    ), [governed, initialTabs, scopeKey]);
+    ), [initialTabs, managed, scopeKey]);
 
     useEffect(() => {
         tabsRef.current = tabs;
@@ -248,7 +242,7 @@ export const useDashboardTabs = ({
             .filter((type): type is string => typeof type === 'string' && type.length > 0);
 
         try {
-            if (governed) {
+            if (managed) {
                 const reorderSemesterId = orderOwnerSemesterId ?? semesterId;
                 const result = reorderSemesterId
                     ? await api.reorderSemesterRuntimeTabs(reorderSemesterId, orderedTypes)
@@ -269,10 +263,10 @@ export const useDashboardTabs = ({
 
             await onRefresh?.();
         } catch (error) {
-            console.error('Failed to reorder governed tabs', error);
+            console.error('Failed to reorder managed tabs', error);
             reportError('Failed to save tab order. Please retry.');
         }
-    }, [courseId, governed, onRefresh, orderOwnerSemesterId, scopeKey, semesterId]);
+    }, [courseId, managed, onRefresh, orderOwnerSemesterId, scopeKey, semesterId]);
 
     const reorderTabs = useCallback((orderedIds: string[]) => {
         const nextOrderMap = new Map(orderedIds.map((id, index) => [id, index]));

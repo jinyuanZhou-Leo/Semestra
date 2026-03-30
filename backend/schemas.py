@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin governance payloads, manifest-backed plugin-system setup payloads, Semester draft lifecycle plus review payloads with typed draft-step validation, Semester activation payloads, unassigned-Course plugin activation payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, V2 tab-settings and contribution-availability payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin governance and plugin-system setup contracts plus validated Semester draft review state and step values, unassigned-Course plugin activation contracts, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, V2 tab-settings and contribution availability, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin management payloads, manifest-backed plugin-system setup payloads, Semester draft lifecycle plus review payloads with typed draft-step validation, Semester activation payloads, unassigned-Course plugin activation payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, V2 tab-settings and runtime-availability payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin management and plugin-system setup contracts plus validated Semester draft review state and step values, unassigned-Course plugin activation contracts, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, V2 tab-settings and contribution availability, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -602,8 +602,8 @@ class TabUpdate(BaseModel):
     is_draggable: Optional[bool] = None
 
 
-ContributionAvailabilityState = Literal["available", "unavailable"]
-ContributionAvailabilityReasonCode = Literal[
+RuntimeAvailabilityState = Literal["available", "unavailable"]
+RuntimeAvailabilityReasonCode = Literal[
     "not_enabled",
     "not_supported_in_scope",
     "requires_parent_scope",
@@ -613,9 +613,9 @@ ContributionAvailabilityReasonCode = Literal[
 ]
 
 
-class ContributionAvailability(BaseModel):
-    state: ContributionAvailabilityState
-    reason_code: Optional[ContributionAvailabilityReasonCode] = None
+class RuntimeAvailability(BaseModel):
+    state: RuntimeAvailabilityState
+    reason_code: Optional[RuntimeAvailabilityReasonCode] = None
     reason_message: Optional[str] = None
 
 
@@ -668,7 +668,7 @@ class RuntimeTabOrderUpdateRequest(BaseModel):
     tab_types: List[str]
 
 
-class RuntimeTabContribution(BaseModel):
+class RuntimeTabCatalogItem(BaseModel):
     plugin_id: Optional[str] = None
     tab_type: str
     title: str = ""
@@ -676,10 +676,10 @@ class RuntimeTabContribution(BaseModel):
     description: str = ""
     allowed_contexts: List[str] = []
     selected: bool = False
-    availability: ContributionAvailability
+    availability: RuntimeAvailability
 
 
-class RuntimeWidgetContribution(BaseModel):
+class RuntimeWidgetCatalogItem(BaseModel):
     plugin_id: Optional[str] = None
     widget_type: str
     title: str = ""
@@ -687,7 +687,7 @@ class RuntimeWidgetContribution(BaseModel):
     description: str = ""
     allowed_contexts: List[str] = []
     max_instances: Optional[int] = None
-    availability: ContributionAvailability
+    availability: RuntimeAvailability
 
 
 class RuntimeTabDefinition(BaseModel):
@@ -699,7 +699,7 @@ class RuntimeTabDefinition(BaseModel):
     order_index: int
     is_removable: bool = True
     is_draggable: bool = True
-    availability: ContributionAvailability
+    availability: RuntimeAvailability
 
 class CourseResourceFile(BaseModel):
     id: str
@@ -945,8 +945,8 @@ class CourseWithWidgets(Course):
     available_widget_types: List[str] = []
     tab_settings: List[TabSetting] = []
     runtime_tabs: List[RuntimeTabDefinition] = []
-    tab_catalog_items: List[RuntimeTabContribution] = []
-    widget_catalog_items: List[RuntimeWidgetContribution] = []
+    tab_catalog_items: List[RuntimeTabCatalogItem] = []
+    widget_catalog_items: List[RuntimeWidgetCatalogItem] = []
 
 class GradebookForecastModel(str, Enum):
     AUTO = "auto"
@@ -1053,8 +1053,8 @@ class SemesterWithDetails(Semester):
     available_widget_types: List[str] = []
     tab_settings: List[TabSetting] = []
     runtime_tabs: List[RuntimeTabDefinition] = []
-    tab_catalog_items: List[RuntimeTabContribution] = []
-    widget_catalog_items: List[RuntimeWidgetContribution] = []
+    tab_catalog_items: List[RuntimeTabCatalogItem] = []
+    widget_catalog_items: List[RuntimeWidgetCatalogItem] = []
 
 
 # --- Program Schemas ---
@@ -1147,15 +1147,11 @@ class ProgramPluginInstallation(BaseModel):
     long_description: str = ""
     author: str
     default_version: str
-    default_installed: bool = False
-    default_enabled: bool = False
     locked: bool = False
     version: str
     is_enabled: bool = True
     auth_state: str
     auth_message: Optional[str] = None
-    requires_authorization: bool = False
-    requires_program_lms_integration: bool = False
     capabilities: dict[str, Any] = {}
     setup_sections: List[ProgramPluginSetupSection] = []
     program_settings: dict[str, Any] = {}
@@ -1163,7 +1159,7 @@ class ProgramPluginInstallation(BaseModel):
     fields: List[ProgramPluginField] = []
     available: bool = False
     availability_reason: Optional[str] = None
-    availability: Optional[ContributionAvailability] = None
+    availability: Optional[RuntimeAvailability] = None
     installed: bool = True
 
 
@@ -1224,7 +1220,7 @@ class SemesterPluginActivation(BaseModel):
     review_errors: List[SemesterDraftReviewIssue] = []
     available: bool = False
     availability_reason: Optional[str] = None
-    availability: Optional[ContributionAvailability] = None
+    availability: Optional[RuntimeAvailability] = None
 
 
 class CoursePluginActivationUpsertRequest(BaseModel):
@@ -1253,7 +1249,7 @@ class CoursePluginActivation(BaseModel):
     resolved_settings: dict[str, Any] = {}
     available: bool = False
     availability_reason: Optional[str] = None
-    availability: Optional[ContributionAvailability] = None
+    availability: Optional[RuntimeAvailability] = None
     source: Literal["course", "semester"]
 
 

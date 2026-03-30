@@ -1,4 +1,4 @@
-import { definePluginRuntime } from '../../plugin-system/contracts';
+import { definePluginRuntime } from '@/plugin-sdk';
 
 import { CourseListDefinition } from './widget';
 

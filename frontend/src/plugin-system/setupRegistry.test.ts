@@ -1,6 +1,6 @@
-// input:  [setup registry pure helpers, setup DSL helpers, and Vitest assertions]
-// output: [unit tests covering setup-definition validation and generated backend manifest serialization]
-// pos:    [pure setup-registry regression suite for plugin setup validation rules and generated backend manifest output]
+// input:  [setup registry pure helpers, descriptor-backed setup schema types, and Vitest assertions]
+// output: [unit tests covering descriptor setup-schema validation and eager registry hydration]
+// pos:    [pure setup-registry regression suite for descriptor-backed setup schema validation and eager registry hydration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,96 +8,110 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildPluginSetupManifest, createRegisteredPluginSetupDefinition } from "./setupRegistry";
-import { definePluginSetup, section, textField } from "./setup";
+import type { PluginDescriptorSetupSchema } from "@/plugin-sdk";
+
+import { createRegisteredPluginSetupDefinition, getAllPluginSetupDefinitions } from "./setupRegistry";
 
 describe("plugin-system setup registry", () => {
   it("rejects sections that reference unknown field keys", () => {
-    expect(() => createRegisteredPluginSetupDefinition("broken-plugin", definePluginSetup({
-      fields: {
-        knownField: textField({
-          label: "Known field",
-          persist: "setupState",
-        }),
-      },
+    const schema: PluginDescriptorSetupSchema = {
       sections: [
-        section("broken", {
+        {
+          id: "broken",
           title: "Broken",
-          fieldKeys: ["missingField"],
-        }),
+          fields: [
+            {
+              path: "missingField",
+              label: "Missing",
+              type: "text",
+              persist: "setupState",
+            },
+          ],
+        },
       ],
-    }))).toThrow('unknown field key "missingField"');
+    };
+
+    const definition = createRegisteredPluginSetupDefinition("broken-plugin", schema);
+    expect(definition.fieldOrder).toEqual(["missingField"]);
   });
 
   it("rejects select fields without options", () => {
-    expect(() => createRegisteredPluginSetupDefinition("broken-plugin", definePluginSetup({
-      fields: {
-        invalidSelect: {
-          type: "select",
-          label: "Invalid select",
-          persist: "setupState",
-          options: [],
-        },
-      },
+    const schema: PluginDescriptorSetupSchema = {
       sections: [
-        section("broken", {
+        {
+          id: "broken",
           title: "Broken",
-          fieldKeys: ["invalidSelect"],
-        }),
+          fields: [
+            {
+              path: "invalidSelect",
+              label: "Invalid select",
+              type: "select",
+              persist: "setupState",
+              options: [],
+            },
+          ],
+        },
       ],
-    }))).toThrow("select fields must declare at least one option");
+    };
+
+    expect(() => createRegisteredPluginSetupDefinition("broken-plugin", schema)).toThrow("select fields must declare at least one option");
   });
 
   it("rejects duplicate section ids", () => {
-    expect(() => createRegisteredPluginSetupDefinition("broken-plugin", definePluginSetup({
-      fields: {
-        firstField: textField({
-          label: "First field",
-          persist: "setupState",
-        }),
-      },
+    const schema: PluginDescriptorSetupSchema = {
       sections: [
-        section("duplicate", {
+        {
+          id: "duplicate",
           title: "First",
-          fieldKeys: ["firstField"],
-        }),
-        section("duplicate", {
+          fields: [
+            {
+              path: "firstField",
+              label: "First field",
+              type: "text",
+              persist: "setupState",
+            },
+          ],
+        },
+        {
+          id: "duplicate",
           title: "Second",
-          fieldKeys: ["firstField"],
-        }),
+          fields: [
+            {
+              path: "firstField",
+              label: "First field",
+              type: "text",
+              persist: "setupState",
+            },
+          ],
+        },
       ],
-    }))).toThrow('Duplicate setup section id "duplicate"');
+    };
+
+    expect(() => createRegisteredPluginSetupDefinition("broken-plugin", schema)).toThrow('Duplicate setup section id "duplicate"');
   });
 
-  it("serializes the builtin-event-core backend manifest entry", () => {
-    const manifest = buildPluginSetupManifest();
+  it("registers the builtin-event-core setup schema from plugin.ts", () => {
+    const definitions = getAllPluginSetupDefinitions();
+    const definition = definitions.find((entry) => entry.pluginId === "builtin-event-core");
 
-    expect(manifest).toEqual(expect.arrayContaining([
+    expect(definition).toBeDefined();
+    expect(definition?.sections).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        plugin_id: "builtin-event-core",
-        sections: [
-          expect.objectContaining({
-            id: "calendar-default-view",
-            fields: [
-              expect.objectContaining({
-                path: "calendarDefaultView",
-                persist: "both",
-                default_value: "month",
-              }),
-            ],
-          }),
-          expect.objectContaining({
-            id: "event-type-setup",
-            fields: [
-              expect.objectContaining({
-                path: "eventTypes",
-                type: "json",
-                persist: "setupState",
-              }),
-            ],
-          }),
-        ],
+        id: "calendar-default-view",
+        fieldKeys: ["calendarDefaultView"],
+      }),
+      expect.objectContaining({
+        id: "event-type-setup",
+        fieldKeys: ["eventTypes"],
       }),
     ]));
+    expect(definition?.fields.calendarDefaultView).toEqual(expect.objectContaining({
+      persist: "both",
+      defaultValue: "month",
+    }));
+    expect(definition?.fields.eventTypes).toEqual(expect.objectContaining({
+      type: "json",
+      persist: "setupState",
+    }));
   });
 });

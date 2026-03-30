@@ -1,4 +1,4 @@
-// input:  [plugin setup registry definitions, semester setup/review API payloads, local draft values, and shared shadcn/plugin governance primitives]
+// input:  [plugin setup registry definitions, semester setup/review API payloads, local draft values, and shared shadcn/plugin management primitives]
 // output: [`PluginSetupStepRenderer` and `PluginSetupReviewRenderer` components]
 // pos:    [Shared bridge that renders either host-owned DSL setup/review surfaces or plugin-owned custom setup/review components inside the Semester wizard with shadcn-aligned setup section shells]
 //
@@ -26,7 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FieldDescription, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 
-import { PluginGovernanceFieldControl } from "./PluginGovernanceFieldControl";
+import { PluginFieldControl } from "./PluginFieldControl";
 
 const mapApiFieldToDefinition = (field: ProgramPluginSetupField): PluginSetupFieldDefinition => ({
   type: (field.type ?? "text") as PluginSetupFieldType,
@@ -142,7 +142,7 @@ const DefaultPluginSetupStepView: React.FC<{
               </div>
               <FieldGroup className="gap-4">
               {section.fields.map((field) => (
-                <PluginGovernanceFieldControl
+                <PluginFieldControl
                   key={`${plugin.plugin_id}:${section.id}:${field.path}`}
                   field={field}
                   value={values[field.path] ?? field.default_value}

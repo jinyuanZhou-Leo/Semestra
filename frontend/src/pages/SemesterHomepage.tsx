@@ -1,4 +1,4 @@
-// input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin governance payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, host-owned semester course management settings, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin management payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, host-owned semester course management settings, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
 // pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, host-owned semester course management settings, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
@@ -28,7 +28,7 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPreload';
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
-import { SemesterPluginGovernancePanel } from '../components/SemesterPluginGovernancePanel';
+import { SemesterPluginManagementPanel } from '../components/SemesterPluginManagementPanel';
 import { SemesterCourseManagementSection } from '../components/SemesterCourseManagementSection';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
@@ -61,8 +61,8 @@ import {
     filterWidgetItemsByEnabledPlugins,
     resolveAvailableWidgetTypes,
     resolveEnabledPluginIds,
-    resolveGovernedRuntimeTabs,
-} from '../plugin-system/runtimeGovernance';
+    resolveRuntimeTabs,
+} from '../plugin-system/runtimeAvailability';
 
 
 import {
@@ -107,7 +107,7 @@ const SemesterHomepageContent: React.FC = () => {
     const programName = parentProgramQuery.data?.name ?? null;
 
     const runtimeTabs = useMemo(
-        () => resolveGovernedRuntimeTabs(semester?.runtime, `semester:${semester?.id ?? 'unknown'}`),
+        () => resolveRuntimeTabs(semester?.runtime, `semester:${semester?.id ?? 'unknown'}`),
         [semester?.id, semester?.runtime]
     );
     const enabledPluginIds = useMemo(() => resolveEnabledPluginIds(semester?.runtime), [semester?.runtime]);
@@ -143,7 +143,7 @@ const SemesterHomepageContent: React.FC = () => {
         semesterId: semester?.id,
         orderOwnerSemesterId: semester?.id,
         initialTabs: runtimeTabs,
-        governed: true,
+        managed: true,
         onRefresh: refreshSemester
     });
 
@@ -528,7 +528,7 @@ const SemesterHomepageContent: React.FC = () => {
             extraSections: hasPluginSettings ? (
                 <div className="space-y-6">
                     {semester?.program_id ? (
-                        <SemesterPluginGovernancePanel
+                        <SemesterPluginManagementPanel
                             semesterId={semester.id}
                             pluginActivations={semester.plugin_activations ?? []}
                             onChanged={refreshSemester}
@@ -539,7 +539,7 @@ const SemesterHomepageContent: React.FC = () => {
                     {tabInstanceSettingsSections}
                 </div>
             ) : semester?.program_id ? (
-                <SemesterPluginGovernancePanel
+                <SemesterPluginManagementPanel
                     semesterId={semester.id}
                     pluginActivations={semester.plugin_activations ?? []}
                     onChanged={refreshSemester}

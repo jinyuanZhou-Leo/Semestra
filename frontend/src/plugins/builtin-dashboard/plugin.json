@@ -1,0 +1,26 @@
+{
+  "id": "builtin-dashboard",
+  "display_name": "Dashboard",
+  "author": "Jinyuan",
+  "description": "Render the default workspace overview shell.",
+  "long_description": "Dashboard is the host-managed overview surface for semester and course workspaces.",
+  "icon": "layout-dashboard",
+  "tabs": [
+    {
+      "type": "builtin-dashboard",
+      "title": "Dashboard",
+      "description": "Open the host-managed workspace dashboard.",
+      "icon": "layout-dashboard",
+      "contexts": [
+        "semester",
+        "course"
+      ]
+    }
+  ],
+  "widgets": [],
+  "settings": {
+    "defaults": {},
+    "fields": [],
+    "sections": []
+  }
+}

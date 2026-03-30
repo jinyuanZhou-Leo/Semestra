@@ -10,9 +10,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { definePluginSettings } from '@/plugin-system/contracts';
+import { definePluginSettings } from '@/plugin-sdk';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
-import type { PluginSettingsSectionProps } from '@/services/pluginSettingsRegistry';
+import type { PluginSettingsSectionProps } from '@/plugin-sdk';
 import api, { type CourseGradebook, type GradebookAssessmentCategory } from '@/services/api';
 
 import { SettingsSection } from '@/components/SettingsSection';

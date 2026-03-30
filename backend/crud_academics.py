@@ -15,8 +15,7 @@ import gradebook
 import logic
 import models
 import schemas
-from crud_layout import create_widget
-from crud_plugin_governance import (
+from crud_plugin_registry import (
     _ensure_default_program_plugin_installations,
     _ensure_default_semester_plugin_activations,
     _refresh_semester_review_ready,
@@ -25,7 +24,7 @@ from crud_plugin_governance import (
 from crud_shared import (
     BUILTIN_EVENT_TYPES,
     CourseSemesterAssignmentError,
-    PluginGovernanceError,
+    PluginRegistryError,
     _now_utc_iso,
     _sync_program_subject_color_map,
     get_default_semester_dates,
@@ -71,11 +70,11 @@ def _serialize_semester_draft(semester: models.Semester) -> dict:
 def create_semester_draft(db: Session, program_id: str, payload: schemas.SemesterDraftCreateRequest) -> dict:
     program = db.query(models.Program).filter(models.Program.id == program_id).first()
     if program is None:
-        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Program not found.")
+        raise PluginRegistryError("PROGRAM_NOT_FOUND", "Program not found.")
     _ensure_default_program_plugin_installations(db, program)
     existing_draft = get_current_semester_draft(db, program_id)
     if existing_draft is not None:
-        raise PluginGovernanceError("SEMESTER_DRAFT_EXISTS", "A Semester draft is already in progress for this Program.")
+        raise PluginRegistryError("SEMESTER_DRAFT_EXISTS", "A Semester draft is already in progress for this Program.")
     create_payload = payload.model_dump()
     start_date = create_payload.get("start_date")
     end_date = create_payload.get("end_date")
@@ -95,13 +94,12 @@ def create_semester_draft(db: Session, program_id: str, payload: schemas.Semeste
     try:
         db.flush()
         _ensure_default_semester_plugin_activations(db, db_semester, commit=False)
-        db.add(models.Widget(widget_type="course-list", is_removable=False, semester_id=db_semester.id))
         _refresh_semester_review_ready(db_semester)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         if get_current_semester_draft(db, program_id) is not None:
-            raise PluginGovernanceError("SEMESTER_DRAFT_EXISTS", "A Semester draft is already in progress for this Program.") from exc
+            raise PluginRegistryError("SEMESTER_DRAFT_EXISTS", "A Semester draft is already in progress for this Program.") from exc
         raise
     except Exception:
         db.rollback()
@@ -113,9 +111,9 @@ def create_semester_draft(db: Session, program_id: str, payload: schemas.Semeste
 def update_semester_draft(db: Session, semester_id: str, payload: schemas.SemesterDraftUpdateRequest) -> dict:
     semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
     if semester is None:
-        raise PluginGovernanceError("SEMESTER_NOT_FOUND", "Semester not found.")
+        raise PluginRegistryError("SEMESTER_NOT_FOUND", "Semester not found.")
     if semester.lifecycle_state != "draft":
-        raise PluginGovernanceError("SEMESTER_NOT_DRAFT", "Only draft Semesters can be updated through the wizard.")
+        raise PluginRegistryError("SEMESTER_NOT_DRAFT", "Only draft Semesters can be updated through the wizard.")
     update_data = payload.model_dump(exclude_unset=True)
     if "start_date" in update_data and update_data["start_date"] is None:
         update_data["start_date"] = semester.start_date
@@ -134,14 +132,14 @@ def update_semester_draft(db: Session, semester_id: str, payload: schemas.Semest
 def finalize_semester_draft(db: Session, semester_id: str) -> dict:
     semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
     if semester is None:
-        raise PluginGovernanceError("SEMESTER_NOT_FOUND", "Semester not found.")
+        raise PluginRegistryError("SEMESTER_NOT_FOUND", "Semester not found.")
     if semester.lifecycle_state != "draft":
-        raise PluginGovernanceError("SEMESTER_NOT_DRAFT", "Only draft Semesters can be finalized.")
+        raise PluginRegistryError("SEMESTER_NOT_DRAFT", "Only draft Semesters can be finalized.")
     review_state = _refresh_semester_review_ready(semester)
     if not semester.review_ready:
         first_error = next(iter(review_state["review_errors"]), None)
         message = first_error["message"] if isinstance(first_error, dict) and first_error.get("message") else "Resolve the draft review errors before finalizing this Semester."
-        raise PluginGovernanceError("SEMESTER_DRAFT_REVIEW_FAILED", message)
+        raise PluginRegistryError("SEMESTER_DRAFT_REVIEW_FAILED", message)
     semester.lifecycle_state = "active"
     semester.creation_step = "review"
     semester.draft_updated_at = _now_utc_iso()
@@ -157,7 +155,7 @@ def discard_semester_draft(db: Session, semester_id: str) -> models.Semester | N
     if semester is None:
         return None
     if semester.lifecycle_state != "draft":
-        raise PluginGovernanceError("SEMESTER_NOT_DRAFT", "Only draft Semesters can be discarded.")
+        raise PluginRegistryError("SEMESTER_NOT_DRAFT", "Only draft Semesters can be discarded.")
     db.delete(semester)
     db.commit()
     return semester
@@ -170,7 +168,7 @@ def get_semesters(db: Session, program_id: str):
 def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: str):
     program = db.query(models.Program).filter(models.Program.id == program_id).first()
     if program is None:
-        raise PluginGovernanceError("PROGRAM_NOT_FOUND", "Program not found.")
+        raise PluginRegistryError("PROGRAM_NOT_FOUND", "Program not found.")
     _ensure_default_program_plugin_installations(db, program)
     payload = semester.model_dump()
     start_date = payload.get("start_date")
@@ -188,8 +186,6 @@ def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: s
     db.add(db_semester)
     db.commit()
     db.refresh(db_semester)
-    if not any(widget.widget_type == "course-list" for widget in db_semester.widgets):
-        create_widget(db, schemas.WidgetCreate(widget_type="course-list", is_removable=False), semester_id=db_semester.id)
     return db_semester
 
 

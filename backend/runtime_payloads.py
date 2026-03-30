@@ -1,6 +1,6 @@
-# input:  [SQLAlchemy session, backend CRUD/model helpers, plugin governance metadata, and JSON parsing helpers]
+# input:  [SQLAlchemy session, backend CRUD/model helpers, plugin management metadata, and JSON parsing helpers]
 # output: [runtime payload builders and tab-setting serializers for Program/Semester/Course API routes]
-# pos:    [Backend projection helper that assembles contribution-aware runtime tabs, widget catalogs, availability payloads, and scope-resolved tab settings outside the FastAPI entrypoint]
+# pos:    [Backend projection helper that assembles surface-aware runtime tabs, widget catalogs, availability payloads, and scope-resolved tab settings outside the FastAPI entrypoint]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 import crud
 from crud_shared import _parse_json_object
 import models
-import plugin_governance
+import plugin_registry
 
 
 def _serialize_runtime_plugin_payloads(
@@ -200,7 +200,7 @@ def _build_runtime_catalog(
         capabilities = activation.get("capabilities") or {}
 
         for tab_type in capabilities.get("available_tab_types", []):
-            if not isinstance(tab_type, str) or not tab_type or plugin_governance.is_host_reserved_tab_type(tab_type):
+            if not isinstance(tab_type, str) or not tab_type or plugin_registry.is_host_reserved_tab_type(tab_type):
                 continue
             allowed_contexts = _read_contribution_allowed_contexts(
                 capabilities,
@@ -257,7 +257,7 @@ def _build_runtime_catalog(
 
 
 def _missing_tab_catalog_item(tab_type: str) -> dict[str, object]:
-    plugin_id = plugin_governance.get_plugin_id_for_tab_type(tab_type)
+    plugin_id = plugin_registry.get_plugin_id_for_tab_type(tab_type)
     title = _format_contribution_title(tab_type)
     return {
         "plugin_id": plugin_id,

@@ -65,8 +65,8 @@ def raise_lms_http_error(exc: Exception) -> None:
     raise exc
 
 
-def raise_plugin_governance_http_error(exc: Exception) -> None:
-    if isinstance(exc, crud.PluginGovernanceError):
+def raise_plugin_registry_http_error(exc: Exception) -> None:
+    if isinstance(exc, crud.PluginRegistryError):
         status_code = 422
         if exc.code in {"PROGRAM_NOT_FOUND", "SEMESTER_NOT_FOUND", "PLUGIN_INSTALLATION_NOT_FOUND"}:
             status_code = 404

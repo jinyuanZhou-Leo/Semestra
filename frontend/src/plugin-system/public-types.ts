@@ -1,31 +1,29 @@
-// input:  [tab/widget runtime registry type contracts, plugin manifest/catalog types, and max-instance utility types]
-// output: [stable public plugin-system type exports for plugin authoring and runtime implementation]
-// pos:    [Public type surface that lets plugin authors consume runtime, catalog, and settings contracts from `@/plugin-system` instead of service-registry internals]
+// input:  [plugin SDK public types plus internal runtime catalog types]
+// output: [stable public plugin-system type exports for app/runtime consumers]
+// pos:    [Compatibility type surface for app code that consumes plugin runtime metadata without importing plugin SDK directly]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 export type {
-  TabContext,
-  TabDefinition,
-  TabLifecycleContext,
-  TabProps,
-  TabSettingsProps,
-} from '../services/tabRegistry';
-export type {
-  HeaderActionButtonProps,
-  HeaderButton,
-  HeaderButtonContext,
-  HeaderButtonRenderHelpers,
-  HeaderConfirmActionButtonProps,
-  WidgetContext,
-  WidgetDefinition,
-  WidgetLifecycleContext,
-  WidgetProps,
-  WidgetSettingsProps,
-} from '../services/widgetRegistry';
-export type { MaxInstances } from './utils';
+  PluginHeaderActionButtonProps as HeaderActionButtonProps,
+  PluginHeaderButton as HeaderButton,
+  PluginHeaderButtonContext as HeaderButtonContext,
+  PluginHeaderButtonRenderHelpers as HeaderButtonRenderHelpers,
+  PluginHeaderConfirmActionButtonProps as HeaderConfirmActionButtonProps,
+  PluginTabDefinition as TabDefinition,
+  PluginTabLifecycleContext as TabLifecycleContext,
+  PluginTabProps as TabProps,
+  PluginTabSettingsProps as TabSettingsProps,
+  PluginWidgetDefinition as WidgetDefinition,
+  PluginWidgetLifecycleContext as WidgetLifecycleContext,
+  PluginWidgetProps as WidgetProps,
+  PluginWidgetSettingsProps as WidgetSettingsProps,
+  PluginWorkspaceContext as TabContext,
+  PluginWorkspaceContext as WidgetContext,
+  MaxInstances,
+} from '@/plugin-sdk';
 export type {
   PluginManifestItem,
   ResolvedPluginMetadata,
