@@ -1,6 +1,6 @@
-// input:  [plugin setup contract helpers, shared settings-style table/dialog primitives, and builtin event-type dialog]
-// output: [default-exported builtin-event-core plugin setup definition with custom setup/review UI]
-// pos:    [Semester setup entry for builtin-event-core that keeps calendar default-view onboarding in the host contract while rendering a settings-style event-type configuration table inside the wizard with an explicit four-column minimum width]
+// input:  [plugin setup contract helpers, shared setup-form primitives, settings-style table/dialog primitives, and builtin event-type dialog]
+// output: [default-exported builtin-event-core plugin setup definition with host-aligned custom setup/review UI]
+// pos:    [Semester setup entry for builtin-event-core that keeps calendar default-view onboarding in the host contract while rendering event-core-specific controls inside the shared setup form shells]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -24,19 +24,24 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  PluginSetupFormField,
+  PluginSetupFormReviewItem,
+  PluginSetupFormSection,
+  PluginSetupFormSurface,
+} from "@/components/PluginSetupForm";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 import {
   definePluginSetup,
-  jsonField,
-  section,
-  selectField,
+  PluginSetupJsonField,
+  PluginSetupSection,
+  PluginSetupSelectField,
   type PluginSetupReviewRenderProps,
   type PluginSetupValidationIssue,
   type PluginSetupWizardRenderProps,
-} from "@/plugin-system/setup";
+} from "@/plugin-sdk";
 
 import { EventTypeFormDialog, type CourseEventType } from "./components/EventTypeFormDialog";
 
@@ -239,6 +244,7 @@ const EventTypeSetupTable: React.FC<{
       <DataTable
         title="Event Types"
         description="Configure the event types that courses should start from when this Semester uses Academic Events."
+        showHeader={false}
         items={items}
         emptyMessage="No event types configured yet."
         minWidthClassName="min-w-[34rem] sm:min-w-[38rem]"
@@ -344,60 +350,52 @@ const BuiltinEventCoreSetupView: React.FC<PluginSetupWizardRenderProps> = ({
   );
 
   return (
-    <div className="space-y-6">
-      {generalErrors.length > 0 ? (
-        <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted-foreground">
-          {generalErrors.map((message, index) => (
-            <div key={`event-core-general-error:${index}`}>{message}</div>
-          ))}
-        </div>
-      ) : null}
+    <PluginSetupFormSurface generalErrors={generalErrors}>
+      <PluginSetupFormSection
+        title="Calendar Setup"
+        description="Choose how the Calendar tab should open the first time students land in this Semester."
+      >
+        <PluginSetupFormField
+          label="Calendar Default View"
+          htmlFor="builtin-event-core-calendar-default-view"
+          error={getFieldError("calendarDefaultView")}
+        >
+          <Select
+            value={typeof values.calendarDefaultView === "string" ? values.calendarDefaultView : "month"}
+            onValueChange={(nextValue) => onValueChange("calendarDefaultView", nextValue)}
+          >
+            <SelectTrigger id="builtin-event-core-calendar-default-view" aria-invalid={Boolean(getFieldError("calendarDefaultView"))}>
+              <SelectValue placeholder="Select the initial view" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {CALENDAR_VIEW_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </PluginSetupFormField>
+      </PluginSetupFormSection>
 
-      <FieldSet>
-        <FieldGroup>
-          <Field data-invalid={Boolean(getFieldError("calendarDefaultView")) || undefined}>
-            <FieldLabel htmlFor="builtin-event-core-calendar-default-view">Calendar Default View</FieldLabel>
-            <FieldContent>
-              <Select
-                value={typeof values.calendarDefaultView === "string" ? values.calendarDefaultView : "month"}
-                onValueChange={(nextValue) => onValueChange("calendarDefaultView", nextValue)}
-              >
-                <SelectTrigger id="builtin-event-core-calendar-default-view" aria-invalid={Boolean(getFieldError("calendarDefaultView"))}>
-                  <SelectValue placeholder="Select the initial view" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CALENDAR_VIEW_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldDescription>
-                Choose how the Calendar tab should open the first time students land in this Semester.
-              </FieldDescription>
-              <FieldError>{getFieldError("calendarDefaultView")}</FieldError>
-            </FieldContent>
-          </Field>
-
-          <Field data-invalid={Boolean(getFieldError("eventTypes")) || undefined}>
-            <div className="space-y-1">
-              <FieldLabel>Default Event Types</FieldLabel>
-              <FieldDescription>
-                Start the Semester with the event types you expect courses to use most often.
-              </FieldDescription>
-            </div>
-            <FieldContent className="gap-3">
-              <EventTypeSetupTable
-                items={eventTypes}
-                onChange={(nextItems) => onValueChange("eventTypes", nextItems)}
-              />
-              <FieldError>{getFieldError("eventTypes")}</FieldError>
-            </FieldContent>
-          </Field>
-        </FieldGroup>
-      </FieldSet>
-    </div>
+      <PluginSetupFormSection
+        title="Event Types"
+        description="Start the Semester with the event types you expect courses to use most often."
+        separated
+      >
+        <PluginSetupFormField
+          description="Manage the event-type catalog that Academic Events should start from."
+          error={getFieldError("eventTypes")}
+        >
+          <EventTypeSetupTable
+            items={eventTypes}
+            onChange={(nextItems) => onValueChange("eventTypes", nextItems)}
+          />
+        </PluginSetupFormField>
+      </PluginSetupFormSection>
+    </PluginSetupFormSurface>
   );
 };
 
@@ -406,62 +404,66 @@ const BuiltinEventCoreReviewView: React.FC<PluginSetupReviewRenderProps> = ({ va
   const eventTypes = normalizeEventTypeItems(values.eventTypes ?? DEFAULT_EVENT_TYPES);
 
   return (
-    <div className="space-y-6">
-      <FieldSet>
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Calendar Default View</FieldLabel>
-            <FieldContent>
-              <div className="text-sm font-medium text-foreground">
-                {CALENDAR_VIEW_OPTIONS.find((option) => option.value === calendarDefaultView)?.label ?? calendarDefaultView}
-              </div>
-              <FieldDescription>
-                This is the initial Calendar surface students will see for the Semester.
-              </FieldDescription>
-            </FieldContent>
-          </Field>
-        </FieldGroup>
-      </FieldSet>
+    <PluginSetupFormSurface>
+      <PluginSetupFormSection
+        title="Calendar Setup"
+        description="This is the initial Calendar surface students will see for the Semester."
+      >
+        <PluginSetupFormReviewItem
+          label="Calendar Default View"
+          value={CALENDAR_VIEW_OPTIONS.find((option) => option.value === calendarDefaultView)?.label ?? calendarDefaultView}
+        />
+      </PluginSetupFormSection>
 
-      <EventTypeSetupTable items={eventTypes} readOnly />
-    </div>
+      <PluginSetupFormSection
+        title="Event Types"
+        description="These event types will seed Academic Events in the Semester."
+        separated
+      >
+        <PluginSetupFormField description="Review the event-type catalog that will seed Academic Events.">
+          <EventTypeSetupTable items={eventTypes} readOnly />
+        </PluginSetupFormField>
+      </PluginSetupFormSection>
+    </PluginSetupFormSurface>
   );
 };
 
 export default definePluginSetup({
-  fields: {
-    calendarDefaultView: selectField({
-      label: "Calendar default view",
-      persist: "both",
-      required: true,
-      defaultValue: "month",
-      description: "Choose the initial Calendar view for this Semester.",
-      options: CALENDAR_VIEW_OPTIONS.map((option) => ({ ...option })),
-      summaryLabels: {
-        month: "Month",
-        week: "Week",
-      },
-    }),
-    eventTypes: jsonField({
-      label: "Default event types",
-      persist: "setupState",
-      description: "Configure the event types that this Semester should start with.",
-    }),
-  },
-  sections: [
-    section("calendar-default-view", {
-      title: "Calendar Setup",
-      description: "Choose the default Calendar view for this Semester.",
-      fieldKeys: ["calendarDefaultView"],
-    }),
-    section("event-type-setup", {
-      title: "Event Types",
-      description: "Configure the default event-type catalog for course scheduling.",
-      fieldKeys: ["eventTypes"],
-    }),
-  ],
+  content: (
+    <>
+      <PluginSetupSection
+        id="calendar-default-view"
+        title="Calendar Setup"
+        description="Choose the default Calendar view for this Semester."
+      >
+        <PluginSetupSelectField
+          path="calendarDefaultView"
+          label="Calendar default view"
+          required
+          defaultValue="month"
+          description="Choose the initial Calendar view for this Semester."
+          options={CALENDAR_VIEW_OPTIONS.map((option) => ({ ...option }))}
+          summaryLabels={{
+            month: "Month",
+            week: "Week",
+          }}
+        />
+      </PluginSetupSection>
+
+      <PluginSetupSection
+        id="event-type-setup"
+        title="Event Types"
+        description="Configure the default event-type catalog for course scheduling."
+      >
+        <PluginSetupJsonField
+          path="eventTypes"
+          label="Default event types"
+          description="Configure the event types that this Semester should start with."
+        />
+      </PluginSetupSection>
+    </>
+  ),
   ui: {
-    kind: "custom",
     setupComponent: BuiltinEventCoreSetupView,
     reviewComponent: BuiltinEventCoreReviewView,
   },

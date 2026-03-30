@@ -163,15 +163,17 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
 
         installation = activation.program_plugin_installation
         program_settings = _parse_json_object(installation.program_settings)
-        semester_overrides = _parse_json_object(activation.semester_overrides)
-        setup_state = _parse_json_object(activation.setup_state)
+        setup_values = _parse_json_object(activation.setup_state)
+        resolved_settings = plugin_registry.resolve_plugin_settings(
+            plugin_id,
+            program_settings=program_settings,
+        )
 
         try:
             plugin_review_state = plugin_registry.review_plugin_setup(
                 plugin_id,
                 program_settings=program_settings,
-                semester_overrides=semester_overrides,
-                setup_state=setup_state,
+                setup_values=setup_values,
                 program=semester.program,
                 semester=semester,
             )
@@ -183,11 +185,9 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
                 plugin_id=plugin_id,
                 field_path=exc.field_path,
             ))
-            resolved_settings = {}
             setup_values = {}
             setup_summary = []
         else:
-            resolved_settings = plugin_review_state["resolved_settings"]
             setup_values = plugin_review_state["setup_values"]
             setup_summary = plugin_review_state["setup_summary"]
             plugin_errors.extend(
@@ -399,7 +399,6 @@ def _ensure_default_semester_plugin_activations(
             models.SemesterPluginActivation(
                 semester_id=semester.id,
                 program_plugin_installation_id=installation.id,
-                semester_overrides="{}",
                 setup_state="{}",
                 is_enabled=definition.default_enabled,
                 created_at=now,
@@ -540,7 +539,7 @@ def _serialize_program_plugin_installation(program: models.Program, installation
         "setup_sections": plugin_registry.build_setup_section_payloads(plugin_id),
         "program_settings": program_settings,
         "resolved_program_settings": resolved_program_settings,
-        "fields": plugin_registry.build_field_payloads(plugin_id),
+        "settings_schema": plugin_registry.build_field_payloads(plugin_id),
         "available": available,
         "availability_reason": availability_reason,
         "availability": _build_availability(
@@ -569,8 +568,7 @@ def _serialize_semester_plugin_activation(
         raise PluginRegistryError("PROGRAM_NOT_FOUND", f"Semester '{semester.id}' is missing its parent Program.")
     installation.plugin_id = _canonical_plugin_id(installation.plugin_id)
     installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
-    semester_overrides = _parse_json_object(activation.semester_overrides) if activation is not None else {}
-    setup_state = _parse_json_object(activation.setup_state) if activation is not None else {}
+    setup_values = _parse_json_object(activation.setup_state) if activation is not None else {}
     current_review_state = review_state or _build_semester_review_state(semester)
     plugin_review = (current_review_state.get("plugin_reviews") or {}).get(installation.plugin_id, {})
     resolved_settings = plugin_review.get("resolved_settings") or {}
@@ -596,10 +594,9 @@ def _serialize_semester_plugin_activation(
         "auth_state": installation.auth_state,
         "capabilities": installation_payload["capabilities"],
         "setup_sections": installation_payload["setup_sections"],
-        "semester_overrides": semester_overrides,
-        "setup_state": setup_state,
+        "setup_values": setup_values,
         "resolved_settings": resolved_settings,
-        "fields": installation_payload["fields"],
+        "settings_schema": installation_payload["settings_schema"],
         "setup_summary": setup_summary,
         "review_errors": review_errors,
         "available": runtime_available,
@@ -941,21 +938,18 @@ def update_semester_plugin_system_setup(db: Session, semester_id: str, plugin_id
     if activation is None or not activation.is_enabled:
         raise PluginRegistryError("PLUGIN_NOT_ENABLED", f"Plugin '{plugin_id}' is not enabled for this Semester.")
 
-    current_semester_overrides = _parse_json_object(activation.semester_overrides)
-    current_setup_state = _parse_json_object(activation.setup_state)
     try:
-        next_setup_state, next_semester_overrides, normalized_values = plugin_registry.write_plugin_setup_values(
+        normalized_values = plugin_registry.write_plugin_setup_values(
             plugin_id,
-            semester_overrides=current_semester_overrides,
-            setup_state=current_setup_state,
             values=payload.values,
         )
     except Exception as exc:
         _wrap_plugin_validation(exc)
 
     now = _now_utc_iso()
-    activation.setup_state = _serialize_json_object(next_setup_state)
-    activation.semester_overrides = _serialize_json_object(next_semester_overrides)
+    activation.setup_state = _serialize_json_object(normalized_values)
+    if activation.semester_overrides:
+        activation.semester_overrides = "{}"
     activation.updated_at = now
     semester.draft_updated_at = now if semester.lifecycle_state == "draft" else semester.draft_updated_at
     _refresh_semester_review_ready(semester)
@@ -1013,8 +1007,6 @@ def upsert_semester_plugin_activation(db: Session, semester_id: str, plugin_id: 
             is_enabled=True,
             created_at=now,
         )
-    if not activation.semester_overrides:
-        activation.semester_overrides = "{}"
     if not activation.setup_state:
         activation.setup_state = "{}"
     if "is_enabled" in update_data:
@@ -1086,8 +1078,6 @@ def bulk_update_semester_plugin_activations(db: Session, semester_id: str, paylo
         if activation is None:
             activation = models.SemesterPluginActivation(semester_id=semester_id, program_plugin_installation_id=installation.id, is_enabled=True, created_at=now)
             activations_by_installation_id[installation.id] = activation
-        if not activation.semester_overrides:
-            activation.semester_overrides = "{}"
         if not activation.setup_state:
             activation.setup_state = "{}"
         activation.is_enabled = payload.is_enabled

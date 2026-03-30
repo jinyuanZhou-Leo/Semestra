@@ -20,7 +20,7 @@ export interface PluginDescriptorFieldOption {
   value: string;
 }
 
-export interface PluginSettingsFieldDefinition {
+export interface PluginSettingsSchemaEntry {
   path: string;
   label: string;
   type: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'date' | 'json';
@@ -34,7 +34,6 @@ export interface PluginDescriptorSetupFieldDefinition {
   path: string;
   label: string;
   type: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'date' | 'json';
-  persist: 'setupState' | 'semesterOverride' | 'both';
   required?: boolean;
   default_value?: unknown;
   description?: string;
@@ -90,15 +89,15 @@ export interface PluginDescriptorWidgetDefinition {
   max_instances?: MaxInstances;
 }
 
-export interface PluginSettingsSectionBinding {
+export interface PluginSettingsPanelBinding {
   id: string;
   contexts: PluginContext[];
 }
 
 export interface PluginSettingsDescriptor {
   defaults?: Record<string, unknown>;
-  fields?: PluginSettingsFieldDefinition[];
-  sections?: PluginSettingsSectionBinding[];
+  schema?: PluginSettingsSchemaEntry[];
+  panels?: PluginSettingsPanelBinding[];
 }
 
 export interface PluginDescriptor {

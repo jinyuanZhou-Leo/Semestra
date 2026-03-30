@@ -1096,7 +1096,7 @@ class ProgramWithSemesters(Program):
     plugin_installations: List["ProgramPluginInstallation"] = []
 
 
-class ProgramPluginField(BaseModel):
+class ProgramPluginSettingsSchemaEntry(BaseModel):
     path: str
     label: Optional[str] = None
     type: Optional[str] = None
@@ -1110,7 +1110,6 @@ class ProgramPluginSetupField(BaseModel):
     path: str
     label: str
     type: str
-    persist: str
     required: bool = False
     default_value: Any = None
     description: str = ""
@@ -1156,7 +1155,7 @@ class ProgramPluginInstallation(BaseModel):
     setup_sections: List[ProgramPluginSetupSection] = []
     program_settings: dict[str, Any] = {}
     resolved_program_settings: dict[str, Any] = {}
-    fields: List[ProgramPluginField] = []
+    settings_schema: List[ProgramPluginSettingsSchemaEntry] = []
     available: bool = False
     availability_reason: Optional[str] = None
     availability: Optional[RuntimeAvailability] = None
@@ -1212,10 +1211,9 @@ class SemesterPluginActivation(BaseModel):
     auth_state: str
     capabilities: dict[str, Any] = {}
     setup_sections: List[ProgramPluginSetupSection] = []
-    semester_overrides: dict[str, Any] = {}
-    setup_state: dict[str, Any] = {}
+    setup_values: dict[str, Any] = {}
     resolved_settings: dict[str, Any] = {}
-    fields: List[ProgramPluginField] = []
+    settings_schema: List[ProgramPluginSettingsSchemaEntry] = []
     setup_summary: List[SemesterDraftReviewSummarySection] = []
     review_errors: List[SemesterDraftReviewIssue] = []
     available: bool = False

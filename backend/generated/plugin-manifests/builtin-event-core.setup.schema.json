@@ -9,10 +9,10 @@
           "path": "calendarDefaultView",
           "label": "Calendar default view",
           "type": "select",
-          "persist": "both",
           "required": true,
-          "description": "Choose the initial Calendar view for this Semester.",
           "default_value": "month",
+          "description": "Choose the initial Calendar view for this Semester.",
+          "placeholder": "",
           "options": [
             {
               "label": "Month",
@@ -39,56 +39,15 @@
           "path": "eventTypes",
           "label": "Default event types",
           "type": "json",
-          "persist": "setupState",
           "required": false,
+          "default_value": null,
           "description": "Configure the event types that this Semester should start with.",
-          "default_value": [
-            {
-              "id": "builtin-lecture",
-              "code": "LECTURE",
-              "abbreviation": "LEC",
-              "track_attendance": false,
-              "color": null,
-              "icon": null
-            },
-            {
-              "id": "builtin-practical",
-              "code": "PRACTICAL",
-              "abbreviation": "PRA",
-              "track_attendance": false,
-              "color": null,
-              "icon": null
-            },
-            {
-              "id": "builtin-tutorial",
-              "code": "TUTORIAL",
-              "abbreviation": "TUT",
-              "track_attendance": false,
-              "color": null,
-              "icon": null
-            }
-          ],
+          "placeholder": "",
           "options": [],
           "summary_labels": {}
         }
       ]
     }
   ],
-  "validation_rules": [
-    {
-      "type": "json-array-min-length",
-      "field": "eventTypes",
-      "min_length": 1,
-      "message": "Add at least one event type before continuing."
-    },
-    {
-      "type": "json-array-unique-keys",
-      "field": "eventTypes",
-      "keys": [
-        "code",
-        "abbreviation"
-      ],
-      "message": "Event type names and abbreviations must be unique."
-    }
-  ]
+  "validation_rules": []
 }

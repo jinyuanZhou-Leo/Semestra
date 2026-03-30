@@ -1,5 +1,5 @@
-// input:  [descriptor-backed plugin modules, setup schema definitions, and setup UI/validation contracts]
-// output: [validated plugin setup registry facade for descriptor-backed JSON schema plus optional frontend-only custom setup UI]
+// input:  [descriptor-backed plugin modules, setup schema definitions, and optional setup/review override components]
+// output: [validated plugin setup registry facade for descriptor-backed JSON schema plus optional frontend-only setup/review overrides]
 // pos:    [Plugin setup registry that consumes plugin.ts entries instead of generated manifests while preserving wizard/runtime setup helpers]
 //
 // ⚠️ When this file is updated:
@@ -10,7 +10,6 @@ import type { PluginDefinition, PluginDescriptorSetupFieldDefinition, PluginDesc
 import type {
   PluginSetupDefinition,
   PluginSetupFieldDefinition,
-  PluginSetupPersist,
   PluginSetupSectionDefinition,
   PluginSetupUiDefinition,
 } from './setup';
@@ -24,7 +23,7 @@ export interface RegisteredPluginSetupDefinition {
   fields: Record<string, PluginSetupFieldDefinition>;
   fieldOrder: string[];
   sections: PluginSetupSectionDefinition[];
-  ui: PluginSetupUiDefinition;
+  ui?: PluginSetupUiDefinition;
   validate?: PluginSetupDefinition['validate'];
 }
 
@@ -38,14 +37,11 @@ const failValidation = (message: string) => {
   console.error(message);
 };
 
-const DEFAULT_SETUP_UI: PluginSetupUiDefinition = { kind: 'dsl' };
-
 const toSetupFieldDefinition = (
   field: PluginDescriptorSetupFieldDefinition,
 ): PluginSetupFieldDefinition => {
   const baseField = {
     label: field.label,
-    persist: field.persist as PluginSetupPersist,
     required: Boolean(field.required),
     description: field.description ?? '',
     placeholder: field.placeholder ?? '',
@@ -81,9 +77,6 @@ const validateSetupFieldDefinition = (
   }
   if (!field.label.trim()) {
     throw new Error(`${prefix}: label must be non-empty.`);
-  }
-  if (!['setupState', 'semesterOverride', 'both'].includes(field.persist)) {
-    throw new Error(`${prefix}: persist must be setupState, semesterOverride, or both.`);
   }
   if (field.type === 'select' && (!field.options || field.options.length === 0)) {
     throw new Error(`${prefix}: select fields must declare at least one option.`);
@@ -141,7 +134,9 @@ export const createRegisteredPluginSetupDefinition = (
     fields,
     fieldOrder,
     sections,
-    ui: pluginDefinition?.setup?.ui ?? DEFAULT_SETUP_UI,
+    ui: pluginDefinition?.setup?.ui
+      ? { ...pluginDefinition.setup.ui }
+      : undefined,
     validate: validate as RegisteredPluginSetupDefinition['validate'],
   };
 };
@@ -173,7 +168,7 @@ const cloneDefinition = (definition: RegisteredPluginSetupDefinition): Registere
     ...sectionDefinition,
     fieldKeys: [...sectionDefinition.fieldKeys],
   })),
-  ui: definition.ui,
+  ui: definition.ui ? { ...definition.ui } : undefined,
   validate: definition.validate,
 });
 

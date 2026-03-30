@@ -29,8 +29,8 @@ export default definePlugin({
     widgets: [],
     settings: {
       defaults: {},
-      fields: [],
-      sections: [],
+      schema: [],
+      panels: [],
     },
   }),
   loadRuntime: async () => (await import('./index')).default,

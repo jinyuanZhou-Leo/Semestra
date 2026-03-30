@@ -147,12 +147,12 @@ const toWidgetCatalogItem = (
 });
 
 const validateSettingsSectionBindings = (definition: PluginDefinition) => {
-  const declaredSectionIds = new Set((definition.descriptor.settings?.sections ?? []).map((section) => section.id));
+  const declaredSectionIds = new Set((definition.descriptor.settings?.panels ?? []).map((section) => section.id));
   const settingsSections = definition.settingsSections ?? [];
   settingsSections.forEach((section) => {
     if (!declaredSectionIds.has(section.id)) {
       throw new Error(
-        `[plugin-system] Settings section "${section.id}" in plugin "${definition.descriptor.id}" is missing from plugin.ts descriptor.settings.sections.`
+        `[plugin-system] Settings section "${section.id}" in plugin "${definition.descriptor.id}" is missing from plugin.ts descriptor.settings.panels.`
       );
     }
   });

@@ -574,8 +574,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         )
 
         self.assertFalse(disabled["is_enabled"])
-        self.assertEqual(disabled["setup_state"]["calendarDefaultView"], "week")
-        self.assertEqual(disabled["semester_overrides"]["calendarDefaultView"], "week")
+        self.assertEqual(disabled["setup_values"]["calendarDefaultView"], "week")
 
         stored_activation = self.db.query(models.SemesterPluginActivation).filter(
             models.SemesterPluginActivation.id == disabled["id"]
@@ -1366,7 +1365,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         event_core_setup = next(plugin for plugin in setup_payload["plugins"] if plugin["plugin_id"] == "builtin-event-core")
 
         self.assertEqual(event_core_setup["setup_values"]["calendarDefaultView"], "month")
-        self.assertEqual(event_core_setup["setup_sections"][0]["fields"][0]["persist"], "both")
+        self.assertEqual(event_core_setup["setup_sections"][0]["fields"][0]["path"], "calendarDefaultView")
 
         with self.assertRaises(crud.PluginRegistryError) as context:
             crud.update_semester_plugin_system_setup(
@@ -1395,8 +1394,9 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         ).join(models.ProgramPluginInstallation).filter(
             models.ProgramPluginInstallation.plugin_id == "builtin-event-core"
         ).first()
-        self.assertEqual(activation.setup_state, '{"calendarDefaultView": "week", "eventTypes": null}')
-        self.assertEqual(activation.semester_overrides, '{"calendarDefaultView": "week"}')
+        self.assertIn('"calendarDefaultView": "week"', activation.setup_state)
+        self.assertIn('"eventTypes"', activation.setup_state)
+        self.assertEqual(activation.semester_overrides, "{}")
 
         review_payload = crud.review_semester_plugin_system(self.db, draft["id"])
         event_core_review = next(plugin for plugin in review_payload["plugins"] if plugin["plugin_id"] == "builtin-event-core")

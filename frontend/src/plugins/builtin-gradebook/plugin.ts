@@ -50,8 +50,8 @@ export default definePlugin({
     ],
     settings: {
       defaults: {},
-      fields: [],
-      sections: [
+      schema: [],
+      panels: [
         {
           id: 'gradebook-forecast-and-categories',
           contexts: ['course'],

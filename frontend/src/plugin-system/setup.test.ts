@@ -1,52 +1,42 @@
 // input:  [plugin setup validation helpers, setup DSL field builders, and Vitest assertions]
-// output: [unit tests covering default setup UI mode, default value resolution, and combined field/form validation]
-// pos:    [pure setup-contract regression suite for plugin-authored DSL validation and UI-mode normalization]
+// output: [unit tests covering optional setup UI overrides, default value resolution, and combined field/form validation]
+// pos:    [pure setup-contract regression suite for plugin-authored DSL validation and optional-override normalization]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
+import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 
-import { definePluginSetup, resolvePluginSetupValues, textField, validatePluginSetupDefinition } from "./setup";
+import {
+  definePluginSetup,
+  PluginSetupSection,
+  PluginSetupTextField,
+  resolvePluginSetupValues,
+  validatePluginSetupDefinition,
+} from "./setup";
 
 describe("plugin-system setup contract", () => {
-  it("defaults setup UI mode to DSL", () => {
+  it("defaults setup UI overrides to undefined", () => {
     const definition = definePluginSetup({
-      fields: {
-        semesterName: textField({
-          label: "Semester name",
-          persist: "setupState",
-        }),
-      },
-      sections: [
-        {
-          id: "general",
-          title: "General",
-          fieldKeys: ["semesterName"],
-        },
-      ],
+      content: createElement(
+        PluginSetupSection,
+        { id: "general", title: "General" },
+        createElement(PluginSetupTextField, { path: "semesterName", label: "Semester name" }),
+      ),
     });
 
-    expect(definition.ui).toEqual({ kind: "dsl" });
+    expect(definition.ui).toBeUndefined();
   });
 
   it("resolves missing setup values from field defaults", () => {
     const definition = definePluginSetup({
-      fields: {
-        semesterName: textField({
-          label: "Semester name",
-          persist: "setupState",
-          defaultValue: "Winter 2026",
-        }),
-      },
-      sections: [
-        {
-          id: "general",
-          title: "General",
-          fieldKeys: ["semesterName"],
-        },
-      ],
+      content: createElement(
+        PluginSetupSection,
+        { id: "general", title: "General" },
+        createElement(PluginSetupTextField, { path: "semesterName", label: "Semester name", defaultValue: "Winter 2026" }),
+      ),
     });
 
     expect(resolvePluginSetupValues(definition, {})).toEqual({
@@ -56,23 +46,18 @@ describe("plugin-system setup contract", () => {
 
   it("combines required, field-level, and definition-level validation", async () => {
     const definition = definePluginSetup({
-      fields: {
-        semesterName: textField({
+      content: createElement(
+        PluginSetupSection,
+        { id: "general", title: "General" },
+        createElement(PluginSetupTextField, {
+          path: "semesterName",
           label: "Semester name",
-          persist: "setupState",
           required: true,
-          validate: (value) => typeof value === "string" && value.startsWith("Sem")
+          validate: (value: unknown) => typeof value === "string" && value.startsWith("Sem")
             ? null
             : "Semester name must start with 'Sem'.",
         }),
-      },
-      sections: [
-        {
-          id: "general",
-          title: "General",
-          fieldKeys: ["semesterName"],
-        },
-      ],
+      ),
       validate: ({ values }) => (
         values.semesterName === "Semester"
           ? null

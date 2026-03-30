@@ -9,7 +9,6 @@
           "path": "initialTitle",
           "label": "Initial title",
           "type": "text",
-          "persist": "setupState",
           "required": true,
           "default_value": "Tab Template",
           "description": "Choose the title shown when the template tab first opens.",
@@ -21,7 +20,6 @@
           "path": "initialNote",
           "label": "Starter note",
           "type": "textarea",
-          "persist": "setupState",
           "required": false,
           "default_value": "",
           "description": "Seed the persistent note area with starter content for this Semester.",
@@ -33,7 +31,6 @@
           "path": "focusMinutes",
           "label": "Default focus session (minutes)",
           "type": "number",
-          "persist": "both",
           "required": true,
           "default_value": 45,
           "description": "Pick the default focus block length suggested by this template.",
@@ -45,10 +42,10 @@
           "path": "kickoffDate",
           "label": "Kickoff date",
           "type": "date",
-          "persist": "semesterOverride",
           "required": true,
           "default_value": "2026-01-12",
           "description": "Set the first day this prototype should be considered active in the Semester.",
+          "placeholder": "",
           "options": [],
           "summary_labels": {}
         }
@@ -63,10 +60,10 @@
           "path": "showChecklist",
           "label": "Show starter checklist",
           "type": "boolean",
-          "persist": "setupState",
           "required": false,
           "default_value": true,
           "description": "Keep the onboarding checklist visible when the tab is first used.",
+          "placeholder": "",
           "options": [],
           "summary_labels": {}
         },
@@ -74,10 +71,10 @@
           "path": "defaultView",
           "label": "Default opening surface",
           "type": "select",
-          "persist": "both",
           "required": true,
           "default_value": "notes",
           "description": "Choose which part of the template should be emphasized first.",
+          "placeholder": "",
           "options": [
             {
               "label": "Notes",
@@ -109,7 +106,6 @@
           "path": "starterBlocks",
           "label": "Starter blocks",
           "type": "json",
-          "persist": "setupState",
           "required": true,
           "default_value": [
             {
@@ -131,21 +127,5 @@
       ]
     }
   ],
-  "validation_rules": [
-    {
-      "type": "json-array-min-length",
-      "field": "starterBlocks",
-      "min_length": 1,
-      "message": "Add at least one starter block before continuing."
-    },
-    {
-      "type": "json-array-unique-keys",
-      "field": "starterBlocks",
-      "keys": [
-        "id",
-        "label"
-      ],
-      "message": "Starter block ids and labels must be unique."
-    }
-  ]
+  "validation_rules": []
 }

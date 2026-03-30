@@ -24,7 +24,6 @@ describe("plugin-system setup registry", () => {
               path: "missingField",
               label: "Missing",
               type: "text",
-              persist: "setupState",
             },
           ],
         },
@@ -46,7 +45,6 @@ describe("plugin-system setup registry", () => {
               path: "invalidSelect",
               label: "Invalid select",
               type: "select",
-              persist: "setupState",
               options: [],
             },
           ],
@@ -68,7 +66,6 @@ describe("plugin-system setup registry", () => {
               path: "firstField",
               label: "First field",
               type: "text",
-              persist: "setupState",
             },
           ],
         },
@@ -80,7 +77,6 @@ describe("plugin-system setup registry", () => {
               path: "firstField",
               label: "First field",
               type: "text",
-              persist: "setupState",
             },
           ],
         },
@@ -106,12 +102,10 @@ describe("plugin-system setup registry", () => {
       }),
     ]));
     expect(definition?.fields.calendarDefaultView).toEqual(expect.objectContaining({
-      persist: "both",
       defaultValue: "month",
     }));
     expect(definition?.fields.eventTypes).toEqual(expect.objectContaining({
       type: "json",
-      persist: "setupState",
     }));
   });
 });

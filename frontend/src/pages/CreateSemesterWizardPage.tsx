@@ -1,6 +1,6 @@
 // input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, plugin setup definitions/validation helpers, and shared data-table row-actions dropdown helpers]
-// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step visibility sourced from activation-plus-plugin-system payloads, setup-step saves, finalize-safe draft teardown, and tighter review-summary typography/layout]
-// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, activation-plus-plugin-system-aware setup-step visibility, and a concise review summary with reduced layout nesting]
+// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step visibility sourced from activation-plus-plugin-system payloads, setup-step saves, custom setup context wiring for draft-semester APIs, finalize-safe draft teardown, tighter review-summary typography/layout, overflow-safe condensed wizard pagination for large step counts, and animated compact bottom navigation labels]
+// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, activation-plus-plugin-system-aware setup-step visibility, draft-semester context passthrough for plugin-owned setup UIs, compact large-step pagination rendering, and polished bottom action transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { FieldSet } from "@/components/ui/field";
-import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem } from "@/components/ui/pagination";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -99,7 +99,7 @@ const getPluginReviewValues = (
   plugin: SemesterPluginActivation,
   draftValues: Record<string, unknown> | undefined,
 ): Record<string, unknown> => ({
-  ...(plugin.setup_state ?? {}),
+  ...(plugin.setup_values ?? {}),
   ...(draftValues ?? {}),
 });
 
@@ -140,6 +140,11 @@ const STATIC_STEP_ORDER: StepMeta[] = [
   { id: "review", label: "Review", icon: CheckCircle2, detail: "Validate every blocker before activation.", persistedStep: "review" },
 ];
 const REVIEW_COURSE_PREVIEW_LIMIT = 4;
+const PAGINATION_FIXED_STEP_BUTTON_COUNT = 5;
+
+type PaginationStepToken<TStep extends { id: string; label: string }> =
+  | { type: "step"; step: TStep; index: number }
+  | { type: "ellipsis"; key: string };
 
 const buildReviewPreviewText = (items: string[], limit = REVIEW_COURSE_PREVIEW_LIMIT) => {
   if (items.length === 0) {
@@ -152,6 +157,41 @@ const buildReviewPreviewText = (items: string[], limit = REVIEW_COURSE_PREVIEW_L
   }
 
   return `${previewItems.join(", ")}, and ${items.length - limit} more.`;
+};
+
+export const buildPaginationStepTokens = <TStep extends { id: string; label: string }>(
+  steps: TStep[],
+  currentIndex: number,
+): PaginationStepToken<TStep>[] => {
+  if (steps.length === 0) {
+    return [];
+  }
+
+  if (steps.length <= PAGINATION_FIXED_STEP_BUTTON_COUNT) {
+    return steps.map((step, index) => ({ type: "step", step, index }));
+  }
+
+  const safeCurrentIndex = Math.min(Math.max(currentIndex, 0), steps.length - 1);
+  let orderedIndexes: number[];
+
+  if (safeCurrentIndex <= 2) {
+    orderedIndexes = [0, 1, 2, 3, steps.length - 1];
+  } else if (safeCurrentIndex >= steps.length - 3) {
+    orderedIndexes = [0, steps.length - 4, steps.length - 3, steps.length - 2, steps.length - 1];
+  } else {
+    orderedIndexes = [0, safeCurrentIndex - 1, safeCurrentIndex, safeCurrentIndex + 1, steps.length - 1];
+  }
+
+  const tokens: PaginationStepToken<TStep>[] = [];
+
+  orderedIndexes.forEach((index, orderIndex) => {
+    if (orderIndex > 0 && index - orderedIndexes[orderIndex - 1]! > 1) {
+      tokens.push({ type: "ellipsis", key: `ellipsis-${orderedIndexes[orderIndex - 1]}-${index}` });
+    }
+    tokens.push({ type: "step", step: steps[index]!, index });
+  });
+
+  return tokens;
 };
 
 const contributesSemesterSetup = ({
@@ -214,10 +254,9 @@ const buildSemesterPluginActivation = (
   is_enabled: isEnabled,
   capabilities: plugin.capabilities,
   setup_sections: plugin.setup_sections,
-  semester_overrides: {},
-  setup_state: {},
+  setup_values: {},
   resolved_settings: {},
-  fields: plugin.fields,
+  settings_schema: plugin.settings_schema,
   setup_summary: [],
   review_errors: [],
   available: plugin.available,
@@ -240,7 +279,7 @@ const syncPluginActivationCollection = (
       is_enabled: isEnabled,
       locked: plugin.locked,
       setup_sections: plugin.setup_sections,
-      fields: plugin.fields,
+      settings_schema: plugin.settings_schema,
       capabilities: plugin.capabilities,
       version: plugin.version,
       available: plugin.available,
@@ -287,7 +326,7 @@ const buildSetupStepPlugin = (
   available: plugin.available,
   availability_reason: plugin.availability_reason ?? null,
   setup_sections: setupPayload?.setup_sections ?? plugin.setup_sections,
-  setup_values: { ...(setupPayload?.setup_values ?? plugin.setup_state ?? {}) },
+  setup_values: { ...(setupPayload?.setup_values ?? plugin.setup_values ?? {}) },
   setup_summary: setupPayload?.setup_summary ?? plugin.setup_summary ?? [],
   review_errors: setupPayload?.review_errors ?? plugin.review_errors ?? [],
 });
@@ -507,6 +546,10 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const stepOrder = useMemo(() => getVisibleStepOrder(setupStepPlugins), [setupStepPlugins]);
   const activeStep = normalizeWizardStep(currentStep, setupStepPlugins);
   const currentStepIndex = stepOrder.findIndex((step) => step.id === activeStep);
+  const paginationStepTokens = useMemo(
+    () => buildPaginationStepTokens(stepOrder, currentStepIndex),
+    [currentStepIndex, stepOrder],
+  );
   const currentStepMeta = stepOrder[currentStepIndex] ?? stepOrder[0];
   useEffect(() => {
     if (activeStep === currentStep) {
@@ -972,7 +1015,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
     )));
   const reviewSummaryPlugins = enabledPlugins.filter((plugin) => (
     (plugin.setup_summary ?? []).length > 0
-    || getPluginSetupDefinitionById(plugin.plugin_id)?.ui.kind === "custom"
+    || Boolean(getPluginSetupDefinitionById(plugin.plugin_id)?.ui?.reviewComponent)
   ));
   const reviewDateRangeValue = basics.start_date && basics.end_date
     ? `${basics.start_date} to ${basics.end_date}`
@@ -1001,8 +1044,11 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const primaryActionLabel = isReviewStep
     ? "Create Semester"
     : nextStepLabel
-      ? `Continue to ${nextStepLabel}`
+      ? nextStepLabel
       : "Continue";
+  const secondaryActionLabel = isBasicsStep
+    ? "Program"
+    : previousStepLabel ?? "Back";
   const isPrimaryActionDisabled = isReviewStep
     ? (!canFinalize || isFinalizing)
     : isBasicsStep
@@ -1173,6 +1219,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
                 plugin={plugin}
                 values={pluginSetupDrafts[plugin.plugin_id] ?? plugin.setup_values}
                 localErrors={pluginSetupValidationErrors[plugin.plugin_id] ?? []}
+                semesterId={draftId}
+                programId={programId}
                 onValueChange={(fieldPath, value) => updatePluginSetupField(plugin, fieldPath, value)}
               />
             </section>
@@ -1245,6 +1293,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
                   <PluginSetupReviewRenderer
                     plugin={plugin}
                     values={getPluginReviewValues(plugin, pluginSetupDrafts[plugin.plugin_id])}
+                    semesterId={draftId}
+                    programId={programId}
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -1343,30 +1393,42 @@ export const CreateSemesterWizardPage: React.FC = () => {
               <div className="flex justify-center sm:order-2">
                 <Pagination className="mx-auto w-auto">
                   <PaginationContent className="gap-2">
-                    {stepOrder.map((step, index) => (
-                      <PaginationItem key={step.id}>
-                        <Button
-                          type="button"
-                          variant={activeStep === step.id ? "outline" : "ghost"}
-                          size="icon"
-                          aria-current={activeStep === step.id ? "page" : undefined}
-                          aria-label={`Step ${index + 1}: ${step.label}`}
-                          title={step.label}
-                          disabled={index > currentStepIndex}
-                          onClick={() => {
-                            if (index < currentStepIndex) {
-                              void goToStep(step.id);
-                            }
-                          }}
-                          className={cn(
-                            "h-8 w-8 rounded-full text-xs",
-                            index < currentStepIndex ? "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground" : "",
-                          )}
-                        >
-                          {index < currentStepIndex ? <Check className="h-3.5 w-3.5" /> : index + 1}
-                        </Button>
-                      </PaginationItem>
-                    ))}
+                    {paginationStepTokens.map((token) => {
+                      if (token.type === "ellipsis") {
+                        return (
+                          <PaginationItem key={token.key}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        );
+                      }
+
+                      const { step, index } = token;
+
+                      return (
+                        <PaginationItem key={step.id}>
+                          <Button
+                            type="button"
+                            variant={activeStep === step.id ? "outline" : "ghost"}
+                            size="icon"
+                            aria-current={activeStep === step.id ? "page" : undefined}
+                            aria-label={`Step ${index + 1}: ${step.label}`}
+                            title={step.label}
+                            disabled={index > currentStepIndex}
+                            onClick={() => {
+                              if (index < currentStepIndex) {
+                                void goToStep(step.id);
+                              }
+                            }}
+                            className={cn(
+                              "h-8 w-8 rounded-full text-xs",
+                              index < currentStepIndex ? "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground" : "",
+                            )}
+                          >
+                            {index < currentStepIndex ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                          </Button>
+                        </PaginationItem>
+                      );
+                    })}
                   </PaginationContent>
                 </Pagination>
               </div>
@@ -1374,7 +1436,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
               <div className="sm:order-1 sm:flex sm:justify-start">
                 {previousStepId || isBasicsStep ? (
                   <Button
-                    variant="outline"
+                    variant={isBasicsStep ? "destructive" : "outline"}
                     disabled={isSavingStep || isUpdatingPluginSelection}
                     onClick={() => {
                       if (isBasicsStep) {
@@ -1385,12 +1447,22 @@ export const CreateSemesterWizardPage: React.FC = () => {
                         void goToStep(previousStepId);
                       }
                     }}
-                    className="w-full sm:w-auto"
+                    className="w-full sm:w-44"
+                    title={secondaryActionLabel}
                   >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    {isBasicsStep
-                      ? "Back to Program"
-                      : previousStepLabel ? `Back to ${previousStepLabel}` : "Back"}
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.span
+                        key={secondaryActionLabel}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.16, ease: "easeOut" }}
+                        className="flex w-full items-center justify-center"
+                      >
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        <span className="truncate">{secondaryActionLabel}</span>
+                      </motion.span>
+                    </AnimatePresence>
                   </Button>
                 ) : (
                   <div className="hidden sm:block" />
@@ -1398,9 +1470,25 @@ export const CreateSemesterWizardPage: React.FC = () => {
               </div>
 
               <div className="sm:order-3 sm:flex sm:justify-end">
-                <Button onClick={handlePrimaryAction} disabled={isPrimaryActionDisabled} className="w-full sm:w-auto">
-                  {primaryActionLabel}
-                  {isReviewStep ? <Check className="ml-2 h-4 w-4" /> : <ArrowRight className="ml-2 h-4 w-4" />}
+                <Button
+                  onClick={handlePrimaryAction}
+                  disabled={isPrimaryActionDisabled}
+                  className="w-full sm:w-44"
+                  title={primaryActionLabel}
+                >
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={primaryActionLabel}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.16, ease: "easeOut" }}
+                      className="flex w-full items-center justify-center"
+                    >
+                      <span className="truncate">{primaryActionLabel}</span>
+                      {isReviewStep ? <Check className="ml-2 h-4 w-4" /> : <ArrowRight className="ml-2 h-4 w-4" />}
+                    </motion.span>
+                  </AnimatePresence>
                 </Button>
               </div>
             </div>

@@ -1,5 +1,5 @@
-// input:  [plugin SDK types plus typed manifest authoring helpers without runtime host re-exports]
-// output: [node-safe plugin authoring helpers for plugin definitions, manifests, setup schemas, and settings sections]
+// input:  [plugin SDK types, typed manifest authoring helpers, and node-safe setup authoring helpers without runtime host re-exports]
+// output: [node-safe plugin authoring helpers for plugin definitions, manifests, setup schemas, setup bindings, and settings sections]
 // pos:    [Pure authoring entry used by plugin.ts files and manifest generation without depending on runtime-only alias exports]
 //
 // ⚠️ When this file is updated:
@@ -20,6 +20,23 @@ import {
   definePluginManifest,
   definePluginSetupSchema,
 } from './manifest-authoring.ts';
+export {
+  createPluginSetupBinding,
+  definePluginSetup,
+  PluginSetupBooleanField,
+  PluginSetupDateField,
+  PluginSetupJsonField,
+  PluginSetupNumberField,
+  PluginSetupSection,
+  PluginSetupSelectField,
+  PluginSetupTextField,
+  PluginSetupTextareaField,
+  type InferPluginSetupValues,
+  type PluginSetupReviewRenderProps,
+  type PluginSetupUiDefinition as PluginSetupOverrideDefinition,
+  type PluginSetupValidationIssue,
+  type PluginSetupWizardRenderProps,
+} from '../plugin-system/setup.ts';
 
 export { definePluginManifest, definePluginSetupSchema };
 export type * from './types.ts';
@@ -31,8 +48,8 @@ export const definePlugin = (definition: PluginDefinition): PluginDefinition => 
     widgets: [...(definition.descriptor.widgets ?? [])],
     settings: {
       defaults: { ...(definition.descriptor.settings?.defaults ?? {}) },
-      fields: [...(definition.descriptor.settings?.fields ?? [])],
-      sections: [...(definition.descriptor.settings?.sections ?? [])],
+      schema: [...(definition.descriptor.settings?.schema ?? [])],
+      panels: [...(definition.descriptor.settings?.panels ?? [])],
     },
   },
   loadRuntime: definition.loadRuntime,

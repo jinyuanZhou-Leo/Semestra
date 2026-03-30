@@ -62,7 +62,6 @@ class PluginSetupReviewHookTests(unittest.TestCase):
             path="mode",
             label="Mode",
             field_type="select",
-            persist=plugin_registry.SETUP_PERSIST_SETUP_STATE,
             required=True,
             default="basic",
             options=(

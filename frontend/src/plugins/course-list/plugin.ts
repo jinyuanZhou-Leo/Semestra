@@ -43,7 +43,7 @@ export default definePlugin({
         allowCourseCreation: true,
         badgeStyle: 'compact',
       },
-      fields: [
+      schema: [
         {
           path: 'allowCourseCreation',
           label: 'Allow course creation',
@@ -65,7 +65,7 @@ export default definePlugin({
           ],
         },
       ],
-      sections: [],
+      panels: [],
     },
   }),
   loadRuntime: async () => (await import('./index')).default,

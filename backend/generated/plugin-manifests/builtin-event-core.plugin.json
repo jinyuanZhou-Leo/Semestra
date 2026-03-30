@@ -61,7 +61,7 @@
       "syncLmsCalendar": true,
       "calendarDefaultView": "month"
     },
-    "fields": [
+    "schema": [
       {
         "path": "syncLmsCalendar",
         "label": "Sync LMS calendar",
@@ -89,6 +89,6 @@
         ]
       }
     ],
-    "sections": []
+    "panels": []
   }
 }

@@ -184,7 +184,7 @@ export interface Tab {
     is_draggable?: boolean;
 }
 
-export interface ProgramPluginField {
+export interface ProgramPluginSettingsSchemaEntry {
     path: string;
     label?: string | null;
     type?: string | null;
@@ -198,7 +198,6 @@ export interface ProgramPluginSetupField {
     path: string;
     label: string;
     type: string;
-    persist: 'setupState' | 'semesterOverride' | 'both' | string;
     required?: boolean;
     default_value?: unknown;
     description?: string;
@@ -234,7 +233,7 @@ export interface ProgramPluginInstallation {
     setup_sections: ProgramPluginSetupSection[];
     program_settings: Record<string, unknown>;
     resolved_program_settings: Record<string, unknown>;
-    fields: ProgramPluginField[];
+    settings_schema: ProgramPluginSettingsSchemaEntry[];
     available: boolean;
     availability_reason?: string | null;
     availability?: RuntimeAvailability | null;
@@ -257,10 +256,9 @@ export interface SemesterPluginActivation {
     is_enabled: boolean;
     capabilities: ProgramPluginInstallation['capabilities'];
     setup_sections: ProgramPluginSetupSection[];
-    semester_overrides: Record<string, unknown>;
-    setup_state: Record<string, unknown>;
+    setup_values: Record<string, unknown>;
     resolved_settings: Record<string, unknown>;
-    fields: ProgramPluginField[];
+    settings_schema: ProgramPluginSettingsSchemaEntry[];
     setup_summary?: SemesterDraftReviewSummarySection[];
     review_errors?: SemesterDraftReviewIssue[];
     available: boolean;

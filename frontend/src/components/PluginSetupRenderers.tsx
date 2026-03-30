@@ -1,6 +1,6 @@
 // input:  [plugin setup registry definitions, semester setup/review API payloads, local draft values, and shared shadcn/plugin management primitives]
 // output: [`PluginSetupStepRenderer` and `PluginSetupReviewRenderer` components]
-// pos:    [Shared bridge that renders either host-owned DSL setup/review surfaces or plugin-owned custom setup/review components inside the Semester wizard with wrapper-light shadcn-aligned setup section shells]
+// pos:    [Shared bridge that renders host-owned DSL setup/review surfaces by default and falls back to plugin-owned setup/review override components inside the Semester wizard with wrapper-light shadcn-aligned setup section shells]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,23 +15,22 @@ import {
   resolvePluginSetupValues,
   type PluginSetupFieldDefinition,
   type PluginSetupFieldType,
-  type PluginSetupPersist,
   type PluginSetupRenderDefinition,
   type PluginSetupReviewSummarySection,
   type PluginSetupValidationIssue,
 } from "@/plugin-system";
 import type { PluginSystemSemesterSetupPlugin, ProgramPluginSetupField, ProgramPluginSetupSection, SemesterDraftReviewIssue, SemesterPluginActivation } from "@/services/api";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FieldDescription, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
-import { Separator } from "@/components/ui/separator";
-
 import { PluginFieldControl } from "./PluginFieldControl";
+import {
+  PluginSetupFormReviewItem,
+  PluginSetupFormSection,
+  PluginSetupFormSurface,
+} from "./PluginSetupForm";
 
 const mapApiFieldToDefinition = (field: ProgramPluginSetupField): PluginSetupFieldDefinition => ({
   type: (field.type ?? "text") as PluginSetupFieldType,
   label: field.label ?? field.path,
-  persist: (field.persist ?? "setupState") as PluginSetupPersist,
   required: Boolean(field.required),
   description: field.description ?? "",
   placeholder: field.placeholder ?? "",
@@ -118,43 +117,27 @@ const DefaultPluginSetupStepView: React.FC<{
   const generalErrors = [...getGeneralErrors(serverIssues), ...getGeneralErrors(localErrors)];
 
   return (
-    <div className="space-y-6">
-      {generalErrors.length > 0 ? (
-        <div className="space-y-3">
-          {generalErrors.map((message, index) => (
-            <Alert key={`${plugin.plugin_id}:general-error:${index}`} variant="destructive">
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
-          ))}
-        </div>
-      ) : null}
-
+    <PluginSetupFormSurface generalErrors={generalErrors}>
       {plugin.setup_sections.map((section, sectionIndex) => (
-        <React.Fragment key={section.id}>
-          {sectionIndex > 0 ? <Separator /> : null}
-          <FieldSet className="gap-5">
-            <div className="space-y-1">
-              <FieldLegend>{section.title}</FieldLegend>
-              {section.description ? (
-                <FieldDescription>{section.description}</FieldDescription>
-              ) : null}
-            </div>
-            <FieldGroup className="gap-5">
-              {section.fields.map((field) => (
-                <PluginFieldControl
-                  key={`${plugin.plugin_id}:${section.id}:${field.path}`}
-                  field={field}
-                  value={values[field.path] ?? field.default_value}
-                  description={field.description}
-                  error={fieldErrors.get(field.path) ?? null}
-                  onChange={(nextValue) => onValueChange(field.path, nextValue)}
-                />
-              ))}
-            </FieldGroup>
-          </FieldSet>
-        </React.Fragment>
+        <PluginSetupFormSection
+          key={section.id}
+          title={section.title}
+          description={section.description}
+          separated={sectionIndex > 0}
+        >
+          {section.fields.map((field) => (
+            <PluginFieldControl
+              key={`${plugin.plugin_id}:${section.id}:${field.path}`}
+              field={field}
+              value={values[field.path] ?? field.default_value}
+              description={field.description}
+              error={fieldErrors.get(field.path) ?? null}
+              onChange={(nextValue) => onValueChange(field.path, nextValue)}
+            />
+          ))}
+        </PluginSetupFormSection>
       ))}
-    </div>
+    </PluginSetupFormSurface>
   );
 };
 
@@ -162,11 +145,15 @@ export const PluginSetupStepRenderer: React.FC<{
   plugin: PluginSystemSemesterSetupPlugin;
   values: Record<string, unknown>;
   localErrors: PluginSetupValidationIssue[];
+  semesterId?: string;
+  programId?: string;
   onValueChange: (fieldPath: string, value: unknown) => void;
 }> = ({
   plugin,
   values,
   localErrors,
+  semesterId,
+  programId,
   onValueChange,
 }) => {
   const definition = getPluginSetupDefinitionById(plugin.plugin_id);
@@ -188,7 +175,7 @@ export const PluginSetupStepRenderer: React.FC<{
     plugin.setup_summary,
   ]);
 
-  if (definition?.ui.kind === "custom") {
+  if (definition?.ui?.setupComponent) {
     const CustomSetupComponent = definition.ui.setupComponent;
     const resolvedValues = resolvePluginSetupValues(definition, values);
     const localFieldErrors = getFieldErrorMap(localErrors);
@@ -200,6 +187,8 @@ export const PluginSetupStepRenderer: React.FC<{
         plugin={renderPlugin}
         values={resolvedValues}
         generalErrors={[...getGeneralErrors(serverIssues), ...getGeneralErrors(localErrors)]}
+        semesterId={semesterId}
+        programId={programId}
         getFieldError={(fieldPath) => localFieldErrors.get(fieldPath) ?? serverFieldErrors.get(fieldPath) ?? null}
         onValueChange={onValueChange}
       />
@@ -219,33 +208,36 @@ export const PluginSetupStepRenderer: React.FC<{
 const DefaultPluginSetupReviewView: React.FC<{
   summary: PluginSetupReviewSummarySection[];
 }> = ({ summary }) => (
-  <div className="space-y-6">
+  <PluginSetupFormSurface>
     {summary.map((section, sectionIndex) => (
-      <div key={section.id} className="space-y-3">
-        {sectionIndex > 0 ? <Separator /> : null}
-        <div className="space-y-1">
-          <div className="text-sm font-medium text-foreground">{section.title}</div>
-          {section.description ? <div className="text-sm text-muted-foreground">{section.description}</div> : null}
-        </div>
-        <div className="space-y-2">
-          {section.items.map((item) => (
-            <div key={`${section.id}:${item.path}`} className="flex flex-col items-start gap-2 rounded-lg border border-border/70 px-3 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-muted-foreground">{item.label}</span>
-              <span className="font-medium text-foreground sm:text-right">{item.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <PluginSetupFormSection
+        key={section.id}
+        title={section.title}
+        description={section.description}
+        separated={sectionIndex > 0}
+      >
+        {section.items.map((item) => (
+          <PluginSetupFormReviewItem
+            key={`${section.id}:${item.path}`}
+            label={item.label}
+            value={item.value}
+          />
+        ))}
+      </PluginSetupFormSection>
     ))}
-  </div>
+  </PluginSetupFormSurface>
 );
 
 export const PluginSetupReviewRenderer: React.FC<{
   plugin: SemesterPluginActivation;
   values: Record<string, unknown>;
+  semesterId?: string;
+  programId?: string;
 }> = ({
   plugin,
   values,
+  semesterId,
+  programId,
 }) => {
   const definition = getPluginSetupDefinitionById(plugin.plugin_id);
   const renderPlugin = useMemo(() => buildRenderDefinition({
@@ -266,12 +258,14 @@ export const PluginSetupReviewRenderer: React.FC<{
     plugin.setup_summary,
   ]);
 
-  if (definition?.ui.kind === "custom") {
+  if (definition?.ui?.reviewComponent) {
     const CustomReviewComponent = definition.ui.reviewComponent;
     return (
       <CustomReviewComponent
         plugin={renderPlugin}
         values={resolvePluginSetupValues(definition, values)}
+        semesterId={semesterId}
+        programId={programId}
       />
     );
   }

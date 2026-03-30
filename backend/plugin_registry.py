@@ -1,6 +1,6 @@
 # input:  [Program model records, generated plugin manifest JSON files, plugin registry payloads, and platform-level availability requirements]
 # output: [generated-manifest-backed plugin catalog helpers for Program installs, Semester activation, setup definitions, builtin-only setup review hooks, settings validation, setup summaries, and resolved-config computation with tab/widget context metadata]
-# pos:    [Backend plugin registry for Program-managed plugin lifecycle and Semester-scoped activation rules plus generated descriptor validation, host-policy overlays, tab/widget context lookups, and builtin-only setup review dispatch]
+# pos:    [Backend plugin registry for Program-managed plugin lifecycle and Semester-scoped activation rules plus generated descriptor validation, host-policy overlays, tab/widget context lookups, and plugin-owned setup review dispatch against raw setup values]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -18,15 +18,6 @@ from typing import Any, Callable
 
 FIELD_SCOPE_PROGRAM_ONLY = "program-only"
 FIELD_SCOPE_SEMESTER_OVERRIDE = "semester-override"
-
-SETUP_PERSIST_SETUP_STATE = "setupState"
-SETUP_PERSIST_SEMESTER_OVERRIDE = "semesterOverride"
-SETUP_PERSIST_BOTH = "both"
-VALID_SETUP_PERSIST_VALUES = {
-    SETUP_PERSIST_SETUP_STATE,
-    SETUP_PERSIST_SEMESTER_OVERRIDE,
-    SETUP_PERSIST_BOTH,
-}
 VALID_SETUP_FIELD_TYPES = {
     "text",
     "textarea",
@@ -72,7 +63,6 @@ class PluginSetupFieldDefinition:
     path: str
     label: str
     field_type: str
-    persist: str
     required: bool = False
     default: Any = None
     description: str = ""
@@ -119,9 +109,6 @@ class PluginSetupReviewIssue:
 class PluginSetupReviewContext:
     plugin_id: str
     program_settings: dict[str, Any]
-    semester_overrides: dict[str, Any]
-    setup_state: dict[str, Any]
-    resolved_settings: dict[str, Any]
     setup_values: dict[str, Any]
     program: Any = None
     semester: Any = None
@@ -131,7 +118,6 @@ class PluginSetupReviewContext:
 class PluginSetupReviewResult:
     review_errors: tuple[PluginSetupReviewIssue, ...] = ()
     setup_summary: list[dict[str, Any]] | None = None
-    resolved_settings: dict[str, Any] | None = None
     setup_values: dict[str, Any] | None = None
 
 
@@ -349,16 +335,16 @@ def _load_plugin_capabilities(plugin_id: str, raw_entry: dict[str, Any]) -> dict
     raw_settings = raw_entry.get("settings") or {}
     if not isinstance(raw_settings, dict):
         _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings' must be an object.")
-    raw_settings_fields = raw_settings.get("fields") or []
-    raw_settings_sections = raw_settings.get("sections") or []
+    raw_settings_schema = raw_settings.get("schema") or []
+    raw_settings_panels = raw_settings.get("panels") or []
     if not isinstance(raw_tabs, list):
         _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'tabs' must be a JSON array.")
     if not isinstance(raw_widgets, list):
         _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'widgets' must be a JSON array.")
-    if not isinstance(raw_settings_fields, list):
-        _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.fields' must be a JSON array.")
-    if not isinstance(raw_settings_sections, list):
-        _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.sections' must be a JSON array.")
+    if not isinstance(raw_settings_schema, list):
+        _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.schema' must be a JSON array.")
+    if not isinstance(raw_settings_panels, list):
+        _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.panels' must be a JSON array.")
 
     contexts: set[str] = set()
     available_tab_types: list[str] = []
@@ -388,10 +374,10 @@ def _load_plugin_capabilities(plugin_id: str, raw_entry: dict[str, Any]) -> dict
         widget_allowed_contexts[widget_type] = widget_contexts
         contexts.update(widget_contexts)
 
-    for raw_settings_section in raw_settings_sections:
+    for raw_settings_section in raw_settings_panels:
         if not isinstance(raw_settings_section, dict):
             _raise_manifest_error(f"Plugin descriptor '{plugin_id}' settings section must be an object.")
-        contexts.update(_load_manifest_string_list(plugin_id, "settings.sections.contexts", raw_settings_section.get("contexts")))
+        contexts.update(_load_manifest_string_list(plugin_id, "settings.panels.contexts", raw_settings_section.get("contexts")))
 
     directory_name = raw_entry.get("_directory_name")
     has_setup_schema = isinstance(directory_name, str) and _setup_schema_path(directory_name).exists()
@@ -404,7 +390,7 @@ def _load_plugin_capabilities(plugin_id: str, raw_entry: dict[str, Any]) -> dict
         "available_widget_types": available_widget_types,
         "tab_allowed_contexts": tab_allowed_contexts,
         "widget_allowed_contexts": widget_allowed_contexts,
-        "has_settings": bool(raw_settings_fields) or bool(raw_settings_sections) or has_setup_schema,
+        "has_settings": bool(raw_settings_schema) or bool(raw_settings_panels) or has_setup_schema,
         "supports_unassigned_course": (
             "course" in contexts
             and kind != "host-shell"
@@ -464,7 +450,7 @@ def _load_descriptor_registry_definitions() -> dict[str, PluginRegistryDefinitio
     for raw_entry in _load_plugin_descriptors():
         plugin_id = raw_entry.get("id")
         raw_settings = raw_entry.get("settings") or {}
-        raw_fields = raw_settings.get("fields") if isinstance(raw_settings, dict) else None
+        raw_fields = raw_settings.get("schema") if isinstance(raw_settings, dict) else None
         if not isinstance(plugin_id, str) or not plugin_id.strip():
             _raise_manifest_error("Plugin descriptor is missing id.")
         if not isinstance(raw_settings, dict):
@@ -472,7 +458,7 @@ def _load_descriptor_registry_definitions() -> dict[str, PluginRegistryDefinitio
         if raw_fields is None:
             raw_fields = []
         if not isinstance(raw_fields, list):
-            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.fields' must be a JSON array.")
+            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.schema' must be a JSON array.")
 
         fields: list[PluginFieldDefinition] = []
         for raw_field in raw_fields:
@@ -605,7 +591,6 @@ def _load_manifest_field(
     path = raw_field.get("path")
     label = raw_field.get("label")
     field_type = raw_field.get("type")
-    persist = raw_field.get("persist")
     required = bool(raw_field.get("required", False))
     description = raw_field.get("description") or ""
     placeholder = raw_field.get("placeholder") or ""
@@ -619,8 +604,6 @@ def _load_manifest_field(
         _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' is missing a non-empty label.")
     if field_type not in VALID_SETUP_FIELD_TYPES:
         _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' uses unsupported type '{field_type}'.")
-    if persist not in VALID_SETUP_PERSIST_VALUES:
-        _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' uses unsupported persist '{persist}'.")
     if not isinstance(raw_options, list):
         _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' options must be a JSON array.")
     if not isinstance(raw_summary_labels, dict):
@@ -651,7 +634,6 @@ def _load_manifest_field(
         path=path,
         label=label,
         field_type=field_type,
-        persist=persist,
         required=required,
         default=default_value,
         description=str(description),
@@ -848,7 +830,6 @@ def _build_plugin_setup_field_payload(field: PluginSetupFieldDefinition) -> dict
         "path": field.path,
         "label": field.label,
         "type": field.field_type,
-        "persist": field.persist,
         "required": field.required,
         "default_value": deepcopy(field.default),
         "description": field.description,
@@ -1040,10 +1021,10 @@ def normalize_semester_overrides(plugin_id: str, payload: dict[str, Any] | None)
     return normalized_payload
 
 
-def normalize_setup_state(plugin_id: str, payload: dict[str, Any] | None) -> dict[str, Any]:
+def normalize_setup_values(plugin_id: str, payload: dict[str, Any] | None) -> dict[str, Any]:
     payload = payload or {}
     if not isinstance(payload, dict):
-        raise PluginRegistryValidationError("SEMESTER_PLUGIN_SETUP_INVALID", "setup_state must be a JSON object.")
+        raise PluginRegistryValidationError("SEMESTER_PLUGIN_SETUP_INVALID", "setup_values must be a JSON object.")
     setup_field_map = _setup_field_map(plugin_id)
     unknown_keys = sorted(set(payload.keys()) - set(setup_field_map.keys()))
     if unknown_keys:
@@ -1188,36 +1169,20 @@ def _validate_plugin_setup_values(
 def resolve_plugin_setup_values(
     plugin_id: str,
     *,
-    semester_overrides: dict[str, Any] | None = None,
-    setup_state: dict[str, Any] | None = None,
+    setup_values: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     definition = get_plugin_setup_definition(plugin_id)
     if definition is None:
         return {}
 
-    normalized_overrides = normalize_semester_overrides(plugin_id, semester_overrides)
-    normalized_setup_state = normalize_setup_state(plugin_id, setup_state)
+    normalized_setup_values = normalize_setup_values(plugin_id, setup_values)
     resolved_values: dict[str, Any] = {}
 
-    def resolve_setup_state_value(field: PluginSetupFieldDefinition) -> Any:
-        if field.path not in normalized_setup_state:
-            return deepcopy(field.default)
-        stored_value = normalized_setup_state[field.path]
-        if stored_value is None:
-            return deepcopy(field.default)
-        return deepcopy(stored_value)
-
     for field in definition.fields:
-        fallback_value = deepcopy(field.default)
-        if field.persist == SETUP_PERSIST_SETUP_STATE:
-            resolved_values[field.path] = resolve_setup_state_value(field)
-        elif field.persist == SETUP_PERSIST_SEMESTER_OVERRIDE:
-            resolved_values[field.path] = deepcopy(normalized_overrides.get(field.path, fallback_value))
-        else:
-            if field.path in normalized_setup_state and normalized_setup_state[field.path] is not None:
-                resolved_values[field.path] = deepcopy(normalized_setup_state[field.path])
-            else:
-                resolved_values[field.path] = deepcopy(normalized_overrides.get(field.path, fallback_value))
+        if field.path not in normalized_setup_values or normalized_setup_values[field.path] is None:
+            resolved_values[field.path] = deepcopy(field.default)
+            continue
+        resolved_values[field.path] = deepcopy(normalized_setup_values[field.path])
 
     return resolved_values
 
@@ -1234,25 +1199,17 @@ def review_plugin_setup(
     plugin_id: str,
     *,
     program_settings: dict[str, Any] | None = None,
-    semester_overrides: dict[str, Any] | None = None,
-    setup_state: dict[str, Any] | None = None,
+    setup_values: dict[str, Any] | None = None,
     program: Any = None,
     semester: Any = None,
 ) -> dict[str, Any]:
     normalized_program_settings = normalize_program_settings(plugin_id, program_settings)
-    normalized_overrides = normalize_semester_overrides(plugin_id, semester_overrides)
-    normalized_setup_state = normalize_setup_state(plugin_id, setup_state)
-    resolved_settings = resolve_plugin_settings(
-        plugin_id,
-        program_settings=normalized_program_settings,
-        semester_overrides=normalized_overrides,
-    )
+    normalized_setup_values = normalize_setup_values(plugin_id, setup_values)
     setup_values = validate_resolved_plugin_setup_values(
         plugin_id,
         resolve_plugin_setup_values(
             plugin_id,
-            semester_overrides=normalized_overrides,
-            setup_state=normalized_setup_state,
+            setup_values=normalized_setup_values,
         ),
     )
     setup_summary = build_plugin_setup_summary(
@@ -1266,17 +1223,12 @@ def review_plugin_setup(
         review_context = PluginSetupReviewContext(
             plugin_id=plugin_id,
             program_settings=deepcopy(normalized_program_settings),
-            semester_overrides=deepcopy(normalized_overrides),
-            setup_state=deepcopy(normalized_setup_state),
-            resolved_settings=deepcopy(resolved_settings),
             setup_values=deepcopy(setup_values),
             program=program,
             semester=semester,
         )
         review_result = definition.setup_review(review_context)
         if review_result is not None:
-            if review_result.resolved_settings is not None:
-                resolved_settings = deepcopy(review_result.resolved_settings)
             if review_result.setup_values is not None:
                 setup_values = validate_resolved_plugin_setup_values(plugin_id, review_result.setup_values)
             if review_result.setup_summary is not None:
@@ -1284,7 +1236,6 @@ def review_plugin_setup(
             review_errors = list(review_result.review_errors)
 
     return {
-        "resolved_settings": resolved_settings,
         "setup_values": setup_values,
         "setup_summary": setup_summary,
         "review_errors": review_errors,
@@ -1294,31 +1245,13 @@ def review_plugin_setup(
 def write_plugin_setup_values(
     plugin_id: str,
     *,
-    semester_overrides: dict[str, Any] | None = None,
-    setup_state: dict[str, Any] | None = None,
     values: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> dict[str, Any]:
     definition = get_plugin_setup_definition(plugin_id)
-    raw_values = values or {}
     normalized_values = validate_plugin_setup_values(plugin_id, values)
     if definition is None:
-        return normalize_setup_state(plugin_id, setup_state), normalize_semester_overrides(plugin_id, semester_overrides), normalized_values
-
-    next_setup_state = normalize_setup_state(plugin_id, setup_state)
-    next_semester_overrides = normalize_semester_overrides(plugin_id, semester_overrides)
-
-    for field in definition.fields:
-        has_explicit_value = field.path in raw_values
-        value = deepcopy(normalized_values[field.path])
-        if field.persist in {SETUP_PERSIST_SETUP_STATE, SETUP_PERSIST_BOTH}:
-            if has_explicit_value:
-                next_setup_state[field.path] = deepcopy(value)
-            else:
-                next_setup_state.setdefault(field.path, None)
-        if field.persist in {SETUP_PERSIST_SEMESTER_OVERRIDE, SETUP_PERSIST_BOTH} and has_explicit_value:
-            next_semester_overrides[field.path] = deepcopy(value)
-
-    return next_setup_state, next_semester_overrides, normalized_values
+        return normalize_setup_values(plugin_id, values)
+    return normalized_values
 
 
 def _summary_label_key(value: Any) -> str:
@@ -1352,8 +1285,6 @@ def build_plugin_setup_summary(
     plugin_id: str,
     *,
     setup_values: dict[str, Any] | None = None,
-    semester_overrides: dict[str, Any] | None = None,
-    setup_state: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     definition = get_plugin_setup_definition(plugin_id)
     if definition is None:
@@ -1361,11 +1292,7 @@ def build_plugin_setup_summary(
 
     normalized_values = validate_resolved_plugin_setup_values(
         plugin_id,
-        setup_values if setup_values is not None else resolve_plugin_setup_values(
-            plugin_id,
-            semester_overrides=semester_overrides,
-            setup_state=setup_state,
-        ),
+        setup_values if setup_values is not None else resolve_plugin_setup_values(plugin_id, setup_values=None),
     )
 
     summary_sections: list[dict[str, Any]] = []
@@ -1391,8 +1318,6 @@ def build_plugin_setup_summary(
 def build_setup_summary(
     plugin_id: str,
     *,
-    resolved_settings: dict[str, Any] | None = None,  # Kept for backward compatibility with existing callers.
-    setup_state: dict[str, Any] | None = None,
+    setup_values: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    del resolved_settings
-    return build_plugin_setup_summary(plugin_id, setup_state=setup_state)
+    return build_plugin_setup_summary(plugin_id, setup_values=setup_values)

@@ -20,7 +20,7 @@
   "widgets": [],
   "settings": {
     "defaults": {},
-    "fields": [],
-    "sections": []
+    "schema": [],
+    "panels": []
   }
 }

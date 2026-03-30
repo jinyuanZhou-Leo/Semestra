@@ -69,7 +69,7 @@ describe('plugin-system settings API', () => {
       'template-behavior',
       'template-blocks',
     ]);
-    expect(templateSetup?.ui.kind).toBe('dsl');
+    expect(templateSetup?.ui).toBeUndefined();
 
     expect(getAllPluginSetupDefinitions().map((definition) => definition.pluginId)).toContain('builtin-event-core');
     expect(getAllPluginSetupDefinitions().map((definition) => definition.pluginId)).toContain('tab-template');

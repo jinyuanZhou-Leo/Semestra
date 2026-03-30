@@ -13,13 +13,12 @@ import type {
   PluginDescriptorSetupSchema,
   PluginDescriptorTabDefinition,
   PluginDescriptorWidgetDefinition,
-  PluginSettingsFieldDefinition,
-  PluginSettingsSectionBinding,
+  PluginSettingsPanelBinding,
+  PluginSettingsSchemaEntry,
 } from './manifest-types.ts';
 
 const VALID_FIELD_TYPES = new Set(['text', 'textarea', 'number', 'boolean', 'select', 'date', 'json']);
 const VALID_FIELD_SCOPES = new Set(['program-only', 'semester-override']);
-const VALID_SETUP_PERSIST = new Set(['setupState', 'semesterOverride', 'both']);
 const VALID_CONTEXTS = new Set<PluginContext>(['program', 'semester', 'course']);
 
 const requireNonEmptyString = (value: string, label: string) => {
@@ -52,7 +51,7 @@ const cloneOptions = (options: { label: string; value: string }[] | undefined) =
   });
 };
 
-const cloneSettingsField = (field: PluginSettingsFieldDefinition): PluginSettingsFieldDefinition => {
+const cloneSettingsSchemaEntry = (field: PluginSettingsSchemaEntry): PluginSettingsSchemaEntry => {
   requireNonEmptyString(field.path, 'Plugin settings field path');
   requireNonEmptyString(field.label, `Plugin settings field "${field.path}" label`);
   if (!VALID_FIELD_TYPES.has(field.type)) {
@@ -71,7 +70,7 @@ const cloneSettingsField = (field: PluginSettingsFieldDefinition): PluginSetting
   };
 };
 
-const cloneSettingsSection = (section: PluginSettingsSectionBinding): PluginSettingsSectionBinding => {
+const cloneSettingsPanel = (section: PluginSettingsPanelBinding): PluginSettingsPanelBinding => {
   requireNonEmptyString(section.id, 'Plugin settings section id');
   validateContexts(section.contexts, `Plugin settings section "${section.id}"`);
   return {
@@ -114,9 +113,6 @@ const cloneSetupField = (field: PluginDescriptorSetupFieldDefinition): PluginDes
   if (!VALID_FIELD_TYPES.has(field.type)) {
     throw new Error(`[plugin-sdk] Plugin setup field "${field.path}" uses unsupported type "${field.type}".`);
   }
-  if (!VALID_SETUP_PERSIST.has(field.persist)) {
-    throw new Error(`[plugin-sdk] Plugin setup field "${field.path}" uses unsupported persist "${field.persist}".`);
-  }
   const options = cloneOptions(field.options);
   if (field.type === 'select' && (!options || options.length === 0)) {
     throw new Error(`[plugin-sdk] Plugin setup field "${field.path}" must declare options for select.`);
@@ -141,8 +137,8 @@ export const definePluginManifest = (descriptor: PluginDescriptor): PluginDescri
     widgets: (descriptor.widgets ?? []).map(cloneWidgetDefinition),
     settings: {
       defaults: { ...(descriptor.settings?.defaults ?? {}) },
-      fields: (descriptor.settings?.fields ?? []).map(cloneSettingsField),
-      sections: (descriptor.settings?.sections ?? []).map(cloneSettingsSection),
+      schema: (descriptor.settings?.schema ?? []).map(cloneSettingsSchemaEntry),
+      panels: (descriptor.settings?.panels ?? []).map(cloneSettingsPanel),
     },
   };
 };

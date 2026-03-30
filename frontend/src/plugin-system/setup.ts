@@ -1,14 +1,13 @@
-// input:  [plugin-authored setup field/section declarations plus optional custom setup/review React renderers]
-// output: [setup contract types, field helpers, validation helpers, and `definePluginSetup` registration helper]
-// pos:    [Plugin setup authoring layer that keeps backend-serializable field/section manifests stable while allowing either host-rendered DSL setup or plugin-rendered custom setup/review UIs]
+// input:  [plugin-authored setup component trees plus optional setup/review React override renderers]
+// output: [setup contract types, declarative setup field components, validation helpers, backend-schema serialization helpers, setup-authoring adapters, and `definePluginSetup` registration helper]
+// pos:    [Plugin setup authoring layer that lets plugins declare setup with host-provided field components while still emitting backend-serializable field/section manifests and optional setup/review overrides with draft-semester context]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import type { ComponentType } from "react";
-
-export type PluginSetupPersist = "setupState" | "semesterOverride" | "both";
+import { Children, Fragment, isValidElement, type ComponentType, type ReactElement, type ReactNode } from "react";
+import type { PluginDescriptorSetupSchema } from "@/plugin-sdk/manifest-types";
 export type PluginSetupFieldType = "text" | "textarea" | "number" | "boolean" | "select" | "date" | "json";
 
 type PluginSetupSummaryLabels = Record<string, string>;
@@ -54,6 +53,8 @@ export interface PluginSetupWizardRenderProps {
     plugin: PluginSetupRenderDefinition;
     values: Record<string, unknown>;
     generalErrors: string[];
+    semesterId?: string;
+    programId?: string;
     getFieldError: (fieldPath: string) => string | null;
     onValueChange: (fieldPath: string, value: unknown) => void;
 }
@@ -61,6 +62,8 @@ export interface PluginSetupWizardRenderProps {
 export interface PluginSetupReviewRenderProps {
     plugin: PluginSetupRenderDefinition;
     values: Record<string, unknown>;
+    semesterId?: string;
+    programId?: string;
 }
 
 type PluginSetupFieldValidator<TFields extends Record<string, PluginSetupFieldDefinition> = Record<string, PluginSetupFieldDefinition>> = (
@@ -75,7 +78,6 @@ export type PluginSetupValidator<TFields extends Record<string, PluginSetupField
 interface PluginSetupFieldBase<TType extends PluginSetupFieldType, TValue> {
     type: TType;
     label: string;
-    persist: PluginSetupPersist;
     required?: boolean;
     description?: string;
     placeholder?: string;
@@ -116,21 +118,42 @@ export interface PluginSetupSectionDefinition {
     fieldKeys: string[];
 }
 
-export interface PluginSetupDslUiDefinition {
-    kind: "dsl";
+export interface PluginSetupSectionProps {
+    id: string;
+    title: string;
+    description?: string;
+    children?: ReactNode;
 }
 
-export interface PluginSetupCustomUiDefinition {
-    kind: "custom";
-    setupComponent: ComponentType<PluginSetupWizardRenderProps>;
-    reviewComponent: ComponentType<PluginSetupReviewRenderProps>;
+interface PluginSetupDeclarativeFieldPropsBase<TType extends PluginSetupFieldType, TValue> extends Omit<PluginSetupFieldBase<TType, TValue>, "type"> {
+    path: string;
 }
 
-export type PluginSetupUiDefinition = PluginSetupDslUiDefinition | PluginSetupCustomUiDefinition;
+export interface PluginSetupTextFieldProps extends PluginSetupDeclarativeFieldPropsBase<"text", string> {}
+
+export interface PluginSetupTextareaFieldProps extends PluginSetupDeclarativeFieldPropsBase<"textarea", string> {}
+
+export interface PluginSetupNumberFieldProps extends PluginSetupDeclarativeFieldPropsBase<"number", number> {}
+
+export interface PluginSetupBooleanFieldProps extends PluginSetupDeclarativeFieldPropsBase<"boolean", boolean> {}
+
+export interface PluginSetupSelectFieldProps extends PluginSetupDeclarativeFieldPropsBase<"select", string> {
+    options: Array<{ label: string; value: string }>;
+}
+
+export interface PluginSetupDateFieldProps extends PluginSetupDeclarativeFieldPropsBase<"date", string> {}
+
+export interface PluginSetupJsonFieldProps extends PluginSetupDeclarativeFieldPropsBase<"json", unknown> {}
+
+export interface PluginSetupUiDefinition {
+    setupComponent?: ComponentType<PluginSetupWizardRenderProps>;
+    reviewComponent?: ComponentType<PluginSetupReviewRenderProps>;
+}
 
 export interface PluginSetupDefinition<TFields extends Record<string, PluginSetupFieldDefinition> = Record<string, PluginSetupFieldDefinition>> {
-    fields: TFields;
-    sections: PluginSetupSectionDefinition[];
+    content?: ReactNode;
+    readonly fields: TFields;
+    readonly sections: PluginSetupSectionDefinition[];
     ui?: PluginSetupUiDefinition;
     validate?: PluginSetupValidator<TFields>;
 }
@@ -145,11 +168,22 @@ export type InferPluginSetupValues<TDefinition extends PluginSetupDefinition> = 
     [TKey in keyof TDefinition["fields"]]: ValueOfField<TDefinition["fields"][TKey]>
 };
 
-const DEFAULT_PLUGIN_SETUP_UI: PluginSetupDslUiDefinition = {
-    kind: "dsl",
+const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
+
+const createDeclarativeComponent = <TProps,>(displayName: string) => {
+    const Component = (_props: TProps) => null;
+    Component.displayName = displayName;
+    return Component;
 };
 
-const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
+export const PluginSetupSection = createDeclarativeComponent<PluginSetupSectionProps>("PluginSetupSection");
+export const PluginSetupTextField = createDeclarativeComponent<PluginSetupTextFieldProps>("PluginSetupTextField");
+export const PluginSetupTextareaField = createDeclarativeComponent<PluginSetupTextareaFieldProps>("PluginSetupTextareaField");
+export const PluginSetupNumberField = createDeclarativeComponent<PluginSetupNumberFieldProps>("PluginSetupNumberField");
+export const PluginSetupBooleanField = createDeclarativeComponent<PluginSetupBooleanFieldProps>("PluginSetupBooleanField");
+export const PluginSetupSelectField = createDeclarativeComponent<PluginSetupSelectFieldProps>("PluginSetupSelectField");
+export const PluginSetupDateField = createDeclarativeComponent<PluginSetupDateFieldProps>("PluginSetupDateField");
+export const PluginSetupJsonField = createDeclarativeComponent<PluginSetupJsonFieldProps>("PluginSetupJsonField");
 
 const normalizeValidationIssue = (
     issue: string | PluginSetupValidationIssue | null | undefined,
@@ -228,69 +262,167 @@ export const validatePluginSetupDefinition = async <TFields extends Record<strin
     return issues;
 };
 
-export const section = (
-    id: string,
-    definition: Omit<PluginSetupSectionDefinition, "id">,
-): PluginSetupSectionDefinition => ({
-    id,
-    title: definition.title,
-    description: definition.description,
-    fieldKeys: [...definition.fieldKeys],
-});
+const flattenElements = (children: ReactNode): ReactElement[] => {
+    const elements: ReactElement[] = [];
+    Children.forEach(children, (child) => {
+        if (!isValidElement(child)) {
+            return;
+        }
+        if (child.type === Fragment) {
+            elements.push(...flattenElements((child as ReactElement<{ children?: ReactNode }>).props.children));
+            return;
+        }
+        elements.push(child);
+    });
+    return elements;
+};
 
-export const textField = (definition: Omit<PluginSetupTextFieldDefinition, "type">): PluginSetupTextFieldDefinition => ({
-    type: "text",
-    ...definition,
-});
+const cloneFieldOptions = (field: PluginSetupFieldDefinition) => (
+    "options" in field && Array.isArray(field.options) ? [...field.options] : []
+);
 
-export const textareaField = (
-    definition: Omit<PluginSetupTextareaFieldDefinition, "type">,
-): PluginSetupTextareaFieldDefinition => ({
-    type: "textarea",
-    ...definition,
-});
+const toFieldDefinition = (
+    element: ReactElement,
+): { path: string; definition: PluginSetupFieldDefinition } => {
+    const fieldProps = element.props as Record<string, unknown>;
+    const path = String(fieldProps.path ?? "").trim();
+    if (!path) {
+        throw new Error("[plugin-system] Setup fields must declare a non-empty path.");
+    }
 
-export const numberField = (
-    definition: Omit<PluginSetupNumberFieldDefinition, "type">,
-): PluginSetupNumberFieldDefinition => ({
-    type: "number",
-    ...definition,
-});
+    const baseDefinition = {
+        label: String(fieldProps.label ?? path),
+        required: Boolean(fieldProps.required),
+        description: typeof fieldProps.description === "string" ? fieldProps.description : undefined,
+        placeholder: typeof fieldProps.placeholder === "string" ? fieldProps.placeholder : undefined,
+        summaryLabels: (fieldProps.summaryLabels as PluginSetupSummaryLabels | undefined) ?? undefined,
+        validate: fieldProps.validate as PluginSetupFieldValidator | undefined,
+    };
 
-export const booleanField = (
-    definition: Omit<PluginSetupBooleanFieldDefinition, "type">,
-): PluginSetupBooleanFieldDefinition => ({
-    type: "boolean",
-    ...definition,
-});
+    if (element.type === PluginSetupTextField) {
+        return { path, definition: { type: "text", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "string" ? fieldProps.defaultValue : undefined } };
+    }
+    if (element.type === PluginSetupTextareaField) {
+        return { path, definition: { type: "textarea", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "string" ? fieldProps.defaultValue : undefined } };
+    }
+    if (element.type === PluginSetupNumberField) {
+        return { path, definition: { type: "number", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "number" ? fieldProps.defaultValue : undefined } };
+    }
+    if (element.type === PluginSetupBooleanField) {
+        return { path, definition: { type: "boolean", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "boolean" ? fieldProps.defaultValue : undefined } };
+    }
+    if (element.type === PluginSetupSelectField) {
+        const options = Array.isArray(fieldProps.options) ? fieldProps.options as Array<{ label: string; value: string }> : [];
+        return {
+            path,
+            definition: {
+                type: "select",
+                ...baseDefinition,
+                defaultValue: typeof fieldProps.defaultValue === "string" ? fieldProps.defaultValue : undefined,
+                options: [...options],
+            },
+        };
+    }
+    if (element.type === PluginSetupDateField) {
+        return { path, definition: { type: "date", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "string" ? fieldProps.defaultValue : undefined } };
+    }
+    if (element.type === PluginSetupJsonField) {
+        return { path, definition: { type: "json", ...baseDefinition, defaultValue: fieldProps.defaultValue } };
+    }
 
-export const selectField = (
-    definition: Omit<PluginSetupSelectFieldDefinition, "type">,
-): PluginSetupSelectFieldDefinition => ({
-    type: "select",
-    ...definition,
-    options: [...definition.options],
-});
+    throw new Error("[plugin-system] Setup sections can only contain host-provided setup field components.");
+};
 
-export const dateField = (
-    definition: Omit<PluginSetupDateFieldDefinition, "type">,
-): PluginSetupDateFieldDefinition => ({
-    type: "date",
-    ...definition,
-});
+const extractSetupSchema = (
+    content: ReactNode,
+): {
+    fields: Record<string, PluginSetupFieldDefinition>;
+    sections: PluginSetupSectionDefinition[];
+} => {
+    const fields: Record<string, PluginSetupFieldDefinition> = {};
+    const sections = flattenElements(content).map((sectionElement) => {
+        if (sectionElement.type !== PluginSetupSection) {
+            throw new Error("[plugin-system] Plugin setup content must be composed from PluginSetupSection components.");
+        }
+        const sectionProps = sectionElement.props as PluginSetupSectionProps;
+        const sectionId = sectionProps.id.trim();
+        if (!sectionId) {
+            throw new Error("[plugin-system] Setup sections must declare a non-empty id.");
+        }
+        const sectionTitle = sectionProps.title.trim();
+        if (!sectionTitle) {
+            throw new Error(`[plugin-system] Setup section "${sectionId}" must declare a non-empty title.`);
+        }
 
-export const jsonField = (
-    definition: Omit<PluginSetupJsonFieldDefinition, "type">,
-): PluginSetupJsonFieldDefinition => ({
-    type: "json",
-    ...definition,
-});
+        const fieldKeys = flattenElements(sectionProps.children).map((fieldElement) => {
+            const { path, definition } = toFieldDefinition(fieldElement);
+            if (fields[path]) {
+                throw new Error(`[plugin-system] Duplicate setup field path "${path}".`);
+            }
+            fields[path] = definition;
+            return path;
+        });
+
+        if (fieldKeys.length === 0) {
+            throw new Error(`[plugin-system] Setup section "${sectionId}" must include at least one field component.`);
+        }
+
+        return {
+            id: sectionId,
+            title: sectionTitle,
+            description: sectionProps.description,
+            fieldKeys,
+        };
+    });
+
+    return { fields, sections };
+};
 
 export const definePluginSetup = <TFields extends Record<string, PluginSetupFieldDefinition>>(
+    definition: Omit<PluginSetupDefinition<TFields>, "fields" | "sections"> & { content: ReactNode },
+): PluginSetupDefinition<TFields> => {
+    const schema = extractSetupSchema(definition.content);
+    return {
+        content: definition.content,
+        fields: schema.fields as TFields,
+        sections: schema.sections,
+        ui: definition.ui ? { ...definition.ui } : undefined,
+        validate: definition.validate,
+    };
+};
+
+export const serializePluginSetupDefinition = <TFields extends Record<string, PluginSetupFieldDefinition>>(
     definition: PluginSetupDefinition<TFields>,
-): PluginSetupDefinition<TFields> => ({
-    fields: definition.fields,
-    sections: [...definition.sections],
-    ui: definition.ui ?? DEFAULT_PLUGIN_SETUP_UI,
-    validate: definition.validate,
+): PluginDescriptorSetupSchema => ({
+    sections: definition.sections.map((sectionDefinition) => ({
+        id: sectionDefinition.id,
+        title: sectionDefinition.title,
+        description: sectionDefinition.description ?? "",
+        fields: sectionDefinition.fieldKeys.map((fieldKey) => {
+            const field = definition.fields[fieldKey];
+            if (!field) {
+                throw new Error(`Missing setup field "${fieldKey}" while serializing setup section "${sectionDefinition.id}".`);
+            }
+            return {
+                path: fieldKey,
+                label: field.label,
+                type: field.type,
+                required: Boolean(field.required),
+                default_value: field.defaultValue ?? null,
+                description: field.description ?? "",
+                placeholder: field.placeholder ?? "",
+                options: cloneFieldOptions(field),
+                summary_labels: { ...(field.summaryLabels ?? {}) },
+            };
+        }),
+    })),
+    validation_rules: [],
+});
+
+export const createPluginSetupBinding = <TFields extends Record<string, PluginSetupFieldDefinition>>(
+    definition: PluginSetupDefinition<TFields>,
+) => ({
+    schema: serializePluginSetupDefinition(definition),
+    ui: definition.ui?.setupComponent || definition.ui?.reviewComponent ? { ...definition.ui } : undefined,
+    validate: async (values: Record<string, unknown>) => validatePluginSetupDefinition(definition, values),
 });

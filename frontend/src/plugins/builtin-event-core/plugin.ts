@@ -1,6 +1,6 @@
 // input:  [typed plugin manifest/setup helpers, event-core icons, existing setup UI definition, frontend plugin SDK, and lazy runtime loader]
 // output: [default-exported descriptor-backed event-core plugin definition with schema-driven setup]
-// pos:    [single-entry builtin plugin definition that keeps event-core metadata and setup schema inline]
+// pos:    [single-entry builtin plugin definition that keeps event-core metadata aligned to the plugin-owned setup.tsx source of truth]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,94 +8,9 @@
 
 import { CalendarDays, Clock3, ListTodo, NotebookPen } from 'lucide-react';
 
-import { definePlugin, definePluginManifest, definePluginSetupSchema, defineSetup } from '../../plugin-sdk/authoring.ts';
-import { validatePluginSetupDefinition } from '../../plugin-system/setup.ts';
+import { createPluginSetupBinding, definePlugin, definePluginManifest } from '../../plugin-sdk/authoring.ts';
 
 import setupDefinition from './setup.tsx';
-
-const setupSchema = definePluginSetupSchema({
-  sections: [
-    {
-      id: 'calendar-default-view',
-      title: 'Calendar Setup',
-      description: 'Choose the default Calendar view for this Semester.',
-      fields: [
-        {
-          path: 'calendarDefaultView',
-          label: 'Calendar default view',
-          type: 'select',
-          persist: 'both',
-          required: true,
-          description: 'Choose the initial Calendar view for this Semester.',
-          default_value: 'month',
-          options: [
-            { label: 'Month', value: 'month' },
-            { label: 'Week', value: 'week' },
-          ],
-          summary_labels: {
-            month: 'Month',
-            week: 'Week',
-          },
-        },
-      ],
-    },
-    {
-      id: 'event-type-setup',
-      title: 'Event Types',
-      description: 'Configure the default event-type catalog for course scheduling.',
-      fields: [
-        {
-          path: 'eventTypes',
-          label: 'Default event types',
-          type: 'json',
-          persist: 'setupState',
-          required: false,
-          description: 'Configure the event types that this Semester should start with.',
-          default_value: [
-            {
-              id: 'builtin-lecture',
-              code: 'LECTURE',
-              abbreviation: 'LEC',
-              track_attendance: false,
-              color: null,
-              icon: null,
-            },
-            {
-              id: 'builtin-practical',
-              code: 'PRACTICAL',
-              abbreviation: 'PRA',
-              track_attendance: false,
-              color: null,
-              icon: null,
-            },
-            {
-              id: 'builtin-tutorial',
-              code: 'TUTORIAL',
-              abbreviation: 'TUT',
-              track_attendance: false,
-              color: null,
-              icon: null,
-            },
-          ],
-        },
-      ],
-    },
-  ],
-  validation_rules: [
-    {
-      type: 'json-array-min-length',
-      field: 'eventTypes',
-      min_length: 1,
-      message: 'Add at least one event type before continuing.',
-    },
-    {
-      type: 'json-array-unique-keys',
-      field: 'eventTypes',
-      keys: ['code', 'abbreviation'],
-      message: 'Event type names and abbreviations must be unique.',
-    },
-  ],
-});
 
 export default definePlugin({
   descriptor: definePluginManifest({
@@ -152,7 +67,7 @@ export default definePlugin({
         syncLmsCalendar: true,
         calendarDefaultView: 'month',
       },
-      fields: [
+      schema: [
         {
           path: 'syncLmsCalendar',
           label: 'Sync LMS calendar',
@@ -174,13 +89,9 @@ export default definePlugin({
           ],
         },
       ],
-      sections: [],
+      panels: [],
     },
   }),
   loadRuntime: async () => (await import('./index')).default,
-  setup: defineSetup({
-    schema: setupSchema,
-    ui: setupDefinition.ui?.kind === 'custom' ? setupDefinition.ui : undefined,
-    validate: async (values) => validatePluginSetupDefinition(setupDefinition, values),
-  }),
+  setup: createPluginSetupBinding(setupDefinition),
 });

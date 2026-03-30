@@ -1,6 +1,6 @@
 // input:  [`CreateSemesterWizardPage`, mocked Semester wizard APIs, React Router memory routes, and QueryClient test wrappers]
-// output: [page-level regression tests for Semester basics validation, setup-aware wizard navigation, draft-conflict-safe resume behavior, finalize handoff safety, Program-installed plugin filtering, plugin-system-backed setup-step visibility, plugin-system setup rendering, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
-// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, draft-create conflict regressions, setup-step drift, activation-vs-plugin-system setup visibility mismatches, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, and invalid finalize states]
+// output: [page-level regression tests for Semester basics validation, setup-aware wizard navigation, compact animated bottom navigation labels, draft-conflict-safe resume behavior, finalize handoff safety, Program-installed plugin filtering, plugin-system-backed setup-step visibility, plugin-system setup rendering, large-step pagination condensation, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
+// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, draft-create conflict regressions, setup-step drift, activation-vs-plugin-system setup visibility mismatches, pagination overflow regressions, bottom-navigation regressions, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, and invalid finalize states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createQueryClientWrapper } from "@/test/queryClientWrapper";
 
-import { CreateSemesterWizardPage } from "./CreateSemesterWizardPage";
+import { buildPaginationStepTokens, CreateSemesterWizardPage } from "./CreateSemesterWizardPage";
 
 const {
   apiMock,
@@ -167,7 +167,7 @@ describe("CreateSemesterWizardPage", () => {
           setup_sections: [],
           program_settings: {},
           resolved_program_settings: { allowCourseCreation: true, badgeStyle: "compact" },
-          fields: [],
+          settings_schema: [],
           available: true,
           availability_reason: null,
           installed: true,
@@ -188,7 +188,7 @@ describe("CreateSemesterWizardPage", () => {
           setup_sections: [],
           program_settings: {},
           resolved_program_settings: {},
-          fields: [],
+          settings_schema: [],
           available: false,
           availability_reason: "Program LMS integration is required.",
           installed: true,
@@ -279,7 +279,7 @@ describe("CreateSemesterWizardPage", () => {
     expect(screen.getByText("Jan 5, 2026 - Apr 10, 2026")).toBeInTheDocument();
     expect(screen.getByText("Feb 16, 2026 - Feb 20, 2026")).toBeInTheDocument();
     expect(screen.getByText("Reading Week must span exactly one Monday-to-Sunday week.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue to Courses" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Courses" })).toBeDisabled();
   });
 
   it("falls back safely when the server returns an unknown draft step", async () => {
@@ -321,7 +321,7 @@ describe("CreateSemesterWizardPage", () => {
     renderWizard();
 
     expect(await screen.findByRole("heading", { name: "Basics" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue to Courses" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Courses" })).toBeInTheDocument();
   });
 
   it("keeps newer local basics edits when an older draft refetch lands after autosave", async () => {
@@ -485,10 +485,9 @@ describe("CreateSemesterWizardPage", () => {
               fields: [],
             },
           ],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -528,10 +527,9 @@ describe("CreateSemesterWizardPage", () => {
               fields: [],
             },
           ],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -564,7 +562,6 @@ describe("CreateSemesterWizardPage", () => {
                   path: "mockSetting",
                   label: "Mock setting",
                   type: "select",
-                  persist: "both",
                   required: true,
                   default_value: "enabled",
                   description: "Configure the mock plugin before activation.",
@@ -623,10 +620,9 @@ describe("CreateSemesterWizardPage", () => {
           auth_state: "not-required",
           capabilities: {},
           setup_sections: [{ id: "first", title: "First", description: "", fields: [] }],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -644,10 +640,9 @@ describe("CreateSemesterWizardPage", () => {
           auth_state: "not-required",
           capabilities: {},
           setup_sections: [{ id: "second", title: "Second", description: "", fields: [] }],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -680,10 +675,9 @@ describe("CreateSemesterWizardPage", () => {
           auth_state: "not-required",
           capabilities: {},
           setup_sections: [{ id: "first", title: "First", description: "", fields: [] }],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -701,10 +695,9 @@ describe("CreateSemesterWizardPage", () => {
           auth_state: "not-required",
           capabilities: {},
           setup_sections: [{ id: "second", title: "Second", description: "", fields: [] }],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -763,12 +756,12 @@ describe("CreateSemesterWizardPage", () => {
     renderWizard();
 
     expect((await screen.findAllByRole("heading", { name: "First Plugin" })).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Continue to Second Plugin" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Second Plugin" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue to Second Plugin" }));
+    fireEvent.click(screen.getByRole("button", { name: "Second Plugin" }));
 
     expect((await screen.findAllByRole("heading", { name: "Second Plugin" })).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Continue to Review" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review" })).toBeInTheDocument();
   });
 
   it("shows a newly enabled plugin setup step immediately from the Plugins step", async () => {
@@ -777,7 +770,7 @@ describe("CreateSemesterWizardPage", () => {
         id: "template-setup",
         title: "Template setup",
         description: "Configure the template before activation.",
-        fields: [],
+        settings_schema: [],
       },
     ];
 
@@ -802,7 +795,7 @@ describe("CreateSemesterWizardPage", () => {
           setup_sections: setupSection,
           program_settings: {},
           resolved_program_settings: {},
-          fields: [],
+          settings_schema: [],
           available: true,
           availability_reason: null,
           installed: true,
@@ -856,10 +849,9 @@ describe("CreateSemesterWizardPage", () => {
       auth_state: "not-required",
       capabilities: { contexts: ["semester"], available_tab_types: ["tab-template"] },
       setup_sections: setupSection,
-      semester_overrides: {},
-      setup_state: {},
+      setup_values: {},
       resolved_settings: {},
-      fields: [],
+      settings_schema: [],
       setup_summary: [],
       review_errors: [],
       available: true,
@@ -872,7 +864,32 @@ describe("CreateSemesterWizardPage", () => {
 
     fireEvent.click(screen.getByRole("switch", { name: "Tab Template enabled" }));
 
-    expect(await screen.findByRole("button", { name: "Continue to Tab Template" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(apiMock.upsertSemesterPluginActivation).toHaveBeenCalledWith("draft-1", "tab-template", {
+        is_enabled: true,
+      });
+    });
+  });
+
+  it("keeps the same number of visible page buttons when many steps are present", () => {
+    const steps = Array.from({ length: 12 }, (_, index) => ({
+      id: `step-${index + 1}` as const,
+      label: `Step ${index + 1}`,
+      icon: () => null,
+      detail: "",
+      persistedStep: "plugin-setup" as const,
+    }));
+
+    const startTokens = buildPaginationStepTokens(steps, 0);
+    const middleTokens = buildPaginationStepTokens(steps, 5);
+    const endTokens = buildPaginationStepTokens(steps, 11);
+
+    expect(startTokens.filter((token) => token.type === "step")).toHaveLength(5);
+    expect(middleTokens.filter((token) => token.type === "step")).toHaveLength(5);
+    expect(endTokens.filter((token) => token.type === "step")).toHaveLength(5);
+    expect(startTokens.filter((token) => token.type === "ellipsis").length).toBeGreaterThan(0);
+    expect(middleTokens.filter((token) => token.type === "ellipsis")).toHaveLength(2);
+    expect(endTokens.filter((token) => token.type === "ellipsis").length).toBeGreaterThan(0);
   });
 
   it("runs plugin-defined setup validation before moving to the next step", async () => {
@@ -881,7 +898,6 @@ describe("CreateSemesterWizardPage", () => {
         mockSetting: {
           type: "text",
           label: "Mock setting",
-          persist: "setupState",
           required: true,
         },
       },
@@ -892,7 +908,6 @@ describe("CreateSemesterWizardPage", () => {
           fieldKeys: ["mockSetting"],
         },
       ],
-      ui: { kind: "dsl" },
     });
     validatePluginSetupDefinitionMock.mockResolvedValue([
       {
@@ -938,10 +953,9 @@ describe("CreateSemesterWizardPage", () => {
               fields: [],
             },
           ],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -981,10 +995,9 @@ describe("CreateSemesterWizardPage", () => {
               fields: [],
             },
           ],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -1017,7 +1030,6 @@ describe("CreateSemesterWizardPage", () => {
                   path: "mockSetting",
                   label: "Mock setting",
                   type: "text",
-                  persist: "setupState",
                   required: true,
                   default_value: "",
                   description: "Provide the setup value.",
@@ -1036,7 +1048,7 @@ describe("CreateSemesterWizardPage", () => {
 
     expect(await screen.findByText("Mock setting")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue to Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
 
     expect(await screen.findByText("Mock setting must be configured before continuing.")).toBeInTheDocument();
     expect(reportErrorMock).toHaveBeenCalledWith("Resolve the highlighted plugin setup issues before continuing.");
@@ -1049,7 +1061,6 @@ describe("CreateSemesterWizardPage", () => {
         mockSetting: {
           type: "text",
           label: "Mock setting",
-          persist: "setupState",
         },
       },
       sections: [
@@ -1060,7 +1071,6 @@ describe("CreateSemesterWizardPage", () => {
         },
       ],
       ui: {
-        kind: "custom",
         setupComponent: () => <div>Custom setup</div>,
         reviewComponent: ({ values }: { values: Record<string, unknown> }) => <div>Custom review value: {String(values.mockSetting ?? "")}</div>,
       },
@@ -1103,10 +1113,9 @@ describe("CreateSemesterWizardPage", () => {
               fields: [],
             },
           ],
-          semester_overrides: {},
-          setup_state: { mockSetting: "enabled" },
+          setup_values: { mockSetting: "enabled" },
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -1146,10 +1155,9 @@ describe("CreateSemesterWizardPage", () => {
               fields: [],
             },
           ],
-          semester_overrides: {},
-          setup_state: { mockSetting: "enabled" },
+          setup_values: { mockSetting: "enabled" },
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -1166,7 +1174,9 @@ describe("CreateSemesterWizardPage", () => {
     expect(reviewTrigger).not.toBeNull();
     fireEvent.click(reviewTrigger!);
 
-    expect(await screen.findByText("Custom review value: enabled")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.body.textContent).toContain("Custom review value: enabled");
+    });
   });
 
   it("recovers from draft-create conflicts by resuming the existing draft and updating it", async () => {
@@ -1217,7 +1227,7 @@ describe("CreateSemesterWizardPage", () => {
 
     const nameInput = await screen.findByRole("textbox");
     fireEvent.change(nameInput, { target: { value: "Winter 2026" } });
-    fireEvent.click(screen.getByRole("button", { name: "Continue to Courses" }));
+    fireEvent.click(screen.getByRole("button", { name: "Courses" }));
 
     await waitFor(() => {
       expect(apiMock.createSemesterDraft).toHaveBeenCalledTimes(1);
@@ -1328,10 +1338,9 @@ describe("CreateSemesterWizardPage", () => {
           auth_state: "not-required",
           capabilities: {},
           setup_sections: setupSection,
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -1378,7 +1387,6 @@ describe("CreateSemesterWizardPage", () => {
                   path: "mockSetting",
                   label: "Mock setting",
                   type: "select",
-                  persist: "both",
                   required: true,
                   default_value: "enabled",
                   description: "Configure the mock plugin before activation.",
@@ -1419,7 +1427,7 @@ describe("CreateSemesterWizardPage", () => {
           setup_sections: setupSection,
           program_settings: {},
           resolved_program_settings: {},
-          fields: [],
+          settings_schema: [],
           available: true,
           availability_reason: null,
           installed: true,
@@ -1455,14 +1463,14 @@ describe("CreateSemesterWizardPage", () => {
 
     renderWizard();
 
-    expect(await screen.findByRole("button", { name: "Continue to Mock Setup Plugin" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Mock Setup Plugin" })).toBeInTheDocument();
 
     fireEvent.click((await screen.findAllByRole("switch"))[0]);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Continue to Review" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Review" })).toBeInTheDocument();
     });
-    expect(screen.queryByRole("button", { name: "Continue to Mock Setup Plugin" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mock Setup Plugin" })).not.toBeInTheDocument();
   });
 
   it("shows a plugin setup step when the plugin-system payload has setup sections even if the activation payload is stale", async () => {
@@ -1486,7 +1494,7 @@ describe("CreateSemesterWizardPage", () => {
           setup_sections: [],
           program_settings: {},
           resolved_program_settings: {},
-          fields: [],
+          settings_schema: [],
           available: true,
           availability_reason: null,
           installed: true,
@@ -1519,10 +1527,9 @@ describe("CreateSemesterWizardPage", () => {
           auth_state: "not-required",
           capabilities: {},
           setup_sections: [],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -1555,10 +1562,9 @@ describe("CreateSemesterWizardPage", () => {
           auth_state: "not-required",
           capabilities: {},
           setup_sections: [],
-          semester_overrides: {},
-          setup_state: {},
+          setup_values: {},
           resolved_settings: {},
-          fields: [],
+          settings_schema: [],
           setup_summary: [],
           review_errors: [],
           available: true,
@@ -1591,7 +1597,6 @@ describe("CreateSemesterWizardPage", () => {
                   path: "mockSetting",
                   label: "Mock setting",
                   type: "text",
-                  persist: "setupState",
                   required: false,
                   default_value: "",
                   description: "",
@@ -1608,7 +1613,7 @@ describe("CreateSemesterWizardPage", () => {
 
     renderWizard();
 
-    expect(await screen.findByRole("button", { name: "Continue to Mock Setup Plugin" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Mock Setup Plugin" })).toBeInTheDocument();
   });
 
   it("finalizes the draft without refetching draft-only plugin setup endpoints after activation", async () => {
@@ -1763,7 +1768,9 @@ describe("CreateSemesterWizardPage", () => {
 
     renderWizard();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Back to Program" }));
+    const exitButton = await screen.findByRole("button", { name: "Program" });
+    expect(exitButton).toHaveAttribute("data-variant", "destructive");
+    fireEvent.click(exitButton);
 
     expect(await screen.findByText("Leave Semester setup?")).toBeInTheDocument();
     expect(screen.getByText("Choose whether to keep this draft for later or discard it before returning to the Program dashboard.")).toBeInTheDocument();

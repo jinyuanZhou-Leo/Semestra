@@ -88,11 +88,11 @@ const serializePluginManifest = (manifest: PluginDescriptor): SerializedPluginDe
   })),
   settings: {
     defaults: { ...(manifest.settings?.defaults ?? {}) },
-    fields: (manifest.settings?.fields ?? []).map((field) => ({
+    schema: (manifest.settings?.schema ?? []).map((field) => ({
       ...field,
       options: field.options?.map((option) => ({ ...option })),
     })),
-    sections: (manifest.settings?.sections ?? []).map((section) => ({
+    panels: (manifest.settings?.panels ?? []).map((section) => ({
       ...section,
       contexts: [...section.contexts],
     })),

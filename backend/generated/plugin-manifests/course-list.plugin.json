@@ -31,7 +31,7 @@
       "allowCourseCreation": true,
       "badgeStyle": "compact"
     },
-    "fields": [
+    "schema": [
       {
         "path": "allowCourseCreation",
         "label": "Allow course creation",
@@ -59,6 +59,6 @@
         ]
       }
     ],
-    "sections": []
+    "panels": []
   }
 }

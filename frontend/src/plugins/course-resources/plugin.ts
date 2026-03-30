@@ -48,8 +48,8 @@ export default definePlugin({
     ],
     settings: {
       defaults: {},
-      fields: [],
-      sections: [],
+      schema: [],
+      panels: [],
     },
   }),
   loadRuntime: async () => (await import('./index')).default,

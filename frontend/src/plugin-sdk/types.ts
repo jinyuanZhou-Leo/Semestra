@@ -1,4 +1,4 @@
-// input:  [React runtime types, shared manifest contracts, plugin setup UI contracts, and max-instance utility types]
+// input:  [React runtime types, shared manifest contracts, plugin setup override contracts, and max-instance utility types]
 // output: [stable plugin SDK runtime/settings/setup types layered on top of shared plugin manifest authoring contracts]
 // pos:    [Public plugin authoring type surface used by plugin.ts entrypoints, typed manifest authoring, and runtime loading]
 //
@@ -9,7 +9,7 @@
 import type { FC, ReactNode } from 'react';
 
 import type {
-  PluginSetupCustomUiDefinition,
+  PluginSetupUiDefinition as PluginSetupOverrideDefinition,
   PluginSetupReviewRenderProps,
   PluginSetupValidationIssue,
   PluginSetupWizardRenderProps,
@@ -148,7 +148,7 @@ export interface PluginRuntimeDefinition {
 
 export interface PluginSetupUiDefinition {
   schema: PluginDescriptorSetupSchema;
-  ui?: PluginSetupCustomUiDefinition;
+  ui?: PluginSetupOverrideDefinition;
   validate?: (values: Record<string, unknown>) => PluginSetupValidationIssue[] | Promise<PluginSetupValidationIssue[]>;
 }
 

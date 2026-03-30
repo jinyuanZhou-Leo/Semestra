@@ -1,5 +1,5 @@
-// input:  [descriptor-backed plugin SDK types, typed manifest authoring helpers, and host/runtime helper modules]
-// output: [single public plugin authoring entrypoint with define helpers, typed manifest helpers, host APIs, runtime instance APIs, and setup UI types]
+// input:  [descriptor-backed plugin SDK types, typed manifest authoring helpers, host/runtime helper modules, and host-owned setup form primitives]
+// output: [single public plugin authoring entrypoint with define helpers, typed manifest helpers, host APIs, runtime instance APIs, setup UI types, and setup form primitives]
 // pos:    [Stable frontend plugin SDK that hides internal registries behind a descriptor-first authoring surface]
 //
 // ⚠️ When this file is updated:
@@ -22,6 +22,18 @@ export {
   definePluginManifest,
   definePluginSetupSchema,
 } from './manifest-authoring.ts';
+export {
+  createPluginSetupBinding,
+  definePluginSetup,
+  PluginSetupBooleanField,
+  PluginSetupDateField,
+  PluginSetupJsonField,
+  PluginSetupNumberField,
+  PluginSetupSection,
+  PluginSetupSelectField,
+  PluginSetupTextField,
+  PluginSetupTextareaField,
+} from '@/plugin-system/setup';
 export type { MaxInstances } from './manifest-types.ts';
 
 export const definePlugin = (definition: PluginDefinition): PluginDefinition => ({
@@ -31,8 +43,8 @@ export const definePlugin = (definition: PluginDefinition): PluginDefinition => 
     widgets: [...(definition.descriptor.widgets ?? [])],
     settings: {
       defaults: { ...(definition.descriptor.settings?.defaults ?? {}) },
-      fields: [...(definition.descriptor.settings?.fields ?? [])],
-      sections: [...(definition.descriptor.settings?.sections ?? [])],
+      schema: [...(definition.descriptor.settings?.schema ?? [])],
+      panels: [...(definition.descriptor.settings?.panels ?? [])],
     },
   },
   loadRuntime: definition.loadRuntime,
@@ -99,6 +111,12 @@ export const defineSetup = (definition: PluginSetupUiDefinition): PluginSetupUiD
   validate: definition.validate,
 });
 
+export {
+  PluginSetupFormField,
+  PluginSetupFormReviewItem,
+  PluginSetupFormSection,
+  PluginSetupFormSurface,
+} from "@/components/PluginSetupForm";
 export { PluginHostProvider, usePluginHost } from '@/plugin-system/PluginHostContext';
 export type {
   PluginHostJumpOptions,
