@@ -11,7 +11,7 @@
 import React from 'react';
 import { AlertCircle, Clock3 } from 'lucide-react';
 import api from '@/services/api';
-import type { WidgetDefinition, WidgetProps } from '@/services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps } from '@/plugin-system';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { BUILTIN_TIMETABLE_TODAY_EVENTS_WIDGET_TYPE } from './shared/constants';

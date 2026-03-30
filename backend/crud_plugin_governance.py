@@ -26,6 +26,25 @@ from crud_shared import (
 )
 
 
+def _build_availability(
+    *,
+    available: bool,
+    reason_code: str | None = None,
+    reason_message: str | None = None,
+) -> dict[str, object]:
+    if available:
+        return {
+            "state": "available",
+            "reason_code": None,
+            "reason_message": None,
+        }
+    return {
+        "state": "unavailable",
+        "reason_code": reason_code,
+        "reason_message": reason_message,
+    }
+
+
 def _normalize_program_plugin_installations(
     db: Session,
     program: models.Program,
@@ -42,6 +61,10 @@ def _normalize_program_plugin_installations(
 
     for installation in sorted(installations, key=lambda item: item.created_at or ""):
         canonical_plugin_id = _canonical_plugin_id(installation.plugin_id)
+        if plugin_governance.is_host_reserved_plugin_id(canonical_plugin_id):
+            db.delete(installation)
+            did_change = True
+            continue
         if canonical_plugin_id == installation.plugin_id:
             continue
 
@@ -177,7 +200,7 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
                 )
                 for issue in plugin_review_state["review_errors"]
             )
-            available, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
+            available, _, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
             if activation.is_enabled and not available:
                 plugin_errors.append(_build_review_issue(
                     code="PLUGIN_NOT_AVAILABLE",
@@ -272,11 +295,15 @@ def _delete_program_plugin_runtime_data(
     course_ids = [course_id for (course_id,) in db.query(models.Course.id).filter(models.Course.program_id == program_id).all()]
 
     if semester_ids:
-        db.query(models.PluginSetting).filter(
-            models.PluginSetting.plugin_id == plugin_id,
-            models.PluginSetting.semester_id.in_(semester_ids),
-        ).delete(synchronize_session=False)
         if tab_types:
+            db.query(models.TabSetting).filter(
+                models.TabSetting.tab_type.in_(tab_types),
+                models.TabSetting.semester_id.in_(semester_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.WorkspaceTabOrderEntry).filter(
+                models.WorkspaceTabOrderEntry.semester_id.in_(semester_ids),
+                models.WorkspaceTabOrderEntry.tab_type.in_(tab_types),
+            ).delete(synchronize_session=False)
             db.query(models.Tab).filter(
                 models.Tab.semester_id.in_(semester_ids),
                 models.Tab.tab_type.in_(tab_types),
@@ -288,11 +315,15 @@ def _delete_program_plugin_runtime_data(
             ).delete(synchronize_session=False)
 
     if course_ids:
-        db.query(models.PluginSetting).filter(
-            models.PluginSetting.plugin_id == plugin_id,
-            models.PluginSetting.course_id.in_(course_ids),
-        ).delete(synchronize_session=False)
         if tab_types:
+            db.query(models.TabSetting).filter(
+                models.TabSetting.tab_type.in_(tab_types),
+                models.TabSetting.course_id.in_(course_ids),
+            ).delete(synchronize_session=False)
+            db.query(models.WorkspaceTabOrderEntry).filter(
+                models.WorkspaceTabOrderEntry.course_id.in_(course_ids),
+                models.WorkspaceTabOrderEntry.tab_type.in_(tab_types),
+            ).delete(synchronize_session=False)
             db.query(models.Tab).filter(
                 models.Tab.course_id.in_(course_ids),
                 models.Tab.tab_type.in_(tab_types),
@@ -389,7 +420,7 @@ def _resolve_program_plugin_availability(
     installation: models.ProgramPluginInstallation | None,
     *,
     plugin_id: str,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | None, str | None]:
     auth_state = installation.auth_state if installation is not None else "not-required"
     available, availability_reason = plugin_governance.resolve_plugin_availability(
         plugin_id,
@@ -397,27 +428,34 @@ def _resolve_program_plugin_availability(
         auth_state=auth_state,
     )
     if not available:
-        return available, availability_reason
+        reason_code = "requires_dependency"
+        if installation is None:
+            reason_code = "not_installed"
+        elif auth_state not in {"authorized", "not-required"}:
+            reason_code = "permission_denied"
+        return False, reason_code, availability_reason
     if installation is not None and not installation.is_enabled:
-        return False, "Disabled at Program level."
-    return True, None
+        return False, "not_enabled", "Disabled at Program level."
+    if installation is None:
+        return False, "not_installed", "Plugin is not installed for this Program."
+    return True, None, None
 
 
 def _resolve_semester_plugin_availability(
     semester: models.Semester,
     installation: models.ProgramPluginInstallation,
     activation: models.SemesterPluginActivation | None,
-) -> tuple[bool, str | None]:
-    available, availability_reason = _resolve_program_plugin_availability(
+) -> tuple[bool, str | None, str | None]:
+    available, reason_code, reason_message = _resolve_program_plugin_availability(
         semester.program or installation.program,
         installation,
         plugin_id=installation.plugin_id,
     )
     if not available:
-        return available, availability_reason
+        return available, reason_code, reason_message
     if activation is None or not activation.is_enabled:
-        return False, "Disabled for this Semester."
-    return True, None
+        return False, "not_enabled", "Disabled for this Semester."
+    return True, None, None
 
 
 def _supports_unassigned_course(plugin_id: str) -> bool:
@@ -432,20 +470,20 @@ def _resolve_course_plugin_availability(
     course: models.Course,
     installation: models.ProgramPluginInstallation,
     activation: models.ProgramCoursePluginActivation | None,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | None, str | None]:
     program = course.program or installation.program
     if program is None:
         raise PluginGovernanceError("PROGRAM_NOT_FOUND", f"Course '{course.id}' is missing its parent Program.")
-    available, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=installation.plugin_id)
+    available, reason_code, reason_message = _resolve_program_plugin_availability(program, installation, plugin_id=installation.plugin_id)
     if not available:
-        return available, availability_reason
+        return available, reason_code, reason_message
     if course.semester_id is not None:
-        return False, "Course-level plugin activation is only available for Courses without a Semester."
+        return False, "requires_parent_scope", "This contribution is governed by the parent Semester."
     if not _supports_unassigned_course(installation.plugin_id):
-        return False, "This plugin does not support Courses without a Semester."
+        return False, "not_supported_in_scope", "This plugin does not support Courses without a Semester."
     if activation is None or not activation.is_enabled:
-        return False, "Disabled for this Course."
-    return True, None
+        return False, "not_enabled", "Disabled for this Course."
+    return True, None, None
 
 
 def _resolve_course_plugin_availability_reason(
@@ -454,7 +492,7 @@ def _resolve_course_plugin_availability_reason(
     activation: models.ProgramCoursePluginActivation | None,
     default_reason: str | None,
 ) -> str | None:
-    available, availability_reason = _resolve_course_plugin_availability(course, installation, activation)
+    available, _, availability_reason = _resolve_course_plugin_availability(course, installation, activation)
     if available:
         return default_reason
     return availability_reason
@@ -466,7 +504,7 @@ def _resolve_semester_plugin_availability_reason(
     activation: models.SemesterPluginActivation | None,
     default_reason: str | None,
 ) -> str | None:
-    available, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
+    available, _, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
     if available:
         return default_reason
     return availability_reason
@@ -482,7 +520,7 @@ def _serialize_program_plugin_installation(program: models.Program, installation
     program_settings = _parse_json_object(installation.program_settings) if installation is not None else {}
     try:
         resolved_program_settings = plugin_governance.resolve_plugin_settings(plugin_id, program_settings=program_settings)
-        available, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
+        available, reason_code, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
     except Exception as exc:
         _wrap_plugin_validation(exc)
     return {
@@ -509,6 +547,11 @@ def _serialize_program_plugin_installation(program: models.Program, installation
         "fields": plugin_governance.build_field_payloads(plugin_id),
         "available": available,
         "availability_reason": availability_reason,
+        "availability": _build_availability(
+            available=available,
+            reason_code=reason_code,
+            reason_message=availability_reason,
+        ),
         "installed": installation is not None,
     }
 
@@ -537,6 +580,11 @@ def _serialize_semester_plugin_activation(
     resolved_settings = plugin_review.get("resolved_settings") or {}
     setup_summary = plugin_review.get("setup_summary") or []
     review_errors = plugin_review.get("review_errors") or []
+    runtime_available, runtime_reason_code, runtime_reason_message = _resolve_semester_plugin_availability(
+        semester,
+        installation,
+        activation,
+    )
     return {
         "id": activation.id if activation is not None else None,
         "semester_id": semester.id,
@@ -558,8 +606,13 @@ def _serialize_semester_plugin_activation(
         "fields": installation_payload["fields"],
         "setup_summary": setup_summary,
         "review_errors": review_errors,
-        "available": _resolve_semester_plugin_availability(semester, installation, activation)[0],
-        "availability_reason": _resolve_semester_plugin_availability_reason(semester, installation, activation, installation_payload["availability_reason"]),
+        "available": runtime_available,
+        "availability_reason": runtime_reason_message,
+        "availability": _build_availability(
+            available=runtime_available,
+            reason_code=runtime_reason_code,
+            reason_message=runtime_reason_message,
+        ),
     }
 
 
@@ -584,9 +637,14 @@ def _serialize_course_plugin_activation(
         raise PluginGovernanceError("PROGRAM_NOT_FOUND", f"Course '{course.id}' is missing its parent Program.")
     installation.plugin_id = _canonical_plugin_id(installation.plugin_id)
     installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
+    runtime_available_default, runtime_reason_code, runtime_reason_message = _resolve_course_plugin_availability(
+        course,
+        installation,
+        activation,
+    )
     resolved_is_enabled = is_enabled if is_enabled is not None else (bool(activation.is_enabled) if activation is not None else False)
-    resolved_available = available if available is not None else _resolve_course_plugin_availability(course, installation, activation)[0]
-    resolved_availability_reason = availability_reason if availability_reason is not None else _resolve_course_plugin_availability_reason(course, installation, activation, installation_payload["availability_reason"])
+    resolved_available = available if available is not None else runtime_available_default
+    resolved_availability_reason = availability_reason if availability_reason is not None else runtime_reason_message
     return {
         "id": activation.id if activation is not None else None,
         "course_id": course.id,
@@ -604,6 +662,11 @@ def _serialize_course_plugin_activation(
         "resolved_settings": resolved_settings or {},
         "available": resolved_available,
         "availability_reason": resolved_availability_reason,
+        "availability": _build_availability(
+            available=resolved_available,
+            reason_code=None if resolved_available and available is not None else runtime_reason_code,
+            reason_message=resolved_availability_reason,
+        ),
         "source": source,
     }
 
@@ -614,6 +677,11 @@ def _serialize_plugin_system_setup_plugin(semester: models.Semester, activation:
         raise PluginGovernanceError("PLUGIN_INSTALLATION_NOT_FOUND", f"Semester activation '{activation.id}' is missing its Program plugin installation.")
     plugin_review = (review_state.get("plugin_reviews") or {}).get(installation.plugin_id, {})
     definition = plugin_governance.get_plugin_definition(installation.plugin_id)
+    runtime_available, runtime_reason_code, runtime_reason_message = _resolve_semester_plugin_availability(
+        semester,
+        installation,
+        activation,
+    )
     return {
         "plugin_id": installation.plugin_id,
         "display_name": definition.display_name,
@@ -621,8 +689,13 @@ def _serialize_plugin_system_setup_plugin(semester: models.Semester, activation:
         "long_description": definition.long_description,
         "author": definition.author,
         "is_enabled": activation.is_enabled,
-        "available": _resolve_semester_plugin_availability(semester, installation, activation)[0],
-        "availability_reason": _resolve_semester_plugin_availability_reason(semester, installation, activation, None),
+        "available": runtime_available,
+        "availability_reason": runtime_reason_message,
+        "availability": _build_availability(
+            available=runtime_available,
+            reason_code=runtime_reason_code,
+            reason_message=runtime_reason_message,
+        ),
         "setup_sections": plugin_governance.build_plugin_setup_sections(installation.plugin_id),
         "setup_values": plugin_review.get("setup_values") or {},
         "setup_summary": plugin_review.get("setup_summary") or [],
@@ -739,7 +812,7 @@ def bulk_update_program_plugin_installations(db: Session, program_id: str, paylo
             _wrap_plugin_validation(exc)
         if definition.locked:
             raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
-        available, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
+        available, _, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
         if payload.is_enabled and not available:
             raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
         installation.is_enabled = payload.is_enabled
@@ -931,7 +1004,7 @@ def upsert_semester_plugin_activation(db: Session, semester_id: str, plugin_id: 
     requested_enabled = payload.is_enabled if payload.is_enabled is not None else (activation.is_enabled if activation is not None else True)
     if not requested_enabled and definition.locked:
         raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
-    available, availability_reason = _resolve_program_plugin_availability(semester.program, installation, plugin_id=plugin_id)
+    available, _, availability_reason = _resolve_program_plugin_availability(semester.program, installation, plugin_id=plugin_id)
     if requested_enabled and not available:
         raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
     update_data = payload.model_dump(exclude_unset=True)
@@ -1011,7 +1084,7 @@ def bulk_update_semester_plugin_activations(db: Session, semester_id: str, paylo
             _wrap_plugin_validation(exc)
         if not payload.is_enabled and definition.locked:
             raise PluginGovernanceError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
-        available, availability_reason = _resolve_program_plugin_availability(semester.program, installation, plugin_id=plugin_id)
+        available, _, availability_reason = _resolve_program_plugin_availability(semester.program, installation, plugin_id=plugin_id)
         if payload.is_enabled and not available:
             raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
         if activation is None:
@@ -1122,7 +1195,7 @@ def upsert_course_plugin_activation(db: Session, course_id: str, plugin_id: str,
         .first()
     )
     requested_enabled = payload.is_enabled if payload.is_enabled is not None else (activation.is_enabled if activation is not None else True)
-    available, availability_reason = _resolve_program_plugin_availability(course.program or installation.program, installation, plugin_id=plugin_id)
+    available, _, availability_reason = _resolve_program_plugin_availability(course.program or installation.program, installation, plugin_id=plugin_id)
     if requested_enabled and not available:
         raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
     now = _now_utc_iso()
@@ -1190,7 +1263,7 @@ def bulk_update_course_plugin_activations(db: Session, course_id: str, payload: 
     for plugin_id in canonical_plugin_ids:
         installation = installations_by_plugin_id[plugin_id]
         activation = activations_by_installation_id.get(installation.id)
-        available, availability_reason = _resolve_program_plugin_availability(course.program or installation.program, installation, plugin_id=plugin_id)
+        available, _, availability_reason = _resolve_program_plugin_availability(course.program or installation.program, installation, plugin_id=plugin_id)
         if payload.is_enabled and not available:
             raise PluginGovernanceError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
         if activation is None:

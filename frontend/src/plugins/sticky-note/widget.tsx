@@ -1,7 +1,7 @@
 "use no memo";
 
 import React, { useCallback, useId } from 'react';
-import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 import { ColorPicker, type ColorPickerPreset } from '@/components/ui/color-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

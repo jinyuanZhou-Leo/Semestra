@@ -9,7 +9,7 @@
 "use no memo";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import {

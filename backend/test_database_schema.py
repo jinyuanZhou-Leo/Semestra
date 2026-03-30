@@ -81,6 +81,8 @@ class RuntimeSchemaCompatibilityTests(unittest.TestCase):
             issues,
             [
                 "missing table 'program_course_plugin_activations'",
+                "missing table 'tab_settings'",
+                "missing table 'workspace_tab_order_entries'",
                 "missing column 'semesters.review_ready'",
             ],
         )

@@ -9,7 +9,7 @@
 "use no memo";
 
 import React, { useCallback, useId, useState } from 'react';
-import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';

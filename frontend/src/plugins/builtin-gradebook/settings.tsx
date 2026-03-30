@@ -1,4 +1,4 @@
-// input:  [course gradebook APIs, plugin settings contracts, shared category helpers, and shared data-table row-actions dropdown helpers]
+// input:  [course gradebook APIs, plugin settings section contracts, shared category helpers, and shared data-table row-actions dropdown helpers]
 // output: [builtin-gradebook shared settings sections for forecast preferences and categories]
 // pos:    [course-scoped gradebook settings surface for forecast-mode selection, Field-based category dialog inputs, mobile-safe category management with an explicit two-column minimum width, and a shadcn-style row-actions dropdown for category edit/delete actions]
 //
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 import { definePluginSettings } from '@/plugin-system/contracts';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
-import type { PluginSettingsProps } from '@/services/pluginSettingsRegistry';
+import type { PluginSettingsSectionProps } from '@/services/pluginSettingsRegistry';
 import api, { type CourseGradebook, type GradebookAssessmentCategory } from '@/services/api';
 
 import { SettingsSection } from '@/components/SettingsSection';
@@ -187,10 +187,11 @@ const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
 
 // ── GradebookSettings ─────────────────────────────────────────────────────────
 
-const GradebookSettings: React.FC<PluginSettingsProps> = ({
-    courseId,
+const GradebookSettings: React.FC<PluginSettingsSectionProps> = ({
+    scope,
     onRefresh,
 }) => {
+    const courseId = scope.kind === 'course' ? scope.courseId : undefined;
     const [isMutating, setIsMutating] = useState(false);
     const gradebookQuery = useCourseGradebookQuery(courseId);
     const gradebookMutation = useCourseGradebookMutation(courseId);

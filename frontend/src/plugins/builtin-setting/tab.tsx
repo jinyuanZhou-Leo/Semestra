@@ -15,7 +15,7 @@ import { Puzzle } from 'lucide-react';
 
 import { SettingsStickyTopProvider } from '../../components/SettingsSection';
 import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
-import type { TabDefinition, TabProps } from '../../services/tabRegistry';
+import type { TabDefinition, TabProps } from '@/plugin-system';
 
 const GLOBAL_HEADER_HEIGHT = 60;
 const SETTINGS_TITLE_GAP = 24;

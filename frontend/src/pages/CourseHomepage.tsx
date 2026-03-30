@@ -60,7 +60,6 @@ import {
     resolveAvailableWidgetTypes,
     resolveEnabledPluginIds,
     resolveGovernedRuntimeTabs,
-    resolvePluginSettingsMap,
 } from '../plugin-system/runtimeGovernance';
 
 import {
@@ -166,19 +165,15 @@ const CourseHomepageContent: React.FC = () => {
         return resolveCourseColor({ ...course, color: null }, programSubjectColorMap);
     }, [course, programSubjectColorMap]);
     const runtimeTabs = useMemo(
-        () => resolveGovernedRuntimeTabs(course, `course:${course?.id ?? 'unknown'}`),
-        [course]
+        () => resolveGovernedRuntimeTabs(course?.runtime, `course:${course?.id ?? 'unknown'}`),
+        [course?.id, course?.runtime]
     );
     const enabledPluginIds = useMemo(() => {
-        return resolveEnabledPluginIds(course);
-    }, [course]);
+        return resolveEnabledPluginIds(course?.runtime);
+    }, [course?.runtime]);
     const availableWidgetTypes = useMemo(() => {
-        return Array.from(resolveAvailableWidgetTypes(course));
-    }, [course]);
-    const resolvedPluginSettingsMap = useMemo(() => {
-        return resolvePluginSettingsMap(course);
-    }, [course]);
-
+        return Array.from(resolveAvailableWidgetTypes(course?.runtime));
+    }, [course?.runtime]);
     const availableLmsCoursesQuery = useQuery({
         queryKey: queryKeys.programs.lmsCourses(course?.program_id ?? 'unknown', { mode: 'link-picker' }),
         queryFn: async () => {
@@ -217,7 +212,7 @@ const CourseHomepageContent: React.FC = () => {
         courseId: course?.id,
         orderOwnerSemesterId: course?.semester_id,
         initialTabs: runtimeTabs,
-        governed: false,
+        governed: true,
         onRefresh: refreshCourse
     });
 
@@ -305,7 +300,6 @@ const CourseHomepageContent: React.FC = () => {
         filterReorderableTabIds,
     } = useHomepageBuiltinTabs({
         tabs,
-        enabledPluginIds,
         activeTabId,
         scopeKey: `course:${course?.id ?? 'unknown'}`,
         config: COURSE_HOMEPAGE_BUILTIN_TAB_CONFIG,
@@ -342,6 +336,19 @@ const CourseHomepageContent: React.FC = () => {
                     size="section"
                     title="Tab not found"
                     description="The requested tab is unavailable."
+                />
+            );
+        }
+        if (activeTab.availability?.state === 'unavailable') {
+            return (
+                <AppEmptyState
+                    scenario="unavailable"
+                    size="section"
+                    title={`${activeTab.title || activeTab.type} is unavailable`}
+                    description={
+                        activeTab.availability.reason_message
+                        || 'This tab is currently unavailable in this course.'
+                    }
                 />
             );
         }
@@ -515,7 +522,6 @@ const CourseHomepageContent: React.FC = () => {
                             showPluginHeader={showPluginHeader}
                             component={definition.component}
                             courseId={course?.id}
-                            initialSettings={resolvedPluginSettingsMap.get(definition.pluginId)}
                             onRefresh={refreshCourse}
                         />
                     </React.Fragment>
@@ -529,7 +535,7 @@ const CourseHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [course?.id, course?.plugin_activations, enabledPluginIds, parentSemesterQuery.data?.plugin_activations, pluginSettingsDefinitions, refreshCourse, resolvedPluginSettingsMap]);
+    }, [course?.id, course?.plugin_activations, enabledPluginIds, parentSemesterQuery.data?.plugin_activations, pluginSettingsDefinitions, refreshCourse]);
 
     const coursePluginGovernanceSection = useMemo(() => {
         if (!course?.id || course.semester_id) {

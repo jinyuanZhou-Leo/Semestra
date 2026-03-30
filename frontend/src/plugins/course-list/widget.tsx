@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
 
 import api from '../../services/api';
 import type { Course } from '../../services/api';
-import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps } from '@/plugin-system';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

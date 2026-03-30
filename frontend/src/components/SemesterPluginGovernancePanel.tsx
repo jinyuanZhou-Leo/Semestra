@@ -68,7 +68,6 @@ export const SemesterPluginGovernancePanel: React.FC<SemesterPluginGovernancePan
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.semesters.detail(semesterId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.semesters.pluginActivations(semesterId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.semesters.pluginSettings(semesterId) }),
       queryClient.invalidateQueries({ queryKey: ["courses", "detail"] }),
     ]);
     await onChanged?.();

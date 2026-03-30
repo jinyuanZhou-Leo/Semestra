@@ -1,6 +1,6 @@
 // input:  [frontend plugin metadata modules, optional settings/setup module discovery, and default context helpers]
-// output: [`buildPluginMetadataManifest` helper plus manifest entry type for backend consumption]
-// pos:    [build-time serialization bridge that converts frontend plugin metadata, including unassigned-Course capability flags, into a backend-readable JSON manifest]
+// output: [`buildPluginMetadataManifest` helper plus manifest entry type for backend consumption with per-contribution context maps]
+// pos:    [build-time serialization bridge that converts frontend plugin metadata, including unassigned-Course capability flags and per-tab/widget contexts, into a backend-readable JSON manifest while excluding host-reserved tabs from the public plugin manifest]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,6 +8,7 @@
 
 import type { PluginMetadataDefinition } from "./contracts";
 import { DEFAULT_TAB_ALLOWED_CONTEXTS, DEFAULT_WIDGET_ALLOWED_CONTEXTS } from "./utils";
+import { isHostReservedPluginId } from "@/utils/homepageBuiltinTabs";
 
 type PluginMetadataModule = {
   default?: PluginMetadataDefinition;
@@ -23,6 +24,8 @@ export interface PluginMetadataManifestEntry {
     contexts: string[];
     available_tab_types: string[];
     available_widget_types: string[];
+    tab_allowed_contexts: Record<string, string[]>;
+    widget_allowed_contexts: Record<string, string[]>;
     has_settings: boolean;
     supports_unassigned_course: boolean;
   };
@@ -49,12 +52,21 @@ export const buildPluginMetadataManifest = (): PluginMetadataManifestEntry[] => 
       const definition = moduleValue.default;
       const directoryName = getDirectoryName(path, "metadata\\.ts");
       if (!definition || !directoryName) return null;
+      if (isHostReservedPluginId(definition.pluginId)) return null;
 
       const tabCatalog = definition.tabCatalog ?? [];
       const widgetCatalog = definition.widgetCatalog ?? [];
       const contexts = new Set<string>();
+      const tabAllowedContexts: Record<string, string[]> = {};
+      const widgetAllowedContexts: Record<string, string[]> = {};
       tabCatalog.forEach((item) => (item.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS).forEach((context) => contexts.add(context)));
       widgetCatalog.forEach((item) => (item.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS).forEach((context) => contexts.add(context)));
+      tabCatalog.forEach((item) => {
+        tabAllowedContexts[item.type] = [...(item.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS)];
+      });
+      widgetCatalog.forEach((item) => {
+        widgetAllowedContexts[item.type] = [...(item.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS)];
+      });
 
       return {
         plugin_id: definition.pluginId,
@@ -66,6 +78,8 @@ export const buildPluginMetadataManifest = (): PluginMetadataManifestEntry[] => 
           contexts: [...contexts],
           available_tab_types: tabCatalog.map((item) => item.type),
           available_widget_types: widgetCatalog.map((item) => item.type),
+          tab_allowed_contexts: tabAllowedContexts,
+          widget_allowed_contexts: widgetAllowedContexts,
           has_settings:
             Boolean(settingsModules[`../plugins/${directoryName}/settings.ts`])
             || Boolean(settingsModules[`../plugins/${directoryName}/settings.tsx`])

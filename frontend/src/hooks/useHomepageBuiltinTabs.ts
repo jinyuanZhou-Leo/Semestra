@@ -1,6 +1,6 @@
-// input:  [raw dashboard tabs, enabled plugin ids, homepage shell-tab config, plugin metadata resolvers, and tab registry updates]
+// input:  [raw governed dashboard tabs, homepage shell-tab config, plugin metadata resolvers, and tab registry updates]
 // output: [`useHomepageBuiltinTabs()` derived tab-bar state and reorder/filter helpers]
-// pos:    [Homepage-specific tab orchestration for governed runtime tabs plus synthetic shell tabs whose host availability can stay independent from ordinary plugin enablement]
+// pos:    [Homepage-specific tab orchestration for governed runtime tabs plus host-reserved synthetic shell tabs whose visibility stays independent from ordinary plugin enablement]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,17 +12,14 @@ import type { TabItem as DashboardTabItem } from './useDashboardTabs';
 import {
     ensureTabPluginByTypeLoaded,
     getTabComponentByType,
-    getPluginIdByTabType,
     getResolvedTabMetadataByType,
     hasTabPluginForType,
 } from '../plugin-system';
-import { filterTabItemsByEnabledPlugins } from '../plugin-system/runtimeGovernance';
 import { useTabRegistry } from '../services/tabRegistry';
 import type { HomepageBuiltinTabConfig } from '../utils/homepageBuiltinTabs';
 
 interface UseHomepageBuiltinTabsOptions {
     tabs: DashboardTabItem[];
-    enabledPluginIds: Set<string>;
     activeTabId: string;
     scopeKey: string;
     config: HomepageBuiltinTabConfig;
@@ -40,7 +37,6 @@ interface UseHomepageBuiltinTabsResult {
 
 export const useHomepageBuiltinTabs = ({
     tabs,
-    enabledPluginIds,
     activeTabId,
     scopeKey,
     config,
@@ -61,18 +57,13 @@ export const useHomepageBuiltinTabs = ({
     );
 
     const visibleTabs = useMemo(() => {
-        const runtimeVisibleTabs = filterTabItemsByEnabledPlugins(tabs, enabledPluginIds);
+        const runtimeVisibleTabs = tabs;
         const tabsByType = new Map<string, DashboardTabItem[]>();
         const leadingBuiltinTabTypes = config.leadingBuiltinTabTypes ?? [];
         const trailingBuiltinTabTypes = config.trailingBuiltinTabTypes ?? [];
         const leadingBuiltinTypeSet = new Set(leadingBuiltinTabTypes);
         const trailingBuiltinTypeSet = new Set(trailingBuiltinTabTypes);
         const makeSyntheticBuiltinTab = (type: string): DashboardTabItem | null => {
-            const pluginId = getPluginIdByTabType(type);
-            if (!pluginId) {
-                return null;
-            }
-
             const metadata = getResolvedTabMetadataByType(type);
             return {
                 id: `${scopeKey}:synthetic-builtin:${type}`,
@@ -137,7 +128,7 @@ export const useHomepageBuiltinTabs = ({
         });
 
         return ordered;
-    }, [config.leadingBuiltinTabTypes, config.trailingBuiltinTabTypes, enabledPluginIds, scopeKey, tabs]);
+    }, [config.leadingBuiltinTabTypes, config.trailingBuiltinTabTypes, scopeKey, tabs]);
 
     const activeTabType = useMemo(() => {
         const currentTab = visibleTabs.find((tab) => tab.id === activeTabId);

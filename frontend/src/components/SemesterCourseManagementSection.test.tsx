@@ -1,6 +1,6 @@
-// input:  [course-list global settings runtime, mocked semester API responses, and testing-library helpers]
+// input:  [host-owned semester course management section, mocked semester API responses, and testing-library helpers]
 // output: [test suite validating stale-response protection, the narrowed table minimum width, and guarded course-manager entry states]
-// pos:    [Plugin-level regression tests for the course-list global settings surface]
+// pos:    [Host-level regression tests for the semester course management settings surface]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,8 +9,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import api from '../../services/api';
-import { CourseListGlobalSettings } from './globalSettings';
+import api from '../services/api';
+import { SemesterCourseManagementSection } from './SemesterCourseManagementSection';
 
 const { toastError } = vi.hoisted(() => ({
     toastError: vi.fn(),
@@ -50,8 +50,24 @@ const buildSemesterResponse = (semesterId: string, courseName: string, programId
             grade_scaled: 3.9,
             grade_percentage: 95,
             program_id: programId,
+            runtime: {
+                runtime_tabs: [],
+                tab_catalog_items: [],
+                widget_catalog_items: [],
+                enabled_plugin_ids: [],
+                enabled_plugins: [],
+                available_widget_types: [],
+            },
         },
     ],
+    runtime: {
+        runtime_tabs: [],
+        tab_catalog_items: [],
+        widget_catalog_items: [],
+        enabled_plugin_ids: [],
+        enabled_plugins: [],
+        available_widget_types: [],
+    },
 });
 
 const createDeferred = <T,>() => {
@@ -64,17 +80,7 @@ const createDeferred = <T,>() => {
     return { promise, resolve, reject };
 };
 
-const buildPluginSettingsProps = (semesterId: string) => ({
-    semesterId,
-    settings: {},
-    updateSettings: vi.fn(),
-    saveState: 'idle' as const,
-    hasPendingChanges: false,
-    isLoading: false,
-    onRefresh: vi.fn(),
-});
-
-describe('CourseListGlobalSettings', () => {
+describe('SemesterCourseManagementSection', () => {
     afterEach(() => {
         vi.restoreAllMocks();
         toastError.mockReset();
@@ -91,10 +97,10 @@ describe('CourseListGlobalSettings', () => {
         });
 
         const { rerender } = render(
-            <CourseListGlobalSettings {...buildPluginSettingsProps('semester-1')} />
+            <SemesterCourseManagementSection semesterId="semester-1" />
         );
 
-        rerender(<CourseListGlobalSettings {...buildPluginSettingsProps('semester-2')} />);
+        rerender(<SemesterCourseManagementSection semesterId="semester-2" />);
 
         secondSemester.resolve(buildSemesterResponse('semester-2', 'Physics'));
         expect(await screen.findByText('Physics')).toBeInTheDocument();
@@ -110,7 +116,7 @@ describe('CourseListGlobalSettings', () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
         vi.spyOn(api, 'getSemester').mockRejectedValueOnce(new Error('Semester unavailable'));
 
-        render(<CourseListGlobalSettings {...buildPluginSettingsProps('semester-1')} />);
+        render(<SemesterCourseManagementSection semesterId="semester-1" />);
 
         expect(await screen.findByText('Could not refresh semester courses')).toBeInTheDocument();
 
@@ -125,7 +131,7 @@ describe('CourseListGlobalSettings', () => {
     it('uses a narrower table minimum width than the shared default for the semester courses table', async () => {
         vi.spyOn(api, 'getSemester').mockResolvedValueOnce(buildSemesterResponse('semester-1', 'Physics'));
 
-        render(<CourseListGlobalSettings {...buildPluginSettingsProps('semester-1')} />);
+        render(<SemesterCourseManagementSection semesterId="semester-1" />);
 
         const table = await screen.findByRole('table');
         const minWidthWrapper = table.parentElement?.parentElement;

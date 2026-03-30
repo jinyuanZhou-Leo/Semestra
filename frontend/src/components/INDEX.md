@@ -44,6 +44,8 @@ Also includes the Semester wizard bridge that renders plugin setup steps and rev
 | StatusButton.tsx | UI component | Reusable in-place action-status button for save/validate flows with idle, loading, success, and error labels, using browser-safe timer handle typing for strict TS builds. |
 | SemesterSettingsPanel.tsx | UI component | Semester settings panel with debounced auto-save, close/unmount flush protection, the shared Semester basics date-picker fields, draft-safe sync against refreshed semester payloads, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | SessionExpiredModal.tsx | UI component | Reusable component for session expired modal UI/interaction flow. |
+| SemesterCourseManagementSection.test.tsx | Test file | Covers stale semester-response protection, the narrowed course-table minimum width, and the disabled course-manager entry when semester details fail to load. |
+| SemesterCourseManagementSection.tsx | UI component | Host-owned semester settings section for course management with retryable semester loading, a narrow four-column `DataTable`, row-actions removal flow, and the shared add/manage course modal. |
 | SettingsModal.tsx | UI component | Generic settings modal container with a wider desktop surface, fixed header, scrollable body, and async close handling so settings editors can flush pending autosaves before dismissing. |
 | SettingsSection.tsx | UI component | Reusable settings section wrapper with sticky left-side titles, shrink-safe content columns, and overflow-contained cards for mobile settings layouts. |
 | SettingsTabContent.tsx | UI component | Reusable component for settings tab content UI/interaction flow. |

@@ -13,25 +13,12 @@
         "builtin-canvas-integration"
       ],
       "available_widget_types": [],
-      "has_settings": false,
-      "supports_unassigned_course": true
-    }
-  },
-  {
-    "plugin_id": "builtin-dashboard",
-    "display_name": "Dashboard",
-    "author": "Jinyuan",
-    "description": "Workspace overview tab and widget entry point.",
-    "long_description": "Dashboard is the default workspace landing tab. It collects widgets, summaries, and shortcuts into a single overview surface for semester and course workspaces.",
-    "capabilities": {
-      "contexts": [
-        "semester",
-        "course"
-      ],
-      "available_tab_types": [
-        "builtin-dashboard"
-      ],
-      "available_widget_types": [],
+      "tab_allowed_contexts": {
+        "builtin-canvas-integration": [
+          "course"
+        ]
+      },
+      "widget_allowed_contexts": {},
       "has_settings": false,
       "supports_unassigned_course": true
     }
@@ -55,6 +42,24 @@
       "available_widget_types": [
         "builtin-today-events"
       ],
+      "tab_allowed_contexts": {
+        "builtin-academic-calendar": [
+          "semester"
+        ],
+        "builtin-course-schedule": [
+          "course"
+        ],
+        "builtin-todo": [
+          "semester",
+          "course"
+        ]
+      },
+      "widget_allowed_contexts": {
+        "builtin-today-events": [
+          "semester",
+          "course"
+        ]
+      },
       "has_settings": true,
       "supports_unassigned_course": false
     }
@@ -75,26 +80,17 @@
       "available_widget_types": [
         "builtin-gradebook-summary"
       ],
+      "tab_allowed_contexts": {
+        "builtin-gradebook": [
+          "course"
+        ]
+      },
+      "widget_allowed_contexts": {
+        "builtin-gradebook-summary": [
+          "course"
+        ]
+      },
       "has_settings": true,
-      "supports_unassigned_course": true
-    }
-  },
-  {
-    "plugin_id": "builtin-setting",
-    "display_name": "Settings",
-    "author": "Jinyuan",
-    "description": "Workspace settings and configuration surfaces.",
-    "long_description": "Settings is the built-in configuration surface for semester and course workspaces. It centralizes plugin setup, workspace preferences, and integration-specific controls.",
-    "capabilities": {
-      "contexts": [
-        "semester",
-        "course"
-      ],
-      "available_tab_types": [
-        "builtin-setting"
-      ],
-      "available_widget_types": [],
-      "has_settings": false,
       "supports_unassigned_course": true
     }
   },
@@ -113,6 +109,13 @@
       "available_widget_types": [
         "counter"
       ],
+      "tab_allowed_contexts": {},
+      "widget_allowed_contexts": {
+        "counter": [
+          "semester",
+          "course"
+        ]
+      },
       "has_settings": false,
       "supports_unassigned_course": true
     }
@@ -131,7 +134,13 @@
       "available_widget_types": [
         "course-list"
       ],
-      "has_settings": true,
+      "tab_allowed_contexts": {},
+      "widget_allowed_contexts": {
+        "course-list": [
+          "semester"
+        ]
+      },
+      "has_settings": false,
       "supports_unassigned_course": false
     }
   },
@@ -151,6 +160,16 @@
       "available_widget_types": [
         "course-resources-quick-open"
       ],
+      "tab_allowed_contexts": {
+        "course-resources-tab": [
+          "course"
+        ]
+      },
+      "widget_allowed_contexts": {
+        "course-resources-quick-open": [
+          "course"
+        ]
+      },
       "has_settings": false,
       "supports_unassigned_course": true
     }
@@ -171,6 +190,17 @@
         "habit-streak-duolingo",
         "habit-streak-ring"
       ],
+      "tab_allowed_contexts": {},
+      "widget_allowed_contexts": {
+        "habit-streak-duolingo": [
+          "semester",
+          "course"
+        ],
+        "habit-streak-ring": [
+          "semester",
+          "course"
+        ]
+      },
       "has_settings": false,
       "supports_unassigned_course": true
     }
@@ -190,6 +220,13 @@
       "available_widget_types": [
         "pomodoro"
       ],
+      "tab_allowed_contexts": {},
+      "widget_allowed_contexts": {
+        "pomodoro": [
+          "semester",
+          "course"
+        ]
+      },
       "has_settings": false,
       "supports_unassigned_course": true
     }
@@ -209,6 +246,13 @@
       "available_widget_types": [
         "sticky-note"
       ],
+      "tab_allowed_contexts": {},
+      "widget_allowed_contexts": {
+        "sticky-note": [
+          "semester",
+          "course"
+        ]
+      },
       "has_settings": false,
       "supports_unassigned_course": true
     }
@@ -228,6 +272,13 @@
         "tab-template"
       ],
       "available_widget_types": [],
+      "tab_allowed_contexts": {
+        "tab-template": [
+          "semester",
+          "course"
+        ]
+      },
+      "widget_allowed_contexts": {},
       "has_settings": true,
       "supports_unassigned_course": false
     }
@@ -247,6 +298,13 @@
       "available_widget_types": [
         "world-clock"
       ],
+      "tab_allowed_contexts": {},
+      "widget_allowed_contexts": {
+        "world-clock": [
+          "semester",
+          "course"
+        ]
+      },
       "has_settings": false,
       "supports_unassigned_course": true
     }

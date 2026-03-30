@@ -1,6 +1,6 @@
-// input:  [plugin-global settings definitions, shared-settings prop contracts, and React subscription state]
-// output: [`PluginSettingsRegistry`, plugin settings sync prop types, and registry subscription hooks]
-// pos:    [Settings registry that exposes plugin-global settings sections plus framework-managed shared-settings props to Program, Semester, and Course settings pages]
+// input:  [plugin-global settings section definitions, scope contracts, and React subscription state]
+// output: [`PluginSettingsRegistry`, plugin settings section prop types, and registry subscription hooks]
+// pos:    [Settings registry that exposes plugin-global settings sections plus stable scope-aware props to Program, Semester, and Course settings pages]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -11,23 +11,33 @@
 import React, { useSyncExternalStore } from 'react';
 
 export type PluginSettingsContext = 'program' | 'semester' | 'course';
-export type PluginSettingsSaveState = 'idle' | 'saving' | 'success';
 
-export interface PluginSettingsProps<S = any> {
-  settings: S;
-  updateSettings: (newSettings: S) => void | Promise<void>;
-  saveState: PluginSettingsSaveState;
-  hasPendingChanges: boolean;
-  isLoading: boolean;
-  programId?: string;
-  semesterId?: string;
-  courseId?: string;
+export type PluginSettingsScope =
+  | {
+    kind: 'program';
+    programId: string;
+  }
+  | {
+    kind: 'semester';
+    semesterId: string;
+    programId?: string;
+  }
+  | {
+    kind: 'course';
+    courseId: string;
+    semesterId?: string;
+    programId?: string;
+  };
+
+export interface PluginSettingsSectionProps {
+  pluginId: string;
+  scope: PluginSettingsScope;
   onRefresh: () => void;
 }
 
-export interface PluginSettingsSectionDefinition<S = any> {
+export interface PluginSettingsSectionDefinition {
   id: string;
-  component: React.FC<PluginSettingsProps<S>>;
+  component: React.FC<PluginSettingsSectionProps>;
   allowedContexts?: PluginSettingsContext[];
 }
 

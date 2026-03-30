@@ -1,6 +1,6 @@
 // input:  [plugin facade helpers, lazy runtime loading, eager setup/settings registries, idle background preloading, and Vitest assertions]
-// output: [test suite covering plugin manifest icons, runtime instance settings resolution, eager plugin-global settings exposure, eager setup registration, and idle preload behavior]
-// pos:    [integration tests for the decoupled plugin-system public API, setup-registry exposure, and idle runtime warmup path]
+// output: [test suite covering plugin manifest icons, runtime instance settings resolution, eager plugin-global settings registry behavior, eager setup registration, and idle preload behavior]
+// pos:    [integration tests for the decoupled plugin-system public API, setup-registry behavior, and idle runtime warmup path]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -35,10 +35,10 @@ describe('plugin-system settings API', () => {
     expect(getWidgetSettingsComponentByType('world-clock')).toBeTypeOf('function');
   });
 
-  it('exposes eager plugin-global settings sections through the facade', () => {
+  it('omits removed host-owned settings sections from the plugin facade', () => {
     expect(
       getPluginSettingsSections('semester').map(({ pluginId, id }) => `${pluginId}:${id}`)
-    ).toContain('course-list:course-list-management');
+    ).not.toContain('course-list:course-list-management');
 
     expect(
       getPluginSettingsSections('course').map(({ pluginId, id }) => `${pluginId}:${id}`)

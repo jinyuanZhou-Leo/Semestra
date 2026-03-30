@@ -64,10 +64,6 @@ def _export_tab(tab: models.Tab) -> schemas.TabExport:
     )
 
 
-def _export_plugin_setting(setting: models.PluginSetting) -> schemas.PluginSettingExport:
-    return schemas.PluginSettingExport(plugin_id=setting.plugin_id, settings=setting.settings)
-
-
 def _export_lms_error(code: Optional[str], message: Optional[str]) -> Optional[schemas.LmsIntegrationError]:
     if not code and not message:
         return None
@@ -197,7 +193,6 @@ def _export_course(
         hide_gpa=course.hide_gpa,
         widgets=[_export_widget(widget) for widget in course.widgets],
         tabs=[_export_tab(tab) for tab in course.tabs],
-        plugin_settings=[_export_plugin_setting(setting) for setting in course.plugin_settings],
         plugin_activations=[
             schemas.CoursePluginActivationExport(
                 plugin_id=activation.program_plugin_installation.plugin_id,
@@ -309,7 +304,6 @@ def export_user_data(
                     ],
                     widgets=[_export_widget(widget) for widget in semester.widgets],
                     tabs=[_export_tab(tab) for tab in semester.tabs],
-                    plugin_settings=[_export_plugin_setting(setting) for setting in semester.plugin_settings],
                     todo=_export_todo_state(db, semester),
                 )
             )
@@ -387,25 +381,6 @@ def _import_tabs(
                 order_index=tab_data.order_index,
                 is_removable=tab_data.is_removable,
                 is_draggable=tab_data.is_draggable,
-            ),
-            semester_id=semester_id,
-            course_id=course_id,
-        )
-
-
-def _import_plugin_settings(
-    db: Session,
-    settings: list[schemas.PluginSettingExport],
-    *,
-    semester_id: Optional[str] = None,
-    course_id: Optional[str] = None,
-) -> None:
-    for plugin_setting_data in settings:
-        crud.upsert_plugin_setting(
-            db=db,
-            plugin_setting=schemas.PluginSettingCreate(
-                plugin_id=plugin_setting_data.plugin_id,
-                settings=plugin_setting_data.settings,
             ),
             semester_id=semester_id,
             course_id=course_id,
@@ -624,7 +599,6 @@ def _import_course_export(
     )
     _import_widgets(db, course_data.widgets, course_id=course.id)
     _import_tabs(db, course_data.tabs, course_id=course.id)
-    _import_plugin_settings(db, course_data.plugin_settings, course_id=course.id)
     _import_course_plugin_activations(
         db,
         course_data.plugin_activations,
@@ -841,8 +815,6 @@ def import_user_data(
 
             _import_widgets(db, semester_data.widgets, semester_id=semester.id)
             _import_tabs(db, semester_data.tabs, semester_id=semester.id)
-            _import_plugin_settings(db, semester_data.plugin_settings, semester_id=semester.id)
-
             course_id_map: dict[str, str] = {}
             for course_data in semester_data.courses:
                 course = _import_course_export(

@@ -194,16 +194,6 @@ class BackupImportExportTests(unittest.TestCase):
             schemas.CoursePluginActivationUpsertRequest(is_enabled=True),
         )
 
-        crud.upsert_plugin_setting(
-            self.db,
-            schemas.PluginSettingCreate(plugin_id="semester-shared", settings='{"foo":"bar"}'),
-            semester_id=semester.id,
-        )
-        crud.upsert_plugin_setting(
-            self.db,
-            schemas.PluginSettingCreate(plugin_id="course-shared", settings='{"alpha":1}'),
-            course_id=semester_course.id,
-        )
         crud.create_widget(
             self.db,
             schemas.WidgetCreate(widget_type="counter", layout_config='{"x":0,"y":0,"w":2,"h":2}', settings='{"value":3}'),

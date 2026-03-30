@@ -14,7 +14,7 @@ import { usePluginUiState } from '@/plugin-system';
 import { CardSkeleton } from '../../components/skeletons';
 import { DashboardGrid } from '../../components/widgets/DashboardGrid';
 import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
-import type { TabDefinition, TabProps } from '../../services/tabRegistry';
+import type { TabDefinition, TabProps } from '@/plugin-system';
 import { Check, Pencil, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 

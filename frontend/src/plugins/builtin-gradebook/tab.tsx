@@ -19,7 +19,7 @@ import api, {
     type GradebookAssessment,
 } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
-import type { TabDefinition, TabProps } from '@/services/tabRegistry';
+import type { TabDefinition, TabProps } from '@/plugin-system';
 
 import {
     AlertDialog,

@@ -84,6 +84,17 @@ REQUIRED_RUNTIME_SCHEMA = {
         "program_plugin_installation_id",
         "is_enabled",
     },
+    "tab_settings": {
+        "id",
+        "tab_type",
+        "settings",
+    },
+    "workspace_tab_order_entries": {
+        "id",
+        "bucket_type",
+        "tab_type",
+        "order_index",
+    },
 }
 
 

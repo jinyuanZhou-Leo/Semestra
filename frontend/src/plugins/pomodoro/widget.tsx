@@ -1,4 +1,4 @@
-// input:  [widget registry contracts, shadcn/ui primitives, lucide icons, browser timer APIs]
+// input:  [public plugin-system widget contracts, shadcn/ui primitives, lucide icons, browser timer APIs]
 // output: [`PomodoroWidget`, `PomodoroWidgetDefinition`, and pure timer helper exports]
 // pos:    [Pomodoro widget runtime + compact per-instance settings form for dashboard plugin]
 //
@@ -9,7 +9,7 @@
 "use no memo";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

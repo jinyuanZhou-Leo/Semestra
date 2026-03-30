@@ -1,6 +1,6 @@
 # input:  [Program model records, generated plugin metadata/setup manifests, plugin governance payloads, and platform-level availability requirements]
-# output: [manifest-backed plugin catalog helpers for Program installs, Semester activation, generated setup definitions, plugin-owned setup review hooks, settings validation, setup summaries, and resolved-config computation]
-# pos:    [Backend governance registry for Program-managed plugin lifecycle and Semester-scoped plugin activation rules plus manifest-backed metadata/setup validation helpers and plugin-owned setup review dispatch]
+# output: [manifest-backed plugin catalog helpers for Program installs, Semester activation, generated setup definitions, plugin-owned setup review hooks, settings validation, setup summaries, and resolved-config computation with contribution-level context metadata]
+# pos:    [Backend governance registry for Program-managed plugin lifecycle and Semester-scoped plugin activation rules plus manifest-backed metadata/setup validation helpers, contribution-level context lookups, and plugin-owned setup review dispatch]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -39,6 +39,15 @@ VALID_SETUP_FIELD_TYPES = {
 
 LEGACY_PLUGIN_ID_ALIASES = {
     "builtin-settings": "builtin-setting",
+}
+HOST_RESERVED_PLUGIN_IDS = {
+    "builtin-dashboard",
+    "builtin-setting",
+}
+
+HOST_RESERVED_TAB_TYPES = {
+    "builtin-dashboard",
+    "builtin-setting",
 }
 
 
@@ -334,6 +343,45 @@ def _load_manifest_string_list(
     return normalized_values
 
 
+def _load_manifest_context_map(
+    plugin_id: str,
+    field_name: str,
+    raw_value: Any,
+    *,
+    expected_keys: list[str],
+) -> dict[str, list[str]]:
+    if not isinstance(raw_value, dict):
+        _raise_manifest_error(
+            f"Generated plugin metadata manifest entry '{plugin_id}' field '{field_name}' must be an object."
+        )
+    normalized_map: dict[str, list[str]] = {}
+    for raw_key, raw_contexts in raw_value.items():
+        if not isinstance(raw_key, str) or not raw_key.strip():
+            _raise_manifest_error(
+                f"Generated plugin metadata manifest entry '{plugin_id}' field '{field_name}' must use non-empty string keys."
+            )
+        normalized_map[raw_key] = _load_manifest_string_list(
+            plugin_id,
+            f"{field_name}.{raw_key}",
+            raw_contexts,
+        )
+
+    expected_key_set = set(expected_keys)
+    actual_key_set = set(normalized_map.keys())
+    if actual_key_set != expected_key_set:
+        missing_keys = sorted(expected_key_set - actual_key_set)
+        extra_keys = sorted(actual_key_set - expected_key_set)
+        detail_parts: list[str] = []
+        if missing_keys:
+            detail_parts.append(f"missing keys {missing_keys}")
+        if extra_keys:
+            detail_parts.append(f"unexpected keys {extra_keys}")
+        _raise_manifest_error(
+            f"Generated plugin metadata manifest entry '{plugin_id}' field '{field_name}' does not match declared contribution types: {', '.join(detail_parts)}."
+        )
+    return normalized_map
+
+
 def _load_manifest_capabilities(plugin_id: str, raw_capabilities: Any) -> dict[str, Any]:
     if not isinstance(raw_capabilities, dict):
         _raise_manifest_error(f"Generated plugin metadata manifest entry '{plugin_id}' is missing capabilities.")
@@ -347,17 +395,32 @@ def _load_manifest_capabilities(plugin_id: str, raw_capabilities: Any) -> dict[s
         _raise_manifest_error(
             f"Generated plugin metadata manifest entry '{plugin_id}' capability 'supports_unassigned_course' must be a boolean."
         )
+    contexts = _load_manifest_string_list(plugin_id, "capabilities.contexts", raw_capabilities.get("contexts"))
+    available_tab_types = _load_manifest_string_list(
+        plugin_id,
+        "capabilities.available_tab_types",
+        raw_capabilities.get("available_tab_types"),
+    )
+    available_widget_types = _load_manifest_string_list(
+        plugin_id,
+        "capabilities.available_widget_types",
+        raw_capabilities.get("available_widget_types"),
+    )
     return {
-        "contexts": _load_manifest_string_list(plugin_id, "capabilities.contexts", raw_capabilities.get("contexts")),
-        "available_tab_types": _load_manifest_string_list(
+        "contexts": contexts,
+        "available_tab_types": available_tab_types,
+        "available_widget_types": available_widget_types,
+        "tab_allowed_contexts": _load_manifest_context_map(
             plugin_id,
-            "capabilities.available_tab_types",
-            raw_capabilities.get("available_tab_types"),
+            "capabilities.tab_allowed_contexts",
+            raw_capabilities.get("tab_allowed_contexts"),
+            expected_keys=available_tab_types,
         ),
-        "available_widget_types": _load_manifest_string_list(
+        "widget_allowed_contexts": _load_manifest_context_map(
             plugin_id,
-            "capabilities.available_widget_types",
-            raw_capabilities.get("available_widget_types"),
+            "capabilities.widget_allowed_contexts",
+            raw_capabilities.get("widget_allowed_contexts"),
+            expected_keys=available_widget_types,
         ),
         "has_settings": has_settings,
         "supports_unassigned_course": supports_unassigned_course,
@@ -409,7 +472,9 @@ def _build_plugin_definitions(
     metadata_by_plugin_id: dict[str, PluginMetadata],
 ) -> dict[str, PluginDefinition]:
     runtime_definitions: dict[str, PluginDefinition] = {}
-    all_plugin_ids = sorted(set(governance_definitions.keys()) | set(metadata_by_plugin_id.keys()))
+    all_plugin_ids = sorted(
+        (set(governance_definitions.keys()) | set(metadata_by_plugin_id.keys())) - HOST_RESERVED_PLUGIN_IDS
+    )
 
     for plugin_id in all_plugin_ids:
         governance = governance_definitions.get(plugin_id)
@@ -436,6 +501,17 @@ def _build_plugin_definitions(
 
 
 PLUGIN_DEFINITIONS = _build_plugin_definitions(PLUGIN_GOVERNANCE_DEFINITIONS, PLUGIN_METADATA)
+TAB_TYPE_TO_PLUGIN_ID = {
+    tab_type: plugin_id
+    for plugin_id, definition in PLUGIN_DEFINITIONS.items()
+    for tab_type in definition.capabilities.get("available_tab_types", [])
+    if tab_type not in HOST_RESERVED_TAB_TYPES
+}
+WIDGET_TYPE_TO_PLUGIN_ID = {
+    widget_type: plugin_id
+    for plugin_id, definition in PLUGIN_DEFINITIONS.items()
+    for widget_type in definition.capabilities.get("available_widget_types", [])
+}
 
 
 def _raise_manifest_error(message: str) -> None:
@@ -622,8 +698,15 @@ def _load_plugin_setup_definitions() -> dict[str, PluginSetupDefinition]:
 PLUGIN_SETUP_DEFINITIONS = _load_plugin_setup_definitions()
 
 
-def list_plugin_definitions() -> list[PluginDefinition]:
-    return list(PLUGIN_DEFINITIONS.values())
+def is_host_reserved_plugin(plugin_id: str) -> bool:
+    return normalize_plugin_id(plugin_id) in HOST_RESERVED_PLUGIN_IDS
+
+
+def list_plugin_definitions(*, include_host_reserved: bool = False) -> list[PluginDefinition]:
+    definitions = list(PLUGIN_DEFINITIONS.values())
+    if include_host_reserved:
+        return definitions
+    return [definition for definition in definitions if not is_host_reserved_plugin(definition.plugin_id)]
 
 
 def normalize_plugin_id(plugin_id: str) -> str:
@@ -638,6 +721,22 @@ def get_plugin_definition(plugin_id: str) -> PluginDefinition:
     return definition
 
 
+def is_host_reserved_plugin_id(plugin_id: str) -> bool:
+    return normalize_plugin_id(plugin_id) in HOST_RESERVED_PLUGIN_IDS
+
+
+def is_host_reserved_tab_type(tab_type: str) -> bool:
+    return (tab_type or "").strip() in HOST_RESERVED_TAB_TYPES
+
+
+def get_plugin_id_for_tab_type(tab_type: str) -> str | None:
+    return TAB_TYPE_TO_PLUGIN_ID.get((tab_type or "").strip())
+
+
+def get_plugin_id_for_widget_type(widget_type: str) -> str | None:
+    return WIDGET_TYPE_TO_PLUGIN_ID.get((widget_type or "").strip())
+
+
 def get_plugin_setup_definition(plugin_id: str) -> PluginSetupDefinition | None:
     return PLUGIN_SETUP_DEFINITIONS.get(normalize_plugin_id(plugin_id))
 
@@ -647,11 +746,19 @@ def has_plugin_setup_definition(plugin_id: str) -> bool:
 
 
 def get_default_program_plugin_ids() -> list[str]:
-    return [definition.plugin_id for definition in list_plugin_definitions() if definition.install_by_default]
+    return [
+        definition.plugin_id
+        for definition in list_plugin_definitions()
+        if definition.install_by_default
+    ]
 
 
 def get_default_semester_plugin_ids() -> list[str]:
-    return [definition.plugin_id for definition in list_plugin_definitions() if definition.enable_by_default]
+    return [
+        definition.plugin_id
+        for definition in list_plugin_definitions()
+        if definition.enable_by_default
+    ]
 
 
 def build_field_payloads(plugin_id: str) -> list[dict[str, Any]]:

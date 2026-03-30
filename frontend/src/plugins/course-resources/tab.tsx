@@ -48,7 +48,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePluginUiState } from '@/plugin-system';
 import api, { type CourseResourceFile } from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
-import type { TabDefinition, TabProps } from '@/services/tabRegistry';
+import type { TabDefinition, TabProps } from '@/plugin-system';
 
 import {
     COURSE_RESOURCES_TAB_TYPE,

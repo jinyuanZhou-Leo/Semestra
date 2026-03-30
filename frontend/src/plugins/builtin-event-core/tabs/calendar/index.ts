@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React from 'react';
-import type { TabProps } from '@/services/tabRegistry';
+import type { TabProps } from '@/plugin-system';
 import { CalendarSkeleton } from './components/CalendarSkeleton';
 import { ensureBuiltinCalendarSourcesRegistered } from './sources/registerBuiltinCalendarSources';
 

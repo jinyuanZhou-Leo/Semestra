@@ -18,6 +18,14 @@ const courseResponse: Course = {
     grade_scaled: 3.7,
     grade_percentage: 88,
     program_id: 'program-1',
+    runtime: {
+        runtime_tabs: [],
+        tab_catalog_items: [],
+        widget_catalog_items: [],
+        enabled_plugin_ids: [],
+        enabled_plugins: [],
+        available_widget_types: [],
+    },
 };
 
 describe('BuiltinGradebookSummaryWidget', () => {

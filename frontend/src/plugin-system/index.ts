@@ -1,6 +1,6 @@
-// input:  [plugin manifests/settings/runtime modules via `import.meta.glob`, validated plugin setup registry facade, setup validation/render contracts, tab/widget registries, plugin host and runtime instance context, settings registry, browser idle callbacks/timer fallbacks, and Vite HMR updates]
-// output: [plugin facade helpers for plugin manifests, contribution catalogs, setup definitions plus validation/render helpers, load state, load-state subscriptions, metadata resolution, plugin-global settings, tab/widget ownership lookups, plugin host/runtime scope helpers, lazy runtime registration, UI-state caching, and idle background preloading]
-// pos:    [Central plugin manager facade that validates plugin manifests, keeps plugin icons/settings/setup eager, and exposes runtime load-state-aware registration helpers plus plugin-local host/cache APIs including tab/widget ownership lookup helpers and plugin setup authoring primitives]
+// input:  [plugin manifests/settings/runtime modules via `import.meta.glob`, validated plugin setup registry facade, tab/widget registries, settings registry, internal catalog/load-state/runtime-loader helpers, and Vite HMR updates]
+// output: [plugin facade helpers for runtime loading, contribution catalogs, setup-registry access, load state, metadata resolution, host-reserved catalog filtering, tab/widget ownership lookups, and idle background preloading, plus curated re-exports from thin authoring/host/settings-section/type surfaces]
+// pos:    [Central plugin loader and facade core that orchestrates module discovery and HMR while delegating stable public types, catalog indexing, runtime registration, and load-state bookkeeping to narrower internal helpers]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,33 +15,13 @@ import type { WidgetContext, WidgetProps, WidgetSettingsProps } from '../service
 import { WidgetRegistry } from '../services/widgetRegistry';
 import {
     PluginSettingsRegistry,
-    type PluginSettingsContext,
-    type RegisteredPluginSettingsSectionDefinition,
-    usePluginSettingsRegistry as usePluginSettingsRegistryStore,
 } from '../services/pluginSettingsRegistry';
-export { PluginHostProvider, usePluginHost } from './PluginHostContext';
-export type {
-    PluginHostJumpOptions,
-    PluginHostJumpResult,
-    PluginHostJumpTarget,
-    PluginHostTabLike,
-} from './PluginHostContext';
-export { PluginRuntimeInstanceProvider, usePluginRuntimeInstanceContext } from './PluginRuntimeInstanceContext';
-export type {
-    PluginRuntimeInstanceValue,
-    PluginRuntimeSlotKind,
-    PluginRuntimeWorkspaceKind,
-} from './PluginRuntimeInstanceContext';
-export { buildPluginUiStateStorageKey } from './PluginRuntimeInstanceContext';
-export { resetPluginUiStateCacheForTests, usePluginUiState } from './PluginUiState';
 import type {
     PluginMetadataDefinition,
-    PluginRuntimeDefinition,
     PluginSettingsDefinition,
 } from './contracts';
 import {
     definePluginMetadata,
-    definePluginRuntime,
     definePluginSettings,
 } from './contracts';
 export {
@@ -49,59 +29,38 @@ export {
     getPluginSetupDefinitionById,
     hasPluginSetupDefinition,
 } from './setupRegistry';
-export {
-    booleanField,
-    dateField,
-    definePluginSetup,
-    jsonField,
-    numberField,
-    resolvePluginSetupValues,
-    section,
-    selectField,
-    textField,
-    textareaField,
-    validatePluginSetupDefinition,
-} from './setup';
-import type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem, WidgetLayoutDefinition } from './types';
 import {
-    isUnlimitedInstances,
-    DEFAULT_TAB_ALLOWED_CONTEXTS,
-    DEFAULT_WIDGET_ALLOWED_CONTEXTS,
-} from './utils';
-export { PluginContentFadeIn, PluginTabSkeleton, PluginWidgetSkeleton } from './PluginLoadSkeleton';
-export { PluginSettingsSectionRenderer } from './PluginSettingsSectionRenderer';
-
-export type { PluginMetadataDefinition, PluginRuntimeDefinition, PluginSettingsDefinition } from './contracts';
-export { definePluginMetadata, definePluginRuntime, definePluginSettings } from './contracts';
-export type {
-    InferPluginSetupValues,
-    PluginSetupCustomUiDefinition,
-    PluginSetupDefinition,
-    PluginSetupFieldDefinition,
-    PluginSetupFieldType,
-    PluginSetupPersist,
-    PluginSetupRenderDefinition,
-    PluginSetupReviewRenderProps,
-    PluginSetupReviewSummaryItem,
-    PluginSetupReviewSummarySection,
-    PluginSetupSectionDefinition,
-    PluginSetupUiDefinition,
-    PluginSetupValidationContext,
-    PluginSetupValidationIssue,
-    PluginSetupValidator,
-    PluginSetupWizardRenderProps,
-} from './setup';
+    buildPluginCatalogIndex,
+    canAddTabCatalogItem as canAddTabCatalogItemInternal,
+    canAddWidgetCatalogItem as canAddWidgetCatalogItemInternal,
+    getPublicPluginManifest,
+    getTabCatalogItems,
+    getWidgetCatalogItems,
+    resolveCatalogMetadata,
+} from './pluginCatalog';
+import {
+    cancelBrowserIdleTask,
+    createPluginLoadStateStore,
+    IDLE_LOAD_STATE,
+    scheduleBrowserIdleTask,
+    type IdleTaskHandle,
+    type PluginLoadState,
+} from './pluginLoadState';
+import {
+    createPluginEntry,
+    registerEntryRuntime,
+    unregisterEntryRuntime,
+    validateRuntimeDefinition,
+    type PluginEntry,
+    type PluginRuntimeModule,
+} from './pluginRuntimeLoader';
+import type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem, WidgetLayoutDefinition } from './types';
 export type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
-export type {
-    PluginSettingsContext,
-    PluginSettingsProps,
-    PluginSettingsSectionDefinition,
-    RegisteredPluginSettingsSectionDefinition,
-} from '../services/pluginSettingsRegistry';
-
-type PluginRuntimeModule = {
-    default?: PluginRuntimeDefinition;
-};
+export * from './authoring';
+export * from './host-api';
+export * from './public-types';
+export * from './settings-sections';
+export type { PluginLoadState, PluginLoadStatus } from './pluginLoadState';
 
 type PluginMetadataModule = {
     default?: PluginMetadataDefinition;
@@ -109,49 +68,6 @@ type PluginMetadataModule = {
 
 type PluginSettingsModule = {
     default?: PluginSettingsDefinition;
-};
-
-export type PluginLoadStatus = 'idle' | 'loading' | 'loaded' | 'error';
-
-export interface PluginLoadState {
-    status: PluginLoadStatus;
-    error: Error | null;
-}
-
-type BrowserTimerHandle = ReturnType<typeof globalThis.setTimeout>;
-type IdleTaskHandle = number | BrowserTimerHandle;
-
-type BrowserIdleWindow = Window & {
-    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-    cancelIdleCallback?: (handle: number) => void;
-};
-
-interface PluginEntry {
-    id: string;
-    directoryName: string;
-    manifest: PluginManifestItem;
-    loader: () => Promise<PluginRuntimeModule>;
-    tabCatalog: TabCatalogItem[];
-    widgetCatalog: WidgetCatalogItem[];
-    loadState: PluginLoadState;
-    loadPromise: Promise<boolean> | null;
-    registeredTabTypes: Set<string>;
-    registeredWidgetTypes: Set<string>;
-}
-
-const IDLE_LOAD_STATE: PluginLoadState = { status: 'idle', error: null };
-
-const listeners = new Set<() => void>();
-let loadStateVersion = 0;
-
-const notifyListeners = () => {
-    loadStateVersion += 1;
-    listeners.forEach((listener) => listener());
-};
-
-const subscribe = (listener: () => void) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
 };
 
 const metadataModules = import.meta.glob('../plugins/*/metadata.ts', { eager: true }) as Record<string, PluginMetadataModule>;
@@ -176,34 +92,7 @@ const runtimeHmrModulePaths = Object.keys(
 });
 
 const isDev = import.meta.env.DEV;
-
-const scheduleBrowserIdleTask = (callback: () => void, timeout = 1500): IdleTaskHandle => {
-    if (typeof window === 'undefined') {
-        return globalThis.setTimeout(callback, 0);
-    }
-
-    const browserWindow = window as BrowserIdleWindow;
-    if (typeof browserWindow.requestIdleCallback === 'function') {
-        return browserWindow.requestIdleCallback(() => callback(), { timeout });
-    }
-
-    return globalThis.setTimeout(callback, 250);
-};
-
-const cancelBrowserIdleTask = (handle: IdleTaskHandle) => {
-    if (typeof window === 'undefined') {
-        globalThis.clearTimeout(handle);
-        return;
-    }
-
-    const browserWindow = window as BrowserIdleWindow;
-    if (typeof browserWindow.cancelIdleCallback === 'function' && typeof handle === 'number') {
-        browserWindow.cancelIdleCallback(handle);
-        return;
-    }
-
-    globalThis.clearTimeout(handle);
-};
+const loadStateStore = createPluginLoadStateStore();
 
 const getDirectoryName = (path: string, suffixPattern: string): string | null => {
     const match = path.match(new RegExp(`^\\.\\.\\/plugins\\/([^/]+)\\/${suffixPattern}$`));
@@ -231,25 +120,6 @@ const asMetadataDefinition = (value: PluginMetadataModule | undefined, path: str
 const asSettingsDefinition = (value: PluginSettingsModule | undefined): PluginSettingsDefinition => {
     return definePluginSettings(value?.default ?? {});
 };
-
-const createPluginEntry = (
-    manifest: PluginManifestItem,
-    directoryName: string,
-    loader: () => Promise<PluginRuntimeModule>,
-    tabCatalog: TabCatalogItem[],
-    widgetCatalog: WidgetCatalogItem[]
-): PluginEntry => ({
-    id: manifest.pluginId,
-    directoryName,
-    manifest,
-    loader,
-    tabCatalog,
-    widgetCatalog,
-    loadState: { status: 'idle', error: null },
-    loadPromise: null,
-    registeredTabTypes: new Set(),
-    registeredWidgetTypes: new Set(),
-});
 
 const rawEntries = metadataModulePaths.map((path) => {
     const metadata = asMetadataDefinition(metadataModules[path], path);
@@ -335,23 +205,13 @@ const pluginEntries = rawEntries.filter((entry) => {
 
 const pluginsById = new Map(pluginEntries.map((entry) => [entry.id, entry]));
 const pluginsByDirectoryName = new Map(pluginEntries.map((entry) => [entry.directoryName, entry]));
-const pluginManifestById = new Map<string, PluginManifestItem>();
-const tabTypeToPluginId = new Map<string, string>();
-const widgetTypeToPluginId = new Map<string, string>();
-const tabCatalogByType = new Map<string, TabCatalogItem>();
-const widgetCatalogByType = new Map<string, WidgetCatalogItem>();
-
-pluginEntries.forEach((entry) => {
-    pluginManifestById.set(entry.id, entry.manifest);
-    entry.tabCatalog.forEach((item) => {
-        tabTypeToPluginId.set(item.type, entry.id);
-        tabCatalogByType.set(item.type, item);
-    });
-    entry.widgetCatalog.forEach((item) => {
-        widgetTypeToPluginId.set(item.type, entry.id);
-        widgetCatalogByType.set(item.type, item);
-    });
-});
+const {
+    pluginManifestById,
+    tabTypeToPluginId,
+    widgetTypeToPluginId,
+    tabCatalogByType,
+    widgetCatalogByType,
+} = buildPluginCatalogIndex(pluginEntries);
 
 settingsModulePaths.forEach((path) => {
     const directoryName = getDirectoryName(path, 'settings\\.tsx?');
@@ -380,63 +240,6 @@ settingsModulePaths.forEach((path) => {
     }
 });
 
-const validateRuntimeDefinition = (entry: PluginEntry, runtime: PluginRuntimeDefinition) => {
-    const normalized = definePluginRuntime(runtime);
-    const runtimeTabTypes = normalized.tabDefinitions?.map((definition) => definition.type) ?? [];
-    const runtimeWidgetTypes = normalized.widgetDefinitions?.map((definition) => definition.type) ?? [];
-    const expectedTabTypes = entry.tabCatalog.map((item) => item.type);
-    const expectedWidgetTypes = entry.widgetCatalog.map((item) => item.type);
-
-    const errors: string[] = [];
-
-    runtimeTabTypes.forEach((type) => {
-        if (!expectedTabTypes.includes(type)) {
-            errors.push(`Runtime tab type "${type}" is missing from metadata`);
-        }
-    });
-    runtimeWidgetTypes.forEach((type) => {
-        if (!expectedWidgetTypes.includes(type)) {
-            errors.push(`Runtime widget type "${type}" is missing from metadata`);
-        }
-    });
-    expectedTabTypes.forEach((type) => {
-        if (!runtimeTabTypes.includes(type)) {
-            errors.push(`Metadata tab type "${type}" is missing from runtime`);
-        }
-    });
-    expectedWidgetTypes.forEach((type) => {
-        if (!runtimeWidgetTypes.includes(type)) {
-            errors.push(`Metadata widget type "${type}" is missing from runtime`);
-        }
-    });
-
-    if (errors.length > 0) {
-        throw new Error(`[plugin-system] Invalid runtime for plugin "${entry.id}": ${errors.join('; ')}`);
-    }
-
-    return normalized;
-};
-
-const unregisterEntryRuntime = (entry: PluginEntry) => {
-    entry.registeredTabTypes.forEach((type) => TabRegistry.unregister(type));
-    entry.registeredWidgetTypes.forEach((type) => WidgetRegistry.unregister(type));
-    entry.registeredTabTypes.clear();
-    entry.registeredWidgetTypes.clear();
-};
-
-const registerEntryRuntime = (entry: PluginEntry, runtime: PluginRuntimeDefinition) => {
-    unregisterEntryRuntime(entry);
-
-    runtime.tabDefinitions?.forEach((definition) => {
-        TabRegistry.register(definition);
-        entry.registeredTabTypes.add(definition.type);
-    });
-    runtime.widgetDefinitions?.forEach((definition) => {
-        WidgetRegistry.register(definition);
-        entry.registeredWidgetTypes.add(definition.type);
-    });
-};
-
 const loadPluginEntry = async (entry: PluginEntry): Promise<boolean> => {
     if (entry.loadState.status === 'loaded') return true;
     if (entry.loadPromise) {
@@ -444,7 +247,7 @@ const loadPluginEntry = async (entry: PluginEntry): Promise<boolean> => {
     }
 
     entry.loadState = { status: 'loading', error: null };
-    notifyListeners();
+    loadStateStore.notify();
 
     entry.loadPromise = entry.loader()
         .then((module) => {
@@ -461,7 +264,7 @@ const loadPluginEntry = async (entry: PluginEntry): Promise<boolean> => {
         })
         .finally(() => {
             entry.loadPromise = null;
-            notifyListeners();
+            loadStateStore.notify();
         });
 
     return entry.loadPromise;
@@ -470,7 +273,7 @@ const loadPluginEntry = async (entry: PluginEntry): Promise<boolean> => {
 const forceReloadPluginEntry = async (entry: PluginEntry) => {
     entry.loadState = { status: 'idle', error: null };
     entry.loadPromise = null;
-    notifyListeners();
+    loadStateStore.notify();
     return loadPluginEntry(entry);
 };
 
@@ -500,7 +303,7 @@ export const getWidgetPluginLoadState = (type: string): PluginLoadState => {
 
 export const useTabPluginLoadState = (type?: string): PluginLoadState => {
     return useSyncExternalStore(
-        (listener) => subscribe(listener),
+        (listener) => loadStateStore.subscribe(listener),
         () => type ? getTabPluginLoadState(type) : IDLE_LOAD_STATE,
         () => type ? getTabPluginLoadState(type) : IDLE_LOAD_STATE
     );
@@ -508,7 +311,7 @@ export const useTabPluginLoadState = (type?: string): PluginLoadState => {
 
 export const useWidgetPluginLoadState = (type?: string): PluginLoadState => {
     return useSyncExternalStore(
-        (listener) => subscribe(listener),
+        (listener) => loadStateStore.subscribe(listener),
         () => type ? getWidgetPluginLoadState(type) : IDLE_LOAD_STATE,
         () => type ? getWidgetPluginLoadState(type) : IDLE_LOAD_STATE
     );
@@ -516,16 +319,10 @@ export const useWidgetPluginLoadState = (type?: string): PluginLoadState => {
 
 export const usePluginLoadStateVersion = (): number => {
     return useSyncExternalStore(
-        (listener) => subscribe(listener),
-        () => loadStateVersion,
-        () => loadStateVersion
+        (listener) => loadStateStore.subscribe(listener),
+        () => loadStateStore.getVersion(),
+        () => loadStateStore.getVersion()
     );
-};
-
-export const usePluginSettingsRegistry = (
-    context?: PluginSettingsContext
-): RegisteredPluginSettingsSectionDefinition[] => {
-    return usePluginSettingsRegistryStore(context);
 };
 
 export const hasTabPluginForType = (type: string) => tabTypeToPluginId.has(type);
@@ -605,13 +402,11 @@ export const preloadRemainingPluginsWhenIdle = (): (() => void) => {
 };
 
 export const getTabCatalog = (context?: TabContext): TabCatalogItem[] => {
-    const items = pluginEntries.flatMap((entry) => entry.tabCatalog);
-    if (!context) return items;
-    return items.filter((item) => (item.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS).includes(context));
+    return getTabCatalogItems(pluginEntries, context);
 };
 
 export const getPluginManifest = (): PluginManifestItem[] => {
-    return pluginEntries.map((entry) => entry.manifest);
+    return getPublicPluginManifest(pluginEntries);
 };
 
 export const getPluginManifestItemById = (pluginId: string): PluginManifestItem | undefined => {
@@ -623,9 +418,7 @@ export const getPluginIconById = (pluginId: string) => {
 };
 
 export const getWidgetCatalog = (context?: WidgetContext): WidgetCatalogItem[] => {
-    const items = pluginEntries.flatMap((entry) => entry.widgetCatalog);
-    if (!context) return items;
-    return items.filter((item) => (item.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS).includes(context));
+    return getWidgetCatalogItems(pluginEntries, context);
 };
 
 export const getTabCatalogItemByType = (type: string) => {
@@ -639,21 +432,11 @@ export const getPluginIdByTabType = (type: string) => tabTypeToPluginId.get(type
 export const getPluginIdByWidgetType = (type: string) => widgetTypeToPluginId.get(type);
 
 export const getResolvedTabMetadataByType = (type: string): ResolvedPluginMetadata => {
-    const catalogItem = getTabCatalogItemByType(type);
-    return {
-        name: catalogItem?.name,
-        description: catalogItem?.description,
-        icon: catalogItem?.icon,
-    };
+    return resolveCatalogMetadata(getTabCatalogItemByType(type));
 };
 
 export const getResolvedWidgetMetadataByType = (type: string): ResolvedPluginMetadata => {
-    const catalogItem = getWidgetCatalogItemByType(type);
-    return {
-        name: catalogItem?.name,
-        description: catalogItem?.description,
-        icon: catalogItem?.icon,
-    };
+    return resolveCatalogMetadata(getWidgetCatalogItemByType(type));
 };
 
 export const getResolvedWidgetLayoutByType = (type: string): WidgetLayoutDefinition | undefined => {
@@ -665,9 +448,7 @@ export const canAddTabCatalogItem = (
     context: TabContext,
     currentCount: number
 ) => {
-    const allowedContexts = item.allowedContexts ?? DEFAULT_TAB_ALLOWED_CONTEXTS;
-    if (!allowedContexts.includes(context)) return false;
-    return currentCount < 1;
+    return canAddTabCatalogItemInternal(item, context, currentCount);
 };
 
 export const canAddWidgetCatalogItem = (
@@ -675,12 +456,7 @@ export const canAddWidgetCatalogItem = (
     context: WidgetContext,
     currentCount: number
 ) => {
-    const allowedContexts = item.allowedContexts ?? DEFAULT_WIDGET_ALLOWED_CONTEXTS;
-    if (!allowedContexts.includes(context)) return false;
-    if (isUnlimitedInstances(item.maxInstances)) return true;
-    if (item.maxInstances === 0) return currentCount < 1;
-    if (typeof item.maxInstances === 'number') return currentCount < item.maxInstances;
-    return true;
+    return canAddWidgetCatalogItemInternal(item, context, currentCount);
 };
 
 export const getTabComponentByType = (type: string): FC<TabProps> | undefined => {
@@ -700,12 +476,6 @@ export const getWidgetSettingsComponentByType = (type: string): FC<WidgetSetting
 };
 
 export const getWidgetDefinitionByType = (type: string) => WidgetRegistry.get(type);
-
-export const getPluginSettingsSections = (
-    context?: PluginSettingsContext
-): RegisteredPluginSettingsSectionDefinition[] => {
-    return PluginSettingsRegistry.getAllPluginSettingsSections(context);
-};
 
 const getPluginDirectoryFromRuntimePath = (path: string): string | null => {
     const match = path.match(/^\.\.\/plugins\/([^/]+)\//);

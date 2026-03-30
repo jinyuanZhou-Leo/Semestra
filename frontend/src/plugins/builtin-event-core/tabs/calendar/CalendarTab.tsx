@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CalendarEventData, CalendarRefreshSignal } from '@/calendar-core';
 import { useCalendarSourceRegistry } from '@/calendar-core';
-import type { TabProps } from '@/services/tabRegistry';
+import type { TabProps } from '@/plugin-system';
 import { useEventBus } from '../../shared/eventBus';
 import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 import { isDateInReadingWeek } from '../../shared/utils';

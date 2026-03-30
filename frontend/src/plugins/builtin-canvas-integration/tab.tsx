@@ -18,7 +18,7 @@ import { usePluginHost, usePluginUiState } from '@/plugin-system';
 import { BUILTIN_GRADEBOOK_TAB_TYPE } from '@/plugins/builtin-gradebook/shared';
 import api from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
-import type { TabDefinition, TabProps } from '@/services/tabRegistry';
+import type { TabDefinition, TabProps } from '@/plugin-system';
 
 import {
     buildNavigationEntries,

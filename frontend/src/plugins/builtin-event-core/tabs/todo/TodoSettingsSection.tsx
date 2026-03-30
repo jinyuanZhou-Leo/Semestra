@@ -12,7 +12,7 @@ import React from 'react';
 import { SettingsSection } from '@/components/SettingsSection';
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
 import { Switch } from '@/components/ui/switch';
-import type { TabSettingsProps } from '@/services/tabRegistry';
+import type { TabSettingsProps } from '@/plugin-system';
 import { patchTodoBehaviorSettings, normalizeTodoBehaviorSettings } from './preferences';
 
 export const TodoSettingsSection: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {

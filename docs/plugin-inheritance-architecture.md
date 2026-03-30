@@ -1,11 +1,11 @@
 # Plugin Inheritance Architecture
 
-This document explains how plugin activation, plugin settings, and runtime inheritance currently work in Semestra.
+This document explains how plugin activation, host-governed config, tab settings, and runtime inheritance currently work in Semestra.
 
 It reflects the current implementation in:
 - `backend/plugin_governance.py`
 - `backend/crud_plugin_governance.py`
-- `backend/main.py`
+- `backend/runtime_payloads.py`
 - `frontend/src/plugin-system/metadataManifest.ts`
 - `frontend/src/pages/CourseHomepage.tsx`
 
@@ -14,15 +14,16 @@ It reflects the current implementation in:
 The current model is designed to keep plugin ownership simple while separating two different concerns:
 
 - `plugin activation`: whether a plugin is allowed to run in a workspace
-- `plugin settings`: what configuration a plugin receives when it runs
+- `runtime config`: what host-governed config and tab settings a running contribution receives
 
 The current model is designed to keep those concerns separate:
 
 - `Program` owns plugin installation.
 - `Semester` owns plugin enablement for Semester-scoped workspaces.
 - An unassigned `Course` may own only lightweight enablement when `semester_id = null`.
-- `Program`, `Semester`, and `Course` may each own plugin settings in their own scope.
-- Runtime activation and runtime settings are resolved by the host, not by plugin code.
+- Program governance owns resolved plugin config through `plugin defaults < program settings < semester overrides`.
+- `Program`, `Semester`, and `Course` may each own `tab_settings` rows for tab-type-specific runtime state.
+- Runtime activation and runtime config are resolved by the host, not by plugin code.
 - Plugin authors declare whether an unassigned Course is supported through metadata capability flags.
 
 ## Two Independent Chains
@@ -40,20 +41,20 @@ It is governed by:
 - `SemesterPluginActivation`
 - `ProgramCoursePluginActivation` for unassigned Courses only
 
-### 2. Settings chain
+### 2. Runtime-config chain
 
-The settings chain answers:
+The runtime-config chain answers:
 
-> If the plugin runs, what configuration should it read?
+> If the plugin runs, what host-owned config should its runtime read?
 
 It is governed by:
-- Program-scoped plugin settings
-- Semester-scoped plugin settings
-- Course-scoped plugin settings
+- Program installation `program_settings`
+- Semester activation `semester_overrides`
+- scope-specific `tab_settings`
 
 Important rule:
 
-> A Course may have Course-scoped plugin settings even when it does not have Course-scoped activation rights.
+> Assigned Courses do not get their own editable activation layer, but they may still resolve Course-scoped tab settings.
 
 ## Activation Governance Layers
 
@@ -181,40 +182,43 @@ Important implications:
 - Moving a Course into a Semester switches runtime inheritance to the Semester path immediately.
 - Old unassigned Course activation rows may remain stored but are ignored while the Course belongs to a Semester.
 
-## Settings Resolution
+## Runtime Config Resolution
 
-The settings chain is intentionally broader than the activation chain.
+The runtime-config chain is intentionally broader than the activation chain.
 
 ```mermaid
 flowchart TD
-    Program["Program settings scope"]
-    Semester["Semester settings scope"]
-    Course["Course settings scope"]
+    Program["Program installation
+program_settings"]
+    Semester["Semester activation
+semester_overrides"]
+    TabSettings["tab_settings
+program / semester / course scoped"]
     Runtime["Plugin runtime config"]
 
     Program --> Runtime
     Semester --> Runtime
-    Course --> Runtime
+    TabSettings --> Runtime
 ```
 
-### Settings scope rules
+### Config scope rules
 
-- Program-scoped settings are the Program-wide default settings for the plugin.
-- Semester-scoped settings are the Semester-level plugin settings.
-- Course-scoped settings are the Course-level plugin settings.
+- Program installation settings are the Program-wide default settings for the plugin.
+- Semester override settings are the Semester-level governance overrides for that plugin.
+- `tab_settings` rows hold contribution-level runtime state for a tab type in Program, Semester, or Course scope.
 
-These settings scopes are independent from activation scopes.
+These config scopes are independent from activation scopes.
 
 That means:
 - an assigned Course does not get Course-level activation rights
-- an assigned Course may still have Course-level plugin settings
+- an assigned Course may still have Course-level tab settings
 
-### Settings merge model
+### Config merge model
 
-There are two different settings mechanisms in the current system:
+There are two different host-owned config mechanisms in the current system:
 
 1. host-governed plugin config
-2. context-scoped plugin shared settings
+2. scope-scoped tab settings
 
 #### Host-governed plugin config
 
@@ -232,9 +236,9 @@ This chain is used by:
 - Semester setup/review
 - runtime `resolved_settings` returned from activation payloads
 
-#### Context-scoped plugin shared settings
+#### Scope-scoped tab settings
 
-This is the separate `PluginSetting` persistence layer.
+This is the separate `TabSetting` persistence layer.
 
 It may exist for:
 - `Program`
@@ -242,31 +246,31 @@ It may exist for:
 - `Course`
 
 This layer is not an activation layer.
-It is a settings layer only.
+It is a tab-runtime-state layer only.
 
-So the existence of Course-scoped `PluginSetting` rows does not imply that assigned Courses may independently enable or disable plugins.
+So the existence of Course-scoped `TabSetting` rows does not imply that assigned Courses may independently enable or disable plugins.
 
 ## Runtime Assembly
 
 Runtime assembly must combine the two chains in order:
 
 1. resolve plugin activation
-2. resolve plugin settings
+2. resolve host-governed config and tab settings
 
 The activation result answers whether the plugin is present in runtime.
-The settings result answers which settings objects the frontend/plugin settings UI should read.
+The config result answers which host-governed config and tab settings the runtime should read.
 
 ```mermaid
 flowchart LR
     Activation["Activation result
 enabled or disabled"] --> Runtime["Runtime plugin surface"]
-    Settings["Settings result
-Program / Semester / Course scoped config"] --> Runtime
+    Settings["Config result
+Program settings / Semester overrides / tab settings"] --> Runtime
 ```
 
 Practical rule:
 
-> Activation decides whether a plugin exists in runtime. Settings decide how that plugin behaves.
+> Activation decides whether a plugin exists in runtime. Host-governed config and tab settings decide how that plugin behaves.
 
 ## Capability Gate
 
@@ -318,7 +322,7 @@ That fuller model would require:
 - Course-level authorization semantics
 - conflict rules between Semester and Course overrides
 
-The current design avoids that complexity by keeping Course-level activation governance as a narrow special case for unassigned Courses only, while still allowing Course-scoped settings as a separate concern.
+The current design avoids that complexity by keeping Course-level activation governance as a narrow special case for unassigned Courses only, while still allowing Course-scoped tab settings as a separate concern.
 
 ## Practical Examples
 
@@ -330,7 +334,7 @@ If `builtin-gradebook` is:
 
 then a Course inside that Semester inherits the plugin automatically through the Semester path.
 
-That Course may still have Course-scoped plugin settings.
+That Course may still resolve Course-scoped tab settings.
 
 ### Example 2: Unassigned Course
 
@@ -342,7 +346,7 @@ then an unassigned Course may enable it through `ProgramCoursePluginActivation`.
 
 That enablement affects only that Course.
 
-That Course may also have its own Course-scoped plugin settings.
+That Course may also have its own Course-scoped tab settings.
 
 ### Example 3: Course reassignment
 
@@ -361,10 +365,10 @@ If you need a compact mental model, use these rules:
 1. `Program` owns installation.
 2. `Semester` owns activation for Semester-owned Courses.
 3. `unassigned Course` owns only lightweight activation for itself.
-4. `Program`, `Semester`, and `Course` may each own settings.
-5. Assigned Course settings do not imply assigned Course activation rights.
+4. `Program`, `Semester`, and `Course` may each own tab settings.
+5. Assigned Course tab settings do not imply assigned Course activation rights.
 6. Activation decides whether a plugin runs.
-7. Settings decide what config the running plugin reads.
+7. Governance config plus tab settings decide what config the running plugin reads.
 
 ## Source Map
 
@@ -379,7 +383,7 @@ If you need a compact mental model, use these rules:
   - `backend/alembic/versions/20260328_0016_add_program_course_plugin_activations.py`
   - `backend/crud_plugin_governance.py`
 - Runtime payload assembly:
-  - `backend/main.py`
+  - `backend/runtime_payloads.py`
 - Frontend metadata capability authoring:
   - `frontend/src/plugin-system/contracts.ts`
   - `frontend/src/plugin-system/metadataManifest.ts`

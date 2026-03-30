@@ -13,7 +13,7 @@ import { BookOpen, GraduationCap, Percent } from 'lucide-react';
 
 import { AppEmptyState } from '@/components/AppEmptyState';
 import api, { type Course } from '@/services/api';
-import type { WidgetDefinition, WidgetProps } from '@/services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps } from '@/plugin-system';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE, formatGradebookGpaPercentage } from './shared';
 import { cn } from '@/lib/utils';

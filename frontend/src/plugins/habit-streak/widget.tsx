@@ -9,7 +9,7 @@
 "use no memo";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { HeaderButtonContext, WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../../services/widgetRegistry';
+import type { HeaderButtonContext, WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 import { Button } from '@/components/ui/button';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { Input } from '@/components/ui/input';

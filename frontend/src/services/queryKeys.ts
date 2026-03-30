@@ -20,7 +20,6 @@ export const queryKeys = {
     detail: (semesterId: string) => ['semesters', 'detail', semesterId] as const,
     pluginActivations: (semesterId: string) => ['semesters', semesterId, 'plugin-activations'] as const,
     pluginSystemSetup: (semesterId: string) => ['plugin-system', 'semesters', semesterId, 'setup'] as const,
-    pluginSettings: (semesterId: string) => ['semesters', semesterId, 'plugin-settings'] as const,
     todo: (semesterId: string) => ['semesters', semesterId, 'todo'] as const,
     schedule: (semesterId: string, params: { mode: string; week: number; withConflicts: boolean }) => (
       ['semesters', semesterId, 'schedule', params] as const
@@ -40,7 +39,6 @@ export const queryKeys = {
   courses: {
     detail: (courseId: string) => ['courses', 'detail', courseId] as const,
     pluginActivations: (courseId: string) => ['courses', courseId, 'plugin-activations'] as const,
-    pluginSettings: (courseId: string) => ['courses', courseId, 'plugin-settings'] as const,
     resources: (courseId: string) => ['courses', courseId, 'resources'] as const,
     gradebook: (courseId: string) => ['courses', courseId, 'gradebook'] as const,
     eventTypes: (courseId: string) => ['courses', courseId, 'event-types'] as const,

@@ -9,7 +9,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import * as pluginSystem from './index';
-import { filterTabItemsByEnabledPlugins, filterWidgetItemsByEnabledPlugins } from './runtimeGovernance';
+import {
+  filterTabItemsByEnabledPlugins,
+  filterWidgetItemsByEnabledPlugins,
+  resolveEnabledPluginIds,
+  resolveGovernedRuntimeTabs,
+} from './runtimeGovernance';
 
 describe('runtimeGovernance filtering', () => {
   it('hides plugin-owned tabs when their plugin is disabled', () => {
@@ -40,5 +45,61 @@ describe('runtimeGovernance filtering', () => {
     ]);
 
     expect(filterWidgetItemsByEnabledPlugins(widgets, new Set(['world-clock']))).toEqual(widgets);
+  });
+
+  it('consumes the normalized runtime payload without legacy field fallbacks', () => {
+    expect(resolveGovernedRuntimeTabs({
+      runtime_tabs: [
+        {
+          id: 'tab-1',
+          type: 'world-clock',
+          title: 'Clock',
+          settings: { timezone: 'UTC' },
+          order_index: 2,
+          plugin_id: 'world-clock',
+          availability: { state: 'available' },
+        },
+      ],
+      tab_catalog_items: [],
+      widget_catalog_items: [],
+      enabled_plugin_ids: [],
+      enabled_plugins: [
+        {
+          plugin_id: 'world-clock',
+          available_tab_types: [],
+          available_widget_types: ['world-clock'],
+          settings: {},
+          resolved_settings: {},
+        },
+      ],
+      available_widget_types: ['world-clock'],
+    }, 'semester:1')).toEqual([
+      {
+        id: 'tab-1',
+        type: 'world-clock',
+        title: 'Clock',
+        settings: { timezone: 'UTC' },
+        order_index: 2,
+        plugin_id: 'world-clock',
+        availability: { state: 'available' },
+      },
+    ]);
+
+    expect(resolveEnabledPluginIds({
+      runtime_tabs: [],
+      tab_catalog_items: [],
+      widget_catalog_items: [],
+      enabled_plugin_ids: [],
+      enabled_plugins: [
+        {
+          plugin_id: 'world-clock',
+          available_tab_types: [],
+          available_widget_types: ['world-clock'],
+          settings: {},
+          resolved_settings: {},
+        },
+      ],
+      available_widget_types: [],
+    })).toEqual(new Set(['world-clock']));
   });
 });

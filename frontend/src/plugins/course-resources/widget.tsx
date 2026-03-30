@@ -26,7 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import api from '@/services/api';
 import { queryKeys } from '@/services/queryKeys';
-import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
 
 import {
     COURSE_RESOURCES_SLOT_COUNTS,

@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints, and dialect-specific partial-index expressions]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin governance rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, unassigned-Course plugin activation rows with per-course enablement, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, context-scoped plugin shared settings, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, unassigned-Course plugin activation state, auth security state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, plugin-shared settings, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin governance rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, unassigned-Course plugin activation rows with per-course enablement, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, V2 tab-settings records, V2 workspace-tab-order entries, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, unassigned-Course plugin activation state, auth security state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, V2 tab-settings ownership, workspace-tab ordering buckets, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -108,6 +108,7 @@ class Program(Base):
     courses = relationship("Course", back_populates="program")
     lms_course_links = relationship("CourseLmsLink", back_populates="program", cascade="all, delete-orphan")
     plugin_installations = relationship("ProgramPluginInstallation", back_populates="program", cascade="all, delete-orphan")
+    tab_settings = relationship("TabSetting", back_populates="program_context", cascade="all, delete-orphan")
 
     @property
     def has_lms_dependencies(self) -> bool:
@@ -147,7 +148,8 @@ class Semester(Base):
     courses = relationship("Course", back_populates="semester", cascade="all, delete-orphan")
     widgets = relationship("Widget", back_populates="semester_context", cascade="all, delete-orphan")
     tabs = relationship("Tab", back_populates="semester_context", cascade="all, delete-orphan")
-    plugin_settings = relationship("PluginSetting", back_populates="semester_context", cascade="all, delete-orphan")
+    tab_settings = relationship("TabSetting", back_populates="semester_context", cascade="all, delete-orphan")
+    tab_order_entries = relationship("WorkspaceTabOrderEntry", back_populates="semester_context", cascade="all, delete-orphan")
     plugin_activations = relationship("SemesterPluginActivation", back_populates="semester", cascade="all, delete-orphan")
     todo_sections = relationship("TodoSection", back_populates="semester", cascade="all, delete-orphan")
     todo_tasks = relationship("TodoTask", back_populates="semester", cascade="all, delete-orphan")
@@ -255,7 +257,8 @@ class Course(Base):
     semester = relationship("Semester", back_populates="courses")
     widgets = relationship("Widget", back_populates="course_context", cascade="all, delete-orphan")
     tabs = relationship("Tab", back_populates="course_context", cascade="all, delete-orphan")
-    plugin_settings = relationship("PluginSetting", back_populates="course_context", cascade="all, delete-orphan")
+    tab_settings = relationship("TabSetting", back_populates="course_context", cascade="all, delete-orphan")
+    tab_order_entries = relationship("WorkspaceTabOrderEntry", back_populates="course_context", cascade="all, delete-orphan")
     plugin_activations = relationship("ProgramCoursePluginActivation", back_populates="course", cascade="all, delete-orphan")
     event_types = relationship("CourseEventType", back_populates="course", cascade="all, delete-orphan")
     sections = relationship("CourseSection", back_populates="course", cascade="all, delete-orphan")
@@ -636,23 +639,75 @@ class Tab(Base):
     semester_context = relationship("Semester", back_populates="tabs")
     course_context = relationship("Course", back_populates="tabs")
 
-class PluginSetting(Base):
-    __tablename__ = "plugin_settings"
+class TabSetting(Base):
+    __tablename__ = "tab_settings"
     __table_args__ = (
         CheckConstraint(
-            "((semester_id IS NOT NULL AND course_id IS NULL) OR (semester_id IS NULL AND course_id IS NOT NULL))",
-            name="ck_plugin_settings_single_context",
+            """
+            (
+                (program_id IS NOT NULL AND semester_id IS NULL AND course_id IS NULL)
+                OR (program_id IS NULL AND semester_id IS NOT NULL AND course_id IS NULL)
+                OR (program_id IS NULL AND semester_id IS NULL AND course_id IS NOT NULL)
+            )
+            """,
+            name="ck_tab_settings_single_context",
         ),
-        UniqueConstraint("plugin_id", "semester_id", name="uq_plugin_settings_plugin_semester"),
-        UniqueConstraint("plugin_id", "course_id", name="uq_plugin_settings_plugin_course"),
+        UniqueConstraint("tab_type", "program_id", name="uq_tab_settings_tab_program"),
+        UniqueConstraint("tab_type", "semester_id", name="uq_tab_settings_tab_semester"),
+        UniqueConstraint("tab_type", "course_id", name="uq_tab_settings_tab_course"),
+        Index("ix_tab_settings_program", "program_id"),
+        Index("ix_tab_settings_semester", "semester_id"),
+        Index("ix_tab_settings_course", "course_id"),
+        Index("ix_tab_settings_tab_type", "tab_type"),
     )
 
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
-    plugin_id = Column(String, nullable=False, index=True)
-    settings = Column(Text, default="{}")
+    tab_type = Column(String, nullable=False)
+    settings = Column(Text, nullable=False, default="{}")
 
-    semester_id = Column(String, ForeignKey("semesters.id"), nullable=True)
-    course_id = Column(String, ForeignKey("courses.id"), nullable=True)
+    program_id = Column(String, ForeignKey("programs.id", ondelete="CASCADE"), nullable=True)
+    semester_id = Column(String, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=True)
+    course_id = Column(String, ForeignKey("courses.id", ondelete="CASCADE"), nullable=True)
 
-    semester_context = relationship("Semester", back_populates="plugin_settings")
-    course_context = relationship("Course", back_populates="plugin_settings")
+    program_context = relationship("Program", back_populates="tab_settings")
+    semester_context = relationship("Semester", back_populates="tab_settings")
+    course_context = relationship("Course", back_populates="tab_settings")
+
+
+class WorkspaceTabOrderEntry(Base):
+    __tablename__ = "workspace_tab_order_entries"
+    __table_args__ = (
+        CheckConstraint(
+            """
+            (
+                semester_id IS NOT NULL
+                AND course_id IS NULL
+                AND bucket_type IN ('semester_homepage', 'semester_course_shared')
+            )
+            OR (
+                semester_id IS NULL
+                AND course_id IS NOT NULL
+                AND bucket_type = 'unassigned_course_homepage'
+            )
+            """,
+            name="ck_workspace_tab_order_entries_bucket_context",
+        ),
+        UniqueConstraint("bucket_type", "semester_id", "tab_type", name="uq_workspace_tab_orders_semester_tab"),
+        UniqueConstraint("bucket_type", "course_id", "tab_type", name="uq_workspace_tab_orders_course_tab"),
+        UniqueConstraint("bucket_type", "semester_id", "order_index", name="uq_workspace_tab_orders_semester_order"),
+        UniqueConstraint("bucket_type", "course_id", "order_index", name="uq_workspace_tab_orders_course_order"),
+        Index("ix_workspace_tab_orders_semester", "semester_id"),
+        Index("ix_workspace_tab_orders_course", "course_id"),
+        Index("ix_workspace_tab_orders_bucket", "bucket_type"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    bucket_type = Column(String, nullable=False, index=True)
+    tab_type = Column(String, nullable=False)
+    order_index = Column(Integer, nullable=False, default=0)
+
+    semester_id = Column(String, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=True)
+    course_id = Column(String, ForeignKey("courses.id", ondelete="CASCADE"), nullable=True)
+
+    semester_context = relationship("Semester", back_populates="tab_order_entries")
+    course_context = relationship("Course", back_populates="tab_order_entries")

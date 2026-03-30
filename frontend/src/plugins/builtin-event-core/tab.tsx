@@ -1,4 +1,4 @@
-// input:  [event-core tab modules, tab registry contracts, and shared built-in tab type constants]
+// input:  [event-core tab modules, public plugin-system tab contracts, and shared built-in tab type constants]
 // output: [event-core tab components and `BuiltinTimetableTabDefinitions` runtime registrations]
 // pos:    [tab-definition entry that keeps generic tab instance settings inside runtime definitions]
 //
@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { TabDefinition, TabProps, TabSettingsProps } from '@/services/tabRegistry';
+import type { TabDefinition, TabProps, TabSettingsProps } from '@/plugin-system';
 import {
   BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
   BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,

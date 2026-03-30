@@ -1,4 +1,4 @@
-// input:  [tab registry contracts, shared template settings helpers, and form primitives]
+// input:  [public plugin-system tab contracts, shared template settings helpers, and form primitives]
 // output: [`TemplateTab`, `TemplateTabDefinition`, and template tab instance settings UI]
 // pos:    [starter tab runtime that demonstrates instance settings through `TabDefinition.SettingsComponent`]
 //
@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SettingsSection } from '@/components/SettingsSection';
-import type { TabDefinition, TabProps, TabSettingsProps } from '../../services/tabRegistry';
+import type { TabDefinition, TabProps, TabSettingsProps } from '@/plugin-system';
 import { resolveTemplateSettings } from './shared';
 
 const TemplateTabComponent: React.FC<TabProps> = ({ settings, updateSettings }) => {

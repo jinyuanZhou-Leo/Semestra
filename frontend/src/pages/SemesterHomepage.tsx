@@ -1,6 +1,6 @@
-// input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin governance payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin governance payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, host-owned semester course management settings, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
+// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, host-owned semester course management settings, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -29,6 +29,7 @@ import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPrel
 import { SemesterDataProvider, useSemesterData } from '../contexts/SemesterDataContext';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { SemesterPluginGovernancePanel } from '../components/SemesterPluginGovernancePanel';
+import { SemesterCourseManagementSection } from '../components/SemesterCourseManagementSection';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
@@ -61,7 +62,6 @@ import {
     resolveAvailableWidgetTypes,
     resolveEnabledPluginIds,
     resolveGovernedRuntimeTabs,
-    resolvePluginSettingsMap,
 } from '../plugin-system/runtimeGovernance';
 
 
@@ -107,19 +107,14 @@ const SemesterHomepageContent: React.FC = () => {
     const programName = parentProgramQuery.data?.name ?? null;
 
     const runtimeTabs = useMemo(
-        () => resolveGovernedRuntimeTabs(semester, `semester:${semester?.id ?? 'unknown'}`),
-        [semester]
+        () => resolveGovernedRuntimeTabs(semester?.runtime, `semester:${semester?.id ?? 'unknown'}`),
+        [semester?.id, semester?.runtime]
     );
-    const enabledPluginIds = useMemo(() => resolveEnabledPluginIds(semester), [semester]);
+    const enabledPluginIds = useMemo(() => resolveEnabledPluginIds(semester?.runtime), [semester?.runtime]);
     const availableWidgetTypes = useMemo(
-        () => Array.from(resolveAvailableWidgetTypes(semester)),
-        [semester]
+        () => Array.from(resolveAvailableWidgetTypes(semester?.runtime)),
+        [semester?.runtime]
     );
-    const resolvedPluginSettingsMap = useMemo(
-        () => resolvePluginSettingsMap(semester),
-        [semester]
-    );
-
     const {
         widgets,
         addWidget: handleAddWidget,
@@ -148,7 +143,7 @@ const SemesterHomepageContent: React.FC = () => {
         semesterId: semester?.id,
         orderOwnerSemesterId: semester?.id,
         initialTabs: runtimeTabs,
-        governed: false,
+        governed: true,
         onRefresh: refreshSemester
     });
 
@@ -171,7 +166,6 @@ const SemesterHomepageContent: React.FC = () => {
         filterReorderableTabIds,
     } = useHomepageBuiltinTabs({
         tabs: customTabs,
-        enabledPluginIds,
         activeTabId,
         scopeKey: `semester:${semester?.id ?? 'unknown'}`,
         config: SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
@@ -298,6 +292,19 @@ const SemesterHomepageContent: React.FC = () => {
                     size="section"
                     title="Tab not found"
                     description="The requested tab is unavailable."
+                />
+            );
+        }
+        if (activeTab.availability?.state === 'unavailable') {
+            return (
+                <AppEmptyState
+                    scenario="unavailable"
+                    size="section"
+                    title={`${activeTab.title || activeTab.type} is unavailable`}
+                    description={
+                        activeTab.availability.reason_message
+                        || 'This tab is currently unavailable in this semester.'
+                    }
                 />
             );
         }
@@ -460,7 +467,6 @@ const SemesterHomepageContent: React.FC = () => {
                             showPluginHeader={showPluginHeader}
                             component={definition.component}
                             semesterId={semester?.id}
-                            initialSettings={resolvedPluginSettingsMap.get(definition.pluginId)}
                             onRefresh={refreshSemester}
                         />
                     </React.Fragment>
@@ -474,9 +480,22 @@ const SemesterHomepageContent: React.FC = () => {
                 {sections}
             </div>
         );
-    }, [pluginSettingsDefinitions, refreshSemester, resolvedPluginSettingsMap, semester?.id, semester?.plugin_activations]);
+    }, [pluginSettingsDefinitions, refreshSemester, semester?.id, semester?.plugin_activations]);
 
-    const hasPluginSettings = Boolean(pluginSettingsSections || tabInstanceSettingsSections);
+    const semesterCourseManagementSection = useMemo(() => {
+        if (!semester?.id || !semester.program_id) {
+            return null;
+        }
+
+        return (
+            <SemesterCourseManagementSection
+                semesterId={semester.id}
+                onRefresh={refreshSemester}
+            />
+        );
+    }, [refreshSemester, semester?.id, semester?.program_id]);
+
+    const hasPluginSettings = Boolean(semesterCourseManagementSection || pluginSettingsSections || tabInstanceSettingsSections);
 
     const builtinTabContext = useMemo(() => ({
         isLoading: isLoading,
@@ -515,6 +534,7 @@ const SemesterHomepageContent: React.FC = () => {
                             onChanged={refreshSemester}
                         />
                     ) : null}
+                    {semesterCourseManagementSection}
                     {pluginSettingsSections}
                     {tabInstanceSettingsSections}
                 </div>
@@ -540,6 +560,7 @@ const SemesterHomepageContent: React.FC = () => {
         semester,
         handleUpdateSemester,
         hasPluginSettings,
+        semesterCourseManagementSection,
         pluginSettingsSections,
         tabInstanceSettingsSections,
         openAddWidgetModal

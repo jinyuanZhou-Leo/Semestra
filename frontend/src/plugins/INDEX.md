@@ -9,8 +9,8 @@ The plugin-system auto-loads `metadata.ts`, `setup.ts(x)`, and `settings.ts(x)` 
 - `setup.ts(x)` is **optional** and default-exports `definePluginSetup(...)` only when the plugin contributes Semester setup sections, validation, or custom setup/review UI to the plugin-system manifest.
 - Backend plugin governance consumes the generated metadata manifest so Program/Semester/unassigned-Course management surfaces stay aligned with frontend-authored plugin display metadata.
 - `index.ts` default-exports `definePluginRuntime(...)`; runtime definitions in `widget.tsx`/`tab.tsx` declare runtime-specific fields like `component`, `defaultSettings`, tab/widget `SettingsComponent`, `headerButtons`, and lifecycle hooks.
-- `settings.ts(x)` is **optional** and default-exports `definePluginSettings(...)` only when the plugin defines shared plugin-level settings sections.
-- Regular plugins can use framework-managed shared settings through `PluginSettingsProps.settings` and `updateSettings(...)`; transient per-instance UI state should use the plugin UI-state hook instead of backend persistence.
+- `settings.ts(x)` is **optional** and default-exports `definePluginSettings(...)` only when the plugin defines plugin-level settings sections for Program, Semester, or Course settings pages.
+- Settings sections receive scope ids and shared shell props from the host, but persistence is plugin-owned; transient per-instance UI state should still use the plugin UI-state hook instead of backend persistence.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -27,8 +27,8 @@ The plugin-system auto-loads `metadata.ts`, `setup.ts(x)`, and `settings.ts(x)` 
 | counter/ | Widget plugin | Numeric counter widget with inline controls, per-instance settings, and explicit unassigned-Course support. |
 | counter/INDEX.md | Plugin architecture index | File map for counter plugin runtime, metadata, settings, bound validation, and design notes. |
 | course-resources/ | Course resource plugin | Course-only resource manager tab plus pinned quick-open widget backed by account-wide resource quota APIs, with a height-stable add-resource dialog whose link form uses plugin-local UI state and explicit unassigned-Course support. |
-| course-list/ | Widget plugin | Course list widget with plugin-level management settings panel. |
-| course-list/INDEX.md | Plugin architecture index | File map for course-list plugin runtime, metadata, plugin-global settings, explicit async loading/error feedback, guarded course-manager entry behavior, and the narrowed semester-courses settings table minimum width. |
+| course-list/ | Widget plugin | Course list widget with semester-scoped course cards and quick navigation links. |
+| course-list/INDEX.md | Plugin architecture index | File map for course-list plugin runtime, metadata, explicit async loading/error feedback, and shared GPA-percentage formatting. |
 | habit-streak/ | Widget plugin | Habit streak dual-widget plugin with per-instance streak data, split Duolingo/ring widget definitions, mode-specific settings, reward bursts, tests, and explicit unassigned-Course support. |
 | habit-streak/INDEX.md | Plugin architecture index | File map for habit-streak per-instance state helpers, split widget files, same-day-safe streak handling, accessible action labels, reduced-motion wiring, and burst animation behavior. |
 | pomodoro/ | Widget plugin | Pomodoro focus timer widget with session transitions, tests, and explicit unassigned-Course support. |

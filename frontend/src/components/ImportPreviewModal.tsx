@@ -47,7 +47,6 @@ export interface CourseExport {
     hide_gpa: boolean;
     widgets: any[];
     tabs: any[];
-    plugin_settings?: any[];
     gradebook?: unknown;
     resource_files?: Array<{ filename_display: string; resource_kind: string }>;
     lms_link?: { external_course_id: string; sync_enabled: boolean } | null;
@@ -68,7 +67,6 @@ export interface SemesterExport {
     courses: CourseExport[];
     widgets: any[];
     tabs: any[];
-    plugin_settings?: any[];
     todo?: {
         sections?: Array<{ id?: string; name: string }>;
         tasks?: Array<{ id?: string; title: string }>;

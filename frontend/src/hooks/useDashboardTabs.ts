@@ -15,6 +15,12 @@ import type { GovernedRuntimeTab } from '../plugin-system/runtimeGovernance';
 import api, { type RuntimeResolvedTab, type Tab } from '../services/api';
 import { reportError } from '../services/appStatus';
 
+interface ContributionAvailability {
+    state: 'available' | 'unavailable';
+    reason_code?: string | null;
+    reason_message?: string | null;
+}
+
 export interface TabItem {
     id: string;
     type: string;
@@ -24,6 +30,7 @@ export interface TabItem {
     is_removable?: boolean;
     is_draggable?: boolean;
     source: 'governed' | 'legacy' | 'synthetic';
+    availability?: ContributionAvailability;
 }
 
 interface UseDashboardTabsProps {
@@ -87,6 +94,7 @@ const toTabItem = (
         is_removable: tab.is_removable,
         is_draggable: tab.is_draggable,
         source: governed ? 'governed' : 'legacy',
+        availability: 'availability' in tab && tab.availability ? tab.availability as ContributionAvailability : undefined,
     };
 };
 
@@ -155,7 +163,7 @@ export const useDashboardTabs = ({
                         currentTab.id === tabId
                             ? {
                                 ...currentTab,
-                                settings: parseSettingsObject(result.resolved_settings ?? result.settings),
+                                settings: result.settings,
                                 title: result.title ?? currentTab.title,
                             }
                             : currentTab
@@ -166,7 +174,7 @@ export const useDashboardTabs = ({
                         currentTab.id === tabId
                             ? {
                                 ...currentTab,
-                                settings: parseSettingsObject(result.resolved_settings ?? result.settings),
+                                settings: result.settings,
                                 title: result.title ?? currentTab.title,
                             }
                             : currentTab
@@ -242,11 +250,11 @@ export const useDashboardTabs = ({
         try {
             if (governed) {
                 const reorderSemesterId = orderOwnerSemesterId ?? semesterId;
-                if (!reorderSemesterId) {
-                    return;
-                }
-
-                const result = await api.reorderSemesterRuntimeTabs(reorderSemesterId, orderedTypes);
+                const result = reorderSemesterId
+                    ? await api.reorderSemesterRuntimeTabs(reorderSemesterId, orderedTypes)
+                    : courseId
+                        ? await api.reorderCourseRuntimeTabs(courseId, orderedTypes)
+                        : [];
                 const normalizedTabs = result
                     .map((tab, index) => toTabItem(tab, scopeKey, index, true))
                     .filter((tab): tab is TabItem => tab !== null)
@@ -264,7 +272,7 @@ export const useDashboardTabs = ({
             console.error('Failed to reorder governed tabs', error);
             reportError('Failed to save tab order. Please retry.');
         }
-    }, [governed, onRefresh, orderOwnerSemesterId, scopeKey, semesterId]);
+    }, [courseId, governed, onRefresh, orderOwnerSemesterId, scopeKey, semesterId]);
 
     const reorderTabs = useCallback((orderedIds: string[]) => {
         const nextOrderMap = new Map(orderedIds.map((id, index) => [id, index]));

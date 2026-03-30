@@ -1,6 +1,6 @@
-// input:  [plugin id, optional plugin display metadata, plugin settings component, resolved runtime settings seed, shared settings hook, manifest icon helpers, and workspace refresh callback]
-// output: [`PluginSettingsSectionRenderer` component that injects framework-managed plugin-global settings props and a consistent plugin header]
-// pos:    [Bridge component between page-level plugin settings registration and framework-managed shared settings persistence seeded from runtime-governed config, with a shared plugin identity header for Program, Semester, and Course settings surfaces]
+// input:  [plugin id, optional plugin display metadata, plugin settings component, stable scope contracts, manifest icon helpers, and workspace refresh callback]
+// output: [`PluginSettingsSectionRenderer` component that injects scope-aware plugin settings section props and a consistent plugin header]
+// pos:    [Bridge component between page-level plugin settings registration and settings-page rendering, with a shared plugin identity header for Program, Semester, and Course settings surfaces]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,8 +12,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 
 import { IconCircle } from '@/components/IconCircle';
-import { usePluginSharedSettings } from '@/hooks/usePluginSharedSettings';
-import type { PluginSettingsProps } from '@/services/pluginSettingsRegistry';
+import type { PluginSettingsScope, PluginSettingsSectionProps } from '@/services/pluginSettingsRegistry';
 
 interface PluginSettingsSectionRendererProps {
   pluginId: string;
@@ -21,11 +20,10 @@ interface PluginSettingsSectionRendererProps {
   pluginDisplayName?: string;
   pluginDescription?: string;
   showPluginHeader?: boolean;
-  component: React.FC<PluginSettingsProps>;
+  component: React.FC<PluginSettingsSectionProps>;
   programId?: string;
   semesterId?: string;
   courseId?: string;
-  initialSettings?: Record<string, unknown>;
   onRefresh: () => void;
 }
 
@@ -45,17 +43,34 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
   programId,
   semesterId,
   courseId,
-  initialSettings,
   onRefresh,
 }) => {
-  const { settings, updateSettings, saveState, hasPendingChanges, isLoading } = usePluginSharedSettings({
-    pluginId,
-    programId,
-    semesterId,
-    courseId,
-    initialSettings,
-  });
   const pluginTitle = pluginDisplayName || formatPluginLabel(pluginId);
+  let scope: PluginSettingsScope | null = null;
+
+  if (courseId) {
+    scope = {
+      kind: 'course',
+      courseId,
+      semesterId,
+      programId,
+    };
+  } else if (semesterId) {
+    scope = {
+      kind: 'semester',
+      semesterId,
+      programId,
+    };
+  } else if (programId) {
+    scope = {
+      kind: 'program',
+      programId,
+    };
+  }
+
+  if (!scope) {
+    return null;
+  }
 
   return (
     <div className="space-y-3">
@@ -72,14 +87,8 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
       ) : null}
 
       <Component
-        settings={settings}
-        updateSettings={updateSettings}
-        saveState={saveState}
-        hasPendingChanges={hasPendingChanges}
-        isLoading={isLoading}
-        programId={programId}
-        semesterId={semesterId}
-        courseId={courseId}
+        pluginId={pluginId}
+        scope={scope}
         onRefresh={onRefresh}
       />
     </div>

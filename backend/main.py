@@ -1,6 +1,6 @@
-# input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, env-backed runtime settings, widget delete query flags, and backend schema compatibility checks]
-# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program/Semester/unassigned-Course plugin-governance APIs, plugin-system + draft wizard routes, legacy semester-tab normalization reads, and Canvas module-file metadata/download routes]
-# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program governance, explicit plugin-system setup APIs, Semester draft wizard persistence, unassigned-Course plugin activation APIs, legacy Semester/Course tab normalization on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
+# input:  [FastAPI framework, domain route modules, backend schemas/models/crud/utils/auth/lms/resource services, runtime payload helpers, env-backed runtime settings, widget delete query flags, and backend schema compatibility checks]
+# output: [FastAPI app instance, router registration, production-safe docs configuration, startup schema guard, remaining Program/Semester/Course route handlers, Program/Semester/unassigned-Course plugin-governance APIs, plugin-system + draft wizard routes, guarded runtime-tab setting routes, legacy semester-tab normalization reads, and Canvas module-file metadata/download routes]
+# pos:    [Backend entry point that boots the FastAPI app, wires middleware and modular routers, disables public docs in production, fails fast on schema drift, and keeps the remaining program/semester/course orchestration endpoints plus Program governance, explicit plugin-system setup APIs, Semester draft wizard persistence, unassigned-Course plugin activation APIs, route-level runtime tab mutations delegated to shared payload helpers, legacy Semester/Course tab normalization on read, and course LMS navigation, announcement, assignment, grade, module-summary, module-item, page, quiz, syllabus, and file proxy/download reads]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -40,6 +40,7 @@ import course_resources
 import auth
 import lms_service
 from database import assert_runtime_schema_compatible, engine, get_db
+import runtime_payloads
 from schedule_support import import_course_schedule_from_ics
 
 BASE_DIR = Path(__file__).parent
@@ -118,47 +119,6 @@ def _raise_plugin_governance_http_error(exc: crud.PluginGovernanceError) -> None
     )
 
 
-def _serialize_runtime_plugin_payloads(
-    activations: list[dict],
-    plugin_settings: list[models.PluginSetting],
-) -> dict[str, object]:
-    runtime_activations = [
-        activation
-        for activation in activations
-        if activation.get("is_enabled") and activation.get("available")
-    ]
-    enabled_plugin_ids = [activation["plugin_id"] for activation in runtime_activations]
-    runtime_plugins = [
-        {
-            "id": activation["id"],
-            "plugin_id": activation["plugin_id"],
-            "available_tab_types": list(activation.get("capabilities", {}).get("available_tab_types", [])),
-            "available_widget_types": list(activation.get("capabilities", {}).get("available_widget_types", [])),
-            "resolved_settings": activation.get("resolved_settings", {}),
-        }
-        for activation in runtime_activations
-    ]
-    available_widget_types = sorted({
-        widget_type
-        for activation in runtime_activations
-        for widget_type in activation.get("capabilities", {}).get("available_widget_types", [])
-    })
-    resolved_plugin_settings = []
-    for setting in plugin_settings:
-        resolved_plugin_settings.append({
-            "id": setting.id,
-            "plugin_id": setting.plugin_id,
-            "settings": setting.settings,
-            "resolved_settings": setting.settings,
-            "semester_id": setting.semester_id,
-            "course_id": setting.course_id,
-        })
-    return {
-        "enabled_plugin_ids": enabled_plugin_ids,
-        "runtime_plugins": runtime_plugins,
-        "available_widget_types": available_widget_types,
-        "resolved_plugin_settings": resolved_plugin_settings,
-    }
 # --- Programs ---
 @app.post("/programs/", response_model=schemas.Program)
 def create_program(program: schemas.ProgramCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -185,6 +145,7 @@ def read_program(program_id: str, db: Session = Depends(get_db), current_user: m
     if program is None:
         raise HTTPException(status_code=404, detail="Program not found")
     payload = schemas.Program.model_validate(program).model_dump()
+    payload["tab_settings"] = runtime_payloads.serialize_tab_settings_payloads(db, program_id=program.id)
     payload["semesters"] = []
     payload["plugin_installations"] = crud.get_program_plugin_installations(db, program_id)
     for semester in program.semesters:
@@ -194,12 +155,39 @@ def read_program(program_id: str, db: Session = Depends(get_db), current_user: m
         semester_payload["courses"] = [schemas.Course.model_validate(course).model_dump() for course in semester.courses]
         semester_payload["widgets"] = [schemas.Widget.model_validate(widget).model_dump() for widget in semester.widgets]
         semester_payload["tabs"] = [schemas.Tab.model_validate(tab).model_dump() for tab in semester.tabs]
-        semester_payload["plugin_settings"] = [
-            schemas.PluginSetting.model_validate(setting).model_dump()
-            for setting in semester.plugin_settings
-        ]
         payload["semesters"].append(semester_payload)
     return payload
+
+
+@app.get("/programs/{program_id}/tab-settings", response_model=list[schemas.TabSetting])
+def read_program_tab_settings(
+    program_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if program is None:
+        raise HTTPException(status_code=404, detail="Program not found")
+    return runtime_payloads.serialize_tab_settings_payloads(db, program_id=program.id)
+
+
+@app.put("/programs/{program_id}/tab-settings/{tab_type}", response_model=schemas.TabSetting)
+def upsert_program_tab_setting(
+    program_id: str,
+    tab_type: str,
+    tab_setting: schemas.TabSettingUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    program = crud.get_program(db, program_id=program_id, user_id=current_user.id)
+    if program is None:
+        raise HTTPException(status_code=404, detail="Program not found")
+    row = crud.upsert_tab_setting(
+        db,
+        schemas.TabSettingCreate(tab_type=tab_type, settings=tab_setting.settings),
+        program_id=program.id,
+    )
+    return runtime_payloads.serialize_tab_setting_payload(db, row, program_id=program.id)
 
 @app.put("/programs/{program_id}", response_model=schemas.Program)
 def update_program(program_id: str, program: schemas.ProgramUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -672,10 +660,7 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
         raise HTTPException(status_code=404, detail="Semester not found")
     crud.ensure_semester_tabs_normalized(db, semester)
     plugin_activations = crud.get_semester_plugin_activations(db, semester_id)
-    runtime_payload = _serialize_runtime_plugin_payloads(
-        plugin_activations,
-        crud.get_plugin_settings_for_context(db, semester_id=semester_id),
-    )
+    runtime_payload = runtime_payloads.build_semester_runtime_payload(db, semester)
     return {
         "id": semester.id,
         "name": semester.name,
@@ -693,7 +678,6 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
         "courses": semester.courses,
         "widgets": semester.widgets,
         "tabs": semester.tabs,
-        "plugin_settings": semester.plugin_settings,
         "plugin_activations": plugin_activations,
         **runtime_payload,
     }
@@ -730,14 +714,14 @@ def read_semester_lms_calendar_events(
     except Exception as exc:
         raise_lms_http_error(exc)
 
-@app.get("/semesters/{semester_id}/plugin-settings", response_model=list[schemas.PluginSetting])
-def read_semester_plugin_settings(
+@app.get("/semesters/{semester_id}/tab-settings", response_model=list[schemas.TabSetting])
+def read_semester_tab_settings(
     semester_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    get_owned_semester(db, current_user, semester_id)
-    return crud.get_plugin_settings_for_context(db, semester_id=semester_id)
+    semester = get_owned_semester(db, current_user, semester_id)
+    return runtime_payloads.serialize_tab_settings_payloads(db, program_id=semester.program_id, semester_id=semester_id)
 
 
 @app.get("/semesters/{semester_id}/plugin-activations", response_model=list[schemas.SemesterPluginActivation])
@@ -795,17 +779,105 @@ def delete_semester_plugin_activation(
         raise HTTPException(status_code=404, detail=error_detail("PLUGIN_NOT_ENABLED", "Plugin is not enabled for this Semester."))
     return {"ok": True}
 
-@app.put("/semesters/{semester_id}/plugin-settings/{plugin_id}", response_model=schemas.PluginSetting)
-def upsert_semester_plugin_setting(
+@app.put("/semesters/{semester_id}/tab-settings/{tab_type}", response_model=schemas.TabSetting)
+def upsert_semester_tab_setting(
     semester_id: str,
-    plugin_id: str,
-    plugin_setting: schemas.PluginSettingCreate,
+    tab_type: str,
+    tab_setting: schemas.TabSettingUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     get_owned_semester(db, current_user, semester_id)
-    payload = plugin_setting.copy(update={"plugin_id": plugin_id})
-    return crud.upsert_plugin_setting(db, payload, semester_id=semester_id)
+    row = crud.upsert_tab_setting(
+        db,
+        schemas.TabSettingCreate(tab_type=tab_type, settings=tab_setting.settings),
+        semester_id=semester_id,
+    )
+    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if semester is None:
+        raise HTTPException(status_code=404, detail="Semester not found")
+    return runtime_payloads.serialize_tab_setting_payload(
+        db,
+        row,
+        program_id=semester.program_id,
+        semester_id=semester_id,
+    )
+
+
+@app.post("/semesters/{semester_id}/runtime-tabs", response_model=list[schemas.RuntimeTabDefinition])
+def add_semester_runtime_tab(
+    semester_id: str,
+    payload: schemas.RuntimeTabSelectionRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    crud.add_workspace_tab_selection(
+        db,
+        crud.SEMESTER_HOMEPAGE_TAB_ORDER_BUCKET,
+        payload.tab_type,
+        semester_id=semester.id,
+    )
+    return runtime_payloads.build_semester_runtime_payload(db, semester)["runtime_tabs"]
+
+
+@app.delete("/semesters/{semester_id}/runtime-tabs/{tab_type}", response_model=list[schemas.RuntimeTabDefinition])
+def delete_semester_runtime_tab(
+    semester_id: str,
+    tab_type: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    crud.remove_workspace_tab_selection(
+        db,
+        crud.SEMESTER_HOMEPAGE_TAB_ORDER_BUCKET,
+        tab_type,
+        semester_id=semester.id,
+    )
+    return runtime_payloads.build_semester_runtime_payload(db, semester)["runtime_tabs"]
+
+
+@app.put("/semesters/{semester_id}/runtime-tabs/order", response_model=list[schemas.RuntimeTabDefinition])
+def reorder_semester_runtime_tabs(
+    semester_id: str,
+    payload: schemas.RuntimeTabOrderUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    crud.set_workspace_tab_order(
+        db,
+        crud.SEMESTER_HOMEPAGE_TAB_ORDER_BUCKET,
+        payload.tab_types,
+        semester_id=semester.id,
+    )
+    return runtime_payloads.build_semester_runtime_payload(db, semester)["runtime_tabs"]
+
+
+@app.put("/semesters/{semester_id}/runtime-tabs/{tab_type}/settings", response_model=schemas.RuntimeTabDefinition)
+def update_semester_runtime_tab_settings(
+    semester_id: str,
+    tab_type: str,
+    payload: schemas.TabSettingUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    semester = get_owned_semester(db, current_user, semester_id)
+    runtime_payload = runtime_payloads.build_semester_runtime_payload(db, semester)
+    runtime_tab = runtime_payloads.find_runtime_tab(runtime_payload, tab_type)
+    if runtime_tab is None:
+        raise HTTPException(status_code=404, detail="Runtime tab not found")
+    crud.upsert_tab_setting(
+        db,
+        schemas.TabSettingCreate(tab_type=tab_type, settings=payload.settings),
+        semester_id=semester.id,
+    )
+    updated_runtime_payload = runtime_payloads.build_semester_runtime_payload(db, semester)
+    updated_runtime_tab = runtime_payloads.find_runtime_tab(updated_runtime_payload, tab_type)
+    if updated_runtime_tab is None:
+        raise HTTPException(status_code=404, detail="Runtime tab not found")
+    return updated_runtime_tab
 
 @app.put("/semesters/{semester_id}", response_model=schemas.Semester)
 def update_semester(semester_id: str, semester: schemas.SemesterCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -992,11 +1064,7 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
     crud.ensure_course_tabs_normalized(db, db_course)
-    course_plugin_activations = crud.get_course_plugin_activations(db, course_id)
-    runtime_payload = _serialize_runtime_plugin_payloads(
-        course_plugin_activations,
-        crud.get_plugin_settings_for_context(db, course_id=course_id),
-    )
+    runtime_payload = runtime_payloads.build_course_runtime_payload(db, db_course)
     return {
         "id": db_course.id,
         "name": db_course.name,
@@ -1016,8 +1084,7 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
         "lms_link": db_course.lms_link,
         "widgets": db_course.widgets,
         "tabs": db_course.tabs,
-        "plugin_settings": db_course.plugin_settings,
-        "plugin_activations": course_plugin_activations,
+        "plugin_activations": crud.get_course_plugin_activations(db, course_id),
         **runtime_payload,
     }
 
@@ -1282,26 +1349,123 @@ def read_course_lms_syllabus(
         raise_lms_http_error(exc)
 
 
-@app.get("/courses/{course_id}/plugin-settings", response_model=list[schemas.PluginSetting])
-def read_course_plugin_settings(
+@app.get("/courses/{course_id}/tab-settings", response_model=list[schemas.TabSetting])
+def read_course_tab_settings(
     course_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    get_owned_course(db, current_user, course_id)
-    return crud.get_plugin_settings_for_context(db, course_id=course_id)
+    course = get_owned_course(db, current_user, course_id)
+    return runtime_payloads.serialize_tab_settings_payloads(
+        db,
+        program_id=course.program_id,
+        semester_id=course.semester_id,
+        course_id=course_id,
+    )
 
-@app.put("/courses/{course_id}/plugin-settings/{plugin_id}", response_model=schemas.PluginSetting)
-def upsert_course_plugin_setting(
+@app.put("/courses/{course_id}/tab-settings/{tab_type}", response_model=schemas.TabSetting)
+def upsert_course_tab_setting(
     course_id: str,
-    plugin_id: str,
-    plugin_setting: schemas.PluginSettingCreate,
+    tab_type: str,
+    tab_setting: schemas.TabSettingUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    get_owned_course(db, current_user, course_id)
-    payload = plugin_setting.copy(update={"plugin_id": plugin_id})
-    return crud.upsert_plugin_setting(db, payload, course_id=course_id)
+    course = get_owned_course(db, current_user, course_id)
+    row = crud.upsert_tab_setting(
+        db,
+        schemas.TabSettingCreate(tab_type=tab_type, settings=tab_setting.settings),
+        course_id=course.id,
+    )
+    return runtime_payloads.serialize_tab_setting_payload(
+        db,
+        row,
+        program_id=course.program_id,
+        semester_id=course.semester_id,
+        course_id=course.id,
+    )
+
+
+@app.post("/courses/{course_id}/runtime-tabs", response_model=list[schemas.RuntimeTabDefinition])
+def add_course_runtime_tab(
+    course_id: str,
+    payload: schemas.RuntimeTabSelectionRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    bucket_type, bucket_context = crud.get_tab_order_bucket_for_course(course)
+    crud.add_workspace_tab_selection(
+        db,
+        bucket_type,
+        payload.tab_type,
+        semester_id=bucket_context.get("semester_id"),
+        course_id=bucket_context.get("course_id"),
+    )
+    return runtime_payloads.build_course_runtime_payload(db, course)["runtime_tabs"]
+
+
+@app.delete("/courses/{course_id}/runtime-tabs/{tab_type}", response_model=list[schemas.RuntimeTabDefinition])
+def delete_course_runtime_tab(
+    course_id: str,
+    tab_type: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    bucket_type, bucket_context = crud.get_tab_order_bucket_for_course(course)
+    crud.remove_workspace_tab_selection(
+        db,
+        bucket_type,
+        tab_type,
+        semester_id=bucket_context.get("semester_id"),
+        course_id=bucket_context.get("course_id"),
+    )
+    return runtime_payloads.build_course_runtime_payload(db, course)["runtime_tabs"]
+
+
+@app.put("/courses/{course_id}/runtime-tabs/order", response_model=list[schemas.RuntimeTabDefinition])
+def reorder_course_runtime_tabs(
+    course_id: str,
+    payload: schemas.RuntimeTabOrderUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    bucket_type, bucket_context = crud.get_tab_order_bucket_for_course(course)
+    crud.set_workspace_tab_order(
+        db,
+        bucket_type,
+        payload.tab_types,
+        semester_id=bucket_context.get("semester_id"),
+        course_id=bucket_context.get("course_id"),
+    )
+    return runtime_payloads.build_course_runtime_payload(db, course)["runtime_tabs"]
+
+
+@app.put("/courses/{course_id}/runtime-tabs/{tab_type}/settings", response_model=schemas.RuntimeTabDefinition)
+def update_course_runtime_tab_settings(
+    course_id: str,
+    tab_type: str,
+    payload: schemas.TabSettingUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    course = get_owned_course(db, current_user, course_id)
+    runtime_payload = runtime_payloads.build_course_runtime_payload(db, course)
+    runtime_tab = runtime_payloads.find_runtime_tab(runtime_payload, tab_type)
+    if runtime_tab is None:
+        raise HTTPException(status_code=404, detail="Runtime tab not found")
+    crud.upsert_tab_setting(
+        db,
+        schemas.TabSettingCreate(tab_type=tab_type, settings=payload.settings),
+        course_id=course.id,
+    )
+    updated_runtime_payload = runtime_payloads.build_course_runtime_payload(db, course)
+    updated_runtime_tab = runtime_payloads.find_runtime_tab(updated_runtime_payload, tab_type)
+    if updated_runtime_tab is None:
+        raise HTTPException(status_code=404, detail="Runtime tab not found")
+    return updated_runtime_tab
 
 @app.get("/courses/{course_id}/resources", response_model=schemas.CourseResourceListResponse)
 def read_course_resources(

@@ -102,7 +102,6 @@ const ProgramSettingsPageContent: React.FC = () => {
                         showPluginHeader={showPluginHeader}
                         component={definition.component}
                         programId={program.id}
-                        initialSettings={pluginMetadata?.resolvedSettings}
                         onRefresh={refreshProgram}
                     />
                 </React.Fragment>

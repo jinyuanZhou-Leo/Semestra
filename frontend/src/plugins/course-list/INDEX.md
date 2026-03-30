@@ -2,19 +2,15 @@
 
 Course-list plugin shows semester-scoped course cards with grade/credit metadata and quick navigation links.
 `metadata.ts` is eagerly loaded for plugin catalog usage while `index.ts` lazily exports runtime definitions.
-`widget.tsx` and `globalSettings.tsx` expose explicit loading, retry, and failure feedback instead of collapsing errors into empty states.
-The plugin-global settings surface now receives framework-managed shared-settings props while still using direct semester management APIs for its builtin-style course operations.
+`widget.tsx` exposes explicit loading, retry, and failure feedback instead of collapsing errors into empty states.
 The widget now also resolves Program-level subject-code colors so course tags inherit the same defaults as the larger dashboard views.
-Both the widget and plugin-global settings now reuse a plugin-local GPA-percentage formatter so plugin display logic stays host-decoupled.
+The widget reuses a plugin-local GPA-percentage formatter so plugin display logic stays host-decoupled, while semester course management now lives in a host-owned settings section.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local map for course-list plugin files and responsibilities. |
-| format.ts | Plugin helper | Plugin-local one-decimal GPA-percentage formatter reused by the course-list widget and global settings without reaching into app-level utilities. |
-| globalSettings.test.tsx | Test file | Covers stale semester-response protection, the narrowed semester-course table minimum width, and the disabled course-manager entry when semester details fail to load. |
+| format.ts | Plugin helper | Plugin-local one-decimal GPA-percentage formatter reused by the course-list widget and the host-owned semester course-management section without reaching into app-level utilities. |
 | metadata.ts | Plugin metadata | Declares plugin id and widget catalog entry metadata. |
 | index.ts | Runtime entry | Exports widget definition and metadata for plugin loader integration. |
-| settings.ts | Settings entry | Registers plugin-global settings sections for semester course management and opts into framework-managed shared-settings props. |
-| globalSettings.tsx | Plugin settings UI | Provides shared course-management controls with semester load retry UI, stale-response guards, a mobile-safe `DataTable`-aligned semester course table that overrides the shared `720px` shell minimum with a narrower four-column fit, consistent one-decimal GPA-percentage display via a plugin-local formatter, row-actions dropdown-based course removal, and a disabled manager entry until semester/program data is valid while remaining compatible with framework-managed plugin settings props. |
 | widget.test.tsx | Test file | Covers widget loading, Program color fetches, error alert, and retry behavior for semester course fetches. |
 | widget.tsx | Widget runtime | Fetches and renders semester courses with race-safe async updates, Program-derived subject-code tag colors, plugin-local one-decimal GPA-percentage formatting, and explicit loading/error/empty states. |

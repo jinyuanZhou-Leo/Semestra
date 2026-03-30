@@ -30,8 +30,24 @@ const semesterResponse = {
             grade_scaled: 3.9,
             grade_percentage: 95,
             program_id: 'program-1',
+            runtime: {
+                runtime_tabs: [],
+                tab_catalog_items: [],
+                widget_catalog_items: [],
+                enabled_plugin_ids: [],
+                enabled_plugins: [],
+                available_widget_types: [],
+            },
         },
     ],
+    runtime: {
+        runtime_tabs: [],
+        tab_catalog_items: [],
+        widget_catalog_items: [],
+        enabled_plugin_ids: [],
+        enabled_plugins: [],
+        available_widget_types: [],
+    },
 };
 
 const renderCourseList = () => {

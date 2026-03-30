@@ -11,12 +11,57 @@ Plugins are the top-level extension unit. A single plugin can contribute:
 Both contribution shapes share a similar registration model but remain subordinate to the plugin.
 Plugins live in `frontend/src/plugins/<plugin-name>/` and can implement any mix of tabs, widgets, plugin-global settings, and optional Semester setup definitions.
 
-Plugin-global settings now support three host contexts:
+Plugin-global settings sections now support three host contexts:
 1. `program`
 2. `semester`
 3. `course`
 
-The framework manages persistence for these settings. Program-scoped plugin settings are stored through Program plugin installations in backend `program_settings`, while Semester and Course plugin settings continue using the shared plugin-settings records.
+The framework only manages registration and rendering for these sections. Persistence is plugin-owned. If a value belongs to Program governance, store it through backend `program_settings`; otherwise use plugin/domain APIs or `tab_settings`/widget settings where the state actually belongs.
+
+## Public API Rule
+
+Plugin code should import from the public plugin-system surface, not from loader internals or registry implementation files.
+
+- Prefer `@/plugin-system` for normal plugin authoring.
+- Use the thin module entrypoints only when you want a narrower import surface for clarity.
+- Do not import from `frontend/src/plugin-system/contracts.ts`, `frontend/src/services/pluginSettingsRegistry.tsx`, or other internal registry files in plugin code.
+
+## API Reference
+
+### Public Entry Points
+
+| Import path | Use for | Primary exports | Notes |
+|------|------|-------------|-------------|
+| `@/plugin-system` | Default plugin authoring and runtime integration | `definePluginMetadata`, `definePluginRuntime`, `definePluginSettings`, `definePluginSetup`, `usePluginHost`, `usePluginUiState`, `PluginSettingsSectionRenderer`, facade helpers | Preferred default import surface for plugin authors. |
+| `@/plugin-system/authoring` | Declaration-only authoring files | `definePluginMetadata`, `definePluginRuntime`, `definePluginSettings`, `definePluginSetup`, setup field helpers | Use when you want `metadata.ts`, `index.ts`, `setup.ts(x)`, or `settings.ts(x)` to avoid importing runtime loader helpers. |
+| `@/plugin-system/host-api` | Runtime tab/widget components | `usePluginHost`, `usePluginUiState`, `usePluginRuntimeInstanceContext`, `PluginContentFadeIn`, `PluginTabSkeleton`, `PluginWidgetSkeleton` | Stable host/runtime helpers for plugin UI code. |
+| `@/plugin-system/settings-sections` | Settings-page section contracts | `PluginSettingsSectionRenderer`, `usePluginSettingsRegistry`, `getPluginSettingsSections`, `PluginSettingsSectionProps`, `PluginSettingsScope` | Use when working specifically on settings-page section integration or typing. |
+| `@/plugin-system` | Runtime tab/widget component typing | `TabDefinition`, `TabProps`, `TabSettingsProps`, `WidgetDefinition`, `WidgetProps`, `WidgetSettingsProps`, `HeaderButtonContext` | Runtime-instance API for plugin tabs and widgets now ships from the same public surface. |
+
+### Key Authoring Types And Helpers
+
+| API | Import from | Purpose | Use in |
+|------|------|-------------|-------------|
+| `definePluginMetadata(...)` | `@/plugin-system` | Declare plugin id, icon, tab catalog, widget catalog, and `supportsUnassignedCourse`. | `metadata.ts` |
+| `definePluginRuntime(...)` | `@/plugin-system` | Register tab and widget runtime definitions. | `index.ts` |
+| `definePluginSettings(...)` | `@/plugin-system` | Register plugin-global settings-page sections. | `settings.ts(x)` |
+| `definePluginSetup(...)` | `@/plugin-system` | Declare Semester setup fields, sections, validation, and optional custom UI. | `setup.ts(x)` |
+| `PluginSettingsSectionProps` | `@/plugin-system` | Stable plugin settings section contract: `pluginId`, `scope`, `onRefresh`. | `settings.ts(x)` |
+| `PluginSettingsScope` | `@/plugin-system` | Discriminated union for `program`, `semester`, and `course` scope. | `settings.ts(x)` |
+| `TabDefinition` / `WidgetDefinition` | `@/plugin-system` | Runtime-instance definition types for tabs/widgets. | `tab.tsx`, `widget.tsx` |
+| `TabProps` / `WidgetProps` | `@/plugin-system` | Props contract for tab/widget runtime components. | `tab.tsx`, `widget.tsx` |
+| `usePluginHost()` | `@/plugin-system` | Confirmed in-workspace tab jumps. | `tab.tsx`, `widget.tsx` |
+| `usePluginUiState<T>()` | `@/plugin-system` | Browser-local transient UI state for one runtime instance. | `tab.tsx`, `widget.tsx` |
+
+### Import Rules By File
+
+| Plugin file | Recommended imports | Avoid |
+|------|------|-------------|
+| `metadata.ts` | `@/plugin-system` or `@/plugin-system/authoring` | `./contracts`, registry internals |
+| `index.ts` | `@/plugin-system` or `@/plugin-system/authoring` | Loader internals from `plugin-system/index.ts` implementation details |
+| `setup.ts(x)` | `@/plugin-system` or `@/plugin-system/authoring` | Direct imports from setup registry internals |
+| `settings.ts(x)` | `@/plugin-system` or `@/plugin-system/settings-sections` | `services/pluginSettingsRegistry.tsx` |
+| `tab.tsx` / `widget.tsx` | `@/plugin-system` | Registry mutation APIs or plugin loader internals |
 
 ### Unassigned Course Compatibility
 
@@ -95,7 +140,7 @@ Plugin-global settings are declared in `frontend/src/plugins/<plugin-id>/setting
 Use them when the plugin needs host-managed settings UI that is:
 - shared across tab/widget instances
 - scoped to Program, Semester, or Course settings
-- persisted by the framework instead of by plugin-local API code
+- rendered by the framework but persisted by plugin-local API code or by explicit governance/tab-setting contracts
 
 ### Supported Contexts
 
@@ -109,8 +154,8 @@ If `allowedContexts` is omitted, the settings section is considered available in
 Example:
 
 ```typescript
-import { definePluginSettings } from '@/plugin-system/contracts';
-import type { PluginSettingsSectionDefinition } from '@/services/pluginSettingsRegistry';
+import { definePluginSettings } from '@/plugin-system';
+import type { PluginSettingsSectionDefinition } from '@/plugin-system';
 
 import { CourseListProgramSettings } from './programSettings';
 import { CourseListSemesterSettings } from './semesterSettings';
@@ -133,39 +178,31 @@ export default definePluginSettings({
 
 ### Component Props
 
-Plugin settings components receive `PluginSettingsProps` from `frontend/src/services/pluginSettingsRegistry.tsx`.
+Plugin settings components receive `PluginSettingsSectionProps` from the public plugin-system surface.
 
 Relevant props:
-- `settings`: current JSON-like settings snapshot
-- `updateSettings(nextSettings)`: framework-managed update entrypoint
-- `saveState`: `idle | saving | success`
-- `hasPendingChanges`: whether the current draft differs from the last saved snapshot
-- `isLoading`: whether the host is still loading the backing record
-- `programId?`: present for Program settings sections
-- `semesterId?`: present for Semester settings sections
-- `courseId?`: present for Course settings sections
+- `pluginId`: current plugin id
+- `scope`: discriminated union describing the active `program` / `semester` / `course` context
 - `onRefresh()`: host callback for refreshing the surrounding workspace after plugin-owned side effects
 
-Program settings components should prefer `programId` as their primary context identifier and should treat `semesterId`/`courseId` as absent there.
+Program settings components should prefer `scope.kind === 'program'` and `scope.programId` as their primary context identifier.
 
 ### Persistence Model
 
-The host owns persistence semantics:
-- Program settings sections read/write `ProgramPluginInstallation.program_settings` through `PUT /programs/{program_id}/plugins/{plugin_id}`.
-- Semester settings sections read/write `PluginSetting` rows under `/semesters/{semester_id}/plugin-settings/{plugin_id}`.
-- Course settings sections read/write `PluginSetting` rows under `/courses/{course_id}/plugin-settings/{plugin_id}`.
+The host no longer owns persistence for plugin-global settings sections.
 
 This matters for plugin authors:
-- Program settings belong to plugin governance state. They should be used for Program-level defaults and switches that conceptually belong with Program installation/governance.
-- Semester and Course plugin settings remain runtime shared-settings records, separate from Program governance.
-- If the value is a governed Program/Semester config field already enforced by backend governance, keep the runtime aligned with the resolved host payload instead of creating a conflicting plugin-global settings record.
+- Program governance state belongs in `ProgramPluginInstallation.program_settings` and should be updated through the Program plugin governance API.
+- Semester and Course settings sections should call explicit plugin/domain APIs when they need persistence.
+- If the value belongs to one tab or one widget instance, keep it in `tab_settings` or widget instance settings instead of introducing another plugin-global record.
+- If the value is already a governed Program/Semester config field enforced by backend governance, keep runtime aligned with the resolved host payload instead of creating a second persistence path in a settings section.
 
 ### Authoring Rules
 
 When deciding where a setting should live:
-- Use Program plugin settings for Program-scoped defaults or operational switches that should apply across the Program.
-- Use Semester plugin settings for Semester-local shared behavior that is not part of Semester setup/governance fields.
-- Use Course plugin settings for Course-local shared behavior that is not per-tab or per-widget instance state.
+- Use Program governance `program_settings` for Program-scoped defaults or operational switches that should apply across the Program.
+- Use plugin/domain APIs from a Semester settings section for Semester-local shared behavior that is not part of Semester setup/governance fields.
+- Use plugin/domain APIs from a Course settings section for Course-local shared behavior that is not per-tab or per-widget instance state.
 - Use tab/widget instance settings when the value belongs to one runtime instance instead of the whole workspace.
 - Use `setup.ts(x)` only for Semester wizard setup inputs, not as a replacement for steady-state Program settings.
 
@@ -450,7 +487,7 @@ If the generated manifest is stale or missing, backend import will fail with an 
 When a runtime component needs governance config:
 - Read resolved settings from the Semester/Course payload delivered by the backend.
 - Use shared host helpers such as the runtime governance adapter in `frontend/src/plugin-system/runtimeGovernance.ts`.
-- Keep runtime preferences separate from governance config. Install/default/override data belongs to governance; tab settings, widget settings, and plugin shared settings remain runtime preference state.
+- Keep runtime preferences separate from governance config. Install/default/override data belongs to governance; tab settings and widget settings remain runtime preference state, while settings-page sections should persist through their own domain APIs when needed.
 
 ### Built-in Tabs
 
@@ -485,13 +522,13 @@ If `settings.ts` / `settings.tsx` default-exports `definePluginSettings(...)`, p
 - Setup (`setup.ts` / `setup.tsx`): eagerly loaded and validated — setup fields, sections, validation hooks, and optional custom setup/review UI are available for frontend facades, while backend-safe manifest data is generated from the same declaration.
 - Runtime UI (`index.ts` -> `tab.tsx` / `widget.tsx`): lazy-loaded.
 - Plugin-global settings UI (`settings.ts` / `settings.tsx`): eagerly loaded (optional).
-- This keeps plugin icons, add-modal contribution catalogs, and shared plugin settings available without loading runtime UI bundles.
+- This keeps plugin icons, add-modal contribution catalogs, and plugin settings sections available without loading runtime UI bundles.
 
-> **Note**: `settings.ts` is optional. Plugins without shared plugin settings do not need this file.
+> **Note**: `settings.ts` is optional. Plugins without settings-page sections do not need this file.
 
 ### Plugin Manager Facade
 
-Application code should consume the plugin system through `frontend/src/plugin-system/index.ts`, not by stitching registries together manually.
+Application code should consume the plugin system through `@/plugin-system` or one of the thin public entrypoints, not by stitching registries together manually.
 
 Useful public helpers:
 - `getPluginIconById(pluginId)`
@@ -517,7 +554,7 @@ Important behavior:
 
 ## Runtime Host APIs
 
-Runtime plugins can import host-owned helper hooks from `frontend/src/plugin-system/index.ts`.
+Runtime plugins can import host-owned helper hooks from `@/plugin-system` or `@/plugin-system/host-api`.
 
 ### `usePluginHost()`
 
@@ -737,24 +774,24 @@ export interface WidgetSettingsProps<S = any> {
     onSettingsChange: (newSettings: S) => void;
 }
 
-// Plugin-level shared settings (shown in Settings tab)
-export interface PluginSettingsProps<S = any> {
-    settings: S;                               // Framework-managed shared settings for this plugin + context
-    updateSettings: (newSettings: S) => void | Promise<void>; // Debounced/max-wait sync, just like tab/widget settings
-    saveState: 'idle' | 'saving' | 'success'; // Current framework save state for the shared settings record
-    hasPendingChanges: boolean;                // Whether unsaved shared-settings edits are queued
-    isLoading: boolean;                        // Whether the shared settings record is still loading
-    semesterId?: string;                       // Semester context (if applicable)
-    courseId?: string;                         // Course context (if applicable)
-    onRefresh: () => void;                     // Escape hatch for refreshing host-owned data after custom mutations
+// Plugin-level settings section props (shown in Settings tab)
+export type PluginSettingsScope =
+  | { kind: 'program'; programId: string }
+  | { kind: 'semester'; semesterId: string; programId?: string }
+  | { kind: 'course'; courseId: string; semesterId?: string; programId?: string };
+
+export interface PluginSettingsSectionProps {
+    pluginId: string;        // Stable plugin identifier
+    scope: PluginSettingsScope;
+    onRefresh: () => void;   // Escape hatch for refreshing host-owned data after custom mutations
 }
 ```
 
-Plugin-level settings are registered in `settings.ts` / `settings.tsx`, not through the runtime definition. The framework-supported shared settings path is the `pluginSettings` array returned from `definePluginSettings(...)`.
+Plugin-level settings sections are registered in `settings.ts` / `settings.tsx`, not through the runtime definition. The supported registration path is the `pluginSettings` array returned from `definePluginSettings(...)`.
 
-For regular plugins, prefer storing plugin-level configuration in `settings` and updating it with `updateSettings(...)`. The framework persists one shared JSON record per plugin per active context (`pluginId + semesterId` or `pluginId + courseId`) using the same debounce/max-wait autosave pattern as tab and widget settings.
+For regular plugins, treat `scope` as the primary contract and persist data through explicit plugin/domain APIs.
 
-Builtin or host-coupled plugins can still ignore `settings` / `updateSettings` and call private APIs directly when they need richer operations than a shared JSON payload.
+Builtin or host-coupled plugins can still call private APIs directly when they need richer operations than a simple section-level form.
 
 `WidgetDefinition.globalSettingsComponent` is not part of the supported API. If you need a Settings-page section, register it through `definePluginSettings(...)`.
 
@@ -818,7 +855,7 @@ When fields change, call `onSettingsChange(...)` to update draft settings. The f
 **Example - Widget SettingsComponent (fields only)**:
 
 ```typescript
-import type { WidgetSettingsProps } from '../../services/widgetRegistry';
+import type { WidgetSettingsProps } from '@/plugin-system';
 import { Label } from '../../components/ui/label';
 import {
     Select,
@@ -860,34 +897,43 @@ Use cases:
 - Plugin-wide configuration that applies to all instances
 - Management functions (e.g., adding/removing items)
 - Settings that don't belong to any specific widget instance
-- Shared JSON settings that all tabs/widgets in the same plugin/context can read
+- Plugin-owned settings data that all tabs/widgets in the same plugin/context can read after the plugin persists it through its own APIs
 
 **Example - Course List Plugin (`settings.ts`)**:
 ```typescript
-import { definePluginSettings } from '../../plugin-system/contracts';
-import type { PluginSettingsProps, PluginSettingsSectionDefinition } from '../../services/pluginSettingsRegistry';
+import { definePluginSettings } from '@/plugin-system';
+import type { PluginSettingsSectionProps, PluginSettingsSectionDefinition } from '@/plugin-system';
 
 interface CourseListSharedSettings {
     sortBy?: 'name' | 'grade';
 }
 
-const CourseListGlobalSettings: React.FC<PluginSettingsProps<CourseListSharedSettings>> = ({
-    settings,
-    updateSettings,
-    saveState,
-    semesterId,
+const CourseListGlobalSettings: React.FC<PluginSettingsSectionProps> = ({
+    scope,
     onRefresh,
 }) => {
-    const nextSettings = {
-        sortBy: settings?.sortBy ?? 'name',
-    };
+    const semesterId = scope.kind === 'semester' ? scope.semesterId : undefined;
+    const [sortBy, setSortBy] = useState<'name' | 'grade'>('name');
+
+    const saveMutation = useMutation({
+        mutationFn: async (nextSortBy: 'name' | 'grade') => {
+            if (!semesterId) {
+                return;
+            }
+            await saveCourseListSemesterPreferences(semesterId, { sortBy: nextSortBy });
+        },
+        onSuccess: () => {
+            onRefresh();
+        },
+    });
 
     return (
         <SettingsSection title="Courses" description="Manage courses">
             <Select
-                value={nextSettings.sortBy}
+                value={sortBy}
                 onValueChange={(sortBy: 'name' | 'grade') => {
-                    void Promise.resolve(updateSettings({ ...nextSettings, sortBy }));
+                    setSortBy(sortBy);
+                    void saveMutation.mutateAsync(sortBy);
                 }}
             >
                 <SelectTrigger>
@@ -900,7 +946,7 @@ const CourseListGlobalSettings: React.FC<PluginSettingsProps<CourseListSharedSet
             </Select>
 
             <p className="text-xs text-muted-foreground">
-                Shared settings save automatically ({saveState}).
+                Preferences save through the plugin's own API.
             </p>
         </SettingsSection>
     );
@@ -917,7 +963,7 @@ export default definePluginSettings({
 });
 ```
 
-**Note**: Context visibility for plugin-global settings is declared by `allowedContexts` on each `pluginSettings` section.
+**Note**: Context visibility for plugin-global settings is declared by `allowedContexts` on each `pluginSettings` section. The host decides where the section appears; the plugin decides how its data is stored.
 
 
 ### WidgetProps
@@ -1021,7 +1067,7 @@ Create a new folder in `frontend/src/plugins/`, for example `my-new-plugin/`.
 
 ```typescript
 import React from 'react';
-import type { WidgetDefinition, WidgetProps } from '../../services/widgetRegistry';
+import type { WidgetDefinition, WidgetProps } from '@/plugin-system';
 
 export const MyNew: React.FC<WidgetProps> = ({ settings, updateSettings }) => {
     // 1. Access settings directly - framework handles parsing
@@ -1061,7 +1107,7 @@ export const MyNewDefinition: WidgetDefinition = {
 
 ```typescript
 import React, { useCallback } from 'react';
-import type { TabDefinition, TabProps } from '../../services/tabRegistry';
+import type { TabDefinition, TabProps } from '@/plugin-system';
 
 const NotesTab: React.FC<TabProps> = ({ settings, updateSettings }) => {
     const value = settings?.value || '';
@@ -1101,8 +1147,11 @@ Plugins are auto-registered via Vite's `import.meta.glob`.
 ```typescript
 import { createElement } from 'react';
 import { Calculator } from 'lucide-react';
-import { definePluginMetadata } from '../../plugin-system/contracts';
-import type { TabCatalogItem, WidgetCatalogItem } from '../../plugin-system/types';
+import {
+  definePluginMetadata,
+  type TabCatalogItem,
+  type WidgetCatalogItem,
+} from '@/plugin-system';
 
 const pluginId = 'my-new-plugin';
 
@@ -1131,7 +1180,7 @@ export default definePluginMetadata({
 `frontend/src/plugins/my-new-plugin/index.ts`
 
 ```typescript
-import { definePluginRuntime } from '../../plugin-system/contracts';
+import { definePluginRuntime } from '@/plugin-system';
 import { MyNewDefinition } from './widget';
 import { NotesTabDefinition } from './tab';
 
@@ -1144,48 +1193,53 @@ export default definePluginRuntime({
 `frontend/src/plugins/my-new-plugin/settings.ts` **(optional — only needed if you expose plugin-global settings)**
 
 ```typescript
-import { definePluginSettings } from '../../plugin-system/contracts';
-import type { PluginSettingsProps, PluginSettingsSectionDefinition } from '../../services/pluginSettingsRegistry';
+import { definePluginSettings } from '@/plugin-system';
+import type { PluginSettingsSectionProps, PluginSettingsSectionDefinition } from '@/plugin-system';
 
 interface NotesSharedSettings {
     defaultTemplate: string;
     autoPinImportant: boolean;
 }
 
-const normalizeNotesSharedSettings = (settings: unknown): NotesSharedSettings => {
-    if (!settings || typeof settings !== 'object') {
-        return { defaultTemplate: '', autoPinImportant: false };
-    }
-    const value = settings as Partial<NotesSharedSettings>;
-    return {
-        defaultTemplate: typeof value.defaultTemplate === 'string' ? value.defaultTemplate : '',
-        autoPinImportant: Boolean(value.autoPinImportant),
-    };
-};
-
-const NotesPluginSettings: React.FC<PluginSettingsProps<NotesSharedSettings>> = ({
-    settings,
-    updateSettings,
-    saveState,
-    hasPendingChanges,
+const NotesPluginSettings: React.FC<PluginSettingsSectionProps> = ({
+    scope,
+    onRefresh,
 }) => {
-    const resolved = normalizeNotesSharedSettings(settings);
+    const courseId = scope.kind === 'course' ? scope.courseId : undefined;
+    const { data: resolved } = useQuery({
+        queryKey: ['notes-plugin-settings', courseId],
+        queryFn: () => loadNotesSharedSettings(courseId!),
+        enabled: Boolean(courseId),
+    });
+
+    const saveMutation = useMutation({
+        mutationFn: (nextSettings: NotesSharedSettings) => saveNotesSharedSettings(courseId!, nextSettings),
+        onSuccess: () => {
+            onRefresh();
+        },
+    });
 
     return (
         <SettingsSection title="Defaults" description="Shared settings for every Notes tab in this course.">
             <Input
-                value={resolved.defaultTemplate}
+                value={resolved?.defaultTemplate ?? ''}
                 onChange={(event) => {
-                    void Promise.resolve(updateSettings({ ...resolved, defaultTemplate: event.target.value }));
+                    void saveMutation.mutateAsync({
+                        defaultTemplate: event.target.value,
+                        autoPinImportant: resolved?.autoPinImportant ?? false,
+                    });
                 }}
             />
             <Checkbox
-                checked={resolved.autoPinImportant}
+                checked={resolved?.autoPinImportant ?? false}
                 onCheckedChange={(checked) => {
-                    void Promise.resolve(updateSettings({ ...resolved, autoPinImportant: checked === true }));
+                    void saveMutation.mutateAsync({
+                        defaultTemplate: resolved?.defaultTemplate ?? '',
+                        autoPinImportant: checked === true,
+                    });
                 }}
             />
-            <p>{hasPendingChanges ? 'Saving…' : `Saved state: ${saveState}`}</p>
+            <p>{saveMutation.isPending ? 'Saving…' : 'Saved through the plugin API.'}</p>
         </SettingsSection>
     );
 };
@@ -1224,18 +1278,18 @@ When you call `updateSettings(newSettings)`:
 3. **Automatic cleanup**: Pending updates are synced when component unmounts
 
 ```typescript
-// ✅ CORRECT: Just call updateSettings, framework handles everything
+// ✅ CORRECT: Widget/tab instance settings should use the framework callback
 const handleChange = (value: string) => {
     updateSettings({ ...settings, myField: value });
 };
 
-// ❌ WRONG: Don't call API directly for settings updates
+// ❌ WRONG: Do not reimplement widget/tab instance persistence manually
 const handleChange = async (value: string) => {
     await api.updateWidget(widgetId, { settings: JSON.stringify(...) });
 };
 ```
 
-The same rule now applies to `PluginSettingsProps.updateSettings(...)` for regular plugin-global shared settings. Call the framework hook and let the platform batch and persist the JSON payload. Only builtin or host-coupled plugins should bypass this and call private APIs directly.
+`PluginSettingsSectionProps` is deliberately thin. Use plugin/domain APIs for settings-section persistence, and reserve the framework autosave path for tab and widget instance settings.
 
 ### React.memo Optimization
 
@@ -1674,12 +1728,12 @@ Settings Page
 
 ### settings.ts(x)（插件设置入口）
 
-插件共享设置必须在 `settings.ts` / `settings.tsx` 中通过 `definePluginSettings(...)` 注册；Tab / Widget 实例设置则挂在各自的 `SettingsComponent` 上。
+插件级设置入口必须在 `settings.ts` / `settings.tsx` 中通过 `definePluginSettings(...)` 注册；Tab / Widget 实例设置则挂在各自的 `SettingsComponent` 上。框架只负责把它渲染到对应的 Settings 页面，并提供作用域 id；如果需要持久化，必须由插件自己调用业务 API。
 
 ```typescript
-import { definePluginSettings } from '../../plugin-system/contracts';
-import type { PluginSettingsProps, PluginSettingsSectionDefinition } from '../../services/pluginSettingsRegistry';
-import type { TabSettingsProps } from '../../services/tabRegistry';
+import { definePluginSettings } from '@/plugin-system';
+import type { PluginSettingsSectionProps, PluginSettingsSectionDefinition } from '@/plugin-system';
+import type { TabSettingsProps } from '@/plugin-system';
 
 const MyTabSettings: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
   return <SettingsSection title="Display">{/* tab instance settings */}</SettingsSection>;
@@ -1689,22 +1743,30 @@ interface MyPluginSharedSettings {
   accentColor: string;
 }
 
-const MyPluginSettings: React.FC<PluginSettingsProps<MyPluginSharedSettings>> = ({
-  settings,
-  updateSettings,
-  isLoading,
+const MyPluginSettings: React.FC<PluginSettingsSectionProps> = ({
+  scope,
+  onRefresh,
 }) => {
-  const resolved = {
-    accentColor: typeof settings?.accentColor === 'string' ? settings.accentColor : '#2563eb',
-  };
+  const semesterId = scope.kind === 'semester' ? scope.semesterId : undefined;
+  const mutation = useMutation({
+    mutationFn: async (accentColor: string) => {
+      if (!semesterId) {
+        return;
+      }
+      await saveMyPluginSemesterPreferences(semesterId, { accentColor });
+    },
+    onSuccess: () => {
+      onRefresh();
+    },
+  });
 
   return (
     <SettingsSection title="Courses">
       <Input
-        value={resolved.accentColor}
-        disabled={isLoading}
+        defaultValue="#2563eb"
+        disabled={mutation.isPending}
         onChange={(event) => {
-          void Promise.resolve(updateSettings({ ...resolved, accentColor: event.target.value }));
+          void mutation.mutateAsync(event.target.value);
         }}
       />
     </SettingsSection>
@@ -1729,8 +1791,8 @@ export default definePluginSettings({
 - 可以返回多个 `SettingsSection`，每个代表一个设置分类
 - 框架已经提供插件标题，不要在组件内部重复插件名
 - `pluginSettings` 里的 `id` 必须非空，且在同一个插件内唯一
-- 常规插件应优先使用 `PluginSettingsProps.settings` + `updateSettings(...)` 读写共享配置
-- 只有 builtin / host-coupled 插件才应该跳过框架存储，直接调用私有 API
+- 常规插件应优先使用 `scope` 中的 `programId` / `semesterId` / `courseId` 调用自己的业务 API 做持久化
+- Settings section 不再暴露框架托管的共享 JSON 存储接口
 
 ### SettingsSection 组件
 

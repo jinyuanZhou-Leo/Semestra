@@ -1,6 +1,6 @@
-// input:  [plugin settings props, semester/course API service, plugin-local GPA-percentage formatting, settings-section UI, shared data-table shell, modal/alert primitives, and shared row-actions dropdown helpers]
-// output: [course-list plugin settings component for semester course management]
-// pos:    [plugin-global settings panel that loads semester courses, renders a narrower four-column data-table-aligned course management surface that does not inherit an overly wide shared minimum width, surfaces failures, and handles removal flows through a shadcn-style row-actions dropdown]
+// input:  [semester id, semester/course API service, plugin-local GPA-percentage formatting helper, settings-section UI, shared data-table shell, modal/alert primitives, and shared row-actions dropdown helpers]
+// output: [`SemesterCourseManagementSection` host settings component for semester course management]
+// pos:    [Host-owned semester settings section that loads semester courses, renders a narrower four-column data-table-aligned course management surface, surfaces failures, and handles removal flows through a shadcn-style row-actions dropdown]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -29,9 +29,13 @@ import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { CourseManagerModal } from '@/components/CourseManagerModal';
 import api from '@/services/api';
 import type { Course, Semester } from '@/services/api';
-import type { PluginSettingsProps } from '@/services/pluginSettingsRegistry';
 import { AlertCircle, Loader2, Plus, Trash2 } from 'lucide-react';
-import { formatCourseListGpaPercentage } from './format';
+import { formatCourseListGpaPercentage } from '@/plugins/course-list/format';
+
+interface SemesterCourseManagementSectionProps {
+  semesterId?: string;
+  onRefresh?: () => void;
+}
 
 const resolveErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -40,7 +44,10 @@ const resolveErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semesterId, onRefresh }) => {
+export const SemesterCourseManagementSection: React.FC<SemesterCourseManagementSectionProps> = ({
+  semesterId,
+  onRefresh,
+}) => {
   const [semester, setSemester] = useState<Semester | null>(null);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [removingCourseId, setRemovingCourseId] = useState<string | null>(null);
@@ -94,7 +101,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
     try {
       await api.updateCourse(courseId, { semester_id: null as any });
       const refreshed = await fetchSemester();
-      onRefresh();
+      onRefresh?.();
       if (!refreshed) {
         toast.error('Course was updated, but the course list could not be refreshed.');
       }
@@ -108,7 +115,7 @@ export const CourseListGlobalSettings: React.FC<PluginSettingsProps> = ({ semest
 
   const handleCourseAdded = () => {
     void fetchSemester();
-    onRefresh();
+    onRefresh?.();
   };
 
   if (!semesterId) {

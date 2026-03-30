@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester->unassigned-Course runtime plugin-governance payloads, and Program/Semester/Course plugin governance + plugin-system + Semester draft-wizard routes]
-// output: [Program/Semester/Course/Widget/Tab/PluginSetting/Todo/Gradebook/LMS contract types, Program/Semester/unassigned-Course plugin-governance plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime governance wire models, and default `api` CRUD service]
-// pos:    [Main REST gateway used by dashboards, framework-managed settings sync, Program plugin lifecycle governance, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin-governance driven tab resolution]
+// output: [Program/Semester/Course/Widget/Tab/TabSetting/Todo/Gradebook/LMS contract types, Program/Semester/unassigned-Course plugin-governance plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime governance wire models, and default `api` CRUD service]
+// pos:    [Main REST gateway used by dashboards, Program plugin lifecycle governance, V2 Program/Semester/Course tab-settings and runtime-tab persistence, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin-governance driven tab resolution]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,22 @@
 import axios from 'axios';
 
 export type SemesterDraftStep = 'basics' | 'courses' | 'plugins' | 'plugin-setup' | 'review';
+
+export interface ContributionAvailability {
+    state: 'available' | 'unavailable';
+    reason_code?: string | null;
+    reason_message?: string | null;
+}
+
+export interface TabSetting {
+    id: string;
+    tab_type: string;
+    settings: string;
+    resolved_settings?: Record<string, unknown>;
+    program_id?: string;
+    semester_id?: string;
+    course_id?: string;
+}
 
 // Interfaces matches Pydantic schemas
 export interface Program {
@@ -24,28 +40,84 @@ export interface Program {
     has_lms_dependencies?: boolean;
     lms_integration?: LmsIntegrationSummary | null;
     plugin_installations?: ProgramPluginInstallation[];
+    tab_settings?: TabSetting[];
 }
 
-export interface RuntimeResolvedTab {
+interface RuntimeResolvedTabWire {
     id?: string;
-    type?: string;
-    tab_type?: string;
+    type?: string | null;
+    tab_type?: string | null;
     title?: string;
-    settings?: string | Record<string, unknown>;
-    resolved_settings?: string | Record<string, unknown>;
+    settings?: string | Record<string, unknown> | null;
+    resolved_settings?: string | Record<string, unknown> | null;
     order_index?: number;
     is_removable?: boolean;
     is_draggable?: boolean;
     plugin_id?: string;
+    availability?: ContributionAvailability;
 }
 
-export interface RuntimeResolvedPlugin {
+interface RuntimeResolvedPluginWire {
     id?: string;
     plugin_id?: string;
     available_tab_types?: string[];
     available_widget_types?: string[];
-    settings?: string | Record<string, unknown>;
-    resolved_settings?: string | Record<string, unknown>;
+    settings?: string | Record<string, unknown> | null;
+    resolved_settings?: string | Record<string, unknown> | null;
+}
+
+export interface RuntimeResolvedTab {
+    id: string;
+    type: string;
+    title: string;
+    settings: Record<string, unknown>;
+    order_index: number;
+    is_removable?: boolean;
+    is_draggable?: boolean;
+    plugin_id?: string;
+    availability: ContributionAvailability;
+}
+
+export interface RuntimeResolvedPlugin {
+    plugin_id?: string;
+    available_tab_types: string[];
+    available_widget_types: string[];
+    settings: Record<string, unknown>;
+    resolved_settings: Record<string, unknown>;
+}
+
+export interface RuntimeWorkspacePayload {
+    runtime_tabs: RuntimeResolvedTab[];
+    tab_catalog_items: RuntimeTabContribution[];
+    widget_catalog_items: RuntimeWidgetContribution[];
+    enabled_plugin_ids: string[];
+    enabled_plugins: RuntimeResolvedPlugin[];
+    available_widget_types: string[];
+}
+
+interface RuntimeWorkspaceWirePayload {
+    runtime_tabs?: RuntimeResolvedTabWire[];
+    resolved_tabs?: RuntimeResolvedTabWire[];
+    tab_catalog_items?: RuntimeTabContribution[];
+    widget_catalog_items?: RuntimeWidgetContribution[];
+    enabled_plugin_ids?: string[];
+    enabled_plugins?: RuntimeResolvedPluginWire[];
+    runtime_plugins?: RuntimeResolvedPluginWire[];
+    available_widget_types?: string[];
+}
+
+export interface RuntimeTabContribution {
+    plugin_id?: string | null;
+    tab_type: string;
+    title?: string;
+    selected?: boolean;
+    availability: ContributionAvailability;
+}
+
+export interface RuntimeWidgetContribution {
+    plugin_id?: string | null;
+    widget_type: string;
+    availability: ContributionAvailability;
 }
 
 export interface Semester {
@@ -65,14 +137,8 @@ export interface Semester {
     review_errors?: SemesterDraftReviewIssue[];
     courses?: Course[];
     plugin_activations?: SemesterPluginActivation[];
-    runtime_tabs?: RuntimeResolvedTab[];
-    resolved_tabs?: RuntimeResolvedTab[];
-    enabled_plugin_ids?: string[];
-    enabled_plugins?: RuntimeResolvedPlugin[];
-    runtime_plugins?: RuntimeResolvedPlugin[];
-    available_widget_types?: string[];
-    resolved_plugin_settings?: PluginSetting[];
-    runtime_plugin_settings?: PluginSetting[];
+    tab_settings?: TabSetting[];
+    runtime: RuntimeWorkspacePayload;
 }
 
 export interface Course {
@@ -95,14 +161,8 @@ export interface Course {
     widgets?: Widget[];
     tabs?: Tab[];
     plugin_activations?: CoursePluginActivation[];
-    runtime_tabs?: RuntimeResolvedTab[];
-    resolved_tabs?: RuntimeResolvedTab[];
-    enabled_plugin_ids?: string[];
-    enabled_plugins?: RuntimeResolvedPlugin[];
-    runtime_plugins?: RuntimeResolvedPlugin[];
-    available_widget_types?: string[];
-    resolved_plugin_settings?: PluginSetting[];
-    runtime_plugin_settings?: PluginSetting[];
+    tab_settings?: TabSetting[];
+    runtime: RuntimeWorkspacePayload;
 }
 
 export interface Widget {
@@ -122,15 +182,6 @@ export interface Tab {
     order_index: number;
     is_removable?: boolean;
     is_draggable?: boolean;
-}
-
-export interface PluginSetting {
-    id: string;
-    plugin_id: string;
-    settings: string;
-    resolved_settings?: string | Record<string, unknown>;
-    semester_id?: string;
-    course_id?: string;
 }
 
 export interface ProgramPluginField {
@@ -190,6 +241,7 @@ export interface ProgramPluginInstallation {
     fields: ProgramPluginField[];
     available: boolean;
     availability_reason?: string | null;
+    availability?: ContributionAvailability | null;
     installed: boolean;
     auth_state?: string;
     auth_message?: string | null;
@@ -218,6 +270,7 @@ export interface SemesterPluginActivation {
     review_errors?: SemesterDraftReviewIssue[];
     available: boolean;
     availability_reason?: string | null;
+    availability?: ContributionAvailability | null;
     auth_state?: string;
 }
 
@@ -235,9 +288,10 @@ export interface CoursePluginActivation {
     is_enabled: boolean;
     auth_state?: string;
     capabilities: ProgramPluginInstallation['capabilities'];
-    resolved_settings: Record<string, unknown>;
+    resolved_settings?: Record<string, unknown>;
     available: boolean;
     availability_reason?: string | null;
+    availability?: ContributionAvailability | null;
     source: 'course' | 'semester';
 }
 
@@ -726,6 +780,97 @@ const stableStringify = (value?: Record<string, unknown>) => {
         .join('&');
 };
 
+type CourseWire = Omit<Course, 'runtime' | 'courses'> & RuntimeWorkspaceWirePayload;
+type SemesterWire = Omit<Semester, 'runtime' | 'courses'> & RuntimeWorkspaceWirePayload & {
+    courses?: CourseWire[];
+};
+type ProgramWire = Program & {
+    semesters?: SemesterWire[];
+};
+
+const parseObjectPayload = (value: unknown): Record<string, unknown> => {
+    if (!value) {
+        return {};
+    }
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                ? parsed as Record<string, unknown>
+                : {};
+        } catch (error) {
+            console.warn('Failed to parse runtime payload object', error);
+            return {};
+        }
+    }
+    if (typeof value === 'object' && !Array.isArray(value)) {
+        return value as Record<string, unknown>;
+    }
+    return {};
+};
+
+export const normalizeRuntimeResolvedTab = (
+    tab?: RuntimeResolvedTabWire | null,
+    index = 0,
+): RuntimeResolvedTab | null => {
+    const type = tab?.type ?? tab?.tab_type ?? '';
+    if (!type) {
+        return null;
+    }
+
+    return {
+        id: tab?.id && tab.id.length > 0 ? tab.id : `${type}:${index}`,
+        type,
+        title: tab?.title && tab.title.length > 0 ? tab.title : type,
+        settings: parseObjectPayload(tab?.resolved_settings ?? tab?.settings),
+        order_index: typeof tab?.order_index === 'number' ? tab.order_index : index,
+        is_removable: tab?.is_removable,
+        is_draggable: tab?.is_draggable,
+        plugin_id: tab?.plugin_id,
+        availability: tab?.availability ?? { state: 'available' },
+    };
+};
+
+const normalizeRuntimeResolvedPlugin = (
+    plugin?: RuntimeResolvedPluginWire | null,
+): RuntimeResolvedPlugin => ({
+    plugin_id: plugin?.plugin_id ?? plugin?.id,
+    available_tab_types: plugin?.available_tab_types ?? [],
+    available_widget_types: plugin?.available_widget_types ?? [],
+    settings: parseObjectPayload(plugin?.settings),
+    resolved_settings: parseObjectPayload(plugin?.resolved_settings ?? plugin?.settings),
+});
+
+const normalizeRuntimeWorkspacePayload = (
+    entity?: RuntimeWorkspaceWirePayload | null
+): RuntimeWorkspacePayload => ({
+    runtime_tabs: (entity?.runtime_tabs ?? entity?.resolved_tabs ?? [])
+        .map((tab, index) => normalizeRuntimeResolvedTab(tab, index))
+        .filter((tab): tab is RuntimeResolvedTab => tab !== null),
+    tab_catalog_items: entity?.tab_catalog_items ?? [],
+    widget_catalog_items: entity?.widget_catalog_items ?? [],
+    enabled_plugin_ids: entity?.enabled_plugin_ids ?? [],
+    enabled_plugins: (entity?.enabled_plugins ?? entity?.runtime_plugins ?? []).map(normalizeRuntimeResolvedPlugin),
+    available_widget_types: entity?.available_widget_types
+        ?? (entity?.enabled_plugins ?? entity?.runtime_plugins ?? []).flatMap((plugin) => plugin.available_widget_types ?? []),
+});
+
+const normalizeCourse = (course: CourseWire): Course => ({
+    ...course,
+    runtime: normalizeRuntimeWorkspacePayload(course),
+});
+
+const normalizeSemester = (semester: SemesterWire): Semester & { courses: Course[] } => ({
+    ...semester,
+    courses: semester.courses?.map(normalizeCourse) ?? [],
+    runtime: normalizeRuntimeWorkspacePayload(semester),
+});
+
+const normalizeProgram = (program: ProgramWire): Program & { semesters: Semester[] } => ({
+    ...program,
+    semesters: program.semesters?.map(normalizeSemester) ?? [],
+});
+
 const api = {
     // Programs
     getPrograms: async () => {
@@ -738,10 +883,10 @@ const api = {
         const response = await axios.post<Program>('/api/programs/', data);
         return response.data;
     },
-    getProgram: async (id: string) => {
+    getProgram: async (id: string): Promise<Program & { semesters: Semester[] }> => {
         return dedupeGet(`GET:/api/programs/${id}`, async () => {
-            const response = await axios.get<Program & { semesters: Semester[] }>(`/api/programs/${id}`);
-            return response.data;
+            const response = await axios.get<ProgramWire>(`/api/programs/${id}`);
+            return normalizeProgram(response.data);
         });
     },
     updateProgram: async (id: string, data: any) => {
@@ -867,8 +1012,8 @@ const api = {
 
     // Semesters
     createSemester: async (programId: string, data: { name: string }) => {
-        const response = await axios.post<Semester>(`/api/programs/${programId}/semesters/`, data);
-        return response.data;
+        const response = await axios.post<SemesterWire>(`/api/programs/${programId}/semesters/`, data);
+        return normalizeSemester(response.data);
     },
     uploadSemesterICS: async (programId: string, file: File, name?: string) => {
         const formData = new FormData();
@@ -876,12 +1021,12 @@ const api = {
         if (name) {
             formData.append('name', name);
         }
-        const response = await axios.post<Semester>(`/api/programs/${programId}/semesters/upload`, formData, {
+        const response = await axios.post<SemesterWire>(`/api/programs/${programId}/semesters/upload`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
         });
-        return response.data;
+        return normalizeSemester(response.data);
     },
     uploadProgramCourseICS: async (programId: string, file: File, semesterId?: string) => {
         const formData = new FormData();
@@ -889,22 +1034,22 @@ const api = {
         if (semesterId) {
             formData.append('semester_id', semesterId);
         }
-        const response = await axios.post<Course[]>(`/api/programs/${programId}/courses/upload`, formData, {
+        const response = await axios.post<CourseWire[]>(`/api/programs/${programId}/courses/upload`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
         });
-        return response.data;
+        return response.data.map(normalizeCourse);
     },
-    getSemester: async (id: string) => {
+    getSemester: async (id: string): Promise<Semester & { courses: Course[]; widgets?: Widget[]; tabs?: Tab[] }> => {
         return dedupeGet(`GET:/api/semesters/${id}`, async () => {
-            const response = await axios.get<Semester & { courses: Course[], widgets: Widget[], tabs?: Tab[] }>(`/api/semesters/${id}`);
-            return response.data;
+            const response = await axios.get<SemesterWire & { widgets: Widget[], tabs?: Tab[] }>(`/api/semesters/${id}`);
+            return normalizeSemester(response.data);
         });
     },
     updateSemester: async (id: string, data: any) => {
-        const response = await axios.put<Semester>(`/api/semesters/${id}`, data);
-        return response.data;
+        const response = await axios.put<SemesterWire>(`/api/semesters/${id}`, data);
+        return normalizeSemester(response.data);
     },
     deleteSemester: async (id: string) => {
         await axios.delete(`/api/semesters/${id}`);
@@ -932,8 +1077,8 @@ const api = {
             is_enabled: boolean;
         },
     ) => {
-        const response = await axios.put<Semester>(`/api/semesters/${semesterId}/plugin-activations:bulk`, data);
-        return response.data;
+        const response = await axios.put<SemesterWire>(`/api/semesters/${semesterId}/plugin-activations:bulk`, data);
+        return normalizeSemester(response.data);
     },
     deleteSemesterPluginActivation: async (semesterId: string, pluginId: string) => {
         await axios.delete(`/api/semesters/${semesterId}/plugin-activations/${pluginId}`);
@@ -1001,29 +1146,29 @@ const api = {
     },
     // Courses
     createCourseForProgram: async (programId: string, data: any) => {
-        const response = await axios.post<Course>(`/api/programs/${programId}/courses/`, data);
-        return response.data;
+        const response = await axios.post<CourseWire>(`/api/programs/${programId}/courses/`, data);
+        return normalizeCourse(response.data);
     },
     getCoursesForProgram: async (programId: string, params?: { semester_id?: string, unassigned?: boolean }) => {
         const key = `GET:/api/programs/${programId}/courses/?${stableStringify(params)}`;
         return dedupeGet(key, async () => {
-            const response = await axios.get<Course[]>(`/api/programs/${programId}/courses/`, { params });
-            return response.data;
+            const response = await axios.get<CourseWire[]>(`/api/programs/${programId}/courses/`, { params });
+            return response.data.map(normalizeCourse);
         });
     },
     createCourse: async (semesterId: string, data: any) => {
-        const response = await axios.post<Course>(`/api/semesters/${semesterId}/courses/`, data);
-        return response.data;
+        const response = await axios.post<CourseWire>(`/api/semesters/${semesterId}/courses/`, data);
+        return normalizeCourse(response.data);
     },
     getCourse: async (id: string) => {
         return dedupeGet(`GET:/api/courses/${id}`, async () => {
-            const response = await axios.get<Course & { widgets?: Widget[]; tabs?: Tab[]; plugin_activations?: CoursePluginActivation[] }>(`/api/courses/${id}`);
-            return response.data;
+            const response = await axios.get<CourseWire & { widgets?: Widget[]; tabs?: Tab[]; plugin_activations?: CoursePluginActivation[] }>(`/api/courses/${id}`);
+            return normalizeCourse(response.data);
         });
     },
-    updateCourse: async (id: string, data: Partial<Course>) => {
-        const response = await axios.put<Course>(`/api/courses/${id}`, data);
-        return response.data;
+    updateCourse: async (id: string, data: Partial<Omit<Course, 'runtime'>>) => {
+        const response = await axios.put<CourseWire>(`/api/courses/${id}`, data);
+        return normalizeCourse(response.data);
     },
     deleteCourse: async (id: string) => {
         await axios.delete(`/api/courses/${id}`);
@@ -1127,55 +1272,84 @@ const api = {
         await axios.delete(`/api/tabs/${tabId}`);
     },
     updateSemesterRuntimeTabSettings: async (semesterId: string, tabType: string, data: { settings: string }) => {
-        const response = await axios.put<RuntimeResolvedTab>(
+        const response = await axios.put<RuntimeResolvedTabWire>(
             `/api/semesters/${semesterId}/runtime-tabs/${encodeURIComponent(tabType)}/settings`,
             data,
         );
-        return response.data;
+        const normalized = normalizeRuntimeResolvedTab(response.data);
+        if (!normalized) {
+            throw new Error('Semester runtime tab settings response is missing a tab type.');
+        }
+        return normalized;
     },
     updateCourseRuntimeTabSettings: async (courseId: string, tabType: string, data: { settings: string }) => {
-        const response = await axios.put<RuntimeResolvedTab>(
+        const response = await axios.put<RuntimeResolvedTabWire>(
             `/api/courses/${courseId}/runtime-tabs/${encodeURIComponent(tabType)}/settings`,
             data,
         );
-        return response.data;
+        const normalized = normalizeRuntimeResolvedTab(response.data);
+        if (!normalized) {
+            throw new Error('Course runtime tab settings response is missing a tab type.');
+        }
+        return normalized;
     },
     reorderSemesterRuntimeTabs: async (semesterId: string, tabTypes: string[]) => {
-        const response = await axios.put<RuntimeResolvedTab[]>(
+        const response = await axios.put<RuntimeResolvedTabWire[]>(
             `/api/semesters/${semesterId}/runtime-tabs/order`,
             { tab_types: tabTypes },
         );
-        return response.data;
+        return response.data
+            .map((tab, index) => normalizeRuntimeResolvedTab(tab, index))
+            .filter((tab): tab is RuntimeResolvedTab => tab !== null);
     },
-
-    // Plugin settings
-    getPluginSettingsForSemester: async (semesterId: string) => {
-        return dedupeGet(`GET:/api/semesters/${semesterId}/plugin-settings`, async () => {
-            const response = await axios.get<PluginSetting[]>(`/api/semesters/${semesterId}/plugin-settings`);
+    reorderCourseRuntimeTabs: async (courseId: string, tabTypes: string[]) => {
+        const response = await axios.put<RuntimeResolvedTabWire[]>(
+            `/api/courses/${courseId}/runtime-tabs/order`,
+            { tab_types: tabTypes },
+        );
+        return response.data
+            .map((tab, index) => normalizeRuntimeResolvedTab(tab, index))
+            .filter((tab): tab is RuntimeResolvedTab => tab !== null);
+    },
+    getProgramTabSettings: async (programId: string) => {
+        return dedupeGet(`GET:/api/programs/${programId}/tab-settings`, async () => {
+            const response = await axios.get<TabSetting[]>(`/api/programs/${programId}/tab-settings`);
             return response.data;
         });
     },
-    getPluginSettingsForCourse: async (courseId: string) => {
-        return dedupeGet(`GET:/api/courses/${courseId}/plugin-settings`, async () => {
-            const response = await axios.get<PluginSetting[]>(`/api/courses/${courseId}/plugin-settings`);
+    getSemesterTabSettings: async (semesterId: string) => {
+        return dedupeGet(`GET:/api/semesters/${semesterId}/tab-settings`, async () => {
+            const response = await axios.get<TabSetting[]>(`/api/semesters/${semesterId}/tab-settings`);
             return response.data;
         });
     },
-    upsertPluginSettingsForSemester: async (semesterId: string, pluginId: string, data: { settings: string }) => {
-        const response = await axios.put<PluginSetting>(`/api/semesters/${semesterId}/plugin-settings/${pluginId}`, {
-            plugin_id: pluginId,
+    getCourseTabSettings: async (courseId: string) => {
+        return dedupeGet(`GET:/api/courses/${courseId}/tab-settings`, async () => {
+            const response = await axios.get<TabSetting[]>(`/api/courses/${courseId}/tab-settings`);
+            return response.data;
+        });
+    },
+    upsertProgramTabSettings: async (programId: string, tabType: string, data: { settings: string }) => {
+        const response = await axios.put<TabSetting>(`/api/programs/${programId}/tab-settings/${encodeURIComponent(tabType)}`, {
+            tab_type: tabType,
             settings: data.settings,
         });
         return response.data;
     },
-    upsertPluginSettingsForCourse: async (courseId: string, pluginId: string, data: { settings: string }) => {
-        const response = await axios.put<PluginSetting>(`/api/courses/${courseId}/plugin-settings/${pluginId}`, {
-            plugin_id: pluginId,
+    upsertSemesterTabSettings: async (semesterId: string, tabType: string, data: { settings: string }) => {
+        const response = await axios.put<TabSetting>(`/api/semesters/${semesterId}/tab-settings/${encodeURIComponent(tabType)}`, {
+            tab_type: tabType,
             settings: data.settings,
         });
         return response.data;
     },
-
+    upsertCourseTabSettings: async (courseId: string, tabType: string, data: { settings: string }) => {
+        const response = await axios.put<TabSetting>(`/api/courses/${courseId}/tab-settings/${encodeURIComponent(tabType)}`, {
+            tab_type: tabType,
+            settings: data.settings,
+        });
+        return response.data;
+    },
     // Gradebook
     getCourseGradebook: async (courseId: string) => {
         return dedupeGet(`GET:/api/courses/${courseId}/gradebook`, async () => {
