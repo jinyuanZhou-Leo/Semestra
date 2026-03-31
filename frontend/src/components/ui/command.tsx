@@ -1,13 +1,3 @@
-// input:  [cmdk primitives, shadcn dialog and input-group primitives, lucide icons, and cn utility]
-// output: [shadcn command primitives including Command, CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandShortcut, and CommandSeparator]
-// pos:    [Generated shadcn command primitive layer that standardizes command-palette structure and styling for the frontend]
-//
-// ⚠️ When this file is updated:
-//    1. Update these header comments
-//    2. Update the INDEX.md of the folder this file belongs to
-
-"use client"
-
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 
@@ -56,6 +46,10 @@ function CommandDialog({
 }) {
   return (
     <Dialog {...props}>
+      <DialogHeader className="sr-only">
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
       <DialogContent
         className={cn(
           "top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0",
@@ -63,10 +57,6 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        <DialogHeader className="sr-only">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
         {children}
       </DialogContent>
     </Dialog>
@@ -148,7 +138,7 @@ function CommandSeparator({
   return (
     <CommandPrimitive.Separator
       data-slot="command-separator"
-      className={cn("-mx-1 h-px w-auto bg-border", className)}
+      className={cn("-mx-1 h-px bg-border", className)}
       {...props}
     />
   )
@@ -163,7 +153,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group/command-item relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none in-data-[slot=dialog-content]:rounded-lg! data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-muted data-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:**:[svg]:text-foreground",
+        "group/command-item relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none in-data-[slot=dialog-content]:rounded-lg! data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-muted data-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-foreground",
         className
       )}
       {...props}
