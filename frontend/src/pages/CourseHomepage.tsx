@@ -1,6 +1,6 @@
-// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, and shared business empty-state wrappers]
+// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-managed plugin inheritance for Semester courses plus lightweight plugin management for unassigned Courses, plugin-derived dashboard/settings shell tabs, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-managed plugin inheritance for Semester courses plus lightweight plugin management for unassigned Courses, plugin-derived dashboard/settings shell tabs, global command actions for workspace tab switching plus semester-course navigation and widget creation, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -83,8 +83,9 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
-import { ArrowUpDown, ChevronDown, ChevronRight, Command } from 'lucide-react';
+import { ArrowUpDown, BookOpen, ChevronDown, ChevronRight, Command, LayoutDashboard, Plus, Settings } from 'lucide-react';
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
+import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
@@ -315,6 +316,14 @@ const CourseHomepageContent: React.FC = () => {
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
     );
+    const dashboardTab = useMemo(
+        () => visibleTabs.find((tab) => tab.type === HOMEPAGE_DASHBOARD_TAB_TYPE),
+        [visibleTabs]
+    );
+    const settingsTab = useMemo(
+        () => visibleTabs.find((tab) => tab.type === HOMEPAGE_SETTINGS_TAB_TYPE),
+        [visibleTabs]
+    );
     const activeTabLoadState = useTabPluginLoadState(activeTabType);
     const isSettingsTabActive = activeTabType === HOMEPAGE_SETTINGS_TAB_TYPE;
     const pluginLoadStateVersion = usePluginLoadStateVersion();
@@ -406,6 +415,62 @@ const CourseHomepageContent: React.FC = () => {
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         reorderTabs(filterReorderableTabIds(orderedIds));
     }, [filterReorderableTabIds, reorderTabs]);
+    const siblingCourseItems = useMemo(() => {
+        if (!course?.id) {
+            return [];
+        }
+
+        return siblingCourses
+            .filter((siblingCourse) => siblingCourse.id !== course.id)
+            .map((siblingCourse) => ({
+                id: `course-sibling-${siblingCourse.id}`,
+                title: siblingCourse.name,
+                keywords: ['semester course', 'course', siblingCourse.alias ?? '', siblingCourse.category ?? ''],
+                icon: BookOpen,
+                onSelect: () => navigate(`/courses/${siblingCourse.id}`),
+            }));
+    }, [course?.id, navigate, siblingCourses]);
+    const layoutCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
+        if (!course?.id) {
+            return [];
+        }
+
+        return [
+            {
+                heading: 'Course',
+                items: [
+                    ...(dashboardTab ? [{
+                        id: `course-open-dashboard-${course.id}`,
+                        title: 'Open Dashboard Tab',
+                        description: 'Switch to the Course dashboard tab.',
+                        keywords: ['course dashboard'],
+                        icon: LayoutDashboard,
+                        onSelect: () => setActiveTabId(dashboardTab.id),
+                    }] : []),
+                    ...(settingsTab ? [{
+                        id: `course-open-settings-${course.id}`,
+                        title: 'Open Settings Tab',
+                        description: 'Switch to the Course settings tab.',
+                        keywords: ['course settings'],
+                        icon: Settings,
+                        onSelect: () => setActiveTabId(settingsTab.id),
+                    }] : []),
+                    {
+                        id: `course-add-widget-${course.id}`,
+                        title: 'Add Widget',
+                        description: 'Open the Course widget picker.',
+                        keywords: ['new widget', 'course widget'],
+                        icon: Plus,
+                        onSelect: openAddWidgetModal,
+                    },
+                ],
+            },
+            {
+                heading: 'Semester Courses',
+                items: siblingCourseItems,
+            },
+        ];
+    }, [course?.id, dashboardTab, openAddWidgetModal, settingsTab, siblingCourseItems]);
 
     useEffect(() => {
         if (tabBarItems.length === 0) {
@@ -804,7 +869,7 @@ const CourseHomepageContent: React.FC = () => {
     }
 
     return (
-        <Layout breadcrumb={breadcrumb}>
+        <Layout breadcrumb={breadcrumb} commandGroups={layoutCommandGroups}>
             <PluginHostProvider visibleTabs={visibleTabs} setActiveTabId={setActiveTabId}>
                 <BuiltinTabProvider value={builtinTabContext}>
                     <WorkspaceNav

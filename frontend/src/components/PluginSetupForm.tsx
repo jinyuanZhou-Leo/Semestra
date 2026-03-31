@@ -110,7 +110,7 @@ export const PluginSetupFormReviewItem: React.FC<PluginSetupReviewItemProps> = (
   description,
 }) => (
   <Field className="gap-2">
-    <FieldLabel>{label}</FieldLabel>
+    <FieldLabel className="text-muted-foreground">{label}</FieldLabel>
     <FieldContent className="gap-1">
       <div className="text-sm font-medium text-foreground">{value}</div>
       {description ? <FieldDescription>{description}</FieldDescription> : null}

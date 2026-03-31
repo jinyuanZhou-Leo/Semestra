@@ -1,9 +1,9 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Reusable UI building blocks shared by pages and plugin containers.
-Includes modal workflows, settings panels, dashboard/tab shells, plugin management surfaces, schema-driven plugin form controls, theme helpers, and business-layer empty-state wrappers.
+Includes modal workflows, settings panels, dashboard/tab shells, a slash-triggered global command palette, plugin management surfaces, schema-driven plugin form controls, theme helpers, and business-layer empty-state wrappers.
 Also includes the Semester wizard bridge that renders plugin setup steps and review summaries through host-provided setup components or plugin-owned override UI.
-`ui/` holds shadcn primitives and is intentionally excluded from this documentation scope.
+`ui/` holds shadcn primitives in a separately documented subfolder so generated primitive updates stay tracked without expanding this index.
 
 | File | Role | Description |
 |------|------|-------------|
@@ -11,7 +11,7 @@ Also includes the Semester wizard bridge that renders plugin setup steps and rev
 | landing/ | Subdirectory | Landing-page-only presentational components. |
 | settings/ | Subdirectory | Settings-specific component groupings such as LMS integration management plus local provider-definition helpers that keep provider-specific wiring out of generic settings components. |
 | skeletons/ | Subdirectory | Loading skeleton component set. |
-| ui/ | Subdirectory | shadcn UI primitives (excluded from this documentation scope per request). |
+| ui/ | Subdirectory | shadcn UI primitives with their own local `INDEX.md`, including the documented `CommandDialog` wrapper structure used by the global command palette. |
 | widgets/ | Subdirectory | Dashboard widget layout/container infrastructure, including single-ring card-aligned widget chrome, edit-mode-only hover elevation, and forced delete affordances when plugin widgets become unavailable. |
 | AppEmptyState.tsx | UI component | Business-layer empty-state wrapper that standardizes scenario-based create, no-results, not-found, and unavailable states while composing shadcn `Empty` primitives without modifying `components/ui`. |
 | AddTabModal.tsx | UI component | Reusable add-tab selector using desktop dialog and mobile drawer presentation. |
@@ -24,11 +24,12 @@ Also includes the Semester wizard bridge that renders plugin setup steps and rev
 | CoursePluginManagementPanel.tsx | UI component | Unassigned-Course plugin management settings card that lists Program-installed plugins with Course-visible surfaces, exposes only enable/disable controls plus plugin info, and supports header-level bulk toggles without introducing Course-level setup or auth UI. |
 | CourseSettingsPanel.tsx | UI component | Course settings panel with debounced auto-save, close/unmount flush protection, shadcn `Field`-based standard form layout, right-aligned switch controls, Program-derived default-color guidance, optional per-course override controls, a clearer LMS status card with adjacent sync/disconnect actions, inline link-update controls, destructive disconnect confirmation, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
 | GPAScalingTable.tsx | UI component | GPA scaling-rule editor with descending range sorting, explicit min/max/GPA inputs, continuous full-range coverage warnings that catch decimal gaps, AlertDialog-backed delete confirmation, and standardized create-empty feedback when no rules exist yet. |
+| GlobalCommandPalette.tsx | UI component | Shared shadcn `Command` + `Dialog` wrapper that renders grouped navigation/action items for the authenticated app-wide command palette. |
 | GradientBlinds.css | Stylesheet | Reusable component for gradient blinds UI/interaction flow. |
 | GradientBlinds.tsx | UI component | Reusable component for gradient blinds UI/interaction flow. |
 | IconCircle.tsx | UI component | Reusable component for icon circle UI/interaction flow. |
 | ImportPreviewModal.tsx | UI component | Backup-restore preview modal that summarizes programs, Program-level courses, LMS integrations, todo tasks, resources, and schedule-bearing course data with shared one-decimal GPA-percentage display while still handling conflict strategy and optional account-settings import. |
-| Layout.tsx | UI component | Shared authenticated layout chrome, including a stable brand-plus-breadcrumb header cluster, fixed-height overflow handling, and server-backed sign-out actions. |
+| Layout.tsx | UI component | Shared authenticated layout chrome, including a stable brand-plus-breadcrumb header cluster, a slash-triggered global command palette with route-derived navigation plus page-injected actions, fixed-height overflow handling, and server-backed sign-out actions. |
 | LmsCourseSelectionList.tsx | UI component | Reusable LMS multi-select list with wrapper-light search/filter/list composition, linked-course disabled states with inline reasons, year filtering, and overflow-safe scrollable rows for Add Course/Add Semester flows. |
 | PageSkeleton.tsx | UI component | Reusable component for page skeleton UI/interaction flow. |
 | PluginMarketplaceDialog.tsx | UI component | Searchable Program-plugin install overlay built on the shared responsive dialog-drawer shell with shared empty-state treatment, full-catalog rows, and disabled already-installed actions. |
@@ -44,7 +45,7 @@ Also includes the Semester wizard bridge that renders plugin setup steps and rev
 | SemesterPluginManagementPanel.tsx | UI component | Semester-level plugin management settings card that lists every Program-enabled plugin, shows frontend manifest icons, adds a header-level bulk enable/disable switch for editable rows, uses an explicit plugin-table minimum width, lets not-yet-imported Semester plugins appear as Off rows, and intentionally exposes only enable/disable controls so Semester plugin data is never deleted from Settings. |
 | StatusButton.tsx | UI component | Reusable in-place action-status button for save/validate flows with idle, loading, success, and error labels, using browser-safe timer handle typing for strict TS builds. |
 | SemesterSettingsPanel.tsx | UI component | Semester settings panel with debounced auto-save, close/unmount flush protection, the shared Semester basics date-picker fields, draft-safe sync against refreshed semester payloads, and a caller-provided immediate commit callback so autosave timing stays outside the data layer. |
-| SessionExpiredModal.tsx | UI component | Reusable component for session expired modal UI/interaction flow. |
+| SessionExpiredModal.tsx | UI component | Forced session-expired modal that follows controlled shadcn `Dialog` semantics by hiding passive close affordances, blocking overlay or `Esc` dismissal, and sending users back into the login flow without discarding the remembered in-app route needed for post-login restoration. |
 | SemesterCourseManagementSection.test.tsx | Test file | Covers stale semester-response protection, the narrowed course-table minimum width, and the disabled course-manager entry when semester details fail to load. |
 | SemesterCourseManagementSection.tsx | UI component | Host-owned semester settings section for course management with retryable semester loading, a narrow four-column `DataTable`, row-actions removal flow, and the shared add/manage course modal. |
 | SettingsModal.tsx | UI component | Generic settings modal container with a wider desktop surface, fixed header, scrollable body, and async close handling so settings editors can flush pending autosaves before dismissing. |

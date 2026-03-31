@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, shared DataTable row-action patterns, and shadcn AlertDialog/menu interactions]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, shared DataTable row-action patterns, page-scoped global-command actions, and shadcn AlertDialog/menu interactions]
 // output: [`ProgramDashboard` route component for the Program workspace]
-// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, always-visible DataTable-style course row actions with destructive confirmation, semester-card delete actions that stay below the sticky page header, tri-state course-list sorting, and shared empty-state treatment across Program sections]
+// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, global command actions for Program operations, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, always-visible DataTable-style course row actions with destructive confirmation, semester-card delete actions that stay below the sticky page header, tri-state course-list sorting, and shared empty-state treatment across Program sections]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -71,6 +71,7 @@ import { Settings, Plus, Search, Trash2, GraduationCap, Percent, BookOpen, Arrow
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
 import { CreateSemesterWizardButton } from './program-dashboard/CreateSemesterWizardButton';
 import { DeleteSemesterButton } from './program-dashboard/DeleteSemesterButton';
+import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 
 // Helper function to extract course level from course name
 const extractCourseLevel = (courseName: string): number | null => {
@@ -107,6 +108,27 @@ const ProgramDashboardContent: React.FC = () => {
     const [sortConfig, setSortConfig] = useState<CourseSortConfig | null>(null);
     const [activeFilters, setActiveFilters] = useState<CourseFilterSuggestion[]>([]);
     const suggestionsAnchor = useComboboxAnchor();
+    const layoutCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
+        if (!program?.id) {
+            return [];
+        }
+
+        return [
+            {
+                heading: 'Program',
+                items: [
+                    {
+                        id: `program-add-course-${program.id}`,
+                        title: 'Add Course',
+                        description: 'Create or import a course in the current Program.',
+                        keywords: ['new course', 'import course'],
+                        icon: Plus,
+                        onSelect: () => setIsCourseModalOpen(true),
+                    },
+                ],
+            },
+        ];
+    }, [program?.id]);
 
     const refreshUnassignedCourses = useCallback(async () => {
         if (!program?.id) {
@@ -444,7 +466,7 @@ const ProgramDashboardContent: React.FC = () => {
     }
 
     return (
-        <Layout breadcrumb={breadcrumb}>
+        <Layout breadcrumb={breadcrumb} commandGroups={layoutCommandGroups}>
             <div className="sticky-page-header border-b bg-background sticky top-[60px] z-20">
                 <Container className="py-4 md:py-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

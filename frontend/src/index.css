@@ -955,6 +955,17 @@ body>div>div[role="dialog"][data-state] {
   }
 }
 
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .landing-font-display {
   font-family: "Space Grotesk", "DM Sans", "Segoe UI", sans-serif;
 }

@@ -1,6 +1,6 @@
-// input:  [session-expired open state, close callback, router navigation to login]
+// input:  [session-expired open state, close callback, and router navigation to login]
 // output: [`SessionExpiredModal` component]
-// pos:    [Auth-expiration dialog forcing a user back into login flow]
+// pos:    [Auth-expiration dialog forcing a user back into login flow while preserving the remembered return route]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,12 +22,17 @@ export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({ isOpen
 
     const handleLogin = () => {
         onClose();
-        navigate('/login');
+        navigate('/login', { replace: true });
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && handleLogin()}>
-            <DialogContent className="p-0 sm:max-w-[400px]">
+        <Dialog open={isOpen}>
+            <DialogContent
+                showCloseButton={false}
+                onEscapeKeyDown={(event) => event.preventDefault()}
+                onInteractOutside={(event) => event.preventDefault()}
+                className="p-0 sm:max-w-[400px]"
+            >
                 <DialogHeader className="sr-only">
                     <DialogTitle>Session Expired</DialogTitle>
                     <DialogDescription>

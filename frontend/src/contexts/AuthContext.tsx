@@ -1,6 +1,6 @@
-// input:  [httpOnly-cookie auth session, axios `/api/users/me` + 401 interceptor, normalized user-setting defaults, and session modal]
+// input:  [httpOnly-cookie auth session, axios `/api/users/me` + 401 interceptor, normalized user-setting defaults, auth redirect persistence, and session modal]
 // output: [`AuthProvider` and `useAuth()` exposing user/login/logout/refresh/loading state plus parsed global user preferences]
-// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions and normalized user-setting hydration]
+// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions, session-expiry route restoration, and normalized user-setting hydration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,6 +12,7 @@ import { SessionExpiredModal } from '../components/SessionExpiredModal';
 import { DEFAULT_GPA_SCALING_TABLE_JSON } from '../utils/gpaUtils';
 import { queryClient } from '../services/queryClient';
 import { queryKeys } from '../services/queryKeys';
+import { clearAuthRedirectTarget, rememberCurrentAuthRedirectTarget } from '../utils/authRedirect';
 
 const DEFAULT_COURSE_CREDIT = 0.5;
 
@@ -103,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (error) {
             console.error("Failed to clear server session", error);
         } finally {
+            clearAuthRedirectTarget();
             clearSessionState();
             setIsSessionExpired(false);
             setIsLoading(false);
@@ -140,6 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             (error) => {
                 if (error.response?.status === 401) {
                     const hadActiveSession = Boolean(userRef.current);
+                    if (hadActiveSession) {
+                        rememberCurrentAuthRedirectTarget();
+                    }
                     clearSessionState();
                     if (hadActiveSession) {
                         setIsSessionExpired(true);

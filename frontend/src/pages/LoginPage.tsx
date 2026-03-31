@@ -1,13 +1,13 @@
-// input:  [cookie-session login action, token/google auth endpoints, password rule helper, theme visuals]
+// input:  [cookie-session login action, token/google auth endpoints, auth redirect restoration, password rule helper, theme visuals, and router location state]
 // output: [`LoginPage` route component]
-// pos:    [Authentication entry page for password and Google sign-in flows with cookie-backed session bootstrap]
+// pos:    [Authentication entry page for password and Google sign-in flows with cookie-backed session bootstrap plus post-login route restoration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,6 +23,15 @@ import GradientBlinds from '../components/GradientBlinds';
 import { useTheme } from '../components/ThemeProvider';
 import { getPasswordRuleError } from '../utils/passwordRules';
 import { loadGoogleIdentityScriptWhenIdle } from '../utils/googleIdentity';
+import { consumeAuthRedirectTarget } from '../utils/authRedirect';
+
+type LoginLocationState = {
+    from?: {
+        pathname?: string;
+        search?: string;
+        hash?: string;
+    };
+};
 
 export const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -36,6 +45,7 @@ export const LoginPage: React.FC = () => {
     const [isGoogleReady, setIsGoogleReady] = useState(false);
     const [isGlassReady, setIsGlassReady] = useState(false);
     const { login } = useAuth();
+    const location = useLocation();
     const navigate = useNavigate();
     const googleButtonRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
@@ -48,6 +58,7 @@ export const LoginPage: React.FC = () => {
         window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     );
     const currentTheme: 'light' | 'dark' = theme === 'system' ? systemTheme : theme;
+    const resolvePostLoginTarget = () => consumeAuthRedirectTarget((location.state as LoginLocationState | null)?.from, '/');
 
     useEffect(() => {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -106,7 +117,7 @@ export const LoginPage: React.FC = () => {
                             id_token: response.credential
                         });
                         await login();
-                        navigate('/');
+                        navigate(resolvePostLoginTarget(), { replace: true });
                     } catch (err: any) {
                         toast.error(err.response?.data?.detail || 'Google sign-in failed.');
                     } finally {
@@ -166,7 +177,7 @@ export const LoginPage: React.FC = () => {
             });
 
             await login();
-            navigate('/');
+            navigate(resolvePostLoginTarget(), { replace: true });
         } catch (err: any) {
             toast.error(err.response?.data?.detail || 'Failed to login. Please check your credentials.');
         } finally {

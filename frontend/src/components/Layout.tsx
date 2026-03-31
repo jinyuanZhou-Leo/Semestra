@@ -1,13 +1,13 @@
-// input:  [auth state/actions, app-status notifications, header slot props, theme toggle and children]
+// input:  [auth state/actions, app-status notifications, header slot props, page-scoped command groups, theme state/actions, and children]
 // output: [`Layout` component]
-// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, authenticated header actions, and sign-out handling]
+// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, global command palette, authenticated header actions, and sign-out handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStatus } from '../hooks/useAppStatus';
 import { Container } from './Container';
@@ -24,24 +24,34 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, LogOut, Settings, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Home, LogOut, Moon, Search, Settings, Sun, Laptop, AlertCircle, CalendarPlus, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
+import { useTheme } from './ThemeProvider';
+import { Kbd } from '@/components/ui/kbd';
+import {
+    GlobalCommandPalette,
+    type LayoutCommandGroup,
+} from './GlobalCommandPalette';
 
 interface LayoutProps {
     children: React.ReactNode;
     breadcrumb?: React.ReactNode;
+    commandGroups?: LayoutCommandGroup[];
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGroups = [] }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const { status, clearStatus, pendingSyncRetryCount, retryFailedSync } = useAppStatus();
+    const { theme, setTheme } = useTheme();
     const isSyncStatus = status?.type === 'error' && /sync/i.test(status.message);
     const isSyncRetrying = Boolean(isSyncStatus && /retrying/i.test(status?.message ?? ''));
     const hasFailedSync = pendingSyncRetryCount > 0;
     const lastToastIdRef = useRef<number | null>(null);
     const [isRetryingSync, setIsRetryingSync] = useState(false);
+    const [isCommandOpen, setIsCommandOpen] = useState(false);
 
     useEffect(() => {
         if (!status || !isSyncStatus) return;
@@ -81,6 +91,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
         } finally {
             setIsRetryingSync(false);
         }
+    };
+
+    const signOut = async () => {
+        await logout();
+        window.location.href = '/login';
     };
 
     useEffect(() => {
@@ -163,6 +178,181 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
     // Page Blur Logic
     const [isPageBlurred, setIsPageBlurred] = useState(false);
     const isVisible = true;
+    const currentProgramId = (
+        matchPath('/programs/:programId', location.pathname)?.params.programId
+        ?? matchPath('/programs/:programId/settings', location.pathname)?.params.programId
+        ?? matchPath('/programs/:programId/semesters/create', location.pathname)?.params.programId
+    );
+    const currentSemesterId = matchPath('/semesters/:semesterId', location.pathname)?.params.semesterId;
+    const currentCourseId = matchPath('/courses/:courseId', location.pathname)?.params.courseId;
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.isComposing) {
+                return;
+            }
+
+            if (event.metaKey || event.ctrlKey || event.altKey) {
+                return;
+            }
+
+            if (event.key !== '/') {
+                return;
+            }
+
+            const target = event.target;
+            if (
+                target instanceof HTMLElement
+                && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            setIsCommandOpen((open) => !open);
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, []);
+
+    const globalCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
+        const navigationItems = [
+            {
+                id: 'nav-home',
+                title: 'Go to Academics',
+                description: 'Open the program list and root workspace.',
+                keywords: ['home', 'dashboard', 'programs'],
+                icon: Home,
+                onSelect: () => navigate('/'),
+            },
+            {
+                id: 'nav-settings',
+                title: 'Open Settings',
+                description: 'Go to global profile, theme, and integration settings.',
+                keywords: ['preferences', 'account'],
+                icon: Settings,
+                onSelect: () => navigate('/settings'),
+            },
+        ];
+
+        const workspaceItems: LayoutCommandGroup['items'] = [];
+
+        if (currentProgramId) {
+            workspaceItems.push(
+                {
+                    id: `program-dashboard-${currentProgramId}`,
+                    title: 'Open Program Dashboard',
+                    description: 'Return to the current Program workspace.',
+                    keywords: ['program', 'workspace'],
+                    icon: LayoutDashboard,
+                    onSelect: () => navigate(`/programs/${currentProgramId}`),
+                },
+                {
+                    id: `program-settings-${currentProgramId}`,
+                    title: 'Open Program Settings',
+                    description: 'Go to the current Program settings page.',
+                    keywords: ['program settings', 'configuration'],
+                    icon: Settings,
+                    onSelect: () => navigate(`/programs/${currentProgramId}/settings`),
+                },
+                {
+                    id: `program-create-semester-${currentProgramId}`,
+                    title: 'Open Semester Wizard',
+                    description: 'Start or resume semester creation for this Program.',
+                    keywords: ['create semester', 'semester wizard', 'draft'],
+                    icon: CalendarPlus,
+                    onSelect: () => navigate(`/programs/${currentProgramId}/semesters/create`),
+                },
+            );
+        }
+
+        if (currentSemesterId) {
+            workspaceItems.push({
+                id: `semester-home-${currentSemesterId}`,
+                title: 'Open Semester Homepage',
+                description: 'Return to the current Semester workspace.',
+                keywords: ['semester', 'term', 'workspace'],
+                icon: LayoutDashboard,
+                onSelect: () => navigate(`/semesters/${currentSemesterId}`),
+            });
+        }
+
+        if (currentCourseId) {
+            workspaceItems.push({
+                id: `course-home-${currentCourseId}`,
+                title: 'Open Course Homepage',
+                description: 'Return to the current Course workspace.',
+                keywords: ['course', 'class', 'workspace'],
+                icon: LayoutDashboard,
+                onSelect: () => navigate(`/courses/${currentCourseId}`),
+            });
+        }
+
+        return [
+            {
+                heading: 'Navigation',
+                items: navigationItems,
+            },
+            {
+                heading: 'Workspace',
+                items: workspaceItems,
+            },
+            {
+                heading: 'Preferences',
+                items: [
+                    {
+                        id: 'theme-light',
+                        title: 'Set Theme to Light',
+                        description: 'Switch the app to light mode.',
+                        keywords: ['theme light appearance'],
+                        icon: Sun,
+                        onSelect: () => setTheme('light'),
+                    },
+                    {
+                        id: 'theme-dark',
+                        title: 'Set Theme to Dark',
+                        description: 'Switch the app to dark mode.',
+                        keywords: ['theme dark appearance'],
+                        icon: Moon,
+                        onSelect: () => setTheme('dark'),
+                    },
+                    {
+                        id: 'theme-system',
+                        title: 'Set Theme to System',
+                        description: 'Follow the system appearance preference.',
+                        keywords: ['theme system appearance auto'],
+                        icon: Laptop,
+                        onSelect: () => setTheme('system'),
+                    },
+                    {
+                        id: 'toggle-page-blur',
+                        title: isPageBlurred ? 'Disable Page Blur' : 'Enable Page Blur',
+                        description: 'Quickly hide or reveal sensitive content in the page body.',
+                        keywords: ['privacy blur focus'],
+                        icon: isPageBlurred ? EyeOff : Eye,
+                        onSelect: () => setIsPageBlurred((blurred) => !blurred),
+                    },
+                ],
+            },
+            ...commandGroups,
+            {
+                heading: 'Account',
+                items: [
+                    {
+                        id: 'sign-out',
+                        title: 'Sign Out',
+                        description: 'End the current session and return to login.',
+                        keywords: ['logout'],
+                        icon: LogOut,
+                        onSelect: signOut,
+                    },
+                ],
+            },
+        ];
+    }, [commandGroups, currentCourseId, currentProgramId, currentSemesterId, isPageBlurred, navigate, setTheme, theme]);
 
     return (
         <div className="flex min-h-screen flex-col">
@@ -191,6 +381,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <Button type="button" variant="outline" className="hidden lg:flex" onClick={() => setIsCommandOpen(true)}>
+                            <Search data-icon="inline-start" />
+                            Commands
+                            <Kbd>/</Kbd>
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsCommandOpen(true)} title="Open command palette (/)">
+                            <Search />
+                            <span className="sr-only">Open command palette</span>
+                        </Button>
                         {hasFailedSync && (
                             <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1">
                                 <AlertCircle className="h-4 w-4 text-destructive" />
@@ -214,9 +413,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                         )}
                         <ThemeToggle />
 
-                        <Button
-                            variant="ghost"
-                            size="icon"
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
                             onClick={() => setIsPageBlurred(!isPageBlurred)}
                             title={isPageBlurred ? "Unblur page" : "Blur page"}
                             className="text-muted-foreground hover:text-foreground"
@@ -256,9 +455,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
-                                        onClick={async () => {
-                                            await logout();
-                                            window.location.href = '/login';
+                                        onClick={() => {
+                                            void signOut();
                                         }}
                                         className="cursor-pointer text-destructive focus:text-destructive"
                                     >
@@ -279,6 +477,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb }) => {
             >
                 {children}
             </main>
+            <GlobalCommandPalette
+                open={isCommandOpen}
+                onOpenChange={setIsCommandOpen}
+                groups={globalCommandGroups}
+            />
         </div>
     );
 };
