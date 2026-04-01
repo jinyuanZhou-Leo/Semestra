@@ -1,4 +1,4 @@
-// input:  [router primitives, auth/user-preference context, plugin idle-preload controller, global providers, route guards, lazily imported page modules including the standalone Create Semester wizard, and TanStack Query client provider]
+// input:  [router primitives, auth/user-preference context, plugin idle-preload controller, global providers, route guards, lazily imported page modules including auth password-reset and the standalone Create Semester wizard, and TanStack Query client provider]
 // output: [default `App` component and `RootGate` product-first root entry resolver]
 // pos:    [Root composition module that defines the app route tree, query cache boundary, provider stack, authenticated idle plugin preload wiring, and the Program-hosted Semester creation wizard route]
 //
@@ -16,6 +16,7 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { RequireAuth } from './components/RequireAuth';
 import { PageSkeleton } from './components/PageSkeleton';
 import { DialogProvider } from './contexts/DialogContext';
+import { AuthRouteLayout } from './components/AuthRouteLayout';
 import { Toaster } from "sonner"
 import { queryClient } from './services/queryClient';
 import { preloadRemainingPluginsWhenIdle } from './plugin-system';
@@ -23,6 +24,7 @@ import { preloadRemainingPluginsWhenIdle } from './plugin-system';
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(module => ({ default: module.RegisterPage })));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(module => ({ default: module.ResetPasswordPage })));
 const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
 const ProgramDashboard = lazy(() => import('./pages/ProgramDashboard').then(module => ({ default: module.ProgramDashboard })));
 const ProgramSettingsPage = lazy(() => import('./pages/ProgramSettingsPage').then(module => ({ default: module.ProgramSettingsPage })));
@@ -72,16 +74,23 @@ function App() {
             <DialogProvider>
               <PluginIdlePreloadController />
               <Routes>
-                <Route path="/login" element={
-                  <Suspense fallback={null}>
-                    <LoginPage />
-                  </Suspense>
-                } />
-                <Route path="/register" element={
-                  <Suspense fallback={null}>
-                    <RegisterPage />
-                  </Suspense>
-                } />
+                <Route element={<AuthRouteLayout />}>
+                  <Route path="/login" element={
+                    <Suspense fallback={null}>
+                      <LoginPage />
+                    </Suspense>
+                  } />
+                  <Route path="/register" element={
+                    <Suspense fallback={null}>
+                      <RegisterPage />
+                    </Suspense>
+                  } />
+                  <Route path="/reset-password" element={
+                    <Suspense fallback={null}>
+                      <ResetPasswordPage />
+                    </Suspense>
+                  } />
+                </Route>
                 <Route
                   path="/"
                   element={<RootGate />}

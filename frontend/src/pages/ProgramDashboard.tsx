@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, shared DataTable row-action patterns, page-scoped global-command actions, and shadcn AlertDialog/menu interactions]
+// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, shared DataTable row-action patterns, page-scoped global-command actions, and shadcn AlertDialog/menu/Combobox interactions]
 // output: [`ProgramDashboard` route component for the Program workspace]
-// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, global command actions for Program operations, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, progress tracking, synchronized assigned/unassigned course refresh, always-visible DataTable-style course row actions with destructive confirmation, semester-card delete actions that stay below the sticky page header, tri-state course-list sorting, and shared empty-state treatment across Program sections]
+// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, global command actions for Program operations, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, refined overview stat cards, synchronized assigned/unassigned course refresh, always-visible DataTable-style course row actions with destructive confirmation, semester-card delete actions that stay below the sticky page header, tri-state course-list sorting, grouped inline search-icon combobox filtering, and shared empty-state treatment across Program sections]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,7 +15,6 @@ import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -56,13 +55,20 @@ import {
 } from "@/components/ui/table";
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupInput,
+} from '@/components/ui/input-group';
+import {
     Combobox,
     ComboboxChip,
     ComboboxChips,
     ComboboxChipsInput,
     ComboboxContent,
     ComboboxEmpty,
+    ComboboxGroup,
     ComboboxItem,
+    ComboboxLabel,
     ComboboxList,
     ComboboxValue,
     useComboboxAnchor,
@@ -92,6 +98,14 @@ type CourseFilterSuggestion = {
     value: string;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
+};
+
+const COURSE_FILTER_GROUP_LABELS: Record<string, string> = {
+    category: 'Categories',
+    semester: 'Semesters',
+    credits: 'Credits',
+    level: 'Levels',
+    gpa: 'GPA',
 };
 
 const ProgramDashboardContent: React.FC = () => {
@@ -292,6 +306,17 @@ const ProgramDashboardContent: React.FC = () => {
 
         return items;
     }, [program, programCourses]);
+    const groupedSuggestions = useMemo(() => {
+        const orderedTypes = ['category', 'semester', 'credits', 'level', 'gpa'];
+
+        return orderedTypes
+            .map((type) => ({
+                type,
+                label: COURSE_FILTER_GROUP_LABELS[type] ?? type,
+                items: suggestions.filter((suggestion) => suggestion.type === type),
+            }))
+            .filter((group) => group.items.length > 0);
+    }, [suggestions]);
 
     const filteredAndSortedCourses = useMemo(() => {
         if (!program) return [];
@@ -481,7 +506,7 @@ const ProgramDashboardContent: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2">
                             {program && (
-                                <Button variant="outline" size="sm" asChild>
+                                <Button variant="outline" asChild>
                                     <Link to={`/programs/${program.id}/settings`}>
                                         <Settings />
                                     </Link>
@@ -493,7 +518,6 @@ const ProgramDashboardContent: React.FC = () => {
                                     setIsCourseModalOpen(true);
                                 }}
                                 variant="outline"
-                                size="sm"
                             >
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Course
@@ -502,7 +526,6 @@ const ProgramDashboardContent: React.FC = () => {
                                 <CreateSemesterWizardButton
                                     programId={program.id}
                                     onChanged={refreshDashboardData}
-                                    size="sm"
                                 >
                                     <Plus className="mr-2 h-4 w-4" />
                                     Add Semester
@@ -616,26 +639,28 @@ const ProgramDashboardContent: React.FC = () => {
                                 </div>
 
                                 <div className="hidden gap-4 md:grid md:grid-cols-3">
-                                    <Card>
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                            <CardTitle className="text-sm font-medium">CGPA (Scaled)</CardTitle>
+                                    <Card className="border-border/50 bg-muted/10 shadow-none">
+                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium text-muted-foreground">CGPA (Scaled)</CardTitle>
                                             <GraduationCap className="h-4 w-4 text-muted-foreground" />
                                         </CardHeader>
-                                        <CardContent>
-                                            <div className="text-2xl font-bold flex items-center justify-between">
-                                                {program.hide_gpa ? '****' : (
-                                                    <AnimatedNumber
-                                                        value={program.cgpa_scaled}
-                                                        format={(val) => val.toFixed(2)}
-                                                        animateOnMount
-                                                        rainbowThreshold={3.8}
-                                                    />
-                                                )}
+                                        <CardContent className="flex min-h-14 items-end">
+                                            <div className="flex w-full items-end justify-between gap-3">
+                                                <div className="text-[1.65rem] font-semibold tracking-tight leading-none">
+                                                    {program.hide_gpa ? '****' : (
+                                                        <AnimatedNumber
+                                                            value={program.cgpa_scaled}
+                                                            format={(val) => val.toFixed(2)}
+                                                            animateOnMount
+                                                            rainbowThreshold={3.8}
+                                                        />
+                                                    )}
+                                                </div>
                                                 <Button
                                                     onClick={() => handleUpdateProgram({ hide_gpa: !program.hide_gpa })}
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-6 w-6 p-0"
+                                                    className="-mr-1 -mt-1 h-7 w-7 p-0 text-muted-foreground"
                                                 >
                                                     {program.hide_gpa ? (
                                                         <EyeOff className="h-3.5 w-3.5" />
@@ -644,19 +669,16 @@ const ProgramDashboardContent: React.FC = () => {
                                                     )}
                                                 </Button>
                                             </div>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Cumulative Grade Point Average
-                                            </p>
                                         </CardContent>
                                     </Card>
 
-                                    <Card>
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                            <CardTitle className="text-sm font-medium">Average</CardTitle>
+                                    <Card className="border-border/50 bg-muted/10 shadow-none">
+                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium text-muted-foreground">Average</CardTitle>
                                             <Percent className="h-4 w-4 text-muted-foreground" />
                                         </CardHeader>
-                                        <CardContent>
-                                            <div className="text-2xl font-bold">
+                                        <CardContent className="flex min-h-14 items-end">
+                                            <div className="text-[1.65rem] font-semibold tracking-tight leading-none">
                                                 {program.hide_gpa ? '****' : (
                                                     <>
                                                         <AnimatedNumber
@@ -664,32 +686,29 @@ const ProgramDashboardContent: React.FC = () => {
                                                             format={formatGpaPercentageValue}
                                                             animateOnMount
                                                         />
-                                                        <span className="text-base font-normal text-muted-foreground ml-1">%</span>
+                                                        <span className="ml-1 text-base font-normal text-muted-foreground">%</span>
                                                     </>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Overall score percentage
-                                            </p>
                                         </CardContent>
                                     </Card>
 
-                                    <Card>
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                            <CardTitle className="text-sm font-medium">Credits Progress</CardTitle>
+                                    <Card className="border-border/50 bg-muted/10 shadow-none">
+                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium text-muted-foreground">Credits Progress</CardTitle>
                                             <BookOpen className="h-4 w-4 text-muted-foreground" />
                                         </CardHeader>
-                                        <CardContent>
-                                            <div className="text-2xl font-bold">
+                                        <CardContent className="flex min-h-14 flex-col justify-end gap-2">
+                                            <div className="text-[1.65rem] font-semibold tracking-tight leading-none">
                                                 <AnimatedNumber
                                                     value={totalCredits}
                                                     format={(val) => val.toFixed(1)} // Format cleaner
                                                     animateOnMount
                                                 />
-                                                <span className="text-base font-normal text-muted-foreground mx-1">/</span>
+                                                <span className="mx-1 text-base font-normal text-muted-foreground">/</span>
                                                 <span className="text-base font-normal text-muted-foreground">{program.grad_requirement_credits}</span>
                                             </div>
-                                            <Progress value={creditsProgressPercent} className="mt-2 h-2" />
+                                            <Progress value={creditsProgressPercent} />
                                         </CardContent>
                                     </Card>
                                 </div>
@@ -699,18 +718,21 @@ const ProgramDashboardContent: React.FC = () => {
 
                             {/* Semesters Section */}
                             <section className="space-y-6">
-                                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                     <h2 className="text-lg font-semibold tracking-tight">
                                         Semesters
                                     </h2>
-                                    <div className="relative flex-1 max-w-sm">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            placeholder="Search semesters..."
-                                            value={searchQuery}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                                            className="pl-9 h-10"
-                                        />
+                                    <div className="flex-1 max-w-sm space-y-1.5">
+                                        <InputGroup>
+                                            <InputGroupAddon>
+                                                <Search className="pointer-events-none size-4 text-muted-foreground" />
+                                            </InputGroupAddon>
+                                            <InputGroupInput
+                                                placeholder="Search semesters..."
+                                                value={searchQuery}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                                            />
+                                        </InputGroup>
                                     </div>
                                 </div>
 
@@ -782,7 +804,7 @@ const ProgramDashboardContent: React.FC = () => {
                             {/* All Courses Section */}
                             <section className="space-y-6">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <h2 className="text-lg font-semibold tracking-tight md:mt-auto">
+                                    <h2 className="text-lg font-semibold tracking-tight">
                                         All Courses
                                     </h2>
                                     <div className="flex-1 max-w-sm space-y-1.5">
@@ -804,6 +826,7 @@ const ProgramDashboardContent: React.FC = () => {
                                                 <ComboboxValue>
                                                     {(values) => (
                                                         <>
+                                                            <Search className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
                                                             {values.map((filter: CourseFilterSuggestion) => (
                                                                 <ComboboxChip key={`${filter.type}-${filter.value}`}>
                                                                     {filter.label}
@@ -819,19 +842,24 @@ const ProgramDashboardContent: React.FC = () => {
                                             <ComboboxContent anchor={suggestionsAnchor}>
                                                 <ComboboxEmpty>No items found.</ComboboxEmpty>
                                                 <ComboboxList>
-                                                    {(suggestion) => {
-                                                        const Icon = suggestion.icon;
-                                                        return (
-                                                            <ComboboxItem
-                                                                key={`${suggestion.type}-${suggestion.value}`}
-                                                                value={suggestion}
-                                                                className="pr-2 [&>span.absolute]:hidden"
-                                                            >
-                                                                <Icon className="text-muted-foreground" />
-                                                                <span>{suggestion.label}</span>
-                                                            </ComboboxItem>
-                                                        );
-                                                    }}
+                                                    {groupedSuggestions.map((group) => (
+                                                        <ComboboxGroup key={group.type}>
+                                                            <ComboboxLabel>{group.label}</ComboboxLabel>
+                                                            {group.items.map((suggestion) => {
+                                                                const Icon = suggestion.icon;
+                                                                return (
+                                                                    <ComboboxItem
+                                                                        key={`${suggestion.type}-${suggestion.value}`}
+                                                                        value={suggestion}
+                                                                        className="pr-2 [&>span.absolute]:hidden"
+                                                                    >
+                                                                        <Icon className="text-muted-foreground" />
+                                                                        <span>{suggestion.label}</span>
+                                                                    </ComboboxItem>
+                                                                );
+                                                            })}
+                                                        </ComboboxGroup>
+                                                    ))}
                                                 </ComboboxList>
                                             </ComboboxContent>
                                         </Combobox>

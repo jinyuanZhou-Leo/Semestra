@@ -1,21 +1,19 @@
-// input:  [email-code auth endpoints, cookie-session login action, password policy helpers, theme hooks, shared auth OTP input, shared email-domain autocomplete input, Google identity button renderer, and shared auth-route shell presentation]
-// output: [`RegisterPage` route component]
-// pos:    [Account creation page that verifies email with a six-digit OTP before collecting profile credentials and bootstrapping a cookie-backed session]
+// input:  [email-code and password-reset auth endpoints, cookie-session login refresh, password policy helpers, shared auth OTP input, shared email-domain autocomplete input, and shared auth-route shell presentation]
+// output: [`ResetPasswordPage` route component]
+// pos:    [Password reset page that verifies email ownership with a six-digit OTP before applying a new password and restoring the session]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useId, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../components/ThemeProvider';
-import { renderGoogleIdentityButton } from '../utils/googleIdentity';
 import { getPasswordRuleError, passwordRuleHint } from '../utils/passwordRules';
 import { AuthCodeInput } from '@/components/AuthCodeInput';
 import { EmailDomainInput } from '@/components/EmailDomainInput';
@@ -25,7 +23,6 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -35,7 +32,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type RegisterStep = 'email' | 'code' | 'profile';
+type ResetStep = 'email' | 'code' | 'password';
+type ResetPasswordLocationState = {
+  email?: string;
+};
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -50,45 +50,32 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const getApiErrorCode = (error: unknown) => {
-  const detail = (error as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail;
-  return detail && typeof detail === 'object' ? detail.code : undefined;
-};
-
-export const RegisterPage: React.FC = () => {
-  const [step, setStep] = useState<RegisterStep>('email');
-  const [nickname, setNickname] = useState('');
-  const [email, setEmail] = useState('');
+export const ResetPasswordPage: React.FC = () => {
+  const location = useLocation();
+  const prefilledEmail = typeof (location.state as ResetPasswordLocationState | null)?.email === 'string'
+    ? (location.state as ResetPasswordLocationState).email ?? ''
+    : '';
+  const [step, setStep] = useState<ResetStep>('email');
+  const [email, setEmail] = useState(prefilledEmail);
   const [code, setCode] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [verificationToken, setVerificationToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({
     email: null as string | null,
     code: null as string | null,
-    nickname: null as string | null,
     password: null as string | null,
     confirmPassword: null as string | null,
   });
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
-  const [isCompletingRegistration, setIsCompletingRegistration] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isGoogleReady, setIsGoogleReady] = useState(false);
-  const [isGlassReady, setIsGlassReady] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const { login } = useAuth();
-  const { theme: themeMode } = useTheme();
   const navigate = useNavigate();
-  const googleButtonRef = useRef<HTMLDivElement>(null);
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-  const emailId = useId();
-  const nicknameId = useId();
-  const passwordId = useId();
-  const confirmPasswordId = useId();
   const authPanelTransition = {
     type: 'spring' as const,
     stiffness: 260,
@@ -113,81 +100,6 @@ export const RegisterPage: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [cooldownRemaining]);
 
-  const googleButtonTheme = React.useMemo(() => {
-    if (typeof window === 'undefined') {
-      return 'outline';
-    }
-    const prefersDark = themeMode === 'dark'
-      || (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    return prefersDark ? 'filled_black' : 'outline';
-  }, [themeMode]);
-
-  useEffect(() => {
-    if (!googleClientId || !isGlassReady || step !== 'email') {
-      return;
-    }
-
-    let cancelled = false;
-
-    const handleGoogleCredential = async (response: { credential?: string }) => {
-      if (!response?.credential) {
-        toast.error('Google sign-in failed. Please try again.');
-        return;
-      }
-      setIsGoogleLoading(true);
-      try {
-        await axios.post('/api/auth/google', { id_token: response.credential });
-        await login();
-        navigate('/');
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, 'Google sign-in failed.'));
-      } finally {
-        setIsGoogleLoading(false);
-      }
-    };
-
-    const initGoogle = async () => {
-      const buttonContainer = googleButtonRef.current;
-      if (cancelled || !buttonContainer) {
-        return;
-      }
-
-      try {
-        const buttonWidth = Math.floor(buttonContainer.getBoundingClientRect().width);
-        await renderGoogleIdentityButton(
-          buttonContainer,
-          googleClientId,
-          handleGoogleCredential,
-          {
-            theme: googleButtonTheme,
-            size: 'large',
-            text: 'continue_with',
-            shape: 'pill',
-            ...(buttonWidth ? { width: buttonWidth } : {}),
-          },
-        );
-      } catch {
-        if (!cancelled) {
-          toast.error('Google sign-in is unavailable right now. Please try again later.');
-        }
-        return;
-      }
-
-      requestAnimationFrame(() => {
-        if (!cancelled && googleButtonRef.current) {
-          setIsGoogleReady(true);
-        }
-      });
-    };
-
-    void initGoogle();
-
-    return () => {
-      cancelled = true;
-      setIsGoogleReady(false);
-    };
-  }, [googleButtonTheme, googleClientId, isGlassReady, login, navigate, step]);
-
   const clearError = (key: keyof typeof fieldErrors) => {
     setFieldErrors((current) => ({ ...current, [key]: null }));
   };
@@ -207,7 +119,7 @@ export const RegisterPage: React.FC = () => {
     try {
       const response = await axios.post('/api/auth/email/send-code', {
         email: normalizedEmail,
-        purpose: 'register',
+        purpose: 'reset_password',
       });
       setEmail(normalizedEmail);
       setCode('');
@@ -220,12 +132,7 @@ export const RegisterPage: React.FC = () => {
         code: null,
       }));
     } catch (error) {
-      const fallback = 'Failed to send the verification code.';
-      if (getApiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
-        setFieldErrors((current) => ({ ...current, email: getApiErrorMessage(error, fallback) }));
-      } else {
-        toast.error(getApiErrorMessage(error, fallback));
-      }
+      toast.error(getApiErrorMessage(error, 'Failed to send the verification code.'));
     } finally {
       setIsSendingCode(false);
     }
@@ -241,11 +148,11 @@ export const RegisterPage: React.FC = () => {
     try {
       const response = await axios.post('/api/auth/email/verify-code', {
         email,
-        purpose: 'register',
+        purpose: 'reset_password',
         code,
       });
       setVerificationToken(response.data.verification_token);
-      setStep('profile');
+      setStep('password');
       setFieldErrors((current) => ({
         ...current,
         code: null,
@@ -260,53 +167,40 @@ export const RegisterPage: React.FC = () => {
     }
   };
 
-  const handleCompleteRegistration = async (event: React.FormEvent) => {
+  const handleResetPassword = async (event: React.FormEvent) => {
     event.preventDefault();
-    const normalizedNickname = nickname.trim();
     const nextErrors = {
       email: null,
       code: null,
-      nickname: null as string | null,
       password: null as string | null,
       confirmPassword: null as string | null,
     };
 
-    if (!normalizedNickname) {
-      nextErrors.nickname = 'Enter your nickname.';
-    }
-    const passwordError = getPasswordRuleError(password);
+    const passwordError = getPasswordRuleError(newPassword);
     if (passwordError) {
       nextErrors.password = passwordError;
     }
-    if (password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
       nextErrors.confirmPassword = 'Passwords do not match.';
     }
 
     setFieldErrors((current) => ({ ...current, ...nextErrors }));
-    if (nextErrors.nickname || nextErrors.password || nextErrors.confirmPassword) {
+    if (nextErrors.password || nextErrors.confirmPassword) {
       return;
     }
 
-    setIsCompletingRegistration(true);
+    setIsResettingPassword(true);
     try {
-      await axios.post('/api/auth/register/complete', {
+      await axios.post('/api/auth/password-reset/complete', {
         verification_token: verificationToken,
-        nickname: normalizedNickname,
-        password,
+        new_password: newPassword,
       });
       await login();
       navigate('/');
     } catch (error) {
-      const message = getApiErrorMessage(error, 'Failed to create your account.');
-      if (getApiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
-        setStep('email');
-        setFieldErrors((current) => ({ ...current, email: message }));
-        setVerificationToken('');
-      } else {
-        toast.error(message);
-      }
+      toast.error(getApiErrorMessage(error, 'Failed to reset the password.'));
     } finally {
-      setIsCompletingRegistration(false);
+      setIsResettingPassword(false);
     }
   };
 
@@ -315,31 +209,29 @@ export const RegisterPage: React.FC = () => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={authPanelTransition}
-      onAnimationComplete={() => setIsGlassReady(true)}
       className="w-full max-w-xs"
     >
       <div className="flex flex-col gap-6">
-        <motion.form layout noValidate onSubmit={handleCompleteRegistration} className="flex flex-col gap-6">
+        <motion.form layout noValidate onSubmit={handleResetPassword} className="flex flex-col gap-6">
           <FieldGroup>
             <div className="flex flex-col items-center gap-1 text-center">
               <h1 className="select-none text-2xl font-bold">
-                {step === 'email' ? 'Create your account' : step === 'code' ? 'Check your inbox' : 'Finish your profile'}
+                {step === 'email' ? 'Reset your password' : step === 'code' ? 'Check your inbox' : 'Choose a new password'}
               </h1>
               <p className="select-none text-sm text-muted-foreground">
                 {step === 'email'
-                  ? 'Start with your email.'
+                  ? 'Get a verification code by email.'
                   : step === 'code'
                     ? 'Enter your verification code.'
-                    : 'Choose your name and password.'}
+                    : 'Choose a new password.'}
               </p>
             </div>
 
             {step === 'email' ? (
               <>
                 <Field data-invalid={fieldErrors.email ? true : undefined}>
-                  <FieldLabel htmlFor={emailId} className="select-none">Email</FieldLabel>
+                  <FieldLabel className="select-none">Email</FieldLabel>
                   <EmailDomainInput
-                    id={emailId}
                     type="email"
                     value={email}
                     onValueChange={(nextValue) => {
@@ -352,7 +244,7 @@ export const RegisterPage: React.FC = () => {
                 </Field>
 
                 <Field>
-                  <Button className="w-full" type="button" onClick={handleSendCode} disabled={isSendingCode || isGoogleLoading}>
+                  <Button className="w-full" type="button" onClick={handleSendCode} disabled={isSendingCode}>
                     {isSendingCode ? 'Sending code...' : 'Send verification code'}
                   </Button>
                 </Field>
@@ -370,8 +262,8 @@ export const RegisterPage: React.FC = () => {
                     variant="ghost"
                     size="sm"
                     className="shrink-0"
-                    disabled={cooldownRemaining > 0 || isSendingCode}
                     onClick={handleSendCode}
+                    disabled={isSendingCode || cooldownRemaining > 0}
                   >
                     {isSendingCode ? 'Sending...' : cooldownRemaining > 0 ? `Resend in ${cooldownRemaining}s` : 'Resend'}
                   </Button>
@@ -394,42 +286,25 @@ export const RegisterPage: React.FC = () => {
               </>
             ) : null}
 
-            {step === 'profile' ? (
+            {step === 'password' ? (
               <>
-                <Field data-invalid={fieldErrors.nickname ? true : undefined}>
-                  <FieldLabel htmlFor={nicknameId} className="select-none">Nickname</FieldLabel>
-                  <Input
-                    id={nicknameId}
-                    type="text"
-                    value={nickname}
-                    onChange={(event) => {
-                      setNickname(event.target.value);
-                      clearError('nickname');
-                    }}
-                    aria-invalid={fieldErrors.nickname ? true : undefined}
-                    placeholder="How should we call you?"
-                  />
-                  {fieldErrors.nickname ? <FieldDescription className="text-destructive">{fieldErrors.nickname}</FieldDescription> : null}
-                </Field>
-
                 <Field data-invalid={fieldErrors.password ? true : undefined}>
-                  <FieldLabel htmlFor={passwordId} className="select-none">Password</FieldLabel>
+                  <FieldLabel className="select-none">New Password</FieldLabel>
                   <TooltipProvider>
                     <Tooltip open={isPasswordFocused}>
                       <TooltipTrigger asChild>
                         <div className="relative">
                           <Input
-                            id={passwordId}
                             type={showPassword ? 'text' : 'password'}
-                            value={password}
+                            value={newPassword}
                             onChange={(event) => {
-                              setPassword(event.target.value);
+                              setNewPassword(event.target.value);
                               clearError('password');
                             }}
                             onFocus={() => setIsPasswordFocused(true)}
                             onBlur={() => setIsPasswordFocused(false)}
                             aria-invalid={fieldErrors.password ? true : undefined}
-                            placeholder="Create a password"
+                            placeholder="Create a new password"
                             className="pr-10"
                           />
                           <button
@@ -451,10 +326,9 @@ export const RegisterPage: React.FC = () => {
                 </Field>
 
                 <Field data-invalid={fieldErrors.confirmPassword ? true : undefined}>
-                  <FieldLabel htmlFor={confirmPasswordId} className="select-none">Confirm Password</FieldLabel>
+                  <FieldLabel className="select-none">Confirm Password</FieldLabel>
                   <div className="relative">
                     <Input
-                      id={confirmPasswordId}
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(event) => {
@@ -462,7 +336,7 @@ export const RegisterPage: React.FC = () => {
                         clearError('confirmPassword');
                       }}
                       aria-invalid={fieldErrors.confirmPassword ? true : undefined}
-                      placeholder="Confirm your password"
+                      placeholder="Confirm your new password"
                       className="pr-10"
                     />
                     <button
@@ -478,44 +352,16 @@ export const RegisterPage: React.FC = () => {
                 </Field>
 
                 <Field>
-                  <Button className="w-full" type="submit" disabled={isCompletingRegistration}>
-                    {isCompletingRegistration ? 'Creating account...' : 'Create account'}
+                  <Button className="w-full" type="submit" disabled={isResettingPassword}>
+                    {isResettingPassword ? 'Updating...' : 'Reset password'}
                   </Button>
                 </Field>
               </>
             ) : null}
 
-            {step === 'email' ? (
-              <>
-                <FieldSeparator className="select-none">Or continue with</FieldSeparator>
-                <Field>
-                  {googleClientId ? (
-                    <div className="relative h-11 w-full">
-                      <div
-                        ref={googleButtonRef}
-                        className={`h-11 w-full transition-opacity duration-200 ${isGoogleReady ? 'opacity-100' : 'opacity-0'}`}
-                      />
-                      {!isGoogleReady ? (
-                        <div className="pointer-events-none absolute inset-0 flex select-none items-center justify-center rounded-full border border-border bg-background px-3 text-sm text-muted-foreground transition-opacity duration-200">
-                          <div className="flex items-center gap-2">
-                            <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/80" />
-                            <span>Continue with Google</span>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <Button className="w-full" variant="outline" type="button" disabled>
-                      Google sign-in is not configured
-                    </Button>
-                  )}
-                </Field>
-              </>
-            ) : null}
-
             <Field>
-              <FieldDescription className="px-6 text-center">
-                Already have an account? <Link to="/login" viewTransition>Sign in</Link>
+              <FieldDescription className="whitespace-nowrap px-6 text-center">
+                Already have your password? <Link to="/login" viewTransition>Sign in</Link>
               </FieldDescription>
             </Field>
           </FieldGroup>

@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, shared color helpers, timezone/date helpers, and transaction helpers]
-# output: [shared CRUD constants, exceptions, user/settings helpers, normalization helpers, and common serialization utilities]
-# pos:    [Shared foundation for backend CRUD modules so Program/plugin/semester/course/layout operations can reuse one coherent helper layer]
+# output: [shared CRUD constants, exceptions, user/settings helpers, auth password hashing helpers, normalization helpers, and common serialization utilities]
+# pos:    [Shared foundation for backend CRUD modules so Program/plugin/semester/course/layout operations can reuse one coherent helper layer, including user creation and credential updates]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -246,11 +246,13 @@ def get_user_by_google_sub(db: Session, google_sub: str):
     return db.query(models.User).filter(models.User.google_sub == google_sub).first()
 
 
-def create_user(db: Session, user: schemas.UserCreate):
+def create_user(db: Session, user: schemas.UserCreate, *, email_verified_at: str | None = None):
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
         email=user.email,
+        nickname=user.nickname,
         hashed_password=hashed_password,
+        email_verified_at=email_verified_at,
         user_setting=json.dumps(get_default_user_setting_dict()),
     )
     db.add(db_user)
@@ -260,11 +262,12 @@ def create_user(db: Session, user: schemas.UserCreate):
     return db_user
 
 
-def create_user_from_google(db: Session, email: str, google_sub: str):
+def create_user_from_google(db: Session, email: str, google_sub: str, *, email_verified_at: str | None = None):
     db_user = models.User(
         email=email,
         hashed_password=None,
         google_sub=google_sub,
+        email_verified_at=email_verified_at,
         user_setting=json.dumps(get_default_user_setting_dict()),
     )
     db.add(db_user)
@@ -272,6 +275,14 @@ def create_user_from_google(db: Session, email: str, google_sub: str):
     db.refresh(db_user)
     db.refresh(db_user)
     return db_user
+
+
+def update_user_password(db: Session, user: models.User, new_password: str) -> models.User:
+    user.hashed_password = get_password_hash(new_password)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def update_user(db: Session, user_id: str, user_update: schemas.UserUpdate):

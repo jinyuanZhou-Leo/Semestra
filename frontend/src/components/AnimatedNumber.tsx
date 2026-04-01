@@ -1,6 +1,6 @@
 // input:  [target numeric value, optional formatter/animation props, RAF + motion preference]
 // output: [`AnimatedNumber` component]
-// pos:    [Reusable metric value animator used in cards and progress summaries]
+// pos:    [Reusable metric value animator used in cards and progress summaries with softer shared motion]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -21,12 +21,16 @@ interface AnimatedNumberProps {
     rainbowFadeOutMs?: number;
 }
 
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const easeInOutCubic = (t: number) => (
+    t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2
+);
 
 export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     value,
     format,
-    duration = 650,
+    duration = 820,
     className = '',
     style,
     animateOnMount = true,
@@ -36,7 +40,6 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     rainbowFadeOutMs = 1200
 }) => {
     const [displayValue, setDisplayValue] = useState(() => (animateOnMount ? 0 : value));
-    const [isAnimating, setIsAnimating] = useState(false);
     const [rainbowState, setRainbowState] = useState<'hidden' | 'running' | 'fading'>('hidden');
     const previousValueRef = useRef<number | null>(null);
     const displayValueRef = useRef<number>(animateOnMount ? 0 : value);
@@ -100,7 +103,6 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
         };
 
         if (!Number.isFinite(value)) {
-            setIsAnimating(false);
             displayValueRef.current = value;
             setDisplayValue(value);
             return () => {};
@@ -108,7 +110,6 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
 
         const shouldAnimate = !prefersReducedMotion && duration > 0 && (isFirstAnimation || previousValue !== null);
         if (!shouldAnimate || (previousValue === value && !isFirstAnimation)) {
-            setIsAnimating(false);
             displayValueRef.current = value;
             setDisplayValue(value);
             if (typeof rainbowThreshold === 'number' && value >= rainbowThreshold) {
@@ -120,15 +121,13 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
         const startValue = isFirstAnimation ? (animateOnMount ? 0 : value) : displayValueRef.current;
         const startTime = performance.now();
 
-        setIsAnimating(true);
-
         const tick = (now: number) => {
             if (isFirstAnimation && !hasAnimatedOnMountRef.current) {
                 hasAnimatedOnMountRef.current = true;
             }
             const elapsed = now - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            const eased = easeOutCubic(progress);
+            const eased = easeInOutCubic(progress);
             const nextValue = startValue + (value - startValue) * eased;
             displayValueRef.current = nextValue;
             setDisplayValue(nextValue);
@@ -142,7 +141,6 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
                 return;
             }
 
-            setIsAnimating(false);
             if (typeof rainbowThreshold === 'number' && value >= rainbowThreshold) {
                 triggerRainbowMarquee();
             }
@@ -180,7 +178,7 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
 
     return (
         <span
-            className={`animated-number ${isAnimating ? 'animated-number--pulse' : ''} ${className}`.trim()}
+            className={`animated-number ${className}`.trim()}
             style={style}
         >
             <span className="animated-number__base">{renderedValue}</span>

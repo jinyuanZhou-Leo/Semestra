@@ -1,6 +1,6 @@
-// input:  [auth state/actions, app-status notifications, header slot props, page-scoped command groups, theme state/actions, and children]
+// input:  [auth state/actions, app-status notifications, header slot props, page-scoped command groups, theme state/actions, API-backed account navigation loaders with structured course metadata, and children]
 // output: [`Layout` component]
-// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, global command palette, authenticated header actions, and sign-out handling]
+// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, a slash-triggered command palette that mixes lazy account navigation with direct workspace actions plus structured course-row metadata, authenticated header actions, and sign-out handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStatus } from '../hooks/useAppStatus';
+import api, { type Course, type Program, type Semester } from '../services/api';
 import { Container } from './Container';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
@@ -24,14 +25,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, Home, LogOut, Moon, Search, Settings, Sun, Laptop, AlertCircle, CalendarPlus, LayoutDashboard } from 'lucide-react';
+import { AlertCircle, BookOpen, Eye, EyeOff, FolderKanban, Home, Laptop, LayoutDashboard, LogOut, Moon, Search, Settings, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { useTheme } from './ThemeProvider';
 import { Kbd } from '@/components/ui/kbd';
+import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, resolveCourseColor } from '@/utils/courseCategoryBadge';
 import {
     GlobalCommandPalette,
     type LayoutCommandGroup,
+    type LayoutCommandItem,
 } from './GlobalCommandPalette';
 
 interface LayoutProps {
@@ -45,7 +48,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
     const navigate = useNavigate();
     const location = useLocation();
     const { status, clearStatus, pendingSyncRetryCount, retryFailedSync } = useAppStatus();
-    const { theme, setTheme } = useTheme();
+    const { setTheme } = useTheme();
     const isSyncStatus = status?.type === 'error' && /sync/i.test(status.message);
     const isSyncRetrying = Boolean(isSyncStatus && /retrying/i.test(status?.message ?? ''));
     const hasFailedSync = pendingSyncRetryCount > 0;
@@ -218,26 +221,157 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
         };
     }, []);
 
-    const globalCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
-        const navigationItems = [
-            {
-                id: 'nav-home',
-                title: 'Go to Academics',
-                description: 'Open the program list and root workspace.',
-                keywords: ['home', 'dashboard', 'programs'],
-                icon: Home,
-                onSelect: () => navigate('/'),
+    const accountNavigationItems = useMemo<LayoutCommandItem[]>(() => [
+        {
+            id: 'nav-home',
+            title: 'Go to Academics',
+            description: 'Open the program list and root workspace.',
+            keywords: ['home', 'dashboard', 'programs'],
+            icon: Home,
+            onSelect: () => navigate('/'),
+        },
+        {
+            id: 'nav-settings',
+            title: 'Open Settings',
+            description: 'Go to global profile, theme, and integration settings.',
+            keywords: ['preferences', 'account'],
+            icon: Settings,
+            onSelect: () => navigate('/settings'),
+        },
+        {
+            id: 'browse-programs',
+            title: 'Browse Programs',
+            description: 'Search every Program in this account.',
+            keywords: ['program list account navigation'],
+            icon: FolderKanban,
+            childPage: {
+                id: 'programs',
+                title: 'Programs',
+                searchPlaceholder: 'Search programs...',
+                emptyMessage: 'No programs found.',
+                loadItems: async () => {
+                    const programs = await api.getPrograms();
+                    return [...programs]
+                        .sort((left, right) => left.name.localeCompare(right.name))
+                        .map((program: Program) => ({
+                            id: `program-${program.id}`,
+                            title: program.name,
+                            description: 'Open Program dashboard.',
+                            keywords: ['program'],
+                            icon: FolderKanban,
+                            onSelect: () => navigate(`/programs/${program.id}`),
+                        }));
+                },
             },
-            {
-                id: 'nav-settings',
-                title: 'Open Settings',
-                description: 'Go to global profile, theme, and integration settings.',
-                keywords: ['preferences', 'account'],
-                icon: Settings,
-                onSelect: () => navigate('/settings'),
-            },
-        ];
+            onSelect: () => undefined,
+        },
+        {
+            id: 'browse-semesters',
+            title: 'Browse Semesters',
+            description: 'Search every active Semester in this account.',
+            keywords: ['semester term account navigation'],
+            icon: LayoutDashboard,
+            childPage: {
+                id: 'semesters',
+                title: 'Semesters',
+                searchPlaceholder: 'Search semesters...',
+                emptyMessage: 'No semesters found.',
+                loadItems: async () => {
+                    const programs = await api.getPrograms();
+                    const programDetails = await Promise.all(programs.map((program: Program) => api.getProgram(program.id)));
 
+                    return programDetails
+                        .flatMap((program: Program & { semesters: Semester[] }) => program.semesters
+                            .filter((semester: Semester) => semester.lifecycle_state !== 'draft')
+                            .map((semester: Semester) => ({
+                                id: `semester-${semester.id}`,
+                                title: semester.name,
+                                description: `${program.name} / Semester workspace`,
+                                keywords: [program.name, 'semester', 'term'],
+                                icon: LayoutDashboard,
+                                onSelect: () => navigate(`/semesters/${semester.id}`),
+                            })))
+                        .sort((left: LayoutCommandItem, right: LayoutCommandItem) => left.title.localeCompare(right.title));
+                },
+            },
+            onSelect: () => undefined,
+        },
+        {
+            id: 'browse-courses',
+            title: 'Browse Courses',
+            description: 'Search every Course in this account.',
+            keywords: ['course class account navigation'],
+            icon: BookOpen,
+            childPage: {
+                id: 'courses',
+                title: 'Courses',
+                searchPlaceholder: 'Search courses...',
+                emptyMessage: 'No courses found.',
+                loadItems: async () => {
+                    const programs = await api.getPrograms();
+                    const programPayloads = await Promise.all(programs.map(async (program: Program) => {
+                        const [programDetail, unassignedCourses] = await Promise.all([
+                            api.getProgram(program.id),
+                            api.getCoursesForProgram(program.id, { unassigned: true }),
+                        ]);
+
+                        return { program, programDetail, unassignedCourses };
+                    }));
+
+                    return programPayloads
+                        .flatMap(({ program, programDetail, unassignedCourses }: {
+                            program: Program;
+                            programDetail: Program & { semesters: Semester[] };
+                            unassignedCourses: Course[];
+                        }) => {
+                            const assignedCourses = programDetail.semesters
+                                .filter((semester: Semester) => semester.lifecycle_state !== 'draft')
+                                .flatMap((semester: Semester) => (semester.courses ?? []).map((course: Course) => ({
+                                    id: `course-${course.id}`,
+                                    title: course.name,
+                                    metaText: course.alias?.trim() || undefined,
+                                    badges: course.category?.trim()
+                                        ? [{
+                                            label: course.category.trim(),
+                                            variant: 'outline' as const,
+                                            className: `h-5 shrink-0 border-0 px-1.5 text-[11px] font-medium ${getCourseCategoryBadgeClassName(course.category, course.id)}`,
+                                            style: getCourseBadgeStyle(resolveCourseColor(course)),
+                                        }]
+                                        : undefined,
+                                    description: `${program.name} / ${semester.name}`,
+                                    keywords: [program.name, semester.name, course.name, course.alias ?? '', course.category ?? '', 'course', 'class'],
+                                    icon: BookOpen,
+                                    onSelect: () => navigate(`/courses/${course.id}`),
+                                })));
+
+                            const programLevelCourses = unassignedCourses.map((course: Course) => ({
+                                id: `course-${course.id}`,
+                                title: course.name,
+                                metaText: course.alias?.trim() || undefined,
+                                badges: course.category?.trim()
+                                    ? [{
+                                        label: course.category.trim(),
+                                        variant: 'outline' as const,
+                                        className: `h-5 shrink-0 border-0 px-1.5 text-[11px] font-medium ${getCourseCategoryBadgeClassName(course.category, course.id)}`,
+                                        style: getCourseBadgeStyle(resolveCourseColor(course)),
+                                    }]
+                                    : undefined,
+                                description: `${program.name} / Unassigned`,
+                                keywords: [program.name, course.name, course.alias ?? '', course.category ?? '', 'unassigned', 'course', 'class'],
+                                icon: BookOpen,
+                                onSelect: () => navigate(`/courses/${course.id}`),
+                            }));
+
+                            return [...assignedCourses, ...programLevelCourses];
+                        })
+                        .sort((left: LayoutCommandItem, right: LayoutCommandItem) => left.title.localeCompare(right.title));
+                },
+            },
+            onSelect: () => undefined,
+        },
+    ], [navigate]);
+
+    const globalCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
         const workspaceItems: LayoutCommandGroup['items'] = [];
 
         if (currentProgramId) {
@@ -257,14 +391,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                     keywords: ['program settings', 'configuration'],
                     icon: Settings,
                     onSelect: () => navigate(`/programs/${currentProgramId}/settings`),
-                },
-                {
-                    id: `program-create-semester-${currentProgramId}`,
-                    title: 'Open Semester Wizard',
-                    description: 'Start or resume semester creation for this Program.',
-                    keywords: ['create semester', 'semester wizard', 'draft'],
-                    icon: CalendarPlus,
-                    onSelect: () => navigate(`/programs/${currentProgramId}/semesters/create`),
                 },
             );
         }
@@ -293,12 +419,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
 
         return [
             {
-                heading: 'Navigation',
-                items: navigationItems,
-            },
-            {
                 heading: 'Workspace',
                 items: workspaceItems,
+            },
+            ...commandGroups,
+            {
+                heading: 'Navigation',
+                items: accountNavigationItems,
             },
             {
                 heading: 'Preferences',
@@ -337,22 +464,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                     },
                 ],
             },
-            ...commandGroups,
-            {
-                heading: 'Account',
-                items: [
-                    {
-                        id: 'sign-out',
-                        title: 'Sign Out',
-                        description: 'End the current session and return to login.',
-                        keywords: ['logout'],
-                        icon: LogOut,
-                        onSelect: signOut,
-                    },
-                ],
-            },
         ];
-    }, [commandGroups, currentCourseId, currentProgramId, currentSemesterId, isPageBlurred, navigate, setTheme, theme]);
+    }, [accountNavigationItems, commandGroups, currentCourseId, currentProgramId, currentSemesterId, isPageBlurred, navigate, setTheme]);
 
     return (
         <div className="flex min-h-screen flex-col">
@@ -381,9 +494,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <Button type="button" variant="outline" className="hidden lg:flex" onClick={() => setIsCommandOpen(true)}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="hidden min-w-28 justify-between text-muted-foreground transition-colors hover:text-foreground lg:flex"
+                            onClick={() => setIsCommandOpen(true)}
+                        >
                             <Search data-icon="inline-start" />
-                            Commands
                             <Kbd>/</Kbd>
                         </Button>
                         <Button type="button" variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsCommandOpen(true)} title="Open command palette (/)">

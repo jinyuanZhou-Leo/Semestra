@@ -1,7 +1,7 @@
 /*
-input:  [Tailwind layers, design tokens, global reset/typography/theme variables, and FullCalendar event chrome requirements]
-output: [application-wide CSS variables, base utility layers, and Apple Calendar-inspired calendar/event styling]
-pos:    [Root stylesheet shared by every frontend route/component, including event-core calendar presentation and Apple-style week headers]
+input:  [Tailwind layers, design tokens, global reset/typography/theme variables, animated-number styling, and FullCalendar event chrome requirements]
+output: [application-wide CSS variables, base utility layers, animated-number styling, and Apple Calendar-inspired calendar/event styling]
+pos:    [Root stylesheet shared by every frontend route/component, including animated-number motion treatment, event-core calendar presentation, and Apple-style week headers]
 
 ⚠️ When this file is updated:
    1. Update these header comments
@@ -737,22 +737,6 @@ body>div>div[role="dialog"][data-state] {
   animation: none;
 }
 
-.animated-number--pulse {
-  animation: animated-number-pulse 0.85s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-@keyframes animated-number-pulse {
-  0% {
-    opacity: 0.65;
-  }
-  60% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
 @keyframes animated-number-rainbow-marquee {
   0% {
     background-position: 0% 50%;
@@ -900,6 +884,10 @@ body>div>div[role="dialog"][data-state] {
     /* Reserve scrollbar space to prevent layout shift on page switches. */
     scrollbar-gutter: stable;
     @apply font-sans;
+  }
+
+  html[data-auth-page="true"] {
+    scrollbar-gutter: auto;
   }
   * {
     @apply border-border outline-ring/50;

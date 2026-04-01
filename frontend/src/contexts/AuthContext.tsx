@@ -1,6 +1,6 @@
-// input:  [httpOnly-cookie auth session, axios `/api/users/me` + 401 interceptor, normalized user-setting defaults, auth redirect persistence, and session modal]
-// output: [`AuthProvider` and `useAuth()` exposing user/login/logout/refresh/loading state plus parsed global user preferences]
-// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions, session-expiry route restoration, and normalized user-setting hydration]
+// input:  [httpOnly-cookie auth session, axios `/api/users/me` + auth submit endpoints, normalized user-setting defaults, auth redirect persistence, and session modal]
+// output: [`AuthProvider` and `useAuth()` exposing user/login/logout/clear-session/refresh/loading state plus parsed global user preferences]
+// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions, session-expiry route restoration, destructive account-removal session clearing, and normalized user-setting hydration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -15,6 +15,16 @@ import { queryKeys } from '../services/queryKeys';
 import { clearAuthRedirectTarget, rememberCurrentAuthRedirectTarget } from '../utils/authRedirect';
 
 const DEFAULT_COURSE_CREDIT = 0.5;
+const AUTH_SESSION_IGNORE_401_PATHS = new Set([
+    '/api/auth/token',
+    '/api/auth/google',
+    '/api/auth/register',
+    '/api/auth/register/complete',
+    '/api/auth/email/send-code',
+    '/api/auth/email/verify-code',
+    '/api/auth/login/email',
+    '/api/auth/password-reset/complete',
+]);
 
 interface User {
     id: string;
@@ -25,6 +35,7 @@ interface User {
     default_course_credit?: number;
     background_plugin_preload?: boolean;
     google_sub?: string | null;
+    email_verified_at?: string | null;
 }
 
 type UserSettings = Pick<User, 'gpa_scaling_table' | 'default_course_credit' | 'background_plugin_preload'>;
@@ -71,10 +82,24 @@ const normalizeUser = (rawUser: User): User => ({
     ...resolveUserSettings(rawUser.user_setting)
 });
 
+const shouldIgnoreSessionExpiryForRequest = (url?: string): boolean => {
+    if (!url) {
+        return false;
+    }
+
+    try {
+        const resolvedUrl = new URL(url, window.location.origin);
+        return AUTH_SESSION_IGNORE_401_PATHS.has(resolvedUrl.pathname);
+    } catch {
+        return false;
+    }
+};
+
 interface AuthContextType {
     user: User | null;
     login: () => Promise<void>;
     logout: () => Promise<void>;
+    clearSession: () => void;
     refreshUser: () => Promise<void>;
     isLoading: boolean;
 }
@@ -98,18 +123,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         queryClient.clear();
     }, []);
 
+    const clearSession = useCallback(() => {
+        clearAuthRedirectTarget();
+        clearSessionState();
+        setIsSessionExpired(false);
+        setIsLoading(false);
+    }, [clearSessionState]);
+
     const logout = useCallback(async () => {
         try {
             await axios.post('/api/auth/logout');
         } catch (error) {
             console.error("Failed to clear server session", error);
         } finally {
-            clearAuthRedirectTarget();
-            clearSessionState();
-            setIsSessionExpired(false);
-            setIsLoading(false);
+            clearSession();
         }
-    }, [clearSessionState]);
+    }, [clearSession]);
 
     const fetchUser = useCallback(async () => {
         try {
@@ -140,7 +169,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         interceptorIdRef.current = axios.interceptors.response.use(
             (response) => response,
             (error) => {
-                if (error.response?.status === 401) {
+                if (
+                    error.response?.status === 401 &&
+                    !shouldIgnoreSessionExpiryForRequest(error.config?.url)
+                ) {
                     const hadActiveSession = Boolean(userRef.current);
                     if (hadActiveSession) {
                         rememberCurrentAuthRedirectTarget();
@@ -171,9 +203,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         login,
         logout,
+        clearSession,
         refreshUser: fetchUser,
         isLoading
-    }), [user, login, logout, fetchUser, isLoading]);
+    }), [user, login, logout, clearSession, fetchUser, isLoading]);
 
     return (
         <AuthContext.Provider value={value}>

@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy Base, Column types, relational constraints, and dialect-specific partial-index expressions]
-# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin management rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, unassigned-Course plugin activation rows with per-course enablement, multi-integration LMS records, auth session-version plus login-rate-limit controls, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, V2 tab-settings records, V2 workspace-tab-order entries, and semester-scoped todo domain tables]
-# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, unassigned-Course plugin activation state, auth security state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, V2 tab-settings ownership, workspace-tab ordering buckets, and todo domain records]
+# output: [ORM model classes and table definitions, including Program subject-color persistence, Program-level plugin management rows with install enablement, Semester draft lifecycle state plus review readiness plus a single-draft-per-Program partial unique index, Semester-level plugin activations with soft-disable support, unassigned-Course plugin activation rows with per-course enablement, multi-integration LMS records, auth session-version plus login-rate-limit controls, email-verification challenge storage, Program/Course LMS link metadata, gradebook LMS-import provenance and optional point-based score fields, V2 tab-settings records, V2 workspace-tab-order entries, and semester-scoped todo domain tables]
+# pos:    [Persistent data model layer for academic data, dashboard instances, Program-level settings and plugin governance, Semester draft or activation state plus database-enforced draft uniqueness and review readiness, unassigned-Course plugin activation state, auth security state plus email-verification challenge state, LMS connection storage, Program/Course LMS link metadata, gradebook import provenance plus point-based score facts, V2 tab-settings ownership, workspace-tab ordering buckets, and todo domain records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -38,6 +38,7 @@ class User(Base):
     nickname = Column(String, nullable=True)
     hashed_password = Column(String, nullable=True)
     google_sub = Column(String, unique=True, index=True, nullable=True)
+    email_verified_at = Column(String, nullable=True)
     user_setting = Column(Text, default="{}")
     session_version = Column(Integer, nullable=False, default=0)
     
@@ -59,6 +60,32 @@ class AuthRateLimit(Base):
     attempts = Column(Integer, nullable=False, default=0)
     window_started_at = Column(String, nullable=False, default="")
     blocked_until = Column(String, nullable=True)
+    created_at = Column(String, nullable=False, default="")
+    updated_at = Column(String, nullable=False, default="")
+
+
+class EmailVerificationChallenge(Base):
+    __tablename__ = "email_verification_challenges"
+    __table_args__ = (
+        Index("ix_email_verification_challenges_email_purpose", "email", "purpose"),
+        Index("ix_email_verification_challenges_expires_at", "expires_at"),
+    )
+
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    email = Column(String, nullable=False, index=True)
+    purpose = Column(String, nullable=False, index=True)
+    code_hash = Column(String, nullable=False, default="")
+    verification_nonce = Column(String, nullable=True)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=5)
+    expires_at = Column(String, nullable=False, default="")
+    last_sent_at = Column(String, nullable=True)
+    verified_at = Column(String, nullable=True)
+    used_at = Column(String, nullable=True)
+    invalidated_at = Column(String, nullable=True)
+    resend_email_id = Column(String, nullable=True)
+    request_ip = Column(String, nullable=True)
+    user_agent = Column(Text, nullable=True)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
 

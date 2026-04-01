@@ -1,6 +1,6 @@
 // input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin management payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, host-owned semester course management settings, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, global command actions for workspace tab switching and semester-course navigation plus widget creation, host-owned semester course management settings, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
+// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, global command actions for current-semester tab switching and semester-course navigation plus widget creation, host-owned semester course management settings, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -40,6 +40,7 @@ import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
     getPluginIconById,
+    getResolvedTabMetadataByType,
     getTabPluginLoadState,
     getTabComponentByType,
     getTabSettingsComponentByType,
@@ -183,14 +184,6 @@ const SemesterHomepageContent: React.FC = () => {
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
     );
-    const dashboardTab = useMemo(
-        () => visibleTabs.find((tab) => tab.type === HOMEPAGE_DASHBOARD_TAB_TYPE),
-        [visibleTabs]
-    );
-    const settingsTab = useMemo(
-        () => visibleTabs.find((tab) => tab.type === HOMEPAGE_SETTINGS_TAB_TYPE),
-        [visibleTabs]
-    );
     const activeTabLoadState = useTabPluginLoadState(activeTabType);
     const isSettingsTabActive = activeTabType === HOMEPAGE_SETTINGS_TAB_TYPE;
     const pluginLoadStateVersion = usePluginLoadStateVersion();
@@ -220,26 +213,31 @@ const SemesterHomepageContent: React.FC = () => {
             return [];
         }
 
+        const semesterTabItems = visibleTabs.map((tab) => {
+            const metadata = getResolvedTabMetadataByType(tab.type);
+            const displayName = metadata.name ?? tab.title ?? tab.type;
+
+            return {
+                id: `semester-open-tab-${tab.id}`,
+                title: displayName,
+                description: `Switch to the ${displayName} tab.`,
+                keywords: ['semester tab', 'tab', tab.type, tab.title, displayName],
+                icon: metadata.icon ?? (
+                    tab.type === HOMEPAGE_DASHBOARD_TAB_TYPE
+                        ? LayoutDashboard
+                        : tab.type === HOMEPAGE_SETTINGS_TAB_TYPE
+                            ? Settings
+                            : undefined
+                ),
+                onSelect: () => setActiveTabId(tab.id),
+            };
+        });
+
         return [
             {
                 heading: 'Semester',
                 items: [
-                    ...(dashboardTab ? [{
-                        id: `semester-open-dashboard-${semester.id}`,
-                        title: 'Open Dashboard Tab',
-                        description: 'Switch to the Semester dashboard tab.',
-                        keywords: ['semester dashboard'],
-                        icon: LayoutDashboard,
-                        onSelect: () => setActiveTabId(dashboardTab.id),
-                    }] : []),
-                    ...(settingsTab ? [{
-                        id: `semester-open-settings-${semester.id}`,
-                        title: 'Open Settings Tab',
-                        description: 'Switch to the Semester settings tab.',
-                        keywords: ['semester settings'],
-                        icon: Settings,
-                        onSelect: () => setActiveTabId(settingsTab.id),
-                    }] : []),
+                    ...semesterTabItems,
                     {
                         id: `semester-add-widget-${semester.id}`,
                         title: 'Add Widget',
@@ -255,7 +253,7 @@ const SemesterHomepageContent: React.FC = () => {
                 items: semesterCourseItems,
             },
         ];
-    }, [dashboardTab, openAddWidgetModal, semester?.id, semesterCourseItems, settingsTab]);
+    }, [openAddWidgetModal, semester?.id, semesterCourseItems, visibleTabs]);
 
     useEffect(() => {
         if (tabBarItems.length === 0) {

@@ -1,6 +1,6 @@
 # input:  [Alembic migration context and SQLAlchemy schema inspection helpers]
-# output: [Schema migration that adds V2 tab-settings storage, workspace tab-order buckets, and legacy settings backfills for Program plus assigned-Course scopes]
-# pos:    [Backend schema migration for Plugin System V2 tab-owned settings and host-managed tab selection ordering, including program-installation and course-override backfills]
+# output: [Schema migration that adds V2 tab-settings storage, workspace tab-order buckets, legacy settings backfills for Program plus assigned-Course scopes, and legacy assigned-course tab-order reconciliation]
+# pos:    [Backend schema migration for Plugin System V2 tab-owned settings and host-managed tab selection ordering, including program-installation and course-override backfills plus self-healing cleanup of divergent legacy assigned-course tab rows]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -238,12 +238,41 @@ def _normalize_selected_tab_types(
         if not tab_type or tab_type in HOST_RESERVED_TAB_TYPES:
             continue
         if tab_type in seen_tab_types:
-            raise RuntimeError(
-                f"{context_label} contains duplicate tab type '{tab_type}', which cannot be migrated to the V2 singleton tab model."
-            )
+            # Legacy rows can contain repeated tab records for the same tab type.
+            # Keep the earliest occurrence and let `_build_context_tab_settings`
+            # merge any settings payloads for that tab type.
+            continue
         seen_tab_types.add(tab_type)
         ordered_tab_types.append(tab_type)
     return ordered_tab_types
+
+
+def _merge_assigned_course_tab_orders(course_tab_orders: list[tuple[str, ...]]) -> list[str]:
+    if not course_tab_orders:
+        return []
+
+    counts: dict[str, int] = {}
+    position_totals: dict[str, int] = {}
+    first_seen_sequence: dict[str, int] = {}
+    next_sequence = 0
+
+    for course_tab_order in course_tab_orders:
+        for position, tab_type in enumerate(course_tab_order):
+            counts[tab_type] = counts.get(tab_type, 0) + 1
+            position_totals[tab_type] = position_totals.get(tab_type, 0) + position
+            if tab_type not in first_seen_sequence:
+                first_seen_sequence[tab_type] = next_sequence
+                next_sequence += 1
+
+    return sorted(
+        counts.keys(),
+        key=lambda tab_type: (
+            -counts[tab_type],
+            position_totals[tab_type] / counts[tab_type],
+            first_seen_sequence[tab_type],
+            tab_type,
+        ),
+    )
 
 
 def _build_context_tab_settings(
@@ -456,7 +485,7 @@ def _backfill_v2_runtime_state(bind: sa.Connection) -> None:
             _upsert_tab_setting(bind, tab_type=tab_type, settings=settings, course_id=course_id)
 
     for semester_id, course_ids in assigned_course_ids_by_semester.items():
-        expected_tab_order: tuple[str, ...] | None = None
+        normalized_course_tab_orders: list[tuple[str, ...]] = []
 
         for course_id in sorted(course_ids):
             selected_tab_types = tuple(
@@ -465,25 +494,20 @@ def _backfill_v2_runtime_state(bind: sa.Connection) -> None:
                     context_label=f"assigned course '{course_id}'",
                 )
             )
+            normalized_course_tab_orders.append(selected_tab_types)
             settings_by_tab_type = _build_context_tab_settings(
                 plugin_settings_rows=course_plugin_settings_by_id.get(course_id, []),
                 tab_rows=course_tabs_by_id.get(course_id, []),
                 single_tab_plugin_map=single_tab_plugin_map,
                 context_label=f"assigned course '{course_id}'",
             )
-            if expected_tab_order is None:
-                expected_tab_order = selected_tab_types
-            elif selected_tab_types != expected_tab_order:
-                raise RuntimeError(
-                    f"Semester '{semester_id}' has assigned courses with divergent tab selection/order. Resolve the inconsistency before running Plugin System V2 migration."
-                )
             for tab_type, settings in settings_by_tab_type.items():
                 _upsert_tab_setting(bind, tab_type=tab_type, settings=settings, course_id=course_id)
 
         _replace_workspace_tab_order_entries(
             bind,
             bucket_type=SEMESTER_COURSE_SHARED_TAB_ORDER_BUCKET,
-            tab_types=list(expected_tab_order or ()),
+            tab_types=_merge_assigned_course_tab_orders(normalized_course_tab_orders),
             semester_id=semester_id,
         )
 

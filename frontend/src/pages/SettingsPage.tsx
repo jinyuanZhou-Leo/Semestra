@@ -1,6 +1,6 @@
-// input:  [auth context/actions, user settings/import-export/LMS persistence APIs, dialog helpers, theme hooks, switch controls, responsive dialog wrapper, LMS integration manager component, and shadcn scroll-area]
+// input:  [auth context/actions, user settings/import-export/account-deletion/LMS persistence APIs, dialog helpers, theme hooks, switch controls, shadcn alert-dialog primitives, responsive dialog wrapper, LMS integration manager component, and shadcn scroll-area]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, multi-integration LMS management, plugin preload preferences, GPA rules, and data transfer with mobile-safe responsive layout, shadcn Field-based form structure, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
+// pos:    [Global settings workspace for profile defaults, multi-integration LMS management, plugin preload preferences, GPA rules, irreversible account deletion, and data transfer with mobile-safe responsive layout, shadcn Field-based form structure, a dialog-gated typed account-deletion confirmation flow, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -24,6 +24,16 @@ import versionInfo from "../version.json";
 import type { ImportData, ConflictMode } from "../components/ImportPreviewModal";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
     Field,
     FieldContent,
@@ -54,9 +64,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
+const DELETE_ACCOUNT_CONFIRMATION_TEXT = "I confirm deleting my account";
 
 export const SettingsPage: React.FC = () => {
-    const { user, logout, refreshUser } = useAuth();
+    const { user, logout, clearSession, refreshUser } = useAuth();
     const navigate = useNavigate();
     const { alert: showAlert, confirm } = useDialog();
     const { theme: themeMode, setTheme } = useTheme();
@@ -102,6 +113,10 @@ export const SettingsPage: React.FC = () => {
     const [googleLinkSuccess, setGoogleLinkSuccess] = useState(false);
     const [isGoogleLinking, setIsGoogleLinking] = useState(false);
     const [isGoogleLinkReady, setIsGoogleLinkReady] = useState(false);
+    const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
+    const [deleteAccountFinalDialogOpen, setDeleteAccountFinalDialogOpen] = useState(false);
+    const [deleteAccountConfirmationText, setDeleteAccountConfirmationText] = useState("");
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
     const googleLinkRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
     useEffect(() => {
@@ -188,8 +203,11 @@ export const SettingsPage: React.FC = () => {
                 }
             });
 
+            const prefersDark = themeMode === "dark"
+                || (themeMode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
             google.accounts.id.renderButton(googleLinkRef.current, {
-                theme: 'outline',
+                theme: prefersDark ? 'filled_black' : 'outline',
                 size: 'large',
                 text: 'continue_with',
                 shape: 'pill',
@@ -204,7 +222,7 @@ export const SettingsPage: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [googleClientId, refreshUser, user]);
+    }, [googleClientId, refreshUser, themeMode, user]);
 
     // Warn on browser refresh/close
     useEffect(() => {
@@ -360,6 +378,56 @@ export const SettingsPage: React.FC = () => {
         navigate('/login');
     };
 
+    const hasMatchedDeleteConfirmationText =
+        deleteAccountConfirmationText.trim() === DELETE_ACCOUNT_CONFIRMATION_TEXT;
+
+    const handleDeleteAccount = useCallback(async () => {
+        if (!hasMatchedDeleteConfirmationText || isDeletingAccount) {
+            return;
+        }
+
+        setIsDeletingAccount(true);
+        try {
+            await api.deleteUserAccount(DELETE_ACCOUNT_CONFIRMATION_TEXT);
+            setDeleteAccountFinalDialogOpen(false);
+            setDeleteAccountDialogOpen(false);
+            clearSession();
+            navigate('/login', { replace: true });
+        } catch (error) {
+            console.error("Account deletion failed:", error);
+            await showAlert({
+                title: "Delete account failed",
+                description: "We could not delete your account. Please try again.",
+            });
+        } finally {
+            setIsDeletingAccount(false);
+        }
+    }, [
+        clearSession,
+        hasMatchedDeleteConfirmationText,
+        isDeletingAccount,
+        navigate,
+        showAlert,
+    ]);
+
+    const handleDeleteAccountDialogOpenChange = useCallback((open: boolean) => {
+        setDeleteAccountDialogOpen(open);
+        if (!open && !isDeletingAccount) {
+            setDeleteAccountFinalDialogOpen(false);
+            setDeleteAccountConfirmationText("");
+        }
+    }, [isDeletingAccount]);
+
+    const handleDeleteAccountFinalDialogOpenChange = useCallback((open: boolean) => {
+        if (isDeletingAccount) {
+            return;
+        }
+        setDeleteAccountFinalDialogOpen(open);
+        if (!open) {
+            setDeleteAccountDialogOpen(true);
+        }
+    }, [isDeletingAccount]);
+
     const avatarInitial = (user?.email?.charAt(0).toUpperCase() || "U").trim();
 
     const breadcrumb = (
@@ -485,6 +553,108 @@ export const SettingsPage: React.FC = () => {
                                     >
                                         Sign Out
                                     </Button>
+                                </div>
+                            </div>
+
+                            <Separator />
+
+                            <div className="space-y-4">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="space-y-0.5">
+                                        <p className="text-sm font-medium">Delete Account</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            Permanently delete your account and all related data.
+                                        </p>
+                                    </div>
+
+                                    <AlertDialog
+                                        open={deleteAccountDialogOpen}
+                                        onOpenChange={handleDeleteAccountDialogOpenChange}
+                                    >
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" disabled={isDeletingAccount} className="shrink-0">
+                                                Delete Account
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent size="default">
+                                            <AlertDialogHeader className="place-items-start text-left">
+                                                <AlertDialogTitle>Delete account permanently?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    <span className="font-medium text-destructive">This action cannot be undone.</span>{" "}
+                                                    Your programs, semesters, courses, LMS connections, saved resources, and account access will be{" "}
+                                                    <span className="font-medium text-destructive">removed permanently.</span>
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+
+                                            <FieldSet>
+                                                <FieldGroup>
+                                                    <Field>
+                                                        <FieldLabel htmlFor="delete-account-confirmation-input">
+                                                            Type <span className="font-mono text-xs">{DELETE_ACCOUNT_CONFIRMATION_TEXT}</span>
+                                                        </FieldLabel>
+                                                        <Input
+                                                            id="delete-account-confirmation-input"
+                                                            type="text"
+                                                            value={deleteAccountConfirmationText}
+                                                            onChange={(event) => setDeleteAccountConfirmationText(event.target.value)}
+                                                            disabled={isDeletingAccount}
+                                                        />
+                                                        <FieldDescription>
+                                                            This confirmation sentence must match exactly before deletion is allowed.
+                                                        </FieldDescription>
+                                                    </Field>
+                                                </FieldGroup>
+                                            </FieldSet>
+
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel disabled={isDeletingAccount}>Cancel</AlertDialogCancel>
+                                                <Button
+                                                    variant="destructive"
+                                                    onClick={() => {
+                                                        setDeleteAccountDialogOpen(false);
+                                                        setDeleteAccountFinalDialogOpen(true);
+                                                    }}
+                                                    disabled={!hasMatchedDeleteConfirmationText || isDeletingAccount}
+                                                >
+                                                    Delete Account
+                                                </Button>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+
+                                    <AlertDialog
+                                        open={deleteAccountFinalDialogOpen}
+                                        onOpenChange={handleDeleteAccountFinalDialogOpenChange}
+                                    >
+                                        <AlertDialogContent size="sm">
+                                            <AlertDialogHeader className="place-items-start text-left">
+                                                <AlertDialogTitle>Confirm account deletion</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    <span className="font-medium text-destructive">This will permanently delete your account.</span>{" "}
+                                                    You will lose access immediately and this cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel
+                                                    disabled={isDeletingAccount}
+                                                    onClick={() => {
+                                                        setDeleteAccountFinalDialogOpen(false);
+                                                        setDeleteAccountDialogOpen(true);
+                                                    }}
+                                                >
+                                                    Back
+                                                </AlertDialogCancel>
+                                                <Button
+                                                    variant="destructive"
+                                                    onClick={handleDeleteAccount}
+                                                    disabled={isDeletingAccount}
+                                                >
+                                                    {isDeletingAccount ? "Deleting..." : "Delete Permanently"}
+                                                </Button>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </div>
                             </div>
                         </div>

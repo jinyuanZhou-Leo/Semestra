@@ -1,6 +1,6 @@
-// input:  [browser `window/document`, GIS global namespace, idle-callback/timeouts]
-// output: [`loadGoogleIdentityScriptWhenIdle()` async loader helper]
-// pos:    [Client-side Google Identity Services script bootstrap utility]
+// input:  [browser `window/document`, GIS global namespace, idle-callback/timeouts, and per-page Google credential callbacks]
+// output: [`loadGoogleIdentityScriptWhenIdle()` loader plus singleton GIS initialize/render helpers]
+// pos:    [Client-side Google Identity Services bootstrap utility that prevents duplicate initialize calls across auth pages]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -12,12 +12,20 @@ type GoogleIdentityWindow = Window & {
             id?: {
                 initialize: (options: Record<string, unknown>) => void;
                 renderButton: (container: HTMLElement, options: Record<string, unknown>) => void;
+                cancel?: () => void;
             };
         };
     };
 };
 
 let gsiScriptPromise: Promise<void> | null = null;
+let initializedGoogleClientId: string | null = null;
+let activeCredentialHandler: ((response: { credential?: string }) => void | Promise<void>) | null = null;
+
+const getGoogleIdentityApi = () => {
+    const typedWindow = window as GoogleIdentityWindow;
+    return typedWindow.google?.accounts?.id;
+};
 
 const loadGoogleIdentityScript = () => {
     if (typeof window === 'undefined') {
@@ -71,4 +79,41 @@ export const loadGoogleIdentityScriptWhenIdle = () => {
             globalThis.setTimeout(schedule, 250);
         }
     });
+};
+
+export const ensureGoogleIdentityInitialized = async (
+    clientId: string,
+    callback: (response: { credential?: string }) => void | Promise<void>
+) => {
+    await loadGoogleIdentityScriptWhenIdle();
+
+    const googleIdentityApi = getGoogleIdentityApi();
+    if (!googleIdentityApi) {
+        throw new Error('Google Identity Services API is unavailable.');
+    }
+
+    activeCredentialHandler = callback;
+
+    if (initializedGoogleClientId !== clientId) {
+        googleIdentityApi.initialize({
+            client_id: clientId,
+            callback: (response: { credential?: string }) => {
+                void activeCredentialHandler?.(response);
+            },
+        });
+        initializedGoogleClientId = clientId;
+    }
+
+    return googleIdentityApi;
+};
+
+export const renderGoogleIdentityButton = async (
+    container: HTMLElement,
+    clientId: string,
+    callback: (response: { credential?: string }) => void | Promise<void>,
+    options: Record<string, unknown>
+) => {
+    const googleIdentityApi = await ensureGoogleIdentityInitialized(clientId, callback);
+    container.innerHTML = '';
+    googleIdentityApi.renderButton(container, options);
 };

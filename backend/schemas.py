@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
-# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin management payloads, manifest-backed plugin-system setup payloads, Semester draft lifecycle plus review payloads with typed draft-step validation, Semester activation payloads, unassigned-Course plugin activation payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, V2 tab-settings and runtime-availability payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin management and plugin-system setup contracts plus validated Semester draft review state and step values, unassigned-Course plugin activation contracts, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, V2 tab-settings and contribution availability, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
+# output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin management payloads, manifest-backed plugin-system setup payloads, auth registration, email-code, password-reset, and destructive account-deletion payloads with exact typed confirmation-sentence validation, Semester draft lifecycle plus review payloads with typed draft-step validation, Semester activation payloads, unassigned-Course plugin activation payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, V2 tab-settings and runtime-availability payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin management and plugin-system setup contracts plus validated Semester draft review state and step values, auth email-code and password-reset plus irreversible account-deletion flows with strict sentence matching, unassigned-Course plugin activation contracts, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, V2 tab-settings and contribution availability, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -89,21 +89,50 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
 
+
+def _normalize_email(value: str) -> str:
+    normalized = value.strip().lower()
+    if not normalized:
+        raise ValueError("Email is required.")
+    return normalized
+
+
+def _validate_password_value(value: str) -> str:
+    if len(value) <= 8:
+        raise ValueError('Password must be longer than 8 characters.')
+    has_lowercase = any(char.islower() for char in value)
+    has_uppercase = any(char.isupper() for char in value)
+    if not has_lowercase or not has_uppercase:
+        raise ValueError('Password must include both uppercase and lowercase letters.')
+    return value
+
+
+def _validate_optional_nickname_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError('Nickname is required.')
+    return normalized
+
 class UserBase(BaseModel):
     email: str
 
+    @field_validator('email')
+    def validate_email(cls, value: str) -> str:
+        return _normalize_email(value)
+
 class UserCreate(UserBase):
+    nickname: Optional[str] = None
     password: str
 
     @field_validator('password')
     def validate_password(cls, value: str) -> str:
-        if len(value) <= 8:
-            raise ValueError('Password must be longer than 8 characters.')
-        has_lowercase = any(char.islower() for char in value)
-        has_uppercase = any(char.isupper() for char in value)
-        if not has_lowercase or not has_uppercase:
-            raise ValueError('Password must include both uppercase and lowercase letters.')
-        return value
+        return _validate_password_value(value)
+
+    @field_validator('nickname')
+    def validate_nickname(cls, value: Optional[str]) -> Optional[str]:
+        return _validate_optional_nickname_value(value)
 
 class User(UserBase):
     id: str
@@ -111,6 +140,7 @@ class User(UserBase):
     is_active: bool = True
     user_setting: Optional[str] = None
     google_sub: Optional[str] = None
+    email_verified_at: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
@@ -123,6 +153,76 @@ class UserUpdate(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     id_token: str
+
+
+AuthEmailCodePurpose = Literal["register", "login", "reset_password"]
+DELETE_ACCOUNT_CONFIRMATION_TEXT = "I confirm deleting my account"
+
+
+class EmailCodeSendRequest(UserBase):
+    purpose: AuthEmailCodePurpose
+
+
+class EmailCodeSendResponse(BaseModel):
+    ok: bool = True
+    expires_in_seconds: int
+    resend_in_seconds: int
+    message: str
+
+
+class EmailCodeVerifyRequest(UserBase):
+    purpose: AuthEmailCodePurpose
+    code: str
+
+    @field_validator("code")
+    def validate_code(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) != 6 or not normalized.isdigit():
+            raise ValueError("Verification code must be 6 digits.")
+        return normalized
+
+
+class EmailCodeVerifyResponse(BaseModel):
+    verification_token: str
+
+
+class RegisterCompleteRequest(BaseModel):
+    verification_token: str
+    nickname: Optional[str] = None
+    password: str
+
+    @field_validator("nickname")
+    def validate_nickname(cls, value: Optional[str]) -> Optional[str]:
+        return _validate_optional_nickname_value(value)
+
+    @field_validator("password")
+    def validate_password(cls, value: str) -> str:
+        return _validate_password_value(value)
+
+
+class EmailCodeLoginRequest(BaseModel):
+    verification_token: str
+    remember_me: bool = False
+
+
+class PasswordResetCompleteRequest(BaseModel):
+    verification_token: str
+    new_password: str
+
+    @field_validator("new_password")
+    def validate_new_password(cls, value: str) -> str:
+        return _validate_password_value(value)
+
+
+class DeleteAccountRequest(BaseModel):
+    confirmation_text: str
+
+    @field_validator("confirmation_text")
+    def validate_confirmation_text(cls, value: str) -> str:
+        normalized = " ".join(value.strip().split())
+        if normalized != DELETE_ACCOUNT_CONFIRMATION_TEXT:
+            raise ValueError(f'Type "{DELETE_ACCOUNT_CONFIRMATION_TEXT}" to confirm account deletion.')
+        return normalized
 
 
 def _validate_lms_provider(value: str) -> str:

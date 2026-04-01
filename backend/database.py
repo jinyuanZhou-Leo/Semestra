@@ -1,6 +1,6 @@
 # input:  [Environment variables, SQLAlchemy engine/session/base, and SQLAlchemy schema inspection helpers]
 # output: [Database engine, session factory, declarative base, FK pragma hook, and runtime schema compatibility checks]
-# pos:    [Database bootstrap and connection configuration plus startup-time schema drift detection]
+# pos:    [Database bootstrap and connection configuration plus startup-time schema drift detection for auth, plugin, and email-verification storage]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -52,6 +52,28 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 REQUIRED_RUNTIME_SCHEMA = {
+    "users": {
+        "email_verified_at",
+    },
+    "email_verification_challenges": {
+        "id",
+        "email",
+        "purpose",
+        "code_hash",
+        "verification_nonce",
+        "attempt_count",
+        "max_attempts",
+        "expires_at",
+        "last_sent_at",
+        "verified_at",
+        "used_at",
+        "invalidated_at",
+        "resend_email_id",
+        "request_ip",
+        "user_agent",
+        "created_at",
+        "updated_at",
+    },
     "semesters": {
         "lifecycle_state",
         "creation_step",
