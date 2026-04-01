@@ -1,6 +1,6 @@
 // input:  [runtime tab settings/order APIs, initial resolved tab payloads from semester/course detail, normalized runtime availability adapters, and retry/status helpers]
 // output: [`TabItem` type and `useDashboardTabs()` state/actions for Program->Semester managed runtime tabs]
-// pos:    [Runtime tab orchestration hook that treats semester/course tabs as host-managed API state instead of locally created plugin instances]
+// pos:    [Runtime tab orchestration hook that treats semester/course tabs as host-managed API state instead of locally created plugin instances while preserving optimistic tab identity across managed reorder acknowledgements]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -93,6 +93,36 @@ const toTabItem = (
 };
 
 const stringifySettings = (settings: Record<string, unknown>) => JSON.stringify(settings ?? {});
+
+const mergeManagedTabsFromServer = (currentTabs: TabItem[], serverTabs: TabItem[]): TabItem[] => {
+    if (serverTabs.length === 0) {
+        return currentTabs;
+    }
+
+    const serverTabsByType = new Map(serverTabs.map((tab) => [tab.type, tab]));
+    const mergedTabs = currentTabs.map((currentTab) => {
+        const serverTab = serverTabsByType.get(currentTab.type);
+        if (!serverTab) {
+            return currentTab;
+        }
+
+        // Preserve the client-facing tab id so active homepage selection does not reset mid-reorder.
+        return {
+            ...currentTab,
+            ...serverTab,
+            id: currentTab.id,
+        };
+    });
+
+    const existingTypes = new Set(mergedTabs.map((tab) => tab.type));
+    serverTabs.forEach((serverTab) => {
+        if (!existingTypes.has(serverTab.type)) {
+            mergedTabs.push(serverTab);
+        }
+    });
+
+    return mergedTabs.sort((left, right) => left.order_index - right.order_index);
+};
 
 export const useDashboardTabs = ({
     courseId,
@@ -254,8 +284,11 @@ export const useDashboardTabs = ({
                     .filter((tab): tab is TabItem => tab !== null)
                     .sort((left, right) => left.order_index - right.order_index);
                 if (normalizedTabs.length > 0) {
-                    setTabs(normalizedTabs);
-                    tabsRef.current = normalizedTabs;
+                    setTabs((currentTabs) => {
+                        const mergedTabs = mergeManagedTabsFromServer(currentTabs, normalizedTabs);
+                        tabsRef.current = mergedTabs;
+                        return mergedTabs;
+                    });
                 }
             } else {
                 await Promise.all(orderedIds.map((tabId, index) => api.updateTab(tabId, { order_index: index })));

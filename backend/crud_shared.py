@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, shared color helpers, timezone/date helpers, and transaction helpers]
-# output: [shared CRUD constants, exceptions, user/settings helpers, auth password hashing helpers, normalization helpers, and common serialization utilities]
-# pos:    [Shared foundation for backend CRUD modules so Program/plugin/semester/course/layout operations can reuse one coherent helper layer, including user creation and credential updates]
+# output: [shared CRUD constants, exceptions, user/settings helpers, auth password hashing helpers, normalization helpers, race-safe user identity persistence helpers, and common serialization utilities]
+# pos:    [Shared foundation for backend CRUD modules so Program/plugin/semester/course/layout operations can reuse one coherent helper layer, including normalized user creation, Google identity linking, and credential updates]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime, timedelta
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 import bcrypt
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from color_utils import (
@@ -57,6 +59,15 @@ class PluginRegistryError(Exception):
         self.message = message
 
 
+UserIdentityField = Literal["email", "google_sub"]
+
+
+class UserIdentityConflictError(Exception):
+    def __init__(self, field: UserIdentityField):
+        super().__init__(field)
+        self.field = field
+
+
 def _now_utc_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -73,6 +84,33 @@ def _parse_json_object(raw_value: str | None) -> dict:
 
 def _serialize_json_object(value: dict | None) -> str:
     return json.dumps(value or {}, sort_keys=True)
+
+
+def normalize_user_email(email: str | None) -> str:
+    return str(email or "").strip().lower()
+
+
+def _classify_user_identity_integrity_error(exc: IntegrityError) -> UserIdentityField | None:
+    error_message = str(getattr(exc, "orig", exc)).lower()
+    if "google_sub" in error_message:
+        return "google_sub"
+    if "email" in error_message:
+        return "email"
+    return None
+
+
+def _commit_user_identity_row(db: Session, user: models.User) -> models.User:
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        conflict_field = _classify_user_identity_integrity_error(exc)
+        if conflict_field is not None:
+            raise UserIdentityConflictError(conflict_field) from exc
+        raise
+    db.refresh(user)
+    return user
 
 
 def _canonical_plugin_id(plugin_id: str) -> str:
@@ -239,7 +277,10 @@ def get_user(db: Session, user_id: str):
 
 
 def get_user_by_email(db: Session, email: str):
-    return db.query(models.User).filter(models.User.email == email).first()
+    normalized_email = normalize_user_email(email)
+    if not normalized_email:
+        return None
+    return db.query(models.User).filter(models.User.email == normalized_email).first()
 
 
 def get_user_by_google_sub(db: Session, google_sub: str):
@@ -249,32 +290,37 @@ def get_user_by_google_sub(db: Session, google_sub: str):
 def create_user(db: Session, user: schemas.UserCreate, *, email_verified_at: str | None = None):
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
-        email=user.email,
+        email=normalize_user_email(user.email),
         nickname=user.nickname,
         hashed_password=hashed_password,
         email_verified_at=email_verified_at,
         user_setting=json.dumps(get_default_user_setting_dict()),
     )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    db.refresh(db_user)
-    return db_user
+    return _commit_user_identity_row(db, db_user)
 
 
 def create_user_from_google(db: Session, email: str, google_sub: str, *, email_verified_at: str | None = None):
     db_user = models.User(
-        email=email,
+        email=normalize_user_email(email),
         hashed_password=None,
         google_sub=google_sub,
         email_verified_at=email_verified_at,
         user_setting=json.dumps(get_default_user_setting_dict()),
     )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    db.refresh(db_user)
-    return db_user
+    return _commit_user_identity_row(db, db_user)
+
+
+def link_google_account_to_user(
+    db: Session,
+    user: models.User,
+    *,
+    google_sub: str,
+    email_verified_at: str | None = None,
+) -> models.User:
+    user.google_sub = google_sub
+    if email_verified_at and not user.email_verified_at:
+        user.email_verified_at = email_verified_at
+    return _commit_user_identity_row(db, user)
 
 
 def update_user_password(db: Session, user: models.User, new_password: str) -> models.User:

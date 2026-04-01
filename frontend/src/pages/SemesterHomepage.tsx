@@ -8,7 +8,7 @@
 
 "use no memo";
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import api from '../services/api';
@@ -58,6 +58,7 @@ import {
     HOMEPAGE_SETTINGS_TAB_TYPE,
     SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
 } from '../utils/homepageBuiltinTabs';
+import { resolveSemesterActiveTabId } from './semesterHomepageNavigation';
 import { queryKeys } from '../services/queryKeys';
 import {
     filterWidgetItemsByEnabledPlugins,
@@ -83,6 +84,7 @@ const SemesterHomepageContent: React.FC = () => {
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
     const [editingWidget, setEditingWidget] = useState<WidgetItem | null>(null);
     const [activeTabId, setActiveTabId] = useState('');
+    const lastActiveTabTypeRef = useRef<string | null>(null);
     const openAddWidgetModal = useCallback(() => {
         const activeElement = document.activeElement;
         if (activeElement instanceof HTMLElement) {
@@ -184,6 +186,11 @@ const SemesterHomepageContent: React.FC = () => {
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
     );
+    useEffect(() => {
+        if (activeTabType) {
+            lastActiveTabTypeRef.current = activeTabType;
+        }
+    }, [activeTabType]);
     const activeTabLoadState = useTabPluginLoadState(activeTabType);
     const isSettingsTabActive = activeTabType === HOMEPAGE_SETTINGS_TAB_TYPE;
     const pluginLoadStateVersion = usePluginLoadStateVersion();
@@ -256,15 +263,20 @@ const SemesterHomepageContent: React.FC = () => {
     }, [openAddWidgetModal, semester?.id, semesterCourseItems, visibleTabs]);
 
     useEffect(() => {
-        if (tabBarItems.length === 0) {
+        if (visibleTabs.length === 0) {
             if (activeTabId) setActiveTabId('');
             return;
         }
-        if (!activeTabId && !areBuiltinTabsReady) return;
-        if (!activeTabId || !tabBarItems.some(tab => tab.id === activeTabId)) {
-            setActiveTabId(tabBarItems[0].id);
+        const nextTabId = resolveSemesterActiveTabId({
+            activeTabId,
+            lastActiveTabType: lastActiveTabTypeRef.current,
+            visibleTabs,
+            areBuiltinTabsReady,
+        });
+        if (nextTabId && nextTabId !== activeTabId) {
+            setActiveTabId(nextTabId);
         }
-    }, [activeTabId, areBuiltinTabsReady, tabBarItems]);
+    }, [activeTabId, areBuiltinTabsReady, visibleTabs]);
 
 
 

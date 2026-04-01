@@ -1,6 +1,6 @@
 # input:  [FastAPI router/dependencies, backend account-deletion/auth/crud/models/schemas/LMS services, email-verification service, Google token verification, backup-transfer service, and shared API helpers]
 # output: [Auth, account-deletion, email-code verification, current-user, LMS integration, and backup import/export route handlers plus exported backup wrapper functions]
-# pos:    [backend API router for identity/session flows, irreversible account deletion, DB-backed login throttling, Resend-backed email-code verification, logout revocation, and account-scoped integration or backup endpoints]
+# pos:    [backend API router for normalized identity/session flows, irreversible account deletion, DB-backed login throttling, Resend-backed email-code verification, non-enumerating auth email delivery, logout revocation, race-safe user-identity conflict translation, and account-scoped integration or backup endpoints]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -65,12 +65,52 @@ def _raise_email_verification_http_error(exc: Exception) -> None:
     raise exc
 
 
+def _raise_user_identity_http_error(exc: Exception) -> None:
+    if isinstance(exc, crud.UserIdentityConflictError):
+        if exc.field == "email":
+            raise HTTPException(
+                status_code=409,
+                detail=error_detail("EMAIL_ALREADY_REGISTERED", "Email already registered."),
+            ) from exc
+        if exc.field == "google_sub":
+            raise HTTPException(
+                status_code=409,
+                detail="Google account already linked to another user",
+            ) from exc
+    raise exc
+
+
+def _link_google_user_identity(
+    db: Session,
+    *,
+    user: models.User,
+    google_sub: str,
+    verified_at: str,
+) -> models.User:
+    if user.google_sub and user.google_sub != google_sub:
+        raise HTTPException(status_code=409, detail="Google account already linked to another user")
+    try:
+        return crud.link_google_account_to_user(
+            db,
+            user,
+            google_sub=google_sub,
+            email_verified_at=verified_at,
+        )
+    except crud.UserIdentityConflictError as exc:
+        _raise_user_identity_http_error(exc)
+    return user
+
+
 def _build_send_code_response(purpose: schemas.AuthEmailCodePurpose) -> schemas.EmailCodeSendResponse:
     return schemas.EmailCodeSendResponse(
         expires_in_seconds=email_verification.VERIFICATION_CODE_TTL_SECONDS,
         resend_in_seconds=email_verification.VERIFICATION_CODE_RESEND_SECONDS,
         message=email_verification.build_send_code_response_message(purpose=purpose),
     )
+
+
+def _resolve_continue_email_purpose(*, user_exists: bool) -> email_verification.VerificationPurpose:
+    return "login" if user_exists else "register"
 
 
 @router.post("/auth/email/send-code", response_model=schemas.EmailCodeSendResponse)
@@ -80,12 +120,21 @@ def send_auth_email_code(
     db: Session = Depends(get_db),
 ):
     db_user = crud.get_user_by_email(db, email=payload.email)
+    if payload.purpose == "continue":
+        try:
+            email_verification.send_continue_email_code(
+                db,
+                request=request,
+                email=payload.email,
+                actual_purpose=_resolve_continue_email_purpose(user_exists=db_user is not None),
+            )
+        except Exception as exc:
+            _raise_email_verification_http_error(exc)
+        return _build_send_code_response(payload.purpose)
+
     if payload.purpose == "register":
         if db_user is not None:
-            raise HTTPException(
-                status_code=409,
-                detail=error_detail("EMAIL_ALREADY_REGISTERED", "Email already registered."),
-            )
+            return _build_send_code_response(payload.purpose)
         try:
             email_verification.send_email_code(
                 db,
@@ -118,24 +167,23 @@ def verify_auth_email_code(
     db: Session = Depends(get_db),
 ):
     try:
-        verification_token = email_verification.verify_email_code(
-            db,
-            email=payload.email,
-            purpose=payload.purpose,
-            code=payload.code,
-        )
+        if payload.purpose == "continue":
+            verification_token, next_step = email_verification.verify_continue_email_code(
+                db,
+                email=payload.email,
+                code=payload.code,
+            )
+        else:
+            verification_token = email_verification.verify_email_code(
+                db,
+                email=payload.email,
+                purpose=payload.purpose,
+                code=payload.code,
+            )
+            next_step = payload.purpose
     except Exception as exc:
         _raise_email_verification_http_error(exc)
-    return schemas.EmailCodeVerifyResponse(verification_token=verification_token)
-
-
-@router.post("/auth/register", response_model=schemas.User)
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = crud.get_user_by_email(db, email=user.email)
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    return crud.create_user(db=db, user=user, email_verified_at=now_utc_iso())
-
+    return schemas.EmailCodeVerifyResponse(verification_token=verification_token, next_step=next_step)
 
 @router.post("/auth/register/complete", response_model=schemas.Token)
 def complete_registration(
@@ -158,15 +206,18 @@ def complete_registration(
             detail=error_detail("EMAIL_ALREADY_REGISTERED", "Email already registered."),
         )
 
-    user = crud.create_user(
-        db=db,
-        user=schemas.UserCreate(
-            email=challenge.email,
-            nickname=payload.nickname,
-            password=payload.password,
-        ),
-        email_verified_at=challenge.verified_at or now_utc_iso(),
-    )
+    try:
+        user = crud.create_user(
+            db=db,
+            user=schemas.UserCreate(
+                email=challenge.email,
+                nickname=payload.nickname,
+                password=payload.password,
+            ),
+            email_verified_at=challenge.verified_at or now_utc_iso(),
+        )
+    except crud.UserIdentityConflictError as exc:
+        _raise_user_identity_http_error(exc)
     email_verification.mark_challenge_used(db, challenge)
 
     access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -193,11 +244,18 @@ async def login_for_access_token(
         ) from exc
 
     user = crud.get_user_by_email(db, email=form_data.username)
-    if not user or not crud.verify_password(form_data.password, user.hashed_password):
+    if not user:
         auth.record_password_login_failure(db, client_ip=client_ip, account_key=account_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail=error_detail("INVALID_CREDENTIALS", "Incorrect email or password."),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not crud.verify_password(form_data.password, user.hashed_password):
+        auth.record_password_login_failure(db, client_ip=client_ip, account_key=account_key)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=error_detail("INVALID_CREDENTIALS", "Incorrect email or password."),
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -275,21 +333,23 @@ def login_with_google(
     if user is None:
         user = crud.get_user_by_email(db, email=email)
         if user:
-            if user.google_sub and user.google_sub != sub:
-                raise HTTPException(status_code=409, detail="Google account already linked to another user")
-            user.google_sub = sub
-            if not user.email_verified_at:
-                user.email_verified_at = now_utc_iso()
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+            user = _link_google_user_identity(db, user=user, google_sub=sub, verified_at=now_utc_iso())
         else:
-            user = crud.create_user_from_google(
-                db,
-                email=email,
-                google_sub=sub,
-                email_verified_at=now_utc_iso(),
-            )
+            try:
+                user = crud.create_user_from_google(
+                    db,
+                    email=email,
+                    google_sub=sub,
+                    email_verified_at=now_utc_iso(),
+                )
+            except crud.UserIdentityConflictError as exc:
+                if exc.field == "email":
+                    user = crud.get_user_by_email(db, email=email)
+                    if user is None:
+                        _raise_user_identity_http_error(exc)
+                    user = _link_google_user_identity(db, user=user, google_sub=sub, verified_at=now_utc_iso())
+                else:
+                    _raise_user_identity_http_error(exc)
 
     auth.clear_google_login_failures(db, client_ip=client_ip)
     access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -337,13 +397,7 @@ def link_google_account(
         raise HTTPException(status_code=409, detail="Google account already linked to another user")
     if current_user.google_sub and current_user.google_sub != sub:
         raise HTTPException(status_code=409, detail="Current user already linked to a different Google account")
-
-    current_user.google_sub = sub
-    if not current_user.email_verified_at:
-        current_user.email_verified_at = now_utc_iso()
-    db.add(current_user)
-    db.commit()
-    db.refresh(current_user)
+    _link_google_user_identity(db, user=current_user, google_sub=sub, verified_at=now_utc_iso())
     return {"ok": True}
 
 

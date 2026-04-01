@@ -1,6 +1,6 @@
-# input:  [unittest, tempfile, in-memory SQLAlchemy setup, auth route handlers, account-deletion schema validation, and local course-resource file persistence]
-# output: [backend regression tests for irreversible account deletion across relational data, auth metadata, and stored files, including the exact confirmation sentence contract]
-# pos:    [backend unit tests covering typed account-deletion confirmation-sentence validation, cookie-clearing response behavior, and hard deletion of owned user data]
+# input:  [unittest, tempfile, in-memory SQLAlchemy setup, auth route handlers, account-deletion schema validation, UI workspace ORM models, and local course-resource file persistence]
+# output: [backend regression tests for irreversible account deletion across relational data, auth metadata, stored files, and workspace UI records, including the exact confirmation sentence contract]
+# pos:    [backend unit tests covering typed account-deletion confirmation-sentence validation, cookie-clearing response behavior, and hard deletion of owned user data plus related workspace records]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -79,6 +79,7 @@ class AccountDeletionTests(unittest.TestCase):
             schemas.UserCreate(email="delete-me@example.com", nickname="Delete", password="Password123"),
             email_verified_at="2026-03-31T00:00:00+00:00",
         )
+        user_email = user.email
 
         integration = models.LmsIntegration(
             user_id=user.id,
@@ -117,6 +118,31 @@ class AccountDeletionTests(unittest.TestCase):
         self.db.add(course)
         self.db.commit()
         self.db.refresh(course)
+
+        self.db.add_all(
+            [
+                models.Widget(widget_type="semester-dashboard", title="Semester", semester_id=semester.id),
+                models.Widget(widget_type="course-dashboard", title="Course", course_id=course.id),
+                models.Tab(tab_type="semester-overview", semester_id=semester.id),
+                models.Tab(tab_type="course-overview", course_id=course.id),
+                models.TabSetting(tab_type="program-settings", program_id=program.id, settings="{}"),
+                models.TabSetting(tab_type="semester-settings", semester_id=semester.id, settings="{}"),
+                models.TabSetting(tab_type="course-settings", course_id=course.id, settings="{}"),
+                models.WorkspaceTabOrderEntry(
+                    bucket_type="semester_homepage",
+                    tab_type="semester-overview",
+                    order_index=0,
+                    semester_id=semester.id,
+                ),
+                models.WorkspaceTabOrderEntry(
+                    bucket_type="unassigned_course_homepage",
+                    tab_type="course-overview",
+                    order_index=0,
+                    course_id=course.id,
+                ),
+            ]
+        )
+        self.db.commit()
 
         resource = course_resources.create_course_resource(
             self.db,
@@ -178,11 +204,15 @@ class AccountDeletionTests(unittest.TestCase):
         self.assertTrue(any(auth.AUTH_COOKIE_NAME in header for header in set_cookie_headers))
         self.assertTrue(any(auth.AUTH_CSRF_COOKIE_NAME in header for header in set_cookie_headers))
 
-        self.assertIsNone(crud.get_user_by_email(self.db, user.email))
+        self.assertIsNone(crud.get_user_by_email(self.db, user_email))
         self.assertEqual(self.db.query(models.Program).count(), 0)
         self.assertEqual(self.db.query(models.Semester).count(), 0)
         self.assertEqual(self.db.query(models.Course).count(), 0)
         self.assertEqual(self.db.query(models.CourseResourceFile).count(), 0)
+        self.assertEqual(self.db.query(models.Widget).count(), 0)
+        self.assertEqual(self.db.query(models.Tab).count(), 0)
+        self.assertEqual(self.db.query(models.TabSetting).count(), 0)
+        self.assertEqual(self.db.query(models.WorkspaceTabOrderEntry).count(), 0)
         self.assertEqual(self.db.query(models.LmsIntegration).count(), 0)
         self.assertEqual(self.db.query(models.EmailVerificationChallenge).count(), 0)
         self.assertEqual(self.db.query(models.AuthRateLimit).count(), 0)

@@ -1,6 +1,6 @@
-// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, and shared business empty-state wrappers]
+// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, route-state tab-restoration hints for sibling-course jumps, prefetch-backed sibling-course detail cache warming, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback, runtime-managed plugin inheritance for Semester courses plus lightweight plugin management for unassigned Courses, plugin-derived dashboard/settings shell tabs, global command actions for current-course tab switching plus semester-course navigation and widget creation, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback and same-tab restoration, cache-warmed sibling-course navigation that avoids full homepage skeleton reloads, runtime-managed plugin inheritance for Semester courses plus lightweight plugin management for unassigned Courses, plugin-derived dashboard/settings shell tabs, global command actions for current-course tab switching plus semester-course navigation and widget creation, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,7 +10,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
@@ -87,11 +87,17 @@ import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import { ArrowUpDown, BookOpen, ChevronDown, ChevronRight, Command, LayoutDashboard, Plus, Settings } from 'lucide-react';
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
 import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
+import { resolveRequestedCourseTabId } from './courseHomepageNavigation';
+
+interface CourseHomepageLocationState {
+    preferredTabType?: string;
+}
 
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
     const { course, updateCourse, saveCourse, refreshCourse, isLoading } = useCourseData();
     const navigate = useNavigate();
+    const location = useLocation();
     const queryClient = useQueryClient();
     const prefersReducedMotion = usePrefersReducedMotion();
     const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
@@ -317,6 +323,9 @@ const CourseHomepageContent: React.FC = () => {
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
     );
+    const requestedTabType = typeof (location.state as CourseHomepageLocationState | null)?.preferredTabType === 'string'
+        ? (location.state as CourseHomepageLocationState).preferredTabType ?? null
+        : null;
     const activeTabLoadState = useTabPluginLoadState(activeTabType);
     const isSettingsTabActive = activeTabType === HOMEPAGE_SETTINGS_TAB_TYPE;
     const pluginLoadStateVersion = usePluginLoadStateVersion();
@@ -405,6 +414,73 @@ const CourseHomepageContent: React.FC = () => {
         );
     }, [activeTabId, course, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading, activeTabLoadState.status]);
 
+    const triggerBoundaryShake = useCallback(async () => {
+        if (prefersReducedMotion) {
+            return;
+        }
+        await titleShakeControls.start({
+            x: [0, -5, 5, -4, 4, 0],
+            transition: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
+        });
+        titleShakeControls.set({ x: 0 });
+    }, [prefersReducedMotion, titleShakeControls]);
+
+    const prefetchSiblingCourse = useCallback(async (nextCourseId: string) => {
+        if (!nextCourseId || nextCourseId === course?.id) {
+            return;
+        }
+        await queryClient.ensureQueryData({
+            queryKey: queryKeys.courses.detail(nextCourseId),
+            queryFn: () => api.getCourse(nextCourseId),
+            staleTime: 300_000,
+        });
+    }, [course?.id, queryClient]);
+
+    useEffect(() => {
+        if (!course?.id || siblingCourses.length === 0) {
+            return;
+        }
+
+        siblingCourses
+            .filter((siblingCourse) => siblingCourse.id !== course.id)
+            .forEach((siblingCourse) => {
+                void queryClient.prefetchQuery({
+                    queryKey: queryKeys.courses.detail(siblingCourse.id),
+                    queryFn: () => api.getCourse(siblingCourse.id),
+                    staleTime: 300_000,
+                });
+            });
+    }, [course?.id, queryClient, siblingCourses]);
+
+    const navigateToSiblingCourse = useCallback(async (nextCourseId: string, direction: -1 | 1) => {
+        if (!nextCourseId || nextCourseId === course?.id) {
+            return;
+        }
+        const now = Date.now();
+        if (now - lastCourseSwitchAtRef.current < 320) {
+            return;
+        }
+        lastCourseSwitchAtRef.current = now;
+        try {
+            await prefetchSiblingCourse(nextCourseId);
+        } catch (error) {
+            console.error(`Failed to prefetch sibling course ${nextCourseId}`, error);
+        }
+        setCourseSwitchDirection(direction);
+        navigate(`/courses/${nextCourseId}`, {
+            state: activeTabType ? { preferredTabType: activeTabType } : undefined,
+        });
+    }, [activeTabType, course?.id, navigate, prefetchSiblingCourse]);
+
+    const handleSelectSiblingCourse = useCallback((nextCourseId: string) => {
+        if (!nextCourseId || nextCourseId === course?.id) {
+            return;
+        }
+        const nextCourseIndex = siblingCourses.findIndex((siblingCourse) => siblingCourse.id === nextCourseId);
+        const direction: -1 | 1 = nextCourseIndex < currentCourseIndex ? -1 : 1;
+        void navigateToSiblingCourse(nextCourseId, direction);
+    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses]);
+
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         reorderTabs(filterReorderableTabIds(orderedIds));
     }, [filterReorderableTabIds, reorderTabs]);
@@ -420,9 +496,13 @@ const CourseHomepageContent: React.FC = () => {
                 title: siblingCourse.name,
                 keywords: ['semester course', 'course', siblingCourse.alias ?? '', siblingCourse.category ?? ''],
                 icon: BookOpen,
-                onSelect: () => navigate(`/courses/${siblingCourse.id}`),
+                onSelect: () => {
+                    const nextCourseIndex = siblingCourses.findIndex((courseItem) => courseItem.id === siblingCourse.id);
+                    const direction: -1 | 1 = nextCourseIndex < currentCourseIndex ? -1 : 1;
+                    void navigateToSiblingCourse(siblingCourse.id, direction);
+                },
             }));
-    }, [course?.id, navigate, siblingCourses]);
+    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses]);
     const layoutCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
         if (!course?.id) {
             return [];
@@ -471,15 +551,20 @@ const CourseHomepageContent: React.FC = () => {
     }, [course?.id, openAddWidgetModal, siblingCourseItems, visibleTabs]);
 
     useEffect(() => {
-        if (tabBarItems.length === 0) {
+        if (visibleTabs.length === 0) {
             if (activeTabId) setActiveTabId('');
             return;
         }
-        if (!activeTabId && !areBuiltinTabsReady) return;
-        if (!activeTabId || !tabBarItems.some(tab => tab.id === activeTabId)) {
-            setActiveTabId(tabBarItems[0].id);
+        const nextTabId = resolveRequestedCourseTabId({
+            activeTabId,
+            requestedTabType,
+            visibleTabs,
+            areBuiltinTabsReady,
+        });
+        if (nextTabId && nextTabId !== activeTabId) {
+            setActiveTabId(nextTabId);
         }
-    }, [activeTabId, areBuiltinTabsReady, tabBarItems]);
+    }, [activeTabId, areBuiltinTabsReady, requestedTabType, visibleTabs]);
 
     const tabInstanceSettingsSections = useMemo(() => {
         const sections = visibleTabs
@@ -630,39 +715,6 @@ const CourseHomepageContent: React.FC = () => {
             reportError('Failed to update course. Please retry.');
         }
     }, [course, saveCourse]);
-
-    const triggerBoundaryShake = useCallback(async () => {
-        if (prefersReducedMotion) {
-            return;
-        }
-        await titleShakeControls.start({
-            x: [0, -5, 5, -4, 4, 0],
-            transition: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
-        });
-        titleShakeControls.set({ x: 0 });
-    }, [prefersReducedMotion, titleShakeControls]);
-
-    const navigateToSiblingCourse = useCallback((nextCourseId: string, direction: -1 | 1) => {
-        if (!nextCourseId || nextCourseId === course?.id) {
-            return;
-        }
-        const now = Date.now();
-        if (now - lastCourseSwitchAtRef.current < 320) {
-            return;
-        }
-        lastCourseSwitchAtRef.current = now;
-        setCourseSwitchDirection(direction);
-        navigate(`/courses/${nextCourseId}`);
-    }, [course?.id, navigate]);
-
-    const handleSelectSiblingCourse = useCallback((nextCourseId: string) => {
-        if (!nextCourseId || nextCourseId === course?.id) {
-            return;
-        }
-        const nextCourseIndex = siblingCourses.findIndex((siblingCourse) => siblingCourse.id === nextCourseId);
-        const direction: -1 | 1 = nextCourseIndex < currentCourseIndex ? -1 : 1;
-        navigateToSiblingCourse(nextCourseId, direction);
-    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses]);
 
     useEffect(() => {
         if (!course?.id) {

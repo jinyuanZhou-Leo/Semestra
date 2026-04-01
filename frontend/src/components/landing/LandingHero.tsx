@@ -1,6 +1,6 @@
-// input:  [reduced-motion flag, framer-motion scroll transforms, CTA navigation links]
+// input:  [reduced-motion flag, framer-motion scroll transforms, and public auth CTA navigation links]
 // output: [`LandingHero` component]
-// pos:    [Top hero section of the public marketing landing page]
+// pos:    [Top hero section of the public marketing landing page with separate sign-in and sign-up CTAs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments

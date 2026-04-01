@@ -18,7 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { BackButton } from "../components/BackButton";
 import { Container } from "../components/Container";
 import { SettingsSection } from "../components/SettingsSection";
-import { loadGoogleIdentityScriptWhenIdle } from "../utils/googleIdentity";
+import { renderGoogleIdentityButton } from "../utils/googleIdentity";
 import api from "../services/api";
 import versionInfo from "../version.json";
 import type { ImportData, ConflictMode } from "../components/ImportPreviewModal";
@@ -160,29 +160,20 @@ export const SettingsPage: React.FC = () => {
         }
 
         let cancelled = false;
+        setIsGoogleLinkReady(false);
+        setGoogleLinkError('');
 
         const initGoogle = async () => {
+            const buttonContainer = googleLinkRef.current;
+            if (cancelled || !buttonContainer) {
+                return;
+            }
+
             try {
-                await loadGoogleIdentityScriptWhenIdle();
-            } catch {
-                if (!cancelled) {
-                    setGoogleLinkError('Google link is unavailable right now. Please try again later.');
-                }
-                return;
-            }
-
-            if (cancelled || !googleLinkRef.current) {
-                return;
-            }
-
-            const google = (window as any).google;
-            if (!google?.accounts?.id) {
-                return;
-            }
-
-            google.accounts.id.initialize({
-                client_id: googleClientId,
-                callback: async (response: { credential: string }) => {
+                await renderGoogleIdentityButton(
+                    buttonContainer,
+                    googleClientId,
+                    async (response: { credential?: string }) => {
                     if (!response?.credential) {
                         setGoogleLinkError('Google link failed. Please try again.');
                         return;
@@ -200,26 +191,37 @@ export const SettingsPage: React.FC = () => {
                     } finally {
                         setIsGoogleLinking(false);
                     }
+                },
+                    {
+                        theme: themeMode === "dark"
+                            || (themeMode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+                            ? 'filled_black'
+                            : 'outline',
+                        size: 'large',
+                        text: 'continue_with',
+                        shape: 'pill',
+                        width: 220,
+                    },
+                );
+                if (!cancelled) {
+                    setIsGoogleLinkReady(true);
                 }
-            });
-
-            google.accounts.id.renderButton(googleLinkRef.current, {
-                theme: 'outline',
-                size: 'large',
-                text: 'continue_with',
-                shape: 'pill',
-                width: '220'
-            });
-
-            setIsGoogleLinkReady(true);
+            } catch {
+                if (!cancelled) {
+                    setGoogleLinkError('Google link is unavailable right now. Please try again later.');
+                }
+            }
         };
 
-        initGoogle();
+        void initGoogle();
 
         return () => {
             cancelled = true;
+            if (googleLinkRef.current) {
+                googleLinkRef.current.innerHTML = '';
+            }
         };
-    }, [googleClientId, refreshUser, user]);
+    }, [googleClientId, refreshUser, themeMode, user]);
 
     // Warn on browser refresh/close
     useEffect(() => {
@@ -511,7 +513,7 @@ export const SettingsPage: React.FC = () => {
                                                 isGoogleLinking && "opacity-70"
                                             )}
                                         >
-                                            <div ref={googleLinkRef} />
+                                            <div ref={googleLinkRef} className="h-11 w-[220px]" />
                                             {!isGoogleLinkReady && (
                                                 <p className="text-xs text-muted-foreground">Loading...</p>
                                             )}

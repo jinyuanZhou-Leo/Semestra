@@ -1,5 +1,5 @@
 # input:  [unittest, env patching, in-memory SQLAlchemy setup, backend auth helpers, FastAPI middleware config helper, and Starlette request scopes]
-# output: [backend regression tests for CSRF enforcement, logout revocation state, login throttling, and production host/docs hardening]
+# output: [backend regression tests for CSRF enforcement, typed-token auth boundaries, logout revocation state, login throttling, and production host/docs hardening]
 # pos:    [backend unit tests covering auth-layer security helpers and middleware configuration without requiring a running Semestra server]
 #
 # ⚠️ When this file is updated:
@@ -25,6 +25,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import auth
+import email_verification
 import main
 import models
 from database import Base
@@ -150,6 +151,27 @@ class AuthSecurityTests(unittest.TestCase):
             asyncio.run(auth.get_current_user(request=request, token=None, db=self.db))
 
         self.assertEqual(context.exception.status_code, 401)
+
+    def test_non_access_token_cannot_authenticate_user(self) -> None:
+        verification_token = auth.create_access_token(
+            data={
+                "sub": self.user.email,
+                email_verification.EMAIL_VERIFICATION_PURPOSE_CLAIM: "login",
+                email_verification.EMAIL_VERIFICATION_CHALLENGE_ID_CLAIM: "challenge-id",
+                email_verification.EMAIL_VERIFICATION_NONCE_CLAIM: "nonce",
+            },
+            expires_delta=timedelta(minutes=15),
+            token_type=auth.EMAIL_VERIFICATION_TOKEN_TYPE,
+        )
+        request = self._build_request(method="GET")
+
+        with self.assertRaises(HTTPException) as context:
+            asyncio.run(auth.get_current_user(request=request, token=verification_token, db=self.db))
+
+        self.assertEqual(context.exception.status_code, 401)
+
+    def test_legacy_direct_register_route_is_not_exposed(self) -> None:
+        self.assertFalse(any(route.path == "/auth/register" for route in main.app.routes))
 
     def test_password_login_rate_limit_blocks_after_threshold(self) -> None:
         request = self._build_request(client_host="203.0.113.10")

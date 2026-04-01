@@ -18,7 +18,6 @@ const DEFAULT_COURSE_CREDIT = 0.5;
 const AUTH_SESSION_IGNORE_401_PATHS = new Set([
     '/api/auth/token',
     '/api/auth/google',
-    '/api/auth/register',
     '/api/auth/register/complete',
     '/api/auth/email/send-code',
     '/api/auth/email/verify-code',

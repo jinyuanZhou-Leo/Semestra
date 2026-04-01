@@ -1,6 +1,6 @@
 # input:  [Pydantic BaseModel/Field validators, json/math helpers, typing/date enums, URL parsing helpers, and LMS provider registry helpers]
 # output: [Request/response schema classes for API contracts, including Program subject-color settings, Program-level plugin management payloads, manifest-backed plugin-system setup payloads, auth registration, email-code, password-reset, and destructive account-deletion payloads with exact typed confirmation-sentence validation, Semester draft lifecycle plus review payloads with typed draft-step validation, Semester activation payloads, unassigned-Course plugin activation payloads, provider-neutral LMS integration payloads with normalized due dates, course navigation/announcement/module/assignment/page/quiz/syllabus/file payloads, comprehensive backup import/export contracts, range-based schedule payloads, V2 tab-settings and runtime-availability payloads, user setting update fields, semester todo domain payloads, fact-oriented course gradebooks with optional point-based score fields, and normalized Canvas module-item target metadata]
-# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin management and plugin-system setup contracts plus validated Semester draft review state and step values, auth email-code and password-reset plus irreversible account-deletion flows with strict sentence matching, unassigned-Course plugin activation contracts, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, V2 tab-settings and contribution availability, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
+# pos:    [Serialization and validation layer between API and domain services, including Program visual settings, plugin management and plugin-system setup contracts plus validated Semester draft review state and step values, email-driven auth email-code and password-reset flows plus irreversible account-deletion flows with strict sentence matching, unassigned-Course plugin activation contracts, LMS connection wire payloads, backup restore payloads across LMS/resources/schedule/todo data, range-scoped calendar and navigation/page/quiz/syllabus/file payloads, V2 tab-settings and contribution availability, user preferences, plus todo and fact-only gradebook wire contracts with optional points-to-percentage assessment input and normalized module-item typing]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -155,7 +155,8 @@ class GoogleAuthRequest(BaseModel):
     id_token: str
 
 
-AuthEmailCodePurpose = Literal["register", "login", "reset_password"]
+AuthEmailCodePurpose = Literal["continue", "register", "login", "reset_password"]
+AuthEmailCodeNextStep = Literal["register", "login", "reset_password"]
 DELETE_ACCOUNT_CONFIRMATION_TEXT = "I confirm deleting my account"
 
 
@@ -184,6 +185,7 @@ class EmailCodeVerifyRequest(UserBase):
 
 class EmailCodeVerifyResponse(BaseModel):
     verification_token: str
+    next_step: AuthEmailCodeNextStep
 
 
 class RegisterCompleteRequest(BaseModel):

@@ -1,6 +1,6 @@
-// input:  [reduced-motion flag, section/page scroll signals, scramble-text helper pipeline]
+// input:  [reduced-motion flag, section/page scroll signals, scramble-text helper pipeline, and public auth CTA links]
 // output: [`LandingProof` component]
-// pos:    [Landing proof/CTA section that demonstrates usage outcomes]
+// pos:    [Landing proof/CTA section that demonstrates usage outcomes and routes new users into the dedicated sign-up page]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments

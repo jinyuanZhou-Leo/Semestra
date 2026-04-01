@@ -1,6 +1,6 @@
 # input:  [FastAPI request/response auth deps, JWT libs, SQLAlchemy session, env-backed runtime config, and crud module]
-# output: [JWT helpers, secure auth-cookie plus CSRF-cookie helpers, host/origin helpers, DB-backed login-throttling helpers, and authenticated user dependency]
-# pos:    [Authentication/auth-session utility layer for token issuance, logout revocation, cookie transport, CSRF enforcement for cookie-backed writes, login throttling, and current-user resolution]
+# output: [typed JWT helpers, secure auth-cookie plus CSRF-cookie helpers, host/origin helpers, DB-backed login-throttling helpers, and authenticated user dependency]
+# pos:    [Authentication/auth-session utility layer for typed token issuance, logout revocation, cookie transport, CSRF enforcement for cookie-backed writes, login throttling, and current-user resolution]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -40,6 +40,9 @@ AUTH_CSRF_COOKIE_NAME = os.getenv("AUTH_CSRF_COOKIE_NAME", "semestra_csrf")
 AUTH_CSRF_HEADER_NAME = os.getenv("AUTH_CSRF_HEADER_NAME", "X-CSRF-Token")
 _UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 SESSION_VERSION_CLAIM = "session_version"
+TOKEN_TYPE_CLAIM = "token_type"
+ACCESS_TOKEN_TYPE = "access"
+EMAIL_VERIFICATION_TOKEN_TYPE = "email_verification"
 LOGIN_RATE_LIMIT_IP_SCOPE = "login_ip"
 LOGIN_RATE_LIMIT_ACCOUNT_SCOPE = "login_account"
 GOOGLE_LOGIN_RATE_LIMIT_IP_SCOPE = "google_login_ip"
@@ -186,6 +189,7 @@ def create_user_access_token(user: models.User, expires_delta: timedelta) -> str
     return create_access_token(
         data={"sub": user.email, SESSION_VERSION_CLAIM: _get_session_version(user)},
         expires_delta=expires_delta,
+        token_type=ACCESS_TOKEN_TYPE,
     )
 
 
@@ -381,13 +385,18 @@ def get_db():
     finally:
         db.close()
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(
+    data: dict,
+    expires_delta: Optional[timedelta] = None,
+    *,
+    token_type: str,
+):
     to_encode = data.copy()
     if expires_delta:
         expire = _now_utc() + expires_delta
     else:
         expire = _now_utc() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, TOKEN_TYPE_CLAIM: token_type})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -455,7 +464,10 @@ async def get_current_user(
     try:
         payload = jwt.decode(resolved_token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        token_type = str(payload.get(TOKEN_TYPE_CLAIM) or "")
         if username is None:
+            raise credentials_exception
+        if token_type != ACCESS_TOKEN_TYPE:
             raise credentials_exception
         token_data = schemas.TokenData(username=username)
         session_version = int(payload.get(SESSION_VERSION_CLAIM, 0) or 0)

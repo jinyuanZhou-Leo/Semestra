@@ -1,6 +1,6 @@
-# input:  [FastAPI requests, SQLAlchemy session, Resend email API config, auth JWT/rate-limit helpers, and email-verification ORM models]
-# output: [Email-code challenge creation, verification-token issuance/consumption, and Resend delivery helpers for auth flows]
-# pos:    [Backend email-verification service layer that owns one-time code generation, hashing, cooldown/rate-limit enforcement, and transactional email delivery]
+# input:  [FastAPI requests, SQLAlchemy session, Resend email API config plus auth-template aliases, auth JWT/rate-limit helpers, and email-verification ORM models]
+# output: [Email-code challenge creation, typed verification-token issuance/consumption, and Resend delivery helpers for auth flows]
+# pos:    [Backend email-verification service layer that owns one-time code generation, hashing, cooldown/rate-limit enforcement, typed verification-token issuance, and transactional Resend template delivery for auth emails]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -25,6 +25,7 @@ import auth
 import models
 
 VerificationPurpose = Literal["register", "login", "reset_password"]
+CONTINUE_PURPOSES: tuple[VerificationPurpose, VerificationPurpose] = ("register", "login")
 
 EMAIL_VERIFICATION_PURPOSE_CLAIM = "verification_purpose"
 EMAIL_VERIFICATION_CHALLENGE_ID_CLAIM = "verification_challenge_id"
@@ -43,6 +44,9 @@ AUTH_EMAIL_CODE_SECRET = os.getenv("AUTH_EMAIL_CODE_SECRET") or auth.SECRET_KEY
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
 AUTH_EMAIL_FROM = os.getenv("AUTH_EMAIL_FROM", "").strip()
 AUTH_EMAIL_REPLY_TO = os.getenv("AUTH_EMAIL_REPLY_TO", "").strip()
+AUTH_EMAIL_TEMPLATE_REGISTER = os.getenv("AUTH_EMAIL_TEMPLATE_REGISTER", "semestra-create-account").strip()
+AUTH_EMAIL_TEMPLATE_LOGIN = os.getenv("AUTH_EMAIL_TEMPLATE_LOGIN", "semestra-login").strip()
+AUTH_EMAIL_TEMPLATE_RESET_PASSWORD = os.getenv("AUTH_EMAIL_TEMPLATE_RESET_PASSWORD", "semestra-pw-reset").strip()
 
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
@@ -124,6 +128,18 @@ def _get_active_challenge(db: Session, *, email: str, purpose: VerificationPurpo
     return challenge
 
 
+def _get_active_continue_challenge(db: Session, *, email: str) -> models.EmailVerificationChallenge | None:
+    candidates = [
+        challenge
+        for purpose in CONTINUE_PURPOSES
+        for challenge in [_get_active_challenge(db, email=email, purpose=purpose)]
+        if challenge is not None
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda challenge: (challenge.created_at, challenge.id))
+
+
 def _invalidate_active_challenges(db: Session, *, email: str, purpose: VerificationPurpose) -> None:
     active_rows = (
         db.query(models.EmailVerificationChallenge)
@@ -145,10 +161,37 @@ def _invalidate_active_challenges(db: Session, *, email: str, purpose: Verificat
     db.commit()
 
 
+def _invalidate_active_continue_challenges(db: Session, *, email: str) -> None:
+    for purpose in CONTINUE_PURPOSES:
+        _invalidate_active_challenges(db, email=email, purpose=purpose)
+
+
 def _ensure_send_not_cooling_down(db: Session, *, email: str, purpose: VerificationPurpose) -> None:
     latest = _get_latest_challenge(db, email=email, purpose=purpose)
     if latest is None or not latest.last_sent_at:
         return
+    last_sent_at = _parse_iso_datetime(latest.last_sent_at)
+    if last_sent_at is None:
+        return
+    retry_after = VERIFICATION_CODE_RESEND_SECONDS - int((_now_utc() - last_sent_at).total_seconds())
+    if retry_after > 0:
+        raise EmailVerificationError(
+            "EMAIL_CODE_COOLDOWN",
+            "Please wait before requesting another verification code.",
+            status_code=429,
+        )
+
+
+def _ensure_continue_send_not_cooling_down(db: Session, *, email: str) -> None:
+    latest_candidates = [
+        challenge
+        for purpose in CONTINUE_PURPOSES
+        for challenge in [_get_latest_challenge(db, email=email, purpose=purpose)]
+        if challenge is not None and challenge.last_sent_at
+    ]
+    if not latest_candidates:
+        return
+    latest = max(latest_candidates, key=lambda challenge: (challenge.last_sent_at or "", challenge.id))
     last_sent_at = _parse_iso_datetime(latest.last_sent_at)
     if last_sent_at is None:
         return
@@ -220,6 +263,32 @@ def _preview_line_for_purpose(purpose: VerificationPurpose) -> str:
     return "Use this code to finish creating your Semestra account."
 
 
+def _expires_in_label() -> str:
+    minutes = VERIFICATION_CODE_TTL_SECONDS // 60
+    if minutes <= 1:
+        return "1 minute"
+    return f"{minutes} minutes"
+
+
+def _template_id_for_purpose(purpose: VerificationPurpose) -> str | None:
+    if purpose == "register":
+        return AUTH_EMAIL_TEMPLATE_REGISTER or None
+    if purpose == "login":
+        return AUTH_EMAIL_TEMPLATE_LOGIN or None
+    if purpose == "reset_password":
+        return AUTH_EMAIL_TEMPLATE_RESET_PASSWORD or None
+    return None
+
+
+def _template_variables(*, code: str) -> dict[str, str]:
+    return {
+        "APP_NAME": "Semestra",
+        "OTP_CODE": code,
+        "EXPIRES_IN": _expires_in_label(),
+        "YEAR": str(_now_utc().year),
+    }
+
+
 def _build_email_payload(*, to_email: str, code: str, purpose: VerificationPurpose, idempotency_key: str) -> tuple[dict, dict]:
     if not RESEND_API_KEY:
         raise EmailVerificationError(
@@ -234,29 +303,21 @@ def _build_email_payload(*, to_email: str, code: str, purpose: VerificationPurpo
             status_code=500,
         )
     preview_line = _preview_line_for_purpose(purpose)
+    template_id = _template_id_for_purpose(purpose)
     payload: dict[str, object] = {
         "from": AUTH_EMAIL_FROM,
         "to": [to_email],
         "subject": _subject_for_purpose(purpose),
-        "text": (
-            f"{preview_line}\n\n"
-            f"Verification code: {code}\n"
-            f"Expires in {VERIFICATION_CODE_TTL_SECONDS // 60} minutes.\n\n"
-            "If you did not request this email, you can ignore it."
-        ),
-        "html": (
-            "<div style=\"font-family: Arial, sans-serif; line-height: 1.5; color: #111827;\">"
-            f"<p>{preview_line}</p>"
-            f"<p style=\"margin: 24px 0; font-size: 28px; font-weight: 700; letter-spacing: 0.12em;\">{code}</p>"
-            f"<p>This code expires in {VERIFICATION_CODE_TTL_SECONDS // 60} minutes.</p>"
-            "<p>If you did not request this email, you can ignore it.</p>"
-            "</div>"
-        ),
         "tags": [
             {"name": "category", "value": "auth_verification"},
             {"name": "purpose", "value": purpose},
         ],
     }
+    if template_id is not None:
+        payload["template"] = {
+            "id": template_id,
+            "variables": _template_variables(code=code),
+        }
     if AUTH_EMAIL_REPLY_TO:
         payload["reply_to"] = AUTH_EMAIL_REPLY_TO
     headers = {
@@ -343,12 +404,69 @@ def send_email_code(
     _record_send_success(db, request=request, email=normalized_email)
 
 
-def build_send_code_response_message(*, purpose: VerificationPurpose) -> str:
+def send_continue_email_code(
+    db: Session,
+    *,
+    request: Request,
+    email: str,
+    actual_purpose: VerificationPurpose,
+) -> None:
+    normalized_email = normalize_email(email)
+    _ensure_continue_send_not_cooling_down(db, email=normalized_email)
+    _enforce_send_rate_limits(db, request=request, email=normalized_email)
+    _invalidate_active_continue_challenges(db, email=normalized_email)
+
+    code = _generate_verification_code()
+    now = _now_utc()
+    challenge = models.EmailVerificationChallenge(
+        email=normalized_email,
+        purpose=actual_purpose,
+        code_hash=_build_code_hash(normalized_email, actual_purpose, code),
+        verification_nonce=None,
+        attempt_count=0,
+        max_attempts=VERIFICATION_CODE_MAX_ATTEMPTS,
+        expires_at=(now + timedelta(seconds=VERIFICATION_CODE_TTL_SECONDS)).isoformat(),
+        last_sent_at=None,
+        verified_at=None,
+        used_at=None,
+        invalidated_at=None,
+        resend_email_id=None,
+        request_ip=_get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        created_at=now.isoformat(),
+        updated_at=now.isoformat(),
+    )
+    db.add(challenge)
+    db.commit()
+    db.refresh(challenge)
+
+    try:
+        resend_email_id = _deliver_email_code(challenge=challenge, code=code)
+    except Exception:
+        db.delete(challenge)
+        db.commit()
+        raise
+
+    send_timestamp = _now_utc_iso()
+    challenge.last_sent_at = send_timestamp
+    challenge.resend_email_id = resend_email_id
+    challenge.updated_at = send_timestamp
+    db.add(challenge)
+    db.commit()
+    db.refresh(challenge)
+    _record_send_success(db, request=request, email=normalized_email)
+
+
+def build_send_code_response_message(*, purpose: str) -> str:
+    if purpose == "continue":
+        return "If this email can continue, a verification code has been sent."
+    if purpose == "register":
+        return "If this email can create an account, a verification code has been sent."
     if purpose == "login":
         return "If this email can sign in, a verification code has been sent."
     if purpose == "reset_password":
         return "If this email can reset a password, a verification code has been sent."
-    return "A verification code has been sent to your email."
+    return "If this email can use this flow, a verification code has been sent."
 
 
 def verify_email_code(db: Session, *, email: str, purpose: VerificationPurpose, code: str) -> str:
@@ -400,7 +518,21 @@ def verify_email_code(db: Session, *, email: str, purpose: VerificationPurpose, 
             EMAIL_VERIFICATION_NONCE_CLAIM: challenge.verification_nonce,
         },
         expires_delta=timedelta(seconds=VERIFICATION_TOKEN_TTL_SECONDS),
+        token_type=auth.EMAIL_VERIFICATION_TOKEN_TYPE,
     )
+
+
+def verify_continue_email_code(db: Session, *, email: str, code: str) -> tuple[str, VerificationPurpose]:
+    normalized_email = normalize_email(email)
+    challenge = _get_active_continue_challenge(db, email=normalized_email)
+    if challenge is None:
+        raise EmailVerificationError(
+            "INVALID_VERIFICATION_CODE",
+            "The verification code is invalid or expired.",
+            status_code=400,
+        )
+    verification_token = verify_email_code(db, email=normalized_email, purpose=challenge.purpose, code=code)
+    return verification_token, challenge.purpose
 
 
 def get_verified_challenge_from_token(

@@ -1,6 +1,6 @@
-# input:  [requests/json/time, running API server]
+# input:  [requests/json/time, running API server, and backend DB/user helpers]
 # output: [Integration tests for academic logic endpoints]
-# pos:    [Manual/integration validation script for logic API]
+# pos:    [Manual/integration validation script for logic API using a locally seeded verified user]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -10,13 +10,30 @@ import requests
 import json
 import time
 
+import crud
+from database import SessionLocal
+import schemas
+
 BASE_URL = "http://localhost:8000"
 EMAIL = "test_logic@example.com"
 PASSWORD = "Password123"
 
+
+def _ensure_verified_user() -> None:
+    db = SessionLocal()
+    try:
+        if crud.get_user_by_email(db, EMAIL) is None:
+            crud.create_user(
+                db,
+                schemas.UserCreate(email=EMAIL, password=PASSWORD),
+                email_verified_at="2026-03-31T00:00:00+00:00",
+            )
+    finally:
+        db.close()
+
 def test_logic():
-    # 1. Register & Login
-    requests.post(f"{BASE_URL}/auth/register", json={"email": EMAIL, "password": PASSWORD})
+    # 1. Seed a verified user and log in.
+    _ensure_verified_user()
     response = requests.post(f"{BASE_URL}/auth/token", data={"username": EMAIL, "password": PASSWORD})
     if response.status_code != 200:
         print("Login failed:", response.text)

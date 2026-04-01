@@ -1,6 +1,6 @@
-// input:  [cookie-session login actions, password/email-code auth endpoints, auth redirect restoration, theme hooks, shared auth OTP input, shared email-domain autocomplete input, Google identity button renderer, and shared auth-route shell presentation]
+// input:  [cookie-session login actions, password/email-code auth endpoints, auth redirect restoration, optional prefilled auth-route state, theme hooks, shared auth OTP input, shared email-domain autocomplete input, Google identity button renderer, and shared auth-route shell presentation]
 // output: [`LoginPage` route component]
-// pos:    [Authentication entry page that supports both password login and email-code login while preserving post-login route restoration]
+// pos:    [Dedicated sign-in page that keeps password and email-code login intent explicit, handles verified existing-account continuation, and preserves post-login route restoration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -37,7 +37,18 @@ type LoginLocationState = {
     search?: string;
     hash?: string;
   };
+  email?: string;
+  mode?: 'password' | 'email-code';
+  verificationToken?: string;
+  message?: string;
 };
+
+type EmailCodeVerifyResponse = {
+  verification_token: string;
+  next_step: 'login' | 'register' | 'reset_password';
+};
+
+type EmailCodeStep = 'email' | 'otp' | 'verified-login';
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -53,13 +64,22 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
 };
 
 export const LoginPage: React.FC = () => {
-  const [mode, setMode] = useState<'password' | 'email-code'>('password');
-  const [emailCodeStep, setEmailCodeStep] = useState<'email' | 'otp'>('email');
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const loginLocationState = (location.state as LoginLocationState | null) ?? null;
+  const prefilledEmail = typeof loginLocationState?.email === 'string' ? loginLocationState.email : '';
+  const prefilledVerificationToken = typeof loginLocationState?.verificationToken === 'string'
+    ? loginLocationState.verificationToken
+    : '';
+  const prefilledMode = prefilledVerificationToken || loginLocationState?.mode === 'email-code' ? 'email-code' : 'password';
+  const [mode, setMode] = useState<'password' | 'email-code'>(prefilledMode);
+  const [emailCodeStep, setEmailCodeStep] = useState<EmailCodeStep>(prefilledVerificationToken ? 'verified-login' : 'email');
+  const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [verificationToken, setVerificationToken] = useState(prefilledVerificationToken);
   const [rememberMe, setRememberMe] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [handoffMessage, setHandoffMessage] = useState(loginLocationState?.message ?? null as string | null);
   const [fieldErrors, setFieldErrors] = useState({
     email: null as string | null,
     password: null as string | null,
@@ -69,18 +89,19 @@ export const LoginPage: React.FC = () => {
   const [isPasswordLoading, setIsPasswordLoading] = useState(false);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isCodeLoading, setIsCodeLoading] = useState(false);
+  const [isVerifiedLoginLoading, setIsVerifiedLoginLoading] = useState(false);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const [isGlassReady, setIsGlassReady] = useState(false);
   const { login } = useAuth();
   const { theme: themeMode } = useTheme();
-  const location = useLocation();
   const navigate = useNavigate();
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
   const emailId = useId();
   const passwordId = useId();
   const rememberMeId = useId();
-  const loginRedirectSource = (location.state as LoginLocationState | null)?.from;
+  const emailRememberMeId = useId();
+  const loginRedirectSource = loginLocationState?.from;
   const resolvePostLoginTarget = useCallback(
     () => consumeAuthRedirectTarget(loginRedirectSource, '/'),
     [loginRedirectSource],
@@ -120,6 +141,11 @@ export const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (mode !== 'email-code') {
+      setFieldErrors((current) => ({
+        ...current,
+        password: null,
+        code: null,
+      }));
       return;
     }
     setFieldErrors((current) => ({
@@ -194,6 +220,17 @@ export const LoginPage: React.FC = () => {
     setFieldErrors((current) => ({ ...current, [key]: null }));
   };
 
+  const resetEmailFlow = () => {
+    setCode('');
+    setVerificationToken('');
+    setEmailCodeStep('email');
+    setHandoffMessage(null);
+    setFieldErrors((current) => ({
+      ...current,
+      code: null,
+    }));
+  };
+
   const handlePasswordSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
@@ -257,10 +294,12 @@ export const LoginPage: React.FC = () => {
     try {
       const response = await axios.post('/api/auth/email/send-code', {
         email: normalizedEmail,
-        purpose: 'login',
+        purpose: 'continue',
       });
       setEmail(normalizedEmail);
       setCode('');
+      setVerificationToken('');
+      setHandoffMessage(null);
       setCooldownRemaining(response.data.resend_in_seconds ?? 60);
       setEmailCodeStep('otp');
       setFieldErrors((current) => ({
@@ -275,7 +314,7 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleEmailCodeLogin = async () => {
+  const handleEmailCodeVerify = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       setFieldErrors((current) => ({ ...current, email: 'Enter your email.' }));
@@ -292,17 +331,29 @@ export const LoginPage: React.FC = () => {
 
     setIsCodeLoading(true);
     try {
-      const verifyResponse = await axios.post('/api/auth/email/verify-code', {
+      const verifyResponse = await axios.post<EmailCodeVerifyResponse>('/api/auth/email/verify-code', {
         email: normalizedEmail,
-        purpose: 'login',
+        purpose: 'continue',
         code,
       });
-      await axios.post('/api/auth/login/email', {
-        verification_token: verifyResponse.data.verification_token,
-        remember_me: rememberMe,
-      });
-      await login();
-      navigate(resolvePostLoginTarget(), { replace: true });
+      if (verifyResponse.data.next_step === 'register') {
+        navigate('/register', {
+          replace: true,
+          state: {
+            email: normalizedEmail,
+            verificationToken: verifyResponse.data.verification_token,
+            message: 'No account exists for this email yet. Finish creating one.',
+          },
+        });
+        return;
+      }
+      setVerificationToken(verifyResponse.data.verification_token);
+      setEmailCodeStep('verified-login');
+      setHandoffMessage('This email already has an account. Sign in to continue.');
+      setFieldErrors((current) => ({
+        ...current,
+        code: null,
+      }));
     } catch (error) {
       setFieldErrors((current) => ({
         ...current,
@@ -311,6 +362,46 @@ export const LoginPage: React.FC = () => {
     } finally {
       setIsCodeLoading(false);
     }
+  };
+
+  const handleVerifiedEmailLogin = async () => {
+    if (!verificationToken) {
+      toast.error('Your verified sign-in session expired. Start again with your email.');
+      resetEmailFlow();
+      return;
+    }
+
+    setIsVerifiedLoginLoading(true);
+    try {
+      await axios.post('/api/auth/login/email', {
+        verification_token: verificationToken,
+        remember_me: rememberMe,
+      });
+      await login();
+      navigate(resolvePostLoginTarget(), { replace: true });
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Failed to sign in with this verified email.'));
+    } finally {
+      setIsVerifiedLoginLoading(false);
+    }
+  };
+
+  const handleAuthSubmit = (event: React.FormEvent) => {
+    if (mode === 'password') {
+      void handlePasswordSubmit(event);
+      return;
+    }
+
+    event.preventDefault();
+    if (emailCodeStep === 'email') {
+      void handleSendCode();
+      return;
+    }
+    if (emailCodeStep === 'otp') {
+      void handleEmailCodeVerify();
+      return;
+    }
+    void handleVerifiedEmailLogin();
   };
 
   return (
@@ -322,19 +413,33 @@ export const LoginPage: React.FC = () => {
       className="w-full max-w-xs"
     >
       <div className="flex flex-col gap-6">
-        <motion.form layout noValidate onSubmit={handlePasswordSubmit} className="flex flex-col gap-6">
+        <motion.form layout noValidate onSubmit={handleAuthSubmit} className="flex flex-col gap-6">
           <FieldGroup>
             <div className="flex flex-col items-center gap-1 text-center">
-              <h1 className="select-none text-2xl font-bold">Login to your account</h1>
+              <h1 className="select-none text-2xl font-bold">
+                {mode === 'password'
+                  ? 'Sign in to Semestra'
+                  : emailCodeStep === 'otp'
+                    ? 'Check your inbox'
+                    : emailCodeStep === 'verified-login'
+                      ? 'Sign in with your verified email'
+                      : 'Continue signing in with email'}
+              </h1>
               <p className="select-none text-sm text-muted-foreground">
-                Use your password or an email code.
+                {mode === 'password'
+                  ? 'Use your password, email, or Google to access your existing account.'
+                  : emailCodeStep === 'otp'
+                    ? 'Enter the 6-digit code to verify this email before signing in.'
+                    : emailCodeStep === 'verified-login'
+                      ? 'Your email is verified. Confirm the sign-in to continue.'
+                      : 'Use your email if you prefer a passwordless sign-in flow.'}
               </p>
             </div>
 
             <Tabs value={mode} onValueChange={(value) => setMode(value as 'password' | 'email-code')}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="password">Password</TabsTrigger>
-                <TabsTrigger value="email-code">Email Code</TabsTrigger>
+                <TabsTrigger value="email-code">Email</TabsTrigger>
               </TabsList>
 
               <TabsContent value="password" className="mt-4 flex flex-col gap-4">
@@ -434,26 +539,23 @@ export const LoginPage: React.FC = () => {
                     <Field>
                       <div className="flex items-center gap-3">
                         <Checkbox
-                          id="remember-email-code"
+                          id={emailRememberMeId}
                           checked={rememberMe}
                           onCheckedChange={(checked) => setRememberMe(Boolean(checked))}
                         />
-                        <FieldLabel htmlFor="remember-email-code" className="select-none">Keep me signed in</FieldLabel>
+                        <FieldLabel htmlFor={emailRememberMeId} className="select-none">Keep me signed in</FieldLabel>
                       </div>
                     </Field>
 
                     <Field>
-                      <Button
-                        type="button"
-                        className="w-full"
-                        onClick={handleSendCode}
-                        disabled={isSendingCode}
-                      >
-                        {isSendingCode ? 'Sending code...' : 'Continue with email code'}
+                      <Button type="submit" className="w-full" disabled={isSendingCode}>
+                        {isSendingCode ? 'Sending code...' : 'Continue with email'}
                       </Button>
                     </Field>
                   </>
-                ) : (
+                ) : null}
+
+                {emailCodeStep === 'otp' ? (
                   <>
                     <div className="flex min-w-0 items-center justify-between gap-3 text-sm">
                       <p className="min-w-0 flex-1 truncate text-muted-foreground">
@@ -483,28 +585,50 @@ export const LoginPage: React.FC = () => {
                     />
 
                     <Field>
+                      <Button type="submit" className="w-full" disabled={isCodeLoading}>
+                        {isCodeLoading ? 'Verifying...' : 'Verify and continue'}
+                      </Button>
+                    </Field>
+
+                    <Field>
+                      <Button type="button" variant="ghost" className="w-full" onClick={resetEmailFlow}>
+                        Use a different email
+                      </Button>
+                    </Field>
+                  </>
+                ) : null}
+
+                {emailCodeStep === 'verified-login' ? (
+                  <>
+                    <Field>
+                      <Input value={email} readOnly disabled className="opacity-100" />
+                      <FieldDescription>{handoffMessage ?? 'This verified email is ready to sign in.'}</FieldDescription>
+                    </Field>
+
+                    <Field>
                       <div className="flex items-center gap-3">
                         <Checkbox
-                          id="remember-email-code-otp"
+                          id={`${emailRememberMeId}-verified`}
                           checked={rememberMe}
                           onCheckedChange={(checked) => setRememberMe(Boolean(checked))}
                         />
-                        <FieldLabel htmlFor="remember-email-code-otp" className="select-none">Keep me signed in</FieldLabel>
+                        <FieldLabel htmlFor={`${emailRememberMeId}-verified`} className="select-none">Keep me signed in</FieldLabel>
                       </div>
                     </Field>
 
                     <Field>
-                      <Button
-                        type="button"
-                        className="w-full"
-                        onClick={handleEmailCodeLogin}
-                        disabled={isCodeLoading}
-                      >
-                        {isCodeLoading ? 'Signing in...' : 'Sign in'}
+                      <Button type="submit" className="w-full" disabled={isVerifiedLoginLoading}>
+                        {isVerifiedLoginLoading ? 'Signing in...' : 'Sign in now'}
+                      </Button>
+                    </Field>
+
+                    <Field>
+                      <Button type="button" variant="ghost" className="w-full" onClick={resetEmailFlow}>
+                        Try another email
                       </Button>
                     </Field>
                   </>
-                )}
+                ) : null}
               </TabsContent>
             </Tabs>
 
@@ -535,7 +659,7 @@ export const LoginPage: React.FC = () => {
 
             <Field>
               <FieldDescription className="px-6 text-center">
-                Don&apos;t have an account? <Link to="/register" viewTransition>Create one</Link>
+                New to Semestra? <Link to="/register" viewTransition>Create an account</Link>
               </FieldDescription>
             </Field>
           </FieldGroup>

@@ -1,13 +1,13 @@
-// input:  [email-code auth endpoints, cookie-session login action, password policy helpers, theme hooks, shared auth OTP input, shared email-domain autocomplete input, Google identity button renderer, and shared auth-route shell presentation]
+// input:  [email-code auth endpoints, cookie-session login action, optional prefilled auth-route state, password policy helpers, theme hooks, shared auth OTP input, shared email-domain autocomplete input, browser-autofill suppression attributes, Google identity button renderer, and shared auth-route shell presentation]
 // output: [`RegisterPage` route component]
-// pos:    [Account creation page that verifies email with a six-digit OTP before collecting profile credentials and bootstrapping a cookie-backed session]
+// pos:    [Dedicated sign-up page that keeps account-creation intent explicit, verifies mailbox ownership before profile completion, and hands verified existing accounts back into the sign-in page]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
@@ -36,6 +36,16 @@ import {
 } from '@/components/ui/tooltip';
 
 type RegisterStep = 'email' | 'code' | 'profile';
+type RegisterLocationState = {
+  email?: string;
+  verificationToken?: string;
+  message?: string;
+};
+
+type EmailCodeVerifyResponse = {
+  verification_token: string;
+  next_step: 'login' | 'register' | 'reset_password';
+};
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -50,19 +60,23 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const getApiErrorCode = (error: unknown) => {
-  const detail = (error as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail;
-  return detail && typeof detail === 'object' ? detail.code : undefined;
-};
-
 export const RegisterPage: React.FC = () => {
-  const [step, setStep] = useState<RegisterStep>('email');
+  const location = useLocation();
+  const registerLocationState = (location.state as RegisterLocationState | null) ?? null;
+  const prefilledEmail = typeof registerLocationState?.email === 'string'
+    ? registerLocationState.email ?? ''
+    : '';
+  const prefilledVerificationToken = typeof registerLocationState?.verificationToken === 'string'
+    ? registerLocationState.verificationToken
+    : '';
+  const [step, setStep] = useState<RegisterStep>(prefilledVerificationToken ? 'profile' : 'email');
   const [nickname, setNickname] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(prefilledEmail);
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [verificationToken, setVerificationToken] = useState('');
+  const [verificationToken, setVerificationToken] = useState(prefilledVerificationToken);
+  const [handoffMessage, setHandoffMessage] = useState(registerLocationState?.message ?? null as string | null);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({
     email: null as string | null,
@@ -192,6 +206,23 @@ export const RegisterPage: React.FC = () => {
     setFieldErrors((current) => ({ ...current, [key]: null }));
   };
 
+  const resetRegistrationFlow = () => {
+    setCode('');
+    setNickname('');
+    setPassword('');
+    setConfirmPassword('');
+    setVerificationToken('');
+    setHandoffMessage(null);
+    setStep('email');
+    setFieldErrors((current) => ({
+      ...current,
+      code: null,
+      nickname: null,
+      password: null,
+      confirmPassword: null,
+    }));
+  };
+
   const handleSendCode = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
@@ -207,11 +238,12 @@ export const RegisterPage: React.FC = () => {
     try {
       const response = await axios.post('/api/auth/email/send-code', {
         email: normalizedEmail,
-        purpose: 'register',
+        purpose: 'continue',
       });
       setEmail(normalizedEmail);
       setCode('');
       setVerificationToken('');
+      setHandoffMessage(null);
       setCooldownRemaining(response.data.resend_in_seconds ?? 60);
       setStep('code');
       setFieldErrors((current) => ({
@@ -220,12 +252,7 @@ export const RegisterPage: React.FC = () => {
         code: null,
       }));
     } catch (error) {
-      const fallback = 'Failed to send the verification code.';
-      if (getApiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
-        setFieldErrors((current) => ({ ...current, email: getApiErrorMessage(error, fallback) }));
-      } else {
-        toast.error(getApiErrorMessage(error, fallback));
-      }
+      toast.error(getApiErrorMessage(error, 'Failed to send the verification code.'));
     } finally {
       setIsSendingCode(false);
     }
@@ -239,12 +266,25 @@ export const RegisterPage: React.FC = () => {
 
     setIsVerifyingCode(true);
     try {
-      const response = await axios.post('/api/auth/email/verify-code', {
+      const response = await axios.post<EmailCodeVerifyResponse>('/api/auth/email/verify-code', {
         email,
-        purpose: 'register',
+        purpose: 'continue',
         code,
       });
+      if (response.data.next_step === 'login') {
+        navigate('/login', {
+          replace: true,
+          state: {
+            email,
+            mode: 'email-code',
+            verificationToken: response.data.verification_token,
+            message: 'This email already has an account. Sign in to continue.',
+          },
+        });
+        return;
+      }
       setVerificationToken(response.data.verification_token);
+      setHandoffMessage('Your email is verified. Finish creating your account.');
       setStep('profile');
       setFieldErrors((current) => ({
         ...current,
@@ -271,6 +311,11 @@ export const RegisterPage: React.FC = () => {
       confirmPassword: null as string | null,
     };
 
+    if (!verificationToken) {
+      toast.error('Your verification session is missing. Start again with your email.');
+      resetRegistrationFlow();
+      return;
+    }
     if (!normalizedNickname) {
       nextErrors.nickname = 'Enter your nickname.';
     }
@@ -297,14 +342,7 @@ export const RegisterPage: React.FC = () => {
       await login();
       navigate('/');
     } catch (error) {
-      const message = getApiErrorMessage(error, 'Failed to create your account.');
-      if (getApiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
-        setStep('email');
-        setFieldErrors((current) => ({ ...current, email: message }));
-        setVerificationToken('');
-      } else {
-        toast.error(message);
-      }
+      toast.error(getApiErrorMessage(error, 'Failed to create your account.'));
     } finally {
       setIsCompletingRegistration(false);
     }
@@ -319,18 +357,26 @@ export const RegisterPage: React.FC = () => {
       className="w-full max-w-xs"
     >
       <div className="flex flex-col gap-6">
-        <motion.form layout noValidate onSubmit={handleCompleteRegistration} className="flex flex-col gap-6">
+        <motion.form
+          layout
+          noValidate
+          autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          onSubmit={handleCompleteRegistration}
+          className="flex flex-col gap-6"
+        >
           <FieldGroup>
             <div className="flex flex-col items-center gap-1 text-center">
               <h1 className="select-none text-2xl font-bold">
-                {step === 'email' ? 'Create your account' : step === 'code' ? 'Check your inbox' : 'Finish your profile'}
+                {step === 'email' ? 'Create your account' : step === 'code' ? 'Check your inbox' : 'Finish creating your account'}
               </h1>
               <p className="select-none text-sm text-muted-foreground">
                 {step === 'email'
-                  ? 'Start with your email.'
+                  ? 'Use your email or Google to start a brand-new Semestra account.'
                   : step === 'code'
-                    ? 'Enter your verification code.'
-                    : 'Choose your name and password.'}
+                    ? 'Verify your email before we open your account profile.'
+                    : 'Choose your name and password to finish setting up the account.'}
               </p>
             </div>
 
@@ -340,20 +386,28 @@ export const RegisterPage: React.FC = () => {
                   <FieldLabel htmlFor={emailId} className="select-none">Email</FieldLabel>
                   <EmailDomainInput
                     id={emailId}
+                    name="register-email"
                     type="email"
                     value={email}
                     onValueChange={(nextValue) => {
                       setEmail(nextValue);
                       clearError('email');
                     }}
+                    autoComplete="off"
                     aria-invalid={fieldErrors.email ? true : undefined}
                   />
-                  {fieldErrors.email ? <FieldDescription className="text-destructive">{fieldErrors.email}</FieldDescription> : null}
+                  {fieldErrors.email ? (
+                    <FieldDescription className="text-destructive">{fieldErrors.email}</FieldDescription>
+                  ) : (
+                    <FieldDescription>
+                      We&apos;ll verify this email before collecting your profile details.
+                    </FieldDescription>
+                  )}
                 </Field>
 
                 <Field>
                   <Button className="w-full" type="button" onClick={handleSendCode} disabled={isSendingCode || isGoogleLoading}>
-                    {isSendingCode ? 'Sending code...' : 'Send verification code'}
+                    {isSendingCode ? 'Sending code...' : 'Continue with email'}
                   </Button>
                 </Field>
               </>
@@ -382,13 +436,17 @@ export const RegisterPage: React.FC = () => {
                     setCode(value);
                     clearError('code');
                   }}
+                  autoComplete="off"
                   error={fieldErrors.code}
                   description="Verification codes expire after 10 minutes."
                   disabled={isVerifyingCode}
                 />
-                <Field>
+                <Field className="flex flex-col gap-2">
                   <Button type="button" className="w-full" onClick={handleVerifyCode} disabled={isVerifyingCode}>
-                    {isVerifyingCode ? 'Verifying...' : 'Verify code'}
+                    {isVerifyingCode ? 'Verifying...' : 'Verify and continue'}
+                  </Button>
+                  <Button type="button" variant="ghost" className="w-full" onClick={resetRegistrationFlow}>
+                    Use a different email
                   </Button>
                 </Field>
               </>
@@ -396,16 +454,26 @@ export const RegisterPage: React.FC = () => {
 
             {step === 'profile' ? (
               <>
+                <Field>
+                  <Input value={email} readOnly disabled className="opacity-100" />
+                  <FieldDescription>{handoffMessage ?? 'This verified email will be used for your new account.'}</FieldDescription>
+                </Field>
+
                 <Field data-invalid={fieldErrors.nickname ? true : undefined}>
                   <FieldLabel htmlFor={nicknameId} className="select-none">Nickname</FieldLabel>
                   <Input
                     id={nicknameId}
+                    name="register-nickname"
                     type="text"
                     value={nickname}
                     onChange={(event) => {
                       setNickname(event.target.value);
                       clearError('nickname');
                     }}
+                    autoComplete="off"
+                    data-1p-ignore="true"
+                    data-form-type="other"
+                    data-lpignore="true"
                     aria-invalid={fieldErrors.nickname ? true : undefined}
                     placeholder="How should we call you?"
                   />
@@ -420,6 +488,7 @@ export const RegisterPage: React.FC = () => {
                         <div className="relative">
                           <Input
                             id={passwordId}
+                            name="register-password"
                             type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(event) => {
@@ -428,6 +497,10 @@ export const RegisterPage: React.FC = () => {
                             }}
                             onFocus={() => setIsPasswordFocused(true)}
                             onBlur={() => setIsPasswordFocused(false)}
+                            autoComplete="new-password"
+                            data-1p-ignore="true"
+                            data-form-type="other"
+                            data-lpignore="true"
                             aria-invalid={fieldErrors.password ? true : undefined}
                             placeholder="Create a password"
                             className="pr-10"
@@ -455,12 +528,17 @@ export const RegisterPage: React.FC = () => {
                   <div className="relative">
                     <Input
                       id={confirmPasswordId}
+                      name="register-confirm-password"
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(event) => {
                         setConfirmPassword(event.target.value);
                         clearError('confirmPassword');
                       }}
+                      autoComplete="new-password"
+                      data-1p-ignore="true"
+                      data-form-type="other"
+                      data-lpignore="true"
                       aria-invalid={fieldErrors.confirmPassword ? true : undefined}
                       placeholder="Confirm your password"
                       className="pr-10"
@@ -477,9 +555,12 @@ export const RegisterPage: React.FC = () => {
                   {fieldErrors.confirmPassword ? <FieldDescription className="text-destructive">{fieldErrors.confirmPassword}</FieldDescription> : null}
                 </Field>
 
-                <Field>
+                <Field className="flex flex-col gap-2">
                   <Button className="w-full" type="submit" disabled={isCompletingRegistration}>
                     {isCompletingRegistration ? 'Creating account...' : 'Create account'}
+                  </Button>
+                  <Button type="button" variant="ghost" className="w-full" onClick={resetRegistrationFlow}>
+                    Start again with a different email
                   </Button>
                 </Field>
               </>

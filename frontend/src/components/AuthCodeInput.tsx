@@ -1,6 +1,6 @@
-// input:  [shadcn field/input-otp primitives, digit-only OTP pattern, and controlled value/error props]
+// input:  [shadcn field/input-otp primitives, digit-only OTP pattern, optional browser-autofill suppression props, and controlled value/error props]
 // output: [`AuthCodeInput` controlled six-digit auth-code field component]
-// pos:    [Shared auth subcomponent for email-code entry across register, login, and password-reset flows]
+// pos:    [Shared auth subcomponent for email-code entry across register, login, and password-reset flows with optional browser-autofill suppression]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -27,6 +27,7 @@ type AuthCodeInputProps = {
   description?: string;
   error?: string | null;
   disabled?: boolean;
+  autoComplete?: string;
 };
 
 export const AuthCodeInput = ({
@@ -36,6 +37,7 @@ export const AuthCodeInput = ({
   description,
   error,
   disabled = false,
+  autoComplete,
 }: AuthCodeInputProps) => (
   <Field data-invalid={error ? true : undefined}>
     <FieldLabel className="select-none">{label}</FieldLabel>
@@ -45,10 +47,14 @@ export const AuthCodeInput = ({
       maxLength={6}
       pattern={REGEXP_ONLY_DIGITS}
       inputMode="numeric"
+      autoComplete={autoComplete}
       aria-invalid={error ? true : undefined}
       disabled={disabled}
       containerClassName="w-full justify-center"
       className="w-full"
+      data-1p-ignore="true"
+      data-form-type="other"
+      data-lpignore="true"
     >
       <InputOTPGroup className="w-full">
         <InputOTPSlot index={0} className="h-11 min-w-0 flex-1 text-base" />
