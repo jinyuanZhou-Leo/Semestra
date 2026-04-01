@@ -203,11 +203,8 @@ export const SettingsPage: React.FC = () => {
                 }
             });
 
-            const prefersDark = themeMode === "dark"
-                || (themeMode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-
             google.accounts.id.renderButton(googleLinkRef.current, {
-                theme: prefersDark ? 'filled_black' : 'outline',
+                theme: 'outline',
                 size: 'large',
                 text: 'continue_with',
                 shape: 'pill',
@@ -222,7 +219,7 @@ export const SettingsPage: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [googleClientId, refreshUser, themeMode, user]);
+    }, [googleClientId, refreshUser, user]);
 
     // Warn on browser refresh/close
     useEffect(() => {
@@ -423,9 +420,6 @@ export const SettingsPage: React.FC = () => {
             return;
         }
         setDeleteAccountFinalDialogOpen(open);
-        if (!open) {
-            setDeleteAccountDialogOpen(true);
-        }
     }, [isDeletingAccount]);
 
     const avatarInitial = (user?.email?.charAt(0).toUpperCase() || "U").trim();
@@ -582,7 +576,7 @@ export const SettingsPage: React.FC = () => {
                                                 <AlertDialogDescription>
                                                     <span className="font-medium text-destructive">This action cannot be undone.</span>{" "}
                                                     Your programs, semesters, courses, LMS connections, saved resources, and account access will be{" "}
-                                                    <span className="font-medium text-destructive">removed permanently.</span>
+                                                    <span className="font-medium text-destructive">removed PERMANENTLY.</span>
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
 
@@ -610,10 +604,7 @@ export const SettingsPage: React.FC = () => {
                                                 <AlertDialogCancel disabled={isDeletingAccount}>Cancel</AlertDialogCancel>
                                                 <Button
                                                     variant="destructive"
-                                                    onClick={() => {
-                                                        setDeleteAccountDialogOpen(false);
-                                                        setDeleteAccountFinalDialogOpen(true);
-                                                    }}
+                                                    onClick={() => setDeleteAccountFinalDialogOpen(true)}
                                                     disabled={!hasMatchedDeleteConfirmationText || isDeletingAccount}
                                                 >
                                                     Delete Account
@@ -636,15 +627,7 @@ export const SettingsPage: React.FC = () => {
                                             </AlertDialogHeader>
 
                                             <AlertDialogFooter>
-                                                <AlertDialogCancel
-                                                    disabled={isDeletingAccount}
-                                                    onClick={() => {
-                                                        setDeleteAccountFinalDialogOpen(false);
-                                                        setDeleteAccountDialogOpen(true);
-                                                    }}
-                                                >
-                                                    Back
-                                                </AlertDialogCancel>
+                                                <AlertDialogCancel disabled={isDeletingAccount}>Back</AlertDialogCancel>
                                                 <Button
                                                     variant="destructive"
                                                     onClick={handleDeleteAccount}
