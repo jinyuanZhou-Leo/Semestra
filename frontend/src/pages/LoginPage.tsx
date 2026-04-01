@@ -106,13 +106,6 @@ export const LoginPage: React.FC = () => {
     () => consumeAuthRedirectTarget(loginRedirectSource, '/'),
     [loginRedirectSource],
   );
-  const authPanelTransition = {
-    type: 'spring' as const,
-    stiffness: 260,
-    damping: 30,
-    mass: 0.8,
-  };
-
   useEffect(() => {
     document.documentElement.dataset.authPage = 'true';
     return () => {
@@ -406,40 +399,34 @@ export const LoginPage: React.FC = () => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={authPanelTransition}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
       onAnimationComplete={() => setIsGlassReady(true)}
       className="w-full max-w-xs"
     >
       <div className="flex flex-col gap-6">
-        <motion.form layout noValidate onSubmit={handleAuthSubmit} className="flex flex-col gap-6">
+        <form noValidate onSubmit={handleAuthSubmit} className="flex flex-col gap-6">
           <FieldGroup>
             <div className="flex flex-col items-center gap-1 text-center">
               <h1 className="select-none text-2xl font-bold">
-                {mode === 'password'
-                  ? 'Sign in to Semestra'
+                {mode === 'password' || emailCodeStep === 'verified-login'
+                  ? 'Login to your account'
                   : emailCodeStep === 'otp'
                     ? 'Check your inbox'
-                    : emailCodeStep === 'verified-login'
-                      ? 'Sign in with your verified email'
-                      : 'Continue signing in with email'}
+                    : 'Login to your account'}
               </h1>
               <p className="select-none text-sm text-muted-foreground">
-                {mode === 'password'
-                  ? 'Use your password, email, or Google to access your existing account.'
-                  : emailCodeStep === 'otp'
-                    ? 'Enter the 6-digit code to verify this email before signing in.'
-                    : emailCodeStep === 'verified-login'
-                      ? 'Your email is verified. Confirm the sign-in to continue.'
-                      : 'Use your email if you prefer a passwordless sign-in flow.'}
+                {mode === 'email-code' && emailCodeStep === 'otp'
+                  ? 'Enter your verification code.'
+                  : 'Use your password or an email code.'}
               </p>
             </div>
 
             <Tabs value={mode} onValueChange={(value) => setMode(value as 'password' | 'email-code')}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="password">Password</TabsTrigger>
-                <TabsTrigger value="email-code">Email</TabsTrigger>
+                <TabsTrigger value="email-code">Email Code</TabsTrigger>
               </TabsList>
 
               <TabsContent value="password" className="mt-4 flex flex-col gap-4">
@@ -529,11 +516,7 @@ export const LoginPage: React.FC = () => {
                       />
                       {fieldErrors.email ? (
                         <FieldDescription className="text-destructive">{fieldErrors.email}</FieldDescription>
-                      ) : (
-                        <FieldDescription>
-                          We&apos;ll send a 6-digit verification code to this email address.
-                        </FieldDescription>
-                      )}
+                      ) : null}
                     </Field>
 
                     <Field>
@@ -549,7 +532,7 @@ export const LoginPage: React.FC = () => {
 
                     <Field>
                       <Button type="submit" className="w-full" disabled={isSendingCode}>
-                        {isSendingCode ? 'Sending code...' : 'Continue with email'}
+                        {isSendingCode ? 'Sending code...' : 'Continue with email code'}
                       </Button>
                     </Field>
                   </>
@@ -586,13 +569,7 @@ export const LoginPage: React.FC = () => {
 
                     <Field>
                       <Button type="submit" className="w-full" disabled={isCodeLoading}>
-                        {isCodeLoading ? 'Verifying...' : 'Verify and continue'}
-                      </Button>
-                    </Field>
-
-                    <Field>
-                      <Button type="button" variant="ghost" className="w-full" onClick={resetEmailFlow}>
-                        Use a different email
+                        {isCodeLoading ? 'Verifying...' : 'Verify code'}
                       </Button>
                     </Field>
                   </>
@@ -618,13 +595,7 @@ export const LoginPage: React.FC = () => {
 
                     <Field>
                       <Button type="submit" className="w-full" disabled={isVerifiedLoginLoading}>
-                        {isVerifiedLoginLoading ? 'Signing in...' : 'Sign in now'}
-                      </Button>
-                    </Field>
-
-                    <Field>
-                      <Button type="button" variant="ghost" className="w-full" onClick={resetEmailFlow}>
-                        Try another email
+                        {isVerifiedLoginLoading ? 'Signing in...' : 'Sign in'}
                       </Button>
                     </Field>
                   </>
@@ -659,11 +630,11 @@ export const LoginPage: React.FC = () => {
 
             <Field>
               <FieldDescription className="px-6 text-center">
-                New to Semestra? <Link to="/register" viewTransition>Create an account</Link>
+                Don&apos;t have an account? <Link to="/register" viewTransition>Create one</Link>
               </FieldDescription>
             </Field>
           </FieldGroup>
-        </motion.form>
+        </form>
       </div>
     </motion.div>
   );

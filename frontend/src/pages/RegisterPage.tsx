@@ -76,7 +76,6 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [verificationToken, setVerificationToken] = useState(prefilledVerificationToken);
-  const [handoffMessage, setHandoffMessage] = useState(registerLocationState?.message ?? null as string | null);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({
     email: null as string | null,
@@ -103,13 +102,6 @@ export const RegisterPage: React.FC = () => {
   const nicknameId = useId();
   const passwordId = useId();
   const confirmPasswordId = useId();
-  const authPanelTransition = {
-    type: 'spring' as const,
-    stiffness: 260,
-    damping: 30,
-    mass: 0.8,
-  };
-
   useEffect(() => {
     document.documentElement.dataset.authPage = 'true';
     return () => {
@@ -212,7 +204,6 @@ export const RegisterPage: React.FC = () => {
     setPassword('');
     setConfirmPassword('');
     setVerificationToken('');
-    setHandoffMessage(null);
     setStep('email');
     setFieldErrors((current) => ({
       ...current,
@@ -243,7 +234,6 @@ export const RegisterPage: React.FC = () => {
       setEmail(normalizedEmail);
       setCode('');
       setVerificationToken('');
-      setHandoffMessage(null);
       setCooldownRemaining(response.data.resend_in_seconds ?? 60);
       setStep('code');
       setFieldErrors((current) => ({
@@ -284,7 +274,6 @@ export const RegisterPage: React.FC = () => {
         return;
       }
       setVerificationToken(response.data.verification_token);
-      setHandoffMessage('Your email is verified. Finish creating your account.');
       setStep('profile');
       setFieldErrors((current) => ({
         ...current,
@@ -350,15 +339,14 @@ export const RegisterPage: React.FC = () => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={authPanelTransition}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
       onAnimationComplete={() => setIsGlassReady(true)}
       className="w-full max-w-xs"
     >
       <div className="flex flex-col gap-6">
-        <motion.form
-          layout
+        <form
           noValidate
           autoComplete="off"
           data-1p-ignore="true"
@@ -369,14 +357,14 @@ export const RegisterPage: React.FC = () => {
           <FieldGroup>
             <div className="flex flex-col items-center gap-1 text-center">
               <h1 className="select-none text-2xl font-bold">
-                {step === 'email' ? 'Create your account' : step === 'code' ? 'Check your inbox' : 'Finish creating your account'}
+                {step === 'email' ? 'Create your account' : step === 'code' ? 'Check your inbox' : 'Finish your profile'}
               </h1>
               <p className="select-none text-sm text-muted-foreground">
                 {step === 'email'
-                  ? 'Use your email or Google to start a brand-new Semestra account.'
+                  ? 'Start with your email.'
                   : step === 'code'
-                    ? 'Verify your email before we open your account profile.'
-                    : 'Choose your name and password to finish setting up the account.'}
+                    ? 'Enter your verification code.'
+                    : 'Choose your name and password.'}
               </p>
             </div>
 
@@ -398,16 +386,12 @@ export const RegisterPage: React.FC = () => {
                   />
                   {fieldErrors.email ? (
                     <FieldDescription className="text-destructive">{fieldErrors.email}</FieldDescription>
-                  ) : (
-                    <FieldDescription>
-                      We&apos;ll verify this email before collecting your profile details.
-                    </FieldDescription>
-                  )}
+                  ) : null}
                 </Field>
 
                 <Field>
                   <Button className="w-full" type="button" onClick={handleSendCode} disabled={isSendingCode || isGoogleLoading}>
-                    {isSendingCode ? 'Sending code...' : 'Continue with email'}
+                    {isSendingCode ? 'Sending code...' : 'Send verification code'}
                   </Button>
                 </Field>
               </>
@@ -441,12 +425,9 @@ export const RegisterPage: React.FC = () => {
                   description="Verification codes expire after 10 minutes."
                   disabled={isVerifyingCode}
                 />
-                <Field className="flex flex-col gap-2">
+                <Field>
                   <Button type="button" className="w-full" onClick={handleVerifyCode} disabled={isVerifyingCode}>
-                    {isVerifyingCode ? 'Verifying...' : 'Verify and continue'}
-                  </Button>
-                  <Button type="button" variant="ghost" className="w-full" onClick={resetRegistrationFlow}>
-                    Use a different email
+                    {isVerifyingCode ? 'Verifying...' : 'Verify code'}
                   </Button>
                 </Field>
               </>
@@ -454,11 +435,6 @@ export const RegisterPage: React.FC = () => {
 
             {step === 'profile' ? (
               <>
-                <Field>
-                  <Input value={email} readOnly disabled className="opacity-100" />
-                  <FieldDescription>{handoffMessage ?? 'This verified email will be used for your new account.'}</FieldDescription>
-                </Field>
-
                 <Field data-invalid={fieldErrors.nickname ? true : undefined}>
                   <FieldLabel htmlFor={nicknameId} className="select-none">Nickname</FieldLabel>
                   <Input
@@ -555,12 +531,9 @@ export const RegisterPage: React.FC = () => {
                   {fieldErrors.confirmPassword ? <FieldDescription className="text-destructive">{fieldErrors.confirmPassword}</FieldDescription> : null}
                 </Field>
 
-                <Field className="flex flex-col gap-2">
+                <Field>
                   <Button className="w-full" type="submit" disabled={isCompletingRegistration}>
                     {isCompletingRegistration ? 'Creating account...' : 'Create account'}
-                  </Button>
-                  <Button type="button" variant="ghost" className="w-full" onClick={resetRegistrationFlow}>
-                    Start again with a different email
                   </Button>
                 </Field>
               </>
@@ -600,7 +573,7 @@ export const RegisterPage: React.FC = () => {
               </FieldDescription>
             </Field>
           </FieldGroup>
-        </motion.form>
+        </form>
       </div>
     </motion.div>
   );
