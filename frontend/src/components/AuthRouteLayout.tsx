@@ -1,6 +1,6 @@
 // input:  [router outlet/link primitives, shared auth artwork panel, theme toggle, and Semestra brand asset]
 // output: [`AuthRouteLayout` shared public-auth route shell component]
-// pos:    [Route layout that keeps the auth split-screen chrome and artwork panel mounted while login/register forms swap inside the outlet]
+// pos:    [Route layout that keeps the auth split-screen chrome and artwork panel mounted while the unified public-auth entry and password-reset forms swap inside the outlet, with a larger top-left Semestra brand mark]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,9 +18,9 @@ export const AuthRouteLayout: React.FC = () => (
         <div className="flex flex-col gap-4 p-6 md:p-10">
             <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-1 justify-center md:justify-start">
-                    <Link to="/landing" className="inline-flex select-none items-center gap-1.5 font-medium leading-none">
-                        <img src={semestraLogoRect} alt="Semestra" className="size-6 shrink-0 rounded-md object-cover" />
-                        <span className="pt-px">Semestra</span>
+                    <Link to="/landing" className="inline-flex select-none items-center gap-2 font-medium leading-none">
+                        <img src={semestraLogoRect} alt="Semestra" className="size-8 shrink-0 rounded-lg object-cover" />
+                        <span className="pt-px text-[1.0625rem] font-semibold tracking-tight">Semestra</span>
                     </Link>
                 </div>
                 <ThemeToggle />

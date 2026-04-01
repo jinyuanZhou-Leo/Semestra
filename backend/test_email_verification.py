@@ -171,6 +171,43 @@ class EmailVerificationFlowTests(unittest.TestCase):
         resend_payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(resend_payload["template"]["id"], "semestra-create-account")
 
+    @patch("email_verification.EMAIL_SEND_LIMITS_ENABLED", False)
+    @patch("email_verification.AUTH_EMAIL_FROM", "Semestra <no-reply@auth.example.com>")
+    @patch("email_verification.RESEND_API_KEY", "re_test_123")
+    @patch("email_verification._generate_verification_code", return_value="334455")
+    @patch("email_verification.requests.post", return_value=_MockResendResponse())
+    def test_development_disables_send_cooldown_for_continue_flow(self, _mock_post, _mock_code) -> None:
+        crud.create_user(
+            self.db,
+            schemas.UserCreate(email="cooldown@example.com", nickname="Cooldown", password="Password123"),
+            email_verified_at="2026-03-31T00:00:00+00:00",
+        )
+
+        first_response = api_auth.send_auth_email_code(
+            schemas.EmailCodeSendRequest(email="cooldown@example.com", purpose="continue"),
+            self.request,
+            self.db,
+        )
+        second_response = api_auth.send_auth_email_code(
+            schemas.EmailCodeSendRequest(email="cooldown@example.com", purpose="continue"),
+            self.request,
+            self.db,
+        )
+
+        self.assertTrue(first_response.ok)
+        self.assertTrue(second_response.ok)
+        self.assertEqual(first_response.resend_in_seconds, 0)
+        self.assertEqual(second_response.resend_in_seconds, 0)
+        active_challenges = (
+            self.db.query(models.EmailVerificationChallenge)
+            .filter_by(email="cooldown@example.com", invalidated_at=None, used_at=None)
+            .count()
+        )
+        self.assertEqual(
+            active_challenges,
+            1,
+        )
+
     def test_login_send_code_for_unknown_user_returns_generic_success_without_challenge(self) -> None:
         response = api_auth.send_auth_email_code(
             schemas.EmailCodeSendRequest(email="missing@example.com", purpose="login"),

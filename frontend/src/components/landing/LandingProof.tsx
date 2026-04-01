@@ -171,7 +171,7 @@ export const LandingProof = ({ reducedMotion }: LandingProofProps) => {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Button asChild size="lg" className="h-11 rounded-full px-6">
-                  <Link to="/register">
+                  <Link to="/login">
                     Start for free
                     <ArrowRight className="h-4 w-4" />
                   </Link>

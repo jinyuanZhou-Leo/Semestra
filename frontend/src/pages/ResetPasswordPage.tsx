@@ -77,10 +77,8 @@ export const ResetPasswordPage: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const authPanelTransition = {
-    type: 'spring' as const,
-    stiffness: 260,
-    damping: 30,
-    mass: 0.8,
+    duration: 0.2,
+    ease: [0.22, 1, 0.36, 1] as const,
   };
 
   useEffect(() => {
@@ -212,7 +210,7 @@ export const ResetPasswordPage: React.FC = () => {
       className="w-full max-w-xs"
     >
       <div className="flex flex-col gap-6">
-        <motion.form layout noValidate onSubmit={handleResetPassword} className="flex flex-col gap-6">
+        <motion.form noValidate onSubmit={handleResetPassword} className="flex flex-col gap-6">
           <FieldGroup>
             <div className="flex flex-col items-center gap-1 text-center">
               <h1 className="select-none text-2xl font-bold">
@@ -245,7 +243,7 @@ export const ResetPasswordPage: React.FC = () => {
 
                 <Field>
                   <Button className="w-full" type="button" onClick={handleSendCode} disabled={isSendingCode}>
-                    {isSendingCode ? 'Sending code...' : 'Send verification code'}
+                    {isSendingCode ? <div className="size-4 animate-spin rounded-full border-2 border-current/25 border-t-current" /> : 'Send verification code'}
                   </Button>
                 </Field>
               </>
@@ -265,7 +263,7 @@ export const ResetPasswordPage: React.FC = () => {
                     onClick={handleSendCode}
                     disabled={isSendingCode || cooldownRemaining > 0}
                   >
-                    {isSendingCode ? 'Sending...' : cooldownRemaining > 0 ? `Resend in ${cooldownRemaining}s` : 'Resend'}
+                    {isSendingCode ? <div className="size-3.5 animate-spin rounded-full border-2 border-current/25 border-t-current" /> : cooldownRemaining > 0 ? `${cooldownRemaining}s` : 'Resend'}
                   </Button>
                 </div>
                 <AuthCodeInput

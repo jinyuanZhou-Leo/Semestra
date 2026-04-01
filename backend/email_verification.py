@@ -47,8 +47,9 @@ AUTH_EMAIL_REPLY_TO = os.getenv("AUTH_EMAIL_REPLY_TO", "").strip()
 AUTH_EMAIL_TEMPLATE_REGISTER = os.getenv("AUTH_EMAIL_TEMPLATE_REGISTER", "semestra-create-account").strip()
 AUTH_EMAIL_TEMPLATE_LOGIN = os.getenv("AUTH_EMAIL_TEMPLATE_LOGIN", "semestra-login").strip()
 AUTH_EMAIL_TEMPLATE_RESET_PASSWORD = os.getenv("AUTH_EMAIL_TEMPLATE_RESET_PASSWORD", "semestra-pw-reset").strip()
+EMAIL_SEND_LIMITS_ENABLED = os.getenv("ENVIRONMENT", "development") != "development"
 
-EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$") 
 
 
 class EmailVerificationError(Exception):
@@ -61,6 +62,12 @@ class EmailVerificationError(Exception):
 
 def _now_utc() -> datetime:
     return datetime.now(UTC)
+
+
+def get_resend_cooldown_seconds() -> int:
+    if not EMAIL_SEND_LIMITS_ENABLED:
+        return 0
+    return VERIFICATION_CODE_RESEND_SECONDS
 
 
 def _now_utc_iso() -> str:
@@ -167,6 +174,8 @@ def _invalidate_active_continue_challenges(db: Session, *, email: str) -> None:
 
 
 def _ensure_send_not_cooling_down(db: Session, *, email: str, purpose: VerificationPurpose) -> None:
+    if not EMAIL_SEND_LIMITS_ENABLED:
+        return
     latest = _get_latest_challenge(db, email=email, purpose=purpose)
     if latest is None or not latest.last_sent_at:
         return
@@ -183,6 +192,8 @@ def _ensure_send_not_cooling_down(db: Session, *, email: str, purpose: Verificat
 
 
 def _ensure_continue_send_not_cooling_down(db: Session, *, email: str) -> None:
+    if not EMAIL_SEND_LIMITS_ENABLED:
+        return
     latest_candidates = [
         challenge
         for purpose in CONTINUE_PURPOSES
@@ -205,6 +216,8 @@ def _ensure_continue_send_not_cooling_down(db: Session, *, email: str) -> None:
 
 
 def _enforce_send_rate_limits(db: Session, *, request: Request, email: str) -> None:
+    if not EMAIL_SEND_LIMITS_ENABLED:
+        return
     client_ip = _get_client_ip(request)
     try:
         auth.enforce_rate_limit(
@@ -228,6 +241,8 @@ def _enforce_send_rate_limits(db: Session, *, request: Request, email: str) -> N
 
 
 def _record_send_success(db: Session, *, request: Request, email: str) -> None:
+    if not EMAIL_SEND_LIMITS_ENABLED:
+        return
     client_ip = _get_client_ip(request)
     auth.register_rate_limit_failure(
         db,

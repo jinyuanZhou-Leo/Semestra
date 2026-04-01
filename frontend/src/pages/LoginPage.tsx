@@ -1,6 +1,6 @@
-// input:  [cookie-session login actions, password/email-code auth endpoints, auth redirect restoration, optional prefilled auth-route state, theme hooks, shared auth OTP input, shared email-domain autocomplete input, Google identity button renderer, and shared auth-route shell presentation]
+// input:  [cookie-session login actions, password/email-code auth endpoints, auth redirect restoration, optional prefilled auth-route state, password policy helpers, theme hooks, shared auth OTP input, shared email-domain autocomplete input, browser-autofill suppression attributes, Google identity button renderer, and shared auth-route shell presentation]
 // output: [`LoginPage` route component]
-// pos:    [Dedicated sign-in page that keeps password and email-code login intent explicit, handles verified existing-account continuation, and preserves post-login route restoration]
+// pos:    [Unified public auth route that starts from a single continue screen, keeps password and email verification as separate linear branches, animates direction-aware step-to-step auth transitions, and finishes account setup only after verified email ownership]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,14 +9,15 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion } from 'framer-motion';
-import { Eye, EyeOff } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronLeft, Eye, EyeOff, KeyRound, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '../contexts/AuthContext';
 import { consumeAuthRedirectTarget } from '../utils/authRedirect';
 import { renderGoogleIdentityButton } from '../utils/googleIdentity';
 import { useTheme } from '../components/ThemeProvider';
+import { getPasswordRuleError, passwordRuleHint } from '../utils/passwordRules';
 import { AuthCodeInput } from '@/components/AuthCodeInput';
 import { EmailDomainInput } from '@/components/EmailDomainInput';
 import { Button } from '@/components/ui/button';
@@ -29,7 +30,13 @@ import {
   FieldSeparator,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import type { Variants } from 'framer-motion';
 
 type LoginLocationState = {
   from?: {
@@ -48,7 +55,30 @@ type EmailCodeVerifyResponse = {
   next_step: 'login' | 'register' | 'reset_password';
 };
 
-type EmailCodeStep = 'email' | 'otp' | 'verified-login';
+type AuthView = 'entry' | 'password' | 'email' | 'code' | 'profile';
+
+const AUTH_VIEW_ORDER: Record<AuthView, number> = {
+  entry: 0,
+  password: 1,
+  email: 1,
+  code: 2,
+  profile: 3,
+};
+
+const authStepVariants: Variants = {
+  enter: (direction: number) => ({
+    opacity: 0,
+    x: direction * 24,
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+  },
+  exit: (direction: number) => ({
+    opacity: 0,
+    x: direction * -24,
+  }),
+};
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -63,6 +93,19 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const getInitialView = (state: LoginLocationState | null): AuthView => {
+  if (typeof state?.verificationToken === 'string' && state.verificationToken) {
+    return 'profile';
+  }
+  if (state?.mode === 'password') {
+    return 'password';
+  }
+  if (state?.mode === 'email-code') {
+    return 'email';
+  }
+  return 'entry';
+};
+
 export const LoginPage: React.FC = () => {
   const location = useLocation();
   const loginLocationState = (location.state as LoginLocationState | null) ?? null;
@@ -70,26 +113,31 @@ export const LoginPage: React.FC = () => {
   const prefilledVerificationToken = typeof loginLocationState?.verificationToken === 'string'
     ? loginLocationState.verificationToken
     : '';
-  const prefilledMode = prefilledVerificationToken || loginLocationState?.mode === 'email-code' ? 'email-code' : 'password';
-  const [mode, setMode] = useState<'password' | 'email-code'>(prefilledMode);
-  const [emailCodeStep, setEmailCodeStep] = useState<EmailCodeStep>(prefilledVerificationToken ? 'verified-login' : 'email');
+  const [view, setView] = useState<AuthView>(getInitialView(loginLocationState));
   const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [verificationToken, setVerificationToken] = useState(prefilledVerificationToken);
   const [rememberMe, setRememberMe] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
-  const [handoffMessage, setHandoffMessage] = useState(loginLocationState?.message ?? null as string | null);
+  const [flowMessage, setFlowMessage] = useState(loginLocationState?.message ?? null as string | null);
+  const [transitionDirection, setTransitionDirection] = useState(1);
   const [fieldErrors, setFieldErrors] = useState({
     email: null as string | null,
     password: null as string | null,
     code: null as string | null,
+    nickname: null as string | null,
+    confirmPassword: null as string | null,
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [isPasswordLoading, setIsPasswordLoading] = useState(false);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isCodeLoading, setIsCodeLoading] = useState(false);
-  const [isVerifiedLoginLoading, setIsVerifiedLoginLoading] = useState(false);
+  const [isCompletingRegistration, setIsCompletingRegistration] = useState(false);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const [isGlassReady, setIsGlassReady] = useState(false);
   const { login } = useAuth();
@@ -100,12 +148,24 @@ export const LoginPage: React.FC = () => {
   const emailId = useId();
   const passwordId = useId();
   const rememberMeId = useId();
-  const emailRememberMeId = useId();
+  const profileEmailId = useId();
+  const nicknameId = useId();
+  const profilePasswordId = useId();
+  const confirmPasswordId = useId();
   const loginRedirectSource = loginLocationState?.from;
   const resolvePostLoginTarget = useCallback(
     () => consumeAuthRedirectTarget(loginRedirectSource, '/'),
     [loginRedirectSource],
   );
+  const authPanelTransition = {
+    duration: 0.2,
+    ease: [0.22, 1, 0.36, 1] as const,
+  };
+  const authStepTransition = {
+    duration: 0.18,
+    ease: 'easeInOut' as const,
+  };
+
   useEffect(() => {
     document.documentElement.dataset.authPage = 'true';
     return () => {
@@ -133,22 +193,7 @@ export const LoginPage: React.FC = () => {
   }, [themeMode]);
 
   useEffect(() => {
-    if (mode !== 'email-code') {
-      setFieldErrors((current) => ({
-        ...current,
-        password: null,
-        code: null,
-      }));
-      return;
-    }
-    setFieldErrors((current) => ({
-      ...current,
-      password: null,
-    }));
-  }, [mode]);
-
-  useEffect(() => {
-    if (!googleClientId || !isGlassReady) {
+    if (!googleClientId || !isGlassReady || view !== 'entry') {
       return;
     }
 
@@ -159,6 +204,7 @@ export const LoginPage: React.FC = () => {
         toast.error('Google sign-in failed. Please try again.');
         return;
       }
+
       try {
         await axios.post('/api/auth/google', { id_token: response.credential });
         await login();
@@ -173,6 +219,7 @@ export const LoginPage: React.FC = () => {
       if (cancelled || !buttonContainer) {
         return;
       }
+
       try {
         const buttonWidth = Math.floor(buttonContainer.getBoundingClientRect().width);
         await renderGoogleIdentityButton(
@@ -207,21 +254,40 @@ export const LoginPage: React.FC = () => {
       cancelled = true;
       setIsGoogleReady(false);
     };
-  }, [googleButtonTheme, googleClientId, isGlassReady, login, navigate, resolvePostLoginTarget]);
+  }, [googleButtonTheme, googleClientId, isGlassReady, login, navigate, resolvePostLoginTarget, view]);
 
   const clearError = (key: keyof typeof fieldErrors) => {
     setFieldErrors((current) => ({ ...current, [key]: null }));
   };
 
-  const resetEmailFlow = () => {
+  const navigateAuthView = (nextView: AuthView) => {
+    setTransitionDirection(AUTH_VIEW_ORDER[nextView] >= AUTH_VIEW_ORDER[view] ? 1 : -1);
+    setView(nextView);
+  };
+
+  const resetEmailBranch = () => {
     setCode('');
+    setNickname('');
+    setPassword('');
+    setConfirmPassword('');
     setVerificationToken('');
-    setEmailCodeStep('email');
-    setHandoffMessage(null);
+    setFlowMessage(null);
     setFieldErrors((current) => ({
       ...current,
       code: null,
+      password: null,
+      nickname: null,
+      confirmPassword: null,
     }));
+  };
+
+  const completeEmailLogin = async (token: string) => {
+    await axios.post('/api/auth/login/email', {
+      verification_token: token,
+      remember_me: rememberMe,
+    });
+    await login();
+    navigate(resolvePostLoginTarget(), { replace: true });
   };
 
   const handlePasswordSubmit = async (event: React.FormEvent) => {
@@ -231,6 +297,8 @@ export const LoginPage: React.FC = () => {
       email: null as string | null,
       password: null as string | null,
       code: null as string | null,
+      nickname: null as string | null,
+      confirmPassword: null as string | null,
     };
 
     if (!normalizedEmail) {
@@ -292,9 +360,9 @@ export const LoginPage: React.FC = () => {
       setEmail(normalizedEmail);
       setCode('');
       setVerificationToken('');
-      setHandoffMessage(null);
+      setFlowMessage(null);
       setCooldownRemaining(response.data.resend_in_seconds ?? 60);
-      setEmailCodeStep('otp');
+      navigateAuthView('code');
       setFieldErrors((current) => ({
         ...current,
         email: null,
@@ -329,107 +397,253 @@ export const LoginPage: React.FC = () => {
         purpose: 'continue',
         code,
       });
+
       if (verifyResponse.data.next_step === 'register') {
-        navigate('/register', {
-          replace: true,
-          state: {
-            email: normalizedEmail,
-            verificationToken: verifyResponse.data.verification_token,
-            message: 'No account exists for this email yet. Finish creating one.',
-          },
-        });
+        setVerificationToken(verifyResponse.data.verification_token);
+        navigateAuthView('profile');
+        setFieldErrors((current) => ({
+          ...current,
+          code: null,
+        }));
         return;
       }
-      setVerificationToken(verifyResponse.data.verification_token);
-      setEmailCodeStep('verified-login');
-      setHandoffMessage('This email already has an account. Sign in to continue.');
-      setFieldErrors((current) => ({
-        ...current,
-        code: null,
-      }));
+
+      if (verifyResponse.data.next_step !== 'login') {
+        throw new Error('Unexpected auth continuation step.');
+      }
+
+      await completeEmailLogin(verifyResponse.data.verification_token);
     } catch (error) {
+      const message = getApiErrorMessage(error, 'Invalid or expired verification code.');
       setFieldErrors((current) => ({
         ...current,
-        code: getApiErrorMessage(error, 'Invalid or expired verification code.'),
+        code: message,
       }));
+
+      if (axios.isAxiosError(error) && error.response?.status === 400) {
+        return;
+      }
     } finally {
       setIsCodeLoading(false);
     }
   };
 
-  const handleVerifiedEmailLogin = async () => {
+  const handleCompleteRegistration = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const normalizedNickname = nickname.trim();
+    const nextErrors = {
+      email: null as string | null,
+      password: null as string | null,
+      code: null as string | null,
+      nickname: null as string | null,
+      confirmPassword: null as string | null,
+    };
+
     if (!verificationToken) {
-      toast.error('Your verified sign-in session expired. Start again with your email.');
-      resetEmailFlow();
+      toast.error('Your verification session expired. Start again with your email.');
+      resetEmailBranch();
+      navigateAuthView('email');
+      return;
+    }
+    if (!normalizedNickname) {
+      nextErrors.nickname = 'Enter your name.';
+    }
+    const passwordError = getPasswordRuleError(password);
+    if (passwordError) {
+      nextErrors.password = passwordError;
+    }
+    if (password !== confirmPassword) {
+      nextErrors.confirmPassword = 'Passwords do not match.';
+    }
+
+    setFieldErrors((current) => ({ ...current, ...nextErrors }));
+    if (nextErrors.nickname || nextErrors.password || nextErrors.confirmPassword) {
       return;
     }
 
-    setIsVerifiedLoginLoading(true);
+    setIsCompletingRegistration(true);
     try {
-      await axios.post('/api/auth/login/email', {
+      await axios.post('/api/auth/register/complete', {
         verification_token: verificationToken,
-        remember_me: rememberMe,
+        nickname: normalizedNickname,
+        password,
       });
       await login();
       navigate(resolvePostLoginTarget(), { replace: true });
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to sign in with this verified email.'));
+      toast.error(getApiErrorMessage(error, 'Failed to finish setting up your account.'));
     } finally {
-      setIsVerifiedLoginLoading(false);
+      setIsCompletingRegistration(false);
     }
   };
 
-  const handleAuthSubmit = (event: React.FormEvent) => {
-    if (mode === 'password') {
+  const handlePrimarySubmit = (event: React.FormEvent) => {
+    if (view === 'password') {
       void handlePasswordSubmit(event);
+      return;
+    }
+    if (view === 'profile') {
+      void handleCompleteRegistration(event);
+      return;
+    }
+    if (view === 'email') {
+      event.preventDefault();
+      void handleSendCode();
+      return;
+    }
+    if (view === 'code') {
+      event.preventDefault();
+      void handleEmailCodeVerify();
       return;
     }
 
     event.preventDefault();
-    if (emailCodeStep === 'email') {
-      void handleSendCode();
-      return;
-    }
-    if (emailCodeStep === 'otp') {
-      void handleEmailCodeVerify();
-      return;
-    }
-    void handleVerifiedEmailLogin();
   };
+
+  const headingContent = (() => {
+    switch (view) {
+      case 'password':
+        return {
+          title: 'Sign in with password',
+          subtitle: 'Enter your email and password to continue.',
+        };
+      case 'email':
+        return {
+          title: 'Continue with email',
+          subtitle: 'We will send a verification code to your email address.',
+        };
+      case 'code':
+        return {
+          title: 'Enter verification code',
+          subtitle: 'Enter the six-digit code we sent to your email address.',
+        };
+      case 'profile':
+        return {
+          title: 'Finish setting up your account',
+          subtitle: 'Choose your name and password to complete your account.',
+        };
+      case 'entry':
+      default:
+        return {
+          title: 'Continue to Semestra',
+          subtitle: 'Sign in or create your account with a secure sign-in method.',
+        };
+    }
+  })();
+
+  const showTopBack = view === 'password' || view === 'email';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: 'easeOut' }}
+      transition={authPanelTransition}
       onAnimationComplete={() => setIsGlassReady(true)}
       className="w-full max-w-xs"
     >
       <div className="flex flex-col gap-6">
-        <form noValidate onSubmit={handleAuthSubmit} className="flex flex-col gap-6">
+        <motion.form
+          noValidate
+          autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          onSubmit={handlePrimarySubmit}
+          className="flex flex-col gap-6"
+        >
           <FieldGroup>
-            <div className="flex flex-col items-center gap-1 text-center">
-              <h1 className="select-none text-2xl font-bold">
-                {mode === 'password' || emailCodeStep === 'verified-login'
-                  ? 'Login to your account'
-                  : emailCodeStep === 'otp'
-                    ? 'Check your inbox'
-                    : 'Login to your account'}
-              </h1>
-              <p className="select-none text-sm text-muted-foreground">
-                {mode === 'email-code' && emailCodeStep === 'otp'
-                  ? 'Enter your verification code.'
-                  : 'Use your password or an email code.'}
-              </p>
-            </div>
+            <AnimatePresence mode="wait" initial={false} custom={transitionDirection}>
+              <motion.div
+                key={view}
+                custom={transitionDirection}
+                variants={authStepVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={authStepTransition}
+                className="flex flex-col gap-6"
+              >
+                <div className="flex flex-col gap-3">
+                  {showTopBack ? (
+                    <div className="-ml-2 flex justify-start self-start">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          if (view === 'email') {
+                            resetEmailBranch();
+                          }
+                          navigateAuthView('entry');
+                        }}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Back
+                      </Button>
+                    </div>
+                  ) : null}
 
-            <Tabs value={mode} onValueChange={(value) => setMode(value as 'password' | 'email-code')}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="password">Password</TabsTrigger>
-                <TabsTrigger value="email-code">Email Code</TabsTrigger>
-              </TabsList>
+                  <div className="flex flex-col items-center gap-1 text-center">
+                    <h1 className="select-none whitespace-nowrap text-[1.375rem] font-bold tracking-tight">{headingContent.title}</h1>
+                    <p className="select-none whitespace-nowrap text-[13px] text-muted-foreground">{headingContent.subtitle}</p>
+                  </div>
+                </div>
 
-              <TabsContent value="password" className="mt-4 flex flex-col gap-4">
+                {view === 'entry' ? (
+                  <>
+                <Field>
+                  {googleClientId ? (
+                    <div className="relative h-11 w-full">
+                      <div
+                        ref={googleButtonRef}
+                        className={`h-11 w-full transition-opacity duration-200 ${isGoogleReady ? 'opacity-100' : 'opacity-0'}`}
+                      />
+                      {!isGoogleReady ? (
+                        <div className="pointer-events-none absolute inset-0 flex select-none items-center justify-center rounded-full border border-border bg-background px-3 text-sm text-muted-foreground transition-opacity duration-200">
+                          <div className="flex items-center gap-2">
+                            <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/80" />
+                            <span>Continue with Google</span>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <Button className="w-full" variant="outline" type="button" disabled>
+                      Google sign-in is not configured
+                    </Button>
+                  )}
+                </Field>
+
+                <FieldSeparator className="select-none">or</FieldSeparator>
+
+                <Field>
+                  <Button
+                    className="h-11 w-full justify-center gap-2.5 rounded-full border-border bg-background text-foreground hover:bg-muted/70"
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigateAuthView('email')}
+                  >
+                    <Mail className="h-4 w-4" />
+                    Continue with email
+                  </Button>
+                </Field>
+
+                <Field>
+                  <Button
+                    className="h-11 w-full justify-center gap-2.5 rounded-full border-border bg-background text-foreground hover:bg-muted/70"
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigateAuthView('password')}
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Sign in with password
+                  </Button>
+                </Field>
+                  </>
+                ) : null}
+
+                {view === 'password' ? (
+                  <>
                 <Field data-invalid={fieldErrors.email ? true : undefined}>
                   <FieldLabel htmlFor={emailId} className="select-none">Email</FieldLabel>
                   <EmailDomainInput
@@ -497,144 +711,228 @@ export const LoginPage: React.FC = () => {
                     {isPasswordLoading ? 'Signing in...' : 'Sign in'}
                   </Button>
                 </Field>
-              </TabsContent>
 
-              <TabsContent value="email-code" className="mt-4 flex flex-col gap-4">
-                {emailCodeStep === 'email' ? (
-                  <>
-                    <Field data-invalid={fieldErrors.email ? true : undefined}>
-                      <FieldLabel className="select-none">Email</FieldLabel>
-                      <EmailDomainInput
-                        type="email"
-                        value={email}
-                        onValueChange={(nextValue) => {
-                          setEmail(nextValue);
-                          clearError('email');
-                        }}
-                        aria-invalid={fieldErrors.email ? true : undefined}
-                        className="h-11"
-                      />
-                      {fieldErrors.email ? (
-                        <FieldDescription className="text-destructive">{fieldErrors.email}</FieldDescription>
-                      ) : null}
-                    </Field>
-
-                    <Field>
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          id={emailRememberMeId}
-                          checked={rememberMe}
-                          onCheckedChange={(checked) => setRememberMe(Boolean(checked))}
-                        />
-                        <FieldLabel htmlFor={emailRememberMeId} className="select-none">Keep me signed in</FieldLabel>
-                      </div>
-                    </Field>
-
-                    <Field>
-                      <Button type="submit" className="w-full" disabled={isSendingCode}>
-                        {isSendingCode ? 'Sending code...' : 'Continue with email code'}
-                      </Button>
-                    </Field>
                   </>
                 ) : null}
 
-                {emailCodeStep === 'otp' ? (
+                {view === 'email' ? (
                   <>
-                    <div className="flex min-w-0 items-center justify-between gap-3 text-sm">
-                      <p className="min-w-0 flex-1 truncate text-muted-foreground">
-                        Code sent to <span className="font-medium text-foreground">{email}</span>
-                      </p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={handleSendCode}
-                        disabled={isSendingCode || cooldownRemaining > 0}
-                      >
-                        {isSendingCode ? 'Sending...' : cooldownRemaining > 0 ? `Resend in ${cooldownRemaining}s` : 'Resend'}
-                      </Button>
-                    </div>
-
-                    <AuthCodeInput
-                      value={code}
-                      onChange={(value) => {
-                        setCode(value);
-                        clearError('code');
-                      }}
-                      error={fieldErrors.code}
-                      description="Verification codes expire after 10 minutes."
-                      disabled={isCodeLoading}
-                    />
-
-                    <Field>
-                      <Button type="submit" className="w-full" disabled={isCodeLoading}>
-                        {isCodeLoading ? 'Verifying...' : 'Verify code'}
-                      </Button>
-                    </Field>
-                  </>
-                ) : null}
-
-                {emailCodeStep === 'verified-login' ? (
-                  <>
-                    <Field>
-                      <Input value={email} readOnly disabled className="opacity-100" />
-                      <FieldDescription>{handoffMessage ?? 'This verified email is ready to sign in.'}</FieldDescription>
-                    </Field>
-
-                    <Field>
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          id={`${emailRememberMeId}-verified`}
-                          checked={rememberMe}
-                          onCheckedChange={(checked) => setRememberMe(Boolean(checked))}
-                        />
-                        <FieldLabel htmlFor={`${emailRememberMeId}-verified`} className="select-none">Keep me signed in</FieldLabel>
-                      </div>
-                    </Field>
-
-                    <Field>
-                      <Button type="submit" className="w-full" disabled={isVerifiedLoginLoading}>
-                        {isVerifiedLoginLoading ? 'Signing in...' : 'Sign in'}
-                      </Button>
-                    </Field>
-                  </>
-                ) : null}
-              </TabsContent>
-            </Tabs>
-
-            <FieldSeparator className="select-none">Or continue with</FieldSeparator>
-
-            <Field>
-              {googleClientId ? (
-                <div className="relative h-11 w-full">
-                  <div
-                    ref={googleButtonRef}
-                    className={`h-11 w-full transition-opacity duration-200 ${isGoogleReady ? 'opacity-100' : 'opacity-0'}`}
+                <Field data-invalid={fieldErrors.email ? true : undefined}>
+                  <FieldLabel htmlFor={emailId} className="select-none">Email</FieldLabel>
+                  <EmailDomainInput
+                    id={emailId}
+                    type="email"
+                    value={email}
+                    onValueChange={(nextValue) => {
+                      setEmail(nextValue);
+                      clearError('email');
+                    }}
+                    aria-invalid={fieldErrors.email ? true : undefined}
                   />
-                  {!isGoogleReady ? (
-                    <div className="pointer-events-none absolute inset-0 flex select-none items-center justify-center rounded-full border border-border bg-background px-3 text-sm text-muted-foreground transition-opacity duration-200">
-                      <div className="flex items-center gap-2">
-                        <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/80" />
-                        <span>Continue with Google</span>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <Button className="w-full" variant="outline" type="button" disabled>
-                  Google sign-in is not configured
-                </Button>
-              )}
-            </Field>
+                  {fieldErrors.email ? <FieldDescription className="text-destructive">{fieldErrors.email}</FieldDescription> : null}
+                </Field>
 
-            <Field>
-              <FieldDescription className="px-6 text-center">
-                Don&apos;t have an account? <Link to="/register" viewTransition>Create one</Link>
-              </FieldDescription>
-            </Field>
+                <Field>
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      id={`${rememberMeId}-email`}
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(Boolean(checked))}
+                    />
+                    <FieldLabel htmlFor={`${rememberMeId}-email`} className="select-none">Keep me signed in</FieldLabel>
+                  </div>
+                </Field>
+
+                <Field>
+                  <Button className="w-full" type="submit" disabled={isSendingCode}>
+                    {isSendingCode ? <div className="size-4 animate-spin rounded-full border-2 border-current/25 border-t-current" /> : 'Continue'}
+                  </Button>
+                </Field>
+
+                  </>
+                ) : null}
+
+                {view === 'code' ? (
+                  <>
+                <div className="flex min-w-0 items-center justify-between gap-3 text-sm">
+                  <p className="min-w-0 flex-1 truncate text-muted-foreground">
+                    Code sent to <span className="font-medium text-foreground">{email}</span>
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={handleSendCode}
+                    disabled={isSendingCode || cooldownRemaining > 0}
+                  >
+                    {isSendingCode ? <div className="size-3.5 animate-spin rounded-full border-2 border-current/25 border-t-current" /> : cooldownRemaining > 0 ? `${cooldownRemaining}s` : 'Resend'}
+                  </Button>
+                </div>
+
+                <AuthCodeInput
+                  value={code}
+                  onChange={(value) => {
+                    setCode(value);
+                    clearError('code');
+                  }}
+                  error={fieldErrors.code}
+                  description="Verification codes expire after 10 minutes."
+                  disabled={isCodeLoading}
+                />
+
+                <Field>
+                  <Button type="submit" className="w-full" disabled={isCodeLoading}>
+                    {isCodeLoading ? 'Verifying...' : 'Continue'}
+                  </Button>
+                </Field>
+
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none"
+                    onClick={() => {
+                      setCode('');
+                      clearError('code');
+                      navigateAuthView('email');
+                    }}
+                  >
+                    Change email
+                  </button>
+                </div>
+                  </>
+                ) : null}
+
+                {view === 'profile' ? (
+                  <>
+                <Field data-invalid={fieldErrors.email ? true : undefined}>
+                  <FieldLabel htmlFor={profileEmailId} className="select-none">Verified email</FieldLabel>
+                  <Input id={profileEmailId} value={email} readOnly disabled className="opacity-100" />
+                  <FieldDescription>
+                    {flowMessage ?? 'This email is verified and ready for account setup.'}
+                  </FieldDescription>
+                </Field>
+
+                <Field data-invalid={fieldErrors.nickname ? true : undefined}>
+                  <FieldLabel htmlFor={nicknameId} className="select-none">Name</FieldLabel>
+                  <Input
+                    id={nicknameId}
+                    name="register-nickname"
+                    type="text"
+                    value={nickname}
+                    onChange={(event) => {
+                      setNickname(event.target.value);
+                      clearError('nickname');
+                    }}
+                    autoComplete="off"
+                    data-1p-ignore="true"
+                    data-form-type="other"
+                    data-lpignore="true"
+                    aria-invalid={fieldErrors.nickname ? true : undefined}
+                    placeholder="Enter your name"
+                  />
+                  {fieldErrors.nickname ? <FieldDescription className="text-destructive">{fieldErrors.nickname}</FieldDescription> : null}
+                </Field>
+
+                <Field data-invalid={fieldErrors.password ? true : undefined}>
+                  <FieldLabel htmlFor={profilePasswordId} className="select-none">Password</FieldLabel>
+                  <TooltipProvider>
+                    <Tooltip open={isPasswordFocused}>
+                      <TooltipTrigger asChild>
+                        <div className="relative">
+                          <Input
+                            id={profilePasswordId}
+                            name="register-password"
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(event) => {
+                              setPassword(event.target.value);
+                              clearError('password');
+                            }}
+                            onFocus={() => setIsPasswordFocused(true)}
+                            onBlur={() => setIsPasswordFocused(false)}
+                            autoComplete="new-password"
+                            data-1p-ignore="true"
+                            data-form-type="other"
+                            data-lpignore="true"
+                            aria-invalid={fieldErrors.password ? true : undefined}
+                            placeholder="Create a password"
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            className="absolute inset-y-0 right-0 flex select-none items-center px-3 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none"
+                            onClick={() => setShowPassword((current) => !current)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="start" className="max-w-[300px] text-xs">
+                        {passwordRuleHint}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  {fieldErrors.password ? <FieldDescription className="text-destructive">{fieldErrors.password}</FieldDescription> : null}
+                </Field>
+
+                <Field data-invalid={fieldErrors.confirmPassword ? true : undefined}>
+                  <FieldLabel htmlFor={confirmPasswordId} className="select-none">Confirm password</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      id={confirmPasswordId}
+                      name="register-confirm-password"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(event) => {
+                        setConfirmPassword(event.target.value);
+                        clearError('confirmPassword');
+                      }}
+                      autoComplete="new-password"
+                      data-1p-ignore="true"
+                      data-form-type="other"
+                      data-lpignore="true"
+                      aria-invalid={fieldErrors.confirmPassword ? true : undefined}
+                      placeholder="Confirm your password"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 flex select-none items-center px-3 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none"
+                      onClick={() => setShowConfirmPassword((current) => !current)}
+                      aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {fieldErrors.confirmPassword ? <FieldDescription className="text-destructive">{fieldErrors.confirmPassword}</FieldDescription> : null}
+                </Field>
+
+                <Field>
+                  <Button className="w-full" type="submit" disabled={isCompletingRegistration}>
+                    {isCompletingRegistration ? 'Finishing setup...' : 'Continue'}
+                  </Button>
+                </Field>
+
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none"
+                    onClick={() => {
+                      resetEmailBranch();
+                      navigateAuthView('email');
+                    }}
+                  >
+                    Start over
+                  </button>
+                </div>
+                  </>
+                ) : null}
+              </motion.div>
+            </AnimatePresence>
           </FieldGroup>
-        </form>
+        </motion.form>
       </div>
     </motion.div>
   );

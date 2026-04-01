@@ -104,7 +104,7 @@ def _link_google_user_identity(
 def _build_send_code_response(purpose: schemas.AuthEmailCodePurpose) -> schemas.EmailCodeSendResponse:
     return schemas.EmailCodeSendResponse(
         expires_in_seconds=email_verification.VERIFICATION_CODE_TTL_SECONDS,
-        resend_in_seconds=email_verification.VERIFICATION_CODE_RESEND_SECONDS,
+        resend_in_seconds=email_verification.get_resend_cooldown_seconds(),
         message=email_verification.build_send_code_response_message(purpose=purpose),
     )
 
