@@ -12,6 +12,7 @@ import React from 'react';
 
 import { SettingsSectionPluginOwnerProvider } from '@/components/SettingsSection';
 import type { PluginSettingsScope, PluginSettingsSectionProps } from '@/services/pluginSettingsRegistry';
+import { PluginSettingsPanelProvider } from './pluginSettingsPanelContext';
 
 interface PluginSettingsSectionRendererProps {
   pluginId: string;
@@ -73,12 +74,18 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
   void showPluginHeader;
 
   return (
-    <SettingsSectionPluginOwnerProvider value={pluginTitle}>
-      <Component
-        pluginId={pluginId}
-        scope={scope}
-        onRefresh={onRefresh}
-      />
-    </SettingsSectionPluginOwnerProvider>
+    <PluginSettingsPanelProvider
+      pluginId={pluginId}
+      scope={scope}
+      onRefresh={onRefresh}
+    >
+      <SettingsSectionPluginOwnerProvider value={pluginTitle}>
+        <Component
+          pluginId={pluginId}
+          scope={scope}
+          onRefresh={onRefresh}
+        />
+      </SettingsSectionPluginOwnerProvider>
+    </PluginSettingsPanelProvider>
   );
 };

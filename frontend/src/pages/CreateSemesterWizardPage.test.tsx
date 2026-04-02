@@ -1,6 +1,6 @@
 // input:  [`CreateSemesterWizardPage`, mocked Semester wizard APIs, React Router memory routes, and QueryClient test wrappers]
-// output: [page-level regression tests for Semester basics validation, setup-aware wizard navigation, compact animated bottom navigation labels, draft-conflict-safe resume behavior, finalize handoff safety, Program-installed plugin filtering, plugin-system-backed setup-step visibility, plugin-system setup rendering, large-step pagination condensation, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
-// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, draft-create conflict regressions, setup-step drift, activation-vs-plugin-system setup visibility mismatches, pagination overflow regressions, bottom-navigation regressions, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, and invalid finalize states]
+// output: [page-level regression tests for Semester basics validation, blank default dates, setup-aware wizard navigation, compact animated bottom navigation labels, draft-conflict-safe resume behavior, finalize handoff safety, unified Program-exit choices, Program-installed plugin filtering, plugin-system-backed setup-step visibility, plugin-system setup rendering, large-step pagination condensation, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
+// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, blank-default-date regressions, draft-create conflict regressions, setup-step drift, activation-vs-plugin-system setup visibility mismatches, pagination overflow regressions, bottom-navigation regressions, unified Program-exit regressions, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, and invalid finalize states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -229,6 +229,28 @@ describe("CreateSemesterWizardPage", () => {
     expect(screen.getByRole("switch", { name: "Toggle all editable plugins" })).not.toBeDisabled();
     expect(screen.getByRole("switch", { name: "Course List enabled" })).not.toBeDisabled();
     expect(screen.getByRole("switch", { name: "Canvas Integration enabled" })).toBeDisabled();
+  });
+
+  it("starts with blank semester dates when no draft exists and still shows the unified exit dialog", async () => {
+    apiMock.getProgram.mockResolvedValue({
+      id: "program-1",
+      name: "Engineering",
+      plugin_installations: [],
+    });
+    apiMock.getCurrentSemesterDraft.mockResolvedValue(null);
+
+    renderWizard();
+
+    expect(await screen.findByRole("heading", { name: "Basics" })).toBeInTheDocument();
+    expect(screen.getByText("Pick a date range")).toBeInTheDocument();
+    expect(screen.getByText("Optional")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Program" }));
+
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keep" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
   });
 
   it("reuses Semester date-picker validation in the Basics step before navigation", async () => {
@@ -1195,14 +1217,19 @@ describe("CreateSemesterWizardPage", () => {
 
     const nameInput = await screen.findByRole("textbox");
     fireEvent.change(nameInput, { target: { value: "Winter 2026" } });
+    fireEvent.click(screen.getByRole("button", { name: "Semester Duration *" }));
+    const dateButtons = Array.from(document.querySelectorAll('[role="gridcell"] button:not([disabled])'));
+    expect(dateButtons.length).toBeGreaterThanOrEqual(2);
+    fireEvent.click(dateButtons[0] as HTMLButtonElement);
+    fireEvent.click(dateButtons[1] as HTMLButtonElement);
     fireEvent.click(screen.getByRole("button", { name: "Courses" }));
 
     await waitFor(() => {
       expect(apiMock.createSemesterDraft).toHaveBeenCalledTimes(1);
       expect(apiMock.updateSemesterDraft).toHaveBeenCalledWith("draft-1", {
         name: "Winter 2026",
-        start_date: expect.any(String),
-        end_date: expect.any(String),
+        start_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        end_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
         reading_week_start: null,
         reading_week_end: null,
         creation_step: "courses",
@@ -1729,7 +1756,7 @@ describe("CreateSemesterWizardPage", () => {
     fireEvent.click(exitButton);
 
     expect(await screen.findByText("Leave Semester setup?")).toBeInTheDocument();
-    expect(screen.getByText("Choose whether to keep this draft for later or discard it before returning to the Program dashboard.")).toBeInTheDocument();
+    expect(screen.getByText("Return to the Program dashboard. Keep preserves any saved draft progress, while Discard removes the draft before leaving.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Keep" }));
 

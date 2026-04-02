@@ -438,6 +438,7 @@ export default definePluginSetup({
       >
         <PluginSetupSelectField
           path="calendarDefaultView"
+          settingsKey="builtin-event-core"
           label="Calendar default view"
           required
           defaultValue="month"
@@ -457,6 +458,7 @@ export default definePluginSetup({
       >
         <PluginSetupJsonField
           path="eventTypes"
+          settingsKey="builtin-event-core"
           label="Default event types"
           description="Configure the event types that this Semester should start with."
         />

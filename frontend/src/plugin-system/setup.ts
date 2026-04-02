@@ -77,6 +77,7 @@ export type PluginSetupValidator<TFields extends Record<string, PluginSetupField
 
 interface PluginSetupFieldBase<TType extends PluginSetupFieldType, TValue> {
     type: TType;
+    settingsKey: string;
     label: string;
     required?: boolean;
     description?: string;
@@ -290,7 +291,13 @@ const toFieldDefinition = (
         throw new Error("[plugin-system] Setup fields must declare a non-empty path.");
     }
 
+    const settingsKey = String(fieldProps.settingsKey ?? "").trim();
+    if (!settingsKey) {
+        throw new Error(`[plugin-system] Setup field "${path}" must declare a non-empty settingsKey.`);
+    }
+
     const baseDefinition = {
+        settingsKey,
         label: String(fieldProps.label ?? path),
         required: Boolean(fieldProps.required),
         description: typeof fieldProps.description === "string" ? fieldProps.description : undefined,
@@ -405,6 +412,7 @@ export const serializePluginSetupDefinition = <TFields extends Record<string, Pl
             }
             return {
                 path: fieldKey,
+                settings_key: field.settingsKey,
                 label: field.label,
                 type: field.type,
                 required: Boolean(field.required),

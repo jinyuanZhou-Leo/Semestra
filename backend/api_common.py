@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 import course_resources
 import crud
+from event_core_settings import resolve_course_event_types
 import gradebook
 import lms_service
 import models
@@ -191,18 +192,17 @@ def build_course_resource_list_response(db: Session, current_user: models.User, 
     )
 
 
-def get_event_type_or_404(db: Session, course_id: str, event_type_code: str) -> models.CourseEventType:
-    event_type = (
-        db.query(models.CourseEventType)
-        .filter(models.CourseEventType.course_id == course_id, models.CourseEventType.code == event_type_code)
-        .first()
-    )
-    if event_type is None:
+def get_event_type_or_404(db: Session, course_id: str, event_type_code: str) -> schemas.CourseEventType:
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    normalized_code = str(event_type_code or "").strip().upper()
+    event_type = resolve_course_event_types(db, course) if course is not None else []
+    matched_event_type = next((item for item in event_type if item.code == normalized_code), None)
+    if matched_event_type is None:
         raise HTTPException(
             status_code=422,
-            detail=error_detail("EVENT_TYPE_NOT_FOUND", f"eventTypeCode '{event_type_code}' does not exist for this course."),
+            detail=error_detail("EVENT_TYPE_NOT_FOUND", f"eventTypeCode '{normalized_code}' does not exist for this course."),
         )
-    return event_type
+    return matched_event_type
 
 
 def get_section_or_422(db: Session, course_id: str, section_id: Optional[str]) -> Optional[models.CourseSection]:

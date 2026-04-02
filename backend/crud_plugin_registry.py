@@ -1,6 +1,6 @@
-# input:  [SQLAlchemy session, plugin management registry, Program/Semester/Course models, shared CRUD helpers, and layout persistence helpers]
+# input:  [SQLAlchemy session, plugin management registry, Program/Semester/Course models, shared CRUD helpers, and layout persistence helpers plus tab-settings storage]
 # output: [Program/Semester/Course plugin-management helpers, setup flows, review serialization, and default activation/install maintenance]
-# pos:    [Plugin-governance slice of backend CRUD that owns install/activation/setup/readiness state across Program, Semester, and unassigned Course scopes]
+# pos:    [Plugin-governance slice of backend CRUD that owns install/activation/setup/readiness state across Program, Semester, and unassigned Course scopes, with setup values now projected into tab-settings storage]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -8,12 +8,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
 import models
 import plugin_registry
 import schemas
-from crud_layout import _ensure_course_plugin_tabs
+from crud_layout import _ensure_course_plugin_tabs, get_tab_setting, resolve_tab_settings, upsert_tab_setting
 from crud_shared import (
     PluginRegistryError,
     _build_review_issue,
@@ -43,6 +45,118 @@ def _build_availability(
         "reason_code": reason_code,
         "reason_message": reason_message,
     }
+
+
+@dataclass(frozen=True)
+class _PluginSetupStoragePlan:
+    definition: plugin_registry.PluginSetupDefinition | None
+    field_map: dict[str, plugin_registry.PluginSetupFieldDefinition]
+    settings_keys: tuple[str, ...]
+
+
+def _build_plugin_setup_storage_plan(plugin_id: str) -> _PluginSetupStoragePlan:
+    try:
+        definition = plugin_registry.get_plugin_setup_definition(plugin_id)
+    except Exception as exc:
+        _wrap_plugin_validation(exc)
+    if definition is None:
+        return _PluginSetupStoragePlan(definition=None, field_map={}, settings_keys=())
+
+    field_map = {field.path: field for field in definition.fields}
+    ordered_settings_keys: list[str] = []
+    seen_settings_keys: set[str] = set()
+    for field in definition.fields:
+        settings_key = str(field.settings_key or "").strip()
+        if not settings_key or settings_key in seen_settings_keys:
+            continue
+        seen_settings_keys.add(settings_key)
+        ordered_settings_keys.append(settings_key)
+    return _PluginSetupStoragePlan(
+        definition=definition,
+        field_map=field_map,
+        settings_keys=tuple(ordered_settings_keys),
+    )
+
+
+def _group_plugin_setup_values_by_settings_key(
+    storage_plan: _PluginSetupStoragePlan,
+    values: dict[str, object] | None,
+) -> dict[str, dict[str, object]]:
+    grouped_values: dict[str, dict[str, object]] = {}
+    for field_path, value in (values or {}).items():
+        field = storage_plan.field_map.get(field_path)
+        if field is None:
+            continue
+        grouped_values.setdefault(field.settings_key, {})[field_path] = value
+    return grouped_values
+
+
+def _resolve_semester_plugin_setup_values(
+    db: Session,
+    semester: models.Semester,
+    plugin_id: str,
+) -> dict[str, object]:
+    storage_plan = _build_plugin_setup_storage_plan(plugin_id)
+    if storage_plan.definition is None:
+        return {}
+    resolved_values_by_settings_key = {
+        settings_key: resolve_tab_settings(
+            db,
+            settings_key,
+            program_id=semester.program_id,
+            semester_id=semester.id,
+        )
+        for settings_key in storage_plan.settings_keys
+    }
+    return plugin_registry.resolve_plugin_setup_values(
+        plugin_id,
+        setup_values={
+            field_path: resolved_values_by_settings_key.get(field.settings_key, {}).get(field_path)
+            for field_path, field in storage_plan.field_map.items()
+            if field.settings_key in resolved_values_by_settings_key and field_path in resolved_values_by_settings_key[field.settings_key]
+        },
+    )
+
+
+def _build_semester_plugin_setup_summary(
+    db: Session,
+    semester: models.Semester,
+    plugin_id: str,
+) -> list[dict[str, object]]:
+    if not plugin_registry.has_plugin_setup_definition(plugin_id):
+        return []
+    return plugin_registry.build_plugin_setup_summary(
+        plugin_id,
+        setup_values=_resolve_semester_plugin_setup_values(db, semester, plugin_id),
+    )
+
+
+def _write_semester_plugin_setup_values(
+    db: Session,
+    *,
+    semester_id: str,
+    storage_plan: _PluginSetupStoragePlan,
+    values: dict[str, object] | None,
+) -> None:
+    for settings_key, settings_bucket_values in _group_plugin_setup_values_by_settings_key(storage_plan, values).items():
+        existing_tab_setting = get_tab_setting(
+            db,
+            settings_key,
+            semester_id=semester_id,
+        )
+        existing_scope_settings = _parse_json_object(existing_tab_setting.settings if existing_tab_setting is not None else None)
+        next_scope_settings = {
+            **existing_scope_settings,
+            **settings_bucket_values,
+        }
+        upsert_tab_setting(
+            db,
+            schemas.TabSettingCreate(
+                settings_key=settings_key,
+                settings=_serialize_json_object(next_scope_settings),
+            ),
+            semester_id=semester_id,
+        )
 
 
 def _normalize_program_plugin_installations(
@@ -108,7 +222,7 @@ def _normalize_program_plugin_installations(
             db.flush()
 
 
-def _build_semester_review_state(semester: models.Semester) -> dict[str, object]:
+def _build_semester_review_state(db: Session, semester: models.Semester) -> dict[str, object]:
     review_errors: list[dict] = []
     plugin_reviews: dict[str, dict[str, object]] = {}
 
@@ -159,46 +273,20 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
             continue
 
         installation = activation.program_plugin_installation
-        setup_values = _parse_json_object(activation.setup_state)
-
         try:
-            plugin_review_state = plugin_registry.review_plugin_setup(
-                plugin_id,
-                setup_values=setup_values,
-                program=semester.program,
-                semester=semester,
-            )
-        except plugin_registry.PluginRegistryValidationError as exc:
+            setup_values = _resolve_semester_plugin_setup_values(db, semester, plugin_id)
+            setup_summary = _build_semester_plugin_setup_summary(db, semester, plugin_id)
+        except Exception as exc:
+            _wrap_plugin_validation(exc)
+
+        available, _, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
+        if activation.is_enabled and not available:
             plugin_errors.append(_build_review_issue(
-                code=exc.code,
-                message=exc.message,
-                step="plugin-setup",
+                code="PLUGIN_NOT_AVAILABLE",
+                message=availability_reason or f"Plugin '{plugin_id}' is not available.",
+                step="plugins",
                 plugin_id=plugin_id,
-                field_path=exc.field_path,
             ))
-            setup_values = {}
-            setup_summary = []
-        else:
-            setup_values = plugin_review_state["setup_values"]
-            setup_summary = plugin_review_state["setup_summary"]
-            plugin_errors.extend(
-                _build_review_issue(
-                    code=issue.code,
-                    message=issue.message,
-                    step="plugin-setup",
-                    plugin_id=plugin_id,
-                    field_path=issue.field_path,
-                )
-                for issue in plugin_review_state["review_errors"]
-            )
-            available, _, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
-            if activation.is_enabled and not available:
-                plugin_errors.append(_build_review_issue(
-                    code="PLUGIN_NOT_AVAILABLE",
-                    message=availability_reason or f"Plugin '{plugin_id}' is not available.",
-                    step="plugins",
-                    plugin_id=plugin_id,
-                ))
 
         plugin_reviews[plugin_id] = {
             "setup_values": setup_values,
@@ -214,8 +302,8 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
     }
 
 
-def _refresh_semester_review_ready(semester: models.Semester) -> dict[str, object]:
-    review_state = _build_semester_review_state(semester)
+def _refresh_semester_review_ready(db: Session, semester: models.Semester) -> dict[str, object]:
+    review_state = _build_semester_review_state(db, semester)
     semester.review_ready = bool(review_state["review_ready"])
     return review_state
 
@@ -275,6 +363,7 @@ def _delete_program_plugin_runtime_data(
         for tab_type in capabilities.get("available_tab_types", [])
         if str(tab_type).strip()
     }
+    settings_keys = {plugin_id, *_build_plugin_setup_storage_plan(plugin_id).settings_keys, *tab_types}
     widget_types = {
         str(widget_type).strip()
         for widget_type in capabilities.get("available_widget_types", [])
@@ -284,11 +373,12 @@ def _delete_program_plugin_runtime_data(
     course_ids = [course_id for (course_id,) in db.query(models.Course.id).filter(models.Course.program_id == program_id).all()]
 
     if semester_ids:
-        if tab_types:
+        if settings_keys:
             db.query(models.TabSetting).filter(
-                models.TabSetting.tab_type.in_(tab_types),
+                models.TabSetting.settings_key.in_(settings_keys),
                 models.TabSetting.semester_id.in_(semester_ids),
             ).delete(synchronize_session=False)
+        if tab_types:
             db.query(models.WorkspaceTabOrderEntry).filter(
                 models.WorkspaceTabOrderEntry.semester_id.in_(semester_ids),
                 models.WorkspaceTabOrderEntry.tab_type.in_(tab_types),
@@ -304,11 +394,12 @@ def _delete_program_plugin_runtime_data(
             ).delete(synchronize_session=False)
 
     if course_ids:
-        if tab_types:
+        if settings_keys:
             db.query(models.TabSetting).filter(
-                models.TabSetting.tab_type.in_(tab_types),
+                models.TabSetting.settings_key.in_(settings_keys),
                 models.TabSetting.course_id.in_(course_ids),
             ).delete(synchronize_session=False)
+        if tab_types:
             db.query(models.WorkspaceTabOrderEntry).filter(
                 models.WorkspaceTabOrderEntry.course_id.in_(course_ids),
                 models.WorkspaceTabOrderEntry.tab_type.in_(tab_types),
@@ -388,7 +479,6 @@ def _ensure_default_semester_plugin_activations(
             models.SemesterPluginActivation(
                 semester_id=semester.id,
                 program_plugin_installation_id=installation.id,
-                setup_state="{}",
                 is_enabled=definition.default_enabled,
                 created_at=now,
                 updated_at=now,
@@ -523,7 +613,7 @@ def _serialize_program_plugin_installation(program: models.Program, installation
         "auth_state": auth_state,
         "auth_message": installation.auth_message if installation is not None else None,
         "capabilities": dict(definition.capabilities),
-        "setup_sections": plugin_registry.build_setup_section_payloads(plugin_id),
+        "setup_sections": plugin_registry.build_plugin_setup_sections(plugin_id),
         "available": available,
         "availability_reason": availability_reason,
         "availability": _build_availability(
@@ -536,6 +626,7 @@ def _serialize_program_plugin_installation(program: models.Program, installation
 
 
 def _serialize_semester_plugin_activation(
+    db: Session,
     semester: models.Semester,
     activation: models.SemesterPluginActivation | None,
     review_state: dict[str, object] | None = None,
@@ -552,8 +643,8 @@ def _serialize_semester_plugin_activation(
         raise PluginRegistryError("PROGRAM_NOT_FOUND", f"Semester '{semester.id}' is missing its parent Program.")
     installation.plugin_id = _canonical_plugin_id(installation.plugin_id)
     installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
-    setup_values = _parse_json_object(activation.setup_state) if activation is not None else {}
-    current_review_state = review_state or _build_semester_review_state(semester)
+    setup_values = _resolve_semester_plugin_setup_values(db, semester, installation.plugin_id)
+    current_review_state = review_state or _build_semester_review_state(db, semester)
     plugin_review = (current_review_state.get("plugin_reviews") or {}).get(installation.plugin_id, {})
     setup_summary = plugin_review.get("setup_summary") or []
     review_errors = plugin_review.get("review_errors") or []
@@ -720,6 +811,20 @@ def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: 
     if installation is None:
         installation = models.ProgramPluginInstallation(program_id=program_id, plugin_id=plugin_id, is_enabled=True, created_at=now)
 
+    requested_enabled = update_data["is_enabled"] if "is_enabled" in update_data else installation.is_enabled
+    if requested_enabled is False and definition.locked:
+        raise PluginRegistryError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
+
+    candidate_auth_state = (
+        _normalize_auth_state(plugin_id, update_data.get("auth_state"))
+        if "auth_state" in update_data or installation.auth_state is None
+        else _normalize_auth_state(plugin_id, installation.auth_state)
+    )
+    installation.auth_state = candidate_auth_state
+    available, _, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
+    if requested_enabled and not available:
+        raise PluginRegistryError("PLUGIN_NOT_AVAILABLE", availability_reason or f"Plugin '{plugin_id}' is not available for activation.")
+
     if "version" in update_data:
         installation.version = str(update_data["version"] or "").strip() or definition.default_version
     elif not installation.version:
@@ -728,10 +833,7 @@ def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: 
         installation.is_enabled = bool(update_data["is_enabled"])
     elif installation.is_enabled is None:
         installation.is_enabled = True
-    if "auth_state" in update_data or installation.auth_state is None:
-        installation.auth_state = _normalize_auth_state(plugin_id, update_data.get("auth_state"))
-    else:
-        installation.auth_state = _normalize_auth_state(plugin_id, installation.auth_state)
+    installation.auth_state = candidate_auth_state
     if "auth_message" in update_data:
         installation.auth_message = str(update_data.get("auth_message") or "").strip() or None
     installation.updated_at = now
@@ -826,7 +928,7 @@ def get_semester_plugin_activations(db: Session, semester_id: str) -> list[dict]
     _ensure_default_semester_plugin_activations(db, semester)
     if semester.lifecycle_state == "draft":
         semester.draft_updated_at = semester.draft_updated_at or _now_utc_iso()
-    review_state = _refresh_semester_review_ready(semester)
+    review_state = _refresh_semester_review_ready(db, semester)
     activations_by_installation_id = {
         activation.program_plugin_installation_id: activation
         for activation in semester.plugin_activations
@@ -837,7 +939,7 @@ def get_semester_plugin_activations(db: Session, semester_id: str) -> list[dict]
         key=lambda item: item.plugin_id,
     )
     return [
-        _serialize_semester_plugin_activation(semester, activations_by_installation_id.get(installation.id), installation=installation, review_state=review_state)
+        _serialize_semester_plugin_activation(db, semester, activations_by_installation_id.get(installation.id), installation=installation, review_state=review_state)
         for installation in enabled_installations
     ]
 
@@ -860,7 +962,7 @@ def get_semester_plugin_system_setup(db: Session, semester_id: str) -> dict:
     if semester.program is not None:
         _ensure_default_program_plugin_installations(db, semester.program)
     _ensure_default_semester_plugin_activations(db, semester)
-    review_state = _refresh_semester_review_ready(semester)
+    review_state = _refresh_semester_review_ready(db, semester)
     enabled_activations = sorted((activation for activation in semester.plugin_activations if activation.is_enabled), key=lambda item: item.program_plugin_installation.plugin_id if item.program_plugin_installation is not None else "")
     return {
         "semester_id": semester.id,
@@ -876,7 +978,7 @@ def review_semester_plugin_system(db: Session, semester_id: str) -> dict:
     if semester.program is not None:
         _ensure_default_program_plugin_installations(db, semester.program)
     _ensure_default_semester_plugin_activations(db, semester)
-    review_state = _refresh_semester_review_ready(semester)
+    review_state = _refresh_semester_review_ready(db, semester)
     enabled_activations = sorted((activation for activation in semester.plugin_activations if activation.is_enabled), key=lambda item: item.program_plugin_installation.plugin_id if item.program_plugin_installation is not None else "")
     serialized_plugins = [_serialize_plugin_system_setup_plugin(semester, activation, review_state) for activation in enabled_activations]
     return {
@@ -887,6 +989,7 @@ def review_semester_plugin_system(db: Session, semester_id: str) -> dict:
 
 
 def update_semester_plugin_system_setup(db: Session, semester_id: str, plugin_id: str, payload: schemas.PluginSystemSemesterSetupUpdateRequest) -> dict:
+    plugin_id = _canonical_plugin_id(plugin_id)
     semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
     if semester is None:
         raise PluginRegistryError("SEMESTER_NOT_FOUND", "Semester not found.")
@@ -907,30 +1010,51 @@ def update_semester_plugin_system_setup(db: Session, semester_id: str, plugin_id
     if activation is None or not activation.is_enabled:
         raise PluginRegistryError("PLUGIN_NOT_ENABLED", f"Plugin '{plugin_id}' is not enabled for this Semester.")
 
+    now = _now_utc_iso()
+    storage_plan = _build_plugin_setup_storage_plan(plugin_id)
+    unknown_field_paths = sorted(set((payload.values or {}).keys()) - set(storage_plan.field_map.keys()))
+    if unknown_field_paths:
+        raise PluginRegistryError(
+            "PLUGIN_SYSTEM_SETUP_UNKNOWN_FIELD",
+            f"Unknown plugin setup keys for {plugin_id}: {', '.join(unknown_field_paths)}",
+        )
+    current_setup_values = _resolve_semester_plugin_setup_values(db, semester, plugin_id)
+    candidate_setup_values = {
+        **current_setup_values,
+        **(payload.values or {}),
+    }
     try:
-        normalized_values = plugin_registry.write_plugin_setup_values(
+        validated_setup_values = plugin_registry.validate_resolved_plugin_setup_values(
             plugin_id,
-            values=payload.values,
+            candidate_setup_values,
         )
     except Exception as exc:
         _wrap_plugin_validation(exc)
-
-    now = _now_utc_iso()
-    activation.setup_state = _serialize_json_object(normalized_values)
+    normalized_update_values = {
+        field_path: validated_setup_values[field_path]
+        for field_path in (payload.values or {}).keys()
+        if field_path in validated_setup_values
+    }
+    _write_semester_plugin_setup_values(
+        db,
+        semester_id=semester_id,
+        storage_plan=storage_plan,
+        values=normalized_update_values,
+    )
     activation.updated_at = now
     semester.draft_updated_at = now if semester.lifecycle_state == "draft" else semester.draft_updated_at
-    _refresh_semester_review_ready(semester)
+    _refresh_semester_review_ready(db, semester)
     db.add(activation)
     db.add(semester)
     db.commit()
     db.refresh(activation)
     db.refresh(semester)
-    review_state = _build_semester_review_state(semester)
+    review_state = _build_semester_review_state(db, semester)
     plugin_review = (review_state.get("plugin_reviews") or {}).get(plugin_id, {})
     return {
         "semester_id": semester.id,
         "plugin_id": plugin_id,
-        "setup_values": normalized_values,
+        "setup_values": plugin_review.get("setup_values") or {},
         "setup_summary": plugin_review.get("setup_summary") or [],
         "review_errors": plugin_review.get("review_errors") or [],
     }
@@ -974,22 +1098,20 @@ def upsert_semester_plugin_activation(db: Session, semester_id: str, plugin_id: 
             is_enabled=True,
             created_at=now,
         )
-    if not activation.setup_state:
-        activation.setup_state = "{}"
     if "is_enabled" in update_data:
         activation.is_enabled = bool(update_data["is_enabled"])
     elif activation.is_enabled is None:
         activation.is_enabled = True
     activation.updated_at = now
     semester.draft_updated_at = now if semester.lifecycle_state == "draft" else semester.draft_updated_at
-    _refresh_semester_review_ready(semester)
+    _refresh_semester_review_ready(db, semester)
     db.add(activation)
     db.add(semester)
     db.commit()
     db.refresh(activation)
     db.refresh(semester)
-    review_state = _build_semester_review_state(semester)
-    return _serialize_semester_plugin_activation(semester, activation, review_state)
+    review_state = _build_semester_review_state(db, semester)
+    return _serialize_semester_plugin_activation(db, semester, activation, review_state)
 
 
 def bulk_update_semester_plugin_activations(db: Session, semester_id: str, payload: schemas.SemesterPluginActivationBulkUpdateRequest) -> dict:
@@ -1045,8 +1167,6 @@ def bulk_update_semester_plugin_activations(db: Session, semester_id: str, paylo
         if activation is None:
             activation = models.SemesterPluginActivation(semester_id=semester_id, program_plugin_installation_id=installation.id, is_enabled=True, created_at=now)
             activations_by_installation_id[installation.id] = activation
-        if not activation.setup_state:
-            activation.setup_state = "{}"
         activation.is_enabled = payload.is_enabled
         activation.updated_at = now
         db.add(activation)
@@ -1054,7 +1174,7 @@ def bulk_update_semester_plugin_activations(db: Session, semester_id: str, paylo
     if semester.lifecycle_state == "draft":
         semester.creation_step = "plugins"
         semester.draft_updated_at = now
-    _refresh_semester_review_ready(semester)
+    _refresh_semester_review_ready(db, semester)
     db.add(semester)
     db.commit()
     db.refresh(semester)
@@ -1083,7 +1203,7 @@ def delete_semester_plugin_activation(db: Session, semester_id: str, plugin_id: 
     if semester is not None:
         if semester.lifecycle_state == "draft":
             semester.draft_updated_at = _now_utc_iso()
-        _refresh_semester_review_ready(semester)
+        _refresh_semester_review_ready(db, semester)
         db.add(semester)
     db.commit()
     return activation

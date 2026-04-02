@@ -125,9 +125,9 @@ class AccountDeletionTests(unittest.TestCase):
                 models.Widget(widget_type="course-dashboard", title="Course", course_id=course.id),
                 models.Tab(tab_type="semester-overview", semester_id=semester.id),
                 models.Tab(tab_type="course-overview", course_id=course.id),
-                models.TabSetting(tab_type="program-settings", program_id=program.id, settings="{}"),
-                models.TabSetting(tab_type="semester-settings", semester_id=semester.id, settings="{}"),
-                models.TabSetting(tab_type="course-settings", course_id=course.id, settings="{}"),
+                models.TabSetting(settings_key="program-settings", program_id=program.id, settings="{}"),
+                models.TabSetting(settings_key="semester-settings", semester_id=semester.id, settings="{}"),
+                models.TabSetting(settings_key="course-settings", course_id=course.id, settings="{}"),
                 models.WorkspaceTabOrderEntry(
                     bucket_type="semester_homepage",
                     tab_type="semester-overview",

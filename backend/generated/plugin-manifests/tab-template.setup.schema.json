@@ -7,6 +7,7 @@
       "fields": [
         {
           "path": "initialTitle",
+          "settings_key": "tab-template",
           "label": "Initial title",
           "type": "text",
           "required": true,
@@ -18,6 +19,7 @@
         },
         {
           "path": "initialNote",
+          "settings_key": "tab-template",
           "label": "Starter note",
           "type": "textarea",
           "required": false,
@@ -29,6 +31,7 @@
         },
         {
           "path": "focusMinutes",
+          "settings_key": "tab-template",
           "label": "Default focus session (minutes)",
           "type": "number",
           "required": true,
@@ -40,6 +43,7 @@
         },
         {
           "path": "kickoffDate",
+          "settings_key": "tab-template",
           "label": "Kickoff date",
           "type": "date",
           "required": true,
@@ -58,6 +62,7 @@
       "fields": [
         {
           "path": "showChecklist",
+          "settings_key": "tab-template",
           "label": "Show starter checklist",
           "type": "boolean",
           "required": false,
@@ -69,6 +74,7 @@
         },
         {
           "path": "defaultView",
+          "settings_key": "tab-template",
           "label": "Default opening surface",
           "type": "select",
           "required": true,
@@ -104,6 +110,7 @@
       "fields": [
         {
           "path": "starterBlocks",
+          "settings_key": "tab-template",
           "label": "Starter blocks",
           "type": "json",
           "required": true,

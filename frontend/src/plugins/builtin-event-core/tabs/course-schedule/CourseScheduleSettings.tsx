@@ -1,6 +1,6 @@
-// input:  [course context, course/event-type APIs, shared timetable event bus, settings data-table UI, and shared row-actions dropdown helpers]
-// output: [`CourseScheduleSettings` settings panel for course event-type management]
-// pos:    [Course-schedule settings surface that edits event-type definitions, keeps data tables mobile-safe with an explicit four-column minimum width, publishes scoped refresh events, and uses a shadcn-style row-actions dropdown for edit/delete actions]
+// input:  [course or semester context, course/event-type APIs, generic tab-settings APIs, shared timetable event bus, settings data-table UI, and shared row-actions dropdown helpers]
+// output: [`CourseScheduleSettings` settings panel for semester or course event-type management]
+// pos:    [Event-type settings surface that edits builtin-event-core event-type definitions from the shared settings bucket, keeps data tables mobile-safe with an explicit four-column minimum width, and publishes course schedule refresh events when course-scoped definitions change]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -37,25 +37,84 @@ import { EventTypeFormDialog } from '../../components/EventTypeFormDialog';
 import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 
 interface CourseScheduleSettingsProps {
-  courseId: string;
+  courseId?: string;
+  semesterId?: string;
 }
 
-export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ courseId }) => {
+const EVENT_CORE_SETTINGS_KEY = 'builtin-event-core';
+const EVENT_CORE_EVENT_TYPES_FIELD = 'eventTypes';
+const COURSE_SCHEDULE_SECTION_DESCRIPTION = 'Manage the event types available for course schedules, including their labels and attendance tracking.';
+const COURSE_SCHEDULE_EVENT_TYPES_DESCRIPTION = 'Manage the event types available for course schedules (e.g., Lecture, Tutorial, Lab).';
+const DEFAULT_EVENT_TYPES: CourseEventType[] = [
+  { id: 'builtin-lecture', code: 'LECTURE', abbreviation: 'LEC', track_attendance: false, color: null, icon: null },
+  { id: 'builtin-practical', code: 'PRACTICAL', abbreviation: 'PRA', track_attendance: false, color: null, icon: null },
+  { id: 'builtin-tutorial', code: 'TUTORIAL', abbreviation: 'TUT', track_attendance: false, color: null, icon: null },
+];
+
+const normalizeEventTypes = (value: unknown): CourseEventType[] => {
+  if (!Array.isArray(value)) {
+    return DEFAULT_EVENT_TYPES;
+  }
+  const normalized = value.flatMap((item, index) => {
+    if (typeof item !== 'object' || item === null) return [];
+    const record = item as Record<string, unknown>;
+    const code = typeof record.code === 'string' ? record.code.trim().toUpperCase() : '';
+    const abbreviation = typeof record.abbreviation === 'string' ? record.abbreviation.trim().toUpperCase() : '';
+    if (!code || !abbreviation) return [];
+    return [{
+      id: typeof record.id === 'string' ? record.id : `${code}-${index}`,
+      code,
+      abbreviation,
+      track_attendance: Boolean(record.track_attendance),
+      color: typeof record.color === 'string' ? record.color : null,
+      icon: typeof record.icon === 'string' ? record.icon : null,
+    }];
+  });
+  return normalized.length > 0 ? normalized : DEFAULT_EVENT_TYPES;
+};
+
+const serializeEventTypes = (items: CourseEventType[]) => items.map((item) => ({
+  id: item.id,
+  code: item.code,
+  abbreviation: item.abbreviation,
+  track_attendance: item.track_attendance,
+  color: item.color ?? null,
+  icon: item.icon ?? null,
+}));
+
+const getSemesterEventCoreScopeSettings = async (semesterId: string) => {
+  const entry = (await api.getSemesterTabSettings(semesterId))
+    .find((tabSetting) => tabSetting.settings_key === EVENT_CORE_SETTINGS_KEY);
+  if (!entry || typeof entry.scope_settings !== 'object' || entry.scope_settings === null) {
+    return {};
+  }
+  return entry.scope_settings;
+};
+
+export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ courseId, semesterId }) => {
+  const scopeKind = courseId ? 'course' : semesterId ? 'semester' : null;
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [editingType, setEditingType] = React.useState<CourseEventType | null>(null);
   const [pendingDeleteType, setPendingDeleteType] = React.useState<CourseEventType | null>(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
-  const [semesterId, setSemesterId] = React.useState<string | undefined>(undefined);
+  const [resolvedSemesterId, setResolvedSemesterId] = React.useState<string | undefined>(semesterId);
   const loadRequestIdRef = React.useRef(0);
 
   const loadEventTypes = React.useCallback(async () => {
+    if (!scopeKind) return;
     const loadRequestId = loadRequestIdRef.current + 1;
     loadRequestIdRef.current = loadRequestId;
 
     setIsLoading(true);
     try {
-      const typeData = await scheduleService.getCourseEventTypes(courseId);
+      const typeData = scopeKind === 'course' && courseId
+        ? await scheduleService.getCourseEventTypes(courseId)
+        : normalizeEventTypes(
+          (await api.getSemesterTabSettings(resolvedSemesterId!))
+            .find((entry) => entry.settings_key === EVENT_CORE_SETTINGS_KEY)
+            ?.resolved_settings?.[EVENT_CORE_EVENT_TYPES_FIELD],
+        );
       if (loadRequestIdRef.current !== loadRequestId) return;
       setEventTypes(typeData);
     } catch (err: any) {
@@ -66,7 +125,7 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
         setIsLoading(false);
       }
     }
-  }, [courseId]);
+  }, [courseId, resolvedSemesterId, scopeKind]);
 
   React.useEffect(() => {
     void loadEventTypes();
@@ -79,20 +138,27 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
   React.useEffect(() => {
     let cancelled = false;
 
+    if (!courseId) {
+      setResolvedSemesterId(semesterId ?? undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     api.getCourse(courseId)
       .then((course) => {
         if (cancelled) return;
-        setSemesterId(course.semester_id ?? undefined);
+        setResolvedSemesterId(course.semester_id ?? undefined);
       })
       .catch(() => {
         if (cancelled) return;
-        setSemesterId(undefined);
+        setResolvedSemesterId(undefined);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [courseId]);
+  }, [courseId, semesterId]);
 
   const publishScheduleChange = React.useCallback(async (
     reason: 'event-type-created' | 'event-type-updated' | 'event-type-deleted',
@@ -106,17 +172,41 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
   }, [courseId, semesterId]);
 
   const handleCreateOrUpdate = React.useCallback(async (data: { code: string; abbreviation: string; track_attendance: boolean }) => {
+    if (!scopeKind) return;
     try {
-      if (editingType) {
-        await scheduleService.updateCourseEventType(courseId, editingType.code, {
-          code: data.code,
-          abbreviation: data.abbreviation,
-          trackAttendance: data.track_attendance,
-        });
-        await publishScheduleChange('event-type-updated');
+      if (scopeKind === 'course' && courseId) {
+        if (editingType) {
+          await scheduleService.updateCourseEventType(courseId, editingType.code, {
+            code: data.code,
+            abbreviation: data.abbreviation,
+            trackAttendance: data.track_attendance,
+          });
+          await publishScheduleChange('event-type-updated');
+        } else {
+          await scheduleService.createCourseEventType(courseId, data);
+          await publishScheduleChange('event-type-created');
+        }
       } else {
-        await scheduleService.createCourseEventType(courseId, data);
-        await publishScheduleChange('event-type-created');
+        const nextItems = editingType
+          ? eventTypes.map((item) => item.id === editingType.id ? { ...item, ...data } : item)
+          : [
+            ...eventTypes,
+            {
+              id: data.code.trim().toUpperCase(),
+              code: data.code.trim().toUpperCase(),
+              abbreviation: data.abbreviation.trim().toUpperCase(),
+              track_attendance: data.track_attendance,
+              color: null,
+              icon: null,
+            },
+          ];
+        const currentScopeSettings = await getSemesterEventCoreScopeSettings(resolvedSemesterId!);
+        await api.upsertSemesterTabSettings(resolvedSemesterId!, EVENT_CORE_SETTINGS_KEY, {
+          settings: JSON.stringify({
+            ...currentScopeSettings,
+            [EVENT_CORE_EVENT_TYPES_FIELD]: serializeEventTypes(nextItems),
+          }),
+        });
       }
 
       await loadEventTypes();
@@ -125,7 +215,7 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
       toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to save event type.');
       throw err;
     }
-  }, [courseId, editingType, loadEventTypes, publishScheduleChange]);
+  }, [courseId, editingType, eventTypes, loadEventTypes, publishScheduleChange, resolvedSemesterId, scopeKind]);
 
   React.useEffect(() => {
     if (!editingType) return;
@@ -138,21 +228,37 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
   }, []);
 
   const handleDeleteEventType = React.useCallback(async (eventTypeCode: string) => {
+    if (!scopeKind) return;
     try {
-      await scheduleService.deleteCourseEventType(courseId, eventTypeCode);
-      await publishScheduleChange('event-type-deleted');
+      if (scopeKind === 'course' && courseId) {
+        await scheduleService.deleteCourseEventType(courseId, eventTypeCode);
+        await publishScheduleChange('event-type-deleted');
+      } else {
+        const currentScopeSettings = await getSemesterEventCoreScopeSettings(resolvedSemesterId!);
+        await api.upsertSemesterTabSettings(resolvedSemesterId!, EVENT_CORE_SETTINGS_KEY, {
+          settings: JSON.stringify({
+            ...currentScopeSettings,
+            [EVENT_CORE_EVENT_TYPES_FIELD]: serializeEventTypes(
+              eventTypes.filter((item) => item.code !== eventTypeCode),
+            ),
+          }),
+        });
+      }
       await loadEventTypes();
     } catch (err: any) {
       toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete event type.');
     }
-  }, [courseId, loadEventTypes, publishScheduleChange]);
+  }, [courseId, eventTypes, loadEventTypes, publishScheduleChange, resolvedSemesterId, scopeKind]);
 
   return (
     <>
-      <SettingsSection>
+      <SettingsSection
+        title="Course Schedule"
+        description={COURSE_SCHEDULE_SECTION_DESCRIPTION}
+      >
         <DataTable
           title="Event Types"
-          description="Manage the types of events available for this course (e.g., Lecture, Tutorial, Lab)."
+          description={COURSE_SCHEDULE_EVENT_TYPES_DESCRIPTION}
           items={eventTypes}
           isLoading={isLoading}
           minWidthClassName="min-w-[34rem] sm:min-w-[38rem]"

@@ -88,6 +88,7 @@ const cloneWidgetDefinition = (widget: PluginDescriptorWidgetDefinition): Plugin
 
 const cloneSetupField = (field: PluginDescriptorSetupFieldDefinition): PluginDescriptorSetupFieldDefinition => {
   requireNonEmptyString(field.path, 'Plugin setup field path');
+  requireNonEmptyString(field.settings_key, `Plugin setup field "${field.path}" settings_key`);
   requireNonEmptyString(field.label, `Plugin setup field "${field.path}" label`);
   if (!VALID_FIELD_TYPES.has(field.type)) {
     throw new Error(`[plugin-sdk] Plugin setup field "${field.path}" uses unsupported type "${field.type}".`);

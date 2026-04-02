@@ -30,6 +30,7 @@ import {
 
 const mapApiFieldToDefinition = (field: ProgramPluginSetupField): PluginSetupFieldDefinition => ({
   type: (field.type ?? "text") as PluginSetupFieldType,
+  settingsKey: field.settings_key,
   label: field.label ?? field.path,
   required: Boolean(field.required),
   description: field.description ?? "",

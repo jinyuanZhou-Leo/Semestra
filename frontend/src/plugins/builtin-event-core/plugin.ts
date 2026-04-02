@@ -1,5 +1,5 @@
 // input:  [typed plugin manifest/setup helpers, event-core icons, existing setup/settings UI definitions, frontend plugin SDK, and lazy runtime loader]
-// output: [default-exported descriptor-backed event-core plugin definition with schema-driven setup plus Program-level todo defaults settings]
+// output: [default-exported descriptor-backed event-core plugin definition with schema-driven setup plus Program- and Semester-level plugin settings panels]
 // pos:    [single-entry builtin plugin definition that keeps event-core metadata aligned to the plugin-owned setup.tsx and settings.tsx sources of truth]
 //
 // ⚠️ When this file is updated:
@@ -68,6 +68,10 @@ export default definePlugin({
         {
           id: 'todo-defaults',
           contexts: ['program'],
+        },
+        {
+          id: 'semester-event-types',
+          contexts: ['semester'],
         },
       ],
     },

@@ -224,7 +224,6 @@ class SemesterPluginActivation(Base):
         ForeignKey("program_plugin_installations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    setup_state = Column(Text, nullable=False, default="{}")
     is_enabled = Column(Boolean, nullable=False, default=True)
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
@@ -677,17 +676,17 @@ class TabSetting(Base):
             """,
             name="ck_tab_settings_single_context",
         ),
-        UniqueConstraint("tab_type", "program_id", name="uq_tab_settings_tab_program"),
-        UniqueConstraint("tab_type", "semester_id", name="uq_tab_settings_tab_semester"),
-        UniqueConstraint("tab_type", "course_id", name="uq_tab_settings_tab_course"),
+        UniqueConstraint("settings_key", "program_id", name="uq_tab_settings_key_program"),
+        UniqueConstraint("settings_key", "semester_id", name="uq_tab_settings_key_semester"),
+        UniqueConstraint("settings_key", "course_id", name="uq_tab_settings_key_course"),
         Index("ix_tab_settings_program", "program_id"),
         Index("ix_tab_settings_semester", "semester_id"),
         Index("ix_tab_settings_course", "course_id"),
-        Index("ix_tab_settings_tab_type", "tab_type"),
+        Index("ix_tab_settings_settings_key", "settings_key"),
     )
 
     id = Column(String, primary_key=True, index=True, default=generate_uuid)
-    tab_type = Column(String, nullable=False)
+    settings_key = Column(String, nullable=False)
     settings = Column(Text, nullable=False, default="{}")
 
     program_id = Column(String, ForeignKey("programs.id", ondelete="CASCADE"), nullable=True)

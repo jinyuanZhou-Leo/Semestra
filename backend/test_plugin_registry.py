@@ -261,6 +261,42 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertTrue(canvas_installation["available"])
         self.assertIsNone(canvas_installation["availability_reason"])
 
+    def test_single_program_plugin_update_rejects_disabling_locked_plugin(self) -> None:
+        program = self._create_program()
+
+        with self.assertRaises(crud.PluginRegistryError) as context:
+            crud.upsert_program_plugin_installation(
+                self.db,
+                program.id,
+                "builtin-dashboard",
+                schemas.ProgramPluginInstallationUpsertRequest(is_enabled=False),
+            )
+
+        self.assertEqual(context.exception.code, "PLUGIN_LOCKED")
+
+    def test_single_program_plugin_update_rejects_enabling_unavailable_plugin(self) -> None:
+        program = self._create_program()
+
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "builtin-event-core",
+            schemas.ProgramPluginInstallationUpsertRequest(
+                is_enabled=False,
+                auth_state="failed",
+            ),
+        )
+
+        with self.assertRaises(crud.PluginRegistryError) as context:
+            crud.upsert_program_plugin_installation(
+                self.db,
+                program.id,
+                "builtin-event-core",
+                schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+            )
+
+        self.assertEqual(context.exception.code, "PLUGIN_NOT_AVAILABLE")
+
     def test_semester_and_course_detail_runtime_payloads_validate_with_v2_tab_settings(self) -> None:
         program = self._create_program()
         semester = crud.create_semester(
@@ -282,7 +318,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         crud.upsert_tab_setting(
             self.db,
             schemas.TabSettingCreate(
-                tab_type="builtin-gradebook",
+                settings_key="builtin-gradebook",
                 settings='{"defaultView":"grading"}',
             ),
             semester_id=semester.id,
@@ -290,7 +326,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         crud.upsert_tab_setting(
             self.db,
             schemas.TabSettingCreate(
-                tab_type="builtin-gradebook",
+                settings_key="builtin-gradebook",
                 settings='{"showWeighted":true}',
             ),
             course_id=course.id,
@@ -366,7 +402,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         crud.upsert_tab_setting(
             self.db,
             schemas.TabSettingCreate(
-                tab_type="tab-template",
+                settings_key="tab-template",
                 settings='{"title":"Program title","showChecklist":true}',
             ),
             program_id=program.id,
@@ -374,7 +410,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         crud.upsert_tab_setting(
             self.db,
             schemas.TabSettingCreate(
-                tab_type="tab-template",
+                settings_key="tab-template",
                 settings='{"title":"Course title"}',
             ),
             course_id=course.id,
@@ -428,7 +464,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         crud.upsert_tab_setting(
             self.db,
             schemas.TabSettingCreate(
-                tab_type="tab-template",
+                settings_key="tab-template",
                 settings='{"showChecklist":false}',
             ),
             semester_id=semester.id,
@@ -436,7 +472,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         crud.upsert_tab_setting(
             self.db,
             schemas.TabSettingCreate(
-                tab_type="tab-template",
+                settings_key="tab-template",
                 settings='{"title":"Course title"}',
             ),
             course_id=course.id,
@@ -1136,7 +1172,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         )
         self.db.add(
             models.TabSetting(
-                tab_type="course-resources-tab",
+                settings_key="course-resources-tab",
                 course_id=course.id,
                 settings='{"layout":"grid"}',
             )
@@ -1196,7 +1232,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         )
         self.assertEqual(
             self.db.query(models.TabSetting).filter(
-                models.TabSetting.tab_type == "course-resources-tab",
+                models.TabSetting.settings_key == "course-resources-tab",
                 models.TabSetting.course_id == course.id,
             ).count(),
             0,
@@ -1254,7 +1290,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         )
         self.db.add(
             models.TabSetting(
-                tab_type="builtin-todo",
+                settings_key="builtin-todo",
                 semester_id=semester.id,
                 settings='{"calendarDefaultView":"week"}',
             )
@@ -1363,7 +1399,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         )
         self.assertEqual(
             self.db.query(models.TabSetting).filter(
-                models.TabSetting.tab_type == "builtin-todo",
+                models.TabSetting.settings_key == "builtin-todo",
                 models.TabSetting.semester_id == semester.id,
             ).count(),
             0,
@@ -1500,35 +1536,33 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertEqual(event_core_setup["setup_values"]["calendarDefaultView"], "month")
         self.assertEqual(event_core_setup["setup_sections"][0]["fields"][0]["path"], "calendarDefaultView")
 
-        with self.assertRaises(crud.PluginRegistryError) as context:
-            crud.update_semester_plugin_system_setup(
-                self.db,
-                draft["id"],
-                "builtin-event-core",
-                schemas.PluginSystemSemesterSetupUpdateRequest(values={}),
-            )
-
-        self.assertEqual(context.exception.code, "PLUGIN_SYSTEM_SETUP_REQUIRED")
-
         updated_setup = crud.update_semester_plugin_system_setup(
             self.db,
             draft["id"],
             "builtin-event-core",
             schemas.PluginSystemSemesterSetupUpdateRequest(
-                values={"calendarDefaultView": "week"},
+                values={
+                    "calendarDefaultView": "week",
+                    "eventTypes": [
+                        {
+                            "id": "lecture",
+                            "label": "Lecture",
+                            "color": "#2563EB",
+                        }
+                    ],
+                },
             ),
         )
 
         self.assertEqual(updated_setup["setup_values"]["calendarDefaultView"], "week")
         self.assertEqual(updated_setup["setup_summary"][0]["items"][0]["value"], "Week")
-
-        activation = self.db.query(models.SemesterPluginActivation).filter(
-            models.SemesterPluginActivation.semester_id == draft["id"]
-        ).join(models.ProgramPluginInstallation).filter(
-            models.ProgramPluginInstallation.plugin_id == "builtin-event-core"
+        stored_tab_setting = self.db.query(models.TabSetting).filter(
+            models.TabSetting.semester_id == draft["id"],
+            models.TabSetting.settings_key == "builtin-event-core",
         ).first()
-        self.assertIn('"calendarDefaultView": "week"', activation.setup_state)
-        self.assertIn('"eventTypes"', activation.setup_state)
+        self.assertIsNotNone(stored_tab_setting)
+        self.assertIn('"calendarDefaultView": "week"', stored_tab_setting.settings)
+        self.assertIn('"eventTypes"', stored_tab_setting.settings)
 
         review_payload = crud.review_semester_plugin_system(self.db, draft["id"])
         event_core_review = next(plugin for plugin in review_payload["plugins"] if plugin["plugin_id"] == "builtin-event-core")

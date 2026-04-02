@@ -1,93 +1,94 @@
 # Plugin Development Guide
 
-This guide explains the current Semestra plugin model in detail.
+This guide describes the plugin model that is actually implemented in Semestra today.
 
-It reflects the descriptor-first architecture that is now implemented in the repo:
+The current rules are:
 
-- public plugin contract lives in checked-in plugin files
-- frontend and backend read the same checked-in plugin descriptor data
-- ordinary plugins do not require Python-side registry entries
-- plugin authors use a single public SDK surface: `@/plugin-sdk`
+- `plugin.ts` is the single plugin authoring entry
+- runtime code is still lazy-loaded from `index.ts`
+- `setup.tsx` is the single source of truth for Semester setup
+- setup writes directly into plugin-owned settings buckets
+- settings buckets are keyed by `settings_key`, not by runtime `tab_type`
+- `settings.tsx` owns host-rendered Program/Semester/Course settings sections
 
-If you previously worked with `metadata.ts`, generated plugin manifests, or backend-owned ordinary plugin registration, that model is obsolete. This document describes the new one.
+If an older doc mentions handwritten `plugin.json`, handwritten `setup.schema.json`, `setup_state`, or `tab_type`-owned plugin settings, treat that as obsolete.
 
 ## 1. Mental Model
 
-In the current system, a plugin is split into three layers:
+A plugin has four separate concerns:
 
-1. `plugin descriptor`
-2. `plugin runtime`
-3. `host policy`
+1. descriptor
+2. runtime
+3. setup
+4. host policy
 
-These layers must stay separate.
+Keep these separate.
 
-### 1.1 Plugin descriptor
+### 1.1 Descriptor
 
-The descriptor is the plugin-authored static contract.
+The descriptor is static metadata authored in `plugin.ts`.
 
-It answers:
+It declares:
 
-- who the plugin is
-- which tabs and widgets it exposes
-- where those tabs/widgets may appear
-- which host-managed settings fields exist
-- which settings-page sections the plugin wants to render
-- whether the plugin contributes Semester setup schema
+- plugin identity
+- tab catalog entries
+- widget catalog entries
+- host-rendered settings panel bindings
 
-Descriptor files are:
+The descriptor is serialized by the frontend build into:
 
-- `plugin.json`
-- optional `setup.schema.json`
+- `backend/generated/plugin-manifests/*.plugin.json`
+- optional `backend/generated/plugin-manifests/*.setup.schema.json`
 
-### 1.2 Plugin runtime
+Plugin authors do not hand-edit those generated files.
 
-The runtime is the lazily loaded frontend implementation.
+### 1.2 Runtime
 
-It answers:
+The runtime is the lazy frontend implementation loaded from `index.ts`.
 
-- what React component renders a tab or widget
-- what runtime settings component belongs to a tab or widget
-- what default instance settings a tab or widget starts with
-- what lifecycle hooks run on create/delete
-- what widget header buttons exist
+It declares:
 
-Runtime files are:
+- tab runtime definitions
+- widget runtime definitions
+- runtime instance defaults
+- runtime instance settings components
+- lifecycle hooks
 
-- `plugin.ts`
-- `index.ts`
-- optional `tab.tsx`
-- optional `widget.tsx`
-- optional `shared.ts`
+### 1.3 Setup
 
-### 1.3 Host policy
+Setup is the Create Semester wizard surface.
 
-Host policy is not authored by external plugin developers.
+It is authored in `setup.tsx`, not in backend code and not in a handwritten JSON schema.
 
-It answers host-private questions such as:
+Each setup field declares a `settingsKey`, and the host writes setup values directly into semester-scoped `tab_settings` under that key.
 
-- is this plugin builtin
-- is this plugin host-shell
-- should it be hidden from the public plugin catalog
+Setup is not a separate persistence model anymore.
 
-Host policy lives in:
+### 1.4 Host policy
+
+Host policy remains private and host-owned.
+
+It lives in:
 
 - `frontend/src/plugins/host-policy.json`
 
-External plugin authors should treat that file as host-owned.
+It controls host-only concepts such as:
 
-## 2. Current File Structure
+- builtin vs external
+- host-shell tabs
+- hidden vs public visibility
+- install/lock policy
 
-Recommended plugin folder layout:
+## 2. Recommended File Structure
 
 ```text
 frontend/src/plugins/<plugin-id>/
-  plugin.json
   plugin.ts
   index.ts
   tab.tsx
   widget.tsx
   settings.tsx
-  setup.schema.json
+  setup.tsx
   shared.ts
 ```
 
@@ -95,7 +96,6 @@ Not every file is required.
 
 ### Required files
 
-- `plugin.json`
 - `plugin.ts`
 - `index.ts`
 
@@ -104,29 +104,26 @@ Not every file is required.
 - `tab.tsx`
 - `widget.tsx`
 - `settings.tsx`
-- `setup.schema.json`
+- `setup.tsx`
 - `shared.ts`
 
-### What each file owns
+### Ownership by file
 
 | File | Responsibility | Notes |
 |------|------|-------------|
-| `plugin.json` | Public static descriptor | Identity, tabs/widgets catalog entries, host-managed settings schema, settings-section bindings |
-| `plugin.ts` | Single frontend authoring entry | Binds descriptor to lazy runtime loading and optional settings/setup UI |
-| `index.ts` | Lazy runtime registration | Registers tabs/widgets through SDK helpers |
-| `tab.tsx` | Tab UI | Optional |
-| `widget.tsx` | Widget UI | Optional |
-| `settings.tsx` | Settings-page sections | Optional; plugin owns persistence |
-| `setup.schema.json` | Semester setup schema | Optional; shared by frontend and backend |
-| `shared.ts` | Local shared helpers/types | Optional |
+| `plugin.ts` | Static authoring entry | Descriptor, lazy runtime loader, optional settings-section bindings, optional setup binding |
+| `index.ts` | Lazy runtime entry | Registers tabs/widgets with the SDK |
+| `tab.tsx` | Tab runtime UI | Optional |
+| `widget.tsx` | Widget runtime UI | Optional |
+| `settings.tsx` | Host-rendered settings sections | Optional; plugin owns persistence logic |
+| `setup.tsx` | Semester setup source of truth | Optional; host renders fields from this definition and backend consumes the generated schema |
+| `shared.ts` | Local shared helpers and types | Optional |
 
 ## 3. Public Authoring Surface
 
-Plugin code should import from `@/plugin-sdk`.
+Import plugin authoring APIs from `@/plugin-sdk` or `@/plugin-sdk/authoring.ts`.
 
-Do not import authoring helpers from plugin-system internals.
-
-Use these exports:
+Most plugin runtime code should use:
 
 - `definePlugin`
 - `definePluginRuntime`
@@ -134,712 +131,390 @@ Use these exports:
 - `defineWidget`
 - `definePluginSettings`
 - `defineSettingsSection`
-- `defineSetup`
+- `definePluginSetup`
+- `createPluginSetupBinding`
 - `usePluginHost`
 - `usePluginRuntimeInstance`
 - `usePluginUiState`
-- public descriptor/runtime/settings/setup types
 
-Do not import from:
+Do not import internal registries or loader code from `plugin-system` internals.
 
-- `frontend/src/plugin-system/index.ts`
-- `frontend/src/plugin-system/public-types.ts`
-- `frontend/src/plugin-system/contracts.ts`
-- `frontend/src/plugin-system/authoring.ts`
-- `frontend/src/services/pluginSettingsRegistry.tsx`
-- any internal registry or loader file
+## 4. `plugin.ts`
 
-## 4. `plugin.json`
+`plugin.ts` is the single source of truth for plugin authoring.
 
-`plugin.json` is the public manifest for a plugin.
-
-It is the source of truth for plugin-authored static metadata.
-
-### 4.1 Current shape
-
-```json
-{
-  "id": "tab-template",
-  "display_name": "Tab Template",
-  "author": "Jinyuan",
-  "description": "Prototype new workspace experiences and interaction patterns.",
-  "long_description": "Longer plugin description shown in host UI.",
-  "icon": "panels-top-left",
-  "tabs": [],
-  "widgets": [],
-  "settings": {
-    "defaults": {},
-    "fields": [],
-    "sections": []
-  }
-}
-```
-
-### 4.2 Top-level fields
-
-| Field | Meaning |
-|------|------|
-| `id` | Stable plugin id |
-| `display_name` | Host-facing plugin name |
-| `author` | Author label shown by host UI |
-| `description` | Short description |
-| `long_description` | Long description for detail views |
-| `icon` | Plugin-level icon name |
-| `tabs` | Catalog declarations for tab surfaces |
-| `widgets` | Catalog declarations for widget surfaces |
-| `settings` | Host-managed settings defaults, fields, and section bindings |
-
-### 4.3 `tabs`
-
-`tabs` is a static catalog declaration. It is not the runtime implementation.
-
-Each tab entry describes:
-
-- `type`
-- `title`
-- `description`
-- `icon`
-- `contexts`
-
-Example:
-
-```json
-{
-  "type": "course-resources-tab",
-  "title": "Course Resources",
-  "description": "Browse files and saved links for a course.",
-  "icon": "folder-open-dot",
-  "contexts": ["course"]
-}
-```
-
-### 4.4 `widgets`
-
-`widgets` is the widget catalog declaration.
-
-Each widget entry may describe:
-
-- `type`
-- `title`
-- `description`
-- `icon`
-- `contexts`
-- `layout`
-- `max_instances`
-
-Example:
-
-```json
-{
-  "type": "course-resources-quick-open",
-  "title": "Quick Open",
-  "description": "Open recent resources from the dashboard.",
-  "icon": "panels-top-left",
-  "contexts": ["course"],
-  "layout": {
-    "w": 3,
-    "h": 3,
-    "minW": 2,
-    "minH": 2
-  },
-  "max_instances": 1
-}
-```
-
-### 4.5 `icon`
-
-The plugin-level `icon` is for host identity.
-
-Use it for:
-
-- plugin catalog cards
-- settings-page plugin headers
-- plugin details views
-
-It is not the same thing as `tabs[].icon` or `widgets[].icon`.
-
-- `icon`: plugin identity icon
-- `tabs[].icon`: tab catalog icon
-- `widgets[].icon`: widget catalog icon
-
-If a plugin has multiple surfaces, the plugin icon may stay constant while different tabs/widgets use different surface icons.
-
-### 4.6 `settings`
-
-`settings` contains three related but distinct pieces:
-
-1. `defaults`
-2. `fields`
-3. `sections`
-
-#### `settings.defaults`
-
-Static default values for host-managed plugin config.
-
-#### `settings.fields`
-
-The schema for host-managed plugin config fields.
-
-Each field currently supports:
-
-- `path`
-- `label`
-- `type`
-- `scope`
-- `default`
-- `description`
-- `options`
-
-This is the modern replacement for the old `field_definitions` concept.
-
-Use `settings.fields`, not `field_definitions`.
-
-#### `settings.sections`
-
-Bindings that tell the host which plugin-owned settings sections may appear in:
-
-- Program settings
-- Semester settings
-- Course settings
-
-This is not field schema. It is a binding layer for `settings.tsx` UI sections.
-
-## 5. `plugin.ts`
-
-`plugin.ts` is the single frontend authoring entry.
-
-It is the bridge between:
-
-- static descriptor data
-- lazy runtime code
-- optional settings sections
-- optional custom setup UI
-
-### 5.1 Minimal example
-
-```ts
-import { definePlugin, type PluginDescriptor } from '@/plugin-sdk';
-
-import descriptorJson from './plugin.json';
-
-const descriptor = descriptorJson as PluginDescriptor;
-
-export default definePlugin({
-  descriptor,
-  loadRuntime: async () => (await import('./index')).default,
-});
-```
-
-### 5.2 What belongs in `plugin.ts`
-
-Use `plugin.ts` when you need to wire in:
+It should declare:
 
 - `descriptor`
 - `loadRuntime`
-- `settingsSections`
-- `setup`
+- optional `settingsSections`
+- optional `setup`
 
-### 5.3 What does not belong in `plugin.ts`
-
-Do not place runtime implementation details directly in `plugin.ts` when they belong in:
-
-- `index.ts`
-- `tab.tsx`
-- `widget.tsx`
-- `settings.tsx`
-
-Keep `plugin.ts` as the composition point, not the runtime implementation file.
-
-## 6. `index.ts`
-
-`index.ts` is the lazy runtime registration entry.
-
-It usually looks like this:
+Minimal example:
 
 ```ts
-import { definePluginRuntime } from '@/plugin-sdk';
+import { PanelsTopLeft } from "lucide-react";
 
-import { TemplateTabDefinition } from './tab';
+import {
+  createPluginSetupBinding,
+  definePlugin,
+  definePluginManifest,
+} from "@/plugin-sdk/authoring.ts";
 
-export default definePluginRuntime({
-  tabDefinitions: [TemplateTabDefinition],
+import setupDefinition from "./setup.tsx";
+
+export default definePlugin({
+  descriptor: definePluginManifest({
+    id: "example-plugin",
+    display_name: "Example Plugin",
+    author: "Your Name",
+    description: "Short description.",
+    long_description: "Longer description shown by the host.",
+    icon: PanelsTopLeft,
+    tabs: [
+      {
+        type: "example-tab",
+        title: "Example",
+        description: "Example tab.",
+        icon: PanelsTopLeft,
+        contexts: ["semester", "course"],
+      },
+    ],
+    widgets: [],
+    settings: {
+      panels: [
+        {
+          id: "example-semester-settings",
+          contexts: ["semester"],
+        },
+      ],
+    },
+  }),
+  loadRuntime: async () => (await import("./index")).default,
+  setup: createPluginSetupBinding(setupDefinition),
 });
 ```
 
-### 6.1 What belongs in runtime definitions
+### 4.1 Descriptor rules
 
-Tab runtime definitions:
+The descriptor declares public metadata only:
 
-- `type`
-- `component`
-- `defaultSettings`
-- `SettingsComponent`
-- `onCreate`
-- `onDelete`
+- `id`
+- `display_name`
+- `author`
+- `description`
+- `long_description`
+- `icon`
+- `tabs`
+- `widgets`
+- optional `settings.panels`
 
-Widget runtime definitions:
+It does not declare runtime React components.
 
-- `type`
-- `component`
-- `defaultSettings`
-- `headerButtons`
-- `SettingsComponent`
-- `onCreate`
-- `onDelete`
+### 4.2 `settings.panels` rule
 
-### 6.2 What does not belong in runtime definitions
+If a plugin renders a host settings section from `settings.tsx`, every section id must also be declared in `descriptor.settings.panels`.
 
-Do not duplicate catalog metadata that already belongs in `plugin.json`, such as:
+That declaration is required because the descriptor is what the host validates and exposes before the lazy runtime loads.
 
-- display name
-- description
-- icon
-- layout metadata
-- allowed contexts
+If a section exists in `settings.tsx` but is missing from `settings.panels`, plugin validation fails.
 
-Those are descriptor concerns, not runtime concerns.
+## 5. `index.ts`
 
-## 7. Runtime Components
-
-Runtime UI normally lives in:
-
-- `tab.tsx`
-- `widget.tsx`
-
-These files may use:
-
-- `usePluginHost()`
-- `usePluginRuntimeInstance()`
-- `usePluginUiState()`
-
-### 7.1 `usePluginHost()`
-
-Use `usePluginHost()` when a plugin needs host-owned navigation behavior.
-
-Typical examples:
-
-- jump to another tab by id
-- jump to another tab type
-- request a confirmed host action
-
-### 7.2 `usePluginRuntimeInstance()`
-
-Use `usePluginRuntimeInstance()` to understand the current runtime scope:
-
-- widget id
-- tab id
-- semester id
-- course id
-- workspace kind
-
-### 7.3 `usePluginUiState()`
-
-Use plugin UI state for transient browser-local state, such as:
-
-- selected local view
-- temporary filters
-- disclosure state
-- non-authoritative drafts
-
-Do not use it for authoritative application data.
-
-## 8. Settings Model
-
-There are three different settings concepts in the system.
-
-Do not mix them.
-
-### 8.1 Host-managed plugin config
-
-Declared in:
-
-- `plugin.json.settings.defaults`
-- `plugin.json.settings.fields`
-
-Owned by:
-
-- host backend
-- Program/Semester plugin management flows
-
-Use this for:
-
-- Program defaults
-- Semester override fields the host explicitly supports
-- small host-managed operational values
-
-### 8.2 Host-rendered settings-page sections
-
-Declared in:
-
-- `plugin.json.settings.sections`
-- implemented in `settings.tsx`
-
-Owned by:
-
-- plugin UI code
-- plugin/domain persistence logic
-
-Use this when the host should render a plugin section inside:
-
-- Program settings
-- Semester settings
-- Course settings
-
-But the plugin still owns the actual save logic.
-
-### 8.3 Runtime instance settings
-
-These are:
-
-- tab settings
-- widget settings
-
-Use them when the value belongs to one tab instance or one widget instance instead of the whole workspace.
-
-## 9. `settings.tsx`
-
-`settings.tsx` is optional.
-
-Use it when the plugin needs host-rendered settings-page sections.
+`index.ts` is the lazy runtime entry.
 
 Example:
 
 ```ts
-import { definePluginSettings, type PluginSettingsSectionDefinition } from '@/plugin-sdk';
+import { definePluginRuntime } from "@/plugin-sdk";
 
-export default definePluginSettings({
-  pluginSettings: [] satisfies PluginSettingsSectionDefinition[],
-});
-```
-
-Each settings section is a React component bound to one or more host contexts.
-
-Current contexts:
-
-- `program`
-- `semester`
-- `course`
-
-### 9.1 Persistence rule
-
-The host renders the section shell.
-The plugin owns the data write path.
-
-That means:
-
-- if the value is host-managed config, use the plugin management API path
-- if the value is plugin/domain data, use plugin/domain APIs
-- if the value belongs to one runtime instance, use tab/widget settings instead
-
-Do not create duplicate persistence paths for the same conceptual setting.
-
-## 10. `setup.schema.json`
-
-If a plugin contributes Create Semester setup, it must declare `setup.schema.json`.
-
-This schema is shared directly with:
-
-- frontend setup rendering
-- backend setup validation
-- backend setup review summaries
-
-This replaces the old generated setup-manifest pipeline.
-
-### 10.1 What the schema may describe
-
-- sections
-- fields
-- required state
-- default values
-- select options
-- placeholder text
-- summary labels
-- persist target
-- validation rules
-
-### 10.2 Current field model
-
-Setup fields currently support:
-
-- `path`
-- `label`
-- `type`
-- `persist`
-- `required`
-- `default_value`
-- `description`
-- `placeholder`
-- `options`
-- `summary_labels`
-
-### 10.3 Current validation model
-
-Current built-in validation rules include:
-
-- `json-array-min-length`
-- `json-array-unique-keys`
-
-If a plugin needs custom setup or review UI, it may attach that UI through `plugin.ts`, but the underlying data contract must still come from `setup.schema.json`.
-
-## 11. Detailed Boundary Rules
-
-### 11.1 What plugin authors own
-
-Plugin authors own:
-
-- `plugin.json`
-- `plugin.ts`
-- `index.ts`
-- runtime UI
-- optional settings-page UI
-- optional setup schema
-
-### 11.2 What the host owns
-
-The host owns:
-
-- builtin vs external classification
-- host-shell tabs
-- hidden vs public visibility
-- Program/Semester/Course plugin lifecycle APIs
-- runtime payload assembly
-- setup review lifecycle
-
-### 11.3 What ordinary plugins must not do
-
-Ordinary plugins must not:
-
-- declare `builtin`
-- declare `host-shell`
-- declare catalog visibility policy
-- inject backend executable logic
-- define install defaults in the public descriptor
-- rely on host-private review hooks
-
-If a plugin requires host-private backend behavior, it is builtin by definition.
-
-## 12. Host Policy
-
-Host-private plugin policy lives in:
-
-- `frontend/src/plugins/host-policy.json`
-
-This file is not part of the public authoring contract for external plugins.
-
-It controls host-private concepts such as:
-
-- builtin status
-- host-shell status
-- hidden vs public visibility
-
-External plugin authors should not edit it unless they are intentionally changing host-owned builtin behavior.
-
-## 13. Unassigned Course Behavior
-
-External plugin authors do not maintain a separate `supportsUnassignedCourse` flag anymore.
-
-Instead:
-
-- Course-visible tabs/widgets are declared through `plugin.json` contexts
-- the host resolves final Course visibility through registry logic and host policy
-
-If a plugin has no Course-visible surfaces after host resolution:
-
-- it will not appear in the unassigned Course plugin management UI
-- it will not appear in unassigned Course runtime payloads
-
-## 14. Removed Concepts
-
-The following are obsolete in the current model:
-
-- `metadata.ts`
-- `@/plugin-system/authoring`
-- generated plugin manifests
-- backend-owned ordinary plugin registration for public plugins
-- public `classification`
-- public `install_by_default`
-- public `enable_by_default`
-- public `supports_unassigned_course`
-- `tab_contributions`
-- `widget_contributions`
-- `field_definitions`
-
-When reading old code or old plans:
-
-- `tab_contributions` maps to `plugin.json.tabs`
-- `widget_contributions` maps to `plugin.json.widgets`
-- `field_definitions` maps to `plugin.json.settings.fields`
-
-## 15. Complete Minimal Example
-
-### `plugin.json`
-
-```json
-{
-  "id": "example-plugin",
-  "display_name": "Example Plugin",
-  "author": "Your Name",
-  "description": "Short description.",
-  "long_description": "Long description for plugin details.",
-  "icon": "panels-top-left",
-  "tabs": [
-    {
-      "type": "example-tab",
-      "title": "Example",
-      "description": "Example workspace tab.",
-      "icon": "panels-top-left",
-      "contexts": ["semester", "course"]
-    }
-  ],
-  "widgets": [],
-  "settings": {
-    "defaults": {
-      "showHints": true
-    },
-    "fields": [
-      {
-        "path": "showHints",
-        "label": "Show hints",
-        "type": "boolean",
-        "scope": "program-only",
-        "default": true,
-        "description": "Enable helper copy in the plugin."
-      }
-    ],
-    "sections": [
-      {
-        "id": "example-program-settings",
-        "contexts": ["program"]
-      }
-    ]
-  }
-}
-```
-
-### `plugin.ts`
-
-```ts
-import { definePlugin, type PluginDescriptor } from '@/plugin-sdk';
-
-import descriptorJson from './plugin.json';
-import settings from './settings';
-
-const descriptor = descriptorJson as PluginDescriptor;
-
-export default definePlugin({
-  descriptor,
-  loadRuntime: async () => (await import('./index')).default,
-  settingsSections: settings.pluginSettings,
-});
-```
-
-### `index.ts`
-
-```ts
-import { definePluginRuntime } from '@/plugin-sdk';
-
-import { ExampleTabDefinition } from './tab';
+import { ExampleTabDefinition } from "./tab";
 
 export default definePluginRuntime({
   tabDefinitions: [ExampleTabDefinition],
 });
 ```
 
-### `tab.tsx`
+Put runtime-only concerns here:
+
+- tab definitions
+- widget definitions
+- runtime hooks
+- runtime defaults
+- runtime settings components
+
+Do not duplicate descriptor metadata here.
+
+## 6. Runtime Files
+
+Runtime UI usually lives in:
+
+- `tab.tsx`
+- `widget.tsx`
+
+Use:
+
+- `usePluginHost()` for host-controlled jumps or confirmations
+- `usePluginRuntimeInstance()` for current slot/scope context
+- `usePluginUiState()` for browser-local transient state
+
+Use plugin UI state only for non-authoritative local state such as:
+
+- expanded rows
+- local filters
+- unsaved view preferences
+- temporary drafts that do not need backend persistence
+
+Do not use plugin UI state for domain data or authoritative settings.
+
+## 7. Settings Model
+
+There are two different settings categories in the current plugin model.
+
+### 7.1 Plugin-scoped settings buckets
+
+Persistent plugin configuration is stored in `tab_settings`, but the bucket identity is generic `settings_key`, not runtime `tab_type`.
+
+That means:
+
+- one plugin can own multiple settings buckets
+- a plugin can also use one shared bucket across multiple tabs
+- the bucket structure is plugin-defined JSON
+
+The host only owns:
+
+- scope storage
+- inheritance resolution
+- settings metadata
+- reset-to-parent/default behavior
+
+The plugin owns the JSON shape inside each bucket.
+
+### 7.2 Runtime instance settings
+
+Tab and widget runtime definitions may still have instance settings such as:
+
+- a specific tab instance's local settings
+- a specific widget instance's local settings
+
+Those belong to runtime definitions, not to setup authoring.
+
+## 8. `settings.tsx`
+
+`settings.tsx` is optional.
+
+Use it when the plugin wants the host to render plugin-owned settings sections inside:
+
+- Program settings
+- Semester settings
+- Course settings
+
+Example:
 
 ```ts
-import { defineTab, type PluginTabDefinition, type PluginTabProps } from '@/plugin-sdk';
+import {
+  definePluginSettings,
+  defineSettingsSection,
+  type PluginSettingsSectionProps,
+} from "@/plugin-sdk";
 
-const ExampleTab = ({ settings }: PluginTabProps<{ greeting?: string }>) => {
-  return <div>{settings.greeting ?? 'Hello'}</div>;
-};
-
-export const ExampleTabDefinition: PluginTabDefinition = defineTab({
-  type: 'example-tab',
-  component: ExampleTab,
-  defaultSettings: {
-    greeting: 'Hello',
-  },
-});
-```
-
-### `settings.tsx`
-
-```ts
-import { definePluginSettings, defineSettingsSection, type PluginSettingsSectionProps } from '@/plugin-sdk';
-
-const ExampleProgramSettings = ({ scope }: PluginSettingsSectionProps) => {
-  if (scope.kind !== 'program') return null;
-  return <div>Example Program settings for {scope.programId}</div>;
+const ExampleSemesterSettings = ({ scope }: PluginSettingsSectionProps) => {
+  if (scope.kind !== "semester") return null;
+  return <div>Semester settings for {scope.semesterId}</div>;
 };
 
 export default definePluginSettings({
   pluginSettings: [
     defineSettingsSection({
-      id: 'example-program-settings',
-      component: ExampleProgramSettings,
-      allowedContexts: ['program'],
+      id: "example-semester-settings",
+      component: ExampleSemesterSettings,
+      allowedContexts: ["semester"],
     }),
   ],
 });
 ```
 
-## 16. Decision Guide
+Rules:
 
-When you add a new plugin concern, use this checklist.
+- the host renders the shell
+- the plugin renders the section body
+- the plugin owns persistence logic
+- the section id must exist in `descriptor.settings.panels`
 
-### If you are changing plugin identity or catalog entries
+## 9. `setup.tsx`
 
-Edit:
+`setup.tsx` is the single source of truth for Semester setup.
 
-- `plugin.json`
+It is authored with host-provided field components such as:
 
-### If you are changing runtime implementation
+- `PluginSetupSection`
+- `PluginSetupTextField`
+- `PluginSetupTextareaField`
+- `PluginSetupNumberField`
+- `PluginSetupBooleanField`
+- `PluginSetupSelectField`
+- `PluginSetupDateField`
+- `PluginSetupJsonField`
 
-Edit:
+Example:
 
+```tsx
+import {
+  definePluginSetup,
+  PluginSetupSection,
+  PluginSetupTextField,
+  PluginSetupBooleanField,
+} from "@/plugin-sdk";
+
+export default definePluginSetup({
+  content: (
+    <PluginSetupSection
+      id="example-setup"
+      title="Example Setup"
+      description="Collect the initial plugin settings for this Semester."
+    >
+      <PluginSetupTextField
+        path="title"
+        settingsKey="example-plugin"
+        label="Initial title"
+        required
+        defaultValue="Example"
+      />
+      <PluginSetupBooleanField
+        path="showHints"
+        settingsKey="example-plugin"
+        label="Show hints"
+        defaultValue
+      />
+    </PluginSetupSection>
+  ),
+});
+```
+
+### 9.1 `settingsKey` rule
+
+Every setup field must declare `settingsKey`.
+
+That key decides which semester settings bucket receives the value.
+
+Use this when:
+
+- a plugin has one shared settings bucket
+- a plugin needs multiple independent settings buckets
+- a setup screen edits settings for more than one tab in one place
+
+The setup screen may span multiple tabs. It is not constrained to a single runtime tab.
+
+### 9.2 Validation rule
+
+Setup validation is frontend-owned.
+
+Use:
+
+- field-level `validate`
+- definition-level `validate`
+
+Validation controls wizard interaction and review presentation, but plugin authors should treat `setup.tsx` as the place where setup semantics are defined.
+
+### 9.3 Persistence rule
+
+Setup does not persist to a dedicated `setup_state` model.
+
+Instead:
+
+1. the plugin declares setup fields in `setup.tsx`
+2. the frontend serializes the schema for backend consumption
+3. the wizard saves raw values
+4. the backend groups those values by `settings_key`
+5. the backend writes them into semester-scoped `tab_settings`
+6. review reads back the same resolved settings chain
+
+So if a setup field is really just an initial plugin setting, it should write to the same settings bucket the runtime/settings page uses.
+
+## 10. Generated Backend Artifacts
+
+Plugin authors edit TypeScript authoring files.
+
+The generated backend files are outputs, not sources:
+
+- `backend/generated/plugin-manifests/*.plugin.json`
+- `backend/generated/plugin-manifests/*.setup.schema.json`
+
+These are generated from frontend `plugin.ts` plus `setup.tsx` authoring data.
+
+Do not hand-edit them.
+
+## 11. Boundary Rules
+
+### 11.1 Plugin authors own
+
+- `plugin.ts`
 - `index.ts`
-- `tab.tsx`
-- `widget.tsx`
-
-### If you are changing settings-page UI
-
-Edit:
-
+- runtime React code
 - `settings.tsx`
-- `plugin.json.settings.sections`
+- `setup.tsx`
+- plugin-defined settings bucket structure
 
-### If you are changing host-managed Program/Semester config fields
+### 11.2 The host owns
 
-Edit:
+- plugin install/enable lifecycle
+- builtin vs external classification
+- host-shell policy
+- visibility policy
+- runtime payload assembly
+- scope inheritance for persisted settings
+- generated backend manifest ingestion
 
-- `plugin.json.settings.defaults`
-- `plugin.json.settings.fields`
+### 11.3 Ordinary plugins must not do
 
-### If you are changing Semester setup structure
+Ordinary plugins must not:
 
-Edit:
+- encode host-private visibility policy
+- assume host-shell status
+- rely on a separate backend registration file
+- create duplicate persistence paths for the same setting
+- model setup as a parallel config system when it is really runtime settings
 
-- `setup.schema.json`
+## 12. Decision Guide
 
-### If you are changing builtin/host-shell/private host policy
+If you are changing plugin identity, tabs, widgets, or settings panel exposure:
 
-Edit:
+- edit `plugin.ts`
 
-- `frontend/src/plugins/host-policy.json`
-- host backend files if the plugin is builtin and requires host-specific logic
+If you are changing runtime rendering or runtime hooks:
 
-## 17. Current Source References
+- edit `index.ts`, `tab.tsx`, or `widget.tsx`
 
-Useful real files in this repo:
+If you are changing host-rendered Program/Semester/Course settings UI:
 
-- SDK entry: `frontend/src/plugin-sdk/index.ts`
-- SDK types: `frontend/src/plugin-sdk/types.ts`
-- template plugin entry: `frontend/src/plugins/tab-template/plugin.ts`
-- template manifest: `frontend/src/plugins/tab-template/plugin.json`
-- template runtime registration: `frontend/src/plugins/tab-template/index.ts`
-- template settings bundle: `frontend/src/plugins/tab-template/settings.tsx`
-- builtin setup schema example: `frontend/src/plugins/builtin-event-core/setup.schema.json`
-- host policy: `frontend/src/plugins/host-policy.json`
-- backend registry loader: `backend/plugin_registry.py`
-- backend CRUD slice: `backend/crud_plugin_registry.py`
+- edit `settings.tsx`
+- keep `descriptor.settings.panels` in `plugin.ts` aligned
+
+If you are changing Semester setup fields or setup validation:
+
+- edit `setup.tsx`
+
+If you are changing builtin/host-only policy:
+
+- edit `frontend/src/plugins/host-policy.json`
+- and host code if required
+
+## 13. Good Examples In This Repo
+
+Useful reference files:
+
+- `frontend/src/plugins/tab-template/plugin.ts`
+- `frontend/src/plugins/tab-template/setup.tsx`
+- `frontend/src/plugins/tab-template/tab.tsx`
+- `frontend/src/plugins/builtin-event-core/plugin.ts`
+- `frontend/src/plugins/builtin-event-core/setup.tsx`
+- `frontend/src/plugins/builtin-event-core/settings.tsx`
+- `frontend/src/plugin-sdk/index.ts`
+- `frontend/src/plugin-sdk/authoring.ts`
+- `frontend/src/plugin-system/setup.ts`
+- `backend/plugin_registry.py`
+- `backend/crud_plugin_registry.py`
+
+## 14. One-Line Summary
+
+Author plugins in `plugin.ts`; put runtime in `index.ts`; put host-rendered settings in `settings.tsx`; put Semester setup in `setup.tsx`; and treat setup as an editor for plugin-owned `settings_key` buckets, not as a separate storage system.

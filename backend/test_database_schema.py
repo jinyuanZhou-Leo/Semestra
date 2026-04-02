@@ -98,7 +98,6 @@ class RuntimeSchemaCompatibilityTests(unittest.TestCase):
                     id VARCHAR NOT NULL PRIMARY KEY,
                     semester_id VARCHAR NOT NULL,
                     program_plugin_installation_id VARCHAR NOT NULL,
-                    setup_state TEXT NOT NULL,
                     is_enabled BOOLEAN NOT NULL
                 )
                 """
@@ -113,6 +112,121 @@ class RuntimeSchemaCompatibilityTests(unittest.TestCase):
                 "missing table 'tab_settings'",
                 "missing table 'workspace_tab_order_entries'",
                 "missing column 'semesters.review_ready'",
+            ],
+        )
+
+    def test_collect_runtime_schema_issues_reports_legacy_setup_state_column(self) -> None:
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE users (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    email_verified_at VARCHAR
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE email_verification_challenges (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    email VARCHAR,
+                    purpose VARCHAR,
+                    code_hash VARCHAR,
+                    verification_nonce VARCHAR,
+                    attempt_count INTEGER,
+                    max_attempts INTEGER,
+                    expires_at VARCHAR,
+                    last_sent_at VARCHAR,
+                    verified_at VARCHAR,
+                    used_at VARCHAR,
+                    invalidated_at VARCHAR,
+                    resend_email_id VARCHAR,
+                    request_ip VARCHAR,
+                    user_agent VARCHAR,
+                    created_at VARCHAR,
+                    updated_at VARCHAR
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE semesters (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    lifecycle_state VARCHAR NOT NULL,
+                    creation_step VARCHAR NOT NULL,
+                    draft_updated_at VARCHAR,
+                    review_ready BOOLEAN NOT NULL
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE widgets (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    title VARCHAR NOT NULL
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE program_plugin_installations (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    program_id VARCHAR NOT NULL,
+                    plugin_id VARCHAR NOT NULL,
+                    version VARCHAR NOT NULL,
+                    is_enabled BOOLEAN NOT NULL,
+                    auth_state VARCHAR NOT NULL
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE semester_plugin_activations (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    semester_id VARCHAR NOT NULL,
+                    program_plugin_installation_id VARCHAR NOT NULL,
+                    setup_state TEXT NOT NULL,
+                    is_enabled BOOLEAN NOT NULL
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE program_course_plugin_activations (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    course_id VARCHAR NOT NULL,
+                    program_plugin_installation_id VARCHAR NOT NULL,
+                    is_enabled BOOLEAN NOT NULL
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE tab_settings (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    settings_key VARCHAR NOT NULL,
+                    settings TEXT NOT NULL
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE workspace_tab_order_entries (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    bucket_type VARCHAR NOT NULL,
+                    tab_type VARCHAR NOT NULL,
+                    order_index INTEGER NOT NULL
+                )
+                """
+            )
+
+        issues = collect_runtime_schema_issues(engine)
+
+        self.assertEqual(
+            issues,
+            [
+                "legacy column 'semester_plugin_activations.setup_state'",
             ],
         )
 

@@ -7,6 +7,7 @@
       "fields": [
         {
           "path": "calendarDefaultView",
+          "settings_key": "builtin-event-core",
           "label": "Calendar default view",
           "type": "select",
           "required": true,
@@ -37,6 +38,7 @@
       "fields": [
         {
           "path": "eventTypes",
+          "settings_key": "builtin-event-core",
           "label": "Default event types",
           "type": "json",
           "required": false,

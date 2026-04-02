@@ -171,10 +171,10 @@ def read_program_tab_settings(
     return runtime_payloads.serialize_tab_settings_payloads(db, program_id=program.id)
 
 
-@app.put("/programs/{program_id}/tab-settings/{tab_type}", response_model=schemas.TabSetting)
+@app.put("/programs/{program_id}/tab-settings/{settings_key}", response_model=schemas.TabSetting)
 def upsert_program_tab_setting(
     program_id: str,
-    tab_type: str,
+    settings_key: str,
     tab_setting: schemas.TabSettingUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
@@ -184,7 +184,7 @@ def upsert_program_tab_setting(
         raise HTTPException(status_code=404, detail="Program not found")
     row = crud.upsert_tab_setting(
         db,
-        schemas.TabSettingCreate(tab_type=tab_type, settings=tab_setting.settings),
+        schemas.TabSettingCreate(settings_key=settings_key, settings=tab_setting.settings),
         program_id=program.id,
     )
     return runtime_payloads.serialize_tab_setting_payload(db, row, program_id=program.id)
@@ -779,10 +779,10 @@ def delete_semester_plugin_activation(
         raise HTTPException(status_code=404, detail=error_detail("PLUGIN_NOT_ENABLED", "Plugin is not enabled for this Semester."))
     return {"ok": True}
 
-@app.put("/semesters/{semester_id}/tab-settings/{tab_type}", response_model=schemas.TabSetting)
+@app.put("/semesters/{semester_id}/tab-settings/{settings_key}", response_model=schemas.TabSetting)
 def upsert_semester_tab_setting(
     semester_id: str,
-    tab_type: str,
+    settings_key: str,
     tab_setting: schemas.TabSettingUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
@@ -790,7 +790,7 @@ def upsert_semester_tab_setting(
     get_owned_semester(db, current_user, semester_id)
     row = crud.upsert_tab_setting(
         db,
-        schemas.TabSettingCreate(tab_type=tab_type, settings=tab_setting.settings),
+        schemas.TabSettingCreate(settings_key=settings_key, settings=tab_setting.settings),
         semester_id=semester_id,
     )
     semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
@@ -870,7 +870,7 @@ def update_semester_runtime_tab_settings(
         raise HTTPException(status_code=404, detail="Runtime tab not found")
     crud.upsert_tab_setting(
         db,
-        schemas.TabSettingCreate(tab_type=tab_type, settings=payload.settings),
+        schemas.TabSettingCreate(settings_key=tab_type, settings=payload.settings),
         semester_id=semester.id,
     )
     updated_runtime_payload = runtime_payloads.build_semester_runtime_payload(db, semester)
@@ -1363,10 +1363,10 @@ def read_course_tab_settings(
         course_id=course_id,
     )
 
-@app.put("/courses/{course_id}/tab-settings/{tab_type}", response_model=schemas.TabSetting)
+@app.put("/courses/{course_id}/tab-settings/{settings_key}", response_model=schemas.TabSetting)
 def upsert_course_tab_setting(
     course_id: str,
-    tab_type: str,
+    settings_key: str,
     tab_setting: schemas.TabSettingUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
@@ -1374,7 +1374,7 @@ def upsert_course_tab_setting(
     course = get_owned_course(db, current_user, course_id)
     row = crud.upsert_tab_setting(
         db,
-        schemas.TabSettingCreate(tab_type=tab_type, settings=tab_setting.settings),
+        schemas.TabSettingCreate(settings_key=settings_key, settings=tab_setting.settings),
         course_id=course.id,
     )
     return runtime_payloads.serialize_tab_setting_payload(
@@ -1458,7 +1458,7 @@ def update_course_runtime_tab_settings(
         raise HTTPException(status_code=404, detail="Runtime tab not found")
     crud.upsert_tab_setting(
         db,
-        schemas.TabSettingCreate(tab_type=tab_type, settings=payload.settings),
+        schemas.TabSettingCreate(settings_key=tab_type, settings=payload.settings),
         course_id=course.id,
     )
     updated_runtime_payload = runtime_payloads.build_course_runtime_payload(db, course)

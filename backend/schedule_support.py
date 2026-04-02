@@ -12,7 +12,6 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Optional
 
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api_common import (
@@ -34,6 +33,7 @@ from api_common import (
     validate_week_range,
 )
 import crud
+from event_core_settings import get_course_event_type_by_code, resolve_course_event_types, upsert_course_event_types_settings
 import models
 import schemas
 
@@ -357,14 +357,11 @@ def derive_event_type_abbreviation(code: str) -> str:
 
 def resolve_unique_event_type_abbreviation(db: Session, course_id: str, event_type_code: str) -> str:
     preferred = derive_event_type_abbreviation(event_type_code)
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
     existing_abbreviations = {
-        row[0]
-        for row in (
-            db.query(models.CourseEventType.abbreviation)
-            .filter(models.CourseEventType.course_id == course_id)
-            .all()
-        )
-        if row[0]
+        item.abbreviation
+        for item in (resolve_course_event_types(db, course) if course is not None else [])
+        if item.abbreviation
     }
     if preferred not in existing_abbreviations:
         return preferred
@@ -382,57 +379,28 @@ def resolve_unique_event_type_abbreviation(db: Session, course_id: str, event_ty
 
 
 def ensure_builtin_event_types_for_course(db: Session, course_id: str):
-    existing_codes = {
-        row[0]
-        for row in (
-            db.query(models.CourseEventType.code)
-            .filter(models.CourseEventType.course_id == course_id)
-            .all()
-        )
-    }
-    missing_codes = sorted(BUILTIN_EVENT_TYPE_CODES - existing_codes)
-    for code in missing_codes:
-        ensure_course_event_type_exists(db, course_id, code)
+    return None
 
 
-def ensure_course_event_type_exists(db: Session, course_id: str, event_type_code: str) -> models.CourseEventType:
-    event_type_code = event_type_code.strip()
-    existing = (
-        db.query(models.CourseEventType)
-        .filter(models.CourseEventType.course_id == course_id, models.CourseEventType.code == event_type_code)
-        .first()
-    )
+def ensure_course_event_type_exists(db: Session, course_id: str, event_type_code: str) -> schemas.CourseEventType:
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+    event_type_code = event_type_code.strip().upper()
+    existing = get_course_event_type_by_code(db, course, event_type_code)
     if existing:
         return existing
 
-    event_type = models.CourseEventType(
-        course_id=course_id,
+    event_type = schemas.CourseEventType(
+        id=event_type_code,
         code=event_type_code,
         abbreviation=resolve_unique_event_type_abbreviation(db, course_id, event_type_code),
         track_attendance=False,
-        created_at="",
-        updated_at="",
+        color=None,
+        icon=None,
     )
-    touch_model_timestamp(event_type)
-    db.add(event_type)
-    try:
-        db.flush()
-    except IntegrityError as exc:
-        db.rollback()
-        recovered = (
-            db.query(models.CourseEventType)
-            .filter(models.CourseEventType.course_id == course_id, models.CourseEventType.code == event_type_code)
-            .first()
-        )
-        if recovered:
-            return recovered
-        raise HTTPException(
-            status_code=422,
-            detail=error_detail(
-                "EVENT_TYPE_CREATE_CONFLICT",
-                f"Failed to create eventTypeCode '{event_type_code}' due to a unique constraint conflict.",
-            ),
-        ) from exc
+    next_items = resolve_course_event_types(db, course) + [event_type]
+    upsert_course_event_types_settings(db, course, next_items)
     return event_type
 
 

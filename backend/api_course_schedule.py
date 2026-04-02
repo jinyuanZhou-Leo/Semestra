@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from api_common import error_detail, get_event_type_or_404, get_owned_course, get_owned_semester, get_semester_max_week, touch_model_timestamp
 from database import get_db
+from event_core_settings import resolve_course_event_types, upsert_course_event_types_settings
 from schedule_support import (
     collect_course_week_items,
     collect_semester_range_items,
@@ -43,21 +44,22 @@ import schemas
 router = APIRouter()
 
 
+def _get_owned_course_model(db: Session, current_user: models.User, course_id: str) -> models.Course:
+    get_owned_course(db, current_user, course_id)
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return course
+
+
 @router.get("/courses/{course_id}/event-types", response_model=list[schemas.CourseEventType])
 def get_course_event_types(
     course_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    get_owned_course(db, current_user, course_id)
-    ensure_builtin_event_types_for_course(db, course_id)
-    db.commit()
-    return (
-        db.query(models.CourseEventType)
-        .filter(models.CourseEventType.course_id == course_id)
-        .order_by(models.CourseEventType.code.asc())
-        .all()
-    )
+    course = _get_owned_course_model(db, current_user, course_id)
+    return resolve_course_event_types(db, course)
 
 
 @router.post("/courses/{course_id}/event-types", response_model=schemas.CourseEventType)
@@ -67,33 +69,30 @@ def create_course_event_type(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    get_owned_course(db, current_user, course_id)
+    course = _get_owned_course_model(db, current_user, course_id)
     code = payload.code.strip()
     abbreviation = payload.abbreviation.strip()
     if not code:
         raise HTTPException(status_code=422, detail=error_detail("INVALID_EVENT_TYPE_CODE", "code cannot be empty."))
     if not abbreviation:
         raise HTTPException(status_code=422, detail=error_detail("INVALID_EVENT_TYPE_ABBREVIATION", "abbreviation cannot be empty."))
+    normalized_code = code.upper()
+    normalized_abbreviation = abbreviation.upper()
+    current_items = resolve_course_event_types(db, course)
+    if any(item.code == normalized_code for item in current_items):
+        raise HTTPException(status_code=422, detail=error_detail("EVENT_TYPE_DUPLICATE", "Duplicate code for this course."))
+    if any(item.abbreviation == normalized_abbreviation for item in current_items):
+        raise HTTPException(status_code=422, detail=error_detail("EVENT_TYPE_DUPLICATE", "Duplicate abbreviation for this course."))
 
-    event_type = models.CourseEventType(
-        course_id=course_id,
-        code=code,
-        abbreviation=abbreviation,
+    event_type = schemas.CourseEventType(
+        id=normalized_code,
+        code=normalized_code,
+        abbreviation=normalized_abbreviation,
         track_attendance=bool(payload.track_attendance),
         color=payload.color,
         icon=payload.icon,
     )
-    touch_model_timestamp(event_type)
-    db.add(event_type)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=422,
-            detail=error_detail("EVENT_TYPE_DUPLICATE", "Duplicate code or abbreviation for this course."),
-        )
-    db.refresh(event_type)
+    upsert_course_event_types_settings(db, course, [*current_items, event_type])
     return event_type
 
 
@@ -105,7 +104,7 @@ def update_course_event_type(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    get_owned_course(db, current_user, course_id)
+    course = _get_owned_course_model(db, current_user, course_id)
     event_type = get_event_type_or_404(db, course_id, event_type_code.strip())
     update_data = payload.dict(exclude_unset=True, by_alias=False)
     normalized_count = 0
@@ -129,57 +128,50 @@ def update_course_event_type(
                 detail=error_detail("INVALID_EVENT_TYPE_CODE", "code cannot be empty."),
             )
         if new_code != old_code:
-            existing = (
-                db.query(models.CourseEventType)
-                .filter(
-                    models.CourseEventType.course_id == course_id,
-                    models.CourseEventType.code == new_code,
-                    models.CourseEventType.id != event_type.id,
-                )
-                .first()
-            )
-            if existing:
+            if any(item.code == new_code.upper() and item.id != event_type.id for item in resolve_course_event_types(db, course)):
                 raise HTTPException(
                     status_code=422,
                     detail=error_detail("EVENT_TYPE_DUPLICATE", "code already exists for this course."),
                 )
 
+    current_items = resolve_course_event_types(db, course)
+    next_items: list[schemas.CourseEventType] = []
+    next_event_type = event_type.model_copy()
     for key, value in update_data.items():
-        setattr(event_type, key, value)
-
-    if new_code and new_code != old_code:
-        db.query(models.CourseEvent).filter(
-            models.CourseEvent.course_id == course_id,
-            models.CourseEvent.event_type_code == old_code,
-        ).update({models.CourseEvent.event_type_code: new_code}, synchronize_session=False)
-        db.query(models.CourseSection).filter(
-            models.CourseSection.course_id == course_id,
-            models.CourseSection.event_type_code == old_code,
-        ).update({models.CourseSection.event_type_code: new_code}, synchronize_session=False)
-
-    if (not previous_track) and event_type.track_attendance:
-        normalized_count = (
-            db.query(models.CourseEvent)
-            .filter(
-                models.CourseEvent.course_id == course_id,
-                models.CourseEvent.event_type_code == event_type.code,
-                models.CourseEvent.skip == True,
-            )
-            .update({models.CourseEvent.skip: False}, synchronize_session=False)
-        )
-
-    touch_model_timestamp(event_type)
-    db.add(event_type)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
+        setattr(next_event_type, key, value)
+    next_event_type.code = next_event_type.code.strip().upper()
+    next_event_type.abbreviation = next_event_type.abbreviation.strip().upper()
+    if any(item.abbreviation == next_event_type.abbreviation and item.id != event_type.id for item in current_items):
         raise HTTPException(
             status_code=422,
             detail=error_detail("EVENT_TYPE_DUPLICATE", "Duplicate abbreviation for this course."),
         )
-    db.refresh(event_type)
-    return {"event_type": event_type, "normalized_events": normalized_count}
+
+    if next_event_type.code != old_code:
+        db.query(models.CourseEvent).filter(
+            models.CourseEvent.course_id == course_id,
+            models.CourseEvent.event_type_code == old_code,
+        ).update({models.CourseEvent.event_type_code: next_event_type.code}, synchronize_session=False)
+        db.query(models.CourseSection).filter(
+            models.CourseSection.course_id == course_id,
+            models.CourseSection.event_type_code == old_code,
+        ).update({models.CourseSection.event_type_code: next_event_type.code}, synchronize_session=False)
+
+    if (not previous_track) and next_event_type.track_attendance:
+        normalized_count = (
+            db.query(models.CourseEvent)
+            .filter(
+                models.CourseEvent.course_id == course_id,
+                models.CourseEvent.event_type_code == next_event_type.code,
+                models.CourseEvent.skip == True,
+            )
+            .update({models.CourseEvent.skip: False}, synchronize_session=False)
+        )
+    for item in current_items:
+        next_items.append(next_event_type if item.id == event_type.id else item)
+    upsert_course_event_types_settings(db, course, next_items)
+    db.commit()
+    return {"event_type": next_event_type, "normalized_events": normalized_count}
 
 
 @router.delete("/courses/{course_id}/event-types/{event_type_code}")
@@ -189,18 +181,13 @@ def delete_course_event_type(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    get_owned_course(db, current_user, course_id)
-    event_type = (
-        db.query(models.CourseEventType)
-        .filter(
-            models.CourseEventType.course_id == course_id,
-            models.CourseEventType.code == event_type_code.strip(),
-        )
-        .first()
-    )
-    if not event_type:
+    course = _get_owned_course_model(db, current_user, course_id)
+    normalized_code = event_type_code.strip().upper()
+    current_items = resolve_course_event_types(db, course)
+    if not any(item.code == normalized_code for item in current_items):
         raise HTTPException(status_code=404, detail="Event type not found")
-    db.delete(event_type)
+    next_items = [item for item in current_items if item.code != normalized_code]
+    upsert_course_event_types_settings(db, course, next_items)
     db.commit()
     return {"ok": True}
 

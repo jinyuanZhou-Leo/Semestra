@@ -11,8 +11,9 @@ Plugin settings authoring is intentionally restricted to two places: plugin sett
 - `plugin.ts` is the source of truth for plugin authoring; handwritten `plugin.json` source files are no longer part of the plugin workflow.
 - `host-policy.json` is the private host overlay for builtin/host-shell kind and visibility; external plugin authors do not declare those fields in `plugin.ts`.
 - `definePluginManifest(...)` keeps inline plugin metadata typed, including direct lucide icon imports.
-- `definePluginSetupSchema(...)` is used inline in `plugin.ts` when the plugin contributes Semester setup fields.
+- Semester setup is authored in `setup.tsx` with `definePluginSetup(...)`, then bound from `plugin.ts` through `createPluginSetupBinding(...)`.
 - `settings.tsx` is **optional** and owns plugin settings UI, including tab settings and host-rendered Program/Semester/Course plugin settings sections; do not keep empty placeholder files.
+- Any settings section declared in `settings.tsx` must also be declared in `descriptor.settings.panels` inside `plugin.ts`, otherwise plugin validation fails before runtime load.
 - `index.ts` default-exports `definePluginRuntime(...)`; runtime definitions in `widget.tsx`/`tab.tsx` declare runtime-specific fields like `component`, `defaultSettings`, tab/widget `SettingsComponent`, `headerButtons`, and lifecycle hooks.
 - `tab.tsx` should import tab settings components from `settings.tsx` instead of declaring them inline, so tab settings stay in one plugin-owned location.
 - Runtime instance settings still belong in `widget.tsx` through `SettingsComponent`; widget settings are the only plugin settings that remain instance-scoped.

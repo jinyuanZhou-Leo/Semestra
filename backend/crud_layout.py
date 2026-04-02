@@ -326,19 +326,20 @@ def get_tab_settings_for_context(
         query = query.filter(models.TabSetting.semester_id == semester_id)
     if course_id is not None:
         query = query.filter(models.TabSetting.course_id == course_id)
-    return query.order_by(models.TabSetting.tab_type.asc()).all()
+    return query.order_by(models.TabSetting.settings_key.asc()).all()
 
 
 def get_tab_setting(
     db: Session,
-    tab_type: str,
+    settings_key: str,
     *,
     program_id: str | None = None,
     semester_id: str | None = None,
     course_id: str | None = None,
 ) -> models.TabSetting | None:
     _ensure_tab_settings_context(program_id=program_id, semester_id=semester_id, course_id=course_id)
-    query = db.query(models.TabSetting).filter(models.TabSetting.tab_type == _canonical_tab_type(tab_type))
+    normalized_settings_key = (settings_key or "").strip()
+    query = db.query(models.TabSetting).filter(models.TabSetting.settings_key == normalized_settings_key)
     if program_id is not None:
         query = query.filter(models.TabSetting.program_id == program_id)
     if semester_id is not None:
@@ -357,17 +358,19 @@ def upsert_tab_setting(
     course_id: str | None = None,
 ) -> models.TabSetting:
     _ensure_tab_settings_context(program_id=program_id, semester_id=semester_id, course_id=course_id)
-    normalized_tab_type = _canonical_tab_type(tab_setting.tab_type)
+    normalized_settings_key = str(tab_setting.settings_key or "").strip()
+    if not normalized_settings_key:
+        raise ValueError("Tab settings require a non-empty settings_key.")
     existing = get_tab_setting(
         db,
-        normalized_tab_type,
+        normalized_settings_key,
         program_id=program_id,
         semester_id=semester_id,
         course_id=course_id,
     )
     if existing is None:
         existing = models.TabSetting(
-            tab_type=normalized_tab_type,
+            settings_key=normalized_settings_key,
             program_id=program_id,
             semester_id=semester_id,
             course_id=course_id,
@@ -381,7 +384,7 @@ def upsert_tab_setting(
 
 def resolve_tab_settings(
     db: Session,
-    tab_type: str,
+    settings_key: str,
     *,
     program_id: str | None = None,
     semester_id: str | None = None,
@@ -389,7 +392,7 @@ def resolve_tab_settings(
 ) -> dict:
     return resolve_tab_settings_metadata(
         db,
-        tab_type,
+        settings_key,
         program_id=program_id,
         semester_id=semester_id,
         course_id=course_id,
@@ -414,13 +417,13 @@ def _build_tab_settings_scope_chain(
 
 def resolve_tab_settings_metadata(
     db: Session,
-    tab_type: str,
+    settings_key: str,
     *,
     program_id: str | None = None,
     semester_id: str | None = None,
     course_id: str | None = None,
 ) -> dict[str, object]:
-    normalized_tab_type = _canonical_tab_type(tab_type)
+    normalized_settings_key = str(settings_key or "").strip()
     scope_chain = _build_tab_settings_scope_chain(
         program_id=program_id,
         semester_id=semester_id,
@@ -428,7 +431,7 @@ def resolve_tab_settings_metadata(
     )
     scoped_settings_by_layer: dict[str, dict[str, object]] = {}
     for layer, context_kwargs in scope_chain:
-        tab_setting = get_tab_setting(db, normalized_tab_type, **context_kwargs)
+        tab_setting = get_tab_setting(db, normalized_settings_key, **context_kwargs)
         scoped_settings_by_layer[layer] = _parse_json_object(tab_setting.settings if tab_setting is not None else None)
 
     resolved_settings: dict[str, object] = {}
@@ -497,14 +500,14 @@ def list_tab_settings_payloads(
     return [
         {
             "id": row.id,
-            "tab_type": row.tab_type,
+            "settings_key": row.settings_key,
             "settings": row.settings,
             "program_id": row.program_id,
             "semester_id": row.semester_id,
             "course_id": row.course_id,
             **resolve_tab_settings_metadata(
                 db,
-                row.tab_type,
+                row.settings_key,
                 program_id=program_id,
                 semester_id=semester_id,
                 course_id=course_id,

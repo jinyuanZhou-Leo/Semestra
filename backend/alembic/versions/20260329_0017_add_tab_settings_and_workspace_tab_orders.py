@@ -111,6 +111,17 @@ def _fetch_rows(bind: sa.Connection, statement: str) -> list[dict[str, object]]:
     return [dict(row._mapping) for row in bind.execute(sa.text(statement))]
 
 
+def _tab_settings_key_column(bind: sa.Connection) -> str:
+    inspector = sa.inspect(bind)
+    column_names = {
+        column["name"]
+        for column in inspector.get_columns("tab_settings")
+    }
+    if "settings_key" in column_names:
+        return "settings_key"
+    return "tab_type"
+
+
 def _upsert_tab_setting(
     bind: sa.Connection,
     *,
@@ -122,13 +133,14 @@ def _upsert_tab_setting(
 ) -> None:
     if not settings:
         return
+    key_column = _tab_settings_key_column(bind)
 
     existing = bind.execute(
         sa.text(
-            """
+            f"""
             SELECT id, settings
             FROM tab_settings
-            WHERE tab_type = :tab_type
+            WHERE {key_column} = :tab_type
               AND ((:program_id IS NOT NULL AND program_id = :program_id)
                 OR (:semester_id IS NOT NULL AND semester_id = :semester_id)
                 OR (:course_id IS NOT NULL AND course_id = :course_id))
@@ -154,8 +166,8 @@ def _upsert_tab_setting(
 
     bind.execute(
         sa.text(
-            """
-            INSERT INTO tab_settings (id, tab_type, settings, program_id, semester_id, course_id)
+            f"""
+            INSERT INTO tab_settings (id, {key_column}, settings, program_id, semester_id, course_id)
             VALUES (:id, :tab_type, :settings, :program_id, :semester_id, :course_id)
             """
         ),

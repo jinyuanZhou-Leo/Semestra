@@ -22,6 +22,7 @@ export interface PluginDescriptorFieldOption {
 
 export interface PluginDescriptorSetupFieldDefinition {
   path: string;
+  settings_key: string;
   label: string;
   type: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'date' | 'json';
   required?: boolean;

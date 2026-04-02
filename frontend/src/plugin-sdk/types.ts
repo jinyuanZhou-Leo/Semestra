@@ -8,6 +8,11 @@
 
 import type { FC, ReactNode } from 'react';
 import type { TabSettingsMeta } from '@/plugin-system/tabSettingsMeta';
+import type {
+  PluginSettingsScope as RegistryPluginSettingsScope,
+  PluginSettingsSectionDefinition as RegistryPluginSettingsSectionDefinition,
+  PluginSettingsSectionProps as RegistryPluginSettingsSectionProps,
+} from '@/services/pluginSettingsRegistry';
 
 import type {
   PluginSetupUiDefinition as PluginSetupOverrideDefinition,
@@ -123,22 +128,11 @@ export interface PluginWidgetDefinition {
   onDelete?: (context: PluginWidgetLifecycleContext) => Promise<void> | void;
 }
 
-export type PluginSettingsScope =
-  | { kind: 'program'; programId: string }
-  | { kind: 'semester'; semesterId: string; programId?: string }
-  | { kind: 'course'; courseId: string; semesterId?: string; programId?: string };
-
-export interface PluginSettingsSectionProps {
-  pluginId: string;
-  scope: PluginSettingsScope;
-  onRefresh: () => void;
-}
-
-export interface PluginSettingsSectionDefinition {
-  id: string;
-  component: FC<PluginSettingsSectionProps>;
+export type PluginSettingsScope = RegistryPluginSettingsScope;
+export type PluginSettingsSectionProps = RegistryPluginSettingsSectionProps;
+export type PluginSettingsSectionDefinition = RegistryPluginSettingsSectionDefinition & {
   allowedContexts?: PluginContext[];
-}
+};
 
 export interface PluginSettingsDefinition {
   pluginSettings?: PluginSettingsSectionDefinition[];

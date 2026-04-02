@@ -22,6 +22,7 @@ describe("plugin-system setup registry", () => {
           fields: [
             {
               path: "missingField",
+              settings_key: "broken-tab",
               label: "Missing",
               type: "text",
             },
@@ -43,6 +44,7 @@ describe("plugin-system setup registry", () => {
           fields: [
             {
               path: "invalidSelect",
+              settings_key: "broken-tab",
               label: "Invalid select",
               type: "select",
               options: [],
@@ -64,6 +66,7 @@ describe("plugin-system setup registry", () => {
           fields: [
             {
               path: "firstField",
+              settings_key: "broken-tab",
               label: "First field",
               type: "text",
             },
@@ -75,6 +78,7 @@ describe("plugin-system setup registry", () => {
           fields: [
             {
               path: "firstField",
+              settings_key: "broken-tab",
               label: "First field",
               type: "text",
             },
@@ -106,6 +110,9 @@ describe("plugin-system setup registry", () => {
     }));
     expect(definition?.fields.eventTypes).toEqual(expect.objectContaining({
       type: "json",
+    }));
+    expect(definition?.fields.calendarDefaultView).toEqual(expect.objectContaining({
+      settingsKey: "builtin-event-core",
     }));
   });
 });

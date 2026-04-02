@@ -59,6 +59,7 @@ export type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, Widget
 export * from './public-types';
 export * from './tabSettingsMeta';
 export * from './setup';
+export * from './pluginSettingsFields';
 export * from './host-api';
 export { PluginSettingsSectionRenderer, getPluginSettingsSections, usePluginSettingsRegistry } from './settings-sections';
 export type { PluginLoadState, PluginLoadStatus } from './pluginLoadState';

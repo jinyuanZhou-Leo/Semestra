@@ -1,6 +1,6 @@
 // input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, app-side Program/Semester resource queries plus draft cache helpers, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, plugin setup definitions/validation helpers, and shared data-table row-actions dropdown helpers]
-// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step visibility sourced from activation-plus-plugin-system payloads, setup-step saves, custom setup context wiring for draft-semester APIs, finalize-safe draft teardown, tighter review-summary typography/layout, overflow-safe condensed wizard pagination for large step counts, and animated compact bottom navigation labels]
-// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, activation-plus-plugin-system-aware setup-step visibility, draft-semester context passthrough for plugin-owned setup UIs, compact large-step pagination rendering, and polished bottom action transitions]
+// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step visibility sourced from activation-plus-plugin-system payloads, setup-step saves, custom setup context wiring for draft-semester APIs, finalize-safe draft teardown, blank-by-default semester dates for new local drafts, a unified Program-exit confirmation dialog, tighter review-summary typography/layout, overflow-safe condensed wizard pagination for large step counts, and animated compact bottom navigation labels]
+// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, activation-plus-plugin-system-aware setup-step visibility, draft-semester context passthrough for plugin-owned setup UIs, compact large-step pagination rendering, unified Program-exit choices, and polished bottom action transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -384,18 +384,10 @@ const getReviewErrorStepLabel = (step: string): string => {
   }
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
-const addDaysIso = (days: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-};
-
 const makeInitialBasics = (): BasicsDraft => ({
   name: "",
-  start_date: todayIso(),
-  end_date: addDaysIso(111),
+  start_date: "",
+  end_date: "",
   reading_week_start: "",
   reading_week_end: "",
 });
@@ -489,8 +481,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
     }
     return {
       name: draft.name || "",
-      start_date: draft.start_date ?? todayIso(),
-      end_date: draft.end_date ?? addDaysIso(111),
+      start_date: draft.start_date ?? "",
+      end_date: draft.end_date ?? "",
       reading_week_start: draft.reading_week_start ?? "",
       reading_week_end: draft.reading_week_end ?? "",
     };
@@ -656,8 +648,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
         queryClient.setQueryData(programKeys.semesterDraft(programId!), result);
         setSavedBasics({
           name: result.name || "",
-          start_date: result.start_date ?? todayIso(),
-          end_date: result.end_date ?? addDaysIso(111),
+          start_date: result.start_date ?? "",
+          end_date: result.end_date ?? "",
           reading_week_start: result.reading_week_start ?? "",
           reading_week_end: result.reading_week_end ?? "",
         });
@@ -1538,29 +1530,19 @@ export const CreateSemesterWizardPage: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Leave Semester setup?</AlertDialogTitle>
             <AlertDialogDescription>
-              {draftId
-                ? "Choose whether to keep this draft for later or discard it before returning to the Program dashboard."
-                : "You will return to the Program dashboard and the current unsaved setup details will be lost."}
+              Return to the Program dashboard. Keep preserves any saved draft progress, while Discard removes the draft before leaving.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            {draftId ? (
-              <>
-                <AlertDialogCancel>
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction onClick={handleLeaveWizard}>
-                  Keep
-                </AlertDialogAction>
-                <AlertDialogAction variant="destructive" onClick={() => void handleDiscardDraft()}>
-                  Discard
-                </AlertDialogAction>
-              </>
-            ) : (
-              <AlertDialogCancel onClick={handleLeaveWizard}>
-                Leave wizard
-              </AlertDialogCancel>
-            )}
+            <AlertDialogCancel>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleLeaveWizard}>
+              Keep
+            </AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={() => void handleDiscardDraft()}>
+              Discard
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

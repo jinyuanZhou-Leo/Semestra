@@ -146,7 +146,7 @@ const normalizeItem = (value: unknown): ProgramHomeItem | null => {
 export const getProgramHomeItemKey = (entityType: ProgramHomeEntityType, entityId: string) => `${entityType}:${entityId}`;
 
 export const parseProgramHomeSettings = (tabSettings: TabSetting[] | undefined): ProgramHomeSettings => {
-  const tabSetting = tabSettings?.find((entry) => entry.tab_type === PROGRAM_HOME_TAB_TYPE);
+  const tabSetting = tabSettings?.find((entry) => entry.settings_key === PROGRAM_HOME_TAB_TYPE);
   if (!tabSetting) {
     return DEFAULT_PROGRAM_HOME_SETTINGS;
   }
@@ -181,7 +181,7 @@ export const replaceProgramHomeTabSetting = (
 ): TabSetting[] => {
   const nextTabSetting: TabSetting = {
     id: PROGRAM_HOME_TAB_TYPE,
-    tab_type: PROGRAM_HOME_TAB_TYPE,
+    settings_key: PROGRAM_HOME_TAB_TYPE,
     settings: serializeProgramHomeSettings(settings),
     resolved_settings: {
       sort_mode: settings.sort_mode,
@@ -189,7 +189,7 @@ export const replaceProgramHomeTabSetting = (
     },
   };
   const entries = tabSettings ?? [];
-  const index = entries.findIndex((entry) => entry.tab_type === PROGRAM_HOME_TAB_TYPE);
+  const index = entries.findIndex((entry) => entry.settings_key === PROGRAM_HOME_TAB_TYPE);
   if (index < 0) {
     return [...entries, nextTabSetting];
   }

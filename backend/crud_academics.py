@@ -22,7 +22,6 @@ from crud_plugin_registry import (
     _serialize_semester_plugin_activation,
 )
 from crud_shared import (
-    BUILTIN_EVENT_TYPES,
     CourseSemesterAssignmentError,
     PluginRegistryError,
     _now_utc_iso,
@@ -41,7 +40,12 @@ def get_current_semester_draft(db: Session, program_id: str) -> models.Semester 
 
 
 def _serialize_semester_draft(semester: models.Semester) -> dict:
-    review_state = _refresh_semester_review_ready(semester)
+    db = Session.object_session(semester)
+    review_state = _refresh_semester_review_ready(db, semester) if db is not None else {
+        "review_ready": bool(semester.review_ready),
+        "review_errors": [],
+        "plugin_reviews": {},
+    }
     return {
         "id": semester.id,
         "program_id": semester.program_id,
@@ -58,12 +62,12 @@ def _serialize_semester_draft(semester: models.Semester) -> dict:
         "review_ready": semester.review_ready,
         "review_errors": review_state["review_errors"],
         "plugin_activations": [
-            _serialize_semester_plugin_activation(semester, activation, review_state)
+            _serialize_semester_plugin_activation(db, semester, activation, review_state)
             for activation in sorted(
                 semester.plugin_activations,
                 key=lambda item: item.program_plugin_installation.plugin_id if item.program_plugin_installation is not None else "",
             )
-        ] if Session.object_session(semester) else [],
+        ] if db is not None else [],
     }
 
 
@@ -94,7 +98,7 @@ def create_semester_draft(db: Session, program_id: str, payload: schemas.Semeste
     try:
         db.flush()
         _ensure_default_semester_plugin_activations(db, db_semester, commit=False)
-        _refresh_semester_review_ready(db_semester)
+        _refresh_semester_review_ready(db, db_semester)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -122,7 +126,7 @@ def update_semester_draft(db: Session, semester_id: str, payload: schemas.Semest
     for key, value in update_data.items():
         setattr(semester, key, value)
     semester.draft_updated_at = _now_utc_iso()
-    _refresh_semester_review_ready(semester)
+    _refresh_semester_review_ready(db, semester)
     db.add(semester)
     db.commit()
     db.refresh(semester)
@@ -135,7 +139,7 @@ def finalize_semester_draft(db: Session, semester_id: str) -> dict:
         raise PluginRegistryError("SEMESTER_NOT_FOUND", "Semester not found.")
     if semester.lifecycle_state != "draft":
         raise PluginRegistryError("SEMESTER_NOT_DRAFT", "Only draft Semesters can be finalized.")
-    review_state = _refresh_semester_review_ready(semester)
+    review_state = _refresh_semester_review_ready(db, semester)
     if not semester.review_ready:
         first_error = next(iter(review_state["review_errors"]), None)
         message = first_error["message"] if isinstance(first_error, dict) and first_error.get("message") else "Resolve the draft review errors before finalizing this Semester."
@@ -182,7 +186,7 @@ def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: s
     db.commit()
     db.refresh(db_semester)
     _ensure_default_semester_plugin_activations(db, db_semester)
-    _refresh_semester_review_ready(db_semester)
+    _refresh_semester_review_ready(db, db_semester)
     db.add(db_semester)
     db.commit()
     db.refresh(db_semester)
@@ -244,17 +248,6 @@ def create_course(db: Session, course: schemas.CourseCreate, program_id: str, se
     db.commit()
     db.refresh(db_course)
 
-    for builtin_type in BUILTIN_EVENT_TYPES:
-        db.add(models.CourseEventType(
-            course_id=db_course.id,
-            code=builtin_type["code"],
-            abbreviation=builtin_type["abbreviation"],
-            track_attendance=False,
-            created_at="",
-            updated_at="",
-        ))
-    db.commit()
-    db.refresh(db_course)
     gradebook.ensure_course_gradebook(db, db_course)
     if db_course.program and _sync_program_subject_color_map(db_course.program):
         db.add(db_course.program)
@@ -264,7 +257,7 @@ def create_course(db: Session, course: schemas.CourseCreate, program_id: str, se
     logic.update_course_stats(db_course, db)
     if db_course.semester is not None and db_course.semester.lifecycle_state == "draft":
         db_course.semester.draft_updated_at = _now_utc_iso()
-        _refresh_semester_review_ready(db_course.semester)
+        _refresh_semester_review_ready(db, db_course.semester)
         db.add(db_course.semester)
         db.commit()
         db.refresh(db_course.semester)
@@ -294,14 +287,14 @@ def update_course(db: Session, course_id: str, course_update: schemas.CourseUpda
             logic.update_semester_stats(previous_semester, db)
             if previous_semester.lifecycle_state == "draft":
                 previous_semester.draft_updated_at = _now_utc_iso()
-                _refresh_semester_review_ready(previous_semester)
+                _refresh_semester_review_ready(db, previous_semester)
                 db.add(previous_semester)
                 db.commit()
 
     current_semester = db_course.semester
     if current_semester is not None and current_semester.lifecycle_state == "draft":
         current_semester.draft_updated_at = _now_utc_iso()
-        _refresh_semester_review_ready(current_semester)
+        _refresh_semester_review_ready(db, current_semester)
         db.add(current_semester)
         db.commit()
     return db_course
@@ -323,7 +316,7 @@ def delete_course(db: Session, course_id: str):
             logic.update_semester_stats(previous_semester, db)
             if previous_semester.lifecycle_state == "draft":
                 previous_semester.draft_updated_at = _now_utc_iso()
-                _refresh_semester_review_ready(previous_semester)
+                _refresh_semester_review_ready(db, previous_semester)
                 db.add(previous_semester)
                 db.commit()
 

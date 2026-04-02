@@ -9,13 +9,13 @@ Subfolders split reusable dialogs/utilities from tab-specific UI to keep semeste
 | INDEX.md | Architecture index | Local map for the built-in event core plugin structure and responsibilities. |
 | components/ | Shared dialogs | Reusable CRUD forms and shared event/schedule editing dialogs. |
 | components/INDEX.md | Shared components architecture index | File map for reusable event-core dialogs and weekly conflict-aware schedule rendering. |
-| plugin.ts | Plugin entry | Single typed plugin authoring entry that declares event-core metadata, lazy runtime loading, a Program-level Todo defaults settings section, and optional setup UI while binding setup directly from `setup.tsx` instead of maintaining a separate inline setup schema. |
+| plugin.ts | Plugin entry | Single typed plugin authoring entry that declares event-core metadata, lazy runtime loading, Program-level Todo defaults plus Semester-level event-type settings sections, and optional setup UI while binding setup directly from `setup.tsx` instead of maintaining a separate inline setup schema. |
 | index.ts | Runtime entry | Exports plugin definitions and metadata bindings for loader integration. |
 | setup.test.tsx | Test file | Verifies builtin-event-core setup defaults plus event-type validation rules for the Semester wizard. |
 | setup.tsx | Setup entry | Declares builtin-event-core Semester setup fields and renders a custom wizard/review UI with a settings-style event-type configuration table that now supplies its own four-column minimum width instead of relying on a shared default. |
 | shared/ | Shared domain layer | Constants, event bus, hooks, types, and helpers shared by event-core tabs/widgets, including source ids, gradebook-aware refresh payloads, and Reading Week-aware calendar semantics. |
 | shared/INDEX.md | Shared architecture index | File map for shared schedule payloads, event bus contracts, and cache-aware hooks. |
-| settings.tsx | Settings entry | Owns the Calendar, Course Schedule, and Todo tab settings components while also exposing a Program-level Todo defaults section that persists through Program tab settings and now shows per-key inherited-layer badges plus reset-to-parent/default actions. |
+| settings.tsx | Settings entry | Owns the Calendar, Course Schedule, and Todo tab settings components while also exposing a Program-level Todo defaults section plus a Semester-level event-type section, both backed by generic plugin settings buckets with per-key inherited-layer badges plus reset-to-parent/default actions. |
 | tab.tsx | Tab definition entry | Exposes tab runtime definitions and wires each tab to the settings components exported from `settings.tsx`. |
 | tabs/ | Tab modules | Calendar, course-schedule, and todo feature implementations, including registry-backed Calendar source adapters for buffered schedule/todo/gradebook/LMS overlays and configurable week-view scroll width. |
 | widget.tsx | Widget runtime | Event-core widget card runtime and schedule summary presentation with DST-safe current-week lookup. |

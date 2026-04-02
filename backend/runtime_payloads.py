@@ -100,14 +100,14 @@ def serialize_tab_settings_payloads(
     for row in crud.get_tab_settings_for_context(db, **context_kwargs):
         settings_metadata = crud.resolve_tab_settings_metadata(
             db,
-            row.tab_type,
+            row.settings_key,
             program_id=program_id,
             semester_id=semester_id,
             course_id=course_id,
         )
         payloads.append({
             "id": row.id,
-            "tab_type": row.tab_type,
+            "settings_key": row.settings_key,
             "settings": row.settings,
             "program_id": row.program_id,
             "semester_id": row.semester_id,
@@ -127,14 +127,14 @@ def serialize_tab_setting_payload(
 ) -> dict[str, object]:
     settings_metadata = crud.resolve_tab_settings_metadata(
         db,
-        row.tab_type,
+        row.settings_key,
         program_id=program_id,
         semester_id=semester_id,
         course_id=course_id,
     )
     return {
         "id": row.id,
-        "tab_type": row.tab_type,
+        "settings_key": row.settings_key,
         "settings": row.settings,
         "program_id": row.program_id,
         "semester_id": row.semester_id,

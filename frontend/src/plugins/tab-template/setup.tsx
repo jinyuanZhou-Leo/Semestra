@@ -30,6 +30,7 @@ export default definePluginSetup({
       >
         <PluginSetupTextField
           path="initialTitle"
+          settingsKey="tab-template"
           label="Initial title"
           required
           defaultValue="Tab Template"
@@ -43,6 +44,7 @@ export default definePluginSetup({
         />
         <PluginSetupTextareaField
           path="initialNote"
+          settingsKey="tab-template"
           label="Starter note"
           defaultValue=""
           description="Seed the persistent note area with starter content for this Semester."
@@ -50,6 +52,7 @@ export default definePluginSetup({
         />
         <PluginSetupNumberField
           path="focusMinutes"
+          settingsKey="tab-template"
           label="Default focus session (minutes)"
           required
           defaultValue={45}
@@ -63,6 +66,7 @@ export default definePluginSetup({
         />
         <PluginSetupDateField
           path="kickoffDate"
+          settingsKey="tab-template"
           label="Kickoff date"
           required
           defaultValue="2026-01-12"
@@ -77,12 +81,14 @@ export default definePluginSetup({
       >
         <PluginSetupBooleanField
           path="showChecklist"
+          settingsKey="tab-template"
           label="Show starter checklist"
           defaultValue
           description="Keep the onboarding checklist visible when the tab is first used."
         />
         <PluginSetupSelectField
           path="defaultView"
+          settingsKey="tab-template"
           label="Default opening surface"
           required
           defaultValue="notes"
@@ -107,6 +113,7 @@ export default definePluginSetup({
       >
         <PluginSetupJsonField
           path="starterBlocks"
+          settingsKey="tab-template"
           label="Starter blocks"
           required
           defaultValue={[

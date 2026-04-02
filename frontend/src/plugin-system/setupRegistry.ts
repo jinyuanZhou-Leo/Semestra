@@ -41,6 +41,7 @@ const toSetupFieldDefinition = (
   field: PluginDescriptorSetupFieldDefinition,
 ): PluginSetupFieldDefinition => {
   const baseField = {
+    settingsKey: field.settings_key,
     label: field.label,
     required: Boolean(field.required),
     description: field.description ?? '',
@@ -77,6 +78,9 @@ const validateSetupFieldDefinition = (
   }
   if (!field.label.trim()) {
     throw new Error(`${prefix}: label must be non-empty.`);
+  }
+  if (!field.settings_key.trim()) {
+    throw new Error(`${prefix}: settings_key must be non-empty.`);
   }
   if (field.type === 'select' && (!field.options || field.options.length === 0)) {
     throw new Error(`${prefix}: select fields must declare at least one option.`);

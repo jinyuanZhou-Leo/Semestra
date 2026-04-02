@@ -95,7 +95,6 @@ REQUIRED_RUNTIME_SCHEMA = {
         "id",
         "semester_id",
         "program_plugin_installation_id",
-        "setup_state",
         "is_enabled",
     },
     "program_course_plugin_activations": {
@@ -106,7 +105,7 @@ REQUIRED_RUNTIME_SCHEMA = {
     },
     "tab_settings": {
         "id",
-        "tab_type",
+        "settings_key",
         "settings",
     },
     "workspace_tab_order_entries": {
@@ -114,6 +113,12 @@ REQUIRED_RUNTIME_SCHEMA = {
         "bucket_type",
         "tab_type",
         "order_index",
+    },
+}
+
+FORBIDDEN_RUNTIME_SCHEMA = {
+    "semester_plugin_activations": {
+        "setup_state",
     },
 }
 
@@ -132,10 +137,19 @@ def collect_runtime_schema_issues(bind) -> list[str]:
         }
         for column_name in sorted(required_columns - column_names):
             issues.append(f"missing column '{table_name}.{column_name}'")
+    for table_name, forbidden_columns in FORBIDDEN_RUNTIME_SCHEMA.items():
+        if table_name not in table_names:
+            continue
+        column_names = {
+            column["name"]
+            for column in inspector.get_columns(table_name)
+        }
+        for column_name in sorted(forbidden_columns & column_names):
+            issues.append(f"legacy column '{table_name}.{column_name}'")
     return sorted(
         issues,
         key=lambda item: (
-            0 if item.startswith("missing table") else 1,
+            0 if item.startswith("missing table") else 1 if item.startswith("missing column") else 2,
             item,
         ),
     )

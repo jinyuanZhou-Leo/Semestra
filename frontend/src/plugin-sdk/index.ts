@@ -1,30 +1,24 @@
-// input:  [descriptor-backed plugin SDK types, typed manifest authoring helpers, host/runtime helper modules, and host-owned setup form primitives]
-// output: [single public plugin authoring entrypoint with define helpers, typed manifest helpers, host APIs, runtime instance APIs, setup UI types, and setup form primitives]
-// pos:    [Stable frontend plugin SDK that hides internal registries behind a descriptor-first authoring surface]
+// input:  [typed plugin authoring helpers, host/runtime helper modules, and host-owned setup form primitives]
+// output: [single public plugin SDK entrypoint that re-exports shared authoring helpers plus host/runtime utilities]
+// pos:    [Stable frontend plugin SDK facade that keeps plugin authors on one import surface while delegating helper implementations to authoring.ts]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import type {
-  PluginDefinition,
-  PluginHeaderButton,
-  PluginRuntimeDefinition,
-  PluginSettingsDefinition,
-  PluginSettingsSectionDefinition,
-  PluginSetupUiDefinition,
-  PluginTabDefinition,
-  PluginWidgetDefinition,
-} from './types';
-
 export type * from './types';
 export {
-  definePluginManifest,
-  definePluginSetupSchema,
-} from './manifest-authoring.ts';
-export {
   createPluginSetupBinding,
+  definePlugin,
   definePluginSetup,
+  definePluginManifest,
+  definePluginRuntime,
+  definePluginSettings,
+  definePluginSetupSchema,
+  defineSettingsSection,
+  defineSetup,
+  defineTab,
+  defineWidget,
   PluginSetupBooleanField,
   PluginSetupDateField,
   PluginSetupJsonField,
@@ -33,81 +27,8 @@ export {
   PluginSetupSelectField,
   PluginSetupTextField,
   PluginSetupTextareaField,
-} from '@/plugin-system/setup';
+} from './authoring.ts';
 export type { MaxInstances } from './manifest-types.ts';
-
-export const definePlugin = (definition: PluginDefinition): PluginDefinition => ({
-  descriptor: {
-    ...definition.descriptor,
-    tabs: [...(definition.descriptor.tabs ?? [])],
-    widgets: [...(definition.descriptor.widgets ?? [])],
-    settings: {
-      panels: [...(definition.descriptor.settings?.panels ?? [])],
-    },
-  },
-  loadRuntime: definition.loadRuntime,
-  settingsSections: [...(definition.settingsSections ?? [])],
-  setup: definition.setup
-    ? {
-      schema: {
-        sections: definition.setup.schema.sections.map((section) => ({
-          ...section,
-          fields: section.fields.map((field) => ({
-            ...field,
-            options: [...(field.options ?? [])],
-            summary_labels: { ...(field.summary_labels ?? {}) },
-          })),
-        })),
-        validation_rules: [...(definition.setup.schema.validation_rules ?? [])],
-      },
-      ui: definition.setup.ui,
-      validate: definition.setup.validate,
-    }
-    : undefined,
-});
-
-export const definePluginRuntime = (definition: PluginRuntimeDefinition): PluginRuntimeDefinition => ({
-  tabDefinitions: [...(definition.tabDefinitions ?? [])],
-  widgetDefinitions: [...(definition.widgetDefinitions ?? [])],
-});
-
-export const defineTab = (definition: PluginTabDefinition): PluginTabDefinition => ({
-  ...definition,
-});
-
-export const defineWidget = (definition: PluginWidgetDefinition): PluginWidgetDefinition => ({
-  ...definition,
-  headerButtons: [...(definition.headerButtons ?? [])] as PluginHeaderButton[],
-});
-
-export const defineSettingsSection = (
-  definition: PluginSettingsSectionDefinition,
-): PluginSettingsSectionDefinition => ({
-  ...definition,
-  allowedContexts: [...(definition.allowedContexts ?? [])],
-});
-
-export const definePluginSettings = (
-  definition: PluginSettingsDefinition,
-): PluginSettingsDefinition => ({
-  pluginSettings: [...(definition.pluginSettings ?? [])],
-});
-
-export const defineSetup = (definition: PluginSetupUiDefinition): PluginSetupUiDefinition => ({
-  schema: {
-    sections: definition.schema.sections.map((section) => ({
-      ...section,
-      fields: section.fields.map((field) => ({
-        ...field,
-        options: [...(field.options ?? [])],
-        summary_labels: { ...(field.summary_labels ?? {}) },
-      })),
-    })),
-    validation_rules: [...(definition.schema.validation_rules ?? [])],
-  },
-  ui: definition.ui,
-  validate: definition.validate,
-});
 
 export {
   PluginSetupFormField,
@@ -115,6 +36,17 @@ export {
   PluginSetupFormSection,
   PluginSetupFormSurface,
 } from "@/components/PluginSetupForm";
+export {
+  PluginSettingsBooleanField,
+  PluginSettingsDateField,
+  PluginSettingsJsonField,
+  PluginSettingsNumberField,
+  PluginSettingsSelectField,
+  PluginSettingsTextField,
+  PluginSettingsTextareaField,
+  usePluginSettingField,
+  usePluginSettingsBucket,
+} from "@/plugin-system/pluginSettingsFields";
 export { PluginHostProvider, usePluginHost } from '@/plugin-system/PluginHostContext';
 export type {
   PluginHostJumpOptions,

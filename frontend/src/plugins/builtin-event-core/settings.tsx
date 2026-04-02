@@ -1,6 +1,6 @@
 // input:  [event-core tab settings sections, public plugin-system settings contracts, Program detail query data, and shared todo settings component]
-// output: [calendar, course-schedule, and todo tab settings components plus a Program-scoped todo-defaults plugin settings section]
-// pos:    [settings entry that centralizes builtin-event-core tab settings UI while also exposing a Program-level Todo defaults section backed by Program tab-setting inheritance]
+// output: [calendar, course-schedule, and todo tab settings components plus Program and Semester scoped plugin settings sections]
+// pos:    [settings entry that centralizes builtin-event-core tab settings UI while exposing Program-level todo defaults and Semester-level event-type defaults through the shared settings-section contract]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -47,6 +47,15 @@ export const BuiltinCourseScheduleTabSettings: React.FC<TabSettingsProps> = ({ c
   return <CourseScheduleSettings courseId={courseId} />;
 };
 
+const SemesterEventTypesSettingsSection: React.FC<PluginSettingsSectionProps> = ({
+  scope,
+}) => {
+  if (scope.kind !== 'semester') {
+    return null;
+  }
+  return <CourseScheduleSettings semesterId={scope.semesterId} />;
+};
+
 const ProgramTodoDefaultsSettingsSection: React.FC<PluginSettingsSectionProps> = ({
   scope,
   onRefresh,
@@ -60,7 +69,7 @@ const ProgramTodoDefaultsSettingsSection: React.FC<PluginSettingsSectionProps> =
     if (!programId || !program?.tab_settings) {
       return {};
     }
-    const todoTabSetting = program.tab_settings.find((setting) => setting.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
+    const todoTabSetting = program.tab_settings.find((setting) => setting.settings_key === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
     if (!todoTabSetting?.resolved_settings && !todoTabSetting?.settings) {
       return {};
     }
@@ -77,7 +86,7 @@ const ProgramTodoDefaultsSettingsSection: React.FC<PluginSettingsSectionProps> =
     if (!programId || !program?.tab_settings) {
       return null;
     }
-    return program.tab_settings.find((setting) => setting.tab_type === BUILTIN_TIMETABLE_TODO_TAB_TYPE) ?? null;
+    return program.tab_settings.find((setting) => setting.settings_key === BUILTIN_TIMETABLE_TODO_TAB_TYPE) ?? null;
   }, [program?.tab_settings, programId]);
 
   const handleUpdateSettings = React.useCallback(async (nextSettings: Record<string, unknown>) => {
@@ -127,6 +136,11 @@ export default definePluginSettings({
       id: 'todo-defaults',
       component: ProgramTodoDefaultsSettingsSection,
       allowedContexts: ['program'],
+    },
+    {
+      id: 'semester-event-types',
+      component: SemesterEventTypesSettingsSection,
+      allowedContexts: ['semester'],
     },
   ],
 });

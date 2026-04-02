@@ -1,6 +1,6 @@
-# input:  [unittest, in-memory SQLAlchemy setup, backend CRUD helpers, schemas, and plugin governance review-hook contracts]
-# output: [backend regression tests proving Semester setup review errors can be supplied by plugin-owned review hooks instead of host hardcoding]
-# pos:    [backend unit tests for plugin-owned setup review dispatch through the shared Semester draft review pipeline without Program-setting coupling]
+# input:  [unittest, in-memory SQLAlchemy setup, backend CRUD helpers, schemas, plugin registry overrides, and Semester plugin setup persistence contracts]
+# output: [backend regression tests proving Semester setup writes are projected into tab-settings storage and review ignores plugin-owned setup-review hooks]
+# pos:    [backend unit tests for Semester plugin-setup persistence and review behavior when setup is treated as runtime tab settings rather than a separate validated payload]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -23,6 +23,7 @@ from database import Base
 import models
 import plugin_registry
 import schemas
+from crud_shared import PluginRegistryError
 
 
 class PluginSetupReviewHookTests(unittest.TestCase):
@@ -60,6 +61,7 @@ class PluginSetupReviewHookTests(unittest.TestCase):
     def _register_mock_setup_plugin(self) -> None:
         mode_field = plugin_registry.PluginSetupFieldDefinition(
             path="mode",
+            settings_key="mock-primary-tab",
             label="Mode",
             field_type="select",
             required=True,
@@ -103,6 +105,7 @@ class PluginSetupReviewHookTests(unittest.TestCase):
                 author="Tests",
                 capabilities={
                     "contexts": ["semester"],
+                    "available_tab_types": ["mock-primary-tab"],
                 },
             ),
             setup_review=review_hook,
@@ -119,7 +122,62 @@ class PluginSetupReviewHookTests(unittest.TestCase):
             ),
         )
 
-    def test_semester_review_uses_plugin_owned_setup_review_hook(self) -> None:
+    def _register_multi_tab_setup_plugin(self) -> None:
+        title_field = plugin_registry.PluginSetupFieldDefinition(
+            path="title",
+            settings_key="mock-primary-tab",
+            label="Title",
+            field_type="text",
+            required=True,
+            default="Overview",
+        )
+        accent_field = plugin_registry.PluginSetupFieldDefinition(
+            path="accent",
+            settings_key="mock-secondary-tab",
+            label="Accent",
+            field_type="select",
+            required=True,
+            default="neutral",
+            options=(
+                {"label": "Neutral", "value": "neutral"},
+                {"label": "Contrast", "value": "contrast"},
+            ),
+            summary_labels={
+                "neutral": "Neutral",
+                "contrast": "Contrast",
+            },
+        )
+        plugin_registry.PLUGIN_REGISTRY_OVERRIDES["mock-multi-tab-plugin"] = plugin_registry.PluginRegistryDefinition(
+            plugin_id="mock-multi-tab-plugin",
+        )
+        plugin_registry.PLUGIN_DEFINITIONS["mock-multi-tab-plugin"] = plugin_registry.PluginDefinition(
+            plugin_id="mock-multi-tab-plugin",
+            metadata=plugin_registry.PluginMetadata(
+                kind="builtin",
+                visibility="public",
+                display_name="Mock Multi Tab Plugin",
+                description="Test-only plugin with setup fields across multiple tabs.",
+                long_description="Test-only plugin with setup fields across multiple tabs.",
+                author="Tests",
+                capabilities={
+                    "contexts": ["semester"],
+                    "available_tab_types": ["mock-primary-tab", "mock-secondary-tab"],
+                },
+            ),
+        )
+        plugin_registry.PLUGIN_SETUP_DEFINITIONS["mock-multi-tab-plugin"] = plugin_registry.PluginSetupDefinition(
+            plugin_id="mock-multi-tab-plugin",
+            fields=(title_field, accent_field),
+            sections=(
+                plugin_registry.PluginSetupSectionDefinition(
+                    id="mock-setup",
+                    title="Mock Setup",
+                    fields=(title_field, accent_field),
+                ),
+            ),
+        )
+
+    def test_semester_review_ignores_plugin_owned_setup_review_hook_errors(self) -> None:
         self._register_mock_setup_plugin()
         program = self._create_program()
         crud.upsert_program_plugin_installation(
@@ -154,9 +212,114 @@ class PluginSetupReviewHookTests(unittest.TestCase):
         review_payload = crud.review_semester_plugin_system(self.db, draft["id"])
         mock_plugin_review = next(plugin for plugin in review_payload["plugins"] if plugin["plugin_id"] == "mock-setup-plugin")
 
-        self.assertTrue(review_payload["has_errors"])
-        self.assertEqual(mock_plugin_review["review_errors"][0]["code"], "ADVANCED_MODE_REQUIRES_HONORS_SEMESTER")
-        self.assertEqual(mock_plugin_review["review_errors"][0]["field_path"], "mode")
+        self.assertFalse(review_payload["has_errors"])
+        self.assertEqual(mock_plugin_review["review_errors"], [])
+        self.assertEqual(mock_plugin_review["setup_summary"][0]["items"][0]["value"], "Advanced")
+
+    def test_plugin_setup_updates_write_fields_into_multiple_tab_settings(self) -> None:
+        self._register_multi_tab_setup_plugin()
+        program = self._create_program()
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "mock-multi-tab-plugin",
+            schemas.ProgramPluginInstallationUpsertRequest(),
+        )
+        draft = crud.create_semester_draft(
+            self.db,
+            program.id,
+            schemas.SemesterDraftCreateRequest(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+                creation_step="plugin-setup",
+            ),
+        )
+        crud.upsert_semester_plugin_activation(
+            self.db,
+            draft["id"],
+            "mock-multi-tab-plugin",
+            schemas.SemesterPluginActivationUpsertRequest(is_enabled=True),
+        )
+
+        update_payload = crud.update_semester_plugin_system_setup(
+            self.db,
+            draft["id"],
+            "mock-multi-tab-plugin",
+            schemas.PluginSystemSemesterSetupUpdateRequest(
+                values={
+                    "title": "Launch Plan",
+                    "accent": "contrast",
+                }
+            ),
+        )
+
+        primary_tab_setting = self.db.query(models.TabSetting).filter(
+            models.TabSetting.semester_id == draft["id"],
+            models.TabSetting.settings_key == "mock-primary-tab",
+        ).first()
+        secondary_tab_setting = self.db.query(models.TabSetting).filter(
+            models.TabSetting.semester_id == draft["id"],
+            models.TabSetting.settings_key == "mock-secondary-tab",
+        ).first()
+
+        self.assertIsNotNone(primary_tab_setting)
+        self.assertEqual(primary_tab_setting.settings, '{"title": "Launch Plan"}')
+        self.assertIsNotNone(secondary_tab_setting)
+        self.assertEqual(secondary_tab_setting.settings, '{"accent": "contrast"}')
+        self.assertEqual(update_payload["setup_values"]["title"], "Launch Plan")
+        self.assertEqual(update_payload["setup_values"]["accent"], "contrast")
+
+        setup_payload = crud.get_semester_plugin_system_setup(self.db, draft["id"])
+        multi_tab_plugin = next(plugin for plugin in setup_payload["plugins"] if plugin["plugin_id"] == "mock-multi-tab-plugin")
+        self.assertEqual(
+            multi_tab_plugin["setup_values"],
+            {
+                "title": "Launch Plan",
+                "accent": "contrast",
+            },
+        )
+
+    def test_plugin_setup_update_rejects_invalid_field_value_before_persisting(self) -> None:
+        self._register_mock_setup_plugin()
+        program = self._create_program()
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "mock-setup-plugin",
+            schemas.ProgramPluginInstallationUpsertRequest(),
+        )
+        draft = crud.create_semester_draft(
+            self.db,
+            program.id,
+            schemas.SemesterDraftCreateRequest(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+                creation_step="plugin-setup",
+            ),
+        )
+        crud.upsert_semester_plugin_activation(
+            self.db,
+            draft["id"],
+            "mock-setup-plugin",
+            schemas.SemesterPluginActivationUpsertRequest(is_enabled=True),
+        )
+
+        with self.assertRaises(PluginRegistryError) as context:
+            crud.update_semester_plugin_system_setup(
+                self.db,
+                draft["id"],
+                "mock-setup-plugin",
+                schemas.PluginSystemSemesterSetupUpdateRequest(values={"mode": "invalid-option"}),
+            )
+
+        self.assertEqual(context.exception.code, "PLUGIN_SYSTEM_SETUP_INVALID")
+        persisted_tab_setting = self.db.query(models.TabSetting).filter(
+            models.TabSetting.semester_id == draft["id"],
+            models.TabSetting.settings_key == "mock-primary-tab",
+        ).first()
+        self.assertIsNone(persisted_tab_setting)
 
 
 if __name__ == "__main__":

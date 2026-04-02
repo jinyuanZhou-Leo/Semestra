@@ -731,7 +731,7 @@ class SettingSource(BaseModel):
 
 
 class TabSettingBase(BaseModel):
-    tab_type: str
+    settings_key: str
     settings: str = "{}"
 
 
@@ -1215,6 +1215,7 @@ class ProgramWithSemesters(Program):
 
 class ProgramPluginSetupField(BaseModel):
     path: str
+    settings_key: str
     label: str
     type: str
     required: bool = False

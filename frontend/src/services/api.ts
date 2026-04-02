@@ -19,7 +19,7 @@ export interface RuntimeAvailability {
 
 export interface TabSetting {
     id: string;
-    tab_type: string;
+    settings_key: string;
     settings: string;
     scope_settings?: Record<string, unknown>;
     inherited_settings?: Record<string, unknown>;
@@ -196,6 +196,7 @@ export interface Tab {
 
 export interface ProgramPluginSetupField {
     path: string;
+    settings_key: string;
     label: string;
     type: string;
     required?: boolean;
@@ -1304,9 +1305,9 @@ const api = {
     deleteTab: async (tabId: string) => {
         await axios.delete(`/api/tabs/${tabId}`);
     },
-    updateProgramTabSettings: async (programId: string, tabType: string, data: { settings: string }) => {
+    updateProgramTabSettings: async (programId: string, settingsKey: string, data: { settings: string }) => {
         const response = await axios.put<TabSetting>(
-            `/api/programs/${programId}/tab-settings/${encodeURIComponent(tabType)}`,
+            `/api/programs/${programId}/tab-settings/${encodeURIComponent(settingsKey)}`,
             data,
         );
         return normalizeTabSetting(response.data);
@@ -1369,23 +1370,23 @@ const api = {
             return response.data.map(normalizeTabSetting);
         });
     },
-    upsertProgramTabSettings: async (programId: string, tabType: string, data: { settings: string }) => {
-        const response = await axios.put<TabSetting>(`/api/programs/${programId}/tab-settings/${encodeURIComponent(tabType)}`, {
-            tab_type: tabType,
+    upsertProgramTabSettings: async (programId: string, settingsKey: string, data: { settings: string }) => {
+        const response = await axios.put<TabSetting>(`/api/programs/${programId}/tab-settings/${encodeURIComponent(settingsKey)}`, {
+            settings_key: settingsKey,
             settings: data.settings,
         });
         return normalizeTabSetting(response.data);
     },
-    upsertSemesterTabSettings: async (semesterId: string, tabType: string, data: { settings: string }) => {
-        const response = await axios.put<TabSetting>(`/api/semesters/${semesterId}/tab-settings/${encodeURIComponent(tabType)}`, {
-            tab_type: tabType,
+    upsertSemesterTabSettings: async (semesterId: string, settingsKey: string, data: { settings: string }) => {
+        const response = await axios.put<TabSetting>(`/api/semesters/${semesterId}/tab-settings/${encodeURIComponent(settingsKey)}`, {
+            settings_key: settingsKey,
             settings: data.settings,
         });
         return normalizeTabSetting(response.data);
     },
-    upsertCourseTabSettings: async (courseId: string, tabType: string, data: { settings: string }) => {
-        const response = await axios.put<TabSetting>(`/api/courses/${courseId}/tab-settings/${encodeURIComponent(tabType)}`, {
-            tab_type: tabType,
+    upsertCourseTabSettings: async (courseId: string, settingsKey: string, data: { settings: string }) => {
+        const response = await axios.put<TabSetting>(`/api/courses/${courseId}/tab-settings/${encodeURIComponent(settingsKey)}`, {
+            settings_key: settingsKey,
             settings: data.settings,
         });
         return normalizeTabSetting(response.data);

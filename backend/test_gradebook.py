@@ -87,7 +87,7 @@ class GradebookServiceTests(unittest.TestCase):
             self.db.commit()
 
         self.db.add(models.TabSetting(
-            tab_type="builtin-gradebook",
+            settings_key="builtin-gradebook",
             program_id=course.program_id,
             settings=json.dumps({
                 "forecast_model": "simple_minimum_needed",

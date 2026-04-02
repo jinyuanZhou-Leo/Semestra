@@ -215,7 +215,7 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
         if (!programQuery.data?.tab_settings) {
             return DEFAULT_GRADEBOOK_DEFAULTS_SETTINGS;
         }
-        const tabSetting = programQuery.data.tab_settings.find((entry) => entry.tab_type === BUILTIN_GRADEBOOK_TAB_TYPE);
+        const tabSetting = programQuery.data.tab_settings.find((entry) => entry.settings_key === BUILTIN_GRADEBOOK_TAB_TYPE);
         if (!tabSetting) {
             return DEFAULT_GRADEBOOK_DEFAULTS_SETTINGS;
         }
@@ -225,7 +225,7 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
         if (!programQuery.data?.tab_settings) {
             return null;
         }
-        return programQuery.data.tab_settings.find((entry) => entry.tab_type === BUILTIN_GRADEBOOK_TAB_TYPE) ?? null;
+        return programQuery.data.tab_settings.find((entry) => entry.settings_key === BUILTIN_GRADEBOOK_TAB_TYPE) ?? null;
     }, [programQuery.data?.tab_settings]);
     const gradebookSettingsMeta = React.useMemo(() => {
         if (!gradebookTabSetting) {

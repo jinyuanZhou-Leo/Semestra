@@ -48,6 +48,7 @@ def _raise_manifest_error(message: str) -> None:
 @dataclass(frozen=True)
 class PluginSetupFieldDefinition:
     path: str
+    settings_key: str
     label: str
     field_type: str
     required: bool = False
@@ -513,6 +514,7 @@ def _load_manifest_field(
     raw_field: dict[str, Any],
 ) -> PluginSetupFieldDefinition:
     path = raw_field.get("path")
+    settings_key = raw_field.get("settings_key")
     label = raw_field.get("label")
     field_type = raw_field.get("type")
     required = bool(raw_field.get("required", False))
@@ -524,6 +526,8 @@ def _load_manifest_field(
 
     if not isinstance(path, str) or not path.strip():
         _raise_manifest_error(f"Plugin '{plugin_id}' setup field is missing a non-empty path.")
+    if not isinstance(settings_key, str) or not settings_key.strip():
+        _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' is missing a non-empty settings_key.")
     if not isinstance(label, str) or not label.strip():
         _raise_manifest_error(f"Plugin '{plugin_id}' setup field '{path}' is missing a non-empty label.")
     if field_type not in VALID_SETUP_FIELD_TYPES:
@@ -556,6 +560,7 @@ def _load_manifest_field(
 
     return PluginSetupFieldDefinition(
         path=path,
+        settings_key=settings_key,
         label=label,
         field_type=field_type,
         required=required,
@@ -736,6 +741,7 @@ def get_default_semester_plugin_ids() -> list[str]:
 def _build_plugin_setup_field_payload(field: PluginSetupFieldDefinition) -> dict[str, Any]:
     return {
         "path": field.path,
+        "settings_key": field.settings_key,
         "label": field.label,
         "type": field.field_type,
         "required": field.required,
@@ -760,10 +766,6 @@ def build_plugin_setup_sections(plugin_id: str) -> list[dict[str, Any]]:
         }
         for section in definition.sections
     ]
-
-
-def build_setup_section_payloads(plugin_id: str) -> list[dict[str, Any]]:
-    return build_plugin_setup_sections(plugin_id)
 
 
 def resolve_plugin_availability(
@@ -1027,62 +1029,6 @@ def validate_resolved_plugin_setup_values(plugin_id: str, values: dict[str, Any]
     return _validate_plugin_setup_values(plugin_id, values, require_explicit_required_fields=False)
 
 
-def review_plugin_setup(
-    plugin_id: str,
-    *,
-    setup_values: dict[str, Any] | None = None,
-    program: Any = None,
-    semester: Any = None,
-) -> dict[str, Any]:
-    normalized_setup_values = normalize_setup_values(plugin_id, setup_values)
-    setup_values = validate_resolved_plugin_setup_values(
-        plugin_id,
-        resolve_plugin_setup_values(
-            plugin_id,
-            setup_values=normalized_setup_values,
-        ),
-    )
-    setup_summary = build_plugin_setup_summary(
-        plugin_id,
-        setup_values=setup_values,
-    )
-    review_errors: list[PluginSetupReviewIssue] = []
-
-    definition = get_plugin_definition(plugin_id)
-    if definition.setup_review is not None:
-        review_context = PluginSetupReviewContext(
-            plugin_id=plugin_id,
-            setup_values=deepcopy(setup_values),
-            program=program,
-            semester=semester,
-        )
-        review_result = definition.setup_review(review_context)
-        if review_result is not None:
-            if review_result.setup_values is not None:
-                setup_values = validate_resolved_plugin_setup_values(plugin_id, review_result.setup_values)
-            if review_result.setup_summary is not None:
-                setup_summary = deepcopy(review_result.setup_summary)
-            review_errors = list(review_result.review_errors)
-
-    return {
-        "setup_values": setup_values,
-        "setup_summary": setup_summary,
-        "review_errors": review_errors,
-    }
-
-
-def write_plugin_setup_values(
-    plugin_id: str,
-    *,
-    values: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    definition = get_plugin_setup_definition(plugin_id)
-    normalized_values = validate_plugin_setup_values(plugin_id, values)
-    if definition is None:
-        return normalize_setup_values(plugin_id, values)
-    return normalized_values
-
-
 def _summary_label_key(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -1142,11 +1088,3 @@ def build_plugin_setup_summary(
             }
         )
     return summary_sections
-
-
-def build_setup_summary(
-    plugin_id: str,
-    *,
-    setup_values: dict[str, Any] | None = None,
-) -> list[dict[str, Any]]:
-    return build_plugin_setup_summary(plugin_id, setup_values=setup_values)

@@ -23,7 +23,7 @@ describe("plugin-system setup contract", () => {
       content: createElement(
         PluginSetupSection,
         { id: "general", title: "General" },
-        createElement(PluginSetupTextField, { path: "semesterName", label: "Semester name" }),
+        createElement(PluginSetupTextField, { path: "semesterName", settingsKey: "semester-overview", label: "Semester name" }),
       ),
     });
 
@@ -35,7 +35,7 @@ describe("plugin-system setup contract", () => {
       content: createElement(
         PluginSetupSection,
         { id: "general", title: "General" },
-        createElement(PluginSetupTextField, { path: "semesterName", label: "Semester name", defaultValue: "Winter 2026" }),
+        createElement(PluginSetupTextField, { path: "semesterName", settingsKey: "semester-overview", label: "Semester name", defaultValue: "Winter 2026" }),
       ),
     });
 
@@ -51,6 +51,7 @@ describe("plugin-system setup contract", () => {
         { id: "general", title: "General" },
         createElement(PluginSetupTextField, {
           path: "semesterName",
+          settingsKey: "semester-overview",
           label: "Semester name",
           required: true,
           validate: (value: unknown) => typeof value === "string" && value.startsWith("Sem")
@@ -78,5 +79,15 @@ describe("plugin-system setup contract", () => {
         message: "Semester name must exactly equal 'Semester'.",
       },
     ]);
+  });
+
+  it("requires each setup field to declare a settings key", () => {
+    expect(() => definePluginSetup({
+      content: createElement(
+        PluginSetupSection,
+        { id: "general", title: "General" },
+        createElement(PluginSetupTextField, { path: "semesterName", settingsKey: "   ", label: "Semester name" }),
+      ),
+    })).toThrow("settingsKey");
   });
 });

@@ -20,7 +20,7 @@ describe('programHome utilities', () => {
     const settings = parseProgramHomeSettings([
       {
         id: 'setting-1',
-        tab_type: 'builtin-program-home',
+        settings_key: 'builtin-program-home',
         settings: JSON.stringify({
           sort_mode: 'type',
           items: [
