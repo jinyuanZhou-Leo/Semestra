@@ -14,5 +14,5 @@ They run inside the jsdom test environment.
 | GPAScalingTable.test.tsx | Test file | Regression coverage for GPA scaling table create-empty rendering, decimal-gap warnings, and delete confirmation. |
 | ProgramPluginManagementPanel.test.tsx | Test file | Regression coverage for Program-level plugin install, responsive marketplace presentation, required-plugin lock states, header-level bulk toggles, and downstream Semester/Course cache invalidation. |
 | SemesterPluginManagementPanel.test.tsx | Test file | Regression coverage for Semester-level enable toggles, missing marketplace entry points, Program-enabled virtual off rows, header-level bulk toggles, and the toggle-only no-delete rule inside the management panel. |
-| SemesterSettingsPanel.test.tsx | Test file | Regression coverage for Semester settings invalid-state attributes so valid date ranges do not trip shadcn destructive styling. |
+| SemesterSettingsPanel.test.tsx | Test file | Regression coverage for Semester settings invalid-state attributes plus Program Home unpin confirmation so valid date ranges do not trip shadcn destructive styling and `Pin to Homepage` removals require confirmation. |
 | Tabs.test.tsx | Test file | Regression coverage for shared dashboard tab-shell alignment, horizontal overflow edge shadows, wheel-driven horizontal scrolling, and core tab actions. |

@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, models, schemas, shared color helpers, timezone/date helpers, and transaction helpers]
-# output: [shared CRUD constants, exceptions, user/settings helpers, auth password hashing helpers, normalization helpers, race-safe user identity persistence helpers, and common serialization utilities]
-# pos:    [Shared foundation for backend CRUD modules so Program/plugin/semester/course/layout operations can reuse one coherent helper layer, including normalized user creation, Google identity linking, and credential updates]
+# output: [shared CRUD constants, exceptions, user/settings helpers, auth password hashing helpers, normalization helpers, race-safe user identity persistence helpers, active-Program normalization helpers with lightweight Program lookups, and common serialization utilities]
+# pos:    [Shared foundation for backend CRUD modules so Program/plugin/semester/course/layout operations can reuse one coherent helper layer, including normalized user creation, Google identity linking, credential updates, and active-Program repair for both read and write paths]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 import bcrypt
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from color_utils import (
     parse_subject_color_map,
@@ -244,6 +244,44 @@ def normalize_user_setting_dict(settings: dict | None) -> dict:
 def get_user_setting_dict(user: models.User | None) -> dict:
     settings = parse_user_setting(getattr(user, "user_setting", None)) if user else {}
     return normalize_user_setting_dict(settings)
+
+
+def set_user_setting_dict(db: Session, user: models.User, settings: dict, *, commit: bool = True) -> models.User:
+    managed_user = user if object_session(user) is db else db.merge(user)
+    managed_user.user_setting = _serialize_json_object(normalize_user_setting_dict(settings))
+    db.add(managed_user)
+    if commit:
+        db.commit()
+        db.refresh(managed_user)
+    return managed_user
+
+
+def ensure_user_active_program(db: Session, user: models.User, *, commit: bool = True) -> models.User:
+    managed_user = user if object_session(user) is db else db.merge(user)
+    settings = get_user_setting_dict(managed_user)
+    active_program_id = settings.get("active_program_id")
+    program_rows = (
+        db.query(models.Program)
+        .with_entities(models.Program.id, models.Program.name)
+        .filter(models.Program.owner_id == managed_user.id)
+        .order_by(models.Program.name.asc(), models.Program.id.asc())
+        .all()
+    )
+    valid_program_ids = {program_id for program_id, _program_name in program_rows}
+
+    next_active_program_id: str | None
+    if not program_rows:
+        next_active_program_id = None
+    elif isinstance(active_program_id, str) and active_program_id in valid_program_ids:
+        next_active_program_id = active_program_id
+    else:
+        next_active_program_id = program_rows[0][0]
+
+    if settings.get("active_program_id") == next_active_program_id:
+        return managed_user
+
+    settings["active_program_id"] = next_active_program_id
+    return set_user_setting_dict(db, managed_user, settings, commit=commit)
 
 
 def _sync_program_subject_color_map(program: models.Program) -> bool:

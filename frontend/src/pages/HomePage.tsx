@@ -1,13 +1,13 @@
-// input:  [program list/create/delete APIs, dialog context, route links, loading skeletons, responsive overlay wrapper, shared business empty-state wrappers, and shadcn scroll-area]
-// output: [`HomePage` plus local create/delete program confirmation and responsive create surface components]
-// pos:    [Authenticated root workspace page showing programs, standardized create-empty feedback, mobile drawer program creation, and card delete actions that stay below the sticky page header]
+// input:  [program list/create/delete APIs, auth active-Program state, dialog context, route links, loading skeletons, responsive overlay wrapper, shared business empty-state wrappers, and shadcn scroll-area]
+// output: [`ProgramsPage` plus local create/delete/activate program flows and responsive create surface components]
+// pos:    [Secondary account-level Programs browser that lets users create, switch, and delete Programs while the root route redirects into the active Program Home]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useCallback, useEffect, useId, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 
 import { AppEmptyState } from '../components/AppEmptyState';
@@ -29,6 +29,7 @@ import { Container } from '../components/Container';
 import api from '../services/api';
 import type { Program } from '../services/api';
 import { useDialog } from '../contexts/DialogContext';
+import { useAuth } from '../contexts/AuthContext';
 
 import { ProgramCardSkeleton } from '../components/skeletons';
 import { AnimatedNumber } from '../components/AnimatedNumber';
@@ -45,7 +46,7 @@ type ShowAlert = ReturnType<typeof useDialog>['alert'];
 
 type CreateProgramDialogButtonProps = {
     showAlert: ShowAlert;
-    onCreated: () => Promise<void>;
+    onCreated: (program: Program) => Promise<void>;
     className?: string;
     size?: React.ComponentProps<typeof Button>['size'];
     variant?: React.ComponentProps<typeof Button>['variant'];
@@ -73,7 +74,7 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
         setIsSubmitting(true);
         try {
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-            await api.createProgram({
+            const createdProgram = await api.createProgram({
                 name: newProgramName,
                 grad_requirement_credits: parseFloat(newProgramCredits),
                 program_timezone: timezone,
@@ -81,7 +82,7 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
             setOpen(false);
             setNewProgramName('');
             setNewProgramCredits('');
-            await onCreated();
+            await onCreated(createdProgram);
         } catch (error) {
             console.error("Failed to create program", error);
             await showAlert({
@@ -162,7 +163,7 @@ const CreateProgramDialogButton: React.FC<CreateProgramDialogButtonProps> = ({
 
 type DeleteProgramButtonProps = {
     programId: string;
-    onDeleted: () => Promise<void>;
+    onDeleted: (programId: string) => Promise<void>;
     showAlert: ShowAlert;
 };
 
@@ -175,7 +176,7 @@ const DeleteProgramButton: React.FC<DeleteProgramButtonProps> = ({ programId, on
         try {
             await api.deleteProgram(programId);
             setOpen(false);
-            await onDeleted();
+            await onDeleted(programId);
         } catch (error) {
             console.error("Failed to delete program", error);
             await showAlert({
@@ -224,8 +225,10 @@ const DeleteProgramButton: React.FC<DeleteProgramButtonProps> = ({ programId, on
     );
 };
 
-export const HomePage: React.FC = () => {
+export const ProgramsPage: React.FC = () => {
     const { alert: showAlert } = useDialog();
+    const { user, setActiveProgram } = useAuth();
+    const navigate = useNavigate();
     const [programs, setPrograms] = useState<Program[]>([]);
     const [programEarnedCredits, setProgramEarnedCredits] = useState<Record<string, number>>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -260,11 +263,60 @@ export const HomePage: React.FC = () => {
         void fetchPrograms();
     }, [fetchPrograms]);
 
+    const handleActivateProgram = useCallback(async (programId: string) => {
+        try {
+            await setActiveProgram(programId);
+            navigate(`/programs/${programId}`);
+        } catch (error) {
+            console.error('Failed to activate program', error);
+            await showAlert({
+                title: 'Switch failed',
+                description: 'Failed to switch the active Program.',
+            });
+        }
+    }, [navigate, setActiveProgram, showAlert]);
+
+    const handleCreatedProgram = useCallback(async (program: Program) => {
+        await fetchPrograms();
+        await setActiveProgram(program.id);
+        navigate(`/programs/${program.id}`);
+    }, [fetchPrograms, navigate, setActiveProgram]);
+
+    const handleDeletedProgram = useCallback(async (deletedProgramId: string) => {
+        const nextPrograms = await api.getPrograms();
+        setPrograms(nextPrograms);
+        const creditEntries = await Promise.all(
+            nextPrograms.map(async (program) => {
+                try {
+                    const details = await api.getProgram(program.id);
+                    const earnedCredits = details.semesters.reduce((semesterSum, semester) => {
+                        const semesterCredits = (semester.courses || []).reduce((courseSum, course) => courseSum + course.credits, 0);
+                        return semesterSum + semesterCredits;
+                    }, 0);
+                    return [program.id, earnedCredits] as const;
+                } catch {
+                    return [program.id, 0] as const;
+                }
+            })
+        );
+        setProgramEarnedCredits(Object.fromEntries(creditEntries));
+
+        if (user?.active_program_id !== deletedProgramId) {
+            return;
+        }
+
+        const fallbackProgram = nextPrograms[0] ?? null;
+        await setActiveProgram(fallbackProgram?.id ?? null);
+        if (fallbackProgram) {
+            navigate(`/programs/${fallbackProgram.id}`);
+        }
+    }, [navigate, setActiveProgram, user?.active_program_id]);
+
     const breadcrumb = (
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
-                <BreadcrumbItem>
-                    <BreadcrumbPage className="text-foreground">Academics</BreadcrumbPage>
+                    <BreadcrumbItem>
+                    <BreadcrumbPage className="text-foreground">Programs</BreadcrumbPage>
                 </BreadcrumbItem>
             </BreadcrumbList>
         </Breadcrumb>
@@ -276,14 +328,14 @@ export const HomePage: React.FC = () => {
                 <Container className="py-4 md:py-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-1">
-                            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Academics</h1>
+                            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Programs</h1>
                             <p className="text-sm text-muted-foreground">
-                                Manage your academic programs and track your progress.
+                                Switch the active Program or create a new one.
                             </p>
                         </div>
                         <CreateProgramDialogButton
                             showAlert={showAlert}
-                            onCreated={fetchPrograms}
+                            onCreated={handleCreatedProgram}
                         >
                             <Plus className="mr-2 h-4 w-4" />
                             New Program
@@ -303,17 +355,26 @@ export const HomePage: React.FC = () => {
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {programs.map(program => (
                             <div key={program.id} className="group relative">
-                                <Link to={`/programs/${program.id}`} className="block h-full">
+                                <Link
+                                    to={`/programs/${program.id}`}
+                                    className="block h-full"
+                                    onClick={async (event) => {
+                                        event.preventDefault();
+                                        await handleActivateProgram(program.id);
+                                    }}
+                                >
                                     <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
                                         <CardHeader className="pb-3">
-                                            <CardTitle className="text-lg font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors pr-8">
-                                                {program.name}
-                                            </CardTitle>
+                                            <div className="flex items-start justify-between gap-3 pr-8">
+                                                <CardTitle className="text-lg font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors">
+                                                    {program.name}
+                                                </CardTitle>
+                                            </div>
                                         </CardHeader>
                                         <CardContent className="space-y-4">
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
-                                                    <span className="block text-xs tracking-wider text-muted-foreground font-medium mb-1">CGPA</span>
+                                                    <span className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground">CGPA</span>
                                                     <span className="text-xl font-bold tracking-tight">
                                                         <AnimatedNumber
                                                             value={program.cgpa_scaled}
@@ -322,12 +383,15 @@ export const HomePage: React.FC = () => {
                                                     </span>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="block text-xs tracking-wider text-muted-foreground font-medium mb-1">Credits</span>
+                                                    <span className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground">Credits</span>
                                                     <span className="text-sm font-medium">
-                                                        <span className="text-foreground text-base">{(programEarnedCredits[program.id] || 0).toFixed(1)}</span>
+                                                        <span className="text-base text-foreground">{(programEarnedCredits[program.id] || 0).toFixed(1)}</span>
                                                         <span className="text-muted-foreground"> / {program.grad_requirement_credits}</span>
                                                     </span>
                                                 </div>
+                                            </div>
+                                            <div className="rounded-md border border-border/70 px-3 py-2 text-center text-sm font-medium text-foreground">
+                                                Switch to workspace
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -335,7 +399,7 @@ export const HomePage: React.FC = () => {
                                 <div className="absolute right-4 top-4">
                                         <DeleteProgramButton
                                             programId={program.id}
-                                            onDeleted={fetchPrograms}
+                                            onDeleted={handleDeletedProgram}
                                             showAlert={showAlert}
                                         />
                                 </div>
@@ -348,11 +412,11 @@ export const HomePage: React.FC = () => {
                                 size="section"
                                 className="col-span-full py-12"
                                 title="No programs yet"
-                                description="Create your first academic program to get started."
+                                description="Create your first academic Program to start using Program Home."
                                 primaryAction={(
                                     <CreateProgramDialogButton
                                     showAlert={showAlert}
-                                    onCreated={fetchPrograms}
+                                    onCreated={handleCreatedProgram}
                                     >
                                         Create Program
                                     </CreateProgramDialogButton>
@@ -365,3 +429,5 @@ export const HomePage: React.FC = () => {
         </Layout>
     );
 };
+
+export const HomePage = ProgramsPage;

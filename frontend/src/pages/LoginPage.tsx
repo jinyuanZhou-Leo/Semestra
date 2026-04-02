@@ -1,6 +1,6 @@
 // input:  [cookie-session login actions, password/email-code auth endpoints, auth redirect restoration, optional prefilled auth-route state, password policy helpers, theme hooks, shared auth OTP input, shared email-domain autocomplete input, browser-autofill suppression attributes, Google identity button renderer, and shared auth-route shell presentation]
 // output: [`LoginPage` route component]
-// pos:    [Unified public auth route that starts from a single continue screen, keeps password and email verification as separate linear branches, animates direction-aware step-to-step auth transitions, and finishes account setup only after verified email ownership]
+// pos:    [Unified public auth route that starts from a single continue screen, keeps password and email verification as separate linear branches, anchors branch back-navigation without shifting the auth stack, animates direction-aware step-to-step auth transitions, and finishes account setup only after verified email ownership]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -532,6 +532,12 @@ export const LoginPage: React.FC = () => {
   })();
 
   const showTopBack = view === 'password' || view === 'email';
+  const handleTopBack = () => {
+    if (view === 'email') {
+      resetEmailBranch();
+    }
+    navigateAuthView('entry');
+  };
 
   return (
     <motion.div
@@ -539,8 +545,30 @@ export const LoginPage: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={authPanelTransition}
       onAnimationComplete={() => setIsGlassReady(true)}
-      className="w-full max-w-xs"
+      className="relative min-h-[24rem] w-full max-w-xs"
     >
+      <motion.div
+        aria-hidden={!showTopBack}
+        initial={false}
+        animate={{ opacity: showTopBack ? 1 : 0 }}
+        transition={authStepTransition}
+        className={`absolute -top-10 -left-2 z-10 ${
+          showTopBack ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2 text-muted-foreground hover:text-foreground"
+          onClick={handleTopBack}
+          tabIndex={showTopBack ? 0 : -1}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back
+        </Button>
+      </motion.div>
+
       <div className="flex flex-col gap-6">
         <motion.form
           noValidate
@@ -563,26 +591,6 @@ export const LoginPage: React.FC = () => {
                 className="flex flex-col gap-6"
               >
                 <div className="flex flex-col gap-3">
-                  {showTopBack ? (
-                    <div className="-ml-2 flex justify-start self-start">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                        onClick={() => {
-                          if (view === 'email') {
-                            resetEmailBranch();
-                          }
-                          navigateAuthView('entry');
-                        }}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        Back
-                      </Button>
-                    </div>
-                  ) : null}
-
                   <div className="flex flex-col items-center gap-1 text-center">
                     <h1 className="select-none whitespace-nowrap text-[1.375rem] font-bold tracking-tight">{headingContent.title}</h1>
                     <p className="select-none whitespace-nowrap text-[13px] text-muted-foreground">{headingContent.subtitle}</p>

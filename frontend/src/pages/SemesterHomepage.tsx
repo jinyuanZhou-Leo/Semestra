@@ -1,6 +1,6 @@
-// input:  [semester context, query-backed parent Program breadcrumb data, Program->Semester runtime plugin management payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, host-owned semester course management settings, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [semester context, query-backed parent Program navigation data, Program->Semester runtime plugin management payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, host-owned semester course management settings, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
-// pos:    [Semester workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, global command actions for current-semester tab switching and semester-course navigation plus widget creation, host-owned semester course management settings, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
+// pos:    [Semester workspace page with workspace navigation, flattened Program/Semester breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, global command actions for current-semester tab switching and semester-course navigation plus widget creation, host-owned semester course management settings, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -61,6 +61,15 @@ import {
 import { resolveSemesterActiveTabId } from './semesterHomepageNavigation';
 import { queryKeys } from '../services/queryKeys';
 import {
+    PROGRAM_HOME_TAB_TYPE,
+    isProgramHomePinned,
+    parseProgramHomeSettings,
+    removeProgramHomeItem,
+    replaceProgramHomeTabSetting,
+    serializeProgramHomeSettings,
+    upsertProgramHomeItem,
+} from '@/utils/programHome';
+import {
     filterWidgetItemsByEnabledPlugins,
     resolveAvailableWidgetTypes,
     resolveEnabledPluginIds,
@@ -110,6 +119,16 @@ const SemesterHomepageContent: React.FC = () => {
         },
     });
     const programName = parentProgramQuery.data?.name ?? null;
+    const isPinnedToProgramHome = useMemo(() => {
+        if (!parentProgramQuery.data || !semester?.id) {
+            return false;
+        }
+        return isProgramHomePinned(
+            parseProgramHomeSettings(parentProgramQuery.data.tab_settings),
+            'semester',
+            semester.id,
+        );
+    }, [parentProgramQuery.data, semester?.id]);
 
     const runtimeTabs = useMemo(
         () => resolveRuntimeTabs(semester?.runtime, `semester:${semester?.id ?? 'unknown'}`),
@@ -283,14 +302,8 @@ const SemesterHomepageContent: React.FC = () => {
     const breadcrumb = (
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
-                <BreadcrumbItem>
-                    <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
-                        <Link to="/">Academics</Link>
-                    </BreadcrumbLink>
-                </BreadcrumbItem>
                 {semester?.program_id && (
                     <>
-                        <BreadcrumbSeparator />
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
                                 <Link to={`/programs/${semester.program_id}`}>
@@ -300,7 +313,7 @@ const SemesterHomepageContent: React.FC = () => {
                         </BreadcrumbItem>
                     </>
                 )}
-                <BreadcrumbSeparator />
+                {semester?.program_id && <BreadcrumbSeparator />}
                 <BreadcrumbItem>
                     <BreadcrumbPage className="text-foreground font-semibold">
                         {semester?.name || 'Semester'}
@@ -439,6 +452,40 @@ const SemesterHomepageContent: React.FC = () => {
             console.error("Failed to update semester", error);
         }
     }, [saveSemester, semester]);
+
+    const handleTogglePinnedToHomepage = useCallback(async (nextValue: boolean) => {
+        const programId = semester?.program_id;
+        if (!programId || !semester?.id) {
+            return;
+        }
+
+        const currentProgram = parentProgramQuery.data ?? queryClient.getQueryData(queryKeys.programs.detail(programId));
+        if (!currentProgram) {
+            return;
+        }
+
+        const currentSettings = parseProgramHomeSettings(currentProgram.tab_settings);
+        const nextSettings = nextValue
+            ? upsertProgramHomeItem(currentSettings, 'semester', semester.id, 'medium')
+            : removeProgramHomeItem(currentSettings, 'semester', semester.id);
+        const nextTabSettings = replaceProgramHomeTabSetting(currentProgram.tab_settings, nextSettings);
+
+        queryClient.setQueryData(queryKeys.programs.detail(programId), (current: any) => (
+            current
+                ? { ...current, tab_settings: nextTabSettings }
+                : current
+        ));
+
+        try {
+            await api.upsertProgramTabSettings(programId, PROGRAM_HOME_TAB_TYPE, {
+                settings: serializeProgramHomeSettings(nextSettings),
+            });
+        } catch (error) {
+            console.error('Failed to update Program Home pin state', error);
+            await queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId) });
+            await queryClient.refetchQueries({ queryKey: queryKeys.programs.detail(programId), type: 'active' });
+        }
+    }, [parentProgramQuery.data, queryClient, semester?.id, semester?.program_id]);
 
     const tabInstanceSettingsSections = useMemo(() => {
         const sections = visibleTabs
@@ -595,6 +642,8 @@ const SemesterHomepageContent: React.FC = () => {
                         reading_week_start: semester?.reading_week_start,
                         reading_week_end: semester?.reading_week_end,
                     }}
+                    initialPinnedToHomepage={isPinnedToProgramHome}
+                    onTogglePinnedToHomepage={handleTogglePinnedToHomepage}
                     onSave={handleUpdateSemester}
                 />
             ),
@@ -632,6 +681,8 @@ const SemesterHomepageContent: React.FC = () => {
         semesterOverview,
         semester,
         handleUpdateSemester,
+        handleTogglePinnedToHomepage,
+        isPinnedToProgramHome,
         hasPluginSettings,
         semesterCourseManagementSection,
         pluginSettingsSections,

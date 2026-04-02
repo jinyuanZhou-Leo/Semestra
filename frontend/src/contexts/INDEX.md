@@ -6,7 +6,7 @@ Exposes typed hooks so page modules can consume shared state safely.
 
 | File | Role | Description |
 |------|------|-------------|
-| AuthContext.tsx | Context module | Context provider/hook layer for cookie-backed auth state, normalized user-setting defaults including background plugin preloading, session refresh, logout/session-expiry handling, remembered route restoration after forced re-login, shared query-cache reset when auth state is cleared, an explicit client-side clear-session path for irreversible account deletion, and 401 interception that ignores password login, email-code, register-complete, and password-reset auth-submit failures so they do not trigger the session-expired modal. |
+| AuthContext.tsx | Context module | Context provider/hook layer for cookie-backed auth state, normalized user-setting defaults including background plugin preloading plus the required active Program id, session refresh, logout/session-expiry handling, remembered route restoration after forced re-login, shared query-cache reset when auth state is cleared, an explicit client-side clear-session path for irreversible account deletion, and a `setActiveProgram` helper used by Program Home routing. |
 | BuiltinTabContext.tsx | Context module | Context provider/hook layer for builtin tab state, including dashboard overview slots plus separate layout local-sync, commit, and unavailable-widget delete callbacks. |
 | CourseDataContext.tsx | Context module | Context provider/hook layer for course data that fronts a shared longer-lived Query cache while preserving the existing page-facing API. |
 | DialogContext.tsx | Context module | Context provider/hook layer for dialog context state. |

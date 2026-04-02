@@ -1,6 +1,6 @@
 // input:  [axios client, `/api/*` backend endpoints, request payloads from pages/hooks, LMS validation forms, widget delete options, course Canvas navigation/module summary with inline item/page/quiz/grade/syllabus browser requests, Program->Semester->unassigned-Course runtime plugin payloads, and Program/Semester/Course plugin management + plugin-system + Semester draft-wizard routes]
-// output: [Program/Semester/Course/Widget/Tab/TabSetting/Todo/Gradebook/LMS contract types, Program/Semester/unassigned-Course plugin management plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime availability wire models, and default `api` CRUD service including irreversible account deletion]
-// pos:    [Main REST gateway used by dashboards, Program plugin lifecycle management, V2 Program/Semester/Course tab-settings and runtime-tab persistence, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows including destructive account deletion, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin availability driven tab resolution]
+// output: [Program/Semester/Course/Widget/Tab/TabSetting/Todo/Gradebook/LMS contract types, Program/Semester/unassigned-Course plugin management plus plugin-system/draft-wizard review wire models with typed Semester draft steps, runtime availability wire models, user types including active Program state, and default `api` CRUD service including irreversible account deletion]
+// pos:    [Main REST gateway used by dashboards, Program plugin lifecycle management, Program Home tab-setting persistence, V2 Program/Semester/Course tab-settings and runtime-tab persistence, Semester and unassigned-Course plugin enablement APIs, explicit plugin-system setup flows, typed Semester draft creation/review flows, auth-adjacent data flows including destructive account deletion, global user-preference persistence, multi-integration LMS management, Program/Course LMS linking, account-wide course-resource file and saved-link APIs, Canvas navigation/module-summary-with-inline-items/module-item/page/quiz/grade/syllabus browser reads, persisted todo APIs without backend todo reordering, fact-oriented course gradebook APIs with optional point-based score inputs, range-filtered LMS calendar reads, one-time LMS gradebook imports, and runtime plugin availability driven tab resolution]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -403,7 +403,9 @@ export interface User {
     gpa_scaling_table?: string;
     default_course_credit?: number;
     background_plugin_preload?: boolean;
+    active_program_id?: string | null;
     google_sub?: string | null;
+    email_verified_at?: string | null;
 }
 
 export interface LmsIntegrationError {

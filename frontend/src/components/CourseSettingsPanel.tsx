@@ -1,6 +1,6 @@
-// input:  [initial course fields (name/alias/category/custom color/credits/GPA flags), resolved Program default color metadata, LMS link state and available LMS courses, color picker UI, and auto-save callback]
+// input:  [initial course fields (name/alias/category/custom color/credits/GPA flags), resolved Program default color metadata, LMS link state and available LMS courses, Program Home pin state, color picker UI, and auto-save callback]
 // output: [`CourseSettingsPanel` component]
-// pos:    [Settings form section for editing per-course metadata, a clearer LMS link/sync status flow, a stable-layout optional custom color override, semantically grouped vertical General layout, unified switch-based GPA preference controls, and shadcn Field-based form structure with debounced auto-save]
+// pos:    [Settings form section for editing per-course metadata, managing LMS linkage, and controlling whether this Course is pinned to Program Home with unpin confirmation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -76,6 +76,8 @@ interface CourseSettingsPanelProps {
   onLinkCourse?: (data: { external_course_id: string; sync_enabled: boolean }) => Promise<void>;
   onSyncCourseLink?: (data?: { sync_enabled?: boolean }) => Promise<void>;
   onUnlinkCourse?: () => Promise<void>;
+  initialPinnedToHomepage?: boolean;
+  onTogglePinnedToHomepage?: (nextValue: boolean) => Promise<void>;
   onSave: (data: {
     name: string;
     alias: string | null;
@@ -98,6 +100,8 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   onLinkCourse,
   onSyncCourseLink,
   onUnlinkCourse,
+  initialPinnedToHomepage = false,
+  onTogglePinnedToHomepage,
   onSave,
   registerFlush,
 }) => {
@@ -113,6 +117,8 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
   const [selectedLmsCourseId, setSelectedLmsCourseId] = useState(lmsLink?.external_course_id ?? "");
   const [lmsSyncEnabled, setLmsSyncEnabled] = useState(lmsLink?.sync_enabled ?? true);
   const [isLmsBusy, setIsLmsBusy] = useState(false);
+  const [isPinnedToHomepage, setIsPinnedToHomepage] = useState(initialPinnedToHomepage);
+  const [isConfirmingUnpin, setIsConfirmingUnpin] = useState(false);
   const fieldId = useId();
   const initialAlias = initialSettings?.alias || "";
   const initialCategory = initialSettings?.category || "";
@@ -211,6 +217,10 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
     setSelectedLmsCourseId(lmsLink?.external_course_id ?? "");
     setLmsSyncEnabled(lmsLink?.sync_enabled ?? true);
   }, [lmsLink?.external_course_id, lmsLink?.sync_enabled]);
+
+  useEffect(() => {
+    setIsPinnedToHomepage(initialPinnedToHomepage);
+  }, [initialPinnedToHomepage]);
 
   const { flush } = useAutoSave({
     value: draftSnapshot,
@@ -590,6 +600,60 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
           </FieldGroup>
         </FieldSet>
       </SettingsSection>
+
+      <SettingsSection title="Program Home" description="Control whether this Course stays visible on Program Home.">
+        <FieldSet>
+          <FieldGroup className="space-y-6">
+            <Field orientation="responsive">
+              <FieldContent>
+                <FieldLabel htmlFor={`${fieldId}-pin-homepage`}>Pin to Homepage</FieldLabel>
+                <FieldDescription>Keep this Course in the Program Home Focus Board.</FieldDescription>
+              </FieldContent>
+              <Switch
+                id={`${fieldId}-pin-homepage`}
+                checked={isPinnedToHomepage}
+                onCheckedChange={(nextValue) => {
+                  if (!onTogglePinnedToHomepage) {
+                    setIsPinnedToHomepage(nextValue);
+                    return;
+                  }
+                  if (nextValue) {
+                    setIsPinnedToHomepage(true);
+                    void onTogglePinnedToHomepage(true);
+                    return;
+                  }
+                  setIsConfirmingUnpin(true);
+                }}
+                className="shrink-0"
+              />
+            </Field>
+          </FieldGroup>
+        </FieldSet>
+      </SettingsSection>
+
+      <AlertDialog open={isConfirmingUnpin} onOpenChange={setIsConfirmingUnpin}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this Course from Program Home?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This only removes the pin from Program Home. The Course itself will stay unchanged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setIsPinnedToHomepage(false);
+                setIsConfirmingUnpin(false);
+                void onTogglePinnedToHomepage?.(false);
+              }}
+            >
+              Remove Pin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

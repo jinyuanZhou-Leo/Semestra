@@ -1,6 +1,6 @@
-// input:  [course context, query-backed parent Program and Semester breadcrumb data, semester-sibling course navigation data, route-state tab-restoration hints for sibling-course jumps, prefetch-backed sibling-course detail cache warming, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, and shared business empty-state wrappers]
+// input:  [course context, query-backed parent Program and Semester navigation data, semester-sibling course navigation data, route-state tab-restoration hints for sibling-course jumps, prefetch-backed sibling-course detail cache warming, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
-// pos:    [Course workspace page with workspace navigation, query-cache-backed parent breadcrumb reuse, semester-sibling course switching from the title area with keyboard shortcuts plus directional motion feedback and same-tab restoration, cache-warmed sibling-course navigation that avoids full homepage skeleton reloads, runtime-managed plugin inheritance for Semester courses plus lightweight plugin management for unassigned Courses, plugin-derived dashboard/settings shell tabs, global command actions for current-course tab switching plus semester-course navigation and widget creation, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
+// pos:    [Course workspace page with workspace navigation, flattened Program/Semester/Course breadcrumb reuse, a clickable semester title segment plus semester-sibling course switching from the title area with keyboard shortcuts and directional motion feedback, cache-warmed sibling-course navigation that avoids full homepage skeleton reloads, runtime-managed plugin inheritance for Semester courses plus lightweight plugin management for unassigned Courses, plugin-derived dashboard/settings shell tabs, global command actions for current-course tab switching plus semester-course navigation and widget creation, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -22,6 +22,15 @@ import { CardSkeleton } from '../components/skeletons';
 import api from '../services/api';
 import { reportError } from '../services/appStatus';
 import { queryKeys } from '../services/queryKeys';
+import {
+    PROGRAM_HOME_TAB_TYPE,
+    isProgramHomePinned,
+    parseProgramHomeSettings,
+    removeProgramHomeItem,
+    replaceProgramHomeTabSetting,
+    serializeProgramHomeSettings,
+    upsertProgramHomeItem,
+} from '@/utils/programHome';
 import { Container } from '../components/Container';
 import { CourseDataProvider, useCourseData } from '../contexts/CourseDataContext';
 import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
@@ -65,7 +74,6 @@ import {
 
 import {
     Breadcrumb,
-    BreadcrumbEllipsis,
     BreadcrumbItem,
     BreadcrumbLink,
     BreadcrumbList,
@@ -75,8 +83,6 @@ import {
 import {
     DropdownMenu,
     DropdownMenuContent,
-    DropdownMenuGroup,
-    DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
@@ -113,8 +119,7 @@ const CourseHomepageContent: React.FC = () => {
         }
         setIsAddWidgetOpen(true);
     }, []);
-    const shouldCollapseProgram = Boolean(course?.program_id && course?.semester_id);
-    const shouldShowProgramDirect = Boolean(course?.program_id && !shouldCollapseProgram);
+    const shouldShowProgram = Boolean(course?.program_id);
     const shouldShowSemester = Boolean(course?.semester_id);
 
     const parentProgramQuery = useQuery({
@@ -137,6 +142,16 @@ const CourseHomepageContent: React.FC = () => {
     const programName = parentProgramQuery.data?.name ?? null;
     const programSubjectColorMapJson = parentProgramQuery.data?.subject_color_map || '{}';
     const programLmsIntegrationId = parentProgramQuery.data?.lms_integration_id ?? null;
+    const isPinnedToProgramHome = useMemo(() => {
+        if (!parentProgramQuery.data || !course?.id) {
+            return false;
+        }
+        return isProgramHomePinned(
+            parseProgramHomeSettings(parentProgramQuery.data.tab_settings),
+            'course',
+            course.id,
+        );
+    }, [course?.id, parentProgramQuery.data]);
 
     const parentSemesterQuery = useQuery({
         queryKey: queryKeys.semesters.detail(course?.semester_id ?? 'unknown'),
@@ -227,44 +242,8 @@ const CourseHomepageContent: React.FC = () => {
     const breadcrumb = (
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
-                <BreadcrumbItem>
-                    <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
-                        <Link to="/">Academics</Link>
-                    </BreadcrumbLink>
-                </BreadcrumbItem>
-                {shouldCollapseProgram && (
+                {shouldShowProgram && (
                     <>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground">
-                                        <BreadcrumbEllipsis />
-                                        <span className="sr-only">Toggle menu</span>
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start">
-                                    <DropdownMenuGroup>
-                                        <DropdownMenuItem
-                                            className="normal-case"
-                                            onSelect={(event) => {
-                                                event.preventDefault();
-                                                if (course?.program_id) {
-                                                    navigate(`/programs/${course.program_id}`);
-                                                }
-                                            }}
-                                        >
-                                            {programName || 'Program'}
-                                        </DropdownMenuItem>
-                                    </DropdownMenuGroup>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </BreadcrumbItem>
-                    </>
-                )}
-                {shouldShowProgramDirect && (
-                    <>
-                        <BreadcrumbSeparator />
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
                                 <Link to={`/programs/${course?.program_id}`}>
@@ -276,7 +255,7 @@ const CourseHomepageContent: React.FC = () => {
                 )}
                 {shouldShowSemester && (
                     <>
-                        <BreadcrumbSeparator />
+                        {shouldShowProgram && <BreadcrumbSeparator />}
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
                                 <Link to={`/semesters/${course?.semester_id}`}>
@@ -286,7 +265,7 @@ const CourseHomepageContent: React.FC = () => {
                         </BreadcrumbItem>
                     </>
                 )}
-                <BreadcrumbSeparator />
+                {(shouldShowProgram || shouldShowSemester) && <BreadcrumbSeparator />}
                 <BreadcrumbItem>
                     <BreadcrumbPage className="text-foreground font-semibold">
                         {course?.name || 'Course'}
@@ -716,6 +695,40 @@ const CourseHomepageContent: React.FC = () => {
         }
     }, [course, saveCourse]);
 
+    const handleTogglePinnedToHomepage = useCallback(async (nextValue: boolean) => {
+        const programId = course?.program_id;
+        if (!programId || !course?.id) {
+            return;
+        }
+
+        const currentProgram = parentProgramQuery.data ?? queryClient.getQueryData(queryKeys.programs.detail(programId));
+        if (!currentProgram) {
+            return;
+        }
+
+        const currentSettings = parseProgramHomeSettings(currentProgram.tab_settings);
+        const nextSettings = nextValue
+            ? upsertProgramHomeItem(currentSettings, 'course', course.id, 'medium')
+            : removeProgramHomeItem(currentSettings, 'course', course.id);
+        const nextTabSettings = replaceProgramHomeTabSetting(currentProgram.tab_settings, nextSettings);
+
+        queryClient.setQueryData(queryKeys.programs.detail(programId), (current: any) => (
+            current
+                ? { ...current, tab_settings: nextTabSettings }
+                : current
+        ));
+
+        try {
+            await api.upsertProgramTabSettings(programId, PROGRAM_HOME_TAB_TYPE, {
+                settings: serializeProgramHomeSettings(nextSettings),
+            });
+        } catch (error) {
+            console.error('Failed to update Program Home pin state', error);
+            await queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId) });
+            await queryClient.refetchQueries({ queryKey: queryKeys.programs.detail(programId), type: 'active' });
+        }
+    }, [course?.id, course?.program_id, parentProgramQuery.data, queryClient]);
+
     useEffect(() => {
         if (!course?.id) {
             return;
@@ -853,6 +866,8 @@ const CourseHomepageContent: React.FC = () => {
                     onLinkCourse={handleLinkCourse}
                     onSyncCourseLink={handleSyncCourseLink}
                     onUnlinkCourse={handleUnlinkCourse}
+                    initialPinnedToHomepage={isPinnedToProgramHome}
+                    onTogglePinnedToHomepage={handleTogglePinnedToHomepage}
                     onSave={handleUpdateCourse}
                 />
             ),
@@ -889,6 +904,8 @@ const CourseHomepageContent: React.FC = () => {
         handleLinkCourse,
         handleSyncCourseLink,
         handleUnlinkCourse,
+        handleTogglePinnedToHomepage,
+        isPinnedToProgramHome,
         updateCourse,
         handleUpdateCourse,
         hasPluginSettings,
@@ -927,7 +944,12 @@ const CourseHomepageContent: React.FC = () => {
                             <div className="flex min-w-0 items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-2xl">
                                 {semesterName ? (
                                     <>
-                                        <span className="truncate text-muted-foreground">{semesterName}</span>
+                                        <Link
+                                            to={`/semesters/${course.semester_id}`}
+                                            className="truncate text-muted-foreground transition-colors hover:text-foreground"
+                                        >
+                                            {semesterName}
+                                        </Link>
                                         <ChevronRight className="ml-2 mr-1 h-4 w-4 shrink-0 text-muted-foreground" />
                                     </>
                                 ) : null}

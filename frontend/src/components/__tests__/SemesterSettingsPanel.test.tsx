@@ -1,12 +1,12 @@
 // input:  [`SemesterSettingsPanel`, testing-library render helpers, and Vitest matchers]
-// output: [regression tests covering shadcn invalid-state wiring for valid and invalid semester date selections]
-// pos:    [Component regression suite that ensures semester date buttons only expose invalid styling attributes when validation actually fails]
+// output: [regression tests covering shadcn invalid-state wiring and Program Home pin confirmation behavior for semester settings]
+// pos:    [Component regression suite that ensures semester date buttons only expose invalid styling attributes when validation actually fails and that unpin actions require confirmation]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SemesterSettingsPanel } from '@/components/SemesterSettingsPanel';
@@ -76,5 +76,32 @@ describe('SemesterSettingsPanel', () => {
     expect(readingWeekButton).toHaveAttribute('aria-invalid', 'true');
     expect(readingWeekButton).toHaveTextContent('Feb 16, 2026 - Feb 20, 2026');
     expect(screen.getByText('Reading Week must span exactly one Monday-to-Sunday week.')).toBeInTheDocument();
+  });
+
+  it('confirms before removing the Program Home pin', async () => {
+    const onTogglePinnedToHomepage = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <SemesterSettingsPanel
+        initialName="26W"
+        initialSettings={{
+          start_date: '2026-01-15',
+          end_date: '2026-04-07',
+        }}
+        initialPinnedToHomepage
+        onTogglePinnedToHomepage={onTogglePinnedToHomepage}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const pinSwitch = screen.getByRole('switch', { name: 'Pin to Homepage' });
+    fireEvent.click(pinSwitch);
+
+    expect(screen.getByText('Remove this Semester from Program Home?')).toBeInTheDocument();
+    expect(onTogglePinnedToHomepage).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Pin' }));
+
+    expect(onTogglePinnedToHomepage).toHaveBeenCalledWith(false);
   });
 });

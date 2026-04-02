@@ -1,6 +1,6 @@
 # input:  [SQLAlchemy session, Program schemas/models, LMS integrations, shared CRUD helpers, plugin-install defaults, and stats recalculation helpers]
-# output: [Program CRUD functions with timezone validation, LMS dependency checks, default plugin installation seeding, and subject-color-map sync]
-# pos:    [Program-focused backend CRUD slice that owns Program persistence and cross-program invariants]
+# output: [Program CRUD functions with timezone validation, LMS dependency checks, default plugin installation seeding, subject-color-map sync, and active-Program repair on create/delete]
+# pos:    [Program-focused backend CRUD slice that owns Program persistence and cross-program invariants, including keeping the required active Program state valid]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -17,6 +17,7 @@ from crud_plugin_registry import _ensure_default_program_plugin_installations
 from crud_shared import (
     ProgramLmsDependencyError,
     _sync_program_subject_color_map,
+    ensure_user_active_program,
     normalize_timezone,
 )
 
@@ -52,6 +53,9 @@ def create_program(db: Session, program: schemas.ProgramCreate, user_id: str):
     db.refresh(db_program)
     _ensure_default_program_plugin_installations(db, db_program)
     db.refresh(db_program)
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user is not None:
+        ensure_user_active_program(db, user)
     return db_program
 
 
@@ -102,4 +106,7 @@ def delete_program(db: Session, program_id: str, user_id: str):
     if db_program:
         db.delete(db_program)
         db.commit()
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if user is not None:
+            ensure_user_active_program(db, user)
     return db_program

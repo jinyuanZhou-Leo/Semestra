@@ -1,6 +1,6 @@
-// input:  [program context state, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, responsive overlay wrapper, shared GPA-percentage formatting, shared business empty-state wrappers, shared DataTable row-action patterns, page-scoped global-command actions, and shadcn AlertDialog/menu/Combobox interactions]
-// output: [`ProgramDashboard` route component for the Program workspace]
-// pos:    [Program-level workspace page for semester management, right-aligned shadcn-style Program settings navigation, global command actions for Program operations, lightweight entry into the standalone Create Semester wizard with draft resume handling, hidden draft Semesters in dashboard lists, subject-code color defaults, refined overview stat cards, synchronized assigned/unassigned course refresh, always-visible DataTable-style course row actions with destructive confirmation, semester-card delete actions that stay below the sticky page header, tri-state course-list sorting, grouped inline search-icon combobox filtering, and shared empty-state treatment across Program sections]
+// input:  [program context state, Program Home Focus Board persistence, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, shared GPA-percentage formatting, shared business empty-state wrappers, shared DataTable row-action patterns, page-scoped global-command actions, and shadcn AlertDialog/menu/Combobox interactions]
+// output: [`ProgramHomePage` route component for the Program workspace]
+// pos:    [Program-level home workspace page that keeps overview stats prominent, adds a Program Home Focus Board for pinned Semesters/Courses with drag-and-drop persistence, and still renders the existing Semester/Course management surfaces below]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -36,14 +36,13 @@ import { StatCardSkeleton, SemesterCardSkeleton, TextSkeleton } from '../compone
 import { ProgramDataProvider, useProgramData } from '../contexts/ProgramDataContext';
 import { CourseManagerModal } from '../components/CourseManagerModal';
 import { useDialog } from '../contexts/DialogContext';
+import { useAuth } from '../contexts/AuthContext';
 import { formatGpaPercentage, formatGpaPercentageValue } from '@/utils/percentage';
 import {
     Breadcrumb,
     BreadcrumbItem,
-    BreadcrumbLink,
     BreadcrumbList,
     BreadcrumbPage,
-    BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import {
     Table,
@@ -77,7 +76,15 @@ import { Settings, Plus, Search, Trash2, GraduationCap, Percent, BookOpen, Arrow
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
 import { CreateSemesterWizardButton } from './program-dashboard/CreateSemesterWizardButton';
 import { DeleteSemesterButton } from './program-dashboard/DeleteSemesterButton';
+import { ProgramFocusBoard } from './program-dashboard/ProgramFocusBoard';
 import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
+import {
+    PROGRAM_HOME_TAB_TYPE,
+    parseProgramHomeSettings,
+    replaceProgramHomeTabSetting,
+    serializeProgramHomeSettings,
+    type ProgramHomeSettings,
+} from '@/utils/programHome';
 
 // Helper function to extract course level from course name
 const extractCourseLevel = (courseName: string): number | null => {
@@ -92,7 +99,7 @@ const extractCourseLevel = (courseName: string): number | null => {
 };
 
 type CourseSortConfig = { key: string; direction: 'asc' | 'desc' };
-type CourseWithProgramContext = Course & { semesterName: string; semesterId: string };
+type CourseWithProgramContext = Course & { semesterName: string; semesterId: string; semesterStartDate?: string | null };
 type CourseFilterSuggestion = {
     type: string;
     value: string;
@@ -109,7 +116,8 @@ const COURSE_FILTER_GROUP_LABELS: Record<string, string> = {
 };
 
 const ProgramDashboardContent: React.FC = () => {
-    const { program, saveProgram, refreshProgram, isLoading } = useProgramData();
+    const { program, setProgram, saveProgram, refreshProgram, isLoading } = useProgramData();
+    const { user, setActiveProgram } = useAuth();
     const { alert: showAlert } = useDialog();
     const [unassignedCourses, setUnassignedCourses] = useState<Array<CourseWithProgramContext>>([]);
     const [coursePendingDelete, setCoursePendingDelete] = useState<CourseWithProgramContext | null>(null);
@@ -156,6 +164,7 @@ const ProgramDashboardContent: React.FC = () => {
                 ...course,
                 semesterName: 'Unassigned',
                 semesterId: '',
+                semesterStartDate: null,
             })),
         );
     }, [program?.id]);
@@ -182,10 +191,11 @@ const ProgramDashboardContent: React.FC = () => {
             .filter((semester) => semester.lifecycle_state !== 'draft')
             .flatMap((semester) =>
             (semester.courses || []).map((course) => ({
-                ...course,
-                semesterName: semester.name,
-                semesterId: semester.id,
-            })),
+                        ...course,
+                        semesterName: semester.name,
+                        semesterId: semester.id,
+                        semesterStartDate: semester.start_date ?? null,
+                    })),
         );
         return [...semesterCourses, ...unassignedCourses];
     }, [program, unassignedCourses]);
@@ -317,6 +327,13 @@ const ProgramDashboardContent: React.FC = () => {
             }))
             .filter((group) => group.items.length > 0);
     }, [suggestions]);
+
+    useEffect(() => {
+        if (!program?.id || user?.active_program_id === program.id) {
+            return;
+        }
+        void setActiveProgram(program.id);
+    }, [program?.id, setActiveProgram, user?.active_program_id]);
 
     const filteredAndSortedCourses = useMemo(() => {
         if (!program) return [];
@@ -456,12 +473,6 @@ const ProgramDashboardContent: React.FC = () => {
         <Breadcrumb>
             <BreadcrumbList className="text-xs font-medium text-muted-foreground">
                 <BreadcrumbItem>
-                    <BreadcrumbLink asChild className="text-muted-foreground hover:text-foreground transition-colors">
-                        <Link to="/">Academics</Link>
-                    </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
                     <BreadcrumbPage className="text-foreground font-semibold">
                         {program?.name || 'Program'}
                     </BreadcrumbPage>
@@ -469,6 +480,40 @@ const ProgramDashboardContent: React.FC = () => {
             </BreadcrumbList>
         </Breadcrumb>
     );
+
+    const programHomeSettings = useMemo(
+        () => parseProgramHomeSettings(program?.tab_settings),
+        [program?.tab_settings],
+    );
+
+    const commitProgramHomeSettings = useCallback(async (nextSettings: ProgramHomeSettings) => {
+        if (!program) {
+            return;
+        }
+
+        setProgram((current) => {
+            if (!current) {
+                return current;
+            }
+            return {
+                ...current,
+                tab_settings: replaceProgramHomeTabSetting(current.tab_settings, nextSettings),
+            };
+        });
+
+        try {
+            await api.upsertProgramTabSettings(program.id, PROGRAM_HOME_TAB_TYPE, {
+                settings: serializeProgramHomeSettings(nextSettings),
+            });
+        } catch (error) {
+            console.error('Failed to save Program Home settings', error);
+            await refreshProgram();
+            await showAlert({
+                title: 'Save failed',
+                description: 'Failed to save Program Home changes.',
+            });
+        }
+    }, [program, refreshProgram, setProgram, showAlert]);
 
     if (!isLoading && !program) {
         return (
@@ -536,7 +581,7 @@ const ProgramDashboardContent: React.FC = () => {
                 </Container>
             </div>
 
-            <Container className="py-8 md:py-10 space-y-8 md:space-y-10">
+            <Container className="space-y-8 py-8 md:space-y-10 md:py-10">
                 {isLoading || !program ? (
                     <>
                         {/* Overview Section Skeleton */}
@@ -640,13 +685,13 @@ const ProgramDashboardContent: React.FC = () => {
 
                                 <div className="hidden gap-4 md:grid md:grid-cols-3">
                                     <Card className="border-border/50 bg-muted/10 shadow-none">
-                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1.5">
                                             <CardTitle className="text-sm font-medium text-muted-foreground">CGPA (Scaled)</CardTitle>
                                             <GraduationCap className="h-4 w-4 text-muted-foreground" />
                                         </CardHeader>
-                                        <CardContent className="flex min-h-14 items-end">
+                                        <CardContent className="flex min-h-12 items-end pt-0">
                                             <div className="flex w-full items-end justify-between gap-3">
-                                                <div className="text-[1.65rem] font-semibold tracking-tight leading-none">
+                                                <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
                                                     {program.hide_gpa ? '****' : (
                                                         <AnimatedNumber
                                                             value={program.cgpa_scaled}
@@ -673,12 +718,12 @@ const ProgramDashboardContent: React.FC = () => {
                                     </Card>
 
                                     <Card className="border-border/50 bg-muted/10 shadow-none">
-                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1.5">
                                             <CardTitle className="text-sm font-medium text-muted-foreground">Average</CardTitle>
                                             <Percent className="h-4 w-4 text-muted-foreground" />
                                         </CardHeader>
-                                        <CardContent className="flex min-h-14 items-end">
-                                            <div className="text-[1.65rem] font-semibold tracking-tight leading-none">
+                                        <CardContent className="flex min-h-12 items-end pt-0">
+                                            <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
                                                 {program.hide_gpa ? '****' : (
                                                     <>
                                                         <AnimatedNumber
@@ -694,12 +739,12 @@ const ProgramDashboardContent: React.FC = () => {
                                     </Card>
 
                                     <Card className="border-border/50 bg-muted/10 shadow-none">
-                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1.5">
                                             <CardTitle className="text-sm font-medium text-muted-foreground">Credits Progress</CardTitle>
                                             <BookOpen className="h-4 w-4 text-muted-foreground" />
                                         </CardHeader>
-                                        <CardContent className="flex min-h-14 flex-col justify-end gap-2">
-                                            <div className="text-[1.65rem] font-semibold tracking-tight leading-none">
+                                        <CardContent className="flex min-h-12 flex-col justify-end gap-2 pt-0">
+                                            <div className="text-[1.5rem] font-semibold tracking-tight leading-none">
                                                 <AnimatedNumber
                                                     value={totalCredits}
                                                     format={(val) => val.toFixed(1)} // Format cleaner
@@ -713,6 +758,15 @@ const ProgramDashboardContent: React.FC = () => {
                                     </Card>
                                 </div>
                             </section>
+
+                            <Separator />
+
+                            <ProgramFocusBoard
+                                program={program}
+                                programCourses={programCourses}
+                                settings={programHomeSettings}
+                                onCommit={commitProgramHomeSettings}
+                            />
 
                             <Separator />
 
@@ -736,21 +790,21 @@ const ProgramDashboardContent: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                     {filteredSemesters.map(semester => (
                                     <div key={semester.id} className="group relative">
                                         <Link to={`/semesters/${semester.id}`} className="block h-full">
                                             <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
-                                                <CardHeader className="pb-2">
-                                                    <CardTitle className="text-lg font-semibold truncate pr-8">
+                                                <CardHeader className="pb-1">
+                                                    <CardTitle className="truncate pr-8 text-base font-semibold">
                                                         {semester.name}
                                                     </CardTitle>
                                                 </CardHeader>
-                                                <CardContent>
-                                                    <div className="grid grid-cols-2 gap-4 mt-2">
+                                                <CardContent className="pt-2">
+                                                    <div className="mt-1 grid grid-cols-2 gap-3">
                                                         <div>
                                                             <p className="text-xs tracking-wider text-muted-foreground font-medium">GPA</p>
-                                                            <p className="text-lg font-semibold">
+                                                            <p className="text-base font-semibold">
                                                                 <AnimatedNumber
                                                                     value={semester.average_scaled}
                                                                     format={(val) => val.toFixed(2)}
@@ -759,10 +813,10 @@ const ProgramDashboardContent: React.FC = () => {
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="text-xs tracking-wider text-muted-foreground font-medium">Average</p>
-                                                            <p className="text-lg font-semibold">{formatGpaPercentage(semester.average_percentage)}</p>
+                                                            <p className="text-base font-semibold">{formatGpaPercentage(semester.average_percentage)}</p>
                                                         </div>
                                                     </div>
-                                                    <div className="mt-4 pt-4 border-t flex justify-between items-center text-sm text-muted-foreground">
+                                                    <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm text-muted-foreground">
                                                         <span>{(semester as any).courses?.length || 0} Courses</span>
                                                         <div
                                                             className={`h-2 w-2 rounded-full ${semester.average_scaled >= 3.0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
@@ -1056,7 +1110,7 @@ const ProgramDashboardContent: React.FC = () => {
     );
 };
 
-export const ProgramDashboard: React.FC = () => {
+export const ProgramHomePage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
 
     if (!id) {
@@ -1085,3 +1139,5 @@ export const ProgramDashboard: React.FC = () => {
         </ProgramDataProvider>
     );
 };
+
+export const ProgramDashboard = ProgramHomePage;

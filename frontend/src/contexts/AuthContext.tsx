@@ -1,6 +1,6 @@
 // input:  [httpOnly-cookie auth session, axios `/api/users/me` + auth submit endpoints, normalized user-setting defaults, auth redirect persistence, and session modal]
-// output: [`AuthProvider` and `useAuth()` exposing user/login/logout/clear-session/refresh/loading state plus parsed global user preferences]
-// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions, session-expiry route restoration, destructive account-removal session clearing, and normalized user-setting hydration]
+// output: [`AuthProvider` and `useAuth()` exposing user/login/logout/clear-session/refresh/setActiveProgram/loading state plus parsed global user preferences]
+// pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions, session-expiry route restoration, destructive account-removal session clearing, normalized user-setting hydration, and active-Program routing state]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -33,18 +33,20 @@ interface User {
     gpa_scaling_table?: string;
     default_course_credit?: number;
     background_plugin_preload?: boolean;
+    active_program_id?: string | null;
     google_sub?: string | null;
     email_verified_at?: string | null;
 }
 
-type UserSettings = Pick<User, 'gpa_scaling_table' | 'default_course_credit' | 'background_plugin_preload'>;
+type UserSettings = Pick<User, 'gpa_scaling_table' | 'default_course_credit' | 'background_plugin_preload' | 'active_program_id'>;
 
 const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
     if (!rawSetting) {
         return {
             gpa_scaling_table: DEFAULT_GPA_SCALING_TABLE_JSON,
             default_course_credit: DEFAULT_COURSE_CREDIT,
-            background_plugin_preload: true
+            background_plugin_preload: true,
+            active_program_id: null,
         };
     }
 
@@ -58,6 +60,10 @@ const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
             typeof parsed.default_course_credit === 'number' && Number.isFinite(parsed.default_course_credit)
                 ? parsed.default_course_credit
                 : DEFAULT_COURSE_CREDIT;
+        const activeProgramId =
+            typeof parsed.active_program_id === 'string' && parsed.active_program_id.trim()
+                ? parsed.active_program_id.trim()
+                : null;
 
         return {
             gpa_scaling_table: gpaScalingTable,
@@ -65,13 +71,15 @@ const resolveUserSettings = (rawSetting?: string | null): UserSettings => {
             background_plugin_preload:
                 typeof parsed.background_plugin_preload === 'boolean'
                     ? parsed.background_plugin_preload
-                    : true
+                    : true,
+            active_program_id: activeProgramId,
         };
     } catch {
         return {
             gpa_scaling_table: DEFAULT_GPA_SCALING_TABLE_JSON,
             default_course_credit: DEFAULT_COURSE_CREDIT,
-            background_plugin_preload: true
+            background_plugin_preload: true,
+            active_program_id: null,
         };
     }
 };
@@ -100,6 +108,7 @@ interface AuthContextType {
     logout: () => Promise<void>;
     clearSession: () => void;
     refreshUser: () => Promise<void>;
+    setActiveProgram: (programId: string | null) => Promise<void>;
     isLoading: boolean;
 }
 
@@ -164,6 +173,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await fetchUser();
     }, [fetchUser]);
 
+    const setActiveProgram = useCallback(async (programId: string | null) => {
+        const response = await axios.put<User>('/api/users/me', {
+            user_setting: JSON.stringify({ active_program_id: programId }),
+        });
+        const normalizedUser = normalizeUser(response.data);
+        setUser(normalizedUser);
+        queryClient.setQueryData(queryKeys.user.me(), normalizedUser);
+    }, []);
+
     useEffect(() => {
         interceptorIdRef.current = axios.interceptors.response.use(
             (response) => response,
@@ -204,8 +222,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         clearSession,
         refreshUser: fetchUser,
+        setActiveProgram,
         isLoading
-    }), [user, login, logout, clearSession, fetchUser, isLoading]);
+    }), [user, login, logout, clearSession, fetchUser, setActiveProgram, isLoading]);
 
     return (
         <AuthContext.Provider value={value}>

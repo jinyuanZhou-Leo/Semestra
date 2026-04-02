@@ -1,6 +1,6 @@
 # input:  [unittest, env patching, in-memory SQLAlchemy setup, backend auth helpers, FastAPI middleware config helper, and Starlette request scopes]
-# output: [backend regression tests for CSRF enforcement, typed-token auth boundaries, logout revocation state, login throttling, and production host/docs hardening]
-# pos:    [backend unit tests covering auth-layer security helpers and middleware configuration without requiring a running Semestra server]
+# output: [backend regression tests for CSRF enforcement, typed-token auth boundaries, logout revocation state, login throttling, active-Program repair behavior on current-user reads, and production host/docs hardening]
+# pos:    [backend unit tests covering auth-layer security helpers, current-user read behavior, and middleware configuration without requiring a running Semestra server]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -25,7 +25,9 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import auth
+import api_auth
 import email_verification
+import crud
 import main
 import models
 from database import Base
@@ -34,9 +36,9 @@ from database import Base
 class AuthSecurityTests(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-        testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        self.testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         Base.metadata.create_all(bind=self.engine)
-        self.db = testing_session_local()
+        self.db = self.testing_session_local()
         self.user = models.User(email="auth-security@example.com", hashed_password="hashed", user_setting="{}")
         self.db.add(self.user)
         self.db.commit()
@@ -182,6 +184,32 @@ class AuthSecurityTests(unittest.TestCase):
 
         with self.assertRaises(auth.AuthRateLimitExceededError):
             auth.enforce_password_login_rate_limits(self.db, request, self.user.email)
+
+    def test_read_users_me_repairs_active_program_without_persisting_write(self) -> None:
+        program = models.Program(name="Engineering", owner_id=self.user.id, program_timezone="America/Toronto")
+        self.db.add(program)
+        self.db.commit()
+        self.db.refresh(program)
+
+        auth_session = self.testing_session_local()
+        try:
+            current_user = auth_session.get(models.User, self.user.id)
+            assert current_user is not None
+            repaired_user = asyncio.run(api_auth.read_users_me(db=self.db, current_user=current_user))
+        finally:
+            auth_session.close()
+
+        repaired_settings = crud.get_user_setting_dict(repaired_user)
+        self.assertEqual(repaired_settings["active_program_id"], program.id)
+
+        verification_session = self.testing_session_local()
+        try:
+            persisted_user = verification_session.get(models.User, self.user.id)
+            assert persisted_user is not None
+            persisted_settings = crud.get_user_setting_dict(persisted_user)
+            self.assertIsNone(persisted_settings.get("active_program_id"))
+        finally:
+            verification_session.close()
 
 
 if __name__ == "__main__":

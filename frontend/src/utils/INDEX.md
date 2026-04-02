@@ -1,7 +1,7 @@
 <!-- ⚠️ Once this folder changes, update me. -->
 
 Pure utility functions and small constants used across pages/components.
-Includes auth redirect restoration, GPA conversion, GPA-percentage display formatting, password rules, icon guards, Google identity loader, and shared course badge color helpers.
+Includes auth redirect restoration, GPA conversion, GPA-percentage display formatting, password rules, icon guards, Google identity loader, shared course badge color helpers, and Program Home Focus Board state helpers.
 Also contains homepage host-reserved tab configuration and widget layout normalization helpers.
 
 | File | Role | Description |
@@ -15,4 +15,5 @@ Also contains homepage host-reserved tab configuration and widget layout normali
 | icon.ts | Utility module | Type guard for icon values that should render as images. |
 | passwordRules.ts | Utility module | Password validation rules and helper hint text. |
 | percentage.ts | Utility module | Shared one-decimal GPA percentage formatters reused by pages, components, and plugins without coupling plugin runtime code to host views. |
+| programHome.ts | Utility module | Shared Program Home Focus Board config parser, serializer, pin helpers, fixed card-dimension helpers, and deterministic layout/sort builders reused by Program Home and Semester/Course settings. |
 | widgetLayout.ts | Utility module | Shared widget layout constraint and size normalization helpers. |

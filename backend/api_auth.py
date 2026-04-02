@@ -1,6 +1,6 @@
 # input:  [FastAPI router/dependencies, backend account-deletion/auth/crud/models/schemas/LMS services, email-verification service, Google token verification, backup-transfer service, and shared API helpers]
 # output: [Auth, account-deletion, email-code verification, current-user, LMS integration, and backup import/export route handlers plus exported backup wrapper functions]
-# pos:    [backend API router for normalized identity/session flows, irreversible account deletion, DB-backed login throttling, Resend-backed email-code verification, non-enumerating auth email delivery, logout revocation, race-safe user-identity conflict translation, and account-scoped integration or backup endpoints]
+# pos:    [backend API router for normalized identity/session flows, irreversible account deletion, DB-backed login throttling, Resend-backed email-code verification, non-enumerating auth email delivery, logout revocation, race-safe user-identity conflict translation, side-effect-free active-Program repair on current-user reads, and account-scoped integration or backup endpoints]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -439,8 +439,11 @@ def complete_password_reset(
 
 
 @router.get("/users/me", response_model=schemas.User)
-async def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
-    return current_user
+async def read_users_me(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    return crud.ensure_user_active_program(db, current_user, commit=False)
 
 
 @router.put("/users/me", response_model=schemas.User)
@@ -449,7 +452,10 @@ async def update_user_me(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    return crud.update_user(db, current_user.id, user_update)
+    updated_user = crud.update_user(db, current_user.id, user_update)
+    if updated_user is None:
+        return updated_user
+    return crud.ensure_user_active_program(db, updated_user)
 
 
 @router.post("/users/me/delete-account", status_code=status.HTTP_204_NO_CONTENT)

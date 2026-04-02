@@ -1,6 +1,6 @@
 // input:  [router primitives, auth/user-preference context, plugin idle-preload controller, global providers, route guards, lazily imported page modules including auth password-reset and the standalone Create Semester wizard, and TanStack Query client provider]
-// output: [default `App` component and `RootGate` product-first root entry resolver]
-// pos:    [Root composition module that defines the app route tree, query cache boundary, provider stack, authenticated idle plugin preload wiring, and the Program-hosted Semester creation wizard route]
+// output: [default `App` component and `RootGate` active-Program-aware root entry resolver]
+// pos:    [Root composition module that defines the app route tree, query cache boundary, provider stack, authenticated idle plugin preload wiring, the active-Program root redirect, and the Program-hosted Semester creation wizard route]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -21,7 +21,7 @@ import { Toaster } from "sonner"
 import { queryClient } from './services/queryClient';
 import { preloadRemainingPluginsWhenIdle } from './plugin-system';
 
-const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
+const ProgramsPage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.ProgramsPage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(module => ({ default: module.RegisterPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(module => ({ default: module.ResetPasswordPage })));
@@ -41,9 +41,12 @@ const RootGate = () => {
   }
 
   if (user) {
+    if (user.active_program_id) {
+      return <Navigate to={`/programs/${user.active_program_id}`} replace />;
+    }
     return (
       <Suspense fallback={<PageSkeleton />}>
-        <HomePage />
+        <ProgramsPage />
       </Suspense>
     );
   }
@@ -94,6 +97,16 @@ function App() {
                 <Route
                   path="/"
                   element={<RootGate />}
+                />
+                <Route
+                  path="/programs"
+                  element={
+                    <RequireAuth>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <ProgramsPage />
+                      </Suspense>
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="/landing"

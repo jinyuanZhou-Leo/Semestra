@@ -1,6 +1,6 @@
-// input:  [auth state/actions, app-status notifications, header slot props, page-scoped command groups, theme state/actions, API-backed account navigation loaders with structured course metadata, and children]
+// input:  [auth state/actions including active-Program mutation, app-status notifications, header slot props, page-scoped command groups, theme state/actions, API-backed account/workspace navigation loaders with structured course metadata, and children]
 // output: [`Layout` component]
-// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, a slash-triggered command palette that mixes lazy account navigation with direct workspace actions plus structured course-row metadata, authenticated header actions, and sign-out handling]
+// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, a navbar Program workspace switcher, a slash-triggered command palette that mixes lazy account navigation with direct workspace actions plus structured course-row metadata, authenticated header actions, and sign-out handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,14 +18,17 @@ import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuGroup,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, BookOpen, Eye, EyeOff, FolderKanban, Home, Laptop, LayoutDashboard, LogOut, Moon, Search, Settings, Sun } from 'lucide-react';
+import { AlertCircle, BookOpen, ChevronDown, Eye, EyeOff, FolderKanban, Home, Laptop, LayoutDashboard, LogOut, Moon, Search, Settings, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { useTheme } from './ThemeProvider';
@@ -44,7 +47,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGroups = [] }) => {
-    const { user, logout } = useAuth();
+    const { user, logout, setActiveProgram } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const { status, clearStatus, pendingSyncRetryCount, retryFailedSync } = useAppStatus();
@@ -55,6 +58,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
     const lastToastIdRef = useRef<number | null>(null);
     const [isRetryingSync, setIsRetryingSync] = useState(false);
     const [isCommandOpen, setIsCommandOpen] = useState(false);
+    const [programs, setPrograms] = useState<Program[]>([]);
+    const [isProgramsLoading, setIsProgramsLoading] = useState(false);
+    const [isSwitchingProgram, setIsSwitchingProgram] = useState(false);
 
     useEffect(() => {
         if (!status || !isSyncStatus) return;
@@ -80,6 +86,41 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
         }
     }, [clearStatus, isSyncRetrying, isSyncStatus, status]);
 
+    useEffect(() => {
+        if (!user) {
+            setPrograms([]);
+            setIsProgramsLoading(false);
+            return;
+        }
+
+        let isActive = true;
+        setIsProgramsLoading(true);
+
+        void api.getPrograms()
+            .then((nextPrograms) => {
+                if (!isActive) {
+                    return;
+                }
+                setPrograms(nextPrograms);
+            })
+            .catch((error) => {
+                if (!isActive) {
+                    return;
+                }
+                console.error('Failed to fetch programs for navbar workspace switcher', error);
+            })
+            .finally(() => {
+                if (!isActive) {
+                    return;
+                }
+                setIsProgramsLoading(false);
+            });
+
+        return () => {
+            isActive = false;
+        };
+    }, [location.pathname, user]);
+
     const handleManualSyncRetry = async () => {
         if (isRetryingSync) return;
         setIsRetryingSync(true);
@@ -99,6 +140,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
     const signOut = async () => {
         await logout();
         window.location.href = '/login';
+    };
+
+    const activeProgram = useMemo(
+        () => programs.find((program) => program.id === user?.active_program_id) ?? null,
+        [programs, user?.active_program_id],
+    );
+
+    const handleProgramSwitch = async (programId: string) => {
+        if (!programId || isSwitchingProgram) {
+            return;
+        }
+
+        setIsSwitchingProgram(true);
+        try {
+            await setActiveProgram(programId);
+            navigate(`/programs/${programId}`);
+        } catch (error) {
+            console.error('Failed to switch active program from navbar', error);
+            toast.error('Failed to switch the active Program.');
+        } finally {
+            setIsSwitchingProgram(false);
+        }
     };
 
     useEffect(() => {
@@ -224,9 +287,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
     const accountNavigationItems = useMemo<LayoutCommandItem[]>(() => [
         {
             id: 'nav-home',
-            title: 'Go to Academics',
-            description: 'Open the program list and root workspace.',
-            keywords: ['home', 'dashboard', 'programs'],
+            title: 'Go to Program Home',
+            description: 'Open the active Program home route.',
+            keywords: ['home', 'dashboard', 'program home'],
             icon: Home,
             onSelect: () => navigate('/'),
         },
@@ -478,13 +541,77 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                 <Container className="flex h-full items-center justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-full shrink-0 items-center gap-3">
-                            <Link to="/" className="inline-flex h-full items-center text-lg font-bold leading-none text-foreground no-underline transition-opacity hover:opacity-80">
+                            <Link to="/" className="inline-flex h-9 items-center text-lg font-bold leading-none text-foreground no-underline transition-opacity hover:opacity-80">
                                 Semestra
                             </Link>
+                            {user && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="h-9 min-w-0 max-w-[15rem] justify-between gap-2 px-3"
+                                            disabled={isSwitchingProgram}
+                                        >
+                                            <span className="flex min-w-0 items-center gap-2">
+                                                <FolderKanban data-icon="inline-start" />
+                                                <span className="truncate">
+                                                    {activeProgram?.name ?? (isProgramsLoading ? 'Loading programs...' : 'Select Program')}
+                                                </span>
+                                            </span>
+                                            <ChevronDown className="shrink-0 text-muted-foreground" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="min-w-56">
+                                        <DropdownMenuLabel>Workspace</DropdownMenuLabel>
+                                        {programs.length > 0 ? (
+                                            <DropdownMenuGroup>
+                                                <DropdownMenuRadioGroup
+                                                    value={user.active_program_id ?? ''}
+                                                    onValueChange={(value) => {
+                                                        void handleProgramSwitch(value);
+                                                    }}
+                                                >
+                                                    {programs.map((program) => (
+                                                        <DropdownMenuRadioItem key={program.id} value={program.id}>
+                                                            <span className="truncate">{program.name}</span>
+                                                        </DropdownMenuRadioItem>
+                                                    ))}
+                                                </DropdownMenuRadioGroup>
+                                            </DropdownMenuGroup>
+                                        ) : (
+                                            <DropdownMenuGroup>
+                                            <DropdownMenuItem
+                                                className="whitespace-nowrap"
+                                                onSelect={(event) => {
+                                                    event.preventDefault();
+                                                    navigate('/programs');
+                                                }}
+                                            >
+                                                <FolderKanban data-icon="inline-start" />
+                                                Open Programs
+                                            </DropdownMenuItem>
+                                            </DropdownMenuGroup>
+                                        )}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuGroup>
+                                            <DropdownMenuItem
+                                                className="whitespace-nowrap"
+                                                onSelect={(event) => {
+                                                    event.preventDefault();
+                                                    navigate('/programs');
+                                                }}
+                                            >
+                                                <Settings data-icon="inline-start" />
+                                                Manage Programs
+                                            </DropdownMenuItem>
+                                        </DropdownMenuGroup>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
                             {breadcrumb && (
                                 <Separator
                                     orientation="vertical"
-                                    className="hidden h-5 self-center bg-foreground/30 data-[orientation=vertical]:w-[2px] md:block"
+                                    className="hidden h-5 self-center bg-foreground/30 data-[orientation=vertical]:w-[2px] data-[orientation=vertical]:!self-center md:block"
                                 />
                             )}
                         </div>
