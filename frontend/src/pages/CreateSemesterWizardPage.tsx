@@ -1,4 +1,4 @@
-// input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, plugin setup definitions/validation helpers, and shared data-table row-actions dropdown helpers]
+// input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, app-side Program/Semester resource queries plus draft cache helpers, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, plugin setup definitions/validation helpers, and shared data-table row-actions dropdown helpers]
 // output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step visibility sourced from activation-plus-plugin-system payloads, setup-step saves, custom setup context wiring for draft-semester APIs, finalize-safe draft teardown, tighter review-summary typography/layout, overflow-safe condensed wizard pagination for large step counts, and animated compact bottom navigation labels]
 // pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, activation-plus-plugin-system-aware setup-step visibility, draft-semester context passthrough for plugin-owned setup UIs, compact large-step pagination rendering, and polished bottom action transitions]
 //
@@ -15,6 +15,16 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, BookOpen, Check, CheckCircle2, Layers3, Plus, Settings2, Sparkles, Trash2 } from "lucide-react";
 
+import { programKeys, semesterKeys } from "@/data/keys";
+import {
+  getProgramDetailQueryOptions,
+  getProgramSemesterDraftQueryOptions,
+  getSemesterDetailQueryOptions,
+  getSemesterPluginSystemSetupQueryOptions,
+  hydrateSemesterDraftWorkflowCaches,
+  invalidateSemesterDraftWorkflowQueries,
+  removeSemesterDraftWorkflowQueries,
+} from "@/data/resources";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   AlertDialog,
@@ -38,7 +48,6 @@ import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { getPluginIconById, getPluginSetupDefinitionById, validatePluginSetupDefinition, type PluginSetupValidationIssue } from "@/plugin-system";
-import { queryKeys } from "@/services/queryKeys";
 
 import { AppEmptyState } from "../components/AppEmptyState";
 import { Container } from "../components/Container";
@@ -255,8 +264,6 @@ const buildSemesterPluginActivation = (
   capabilities: plugin.capabilities,
   setup_sections: plugin.setup_sections,
   setup_values: {},
-  resolved_settings: {},
-  settings_schema: plugin.settings_schema,
   setup_summary: [],
   review_errors: [],
   available: plugin.available,
@@ -279,7 +286,6 @@ const syncPluginActivationCollection = (
       is_enabled: isEnabled,
       locked: plugin.locked,
       setup_sections: plugin.setup_sections,
-      settings_schema: plugin.settings_schema,
       capabilities: plugin.capabilities,
       version: plugin.version,
       available: plugin.available,
@@ -336,9 +342,7 @@ const applyDraftPayloadToWizardCaches = (
   programId: string,
   draft: Semester,
 ) => {
-  queryClient.setQueryData(queryKeys.programs.semesterDraft(programId), draft);
-  queryClient.setQueryData(queryKeys.semesters.detail(draft.id), draft);
-  queryClient.setQueryData(queryKeys.semesters.pluginActivations(draft.id), draft.plugin_activations ?? []);
+  hydrateSemesterDraftWorkflowCaches(queryClient, { programId, draft });
 };
 
 const mergeSemesterDraftPayload = (
@@ -435,29 +439,25 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const hydratedPluginSetupDraftIdRef = useRef<string | null>(null);
 
   const programQuery = useQuery({
-    queryKey: programId ? queryKeys.programs.detail(programId) : ["programs", "missing"],
-    queryFn: () => api.getProgram(programId!),
+    ...getProgramDetailQueryOptions(programId ?? "missing"),
     enabled: Boolean(programId),
     staleTime: 60_000,
   });
 
   const currentDraftQuery = useQuery({
-    queryKey: programId ? queryKeys.programs.semesterDraft(programId) : ["draft", "missing"],
-    queryFn: () => api.getCurrentSemesterDraft(programId!),
+    ...getProgramSemesterDraftQueryOptions(programId ?? "missing"),
     enabled: Boolean(programId) && !isFinalizing,
     staleTime: 10_000,
   });
 
   const draftId = currentDraftQuery.data?.id;
   const semesterDetailQuery = useQuery({
-    queryKey: draftId ? queryKeys.semesters.detail(draftId) : ["semesters", "draft", "missing"],
-    queryFn: () => api.getSemester(draftId!),
+    ...getSemesterDetailQueryOptions(draftId ?? "missing"),
     enabled: Boolean(draftId) && !isFinalizing,
     staleTime: 10_000,
   });
   const pluginSystemSetupQuery = useQuery({
-    queryKey: draftId ? queryKeys.semesters.pluginSystemSetup(draftId) : ["plugin-system", "draft", "missing"],
-    queryFn: () => api.getSemesterPluginSystemSetup(draftId!),
+    ...getSemesterPluginSystemSetupQueryOptions(draftId ?? "missing"),
     enabled: Boolean(draftId) && !isFinalizing,
     staleTime: 10_000,
   });
@@ -564,7 +564,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
     }
     void api.updateSemesterDraft(draftId, { creation_step: getPersistedStepId(activeStep) })
       .then((result) => {
-        queryClient.setQueryData<Semester | null | undefined>(queryKeys.programs.semesterDraft(programId), (current) => (
+        queryClient.setQueryData<Semester | null | undefined>(programKeys.semesterDraft(programId), (current) => (
           mergeSemesterDraftPayload(current, result)
         ));
       })
@@ -599,13 +599,11 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
   const invalidateDraftData = async ({ includeProgramDetail = false }: { includeProgramDetail?: boolean } = {}) => {
     if (!programId) return;
-    await Promise.all([
-      ...(includeProgramDetail ? [queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId) })] : []),
-      queryClient.invalidateQueries({ queryKey: queryKeys.programs.semesterDraft(programId) }),
-      ...(draftId ? [queryClient.invalidateQueries({ queryKey: queryKeys.semesters.detail(draftId) })] : []),
-      ...(draftId ? [queryClient.invalidateQueries({ queryKey: queryKeys.semesters.pluginActivations(draftId) })] : []),
-      ...(draftId ? [queryClient.invalidateQueries({ queryKey: queryKeys.semesters.pluginSystemSetup(draftId) })] : []),
-    ]);
+    await invalidateSemesterDraftWorkflowQueries(queryClient, {
+      programId,
+      draftId,
+      includeProgramDetail,
+    });
   };
 
   const persistBasics = async (nextStep?: StepId, snapshot?: BasicsDraft) => {
@@ -623,7 +621,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
     if (!draftId) {
       const currentDraft = await api.getCurrentSemesterDraft(programId);
       if (currentDraft?.id) {
-        queryClient.setQueryData(queryKeys.programs.semesterDraft(programId), currentDraft);
+        queryClient.setQueryData(programKeys.semesterDraft(programId), currentDraft);
         return api.updateSemesterDraft(currentDraft.id, payload);
       }
 
@@ -638,7 +636,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
         if (!resumedDraft?.id) {
           throw error;
         }
-        queryClient.setQueryData(queryKeys.programs.semesterDraft(programId), resumedDraft);
+        queryClient.setQueryData(programKeys.semesterDraft(programId), resumedDraft);
         return api.updateSemesterDraft(resumedDraft.id, payload);
       }
     }
@@ -655,7 +653,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
       if (!draftId) return;
       const result = await persistBasics(activeStep, snapshot);
       if (result?.id) {
-        queryClient.setQueryData(queryKeys.programs.semesterDraft(programId!), result);
+        queryClient.setQueryData(programKeys.semesterDraft(programId!), result);
         setSavedBasics({
           name: result.name || "",
           start_date: result.start_date ?? todayIso(),
@@ -770,7 +768,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
       }
       await invalidateDraftData();
       if (result?.id) {
-        queryClient.setQueryData<Semester | null | undefined>(queryKeys.programs.semesterDraft(programId!), (current) => (
+        queryClient.setQueryData<Semester | null | undefined>(programKeys.semesterDraft(programId!), (current) => (
           mergeSemesterDraftPayload(current, result)
         ));
       }
@@ -785,8 +783,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
   const handleTogglePlugin = async (plugin: ProgramPluginInstallation, checked: boolean) => {
     if (!draftId || !programId) return;
-    const draftQueryKey = queryKeys.programs.semesterDraft(programId);
-    const semesterDetailQueryKey = queryKeys.semesters.detail(draftId);
+    const draftQueryKey = programKeys.semesterDraft(programId);
+    const semesterDetailQueryKey = semesterKeys.detail(draftId);
     const previousDraft = queryClient.getQueryData<Semester>(draftQueryKey);
     const previousSemester = queryClient.getQueryData<Semester>(semesterDetailQueryKey);
 
@@ -827,8 +825,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
       return;
     }
 
-    const draftQueryKey = queryKeys.programs.semesterDraft(programId);
-    const semesterDetailQueryKey = queryKeys.semesters.detail(draftId);
+    const draftQueryKey = programKeys.semesterDraft(programId);
+    const semesterDetailQueryKey = semesterKeys.detail(draftId);
     const previousDraft = queryClient.getQueryData<Semester>(draftQueryKey);
     const previousSemester = queryClient.getQueryData<Semester>(semesterDetailQueryKey);
     const targetPluginIds = targets.map((plugin) => plugin.plugin_id);
@@ -855,7 +853,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
         is_enabled: checked,
       });
       applyDraftPayloadToWizardCaches(queryClient, programId, updatedDraft);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.semesters.pluginSystemSetup(draftId) });
+      await queryClient.invalidateQueries({ queryKey: semesterKeys.pluginSystemSetup(draftId) });
     } catch (error) {
       queryClient.setQueryData(draftQueryKey, previousDraft);
       queryClient.setQueryData(semesterDetailQueryKey, previousSemester);
@@ -889,18 +887,17 @@ export const CreateSemesterWizardPage: React.FC = () => {
       await pluginSetupFlushRef.current();
       await api.reviewSemesterPluginSystem(draftId);
       const reviewedDraft = await api.reviewSemesterDraft(draftId);
-      queryClient.setQueryData(queryKeys.programs.semesterDraft(programId!), reviewedDraft);
+      queryClient.setQueryData(programKeys.semesterDraft(programId!), reviewedDraft);
       if (!reviewedDraft.review_ready) {
         reportError("Resolve the draft review errors before finalizing.");
         return;
       }
       const result = await api.finalizeSemesterDraft(draftId);
-      queryClient.setQueryData(queryKeys.programs.semesterDraft(programId!), null);
-      queryClient.removeQueries({ queryKey: queryKeys.semesters.pluginSystemSetup(draftId) });
-      queryClient.removeQueries({ queryKey: queryKeys.semesters.pluginActivations(draftId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId!) }).catch(() => {});
-      queryClient.invalidateQueries({ queryKey: queryKeys.programs.semesterDraft(programId!) }).catch(() => {});
-      queryClient.invalidateQueries({ queryKey: queryKeys.semesters.detail(result.id) }).catch(() => {});
+      queryClient.setQueryData(programKeys.semesterDraft(programId!), null);
+      removeSemesterDraftWorkflowQueries(queryClient, draftId);
+      queryClient.invalidateQueries({ queryKey: programKeys.detail(programId!) }).catch(() => {});
+      queryClient.invalidateQueries({ queryKey: programKeys.semesterDraft(programId!) }).catch(() => {});
+      queryClient.invalidateQueries({ queryKey: semesterKeys.detail(result.id) }).catch(() => {});
       navigate(`/semesters/${result.id}`);
     } catch (error) {
       console.error("Failed to finalize Semester draft", error);

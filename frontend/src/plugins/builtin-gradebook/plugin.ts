@@ -1,6 +1,6 @@
 // input:  [typed plugin manifest helper, gradebook icons, existing settings sections export, frontend plugin SDK, and lazy runtime loader]
 // output: [default-exported descriptor-backed gradebook plugin definition]
-// pos:    [single-entry builtin plugin definition that keeps gradebook metadata inline and binds course settings sections]
+// pos:    [single-entry builtin plugin definition that keeps gradebook metadata inline and binds Program defaults plus course settings sections]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -49,9 +49,11 @@ export default definePlugin({
       },
     ],
     settings: {
-      defaults: {},
-      schema: [],
       panels: [
+        {
+          id: 'gradebook-defaults',
+          contexts: ['program'],
+        },
         {
           id: 'gradebook-forecast-and-categories',
           contexts: ['course'],

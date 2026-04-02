@@ -1,6 +1,6 @@
 // input:  [program context state, Program Home Focus Board persistence, semester/course CRUD APIs, Program subject-color settings, Program LMS integrations/courses, dedicated Program settings routing, standalone Semester wizard routing, course-manager modal flows, shared GPA-percentage formatting, shared business empty-state wrappers, shared DataTable row-action patterns, page-scoped global-command actions, and shadcn AlertDialog/menu/Combobox interactions]
 // output: [`ProgramHomePage` route component for the Program workspace]
-// pos:    [Program-level home workspace page that keeps overview stats prominent, adds a Program Home Focus Board for pinned Semesters/Courses with drag-and-drop persistence, and still renders the existing Semester/Course management surfaces below]
+// pos:    [Program-level home workspace page that keeps overview stats prominent, adds a Program Home Focus Board for pinned Semesters/Courses with drag-and-drop persistence, and refreshes unassigned Program courses through one shared data path]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -158,15 +158,20 @@ const ProgramDashboardContent: React.FC = () => {
             return;
         }
 
-        const courses = await api.getCoursesForProgram(program.id, { unassigned: true });
-        setUnassignedCourses(
-            courses.map((course) => ({
-                ...course,
-                semesterName: 'Unassigned',
-                semesterId: '',
-                semesterStartDate: null,
-            })),
-        );
+        try {
+            const courses = await api.getCoursesForProgram(program.id, { unassigned: true });
+            setUnassignedCourses(
+                courses.map((course) => ({
+                    ...course,
+                    semesterName: 'Unassigned',
+                    semesterId: '',
+                    semesterStartDate: null,
+                })),
+            );
+        } catch (error) {
+            console.error('Failed to fetch unassigned program courses', error);
+            setUnassignedCourses([]);
+        }
     }, [program?.id]);
 
     const refreshDashboardData = useCallback(async () => {
@@ -215,42 +220,8 @@ const ProgramDashboardContent: React.FC = () => {
     }, [program, normalizedQuery]);
 
     useEffect(() => {
-        let active = true;
-
-        const loadUnassignedCourses = async () => {
-            try {
-                if (!program?.id) {
-                    if (active) {
-                        setUnassignedCourses([]);
-                    }
-                    return;
-                }
-                const courses = await api.getCoursesForProgram(program.id, { unassigned: true });
-                if (!active) {
-                    return;
-                }
-                setUnassignedCourses(
-                    courses.map((course) => ({
-                        ...course,
-                        semesterName: 'Unassigned',
-                        semesterId: '',
-                    })),
-                );
-            } catch (error) {
-                if (!active) {
-                    return;
-                }
-                console.error('Failed to fetch unassigned program courses', error);
-                setUnassignedCourses([]);
-            }
-        };
-
-        void loadUnassignedCourses();
-
-        return () => {
-            active = false;
-        };
-    }, [program?.id]);
+        void refreshUnassignedCourses();
+    }, [refreshUnassignedCourses]);
 
     // Extract unique values for suggestions
     const suggestions = useMemo(() => {

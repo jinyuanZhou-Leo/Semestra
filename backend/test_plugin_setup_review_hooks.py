@@ -1,6 +1,6 @@
 # input:  [unittest, in-memory SQLAlchemy setup, backend CRUD helpers, schemas, and plugin governance review-hook contracts]
 # output: [backend regression tests proving Semester setup review errors can be supplied by plugin-owned review hooks instead of host hardcoding]
-# pos:    [backend unit tests for plugin-owned setup review dispatch through the shared Semester draft review pipeline]
+# pos:    [backend unit tests for plugin-owned setup review dispatch through the shared Semester draft review pipeline without Program-setting coupling]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -75,12 +75,13 @@ class PluginSetupReviewHookTests(unittest.TestCase):
         )
 
         def review_hook(context: plugin_registry.PluginSetupReviewContext) -> plugin_registry.PluginSetupReviewResult:
-            if context.setup_values["mode"] == "advanced" and not context.program_settings.get("allowAdvancedMode", False):
+            semester_name = (context.semester.name if context.semester is not None else "").strip()
+            if context.setup_values["mode"] == "advanced" and semester_name != "Honors Winter 2026":
                 return plugin_registry.PluginSetupReviewResult(
                     review_errors=(
                         plugin_registry.PluginSetupReviewIssue(
-                            code="ADVANCED_MODE_REQUIRES_PROGRAM_OPT_IN",
-                            message="Advanced mode requires a Program-level opt-in.",
+                            code="ADVANCED_MODE_REQUIRES_HONORS_SEMESTER",
+                            message="Advanced mode requires the Honors Winter 2026 semester.",
                             field_path="mode",
                         ),
                     ),
@@ -89,16 +90,6 @@ class PluginSetupReviewHookTests(unittest.TestCase):
 
         plugin_registry.PLUGIN_REGISTRY_OVERRIDES["mock-setup-plugin"] = plugin_registry.PluginRegistryDefinition(
             plugin_id="mock-setup-plugin",
-            default_settings={"allowAdvancedMode": False},
-            fields=(
-                plugin_registry.PluginFieldDefinition(
-                    path="allowAdvancedMode",
-                    label="Allow advanced mode",
-                    field_type="boolean",
-                    scope=plugin_registry.FIELD_SCOPE_PROGRAM_ONLY,
-                    default=False,
-                ),
-            ),
             setup_review=review_hook,
         )
         plugin_registry.PLUGIN_DEFINITIONS["mock-setup-plugin"] = plugin_registry.PluginDefinition(
@@ -110,17 +101,9 @@ class PluginSetupReviewHookTests(unittest.TestCase):
                 description="Test-only plugin-owned setup review hook.",
                 long_description="Test-only plugin-owned setup review hook.",
                 author="Tests",
-                capabilities={"contexts": ["semester"]},
-            ),
-            default_settings={"allowAdvancedMode": False},
-            fields=(
-                plugin_registry.PluginFieldDefinition(
-                    path="allowAdvancedMode",
-                    label="Allow advanced mode",
-                    field_type="boolean",
-                    scope=plugin_registry.FIELD_SCOPE_PROGRAM_ONLY,
-                    default=False,
-                ),
+                capabilities={
+                    "contexts": ["semester"],
+                },
             ),
             setup_review=review_hook,
         )
@@ -143,9 +126,7 @@ class PluginSetupReviewHookTests(unittest.TestCase):
             self.db,
             program.id,
             "mock-setup-plugin",
-            schemas.ProgramPluginInstallationUpsertRequest(
-                program_settings={"allowAdvancedMode": False},
-            ),
+            schemas.ProgramPluginInstallationUpsertRequest(),
         )
         draft = crud.create_semester_draft(
             self.db,
@@ -174,7 +155,7 @@ class PluginSetupReviewHookTests(unittest.TestCase):
         mock_plugin_review = next(plugin for plugin in review_payload["plugins"] if plugin["plugin_id"] == "mock-setup-plugin")
 
         self.assertTrue(review_payload["has_errors"])
-        self.assertEqual(mock_plugin_review["review_errors"][0]["code"], "ADVANCED_MODE_REQUIRES_PROGRAM_OPT_IN")
+        self.assertEqual(mock_plugin_review["review_errors"][0]["code"], "ADVANCED_MODE_REQUIRES_HONORS_SEMESTER")
         self.assertEqual(mock_plugin_review["review_errors"][0]["field_path"], "mode")
 
 

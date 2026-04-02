@@ -57,6 +57,7 @@ import type {
 } from './types';
 export type { PluginManifestItem, ResolvedPluginMetadata, TabCatalogItem, WidgetCatalogItem } from './types';
 export * from './public-types';
+export * from './tabSettingsMeta';
 export * from './setup';
 export * from './host-api';
 export { PluginSettingsSectionRenderer, getPluginSettingsSections, usePluginSettingsRegistry } from './settings-sections';

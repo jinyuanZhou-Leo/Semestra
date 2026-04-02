@@ -1,4 +1,4 @@
-// input:  [Program id, program plugin management APIs, query cache, plugin-manifest icon helpers, shared settings-section primitives, the shared data-table shell, the responsive plugin marketplace surface, shared plugin details, and shared row-actions dropdown helpers]
+// input:  [Program id, program plugin management APIs, app-side Program resource hooks/cache helpers, plugin-manifest icon helpers, shared settings-section primitives, the shared data-table shell, the responsive plugin marketplace surface, shared plugin details, and shared row-actions dropdown helpers]
 // output: [`ProgramPluginManagementPanel` component]
 // pos:    [Program settings surface for plugin-level install, enable, disable, delete, and reusable plugin-info flows using the shared data-table pattern plus an explicit plugin-table minimum width and a shadcn-style row-actions dropdown, with downstream Semester/Course cache invalidation after Program plugin changes]
 //
@@ -9,7 +9,7 @@
 "use no memo";
 
 import React, { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Info , PackagePlus, Trash2 } from "lucide-react";
 
 import {
@@ -28,8 +28,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
+import {
+  invalidateProgramPluginGovernanceQueries,
+  useProgramPluginCatalogQuery,
+} from "@/data/resources";
 import { getPluginIconById } from "@/plugin-system";
-import { queryKeys } from "@/services/queryKeys";
 
 import api, { type ProgramPluginInstallation } from "../services/api";
 import { DataTable, DataTableActionMenu } from "./DataTable";
@@ -60,11 +63,7 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
   const [togglingPluginId, setTogglingPluginId] = useState<string | null>(null);
   const [deletingPluginId, setDeletingPluginId] = useState<string | null>(null);
 
-  const pluginCatalogQuery = useQuery({
-    queryKey: queryKeys.programs.pluginCatalog(programId),
-    queryFn: () => api.getProgramPluginCatalog(programId),
-    staleTime: 30_000,
-  });
+  const pluginCatalogQuery = useProgramPluginCatalogQuery(programId);
 
   const installedPlugins = useMemo(
     () => (pluginCatalogQuery.data ?? []).filter(isInstalled),
@@ -109,15 +108,7 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
   );
 
   const invalidateAll = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.programs.pluginCatalog(programId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.programs.pluginInstallations(programId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.programs.semesterDraft(programId) }),
-      queryClient.invalidateQueries({ queryKey: ["semesters"] }),
-      queryClient.invalidateQueries({ queryKey: ["courses"] }),
-      queryClient.invalidateQueries({ queryKey: ["plugin-system", "semesters"] }),
-    ]);
+    await invalidateProgramPluginGovernanceQueries(queryClient, programId);
     await onChanged?.();
   };
 

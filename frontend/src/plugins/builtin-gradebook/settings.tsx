@@ -1,21 +1,24 @@
-// input:  [course gradebook APIs, plugin settings section contracts, shared category helpers, and shared data-table row-actions dropdown helpers]
-// output: [builtin-gradebook shared settings sections for forecast preferences and categories]
-// pos:    [course-scoped gradebook settings surface for forecast-mode selection, Field-based category dialog inputs, mobile-safe category management with an explicit two-column minimum width, and a shadcn-style row-actions dropdown for category edit/delete actions]
+// input:  [course/program gradebook APIs, app-side Program query wiring, plugin settings section contracts, shared gradebook/category helpers, and shared data-table row-actions dropdown helpers]
+// output: [builtin-gradebook shared settings sections for Program defaults plus course-level forecast/category management]
+// pos:    [gradebook settings surface that exposes Program-scoped defaults through plugin tab settings and course-scoped live gradebook management through the persisted gradebook APIs]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { definePluginSettings } from '@/plugin-sdk';
+import { getProgramDetailQueryOptions, invalidateProgramDetailQuery } from '@/data/resources';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
 import type { PluginSettingsSectionProps } from '@/plugin-sdk';
 import api, { type CourseGradebook, type GradebookAssessmentCategory } from '@/services/api';
 
 import { SettingsSection } from '@/components/SettingsSection';
+import { TabSettingSourceHint } from '@/components/settings/TabSettingSourceHint';
 import { DataTable, DataTableActionMenu } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -37,7 +40,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { CATEGORY_COLOR_OPTIONS, getApiErrorMessage } from './shared';
+import { getSettingSource } from '@/plugin-system/tabSettingsMeta';
+import {
+    BUILTIN_GRADEBOOK_TAB_TYPE,
+    CATEGORY_COLOR_OPTIONS,
+    DEFAULT_GRADEBOOK_DEFAULTS_SETTINGS,
+    getApiErrorMessage,
+    normalizeGradebookDefaultsSettings,
+    type GradebookDefaultCategoryTemplate,
+} from './shared';
 
 // ── colour helpers ────────────────────────────────────────────────────────────
 
@@ -83,7 +94,7 @@ const FORECAST_MODEL_OPTIONS = [
 interface CategoryFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    initialData?: GradebookAssessmentCategory | null;
+    initialData?: Pick<GradebookAssessmentCategory, 'name' | 'color_token'> | null;
     onSubmit: (name: string, colorToken: string) => Promise<void>;
 }
 
@@ -185,9 +196,302 @@ const CategoryFormDialog: React.FC<CategoryFormDialogProps> = ({
     );
 };
 
+const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
+    scope,
+    onRefresh,
+}) => {
+    const queryClient = useQueryClient();
+    const programId = scope.kind === 'program' ? scope.programId : undefined;
+    const programQuery = useQuery({
+        ...getProgramDetailQueryOptions(programId ?? '__missing__'),
+        enabled: Boolean(programId),
+    });
+    const [isMutating, setIsMutating] = useState(false);
+    const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+    const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
+    const [pendingDeleteCategoryIndex, setPendingDeleteCategoryIndex] = useState<number | null>(null);
+
+    const defaults = React.useMemo(() => {
+        if (!programQuery.data?.tab_settings) {
+            return DEFAULT_GRADEBOOK_DEFAULTS_SETTINGS;
+        }
+        const tabSetting = programQuery.data.tab_settings.find((entry) => entry.tab_type === BUILTIN_GRADEBOOK_TAB_TYPE);
+        if (!tabSetting) {
+            return DEFAULT_GRADEBOOK_DEFAULTS_SETTINGS;
+        }
+        return normalizeGradebookDefaultsSettings(tabSetting.resolved_settings ?? tabSetting.settings);
+    }, [programQuery.data?.tab_settings]);
+    const gradebookTabSetting = React.useMemo(() => {
+        if (!programQuery.data?.tab_settings) {
+            return null;
+        }
+        return programQuery.data.tab_settings.find((entry) => entry.tab_type === BUILTIN_GRADEBOOK_TAB_TYPE) ?? null;
+    }, [programQuery.data?.tab_settings]);
+    const gradebookSettingsMeta = React.useMemo(() => {
+        if (!gradebookTabSetting) {
+            return undefined;
+        }
+        return {
+            scopeSettings: gradebookTabSetting.scope_settings ?? {},
+            inheritedSettings: gradebookTabSetting.inherited_settings ?? {},
+            settingSources: gradebookTabSetting.setting_sources ?? {},
+        };
+    }, [gradebookTabSetting]);
+    const forecastSource = React.useMemo(() => getSettingSource(gradebookSettingsMeta, 'forecast_model'), [gradebookSettingsMeta]);
+    const categoriesSource = React.useMemo(() => getSettingSource(gradebookSettingsMeta, 'categories'), [gradebookSettingsMeta]);
+
+    const editingCategory = editingCategoryIndex !== null
+        ? (defaults.categories[editingCategoryIndex] ?? null)
+        : null;
+    const pendingDeleteCategory = pendingDeleteCategoryIndex !== null
+        ? (defaults.categories[pendingDeleteCategoryIndex] ?? null)
+        : null;
+
+    const saveDefaults = useCallback(async (nextDefaults: { forecast_model: CourseGradebook['forecast_model']; categories: GradebookDefaultCategoryTemplate[] }) => {
+        if (!programId) return;
+        setIsMutating(true);
+        try {
+            await api.updateProgramTabSettings(programId, BUILTIN_GRADEBOOK_TAB_TYPE, {
+                settings: JSON.stringify(nextDefaults),
+            });
+            await invalidateProgramDetailQuery(queryClient, programId);
+            onRefresh();
+        } catch (error: unknown) {
+            console.error('Failed to update gradebook defaults', error);
+            toast.error(getApiErrorMessage(error));
+        } finally {
+            setIsMutating(false);
+        }
+    }, [onRefresh, programId, queryClient]);
+
+    const handleOpenCreate = useCallback(() => {
+        setEditingCategoryIndex(null);
+        setCategoryDialogOpen(true);
+    }, []);
+
+    const handleOpenEdit = useCallback((index: number) => {
+        setEditingCategoryIndex(index);
+        setCategoryDialogOpen(true);
+    }, []);
+
+    const handleCategorySubmit = useCallback(async (name: string, colorToken: string) => {
+        const nextCategories = [...defaults.categories];
+        const duplicateIndex = nextCategories.findIndex((category, index) => (
+            category.name.trim().toLowerCase() === name.trim().toLowerCase()
+            && index !== editingCategoryIndex
+        ));
+        if (duplicateIndex >= 0) {
+            toast.error('Category names must be unique.');
+            return;
+        }
+
+        if (editingCategoryIndex !== null && nextCategories[editingCategoryIndex]) {
+            nextCategories[editingCategoryIndex] = { name, color_token: colorToken };
+        } else {
+            nextCategories.push({ name, color_token: colorToken });
+        }
+
+        await saveDefaults({
+            ...defaults,
+            categories: nextCategories,
+        });
+    }, [defaults, editingCategoryIndex, saveDefaults]);
+
+    if (!programId) return null;
+
+    if (programQuery.isLoading) {
+        return (
+            <div className="space-y-6">
+                <Skeleton className="h-48 w-full rounded-2xl" />
+                <Skeleton className="h-48 w-full rounded-2xl" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <SettingsSection
+                title={(
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                        <span>Forecast</span>
+                        <TabSettingSourceHint
+                            source={forecastSource}
+                            onReset={async () => {
+                                const nextSettings = {
+                                    ...(gradebookTabSetting?.scope_settings ?? {}),
+                                };
+                                delete nextSettings.forecast_model;
+                                await saveDefaults(normalizeGradebookDefaultsSettings(nextSettings));
+                            }}
+                        />
+                    </span>
+                )}
+                description="Choose the default forecast model newly initialized course gradebooks should start with."
+            >
+                <div className="space-y-4">
+                    <RadioGroup
+                        value={defaults.forecast_model}
+                        onValueChange={(value) => {
+                            void saveDefaults({
+                                ...defaults,
+                                forecast_model: value as CourseGradebook['forecast_model'],
+                            });
+                        }}
+                        className="space-y-3"
+                    >
+                        {FORECAST_MODEL_OPTIONS.map((option) => {
+                            const id = `gradebook-default-forecast-model-${option.value}`;
+                            const isSelected = defaults.forecast_model === option.value;
+                            return (
+                                <label
+                                    key={option.value}
+                                    htmlFor={id}
+                                    className={cn(
+                                        'flex cursor-pointer items-start justify-between gap-4 rounded-xl border px-4 py-3 transition-colors',
+                                        isSelected ? 'border-primary/60 bg-primary/5' : 'border-border/60',
+                                        isMutating && 'cursor-wait opacity-70',
+                                    )}
+                                >
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium text-foreground">{option.label}</div>
+                                        <p className="text-sm text-muted-foreground">{option.description}</p>
+                                    </div>
+                                    <RadioGroupItem
+                                        id={id}
+                                        value={option.value}
+                                        aria-label={option.label}
+                                        disabled={isMutating}
+                                        className="mt-0.5 shrink-0"
+                                    />
+                                </label>
+                            );
+                        })}
+                    </RadioGroup>
+
+                    <p className="text-sm text-muted-foreground">
+                        These defaults apply when a course creates its gradebook for the first time. Existing courses keep their own saved gradebook state.
+                    </p>
+                </div>
+            </SettingsSection>
+
+            <SettingsSection
+                title={(
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                        <span>Categories</span>
+                        <TabSettingSourceHint
+                            source={categoriesSource}
+                            onReset={async () => {
+                                const nextSettings = {
+                                    ...(gradebookTabSetting?.scope_settings ?? {}),
+                                };
+                                delete nextSettings.categories;
+                                await saveDefaults(normalizeGradebookDefaultsSettings(nextSettings));
+                            }}
+                        />
+                    </span>
+                )}
+                description="Define the default categories newly initialized course gradebooks should receive."
+            >
+                <DataTable
+                    title="Default Categories"
+                    description="These category templates seed new course gradebooks in this Program."
+                    items={defaults.categories}
+                    minWidthClassName="min-w-[26rem] sm:min-w-[30rem]"
+                    actionButton={(
+                        <Button onClick={handleOpenCreate} disabled={isMutating}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create Category
+                        </Button>
+                    )}
+                    renderHeader={() => (
+                        <TableRow>
+                            <TableHead>Category</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    )}
+                    renderRow={(category, index) => {
+                        const swatchProps = getCategorySwatchStyle(category.color_token);
+                        return (
+                            <TableRow key={`${category.name}:${index}`}>
+                                <TableCell className="font-medium">
+                                    <div className="flex items-center gap-2">
+                                        <span
+                                            className={cn('inline-block h-3 w-3 shrink-0 rounded-full border border-border/50', swatchProps.className)}
+                                            style={swatchProps.style}
+                                        />
+                                        <span className="text-sm">{category.name}</span>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex justify-end">
+                                        <DataTableActionMenu triggerLabel={`Open actions for ${category.name}`}>
+                                            <DropdownMenuItem
+                                                disabled={isMutating}
+                                                onClick={() => handleOpenEdit(index)}
+                                            >
+                                                <Edit className="h-4 w-4" />
+                                                Edit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                variant="destructive"
+                                                disabled={isMutating}
+                                                onClick={() => setPendingDeleteCategoryIndex(index)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                Delete
+                                            </DropdownMenuItem>
+                                        </DataTableActionMenu>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        );
+                    }}
+                />
+                <AlertDialog open={pendingDeleteCategoryIndex !== null} onOpenChange={(open) => !open && setPendingDeleteCategoryIndex(null)}>
+                    <AlertDialogContent size="sm">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {pendingDeleteCategory ? `Delete category "${pendingDeleteCategory.name}"?` : 'Delete category?'}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Newly created course gradebooks will stop receiving this default category. Existing course categories are not changed.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                variant="destructive"
+                                onClick={() => {
+                                    if (pendingDeleteCategoryIndex === null) return;
+                                    const nextCategories = defaults.categories.filter((_, index) => index !== pendingDeleteCategoryIndex);
+                                    void saveDefaults({
+                                        ...defaults,
+                                        categories: nextCategories,
+                                    });
+                                    setPendingDeleteCategoryIndex(null);
+                                }}
+                            >
+                                Delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </SettingsSection>
+
+            <CategoryFormDialog
+                open={categoryDialogOpen}
+                onOpenChange={setCategoryDialogOpen}
+                initialData={editingCategory}
+                onSubmit={handleCategorySubmit}
+            />
+        </div>
+    );
+};
+
 // ── GradebookSettings ─────────────────────────────────────────────────────────
 
-const GradebookSettings: React.FC<PluginSettingsSectionProps> = ({
+const CourseGradebookSettings: React.FC<PluginSettingsSectionProps> = ({
     scope,
     onRefresh,
 }) => {
@@ -401,8 +705,13 @@ const GradebookSettings: React.FC<PluginSettingsSectionProps> = ({
 export default definePluginSettings({
     pluginSettings: [
         {
+            id: 'gradebook-defaults',
+            component: GradebookDefaultsSettings,
+            allowedContexts: ['program'],
+        },
+        {
             id: 'gradebook-forecast-and-categories',
-            component: GradebookSettings,
+            component: CourseGradebookSettings,
             allowedContexts: ['course'],
         },
     ],

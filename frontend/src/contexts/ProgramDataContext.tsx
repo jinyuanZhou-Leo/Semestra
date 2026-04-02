@@ -1,4 +1,4 @@
-// input:  [program ID, program fetch/update API calls, shared query keys, and query-backed entity context]
+// input:  [program ID, program fetch/update API calls, app-side Program query keys, and query-backed entity context]
 // output: [`ProgramDataProvider` and `useProgramData()` context APIs]
 // pos:    [Program-level optimistic context with query-cache-backed queued backend synchronization and longer-lived entity detail reuse across workspace re-entry]
 //
@@ -9,8 +9,8 @@
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Program, Semester } from '../services/api';
+import { programKeys } from '@/data/keys';
 import { useEntityContext } from '../hooks/useEntityContext';
-import { queryKeys } from '../services/queryKeys';
 
 type ProgramWithSemesters = Program & { semesters: Semester[] };
 
@@ -51,7 +51,7 @@ export const ProgramDataProvider: React.FC<ProgramDataProviderProps> = ({ progra
         isLoading
     } = useEntityContext<ProgramWithSemesters>({
         entityId: programId,
-        queryKey: queryKeys.programs.detail(programId),
+        queryKey: programKeys.detail(programId),
         fetchFn,
         updateFn,
         staleTimeMs: 300_000,

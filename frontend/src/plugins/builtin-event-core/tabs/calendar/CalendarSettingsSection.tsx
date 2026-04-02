@@ -12,6 +12,7 @@ import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Clock3, Download } from 'lucide-react';
 import { queryKeys } from '@/services/queryKeys';
+import { TabSettingSourceHint } from '@/components/settings/TabSettingSourceHint';
 import { SettingsSection } from '@/components/SettingsSection';
 import {
   AlertDialog,
@@ -34,6 +35,7 @@ import {
   FieldSet,
 } from '@/components/ui/field';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { getSettingSource, type TabSettingsMeta } from '@/plugin-system/tabSettingsMeta';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
@@ -54,7 +56,9 @@ import { SemesterScheduleExportModal } from './SemesterScheduleExportModal';
 interface CalendarSettingsSectionProps {
   semesterId?: string;
   settings: unknown;
+  settingsMeta?: TabSettingsMeta;
   updateSettings: (newSettings: CalendarSettingsState) => void | Promise<void>;
+  resetSetting?: (key: string) => void | Promise<void>;
 }
 
 const WEEK_VIEW_DAY_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
@@ -68,7 +72,13 @@ interface CachedSemesterDetail {
   courses?: Array<{ id: string; name: string }>;
 }
 
-export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({ semesterId, settings, updateSettings }) => {
+export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({
+  semesterId,
+  settings,
+  settingsMeta,
+  updateSettings,
+  resetSetting,
+}) => {
   const queryClient = useQueryClient();
   const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
   const calendarSources = useCalendarSourceRegistry();
@@ -98,6 +108,15 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
       name: course.name,
     }));
   }, [cachedSemester]);
+  const weekViewSource = React.useMemo(() => getSettingSource(settingsMeta, 'weekViewDayCount'), [settingsMeta]);
+  const dayStartSource = React.useMemo(() => getSettingSource(settingsMeta, 'dayStartMinutes'), [settingsMeta]);
+  const dayEndSource = React.useMemo(() => getSettingSource(settingsMeta, 'dayEndMinutes'), [settingsMeta]);
+  const conflictSource = React.useMemo(() => getSettingSource(settingsMeta, 'highlightConflicts'), [settingsMeta]);
+  const weekendsSource = React.useMemo(() => getSettingSource(settingsMeta, 'showWeekends'), [settingsMeta]);
+  const readingWeekSource = React.useMemo(() => getSettingSource(settingsMeta, 'countReadingWeekInWeekNumber'), [settingsMeta]);
+  const sourceVisibilitySource = React.useMemo(() => getSettingSource(settingsMeta, 'sourceVisibility'), [settingsMeta]);
+  const eventColorsSource = React.useMemo(() => getSettingSource(settingsMeta, 'eventColors'), [settingsMeta]);
+  const unsafeDescriptionSource = React.useMemo(() => getSettingSource(settingsMeta, 'renderUnsafeLmsDescriptionHtml'), [settingsMeta]);
 
   const patchSettings = (patch: Partial<CalendarSettingsState>) => {
     const nextSettings: CalendarSettingsState = {
@@ -160,7 +179,15 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
           <FieldSet>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="calendar-settings-week-view-day-count">Days per screen</FieldLabel>
+                <FieldLabel htmlFor="calendar-settings-week-view-day-count">
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    <span>Days per screen</span>
+                    <TabSettingSourceHint
+                      source={weekViewSource}
+                      onReset={resetSetting ? () => resetSetting('weekViewDayCount') : undefined}
+                    />
+                  </span>
+                </FieldLabel>
                 <Select
                   value={String(normalizedSettings.weekViewDayCount)}
                   onValueChange={(value) => patchSettings({ weekViewDayCount: Number(value) })}
@@ -185,7 +212,15 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
-                  <FieldLabel htmlFor="calendar-settings-day-start">Day start time</FieldLabel>
+                  <FieldLabel htmlFor="calendar-settings-day-start">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span>Day start time</span>
+                      <TabSettingSourceHint
+                        source={dayStartSource}
+                        onReset={resetSetting ? () => resetSetting('dayStartMinutes') : undefined}
+                      />
+                    </span>
+                  </FieldLabel>
                   <InputGroup>
                     <InputGroupInput
                       id="calendar-settings-day-start"
@@ -213,7 +248,15 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
                   </InputGroup>
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="calendar-settings-day-end">Day end time</FieldLabel>
+                  <FieldLabel htmlFor="calendar-settings-day-end">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span>Day end time</span>
+                      <TabSettingSourceHint
+                        source={dayEndSource}
+                        onReset={resetSetting ? () => resetSetting('dayEndMinutes') : undefined}
+                      />
+                    </span>
+                  </FieldLabel>
                   <InputGroup>
                     <InputGroupInput
                       id="calendar-settings-day-end"
@@ -244,7 +287,15 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
 
               <Field orientation="responsive">
                 <FieldContent>
-                  <FieldLabel htmlFor="calendar-settings-highlight-conflicts">Highlight conflicts</FieldLabel>
+                  <FieldLabel htmlFor="calendar-settings-highlight-conflicts">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span>Highlight conflicts</span>
+                      <TabSettingSourceHint
+                        source={conflictSource}
+                        onReset={resetSetting ? () => resetSetting('highlightConflicts') : undefined}
+                      />
+                    </span>
+                  </FieldLabel>
                   <FieldDescription>Use stronger visual emphasis for conflict events.</FieldDescription>
                 </FieldContent>
                 <Switch
@@ -257,7 +308,15 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
 
               <Field orientation="responsive">
                 <FieldContent>
-                  <FieldLabel htmlFor="calendar-settings-show-weekends">Show weekends</FieldLabel>
+                  <FieldLabel htmlFor="calendar-settings-show-weekends">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span>Show weekends</span>
+                      <TabSettingSourceHint
+                        source={weekendsSource}
+                        onReset={resetSetting ? () => resetSetting('showWeekends') : undefined}
+                      />
+                    </span>
+                  </FieldLabel>
                   <FieldDescription>Display Saturday and Sunday columns in calendar views.</FieldDescription>
                 </FieldContent>
                 <Switch
@@ -270,7 +329,15 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
 
               <Field orientation="responsive">
                 <FieldContent>
-                  <FieldLabel htmlFor="calendar-settings-count-reading-week">Count Reading Week in week number</FieldLabel>
+                  <FieldLabel htmlFor="calendar-settings-count-reading-week">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span>Count Reading Week in week number</span>
+                      <TabSettingSourceHint
+                        source={readingWeekSource}
+                        onReset={resetSetting ? () => resetSetting('countReadingWeekInWeekNumber') : undefined}
+                      />
+                    </span>
+                  </FieldLabel>
                   <FieldDescription>When disabled, weeks after Reading Week keep their academic numbering without counting the break week.</FieldDescription>
                 </FieldContent>
                 <Switch
@@ -285,12 +352,30 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
           </FieldSet>
 
           <div className="space-y-2 pt-2">
-            <p className="text-sm font-medium">calendar sources</p>
+            <div className="space-y-2">
+              <div className="inline-flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium">Calendar sources</p>
+                <TabSettingSourceHint
+                  source={sourceVisibilitySource}
+                  onReset={resetSetting ? () => resetSetting('sourceVisibility') : undefined}
+                />
+                <TabSettingSourceHint
+                  source={eventColorsSource}
+                  onReset={resetSetting ? () => resetSetting('eventColors') : undefined}
+                />
+              </div>
+            </div>
             <CalendarSourceSettingsList
               sources={calendarSources}
               eventColors={normalizedSettings.eventColors}
               sourceVisibility={normalizedSettings.sourceVisibility}
               renderUnsafeLmsDescriptionHtml={normalizedSettings.renderUnsafeLmsDescriptionHtml}
+              renderUnsafeLmsDescriptionHint={(
+                <TabSettingSourceHint
+                  source={unsafeDescriptionSource}
+                  onReset={resetSetting ? () => resetSetting('renderUnsafeLmsDescriptionHtml') : undefined}
+                />
+              )}
               onToggleSourceVisibility={(sourceId, enabled) => patchSettings({ sourceVisibility: { [sourceId]: enabled } })}
               onChangeSourceColor={(sourceId, color) => patchSettings({ eventColors: { [sourceId]: color } })}
               onToggleUnsafeLmsDescriptionHtml={(enabled) => patchSettings({ renderUnsafeLmsDescriptionHtml: enabled })}

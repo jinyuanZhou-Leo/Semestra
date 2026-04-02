@@ -47,8 +47,6 @@ export const definePlugin = (definition: PluginDefinition): PluginDefinition => 
     tabs: [...(definition.descriptor.tabs ?? [])],
     widgets: [...(definition.descriptor.widgets ?? [])],
     settings: {
-      defaults: { ...(definition.descriptor.settings?.defaults ?? {}) },
-      schema: [...(definition.descriptor.settings?.schema ?? [])],
       panels: [...(definition.descriptor.settings?.panels ?? [])],
     },
   },

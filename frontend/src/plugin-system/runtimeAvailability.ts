@@ -8,6 +8,7 @@
 
 import { getPluginIdByTabType, getPluginIdByWidgetType } from './index';
 import type { RuntimeAvailability, RuntimeWorkspacePayload } from '@/services/api';
+import type { TabSettingsMeta } from './tabSettingsMeta';
 
 type JsonObject = Record<string, unknown>;
 type AvailabilityLike = RuntimeAvailability;
@@ -17,6 +18,9 @@ export interface ResolvedRuntimeTab {
   type: string;
   title: string;
   settings: JsonObject;
+  scope_settings: JsonObject;
+  inherited_settings: JsonObject;
+  settings_meta?: TabSettingsMeta;
   order_index: number;
   is_draggable?: boolean;
   is_removable?: boolean;
@@ -51,6 +55,9 @@ export const resolveRuntimeTabs = (
         type,
         title: tab.title ?? type,
         settings: (tab.settings ?? {}) as JsonObject,
+        scope_settings: (tab.scope_settings ?? {}) as JsonObject,
+        inherited_settings: (tab.inherited_settings ?? {}) as JsonObject,
+        settings_meta: tab.settings_meta,
         order_index: typeof tab.order_index === 'number' ? tab.order_index : index,
         is_draggable: tab.is_draggable,
         is_removable: tab.is_removable,

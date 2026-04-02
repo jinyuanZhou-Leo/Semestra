@@ -57,38 +57,13 @@
     }
   ],
   "settings": {
-    "defaults": {
-      "syncLmsCalendar": true,
-      "calendarDefaultView": "month"
-    },
-    "schema": [
+    "panels": [
       {
-        "path": "syncLmsCalendar",
-        "label": "Sync LMS calendar",
-        "type": "boolean",
-        "scope": "program-only",
-        "default": true,
-        "description": "Allow Semesters to merge LMS events into Calendar when the Program has LMS configured."
-      },
-      {
-        "path": "calendarDefaultView",
-        "label": "Calendar default view",
-        "type": "select",
-        "scope": "semester-override",
-        "default": "month",
-        "description": "Choose the initial Calendar view for this Semester.",
-        "options": [
-          {
-            "label": "Month",
-            "value": "month"
-          },
-          {
-            "label": "Week",
-            "value": "week"
-          }
+        "id": "todo-defaults",
+        "contexts": [
+          "program"
         ]
       }
-    ],
-    "panels": []
+    ]
   }
 }

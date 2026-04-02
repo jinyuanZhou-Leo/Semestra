@@ -9,9 +9,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import json
 import math
 import re
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -29,6 +30,7 @@ BUILTIN_CATEGORY_DEFINITIONS = [
     {"name": "Participation", "key": "participation", "color_token": "slate"},
 ]
 
+BUILTIN_GRADEBOOK_TAB_TYPE = "builtin-gradebook"
 GRADEBOOK_COLOR_TOKENS = {"emerald", "blue", "amber", "violet", "rose", "slate", "cyan"}
 
 
@@ -143,6 +145,23 @@ def _resolve_score_inputs(
     )
 
 
+def _parse_json_object(value: Any) -> dict[str, Any]:
+    if value in (None, ""):
+        return {}
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return {}
+        try:
+            parsed = json.loads(stripped)
+        except Exception:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
 def _touch_gradebook(gradebook: models.CourseGradebook) -> None:
     gradebook.revision = int(gradebook.revision or 0) + 1
     gradebook.updated_at = _now_iso()
@@ -179,21 +198,71 @@ def _resolve_gpa_scale(course: models.Course) -> dict:
     return logic.get_scaling_table(_resolve_course_program(course))
 
 
+def _resolve_gradebook_defaults(course: models.Course, db: Session) -> tuple[str, list[dict[str, str]]]:
+    try:
+        import crud_layout
+    except Exception:
+        return schemas.GradebookForecastModel.AUTO.value, BUILTIN_CATEGORY_DEFINITIONS
+
+    resolved = crud_layout.resolve_tab_settings(
+        db,
+        BUILTIN_GRADEBOOK_TAB_TYPE,
+        program_id=course.program_id,
+        semester_id=course.semester_id,
+        course_id=course.id,
+    )
+    settings = _parse_json_object(resolved)
+    raw_forecast_model = settings.get("forecast_model")
+    forecast_model = (
+        raw_forecast_model
+        if raw_forecast_model in {item.value for item in schemas.GradebookForecastModel}
+        else schemas.GradebookForecastModel.AUTO.value
+    )
+
+    raw_categories = settings.get("categories")
+    if not isinstance(raw_categories, list):
+        return forecast_model, BUILTIN_CATEGORY_DEFINITIONS
+
+    normalized_categories: list[dict[str, str]] = []
+    seen_keys: set[str] = set()
+    for entry in raw_categories:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "").strip()
+        if not name:
+            continue
+        base_key = _slugify(name)
+        key = base_key
+        suffix = 2
+        while key in seen_keys:
+            key = f"{base_key}-{suffix}"
+            suffix += 1
+        seen_keys.add(key)
+        normalized_categories.append({
+            "name": name,
+            "key": key,
+            "color_token": _normalize_color_token(entry.get("color_token")),
+        })
+
+    return forecast_model, normalized_categories or BUILTIN_CATEGORY_DEFINITIONS
+
+
 def ensure_course_gradebook(db: Session, course: models.Course) -> models.CourseGradebook:
     if course.gradebook is not None:
         return course.gradebook
 
+    forecast_model, category_definitions = _resolve_gradebook_defaults(course, db)
     gradebook = models.CourseGradebook(
         course_id=course.id,
         target_gpa=4.0,
-        forecast_model=schemas.GradebookForecastModel.AUTO.value,
+        forecast_model=forecast_model,
         revision=1,
     )
     _touch_row(gradebook)
     db.add(gradebook)
     db.flush()
 
-    for index, definition in enumerate(BUILTIN_CATEGORY_DEFINITIONS):
+    for index, definition in enumerate(category_definitions):
         db.add(
             models.GradebookAssessmentCategory(
                 gradebook_id=gradebook.id,

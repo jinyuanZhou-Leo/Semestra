@@ -83,8 +83,6 @@ def _normalize_program_plugin_installations(
             canonical_installation.auth_state = installation.auth_state
         if not canonical_installation.auth_message and installation.auth_message:
             canonical_installation.auth_message = installation.auth_message
-        if canonical_installation.program_settings in {"", "{}"} and installation.program_settings not in {"", "{}"}:
-            canonical_installation.program_settings = installation.program_settings
         if not canonical_installation.created_at and installation.created_at:
             canonical_installation.created_at = installation.created_at
         if installation.updated_at and installation.updated_at > (canonical_installation.updated_at or ""):
@@ -153,7 +151,6 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
                 plugin_id=plugin_id,
             ))
             plugin_reviews[plugin_id or activation.id] = {
-                "resolved_settings": {},
                 "setup_values": {},
                 "setup_summary": [],
                 "review_errors": plugin_errors,
@@ -162,17 +159,11 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
             continue
 
         installation = activation.program_plugin_installation
-        program_settings = _parse_json_object(installation.program_settings)
         setup_values = _parse_json_object(activation.setup_state)
-        resolved_settings = plugin_registry.resolve_plugin_settings(
-            plugin_id,
-            program_settings=program_settings,
-        )
 
         try:
             plugin_review_state = plugin_registry.review_plugin_setup(
                 plugin_id,
-                program_settings=program_settings,
                 setup_values=setup_values,
                 program=semester.program,
                 semester=semester,
@@ -210,7 +201,6 @@ def _build_semester_review_state(semester: models.Semester) -> dict[str, object]
                 ))
 
         plugin_reviews[plugin_id] = {
-            "resolved_settings": resolved_settings,
             "setup_values": setup_values,
             "setup_summary": setup_summary,
             "review_errors": plugin_errors,
@@ -255,16 +245,15 @@ def _ensure_default_program_plugin_installations(db: Session, program: models.Pr
             continue
         definition = plugin_registry.get_plugin_definition(plugin_id)
         db.add(
-            models.ProgramPluginInstallation(
-                program_id=program.id,
-                plugin_id=plugin_id,
-                version=definition.default_version,
-                is_enabled=definition.default_enabled,
-                auth_state=_normalize_auth_state(plugin_id, None),
-                program_settings="{}",
-                created_at=now,
-                updated_at=now,
-            )
+                models.ProgramPluginInstallation(
+                    program_id=program.id,
+                    plugin_id=plugin_id,
+                    version=definition.default_version,
+                    is_enabled=definition.default_enabled,
+                    auth_state=_normalize_auth_state(plugin_id, None),
+                    created_at=now,
+                    updated_at=now,
+                )
         )
         did_change = True
     if did_change:
@@ -516,9 +505,7 @@ def _serialize_program_plugin_installation(program: models.Program, installation
     except Exception as exc:
         _wrap_plugin_validation(exc)
     auth_state = installation.auth_state if installation is not None else ("not-required" if not definition.requires_authorization else "pending")
-    program_settings = _parse_json_object(installation.program_settings) if installation is not None else {}
     try:
-        resolved_program_settings = plugin_registry.resolve_plugin_settings(plugin_id, program_settings=program_settings)
         available, reason_code, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
     except Exception as exc:
         _wrap_plugin_validation(exc)
@@ -537,9 +524,6 @@ def _serialize_program_plugin_installation(program: models.Program, installation
         "auth_message": installation.auth_message if installation is not None else None,
         "capabilities": dict(definition.capabilities),
         "setup_sections": plugin_registry.build_setup_section_payloads(plugin_id),
-        "program_settings": program_settings,
-        "resolved_program_settings": resolved_program_settings,
-        "settings_schema": plugin_registry.build_field_payloads(plugin_id),
         "available": available,
         "availability_reason": availability_reason,
         "availability": _build_availability(
@@ -571,7 +555,6 @@ def _serialize_semester_plugin_activation(
     setup_values = _parse_json_object(activation.setup_state) if activation is not None else {}
     current_review_state = review_state or _build_semester_review_state(semester)
     plugin_review = (current_review_state.get("plugin_reviews") or {}).get(installation.plugin_id, {})
-    resolved_settings = plugin_review.get("resolved_settings") or {}
     setup_summary = plugin_review.get("setup_summary") or []
     review_errors = plugin_review.get("review_errors") or []
     runtime_available, runtime_reason_code, runtime_reason_message = _resolve_semester_plugin_availability(
@@ -595,8 +578,6 @@ def _serialize_semester_plugin_activation(
         "capabilities": installation_payload["capabilities"],
         "setup_sections": installation_payload["setup_sections"],
         "setup_values": setup_values,
-        "resolved_settings": resolved_settings,
-        "settings_schema": installation_payload["settings_schema"],
         "setup_summary": setup_summary,
         "review_errors": review_errors,
         "available": runtime_available,
@@ -618,7 +599,6 @@ def _serialize_course_plugin_activation(
     is_enabled: bool | None = None,
     available: bool | None = None,
     availability_reason: str | None = None,
-    resolved_settings: dict | None = None,
 ) -> dict:
     if installation is None:
         installation = activation.program_plugin_installation if activation is not None else None
@@ -652,7 +632,6 @@ def _serialize_course_plugin_activation(
         "is_enabled": resolved_is_enabled,
         "auth_state": installation.auth_state,
         "capabilities": installation_payload["capabilities"],
-        "resolved_settings": resolved_settings or {},
         "available": resolved_available,
         "availability_reason": resolved_availability_reason,
         "availability": _build_availability(
@@ -755,14 +734,6 @@ def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: 
         installation.auth_state = _normalize_auth_state(plugin_id, installation.auth_state)
     if "auth_message" in update_data:
         installation.auth_message = str(update_data.get("auth_message") or "").strip() or None
-    if "program_settings" in update_data:
-        try:
-            normalized_program_settings = plugin_registry.normalize_program_settings(plugin_id, update_data["program_settings"])
-        except Exception as exc:
-            _wrap_plugin_validation(exc)
-        installation.program_settings = _serialize_json_object(normalized_program_settings)
-    elif not installation.program_settings:
-        installation.program_settings = "{}"
     installation.updated_at = now
     db.add(installation)
     db.commit()
@@ -813,8 +784,6 @@ def bulk_update_program_plugin_installations(db: Session, program_id: str, paylo
             installation.version = definition.default_version
         if installation.auth_state is None:
             installation.auth_state = _normalize_auth_state(plugin_id, None)
-        if not installation.program_settings:
-            installation.program_settings = "{}"
         installation.updated_at = now
         db.add(installation)
 
@@ -948,8 +917,6 @@ def update_semester_plugin_system_setup(db: Session, semester_id: str, plugin_id
 
     now = _now_utc_iso()
     activation.setup_state = _serialize_json_object(normalized_values)
-    if activation.semester_overrides:
-        activation.semester_overrides = "{}"
     activation.updated_at = now
     semester.draft_updated_at = now if semester.lifecycle_state == "draft" else semester.draft_updated_at
     _refresh_semester_review_ready(semester)
@@ -1295,7 +1262,6 @@ def get_course_inherited_plugin_activations(db: Session, course_id: str) -> list
                 is_enabled=bool(activation.get("is_enabled")),
                 available=bool(activation.get("available")),
                 availability_reason=activation.get("availability_reason"),
-                resolved_settings=activation.get("resolved_settings") or {},
             )
         )
     return inherited_activations

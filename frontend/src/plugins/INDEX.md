@@ -7,7 +7,7 @@ Private host-only kind and visibility rules remain in `host-policy.json`, outsid
 Plugin settings authoring is intentionally restricted to two places: plugin settings for tabs or host-rendered settings pages live in optional `settings.tsx`, while widget instance settings stay co-located with the owning runtime definition in `widget.tsx`.
 
 **Conventions:**
-- `plugin.ts` is the single frontend authoring entrypoint and default-exports `definePlugin(...)`, declaring plugin identity plus `tabs`, `widgets`, `settings`, lazy runtime loading, and any optional settings/setup UI modules in one place.
+- `plugin.ts` is the single frontend authoring entrypoint and default-exports `definePlugin(...)`, declaring plugin identity plus `tabs`, `widgets`, optional `settings.panels`, lazy runtime loading, and any optional settings/setup UI modules in one place.
 - `plugin.ts` is the source of truth for plugin authoring; handwritten `plugin.json` source files are no longer part of the plugin workflow.
 - `host-policy.json` is the private host overlay for builtin/host-shell kind and visibility; external plugin authors do not declare those fields in `plugin.ts`.
 - `definePluginManifest(...)` keeps inline plugin metadata typed, including direct lucide icon imports.
@@ -17,15 +17,15 @@ Plugin settings authoring is intentionally restricted to two places: plugin sett
 - `tab.tsx` should import tab settings components from `settings.tsx` instead of declaring them inline, so tab settings stay in one plugin-owned location.
 - Runtime instance settings still belong in `widget.tsx` through `SettingsComponent`; widget settings are the only plugin settings that remain instance-scoped.
 - Settings sections receive scope ids and shared shell props from the host, but persistence is plugin-owned; transient per-instance UI state should still use the plugin UI-state hook instead of backend persistence.
-- `frontend/scripts/generate-plugin-manifests.ts` emits `backend/generated/plugin-manifests/*.plugin.json` and optional `*.setup.schema.json` from these `plugin.ts` files for backend startup and migrations.
+- `frontend/scripts/generate-plugin-manifests.ts` emits `backend/generated/plugin-manifests/*.plugin.json` and optional `*.setup.schema.json` from these `plugin.ts` files for backend startup and migrations, while inherited tab settings are defined by runtime tab owners instead of manifest-level defaults/schema fields.
 
 | File | Role | Description |
 |------|------|-------------|
 | INDEX.md | Architecture index | Local plugin folder architecture and plugin catalog map. |
 | host-policy.json | Host overlay | Private builtin/host-shell kind plus visibility policy consumed by both frontend and backend loaders. |
-| builtin-dashboard/ | Built-in tab plugin | Default dashboard host-shell tab plugin with descriptor-backed metadata and edit-mode state stored as plugin-local UI state instead of ad hoc localStorage. |
+| builtin-dashboard/ | Built-in tab plugin | Default dashboard host-shell tab plugin with descriptor-backed metadata and tab-session-scoped edit-mode state stored through the plugin UI-state helper instead of ad hoc localStorage. |
 | builtin-canvas-integration/ | Built-in tab plugin | Canvas-only course navigation tab with a sticky left-side course menu, first-class Assignments and Canvas-backed Grades views, a standalone Gradebook handoff card routed through the host jump API, default-view-backed Home fallback routing, special Announcements/Modules/Pages/Quizzes/Syllabus views, expanded-by-default module cards that render inline item titles from the main modules payload, shrink-safe content-shell sizing that prevents intermediate-width horizontal overflow, CTA-only handling for unknown internal tabs plus external tools, and in-app same-course page links plus plugin-local navigation drafts. |
-| builtin-dashboard/INDEX.md | Plugin architecture index | File map for built-in dashboard tab runtime with light-mode light-green glass active FAB surface, dark-mode deep-green active surface, and shadowless dark-mode tuning, plus metadata/settings/runtime contracts. |
+| builtin-dashboard/INDEX.md | Plugin architecture index | File map for built-in dashboard tab runtime with light-mode light-green glass active FAB surface, dark-mode deep-green active surface, shadowless dark-mode tuning, and tab-exit edit-mode reset behavior, plus metadata/settings/runtime contracts. |
 | builtin-event-core/ | Built-in domain plugin | Core calendar/course/todo tab suite, Semester setup onboarding entry, and shared schedule logic. |
 | builtin-event-core/INDEX.md | Plugin architecture index | File map for event-core plugin entries, Semester setup definitions, shared domain primitives, scoped refresh payloads, retrying todo sync, and tab/widget runtime responsibilities. |
 | builtin-gradebook/ | Built-in grade domain plugin | Course gradebook tab and read-only course-metrics widget backed by fact-only gradebook APIs with client-derived projections, validation, and plugin-local persisted Plan Mode drafts. |

@@ -23,6 +23,16 @@ export const BUILTIN_GRADEBOOK_PLUGIN_ID = 'builtin-gradebook';
 export const BUILTIN_GRADEBOOK_TAB_TYPE = 'builtin-gradebook';
 export const BUILTIN_GRADEBOOK_SUMMARY_WIDGET_TYPE = 'builtin-gradebook-summary';
 
+export interface GradebookDefaultCategoryTemplate {
+    name: string;
+    color_token: string;
+}
+
+export interface GradebookDefaultsSettings {
+    forecast_model: GradebookForecastModel;
+    categories: GradebookDefaultCategoryTemplate[];
+}
+
 export const formatGradebookGpaPercentage = (value: number): string => {
     if (!Number.isFinite(value)) {
         return '0.0%';
@@ -104,6 +114,50 @@ export const CATEGORY_COLOR_OPTIONS = [
     { value: 'cyan', label: 'Cyan', badgeClassName: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-100 dark:border-cyan-800/60', swatchClassName: 'bg-cyan-500' },
 ] as const;
 const DEFAULT_CATEGORY_COLOR_OPTION = CATEGORY_COLOR_OPTIONS.find((option) => option.value === 'slate') ?? CATEGORY_COLOR_OPTIONS[0];
+
+export const DEFAULT_GRADEBOOK_CATEGORY_TEMPLATES: GradebookDefaultCategoryTemplate[] = [
+    { name: 'Quiz', color_token: 'blue' },
+    { name: 'Exam', color_token: 'amber' },
+    { name: 'Assignment', color_token: 'emerald' },
+    { name: 'Project', color_token: 'violet' },
+    { name: 'Lab', color_token: 'cyan' },
+    { name: 'Presentation', color_token: 'rose' },
+    { name: 'Participation', color_token: 'slate' },
+];
+
+export const DEFAULT_GRADEBOOK_DEFAULTS_SETTINGS: GradebookDefaultsSettings = {
+    forecast_model: 'auto',
+    categories: DEFAULT_GRADEBOOK_CATEGORY_TEMPLATES,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+export const normalizeGradebookDefaultsSettings = (settings: unknown): GradebookDefaultsSettings => {
+    const root = isRecord(settings) ? settings : {};
+    const categories = Array.isArray(root.categories)
+        ? root.categories
+            .map((entry) => {
+                if (!isRecord(entry) || typeof entry.name !== 'string') {
+                    return null;
+                }
+                const normalizedColor = typeof entry.color_token === 'string' && entry.color_token.trim()
+                    ? entry.color_token.trim()
+                    : DEFAULT_CATEGORY_COLOR_OPTION.value;
+                return {
+                    name: entry.name.trim(),
+                    color_token: normalizedColor,
+                } satisfies GradebookDefaultCategoryTemplate;
+            })
+            .filter((entry): entry is GradebookDefaultCategoryTemplate => Boolean(entry && entry.name))
+        : [];
+
+    return {
+        forecast_model: root.forecast_model === 'simple_minimum_needed' ? 'simple_minimum_needed' : 'auto',
+        categories: categories.length > 0 ? categories : DEFAULT_GRADEBOOK_DEFAULTS_SETTINGS.categories,
+    };
+};
 
 const roundValue = (value: number, digits: number = 4): number => Number(value.toFixed(digits));
 const clampScore = (value: number): number => Math.max(0, Math.min(100, value));

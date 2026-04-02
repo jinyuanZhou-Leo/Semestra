@@ -1,6 +1,6 @@
 // input:  [settings section copy/action props and wrapped content node]
 // output: [`SettingsSection` component]
-// pos:    [Reusable card-based section wrapper for settings screens with overflow-safe content columns for mobile CRUD surfaces]
+// pos:    [Reusable card-based section wrapper for settings screens with optional plugin-ownership metadata in the title rail and overflow-safe content columns for mobile CRUD surfaces]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -17,13 +17,15 @@ import { cn } from "@/lib/utils";
 const DEFAULT_STICKY_TOP = 84;
 
 const SettingsStickyTopContext = createContext<number>(DEFAULT_STICKY_TOP);
+const SettingsSectionPluginOwnerContext = createContext<string | null>(null);
 
 /** Wrap settings content that lives below a sticky hero (e.g. in a Settings Tab) to override the default sticky-top offset for all nested `SettingsSection` components. */
 export const SettingsStickyTopProvider = SettingsStickyTopContext.Provider;
+export const SettingsSectionPluginOwnerProvider = SettingsSectionPluginOwnerContext.Provider;
 
 interface SettingsSectionProps {
-  title?: string;
-  description?: string;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
   children: React.ReactNode;
   headerAction?: React.ReactNode;
   center?: boolean;
@@ -44,6 +46,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   stickyTop,
 }) => {
   const contextStickyTop = useContext(SettingsStickyTopContext);
+  const pluginOwnerLabel = useContext(SettingsSectionPluginOwnerContext);
   const resolvedTop = stickyTop ?? contextStickyTop;
   return (
     <section className={cn("min-w-0 grid gap-x-12 gap-y-6 py-2 md:grid-cols-3 lg:grid-cols-4", className)}>
@@ -55,6 +58,11 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                 {title}
               </h3>
             )}
+            {pluginOwnerLabel ? (
+              <p className="text-xs font-medium text-muted-foreground">
+                Plugin: {pluginOwnerLabel}
+              </p>
+            ) : null}
             {description && (
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {description}

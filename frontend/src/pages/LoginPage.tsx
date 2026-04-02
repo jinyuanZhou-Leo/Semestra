@@ -139,7 +139,6 @@ export const LoginPage: React.FC = () => {
   const [isCodeLoading, setIsCodeLoading] = useState(false);
   const [isCompletingRegistration, setIsCompletingRegistration] = useState(false);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
-  const [isGlassReady, setIsGlassReady] = useState(false);
   const { login } = useAuth();
   const { theme: themeMode } = useTheme();
   const navigate = useNavigate();
@@ -193,7 +192,7 @@ export const LoginPage: React.FC = () => {
   }, [themeMode]);
 
   useEffect(() => {
-    if (!googleClientId || !isGlassReady || view !== 'entry') {
+    if (!googleClientId || view !== 'entry') {
       return;
     }
 
@@ -254,7 +253,7 @@ export const LoginPage: React.FC = () => {
       cancelled = true;
       setIsGoogleReady(false);
     };
-  }, [googleButtonTheme, googleClientId, isGlassReady, login, navigate, resolvePostLoginTarget, view]);
+  }, [googleButtonTheme, googleClientId, login, navigate, resolvePostLoginTarget, view]);
 
   const clearError = (key: keyof typeof fieldErrors) => {
     setFieldErrors((current) => ({ ...current, [key]: null }));
@@ -544,7 +543,6 @@ export const LoginPage: React.FC = () => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={authPanelTransition}
-      onAnimationComplete={() => setIsGlassReady(true)}
       className="relative min-h-[24rem] w-full max-w-xs"
     >
       <motion.div

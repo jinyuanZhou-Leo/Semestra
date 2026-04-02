@@ -20,16 +20,6 @@ export interface PluginDescriptorFieldOption {
   value: string;
 }
 
-export interface PluginSettingsSchemaEntry {
-  path: string;
-  label: string;
-  type: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'date' | 'json';
-  scope: 'program-only' | 'semester-override';
-  default?: unknown;
-  description?: string;
-  options?: PluginDescriptorFieldOption[];
-}
-
 export interface PluginDescriptorSetupFieldDefinition {
   path: string;
   label: string;
@@ -95,8 +85,6 @@ export interface PluginSettingsPanelBinding {
 }
 
 export interface PluginSettingsDescriptor {
-  defaults?: Record<string, unknown>;
-  schema?: PluginSettingsSchemaEntry[];
   panels?: PluginSettingsPanelBinding[];
 }
 

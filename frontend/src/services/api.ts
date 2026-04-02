@@ -7,6 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import axios from 'axios';
+import type { SettingLayer, SettingSource, TabSettingsMeta } from '@/plugin-system/tabSettingsMeta';
 
 export type SemesterDraftStep = 'basics' | 'courses' | 'plugins' | 'plugin-setup' | 'review';
 
@@ -20,7 +21,10 @@ export interface TabSetting {
     id: string;
     tab_type: string;
     settings: string;
+    scope_settings?: Record<string, unknown>;
+    inherited_settings?: Record<string, unknown>;
     resolved_settings?: Record<string, unknown>;
+    setting_sources?: Record<string, SettingSource>;
     program_id?: string;
     semester_id?: string;
     course_id?: string;
@@ -49,7 +53,14 @@ interface RuntimeResolvedTabWire {
     tab_type?: string | null;
     title?: string;
     settings?: string | Record<string, unknown> | null;
+    scope_settings?: string | Record<string, unknown> | null;
+    inherited_settings?: string | Record<string, unknown> | null;
     resolved_settings?: string | Record<string, unknown> | null;
+    setting_sources?: Record<string, {
+        effective_layer?: SettingLayer | null;
+        is_overridden_in_scope?: boolean;
+        fallback_layer?: SettingLayer | null;
+    }> | null;
     order_index?: number;
     is_removable?: boolean;
     is_draggable?: boolean;
@@ -62,8 +73,6 @@ interface RuntimeResolvedPluginWire {
     plugin_id?: string;
     available_tab_types?: string[];
     available_widget_types?: string[];
-    settings?: string | Record<string, unknown> | null;
-    resolved_settings?: string | Record<string, unknown> | null;
 }
 
 export interface RuntimeResolvedTab {
@@ -71,6 +80,9 @@ export interface RuntimeResolvedTab {
     type: string;
     title: string;
     settings: Record<string, unknown>;
+    scope_settings?: Record<string, unknown>;
+    inherited_settings?: Record<string, unknown>;
+    settings_meta?: TabSettingsMeta;
     order_index: number;
     is_removable?: boolean;
     is_draggable?: boolean;
@@ -82,8 +94,6 @@ export interface RuntimeResolvedPlugin {
     plugin_id?: string;
     available_tab_types: string[];
     available_widget_types: string[];
-    settings: Record<string, unknown>;
-    resolved_settings: Record<string, unknown>;
 }
 
 export interface RuntimeWorkspacePayload {
@@ -184,16 +194,6 @@ export interface Tab {
     is_draggable?: boolean;
 }
 
-export interface ProgramPluginSettingsSchemaEntry {
-    path: string;
-    label?: string | null;
-    type?: string | null;
-    scope: 'program-only' | 'semester-override' | string;
-    default?: unknown;
-    description?: string;
-    options?: Array<{ label: string; value: string }>;
-}
-
 export interface ProgramPluginSetupField {
     path: string;
     label: string;
@@ -231,9 +231,6 @@ export interface ProgramPluginInstallation {
         has_settings?: boolean;
     };
     setup_sections: ProgramPluginSetupSection[];
-    program_settings: Record<string, unknown>;
-    resolved_program_settings: Record<string, unknown>;
-    settings_schema: ProgramPluginSettingsSchemaEntry[];
     available: boolean;
     availability_reason?: string | null;
     availability?: RuntimeAvailability | null;
@@ -257,8 +254,6 @@ export interface SemesterPluginActivation {
     capabilities: ProgramPluginInstallation['capabilities'];
     setup_sections: ProgramPluginSetupSection[];
     setup_values: Record<string, unknown>;
-    resolved_settings: Record<string, unknown>;
-    settings_schema: ProgramPluginSettingsSchemaEntry[];
     setup_summary?: SemesterDraftReviewSummarySection[];
     review_errors?: SemesterDraftReviewIssue[];
     available: boolean;
@@ -281,7 +276,6 @@ export interface CoursePluginActivation {
     is_enabled: boolean;
     auth_state?: string;
     capabilities: ProgramPluginInstallation['capabilities'];
-    resolved_settings?: Record<string, unknown>;
     available: boolean;
     availability_reason?: string | null;
     availability?: RuntimeAvailability | null;
@@ -804,6 +798,38 @@ const parseObjectPayload = (value: unknown): Record<string, unknown> => {
     return {};
 };
 
+const normalizeSettingSources = (
+    value: RuntimeResolvedTabWire['setting_sources'] | Record<string, SettingSource> | undefined | null,
+): Record<string, SettingSource> => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return {};
+    }
+    return Object.fromEntries(
+        Object.entries(value).map(([key, source]) => {
+            const normalizedSource = source && typeof source === 'object'
+                ? source
+                : {};
+            const effectiveLayer = normalizedSource.effective_layer ?? 'default';
+            return [
+                key,
+                {
+                    effective_layer: effectiveLayer,
+                    is_overridden_in_scope: Boolean(normalizedSource.is_overridden_in_scope),
+                    fallback_layer: normalizedSource.fallback_layer ?? null,
+                } satisfies SettingSource,
+            ];
+        }),
+    );
+};
+
+const normalizeTabSetting = (tabSetting: TabSetting): TabSetting => ({
+    ...tabSetting,
+    scope_settings: parseObjectPayload(tabSetting.scope_settings ?? tabSetting.settings),
+    inherited_settings: parseObjectPayload(tabSetting.inherited_settings),
+    resolved_settings: parseObjectPayload(tabSetting.resolved_settings ?? tabSetting.scope_settings ?? tabSetting.settings),
+    setting_sources: normalizeSettingSources(tabSetting.setting_sources),
+});
+
 export const normalizeRuntimeResolvedTab = (
     tab?: RuntimeResolvedTabWire | null,
     index = 0,
@@ -813,11 +839,23 @@ export const normalizeRuntimeResolvedTab = (
         return null;
     }
 
+    const scopeSettings = parseObjectPayload(tab?.scope_settings ?? tab?.settings);
+    const inheritedSettings = parseObjectPayload(tab?.inherited_settings);
+    const resolvedSettings = parseObjectPayload(tab?.resolved_settings ?? scopeSettings);
+    const settingSources = normalizeSettingSources(tab?.setting_sources);
+
     return {
         id: tab?.id && tab.id.length > 0 ? tab.id : `${type}:${index}`,
         type,
         title: tab?.title && tab.title.length > 0 ? tab.title : type,
-        settings: parseObjectPayload(tab?.resolved_settings ?? tab?.settings),
+        settings: resolvedSettings,
+        scope_settings: scopeSettings,
+        inherited_settings: inheritedSettings,
+        settings_meta: {
+            scopeSettings,
+            inheritedSettings,
+            settingSources,
+        },
         order_index: typeof tab?.order_index === 'number' ? tab.order_index : index,
         is_removable: tab?.is_removable,
         is_draggable: tab?.is_draggable,
@@ -832,8 +870,6 @@ const normalizeRuntimeResolvedPlugin = (
     plugin_id: plugin?.plugin_id ?? plugin?.id,
     available_tab_types: plugin?.available_tab_types ?? [],
     available_widget_types: plugin?.available_widget_types ?? [],
-    settings: parseObjectPayload(plugin?.settings),
-    resolved_settings: parseObjectPayload(plugin?.resolved_settings ?? plugin?.settings),
 });
 
 const normalizeRuntimeWorkspacePayload = (
@@ -852,18 +888,21 @@ const normalizeRuntimeWorkspacePayload = (
 
 const normalizeCourse = (course: CourseWire): Course => ({
     ...course,
+    tab_settings: course.tab_settings?.map(normalizeTabSetting) ?? [],
     runtime: normalizeRuntimeWorkspacePayload(course),
 });
 
 const normalizeSemester = (semester: SemesterWire): Semester & { courses: Course[] } => ({
     ...semester,
     courses: semester.courses?.map(normalizeCourse) ?? [],
+    tab_settings: semester.tab_settings?.map(normalizeTabSetting) ?? [],
     runtime: normalizeRuntimeWorkspacePayload(semester),
 });
 
 const normalizeProgram = (program: ProgramWire): Program & { semesters: Semester[] } => ({
     ...program,
     semesters: program.semesters?.map(normalizeSemester) ?? [],
+    tab_settings: program.tab_settings?.map(normalizeTabSetting) ?? [],
 });
 
 const api = {
@@ -911,7 +950,6 @@ const api = {
             version?: string;
             auth_state?: string;
             auth_message?: string | null;
-            program_settings?: Record<string, unknown>;
         },
     ) => {
         const response = await axios.put<ProgramPluginInstallation>(`/api/programs/${programId}/plugins/${pluginId}`, data);
@@ -1266,6 +1304,13 @@ const api = {
     deleteTab: async (tabId: string) => {
         await axios.delete(`/api/tabs/${tabId}`);
     },
+    updateProgramTabSettings: async (programId: string, tabType: string, data: { settings: string }) => {
+        const response = await axios.put<TabSetting>(
+            `/api/programs/${programId}/tab-settings/${encodeURIComponent(tabType)}`,
+            data,
+        );
+        return normalizeTabSetting(response.data);
+    },
     updateSemesterRuntimeTabSettings: async (semesterId: string, tabType: string, data: { settings: string }) => {
         const response = await axios.put<RuntimeResolvedTabWire>(
             `/api/semesters/${semesterId}/runtime-tabs/${encodeURIComponent(tabType)}/settings`,
@@ -1309,19 +1354,19 @@ const api = {
     getProgramTabSettings: async (programId: string) => {
         return dedupeGet(`GET:/api/programs/${programId}/tab-settings`, async () => {
             const response = await axios.get<TabSetting[]>(`/api/programs/${programId}/tab-settings`);
-            return response.data;
+            return response.data.map(normalizeTabSetting);
         });
     },
     getSemesterTabSettings: async (semesterId: string) => {
         return dedupeGet(`GET:/api/semesters/${semesterId}/tab-settings`, async () => {
             const response = await axios.get<TabSetting[]>(`/api/semesters/${semesterId}/tab-settings`);
-            return response.data;
+            return response.data.map(normalizeTabSetting);
         });
     },
     getCourseTabSettings: async (courseId: string) => {
         return dedupeGet(`GET:/api/courses/${courseId}/tab-settings`, async () => {
             const response = await axios.get<TabSetting[]>(`/api/courses/${courseId}/tab-settings`);
-            return response.data;
+            return response.data.map(normalizeTabSetting);
         });
     },
     upsertProgramTabSettings: async (programId: string, tabType: string, data: { settings: string }) => {
@@ -1329,21 +1374,21 @@ const api = {
             tab_type: tabType,
             settings: data.settings,
         });
-        return response.data;
+        return normalizeTabSetting(response.data);
     },
     upsertSemesterTabSettings: async (semesterId: string, tabType: string, data: { settings: string }) => {
         const response = await axios.put<TabSetting>(`/api/semesters/${semesterId}/tab-settings/${encodeURIComponent(tabType)}`, {
             tab_type: tabType,
             settings: data.settings,
         });
-        return response.data;
+        return normalizeTabSetting(response.data);
     },
     upsertCourseTabSettings: async (courseId: string, tabType: string, data: { settings: string }) => {
         const response = await axios.put<TabSetting>(`/api/courses/${courseId}/tab-settings/${encodeURIComponent(tabType)}`, {
             tab_type: tabType,
             settings: data.settings,
         });
-        return response.data;
+        return normalizeTabSetting(response.data);
     },
     // Gradebook
     getCourseGradebook: async (courseId: string) => {

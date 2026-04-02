@@ -1,4 +1,4 @@
-// input:  [httpOnly-cookie auth session, axios `/api/users/me` + auth submit endpoints, normalized user-setting defaults, auth redirect persistence, and session modal]
+// input:  [httpOnly-cookie auth session, axios `/api/users/me` + auth submit endpoints, normalized user-setting defaults, app-side user query keys, auth redirect persistence, and session modal]
 // output: [`AuthProvider` and `useAuth()` exposing user/login/logout/clear-session/refresh/setActiveProgram/loading state plus parsed global user preferences]
 // pos:    [Application-wide authentication context used by route guards and pages via cookie-backed sessions, session-expiry route restoration, destructive account-removal session clearing, normalized user-setting hydration, and active-Program routing state]
 //
@@ -8,10 +8,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
+import { userKeys } from '@/data/keys';
 import { SessionExpiredModal } from '../components/SessionExpiredModal';
 import { DEFAULT_GPA_SCALING_TABLE_JSON } from '../utils/gpaUtils';
 import { queryClient } from '../services/queryClient';
-import { queryKeys } from '../services/queryKeys';
 import { clearAuthRedirectTarget, rememberCurrentAuthRedirectTarget } from '../utils/authRedirect';
 
 const DEFAULT_COURSE_CREDIT = 0.5;
@@ -127,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const clearSessionState = useCallback(() => {
         setUser(null);
-        queryClient.setQueryData(queryKeys.user.me(), null);
+        queryClient.setQueryData(userKeys.me(), null);
         queryClient.clear();
     }, []);
 
@@ -153,7 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const response = await axios.get<User>('/api/users/me');
             const normalizedUser = normalizeUser(response.data);
             setUser(normalizedUser);
-            queryClient.setQueryData(queryKeys.user.me(), normalizedUser);
+            queryClient.setQueryData(userKeys.me(), normalizedUser);
         } catch (error) {
             const responseStatus = (error as any).response?.status;
             if (responseStatus === 401) {
@@ -179,7 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         const normalizedUser = normalizeUser(response.data);
         setUser(normalizedUser);
-        queryClient.setQueryData(queryKeys.user.me(), normalizedUser);
+        queryClient.setQueryData(userKeys.me(), normalizedUser);
     }, []);
 
     useEffect(() => {

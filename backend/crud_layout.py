@@ -387,18 +387,98 @@ def resolve_tab_settings(
     semester_id: str | None = None,
     course_id: str | None = None,
 ) -> dict:
-    normalized_tab_type = _canonical_tab_type(tab_type)
-    resolved: dict = {}
+    return resolve_tab_settings_metadata(
+        db,
+        tab_type,
+        program_id=program_id,
+        semester_id=semester_id,
+        course_id=course_id,
+    )["resolved_settings"]
+
+
+def _build_tab_settings_scope_chain(
+    *,
+    program_id: str | None = None,
+    semester_id: str | None = None,
+    course_id: str | None = None,
+) -> list[tuple[str, dict[str, str]]]:
+    chain: list[tuple[str, dict[str, str]]] = []
     if program_id is not None:
-        program_setting = get_tab_setting(db, normalized_tab_type, program_id=program_id)
-        resolved.update(_parse_json_object(program_setting.settings if program_setting is not None else None))
+        chain.append(("program", {"program_id": program_id}))
     if semester_id is not None:
-        semester_setting = get_tab_setting(db, normalized_tab_type, semester_id=semester_id)
-        resolved.update(_parse_json_object(semester_setting.settings if semester_setting is not None else None))
+        chain.append(("semester", {"semester_id": semester_id}))
     if course_id is not None:
-        course_setting = get_tab_setting(db, normalized_tab_type, course_id=course_id)
-        resolved.update(_parse_json_object(course_setting.settings if course_setting is not None else None))
-    return resolved
+        chain.append(("course", {"course_id": course_id}))
+    return chain
+
+
+def resolve_tab_settings_metadata(
+    db: Session,
+    tab_type: str,
+    *,
+    program_id: str | None = None,
+    semester_id: str | None = None,
+    course_id: str | None = None,
+) -> dict[str, object]:
+    normalized_tab_type = _canonical_tab_type(tab_type)
+    scope_chain = _build_tab_settings_scope_chain(
+        program_id=program_id,
+        semester_id=semester_id,
+        course_id=course_id,
+    )
+    scoped_settings_by_layer: dict[str, dict[str, object]] = {}
+    for layer, context_kwargs in scope_chain:
+        tab_setting = get_tab_setting(db, normalized_tab_type, **context_kwargs)
+        scoped_settings_by_layer[layer] = _parse_json_object(tab_setting.settings if tab_setting is not None else None)
+
+    resolved_settings: dict[str, object] = {}
+    inherited_settings: dict[str, object] = {}
+    current_scope_settings: dict[str, object] = {}
+    current_layer = scope_chain[-1][0] if scope_chain else None
+
+    for index, (layer, _) in enumerate(scope_chain):
+        layer_settings = scoped_settings_by_layer[layer]
+        resolved_settings.update(layer_settings)
+        if current_layer is None or layer == current_layer:
+            continue
+        inherited_settings.update(layer_settings)
+        if index == len(scope_chain) - 1:
+            current_scope_settings = dict(layer_settings)
+
+    if current_layer is not None:
+        current_scope_settings = dict(scoped_settings_by_layer[current_layer])
+
+    setting_sources: dict[str, dict[str, object]] = {}
+    all_keys = set().union(*(layer_settings.keys() for layer_settings in scoped_settings_by_layer.values()))
+    for key in all_keys:
+        effective_layer = "default"
+        for layer, _ in reversed(scope_chain):
+            if key in scoped_settings_by_layer[layer]:
+                effective_layer = layer
+                break
+
+        is_overridden_in_scope = current_layer is not None and key in current_scope_settings
+        fallback_layer: str | None = None
+        if is_overridden_in_scope:
+            for layer, _ in reversed(scope_chain[:-1]):
+                if key in scoped_settings_by_layer[layer]:
+                    fallback_layer = layer
+                    break
+            if fallback_layer is None:
+                fallback_layer = "default"
+
+        setting_sources[key] = {
+            "effective_layer": effective_layer,
+            "is_overridden_in_scope": is_overridden_in_scope,
+            "fallback_layer": fallback_layer,
+        }
+
+    return {
+        "scope_settings": current_scope_settings,
+        "inherited_settings": inherited_settings,
+        "resolved_settings": resolved_settings,
+        "setting_sources": setting_sources,
+    }
 
 
 def list_tab_settings_payloads(
@@ -422,6 +502,13 @@ def list_tab_settings_payloads(
             "program_id": row.program_id,
             "semester_id": row.semester_id,
             "course_id": row.course_id,
+            **resolve_tab_settings_metadata(
+                db,
+                row.tab_type,
+                program_id=program_id,
+                semester_id=semester_id,
+                course_id=course_id,
+            ),
         }
         for row in rows
     ]

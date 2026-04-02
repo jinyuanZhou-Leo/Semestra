@@ -1,68 +1,15 @@
-// input:  [resource identifiers and request parameter objects from frontend data hooks]
-// output: [`queryKeys` factory for stable TanStack Query cache keys across pages, contexts, and plugins]
-// pos:    [Canonical cache-key registry preventing duplicated server-state entries and invalidation mismatches across entity, Program/Semester/unassigned-Course plugin governance, plugin-system setup state, Semester draft-wizard, LMS, Canvas navigation/module-summary/module-item/page/quiz/grade/syllabus/file browser, and range-scoped calendar data]
+// input:  [plugin-side and legacy host-side imports requesting canonical query keys]
+// output: [re-exported `queryKeys` and split key registries from the app-side data key layer]
+// pos:    [Legacy compatibility entry that keeps plugin code stable while app-side callers migrate to `@/data/keys`]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-export const queryKeys = {
-  programs: {
-    all: ['programs'] as const,
-    list: () => ['programs', 'list'] as const,
-    detail: (programId: string) => ['programs', 'detail', programId] as const,
-    pluginCatalog: (programId: string) => ['programs', programId, 'plugin-catalog'] as const,
-    pluginInstallations: (programId: string) => ['programs', programId, 'plugin-installations'] as const,
-    semesterDraft: (programId: string) => ['programs', programId, 'semester-draft'] as const,
-    lmsCourses: (programId: string, params: Record<string, unknown>) => ['programs', programId, 'lms-courses', params] as const,
-  },
-  semesters: {
-    detail: (semesterId: string) => ['semesters', 'detail', semesterId] as const,
-    pluginActivations: (semesterId: string) => ['semesters', semesterId, 'plugin-activations'] as const,
-    pluginSystemSetup: (semesterId: string) => ['plugin-system', 'semesters', semesterId, 'setup'] as const,
-    todo: (semesterId: string) => ['semesters', semesterId, 'todo'] as const,
-    schedule: (semesterId: string, params: { mode: string; week: number; withConflicts: boolean }) => (
-      ['semesters', semesterId, 'schedule', params] as const
-    ),
-    calendarSchedule: (semesterId: string, params?: Record<string, unknown>) => (
-      params
-        ? ['semesters', semesterId, 'calendar-schedule', params] as const
-        : ['semesters', semesterId, 'calendar-schedule'] as const
-    ),
-    lmsAssignments: (semesterId: string) => ['semesters', semesterId, 'lms-assignments'] as const,
-    lmsCalendarEvents: (semesterId: string, params?: Record<string, unknown>) => (
-      params
-        ? ['semesters', semesterId, 'lms-calendar-events', params] as const
-        : ['semesters', semesterId, 'lms-calendar-events'] as const
-    ),
-  },
-  courses: {
-    detail: (courseId: string) => ['courses', 'detail', courseId] as const,
-    pluginActivations: (courseId: string) => ['courses', courseId, 'plugin-activations'] as const,
-    resources: (courseId: string) => ['courses', courseId, 'resources'] as const,
-    gradebook: (courseId: string) => ['courses', courseId, 'gradebook'] as const,
-    eventTypes: (courseId: string) => ['courses', courseId, 'event-types'] as const,
-    sections: (courseId: string) => ['courses', courseId, 'sections'] as const,
-    events: (courseId: string) => ['courses', courseId, 'events'] as const,
-    schedule: (courseId: string, params: Record<string, unknown>) => ['courses', courseId, 'schedule', params] as const,
-    lmsLink: (courseId: string) => ['courses', courseId, 'lms-link'] as const,
-    lmsAssignments: (courseId: string) => ['courses', courseId, 'lms-assignments'] as const,
-    lmsGrades: (courseId: string) => ['courses', courseId, 'lms-grades'] as const,
-    lmsNavigation: (courseId: string) => ['courses', courseId, 'lms-navigation'] as const,
-    lmsAnnouncements: (courseId: string) => ['courses', courseId, 'lms-announcements'] as const,
-    lmsModules: (courseId: string) => ['courses', courseId, 'lms-modules'] as const,
-    lmsModuleItems: (courseId: string, moduleId: string) => ['courses', courseId, 'lms-module-items', moduleId] as const,
-    lmsModuleFile: (courseId: string, moduleId: string, moduleItemId: string) => (
-      ['courses', courseId, 'lms-module-file', moduleId, moduleItemId] as const
-    ),
-    lmsQuizzes: (courseId: string) => ['courses', courseId, 'lms-quizzes'] as const,
-    lmsPages: (courseId: string) => ['courses', courseId, 'lms-pages'] as const,
-    lmsPage: (courseId: string, pageRef: string) => ['courses', courseId, 'lms-page', pageRef] as const,
-    lmsSyllabus: (courseId: string) => ['courses', courseId, 'lms-syllabus'] as const,
-  },
-  user: {
-    me: () => ['user', 'me'] as const,
-    lmsIntegrations: () => ['user', 'lms-integrations'] as const,
-    lmsIntegration: (integrationId: string) => ['user', 'lms-integration', integrationId] as const,
-  },
-};
+export {
+  courseKeys,
+  programKeys,
+  queryKeys,
+  semesterKeys,
+  userKeys,
+} from '@/data/keys';

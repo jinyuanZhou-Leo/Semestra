@@ -1,4 +1,4 @@
-// input:  [TanStack Query, LMS API service, settings-local LMS provider definitions, data-table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, dialog-context alerts, and shared row-actions dropdown helpers]
+// input:  [TanStack Query, LMS API service, app-side user resource hooks/cache helpers, settings-local LMS provider definitions, data-table helpers, responsive dialog wrapper, shadcn field/dialog primitives, alert-dialog primitives, dialog-context alerts, and shared row-actions dropdown helpers]
 // output: [`LmsIntegrationManager` component]
 // pos:    [settings-specific LMS integration management surface that delegates provider-specific payload shaping to local provider definitions while preserving mobile-safe data-table layout with an explicit integration-table minimum width, validation, shadcn-aligned responsive dialog flows, scrollable drawer bodies, parent-owned settings section chrome, and a shadcn-style row-actions dropdown]
 //
@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Check, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import {
@@ -34,6 +34,11 @@ import {
 } from '@/components/ui/select';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import {
+  invalidateUserLmsIntegrationQueries,
+  invalidateUserLmsIntegrationsQuery,
+  useUserLmsIntegrationsQuery,
+} from '@/data/resources';
+import {
   Field,
   FieldDescription,
   FieldGroup,
@@ -44,7 +49,6 @@ import { DataTable, DataTableActionMenu } from '@/components/DataTable';
 import { ResponsiveDialogDrawer } from '@/components/ResponsiveDialogDrawer';
 import { useDialog } from '@/contexts/DialogContext';
 import api, { type LmsIntegrationResponse } from '@/services/api';
-import { queryKeys } from '@/services/queryKeys';
 import { cn } from '@/lib/utils';
 import {
   getDefaultLmsProvider,
@@ -100,15 +104,12 @@ export const LmsIntegrationManager: React.FC = () => {
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT);
   const [touched, setTouched] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState('');
-  const integrationsQuery = useQuery({
-    queryKey: queryKeys.user.lmsIntegrations(),
-    queryFn: api.listLmsIntegrations,
-  });
+  const integrationsQuery = useUserLmsIntegrationsQuery();
 
   const createMutation = useMutation({
     mutationFn: api.createLmsIntegration,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.user.lmsIntegrations() });
+      await invalidateUserLmsIntegrationsQuery(queryClient);
     },
   });
 
@@ -117,17 +118,14 @@ export const LmsIntegrationManager: React.FC = () => {
       api.updateLmsIntegration(integrationId, payload)
     ),
     onSuccess: async (_, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.user.lmsIntegrations() }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.user.lmsIntegration(variables.integrationId) }),
-      ]);
+      await invalidateUserLmsIntegrationQueries(queryClient, variables.integrationId);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: api.deleteLmsIntegration,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.user.lmsIntegrations() });
+      await invalidateUserLmsIntegrationsQuery(queryClient);
     },
   });
 
@@ -138,10 +136,7 @@ export const LmsIntegrationManager: React.FC = () => {
   const validateSavedMutation = useMutation({
     mutationFn: api.validateSavedLmsIntegration,
     onSuccess: async (_, integrationId) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.user.lmsIntegrations() }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.user.lmsIntegration(integrationId) }),
-      ]);
+      await invalidateUserLmsIntegrationQueries(queryClient, integrationId);
     },
   });
 

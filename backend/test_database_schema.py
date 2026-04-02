@@ -25,6 +25,37 @@ class RuntimeSchemaCompatibilityTests(unittest.TestCase):
         with engine.begin() as connection:
             connection.exec_driver_sql(
                 """
+                CREATE TABLE users (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    email_verified_at VARCHAR
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE email_verification_challenges (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    email VARCHAR,
+                    purpose VARCHAR,
+                    code_hash VARCHAR,
+                    verification_nonce VARCHAR,
+                    attempt_count INTEGER,
+                    max_attempts INTEGER,
+                    expires_at VARCHAR,
+                    last_sent_at VARCHAR,
+                    verified_at VARCHAR,
+                    used_at VARCHAR,
+                    invalidated_at VARCHAR,
+                    resend_email_id VARCHAR,
+                    request_ip VARCHAR,
+                    user_agent VARCHAR,
+                    created_at VARCHAR,
+                    updated_at VARCHAR
+                )
+                """
+            )
+            connection.exec_driver_sql(
+                """
                 CREATE TABLE semesters (
                     id VARCHAR NOT NULL PRIMARY KEY,
                     name VARCHAR,
@@ -57,8 +88,7 @@ class RuntimeSchemaCompatibilityTests(unittest.TestCase):
                     plugin_id VARCHAR NOT NULL,
                     version VARCHAR NOT NULL,
                     is_enabled BOOLEAN NOT NULL,
-                    auth_state VARCHAR NOT NULL,
-                    program_settings TEXT NOT NULL
+                    auth_state VARCHAR NOT NULL
                 )
                 """
             )
@@ -68,7 +98,6 @@ class RuntimeSchemaCompatibilityTests(unittest.TestCase):
                     id VARCHAR NOT NULL PRIMARY KEY,
                     semester_id VARCHAR NOT NULL,
                     program_plugin_installation_id VARCHAR NOT NULL,
-                    semester_overrides TEXT NOT NULL,
                     setup_state TEXT NOT NULL,
                     is_enabled BOOLEAN NOT NULL
                 )

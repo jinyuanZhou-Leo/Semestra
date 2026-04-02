@@ -1,4 +1,4 @@
-// input:  [semester context, query-backed parent Program navigation data, Program->Semester runtime plugin management payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, host-owned semester course management settings, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, shared GPA-percentage formatting, and shared business empty-state wrappers]
+// input:  [semester context, app-side Program resource queries plus cache helpers, Program->Semester runtime plugin management payloads, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, host-owned semester course management settings, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, shared GPA-percentage formatting, and shared business empty-state wrappers]
 // output: [`SemesterHomepage` and internal `SemesterHomepageContent` composition component]
 // pos:    [Semester workspace page with workspace navigation, flattened Program/Semester breadcrumb reuse, runtime-governed plugin availability, plugin-derived dashboard/settings shell tabs, global command actions for current-semester tab switching and semester-course navigation plus widget creation, host-owned semester course management settings, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, dashboard-only overview stats, and standardized unavailable/not-found empty states]
 //
@@ -11,6 +11,12 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { programKeys } from '@/data/keys';
+import {
+    getProgramDetailQueryOptions,
+    invalidateProgramDetailQuery,
+    setProgramDetailQueryData,
+} from '@/data/resources';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
 import { AppEmptyState } from '../components/AppEmptyState';
@@ -31,6 +37,7 @@ import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { SemesterPluginManagementPanel } from '../components/SemesterPluginManagementPanel';
 import { SemesterCourseManagementSection } from '../components/SemesterCourseManagementSection';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
+import { SettingsSectionPluginOwnerProvider } from '@/components/SettingsSection';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
 import { BookOpen, GraduationCap, Percent, Plus, Settings, LayoutDashboard } from 'lucide-react';
@@ -39,7 +46,8 @@ import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
-    getPluginIconById,
+    getPluginIdByTabType,
+    getPluginManifestItemById,
     getResolvedTabMetadataByType,
     getTabPluginLoadState,
     getTabComponentByType,
@@ -59,7 +67,6 @@ import {
     SEMESTER_HOMEPAGE_BUILTIN_TAB_CONFIG,
 } from '../utils/homepageBuiltinTabs';
 import { resolveSemesterActiveTabId } from './semesterHomepageNavigation';
-import { queryKeys } from '../services/queryKeys';
 import {
     PROGRAM_HOME_TAB_TYPE,
     isProgramHomePinned,
@@ -102,7 +109,7 @@ const SemesterHomepageContent: React.FC = () => {
         setIsAddWidgetOpen(true);
     }, []);
     const parentProgramQuery = useQuery({
-        queryKey: queryKeys.programs.detail(semester?.program_id ?? 'unknown'),
+        ...getProgramDetailQueryOptions(semester?.program_id ?? 'unknown'),
         queryFn: async () => {
             const programId = semester?.program_id;
             if (!programId) {
@@ -115,7 +122,7 @@ const SemesterHomepageContent: React.FC = () => {
         initialData: () => {
             const programId = semester?.program_id;
             if (!programId) return undefined;
-            return queryClient.getQueryData(queryKeys.programs.detail(programId));
+            return queryClient.getQueryData(programKeys.detail(programId));
         },
     });
     const programName = parentProgramQuery.data?.name ?? null;
@@ -181,6 +188,15 @@ const SemesterHomepageContent: React.FC = () => {
     const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
+    const handleResetTabSetting = useCallback((tabId: string, key: string) => {
+        const targetTab = customTabs.find((tab) => tab.id === tabId);
+        if (!targetTab) {
+            return;
+        }
+        const nextSettings = { ...(targetTab.settings ?? {}) };
+        delete nextSettings[key];
+        handleUpdateTabSettings(tabId, nextSettings);
+    }, [customTabs, handleUpdateTabSettings]);
 
     const {
         isActiveTabPluginLoading,
@@ -459,7 +475,7 @@ const SemesterHomepageContent: React.FC = () => {
             return;
         }
 
-        const currentProgram = parentProgramQuery.data ?? queryClient.getQueryData(queryKeys.programs.detail(programId));
+        const currentProgram = parentProgramQuery.data ?? queryClient.getQueryData(programKeys.detail(programId));
         if (!currentProgram) {
             return;
         }
@@ -470,10 +486,8 @@ const SemesterHomepageContent: React.FC = () => {
             : removeProgramHomeItem(currentSettings, 'semester', semester.id);
         const nextTabSettings = replaceProgramHomeTabSetting(currentProgram.tab_settings, nextSettings);
 
-        queryClient.setQueryData(queryKeys.programs.detail(programId), (current: any) => (
-            current
-                ? { ...current, tab_settings: nextTabSettings }
-                : current
+        setProgramDetailQueryData(queryClient, programId, (current: any) => (
+            current ? { ...current, tab_settings: nextTabSettings } : current
         ));
 
         try {
@@ -482,8 +496,8 @@ const SemesterHomepageContent: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to update Program Home pin state', error);
-            await queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId) });
-            await queryClient.refetchQueries({ queryKey: queryKeys.programs.detail(programId), type: 'active' });
+            await invalidateProgramDetailQuery(queryClient, programId);
+            await queryClient.refetchQueries({ queryKey: programKeys.detail(programId), type: 'active' });
         }
     }, [parentProgramQuery.data, queryClient, semester?.id, semester?.program_id]);
 
@@ -493,14 +507,20 @@ const SemesterHomepageContent: React.FC = () => {
             .map((tab) => {
                 const SettingsComponent = getTabSettingsComponentByType(tab.type);
                 if (SettingsComponent) {
+                    const pluginId = getPluginIdByTabType(tab.type);
+                    const pluginDisplayName = pluginId ? getPluginManifestItemById(pluginId)?.displayName ?? null : null;
                     return (
                         <React.Fragment key={tab.id}>
-                            <SettingsComponent
-                                tabId={tab.id}
-                                settings={tab.settings || {}}
-                                semesterId={semester?.id}
-                                updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
-                            />
+                            <SettingsSectionPluginOwnerProvider value={pluginDisplayName}>
+                                <SettingsComponent
+                                    tabId={tab.id}
+                                    settings={tab.settings || {}}
+                                    semesterId={semester?.id}
+                                    settingsMeta={tab.settings_meta}
+                                    updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
+                                    resetSetting={(key) => handleResetTabSetting(tab.id, key)}
+                                />
+                            </SettingsSectionPluginOwnerProvider>
                         </React.Fragment>
                     );
                 }
@@ -557,6 +577,7 @@ const SemesterHomepageContent: React.FC = () => {
         visibleTabs,
         semester?.id,
         handleUpdateTabSettings,
+        handleResetTabSetting,
         isSettingsTabActive,
         pluginLoadStateVersion
     ]);
@@ -581,7 +602,6 @@ const SemesterHomepageContent: React.FC = () => {
                     <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
                         <PluginSettingsSectionRenderer
                             pluginId={definition.pluginId}
-                            pluginIcon={getPluginIconById(definition.pluginId)}
                             pluginDisplayName={pluginMetadata?.displayName}
                             pluginDescription={pluginMetadata?.description}
                             showPluginHeader={showPluginHeader}

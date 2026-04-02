@@ -1,4 +1,4 @@
-// input:  [Program id, current Semester draft API, draft discard API, shadcn alert dialog primitives, router navigation, and button children]
+// input:  [Program id, current Semester draft API, app-side Program draft/detail queries, shadcn alert dialog primitives, router navigation, and button children]
 // output: [`CreateSemesterWizardButton` entry component]
 // pos:    [Program dashboard action that routes users into the standalone Create Semester wizard while handling draft resume or discard decisions]
 //
@@ -9,9 +9,13 @@
 "use no memo";
 
 import React, { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
+import {
+  invalidateProgramDetailQuery,
+  useProgramSemesterDraftQuery,
+} from "@/data/resources";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { queryKeys } from "@/services/queryKeys";
+import { programKeys } from "@/data/keys";
 
 import api from "../../services/api";
 
@@ -44,11 +48,7 @@ export const CreateSemesterWizardButton: React.FC<CreateSemesterWizardButtonProp
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
 
-  const draftQuery = useQuery({
-    queryKey: queryKeys.programs.semesterDraft(programId),
-    queryFn: () => api.getCurrentSemesterDraft(programId),
-    staleTime: 15_000,
-  });
+  const draftQuery = useProgramSemesterDraftQuery(programId);
 
   const openWizard = () => {
     navigate(`/programs/${programId}/semesters/create`);
@@ -71,8 +71,8 @@ export const CreateSemesterWizardButton: React.FC<CreateSemesterWizardButtonProp
     try {
       await api.discardSemesterDraft(draftQuery.data.id);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.programs.semesterDraft(programId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId) }),
+        queryClient.invalidateQueries({ queryKey: programKeys.semesterDraft(programId) }),
+        invalidateProgramDetailQuery(queryClient, programId),
       ]);
       await onChanged?.();
       setIsPromptOpen(false);

@@ -1,13 +1,14 @@
-// input:  [program list/create/delete APIs, auth active-Program state, dialog context, route links, loading skeletons, responsive overlay wrapper, shared business empty-state wrappers, and shadcn scroll-area]
+// input:  [program list/create/delete APIs, app-side Program resource hooks/cache helpers, auth active-Program state, dialog context, route links, loading skeletons, responsive overlay wrapper, shared business empty-state wrappers, and shadcn scroll-area]
 // output: [`ProgramsPage` plus local create/delete/activate program flows and responsive create surface components]
-// pos:    [Secondary account-level Programs browser that lets users create, switch, and delete Programs while the root route redirects into the active Program Home]
+// pos:    [Secondary account-level Programs browser that lets users create, switch, and delete Programs while deriving Program list/detail server state from TanStack Query caches]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useCallback, useEffect, useId, useState } from 'react';
+import React, { useCallback, useId, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../components/Layout';
 
 import { AppEmptyState } from '../components/AppEmptyState';
@@ -26,6 +27,13 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
+import {
+    getProgramsListQueryOptions,
+    invalidateProgramsListQuery,
+    removeProgramDetailQuery,
+    useProgramDetailQueries,
+    useProgramsListQuery,
+} from '@/data/resources';
 import api from '../services/api';
 import type { Program } from '../services/api';
 import { useDialog } from '../contexts/DialogContext';
@@ -229,39 +237,28 @@ export const ProgramsPage: React.FC = () => {
     const { alert: showAlert } = useDialog();
     const { user, setActiveProgram } = useAuth();
     const navigate = useNavigate();
-    const [programs, setPrograms] = useState<Program[]>([]);
-    const [programEarnedCredits, setProgramEarnedCredits] = useState<Record<string, number>>({});
-    const [isLoading, setIsLoading] = useState(true);
+    const queryClient = useQueryClient();
 
-    const fetchPrograms = useCallback(async () => {
-        try {
-            const data = await api.getPrograms();
-            setPrograms(data);
-            const creditEntries = await Promise.all(
-                data.map(async (program) => {
-                    try {
-                        const details = await api.getProgram(program.id);
-                        const earnedCredits = details.semesters.reduce((semesterSum, semester) => {
-                            const semesterCredits = (semester.courses || []).reduce((courseSum, course) => courseSum + course.credits, 0);
-                            return semesterSum + semesterCredits;
-                        }, 0);
-                        return [program.id, earnedCredits] as const;
-                    } catch {
-                        return [program.id, 0] as const;
-                    }
-                })
-            );
-            setProgramEarnedCredits(Object.fromEntries(creditEntries));
-        } catch (error) {
-            console.error("Failed to fetch programs", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+    const programsQuery = useProgramsListQuery();
+    const programs = programsQuery.data ?? [];
+    const programDetailsQueries = useProgramDetailQueries(programs.map((program) => program.id));
+    const isProgramCreditsLoading = programDetailsQueries.some((query) => !query.data && !query.error);
+    const isLoading = programsQuery.isLoading || isProgramCreditsLoading;
 
-    useEffect(() => {
-        void fetchPrograms();
-    }, [fetchPrograms]);
+    const programEarnedCredits = useMemo<Record<string, number>>(() => {
+        return Object.fromEntries(
+            programs.map((program, index) => {
+                const details = programDetailsQueries[index]?.data;
+                const earnedCredits = details
+                    ? details.semesters.reduce((semesterSum, semester) => {
+                        const semesterCredits = (semester.courses || []).reduce((courseSum, course) => courseSum + course.credits, 0);
+                        return semesterSum + semesterCredits;
+                    }, 0)
+                    : 0;
+                return [program.id, earnedCredits];
+            }),
+        );
+    }, [programDetailsQueries, programs]);
 
     const handleActivateProgram = useCallback(async (programId: string) => {
         try {
@@ -277,29 +274,23 @@ export const ProgramsPage: React.FC = () => {
     }, [navigate, setActiveProgram, showAlert]);
 
     const handleCreatedProgram = useCallback(async (program: Program) => {
-        await fetchPrograms();
-        await setActiveProgram(program.id);
-        navigate(`/programs/${program.id}`);
-    }, [fetchPrograms, navigate, setActiveProgram]);
+        void invalidateProgramsListQuery(queryClient);
+        try {
+            await setActiveProgram(program.id);
+            navigate(`/programs/${program.id}`);
+        } catch (error) {
+            console.error('Failed to activate created program', error);
+            await showAlert({
+                title: 'Switch failed',
+                description: 'Failed to switch the active Program.',
+            });
+        }
+    }, [navigate, queryClient, setActiveProgram, showAlert]);
 
     const handleDeletedProgram = useCallback(async (deletedProgramId: string) => {
-        const nextPrograms = await api.getPrograms();
-        setPrograms(nextPrograms);
-        const creditEntries = await Promise.all(
-            nextPrograms.map(async (program) => {
-                try {
-                    const details = await api.getProgram(program.id);
-                    const earnedCredits = details.semesters.reduce((semesterSum, semester) => {
-                        const semesterCredits = (semester.courses || []).reduce((courseSum, course) => courseSum + course.credits, 0);
-                        return semesterSum + semesterCredits;
-                    }, 0);
-                    return [program.id, earnedCredits] as const;
-                } catch {
-                    return [program.id, 0] as const;
-                }
-            })
-        );
-        setProgramEarnedCredits(Object.fromEntries(creditEntries));
+        await invalidateProgramsListQuery(queryClient);
+        removeProgramDetailQuery(queryClient, deletedProgramId);
+        const nextPrograms = await queryClient.fetchQuery(getProgramsListQueryOptions());
 
         if (user?.active_program_id !== deletedProgramId) {
             return;
@@ -310,7 +301,7 @@ export const ProgramsPage: React.FC = () => {
         if (fallbackProgram) {
             navigate(`/programs/${fallbackProgram.id}`);
         }
-    }, [navigate, setActiveProgram, user?.active_program_id]);
+    }, [navigate, queryClient, setActiveProgram, user?.active_program_id]);
 
     const breadcrumb = (
         <Breadcrumb>

@@ -1,4 +1,4 @@
-// input:  [course context, query-backed parent Program and Semester navigation data, semester-sibling course navigation data, route-state tab-restoration hints for sibling-course jumps, prefetch-backed sibling-course detail cache warming, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, and shared business empty-state wrappers]
+// input:  [course context, app-side Program/Semester/Course resource queries plus cache helpers, semester-sibling course navigation data, route-state tab-restoration hints for sibling-course jumps, prefetch-backed sibling-course detail cache warming, Program->Semester->unassigned-Course runtime plugin management payloads, keyboard shortcut + motion helpers, Program subject-color settings, Program LMS course catalog state, dashboard tab/widget hooks, plugin metadata/settings/load-state registries, plugin host navigation provider, unavailable-widget cleanup actions, active tab selection state, plugin-derived homepage shell-tab rules, page-scoped global-command actions including semester-course navigation, and shared business empty-state wrappers]
 // output: [`CourseHomepage` and internal `CourseHomepageContent` composition component]
 // pos:    [Course workspace page with workspace navigation, flattened Program/Semester/Course breadcrumb reuse, a clickable semester title segment plus semester-sibling course switching from the title area with keyboard shortcuts and directional motion feedback, cache-warmed sibling-course navigation that avoids full homepage skeleton reloads, runtime-managed plugin inheritance for Semester courses plus lightweight plugin management for unassigned Courses, plugin-derived dashboard/settings shell tabs, global command actions for current-course tab switching plus semester-course navigation and widget creation, plugin-identified settings sections with manifest icons, workspace-scoped plugin host wiring, Program-derived default course colors, Course LMS link/sync controls, LMS cache invalidation on link changes, plugin-global settings, and standardized unavailable/not-found empty states]
 //
@@ -11,6 +11,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+    programKeys,
+    semesterKeys,
+} from '@/data/keys';
+import {
+    getCourseDetailQueryOptions,
+    getProgramDetailQueryOptions,
+    getProgramLmsCoursesQueryOptions,
+    getSemesterDetailQueryOptions,
+    invalidateCourseLmsQueries,
+    invalidateProgramDetailQuery,
+    setProgramDetailQueryData,
+} from '@/data/resources';
 import { Layout } from '../components/Layout';
 import { AppEmptyState } from '../components/AppEmptyState';
 import { Button } from '@/components/ui/button';
@@ -21,7 +34,6 @@ import { WidgetSettingsModal } from '../components/WidgetSettingsModal';
 import { CardSkeleton } from '../components/skeletons';
 import api from '../services/api';
 import { reportError } from '../services/appStatus';
-import { queryKeys } from '../services/queryKeys';
 import {
     PROGRAM_HOME_TAB_TYPE,
     isProgramHomePinned,
@@ -39,11 +51,13 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPreload';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
 import { CoursePluginManagementPanel } from '../components/CoursePluginManagementPanel';
+import { SettingsSectionPluginOwnerProvider } from '@/components/SettingsSection';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
-    getPluginIconById,
+    getPluginIdByTabType,
+    getPluginManifestItemById,
     getResolvedTabMetadataByType,
     getTabPluginLoadState,
     getTabComponentByType,
@@ -123,7 +137,7 @@ const CourseHomepageContent: React.FC = () => {
     const shouldShowSemester = Boolean(course?.semester_id);
 
     const parentProgramQuery = useQuery({
-        queryKey: queryKeys.programs.detail(course?.program_id ?? 'unknown'),
+        ...getProgramDetailQueryOptions(course?.program_id ?? 'unknown'),
         queryFn: async () => {
             const programId = course?.program_id;
             if (!programId) {
@@ -136,7 +150,7 @@ const CourseHomepageContent: React.FC = () => {
         initialData: () => {
             const programId = course?.program_id;
             if (!programId) return undefined;
-            return queryClient.getQueryData(queryKeys.programs.detail(programId));
+            return queryClient.getQueryData(programKeys.detail(programId));
         },
     });
     const programName = parentProgramQuery.data?.name ?? null;
@@ -154,7 +168,7 @@ const CourseHomepageContent: React.FC = () => {
     }, [course?.id, parentProgramQuery.data]);
 
     const parentSemesterQuery = useQuery({
-        queryKey: queryKeys.semesters.detail(course?.semester_id ?? 'unknown'),
+        ...getSemesterDetailQueryOptions(course?.semester_id ?? 'unknown'),
         queryFn: async () => {
             const semesterId = course?.semester_id;
             if (!semesterId) {
@@ -167,7 +181,7 @@ const CourseHomepageContent: React.FC = () => {
         initialData: () => {
             const semesterId = course?.semester_id;
             if (!semesterId) return undefined;
-            return queryClient.getQueryData(queryKeys.semesters.detail(semesterId));
+            return queryClient.getQueryData(semesterKeys.detail(semesterId));
         },
     });
     const semesterName = parentSemesterQuery.data?.name ?? null;
@@ -198,11 +212,7 @@ const CourseHomepageContent: React.FC = () => {
         return Array.from(resolveAvailableWidgetTypes(course?.runtime));
     }, [course?.runtime]);
     const availableLmsCoursesQuery = useQuery({
-        queryKey: queryKeys.programs.lmsCourses(course?.program_id ?? 'unknown', { mode: 'link-picker' }),
-        queryFn: async () => {
-            if (!course?.program_id) return null;
-            return api.listProgramLmsCourses(course.program_id, { page: 1, page_size: 100 });
-        },
+        ...getProgramLmsCoursesQueryOptions(course?.program_id ?? 'unknown', { page: 1, page_size: 100 }),
         enabled: Boolean(course?.program_id && programLmsIntegrationId),
         retry: false,
     });
@@ -278,6 +288,15 @@ const CourseHomepageContent: React.FC = () => {
     const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
+    const handleResetTabSetting = useCallback((tabId: string, key: string) => {
+        const targetTab = tabs.find((tab) => tab.id === tabId);
+        if (!targetTab) {
+            return;
+        }
+        const nextSettings = { ...(targetTab.settings ?? {}) };
+        delete nextSettings[key];
+        handleUpdateTabSettings(tabId, nextSettings);
+    }, [handleUpdateTabSettings, tabs]);
 
     const {
         isActiveTabPluginLoading,
@@ -409,9 +428,7 @@ const CourseHomepageContent: React.FC = () => {
             return;
         }
         await queryClient.ensureQueryData({
-            queryKey: queryKeys.courses.detail(nextCourseId),
-            queryFn: () => api.getCourse(nextCourseId),
-            staleTime: 300_000,
+            ...getCourseDetailQueryOptions(nextCourseId),
         });
     }, [course?.id, queryClient]);
 
@@ -423,11 +440,7 @@ const CourseHomepageContent: React.FC = () => {
         siblingCourses
             .filter((siblingCourse) => siblingCourse.id !== course.id)
             .forEach((siblingCourse) => {
-                void queryClient.prefetchQuery({
-                    queryKey: queryKeys.courses.detail(siblingCourse.id),
-                    queryFn: () => api.getCourse(siblingCourse.id),
-                    staleTime: 300_000,
-                });
+                void queryClient.prefetchQuery(getCourseDetailQueryOptions(siblingCourse.id));
             });
     }, [course?.id, queryClient, siblingCourses]);
 
@@ -551,15 +564,21 @@ const CourseHomepageContent: React.FC = () => {
             .map((tab) => {
                 const SettingsComponent = getTabSettingsComponentByType(tab.type);
                 if (SettingsComponent) {
+                    const pluginId = getPluginIdByTabType(tab.type);
+                    const pluginDisplayName = pluginId ? getPluginManifestItemById(pluginId)?.displayName ?? null : null;
                     return (
                         <React.Fragment key={tab.id}>
-                            <SettingsComponent
-                                tabId={tab.id}
-                                settings={tab.settings || {}}
-                                semesterId={course?.semester_id}
-                                courseId={course?.id}
-                                updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
-                            />
+                            <SettingsSectionPluginOwnerProvider value={pluginDisplayName}>
+                                <SettingsComponent
+                                    tabId={tab.id}
+                                    settings={tab.settings || {}}
+                                    semesterId={course?.semester_id}
+                                    courseId={course?.id}
+                                    settingsMeta={tab.settings_meta}
+                                    updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
+                                    resetSetting={(key) => handleResetTabSetting(tab.id, key)}
+                                />
+                            </SettingsSectionPluginOwnerProvider>
                         </React.Fragment>
                     );
                 }
@@ -616,6 +635,7 @@ const CourseHomepageContent: React.FC = () => {
         visibleTabs,
         course?.id,
         handleUpdateTabSettings,
+        handleResetTabSetting,
         isSettingsTabActive,
         pluginLoadStateVersion
     ]);
@@ -643,7 +663,6 @@ const CourseHomepageContent: React.FC = () => {
                     <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
                         <PluginSettingsSectionRenderer
                             pluginId={definition.pluginId}
-                            pluginIcon={getPluginIconById(definition.pluginId)}
                             pluginDisplayName={pluginMetadata?.displayName}
                             pluginDescription={pluginMetadata?.description}
                             showPluginHeader={showPluginHeader}
@@ -701,7 +720,7 @@ const CourseHomepageContent: React.FC = () => {
             return;
         }
 
-        const currentProgram = parentProgramQuery.data ?? queryClient.getQueryData(queryKeys.programs.detail(programId));
+        const currentProgram = parentProgramQuery.data ?? queryClient.getQueryData(programKeys.detail(programId));
         if (!currentProgram) {
             return;
         }
@@ -712,10 +731,8 @@ const CourseHomepageContent: React.FC = () => {
             : removeProgramHomeItem(currentSettings, 'course', course.id);
         const nextTabSettings = replaceProgramHomeTabSetting(currentProgram.tab_settings, nextSettings);
 
-        queryClient.setQueryData(queryKeys.programs.detail(programId), (current: any) => (
-            current
-                ? { ...current, tab_settings: nextTabSettings }
-                : current
+        setProgramDetailQueryData(queryClient, programId, (current: any) => (
+            current ? { ...current, tab_settings: nextTabSettings } : current
         ));
 
         try {
@@ -724,8 +741,8 @@ const CourseHomepageContent: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to update Program Home pin state', error);
-            await queryClient.invalidateQueries({ queryKey: queryKeys.programs.detail(programId) });
-            await queryClient.refetchQueries({ queryKey: queryKeys.programs.detail(programId), type: 'active' });
+            await invalidateProgramDetailQuery(queryClient, programId);
+            await queryClient.refetchQueries({ queryKey: programKeys.detail(programId), type: 'active' });
         }
     }, [course?.id, course?.program_id, parentProgramQuery.data, queryClient]);
 
@@ -778,18 +795,12 @@ const CourseHomepageContent: React.FC = () => {
         if (!course?.id) return;
         await Promise.all([
             refreshCourse(),
-            queryClient.invalidateQueries({ queryKey: queryKeys.courses.lmsLink(course.id) }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.courses.lmsAssignments(course.id) }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.courses.gradebook(course.id) }),
-            course.program_id
-                ? queryClient.invalidateQueries({ queryKey: queryKeys.programs.lmsCourses(course.program_id, { mode: 'link-picker' }) })
-                : Promise.resolve(),
-            course.semester_id
-                ? queryClient.invalidateQueries({ queryKey: queryKeys.semesters.lmsAssignments(course.semester_id) })
-                : Promise.resolve(),
-            course.semester_id
-                ? queryClient.invalidateQueries({ queryKey: queryKeys.semesters.lmsCalendarEvents(course.semester_id) })
-                : Promise.resolve(),
+            invalidateCourseLmsQueries(queryClient, {
+                courseId: course.id,
+                programId: course.program_id,
+                semesterId: course.semester_id,
+                programLmsCoursesParams: { page: 1, page_size: 100 },
+            }),
         ]);
         await publishTimetableScheduleChange({
             source: 'course',

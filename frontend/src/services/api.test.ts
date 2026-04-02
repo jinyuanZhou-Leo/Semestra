@@ -58,8 +58,6 @@ describe('api runtime normalization', () => {
           {
             id: 'world-clock',
             available_widget_types: ['world-clock'],
-            settings: '{"fallback":true}',
-            resolved_settings: '{"timezone":"UTC"}',
           },
         ],
         tab_catalog_items: [],
@@ -75,7 +73,16 @@ describe('api runtime normalization', () => {
         type: 'world-clock',
         title: 'World Clock',
         settings: { timezone: 'UTC' },
+        scope_settings: {},
+        inherited_settings: {},
+        settings_meta: {
+          scopeSettings: {},
+          inheritedSettings: {},
+          settingSources: {},
+        },
         order_index: 3,
+        is_draggable: undefined,
+        is_removable: undefined,
         plugin_id: 'world-clock',
         availability: { state: 'available' },
       },
@@ -85,8 +92,6 @@ describe('api runtime normalization', () => {
         plugin_id: 'world-clock',
         available_tab_types: [],
         available_widget_types: ['world-clock'],
-        settings: { fallback: true },
-        resolved_settings: { timezone: 'UTC' },
       },
     ]);
   });
@@ -112,7 +117,16 @@ describe('api runtime normalization', () => {
       type: 'builtin-gradebook',
       title: 'Gradebook',
       settings: { display: 'compact' },
+      scope_settings: {},
+      inherited_settings: {},
+      settings_meta: {
+        scopeSettings: {},
+        inheritedSettings: {},
+        settingSources: {},
+      },
       order_index: 1,
+      is_draggable: undefined,
+      is_removable: undefined,
       plugin_id: 'builtin-gradebook',
       availability: { state: 'available' },
     });

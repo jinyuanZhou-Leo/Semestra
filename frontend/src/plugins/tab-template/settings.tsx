@@ -11,17 +11,21 @@
 import React, { useCallback, useId, useMemo } from 'react';
 
 import { SettingsSection } from '@/components/SettingsSection';
+import { TabSettingSourceHint } from '@/components/settings/TabSettingSourceHint';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { TabSettingsProps } from '@/plugin-system';
+import { getSettingSource } from '@/plugin-system/tabSettingsMeta';
+import type { TabSettingsProps } from '@/services/tabRegistry';
 
 import { resolveTemplateSettings } from './shared';
 
-export const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
+export const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, settingsMeta, updateSettings, resetSetting }) => {
   const resolved = useMemo(() => resolveTemplateSettings(settings), [settings]);
   const titleId = useId();
   const checklistId = useId();
+  const titleSource = useMemo(() => getSettingSource(settingsMeta, 'title'), [settingsMeta]);
+  const checklistSource = useMemo(() => getSettingSource(settingsMeta, 'showChecklist'), [settingsMeta]);
 
   const handleTitleChange = useCallback((value: string) => {
     updateSettings({ ...resolved, title: value });
@@ -39,7 +43,13 @@ export const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ setti
       <div className="grid gap-4">
         <div className="grid max-w-sm gap-2">
           <Label htmlFor={titleId}>
-            Template Title
+            <span className="inline-flex flex-wrap items-center gap-2">
+              <span>Template Title</span>
+              <TabSettingSourceHint
+                source={titleSource}
+                onReset={resetSetting ? () => resetSetting('title') : undefined}
+              />
+            </span>
           </Label>
           <Input
             id={titleId}
@@ -57,7 +67,13 @@ export const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ setti
             }}
           />
           <Label htmlFor={checklistId} className="cursor-pointer text-sm font-normal text-muted-foreground">
-            Show quick-start checklist
+            <span className="inline-flex flex-wrap items-center gap-2">
+              <span>Show quick-start checklist</span>
+              <TabSettingSourceHint
+                source={checklistSource}
+                onReset={resetSetting ? () => resetSetting('showChecklist') : undefined}
+              />
+            </span>
           </Label>
         </div>
       </div>

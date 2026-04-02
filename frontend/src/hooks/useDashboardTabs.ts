@@ -11,15 +11,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getResolvedTabMetadataByType } from '../plugin-system';
+import type { SettingLayer, TabSettingsMeta } from '../plugin-system/tabSettingsMeta';
 import type { ResolvedRuntimeTab } from '../plugin-system/runtimeAvailability';
 import api, { type RuntimeAvailability, type RuntimeResolvedTab, type Tab } from '../services/api';
 import { reportError } from '../services/appStatus';
+import { jsonDeepEqual } from '../plugin-system/utils';
 
 export interface TabItem {
     id: string;
     type: string;
     title: string;
     settings?: Record<string, unknown>;
+    scope_settings?: Record<string, unknown>;
+    inherited_settings?: Record<string, unknown>;
+    settings_meta?: TabSettingsMeta;
     order_index: number;
     is_removable?: boolean;
     is_draggable?: boolean;
@@ -78,12 +83,28 @@ const toTabItem = (
     const settings = 'resolved_settings' in tab
         ? parseSettingsObject(tab.resolved_settings ?? tab.settings)
         : parseSettingsObject(tab.settings);
+    const scopeSettings = 'scope_settings' in tab
+        ? parseSettingsObject(tab.scope_settings ?? tab.settings)
+        : parseSettingsObject(tab.settings);
+    const inheritedSettings = 'inherited_settings' in tab
+        ? parseSettingsObject(tab.inherited_settings)
+        : {};
+    const settingsMeta = 'settings_meta' in tab && tab.settings_meta
+        ? tab.settings_meta
+        : {
+            scopeSettings,
+            inheritedSettings,
+            settingSources: 'settings_meta' in tab && tab.settings_meta ? tab.settings_meta.settingSources : {},
+        };
 
     return {
         id,
         type,
         title: resolvedTitle,
         settings,
+        scope_settings: scopeSettings,
+        inherited_settings: inheritedSettings,
+        settings_meta: settingsMeta,
         order_index: typeof tab.order_index === 'number' ? tab.order_index : index,
         is_removable: tab.is_removable,
         is_draggable: tab.is_draggable,
@@ -93,6 +114,83 @@ const toTabItem = (
 };
 
 const stringifySettings = (settings: Record<string, unknown>) => JSON.stringify(settings ?? {});
+
+const deriveScopeSettings = (
+    desiredResolvedSettings: Record<string, unknown>,
+    inheritedSettings: Record<string, unknown>,
+): Record<string, unknown> => {
+    const nextScopeSettings: Record<string, unknown> = {};
+    const candidateKeys = new Set([
+        ...Object.keys(desiredResolvedSettings),
+        ...Object.keys(inheritedSettings),
+    ]);
+
+    candidateKeys.forEach((key) => {
+        if (!(key in desiredResolvedSettings)) {
+            return;
+        }
+        if (key in inheritedSettings && jsonDeepEqual(desiredResolvedSettings[key], inheritedSettings[key])) {
+            return;
+        }
+        nextScopeSettings[key] = desiredResolvedSettings[key];
+    });
+
+    return nextScopeSettings;
+};
+
+const getCurrentScopeLayer = (courseId?: string): SettingLayer => (
+    courseId ? 'course' : 'semester'
+);
+
+const getFallbackLayer = (
+    previousMeta: TabSettingsMeta | undefined,
+    key: string,
+): SettingLayer | null => {
+    const previousSource = previousMeta?.settingSources[key];
+    if (!previousSource) {
+        return 'default';
+    }
+    if (previousSource.is_overridden_in_scope) {
+        return previousSource.fallback_layer ?? 'default';
+    }
+    return previousSource.effective_layer;
+};
+
+const buildOptimisticSettingsMeta = (
+    previousMeta: TabSettingsMeta | undefined,
+    nextScopeSettings: Record<string, unknown>,
+    inheritedSettings: Record<string, unknown>,
+    changedKeys: Iterable<string>,
+    currentLayer: SettingLayer,
+): TabSettingsMeta => {
+    const nextSettingSources = {
+        ...(previousMeta?.settingSources ?? {}),
+    };
+
+    Array.from(changedKeys).forEach((key) => {
+        if (key in nextScopeSettings) {
+            nextSettingSources[key] = {
+                effective_layer: currentLayer,
+                is_overridden_in_scope: true,
+                fallback_layer: getFallbackLayer(previousMeta, key),
+            };
+            return;
+        }
+
+        const fallbackLayer = getFallbackLayer(previousMeta, key);
+        nextSettingSources[key] = {
+            effective_layer: fallbackLayer ?? 'default',
+            is_overridden_in_scope: false,
+            fallback_layer: fallbackLayer,
+        };
+    });
+
+    return {
+        scopeSettings: nextScopeSettings,
+        inheritedSettings,
+        settingSources: nextSettingSources,
+    };
+};
 
 const mergeManagedTabsFromServer = (currentTabs: TabItem[], serverTabs: TabItem[]): TabItem[] => {
     if (serverTabs.length === 0) {
@@ -139,6 +237,7 @@ export const useDashboardTabs = ({
     const pendingSettingsRef = useRef<Map<string, Record<string, unknown>>>(new Map());
     const orderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingOrderedIdsRef = useRef<string[] | null>(null);
+    const currentScopeLayer = getCurrentScopeLayer(courseId);
 
     const scopeKey = courseId ? `course:${courseId}` : `semester:${semesterId ?? 'unknown'}`;
     const normalizedInitialTabs = useMemo(() => (
@@ -188,6 +287,9 @@ export const useDashboardTabs = ({
                             ? {
                                 ...currentTab,
                                 settings: result.settings,
+                                scope_settings: result.scope_settings,
+                                inherited_settings: result.inherited_settings,
+                                settings_meta: result.settings_meta,
                                 title: result.title ?? currentTab.title,
                             }
                             : currentTab
@@ -199,6 +301,9 @@ export const useDashboardTabs = ({
                             ? {
                                 ...currentTab,
                                 settings: result.settings,
+                                scope_settings: result.scope_settings,
+                                inherited_settings: result.inherited_settings,
+                                settings_meta: result.settings_meta,
                                 title: result.title ?? currentTab.title,
                             }
                             : currentTab
@@ -223,27 +328,89 @@ export const useDashboardTabs = ({
     const updateTab = useCallback(async (tabId: string, data: { settings?: string | Record<string, unknown> }) => {
         if (!data.settings) return;
         const normalizedSettings = parseSettingsObject(data.settings);
+        const currentTab = tabsRef.current.find((tab) => tab.id === tabId);
+        const previousScopeSettings = currentTab?.scope_settings ?? {};
+        const changedKeys = new Set([
+            ...Object.keys(previousScopeSettings),
+            ...Object.keys(normalizedSettings),
+        ]);
+        const normalizedScopeSettings = deriveScopeSettings(
+            normalizedSettings,
+            currentTab?.inherited_settings ?? {},
+        );
+        const optimisticSettingsMeta = buildOptimisticSettingsMeta(
+            currentTab?.settings_meta,
+            normalizedScopeSettings,
+            currentTab?.inherited_settings ?? {},
+            changedKeys,
+            currentScopeLayer,
+        );
         setTabs((currentTabs) => currentTabs.map((tab) => (
-            tab.id === tabId ? { ...tab, settings: normalizedSettings } : tab
+            tab.id === tabId
+                ? {
+                    ...tab,
+                    settings: normalizedSettings,
+                    scope_settings: normalizedScopeSettings,
+                    settings_meta: optimisticSettingsMeta,
+                }
+                : tab
         )));
         tabsRef.current = tabsRef.current.map((tab) => (
-            tab.id === tabId ? { ...tab, settings: normalizedSettings } : tab
+            tab.id === tabId
+                ? {
+                    ...tab,
+                    settings: normalizedSettings,
+                    scope_settings: normalizedScopeSettings,
+                    settings_meta: optimisticSettingsMeta,
+                }
+                : tab
         ));
-        pendingSettingsRef.current.set(tabId, normalizedSettings);
+        pendingSettingsRef.current.set(tabId, normalizedScopeSettings);
         await persistTabSettings(tabId);
-    }, [persistTabSettings]);
+    }, [currentScopeLayer, persistTabSettings]);
 
     const updateTabSettingsDebounced = useCallback((tabId: string, data: { settings?: string | Record<string, unknown> }) => {
         if (!data.settings) return;
         const normalizedSettings = parseSettingsObject(data.settings);
+        const currentTab = tabsRef.current.find((tab) => tab.id === tabId);
+        const previousScopeSettings = currentTab?.scope_settings ?? {};
+        const changedKeys = new Set([
+            ...Object.keys(previousScopeSettings),
+            ...Object.keys(normalizedSettings),
+        ]);
+        const normalizedScopeSettings = deriveScopeSettings(
+            normalizedSettings,
+            currentTab?.inherited_settings ?? {},
+        );
+        const optimisticSettingsMeta = buildOptimisticSettingsMeta(
+            currentTab?.settings_meta,
+            normalizedScopeSettings,
+            currentTab?.inherited_settings ?? {},
+            changedKeys,
+            currentScopeLayer,
+        );
 
         setTabs((currentTabs) => currentTabs.map((tab) => (
-            tab.id === tabId ? { ...tab, settings: normalizedSettings } : tab
+            tab.id === tabId
+                ? {
+                    ...tab,
+                    settings: normalizedSettings,
+                    scope_settings: normalizedScopeSettings,
+                    settings_meta: optimisticSettingsMeta,
+                }
+                : tab
         )));
         tabsRef.current = tabsRef.current.map((tab) => (
-            tab.id === tabId ? { ...tab, settings: normalizedSettings } : tab
+            tab.id === tabId
+                ? {
+                    ...tab,
+                    settings: normalizedSettings,
+                    scope_settings: normalizedScopeSettings,
+                    settings_meta: optimisticSettingsMeta,
+                }
+                : tab
         ));
-        pendingSettingsRef.current.set(tabId, normalizedSettings);
+        pendingSettingsRef.current.set(tabId, normalizedScopeSettings);
 
         const existingTimer = settingsTimersRef.current.get(tabId);
         if (existingTimer) {
@@ -254,7 +421,7 @@ export const useDashboardTabs = ({
             void persistTabSettings(tabId);
         }, 300);
         settingsTimersRef.current.set(tabId, timer);
-    }, [persistTabSettings]);
+    }, [currentScopeLayer, persistTabSettings]);
 
     const flushTabOrder = useCallback(async () => {
         if (!pendingOrderedIdsRef.current) return;

@@ -27,38 +27,6 @@
     }
   ],
   "settings": {
-    "defaults": {
-      "allowCourseCreation": true,
-      "badgeStyle": "compact"
-    },
-    "schema": [
-      {
-        "path": "allowCourseCreation",
-        "label": "Allow course creation",
-        "type": "boolean",
-        "scope": "program-only",
-        "default": true,
-        "description": "Control whether the Course List widget exposes create-course entry points."
-      },
-      {
-        "path": "badgeStyle",
-        "label": "Badge style",
-        "type": "select",
-        "scope": "semester-override",
-        "default": "compact",
-        "description": "Control how dense the course badges feel inside this Semester.",
-        "options": [
-          {
-            "label": "Compact",
-            "value": "compact"
-          },
-          {
-            "label": "Detailed",
-            "value": "detailed"
-          }
-        ]
-      }
-    ],
     "panels": []
   }
 }

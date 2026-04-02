@@ -90,13 +90,11 @@ REQUIRED_RUNTIME_SCHEMA = {
         "version",
         "is_enabled",
         "auth_state",
-        "program_settings",
     },
     "semester_plugin_activations": {
         "id",
         "semester_id",
         "program_plugin_installation_id",
-        "semester_overrides",
         "setup_state",
         "is_enabled",
     },

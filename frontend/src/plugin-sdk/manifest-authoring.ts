@@ -14,11 +14,9 @@ import type {
   PluginDescriptorTabDefinition,
   PluginDescriptorWidgetDefinition,
   PluginSettingsPanelBinding,
-  PluginSettingsSchemaEntry,
 } from './manifest-types.ts';
 
 const VALID_FIELD_TYPES = new Set(['text', 'textarea', 'number', 'boolean', 'select', 'date', 'json']);
-const VALID_FIELD_SCOPES = new Set(['program-only', 'semester-override']);
 const VALID_CONTEXTS = new Set<PluginContext>(['program', 'semester', 'course']);
 
 const requireNonEmptyString = (value: string, label: string) => {
@@ -49,25 +47,6 @@ const cloneOptions = (options: { label: string; value: string }[] | undefined) =
     requireNonEmptyString(option.value, 'Plugin option value');
     return { ...option };
   });
-};
-
-const cloneSettingsSchemaEntry = (field: PluginSettingsSchemaEntry): PluginSettingsSchemaEntry => {
-  requireNonEmptyString(field.path, 'Plugin settings field path');
-  requireNonEmptyString(field.label, `Plugin settings field "${field.path}" label`);
-  if (!VALID_FIELD_TYPES.has(field.type)) {
-    throw new Error(`[plugin-sdk] Plugin settings field "${field.path}" uses unsupported type "${field.type}".`);
-  }
-  if (!VALID_FIELD_SCOPES.has(field.scope)) {
-    throw new Error(`[plugin-sdk] Plugin settings field "${field.path}" uses unsupported scope "${field.scope}".`);
-  }
-  const options = cloneOptions(field.options);
-  if (field.type === 'select' && (!options || options.length === 0)) {
-    throw new Error(`[plugin-sdk] Plugin settings field "${field.path}" must declare options for select.`);
-  }
-  return {
-    ...field,
-    options,
-  };
 };
 
 const cloneSettingsPanel = (section: PluginSettingsPanelBinding): PluginSettingsPanelBinding => {
@@ -136,8 +115,6 @@ export const definePluginManifest = (descriptor: PluginDescriptor): PluginDescri
     tabs: (descriptor.tabs ?? []).map(cloneTabDefinition),
     widgets: (descriptor.widgets ?? []).map(cloneWidgetDefinition),
     settings: {
-      defaults: { ...(descriptor.settings?.defaults ?? {}) },
-      schema: (descriptor.settings?.schema ?? []).map(cloneSettingsSchemaEntry),
       panels: (descriptor.settings?.panels ?? []).map(cloneSettingsPanel),
     },
   };

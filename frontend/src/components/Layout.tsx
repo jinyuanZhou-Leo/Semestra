@@ -1,6 +1,6 @@
-// input:  [auth state/actions including active-Program mutation, app-status notifications, header slot props, page-scoped command groups, theme state/actions, API-backed account/workspace navigation loaders with structured course metadata, and children]
+// input:  [auth state/actions including active-Program mutation, app-status notifications, header slot props, page-scoped command groups, theme state/actions, API-backed account/workspace navigation loaders with structured course metadata, global Workspace-switch commands, and children]
 // output: [`Layout` component]
-// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, a navbar Program workspace switcher, a slash-triggered command palette that mixes lazy account navigation with direct workspace actions plus structured course-row metadata, authenticated header actions, and sign-out handling]
+// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, a navbar Program workspace switcher, a slash-triggered command palette that mixes lazy account navigation with direct workspace actions plus Workspace switching and structured course-row metadata, authenticated header actions, and sign-out handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -455,6 +455,40 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                     icon: Settings,
                     onSelect: () => navigate(`/programs/${currentProgramId}/settings`),
                 },
+                {
+                    id: 'switch-workspace',
+                    title: 'Switch Workspace',
+                    description: 'Change the active Program workspace for the app.',
+                    keywords: ['workspace', 'project', 'program', 'switch'],
+                    icon: FolderKanban,
+                    childPage: {
+                        id: 'workspace-switcher',
+                        title: 'Switch Workspace',
+                        searchPlaceholder: 'Search workspaces...',
+                        emptyMessage: 'No workspaces found.',
+                        loadItems: async () => {
+                            const workspacePrograms = await api.getPrograms();
+                            return [...workspacePrograms]
+                                .sort((left, right) => left.name.localeCompare(right.name))
+                                .map((program) => ({
+                                    id: `switch-workspace-${program.id}`,
+                                    title: program.name,
+                                    description: program.id === user?.active_program_id
+                                        ? 'Current active workspace.'
+                                        : 'Switch to this workspace.',
+                                    keywords: ['workspace', 'project', 'program', program.name],
+                                    icon: FolderKanban,
+                                    badges: program.id === user?.active_program_id
+                                        ? [{ label: 'Current', variant: 'secondary' as const }]
+                                        : undefined,
+                                    onSelect: async () => {
+                                        await handleProgramSwitch(program.id);
+                                    },
+                                }));
+                        },
+                    },
+                    onSelect: () => undefined,
+                },
             );
         }
 
@@ -528,7 +562,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                 ],
             },
         ];
-    }, [accountNavigationItems, commandGroups, currentCourseId, currentProgramId, currentSemesterId, isPageBlurred, navigate, setTheme]);
+    }, [accountNavigationItems, commandGroups, currentCourseId, currentProgramId, currentSemesterId, handleProgramSwitch, isPageBlurred, navigate, setTheme, user?.active_program_id]);
 
     return (
         <div className="flex min-h-screen flex-col">

@@ -1,6 +1,6 @@
-// input:  [built-in settings tab context, sticky title offset provider, and shared UI primitives]
+// input:  [built-in settings tab context, sticky title offset provider, and shared shadcn separator primitives]
 // output: [`BuiltinSettingTab` runtime and tab definition export]
-// pos:    [settings-tab entry that injects a live sticky offset so section titles stay clear of the workspace header]
+// pos:    [settings-tab entry that injects a live sticky offset so section titles stay clear of the workspace header while rendering plugin sections inline with the rest of the settings content]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -10,8 +10,6 @@
 
 import React from 'react';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { Puzzle } from 'lucide-react';
 
 import { SettingsStickyTopProvider } from '../../components/SettingsSection';
 import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
@@ -82,14 +80,9 @@ const BuiltinSettingTabComponent: React.FC<TabProps> = () => {
                         <div className="py-2">
                             <Separator />
                         </div>
-                        <div className="flex items-center gap-2 pt-2">
-                            <Badge variant="secondary" className="tracking-wide text-[10px] text-muted-foreground font-semibold">
-                                <Puzzle className="h-3 w-3 mr-1" />
-                                Plugins
-                            </Badge>
-                            <span className="text-xs text-muted-foreground/80">Settings provided by active plugins</span>
+                        <div className="space-y-6">
+                            {settings.extraSections}
                         </div>
-                        {settings.extraSections}
                     </>
                 )}
             </div>

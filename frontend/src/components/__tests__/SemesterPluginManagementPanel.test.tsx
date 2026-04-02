@@ -73,8 +73,6 @@ describe("SemesterPluginManagementPanel", () => {
             capabilities: {},
             setup_sections: [],
             setup_values: { calendarDefaultView: "week" },
-            resolved_settings: { calendarDefaultView: "week" },
-            settings_schema: [],
             setup_summary: [],
             review_errors: [],
             available: true,
@@ -93,7 +91,7 @@ describe("SemesterPluginManagementPanel", () => {
       });
     });
 
-    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["courses", "detail"] });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ["courses"] });
   });
 
   it("prevents toggling a locked Semester plugin off", async () => {
@@ -118,8 +116,6 @@ describe("SemesterPluginManagementPanel", () => {
             capabilities: {},
             setup_sections: [],
             setup_values: {},
-            resolved_settings: {},
-            settings_schema: [],
             setup_summary: [],
             review_errors: [],
             available: true,
@@ -159,8 +155,6 @@ describe("SemesterPluginManagementPanel", () => {
             capabilities: {},
             setup_sections: [],
             setup_values: {},
-            resolved_settings: {},
-            settings_schema: [],
             setup_summary: [],
             review_errors: [],
             available: true,
@@ -195,8 +189,6 @@ describe("SemesterPluginManagementPanel", () => {
             capabilities: {},
             setup_sections: [],
             setup_values: {},
-            resolved_settings: {},
-            settings_schema: [],
             setup_summary: [],
             review_errors: [],
             available: false,
@@ -232,8 +224,6 @@ describe("SemesterPluginManagementPanel", () => {
             capabilities: { contexts: ["course"], available_tab_types: ["course-resources"] },
             setup_sections: [],
             setup_values: {},
-            resolved_settings: {},
-            settings_schema: [],
             setup_summary: [],
             review_errors: [],
             available: false,
@@ -272,8 +262,6 @@ describe("SemesterPluginManagementPanel", () => {
             capabilities: {},
             setup_sections: [],
             setup_values: {},
-            resolved_settings: {},
-            settings_schema: [],
             setup_summary: [],
             review_errors: [],
             available: true,
@@ -293,8 +281,6 @@ describe("SemesterPluginManagementPanel", () => {
             capabilities: {},
             setup_sections: [],
             setup_values: {},
-            resolved_settings: {},
-            settings_schema: [],
             setup_summary: [],
             review_errors: [],
             available: false,

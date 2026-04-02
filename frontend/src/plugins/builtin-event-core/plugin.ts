@@ -1,6 +1,6 @@
-// input:  [typed plugin manifest/setup helpers, event-core icons, existing setup UI definition, frontend plugin SDK, and lazy runtime loader]
-// output: [default-exported descriptor-backed event-core plugin definition with schema-driven setup]
-// pos:    [single-entry builtin plugin definition that keeps event-core metadata aligned to the plugin-owned setup.tsx source of truth]
+// input:  [typed plugin manifest/setup helpers, event-core icons, existing setup/settings UI definitions, frontend plugin SDK, and lazy runtime loader]
+// output: [default-exported descriptor-backed event-core plugin definition with schema-driven setup plus Program-level todo defaults settings]
+// pos:    [single-entry builtin plugin definition that keeps event-core metadata aligned to the plugin-owned setup.tsx and settings.tsx sources of truth]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,8 +8,9 @@
 
 import { CalendarDays, Clock3, ListTodo, NotebookPen } from 'lucide-react';
 
-import { createPluginSetupBinding, definePlugin, definePluginManifest } from '../../plugin-sdk/authoring.ts';
+import { createPluginSetupBinding, definePlugin, definePluginManifest, defineSettingsSection } from '../../plugin-sdk/authoring.ts';
 
+import settingsDefinition from './settings.tsx';
 import setupDefinition from './setup.tsx';
 
 export default definePlugin({
@@ -63,35 +64,15 @@ export default definePlugin({
       },
     ],
     settings: {
-      defaults: {
-        syncLmsCalendar: true,
-        calendarDefaultView: 'month',
-      },
-      schema: [
+      panels: [
         {
-          path: 'syncLmsCalendar',
-          label: 'Sync LMS calendar',
-          type: 'boolean',
-          scope: 'program-only',
-          default: true,
-          description: 'Allow Semesters to merge LMS events into Calendar when the Program has LMS configured.',
-        },
-        {
-          path: 'calendarDefaultView',
-          label: 'Calendar default view',
-          type: 'select',
-          scope: 'semester-override',
-          default: 'month',
-          description: 'Choose the initial Calendar view for this Semester.',
-          options: [
-            { label: 'Month', value: 'month' },
-            { label: 'Week', value: 'week' },
-          ],
+          id: 'todo-defaults',
+          contexts: ['program'],
         },
       ],
-      panels: [],
     },
   }),
   loadRuntime: async () => (await import('./index')).default,
+  settingsSections: (settingsDefinition.pluginSettings ?? []).map((definition) => defineSettingsSection(definition)),
   setup: createPluginSetupBinding(setupDefinition),
 });

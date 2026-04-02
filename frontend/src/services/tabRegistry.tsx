@@ -8,6 +8,7 @@
 
 import React, { useSyncExternalStore } from 'react';
 import { jsonDeepEqual } from '../plugin-system/utils';
+import type { TabSettingsMeta } from '../plugin-system/tabSettingsMeta';
 
 export interface TabProps<S = any> {
     tabId: string;
@@ -22,7 +23,9 @@ export interface TabSettingsProps<S = any> {
     settings: S;
     semesterId?: string;
     courseId?: string;
+    settingsMeta?: TabSettingsMeta;
     updateSettings: (newSettings: S) => void | Promise<void>;
+    resetSetting: (key: string) => void | Promise<void>;
 }
 
 export interface TabLifecycleContext {

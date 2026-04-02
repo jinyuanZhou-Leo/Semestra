@@ -6,9 +6,9 @@ Exposes typed hooks so page modules can consume shared state safely.
 
 | File | Role | Description |
 |------|------|-------------|
-| AuthContext.tsx | Context module | Context provider/hook layer for cookie-backed auth state, normalized user-setting defaults including background plugin preloading plus the required active Program id, session refresh, logout/session-expiry handling, remembered route restoration after forced re-login, shared query-cache reset when auth state is cleared, an explicit client-side clear-session path for irreversible account deletion, and a `setActiveProgram` helper used by Program Home routing. |
+| AuthContext.tsx | Context module | Context provider/hook layer for cookie-backed auth state, normalized user-setting defaults including background plugin preloading plus the required active Program id, session refresh, logout/session-expiry handling, remembered route restoration after forced re-login, shared query-cache reset when auth state is cleared, an explicit client-side clear-session path for irreversible account deletion, and a `setActiveProgram` helper that now writes through app-side user cache keys instead of the old service-level query key file. |
 | BuiltinTabContext.tsx | Context module | Context provider/hook layer for builtin tab state, including dashboard overview slots plus separate layout local-sync, commit, and unavailable-widget delete callbacks. |
-| CourseDataContext.tsx | Context module | Context provider/hook layer for course data that fronts a shared longer-lived Query cache while preserving the existing page-facing API. |
+| CourseDataContext.tsx | Context module | Context provider/hook layer for course data that fronts the shared app-side Course detail cache while preserving the existing page-facing API. |
 | DialogContext.tsx | Context module | Context provider/hook layer for dialog context state. |
-| ProgramDataContext.tsx | Context module | Context provider/hook layer for program data that fronts a shared longer-lived Query cache while preserving the existing page-facing API. |
-| SemesterDataContext.tsx | Context module | Context provider/hook layer for semester data that fronts a shared longer-lived Query cache while preserving the existing page-facing API. |
+| ProgramDataContext.tsx | Context module | Context provider/hook layer for program data that fronts the shared app-side Program detail cache while preserving the existing page-facing API. |
+| SemesterDataContext.tsx | Context module | Context provider/hook layer for semester data that fronts the shared app-side Semester detail cache while preserving the existing page-facing API. |

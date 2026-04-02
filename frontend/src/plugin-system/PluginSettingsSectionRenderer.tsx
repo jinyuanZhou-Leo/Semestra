@@ -1,6 +1,6 @@
-// input:  [plugin id, optional plugin display metadata, plugin settings component, stable scope contracts, manifest icon helpers, and workspace refresh callback]
-// output: [`PluginSettingsSectionRenderer` component that injects scope-aware plugin settings section props and a consistent plugin header]
-// pos:    [Bridge component between page-level plugin settings registration and settings-page rendering, with a shared plugin identity header for Program, Semester, and Course settings surfaces]
+// input:  [plugin id, optional plugin display metadata, plugin settings component, stable scope contracts, and workspace refresh callback]
+// output: [`PluginSettingsSectionRenderer` component that injects scope-aware plugin settings section props]
+// pos:    [Bridge component between page-level plugin settings registration and settings-page rendering, with plugin ownership metadata flowing into each settings section title rail instead of a separate plugin header block]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,14 +9,12 @@
 "use no memo";
 
 import React from 'react';
-import type { ReactNode } from 'react';
 
-import { IconCircle } from '@/components/IconCircle';
+import { SettingsSectionPluginOwnerProvider } from '@/components/SettingsSection';
 import type { PluginSettingsScope, PluginSettingsSectionProps } from '@/services/pluginSettingsRegistry';
 
 interface PluginSettingsSectionRendererProps {
   pluginId: string;
-  pluginIcon?: ReactNode;
   pluginDisplayName?: string;
   pluginDescription?: string;
   showPluginHeader?: boolean;
@@ -35,7 +33,6 @@ const formatPluginLabel = (pluginId: string) => pluginId
 
 export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRendererProps> = ({
   pluginId,
-  pluginIcon,
   pluginDisplayName,
   pluginDescription,
   showPluginHeader = true,
@@ -72,25 +69,16 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
     return null;
   }
 
-  return (
-    <div className="space-y-3">
-      {showPluginHeader ? (
-        <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
-          <IconCircle icon={pluginIcon} label={pluginTitle} size={30} className="bg-muted text-foreground" />
-          <div className="min-w-0 space-y-1">
-            <div className="text-sm font-medium text-foreground">{pluginTitle}</div>
-            {pluginDescription ? (
-              <p className="text-xs leading-5 text-muted-foreground">{pluginDescription}</p>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+  void pluginDescription;
+  void showPluginHeader;
 
+  return (
+    <SettingsSectionPluginOwnerProvider value={pluginTitle}>
       <Component
         pluginId={pluginId}
         scope={scope}
         onRefresh={onRefresh}
       />
-    </div>
+    </SettingsSectionPluginOwnerProvider>
   );
 };

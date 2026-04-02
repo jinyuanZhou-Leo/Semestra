@@ -721,6 +721,15 @@ class RuntimeAvailability(BaseModel):
     reason_message: Optional[str] = None
 
 
+SettingLayer = Literal["default", "program", "semester", "course"]
+
+
+class SettingSource(BaseModel):
+    effective_layer: SettingLayer
+    is_overridden_in_scope: bool = False
+    fallback_layer: Optional[SettingLayer] = None
+
+
 class TabSettingBase(BaseModel):
     tab_type: str
     settings: str = "{}"
@@ -739,7 +748,10 @@ class TabSetting(TabSettingBase):
     program_id: Optional[str] = None
     semester_id: Optional[str] = None
     course_id: Optional[str] = None
+    scope_settings: dict[str, Any] = {}
+    inherited_settings: dict[str, Any] = {}
     resolved_settings: dict[str, Any] = {}
+    setting_sources: dict[str, SettingSource] = {}
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -797,7 +809,10 @@ class RuntimeTabDefinition(BaseModel):
     tab_type: str
     title: str
     settings: Any = {}
+    scope_settings: dict[str, Any] = {}
+    inherited_settings: dict[str, Any] = {}
     resolved_settings: dict[str, Any] = {}
+    setting_sources: dict[str, SettingSource] = {}
     order_index: int
     is_removable: bool = True
     is_draggable: bool = True
@@ -1198,16 +1213,6 @@ class ProgramWithSemesters(Program):
     plugin_installations: List["ProgramPluginInstallation"] = []
 
 
-class ProgramPluginSettingsSchemaEntry(BaseModel):
-    path: str
-    label: Optional[str] = None
-    type: Optional[str] = None
-    scope: str
-    default: Any = None
-    description: str = ""
-    options: List[dict[str, Any]] = []
-
-
 class ProgramPluginSetupField(BaseModel):
     path: str
     label: str
@@ -1232,7 +1237,6 @@ class ProgramPluginInstallationUpsertRequest(BaseModel):
     is_enabled: Optional[bool] = None
     auth_state: Optional[str] = None
     auth_message: Optional[str] = None
-    program_settings: dict[str, Any] = {}
 
 
 class ProgramPluginInstallationBulkUpdateRequest(BaseModel):
@@ -1255,9 +1259,6 @@ class ProgramPluginInstallation(BaseModel):
     auth_message: Optional[str] = None
     capabilities: dict[str, Any] = {}
     setup_sections: List[ProgramPluginSetupSection] = []
-    program_settings: dict[str, Any] = {}
-    resolved_program_settings: dict[str, Any] = {}
-    settings_schema: List[ProgramPluginSettingsSchemaEntry] = []
     available: bool = False
     availability_reason: Optional[str] = None
     availability: Optional[RuntimeAvailability] = None
@@ -1314,8 +1315,6 @@ class SemesterPluginActivation(BaseModel):
     capabilities: dict[str, Any] = {}
     setup_sections: List[ProgramPluginSetupSection] = []
     setup_values: dict[str, Any] = {}
-    resolved_settings: dict[str, Any] = {}
-    settings_schema: List[ProgramPluginSettingsSchemaEntry] = []
     setup_summary: List[SemesterDraftReviewSummarySection] = []
     review_errors: List[SemesterDraftReviewIssue] = []
     available: bool = False
@@ -1346,7 +1345,6 @@ class CoursePluginActivation(BaseModel):
     is_enabled: bool = True
     auth_state: str
     capabilities: dict[str, Any] = {}
-    resolved_settings: dict[str, Any] = {}
     available: bool = False
     availability_reason: Optional[str] = None
     availability: Optional[RuntimeAvailability] = None

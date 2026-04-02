@@ -9,8 +9,9 @@
 "use no memo";
 
 import React, { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StatusButton } from "./StatusButton";
 import {
@@ -85,17 +86,12 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
             </DialogDescription>
           </DialogHeader>
           <div className="px-6 py-5">
-            <div
-              className="relative w-full rounded-lg border bg-background p-4 text-foreground [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7"
-              role="alert"
-            >
-              <div className="mb-1 font-medium leading-none tracking-tight">
-                Settings unavailable
-              </div>
-              <div className="text-sm text-muted-foreground">
+            <Alert className="bg-background">
+              <AlertTitle>Settings unavailable</AlertTitle>
+              <AlertDescription>
                 No settings are available for this widget type.
-              </div>
-            </div>
+              </AlertDescription>
+            </Alert>
           </div>
         </DialogContent>
       </Dialog>
@@ -120,7 +116,7 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
         </DialogHeader>
         <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
           <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-4 px-6 py-5">
+            <div className="flex flex-col gap-4 px-6 py-5">
               <SettingsComponent
                 widgetId={activeWidget?.id}
                 semesterId={semesterId}
@@ -130,15 +126,16 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
               />
             </div>
           </ScrollArea>
-          <DialogFooter className="shrink-0 border-t px-6 pt-4 pb-6">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={onClose}
-              disabled={saveState === "saving"}
-            >
-              Cancel
-            </Button>
+          <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-xl border-t bg-background px-6 pt-4 pb-6">
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={saveState === "saving"}
+              >
+                Cancel
+              </Button>
+            </DialogClose>
             <StatusButton
               type="submit"
               label="Save Settings"

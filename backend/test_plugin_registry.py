@@ -239,22 +239,14 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertTrue(draft_payload["review_ready"])
         self.assertEqual(event_core_activation["setup_summary"][0]["items"][0]["value"], "Week")
 
-    def test_program_only_field_is_rejected_from_semester_overrides(self) -> None:
-        with self.assertRaises(plugin_registry.PluginRegistryValidationError) as context:
-            plugin_registry.normalize_semester_overrides("course-list", {"allowCourseCreation": False})
-
-        self.assertEqual(context.exception.code, "SEMESTER_PLUGIN_OVERRIDES_INVALID")
-
-    def test_program_installation_serializes_resolved_settings_and_availability(self) -> None:
+    def test_program_installation_serializes_availability(self) -> None:
         program = self._create_program()
 
         installation = crud.upsert_program_plugin_installation(
             self.db,
             program.id,
             "builtin-event-core",
-            schemas.ProgramPluginInstallationUpsertRequest(
-                program_settings={"syncLmsCalendar": False},
-            ),
+            schemas.ProgramPluginInstallationUpsertRequest(),
         )
         canvas_installation = crud.upsert_program_plugin_installation(
             self.db,
@@ -263,8 +255,6 @@ class PluginGovernanceDraftTests(unittest.TestCase):
             schemas.ProgramPluginInstallationUpsertRequest(),
         )
 
-        self.assertEqual(installation["resolved_program_settings"]["syncLmsCalendar"], False)
-        self.assertEqual(installation["resolved_program_settings"]["calendarDefaultView"], "month")
         self.assertEqual(installation["author"], "Jinyuan")
         self.assertTrue(installation["is_enabled"])
         self.assertTrue(installation["available"])
@@ -355,23 +345,165 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertEqual(course_context.exception.status_code, 404)
         self.assertIsNone(crud.get_tab_setting(self.db, "builtin-gradebook", course_id=course.id))
 
+    def test_course_tab_setting_metadata_skips_missing_semester_layer(self) -> None:
+        program = self._create_program()
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS105", credits=0.5),
+            program.id,
+            semester_id=semester.id,
+        )
+
+        crud.upsert_tab_setting(
+            self.db,
+            schemas.TabSettingCreate(
+                tab_type="tab-template",
+                settings='{"title":"Program title","showChecklist":true}',
+            ),
+            program_id=program.id,
+        )
+        crud.upsert_tab_setting(
+            self.db,
+            schemas.TabSettingCreate(
+                tab_type="tab-template",
+                settings='{"title":"Course title"}',
+            ),
+            course_id=course.id,
+        )
+
+        metadata = crud.resolve_tab_settings_metadata(
+            self.db,
+            "tab-template",
+            program_id=program.id,
+            semester_id=semester.id,
+            course_id=course.id,
+        )
+
+        self.assertEqual(metadata["scope_settings"], {"title": "Course title"})
+        self.assertEqual(metadata["inherited_settings"], {"title": "Program title", "showChecklist": True})
+        self.assertEqual(metadata["resolved_settings"], {"title": "Course title", "showChecklist": True})
+        self.assertEqual(
+            metadata["setting_sources"],
+            {
+                "title": {
+                    "effective_layer": "course",
+                    "is_overridden_in_scope": True,
+                    "fallback_layer": "program",
+                },
+                "showChecklist": {
+                    "effective_layer": "program",
+                    "is_overridden_in_scope": False,
+                    "fallback_layer": None,
+                },
+            },
+        )
+
+    def test_course_tab_setting_metadata_skips_missing_program_key_and_uses_semester_value(self) -> None:
+        program = self._create_program()
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="APS106", credits=0.5),
+            program.id,
+            semester_id=semester.id,
+        )
+
+        crud.upsert_tab_setting(
+            self.db,
+            schemas.TabSettingCreate(
+                tab_type="tab-template",
+                settings='{"showChecklist":false}',
+            ),
+            semester_id=semester.id,
+        )
+        crud.upsert_tab_setting(
+            self.db,
+            schemas.TabSettingCreate(
+                tab_type="tab-template",
+                settings='{"title":"Course title"}',
+            ),
+            course_id=course.id,
+        )
+
+        metadata = crud.resolve_tab_settings_metadata(
+            self.db,
+            "tab-template",
+            program_id=program.id,
+            semester_id=semester.id,
+            course_id=course.id,
+        )
+
+        self.assertEqual(metadata["scope_settings"], {"title": "Course title"})
+        self.assertEqual(metadata["inherited_settings"], {"showChecklist": False})
+        self.assertEqual(metadata["resolved_settings"], {"title": "Course title", "showChecklist": False})
+        self.assertEqual(
+            metadata["setting_sources"],
+            {
+                "title": {
+                    "effective_layer": "course",
+                    "is_overridden_in_scope": True,
+                    "fallback_layer": "default",
+                },
+                "showChecklist": {
+                    "effective_layer": "semester",
+                    "is_overridden_in_scope": False,
+                    "fallback_layer": None,
+                },
+            },
+        )
+
     def test_v2_migration_backfills_program_scope_tab_settings(self) -> None:
         migration = self._load_tab_settings_migration_module()
         program = self._create_program()
-        self.db.add(
-            models.ProgramPluginInstallation(
-                program_id=program.id,
-                plugin_id="builtin-gradebook",
-                version="workspace",
-                is_enabled=True,
-                auth_state="not-required",
-                auth_message=None,
-                program_settings='{"defaultView":"grading"}',
-                created_at="2026-03-29T00:00:00Z",
-                updated_at="2026-03-29T00:00:00Z",
+        with self.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE program_plugin_installations ADD COLUMN program_settings TEXT NOT NULL DEFAULT '{}'"
             )
-        )
-        self.db.commit()
+            connection.exec_driver_sql(
+                """
+                INSERT INTO program_plugin_installations (
+                    id,
+                    program_id,
+                    plugin_id,
+                    version,
+                    is_enabled,
+                    auth_state,
+                    auth_message,
+                    created_at,
+                    updated_at,
+                    program_settings
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "legacy-gradebook-installation",
+                    program.id,
+                    "builtin-gradebook",
+                    "workspace",
+                    1,
+                    "not-required",
+                    None,
+                    "2026-03-29T00:00:00Z",
+                    "2026-03-29T00:00:00Z",
+                    '{"defaultView":"grading"}',
+                ),
+            )
 
         with self.engine.begin() as connection:
             migration._backfill_v2_runtime_state(connection)
@@ -426,6 +558,9 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.db.commit()
 
         with self.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE program_plugin_installations ADD COLUMN program_settings TEXT NOT NULL DEFAULT '{}'"
+            )
             migration._backfill_v2_runtime_state(connection)
         self.db.expire_all()
 
@@ -679,7 +814,6 @@ class PluginGovernanceDraftTests(unittest.TestCase):
             is_enabled=True,
             auth_state="not-required",
             auth_message=None,
-            program_settings="{}",
             created_at="2026-03-28T00:00:00Z",
             updated_at="2026-03-28T00:00:00Z",
         )
@@ -774,7 +908,6 @@ class PluginGovernanceDraftTests(unittest.TestCase):
             resources_activation["capabilities"]["available_tab_types"],
             ["course-resources-tab"],
         )
-        self.assertIsInstance(resources_activation["resolved_settings"], dict)
 
     def test_unassigned_course_plugins_default_to_off_rows_and_can_enable(self) -> None:
         program = self._create_program()
@@ -1396,7 +1529,6 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         ).first()
         self.assertIn('"calendarDefaultView": "week"', activation.setup_state)
         self.assertIn('"eventTypes"', activation.setup_state)
-        self.assertEqual(activation.semester_overrides, "{}")
 
         review_payload = crud.review_semester_plugin_system(self.db, draft["id"])
         event_core_review = next(plugin for plugin in review_payload["plugins"] if plugin["plugin_id"] == "builtin-event-core")

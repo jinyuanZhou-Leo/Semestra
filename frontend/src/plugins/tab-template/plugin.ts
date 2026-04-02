@@ -31,11 +31,6 @@ export default definePlugin({
       },
     ],
     widgets: [],
-    settings: {
-      defaults: {},
-      schema: [],
-      panels: [],
-    },
   }),
   loadRuntime: async () => (await import('./index')).default,
   setup: createPluginSetupBinding(setupDefinition),

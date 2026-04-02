@@ -37,9 +37,13 @@
     }
   ],
   "settings": {
-    "defaults": {},
-    "schema": [],
     "panels": [
+      {
+        "id": "gradebook-defaults",
+        "contexts": [
+          "program"
+        ]
+      },
       {
         "id": "gradebook-forecast-and-categories",
         "contexts": [

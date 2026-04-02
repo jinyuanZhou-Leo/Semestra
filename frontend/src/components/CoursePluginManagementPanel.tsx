@@ -1,4 +1,4 @@
-// input:  [unassigned Course plugin activations, Course id, plugin-manifest icon helpers, refresh callback, shared settings-section primitives, the shared data-table shell, shared plugin details, and shared row-actions dropdown helpers]
+// input:  [unassigned Course plugin activations, Course id, plugin-manifest icon helpers, app-side Course cache helpers, refresh callback, shared settings-section primitives, the shared data-table shell, shared plugin details, and shared row-actions dropdown helpers]
 // output: [`CoursePluginManagementPanel` component]
 // pos:    [Course settings surface for unassigned-Course plugin enablement, including bulk toggles and reusable plugin info within the shared data-table pattern]
 //
@@ -16,8 +16,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
+import { invalidateCoursePluginQueries } from "@/data/resources";
 import { getPluginIconById } from "@/plugin-system";
-import { queryKeys } from "@/services/queryKeys";
 
 import api, { type CoursePluginActivation } from "../services/api";
 import { DataTable, DataTableActionMenu } from "./DataTable";
@@ -66,10 +66,7 @@ export const CoursePluginManagementPanel: React.FC<CoursePluginManagementPanelPr
   const areAllBulkToggleCandidatesEnabled = bulkToggleCandidates.length > 0 && bulkToggleCandidates.every((plugin) => plugin.is_enabled);
 
   const invalidateAll = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.courses.detail(courseId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.courses.pluginActivations(courseId) }),
-    ]);
+    await invalidateCoursePluginQueries(queryClient, courseId);
     await onChanged?.();
   };
 

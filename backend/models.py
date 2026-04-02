@@ -197,7 +197,6 @@ class ProgramPluginInstallation(Base):
     is_enabled = Column(Boolean, nullable=False, default=True)
     auth_state = Column(String, nullable=False, default="not-required")
     auth_message = Column(Text, nullable=True)
-    program_settings = Column(Text, nullable=False, default="{}")
     created_at = Column(String, nullable=False, default="")
     updated_at = Column(String, nullable=False, default="")
 
@@ -225,7 +224,6 @@ class SemesterPluginActivation(Base):
         ForeignKey("program_plugin_installations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    semester_overrides = Column(Text, nullable=False, default="{}")
     setup_state = Column(Text, nullable=False, default="{}")
     is_enabled = Column(Boolean, nullable=False, default=True)
     created_at = Column(String, nullable=False, default="")

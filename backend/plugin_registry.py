@@ -1,6 +1,6 @@
 # input:  [Program model records, generated plugin manifest JSON files, plugin registry payloads, and platform-level availability requirements]
-# output: [generated-manifest-backed plugin catalog helpers for Program installs, Semester activation, setup definitions, builtin-only setup review hooks, settings validation, setup summaries, and resolved-config computation with tab/widget context metadata]
-# pos:    [Backend plugin registry for Program-managed plugin lifecycle and Semester-scoped activation rules plus generated descriptor validation, host-policy overlays, tab/widget context lookups, and plugin-owned setup review dispatch against raw setup values]
+# output: [generated-manifest-backed plugin catalog helpers for Program installs, Semester activation, setup definitions, builtin-only setup review hooks, and setup summaries with tab/widget context metadata]
+# pos:    [Backend plugin registry for Program-managed plugin lifecycle and Semester-scoped activation rules plus generated descriptor validation, host-policy overlays, tab/widget context lookups, and plugin-owned setup review dispatch against raw Semester setup values]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -16,8 +16,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 
-FIELD_SCOPE_PROGRAM_ONLY = "program-only"
-FIELD_SCOPE_SEMESTER_OVERRIDE = "semester-override"
 VALID_SETUP_FIELD_TYPES = {
     "text",
     "textarea",
@@ -45,17 +43,6 @@ class PluginRegistryValidationError(Exception):
 
 def _raise_manifest_error(message: str) -> None:
     raise RuntimeError(f"[plugin-governance] {message}")
-
-
-@dataclass(frozen=True)
-class PluginFieldDefinition:
-    path: str
-    label: str
-    field_type: str
-    scope: str
-    default: Any = None
-    description: str = ""
-    options: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -108,7 +95,6 @@ class PluginSetupReviewIssue:
 @dataclass(frozen=True)
 class PluginSetupReviewContext:
     plugin_id: str
-    program_settings: dict[str, Any]
     setup_values: dict[str, Any]
     program: Any = None
     semester: Any = None
@@ -128,8 +114,6 @@ PluginSetupReviewCallback = Callable[[PluginSetupReviewContext], PluginSetupRevi
 class PluginRegistryDefinition:
     plugin_id: str
     default_version: str = "workspace"
-    default_settings: dict[str, Any] = field(default_factory=dict)
-    fields: tuple[PluginFieldDefinition, ...] = ()
     setup_review: PluginSetupReviewCallback | None = None
 
 
@@ -139,8 +123,6 @@ class PluginDefinition:
     metadata: PluginMetadata
     default_version: str = "workspace"
     capabilities: dict[str, Any] = field(default_factory=dict)
-    default_settings: dict[str, Any] = field(default_factory=dict)
-    fields: tuple[PluginFieldDefinition, ...] = ()
     setup_review: PluginSetupReviewCallback | None = None
 
     @property
@@ -335,14 +317,11 @@ def _load_plugin_capabilities(plugin_id: str, raw_entry: dict[str, Any]) -> dict
     raw_settings = raw_entry.get("settings") or {}
     if not isinstance(raw_settings, dict):
         _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings' must be an object.")
-    raw_settings_schema = raw_settings.get("schema") or []
     raw_settings_panels = raw_settings.get("panels") or []
     if not isinstance(raw_tabs, list):
         _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'tabs' must be a JSON array.")
     if not isinstance(raw_widgets, list):
         _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'widgets' must be a JSON array.")
-    if not isinstance(raw_settings_schema, list):
-        _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.schema' must be a JSON array.")
     if not isinstance(raw_settings_panels, list):
         _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.panels' must be a JSON array.")
 
@@ -390,7 +369,7 @@ def _load_plugin_capabilities(plugin_id: str, raw_entry: dict[str, Any]) -> dict
         "available_widget_types": available_widget_types,
         "tab_allowed_contexts": tab_allowed_contexts,
         "widget_allowed_contexts": widget_allowed_contexts,
-        "has_settings": bool(raw_settings_schema) or bool(raw_settings_panels) or has_setup_schema,
+        "has_settings": bool(raw_settings_panels) or has_setup_schema,
         "supports_unassigned_course": (
             "course" in contexts
             and kind != "host-shell"
@@ -449,60 +428,9 @@ def _load_descriptor_registry_definitions() -> dict[str, PluginRegistryDefinitio
     registry_definitions: dict[str, PluginRegistryDefinition] = {}
     for raw_entry in _load_plugin_descriptors():
         plugin_id = raw_entry.get("id")
-        raw_settings = raw_entry.get("settings") or {}
-        raw_fields = raw_settings.get("schema") if isinstance(raw_settings, dict) else None
         if not isinstance(plugin_id, str) or not plugin_id.strip():
             _raise_manifest_error("Plugin descriptor is missing id.")
-        if not isinstance(raw_settings, dict):
-            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings' must be an object.")
-        if raw_fields is None:
-            raw_fields = []
-        if not isinstance(raw_fields, list):
-            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.schema' must be a JSON array.")
-
-        fields: list[PluginFieldDefinition] = []
-        for raw_field in raw_fields:
-            if not isinstance(raw_field, dict):
-                _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field definition must be an object.")
-            field_path = raw_field.get("path")
-            field_label = raw_field.get("label")
-            field_type = raw_field.get("type")
-            scope = raw_field.get("scope")
-            raw_options = raw_field.get("options") or []
-            if not isinstance(field_path, str) or not field_path.strip():
-                _raise_manifest_error(f"Plugin descriptor '{plugin_id}' has a field with an empty path.")
-            if not isinstance(field_label, str) or not field_label.strip():
-                _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field '{field_path}' is missing label.")
-            if field_type not in VALID_SETUP_FIELD_TYPES:
-                _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field '{field_path}' uses unsupported type '{field_type}'.")
-            if scope not in {FIELD_SCOPE_PROGRAM_ONLY, FIELD_SCOPE_SEMESTER_OVERRIDE}:
-                _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field '{field_path}' uses unsupported scope '{scope}'.")
-            if not isinstance(raw_options, list):
-                _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field '{field_path}' options must be a JSON array.")
-            fields.append(
-                PluginFieldDefinition(
-                    path=field_path,
-                    label=field_label,
-                    field_type=field_type,
-                    scope=scope,
-                    default=deepcopy(raw_field.get("default")),
-                    description=str(raw_field.get("description") or ""),
-                    options=tuple(
-                        {
-                            "label": str(raw_option.get("label")),
-                            "value": str(raw_option.get("value")),
-                        }
-                        for raw_option in raw_options
-                        if isinstance(raw_option, dict)
-                    ),
-                )
-            )
-
-        registry_definitions[plugin_id] = PluginRegistryDefinition(
-            plugin_id=plugin_id,
-            default_settings=deepcopy(raw_settings.get("defaults") or {}),
-            fields=tuple(fields),
-        )
+        registry_definitions[plugin_id] = PluginRegistryDefinition(plugin_id=plugin_id)
 
     return registry_definitions
 
@@ -525,8 +453,6 @@ def _merge_registry_definitions() -> dict[str, PluginRegistryDefinition]:
         merged_definitions[plugin_id] = PluginRegistryDefinition(
             plugin_id=plugin_id,
             default_version=host_override.default_version if host_override is not None else descriptor_definition.default_version,
-            default_settings=deepcopy(descriptor_definition.default_settings),
-            fields=descriptor_definition.fields,
             setup_review=host_override.setup_review if host_override is not None else None,
         )
     return merged_definitions
@@ -550,8 +476,6 @@ def _build_plugin_definitions(
             metadata=metadata,
             default_version=registry_definition.default_version if registry_definition is not None else "workspace",
             capabilities=deepcopy(metadata.capabilities),
-            default_settings=deepcopy(registry_definition.default_settings) if registry_definition is not None else {},
-            fields=registry_definition.fields if registry_definition is not None else (),
             setup_review=registry_definition.setup_review if registry_definition is not None else None,
         )
 
@@ -809,22 +733,6 @@ def get_default_semester_plugin_ids() -> list[str]:
     ]
 
 
-def build_field_payloads(plugin_id: str) -> list[dict[str, Any]]:
-    definition = get_plugin_definition(plugin_id)
-    return [
-        {
-            "path": field.path,
-            "label": field.label,
-            "type": field.field_type,
-            "scope": field.scope,
-            "default": deepcopy(field.default),
-            "description": field.description,
-            "options": [deepcopy(option) for option in field.options],
-        }
-        for field in definition.fields
-    ]
-
-
 def _build_plugin_setup_field_payload(field: PluginSetupFieldDefinition) -> dict[str, Any]:
     return {
         "path": field.path,
@@ -872,10 +780,6 @@ def resolve_plugin_availability(
     if auth_state == "failed":
         return False, "Plugin authorization failed."
     return True, None
-
-
-def _field_map(plugin_id: str) -> dict[str, PluginFieldDefinition]:
-    return {field.path: field for field in get_plugin_definition(plugin_id).fields}
 
 
 def _setup_field_map(plugin_id: str) -> dict[str, PluginSetupFieldDefinition]:
@@ -963,64 +867,6 @@ def _normalize_field_value(
     return str(value)
 
 
-def normalize_program_settings(plugin_id: str, payload: dict[str, Any] | None) -> dict[str, Any]:
-    payload = payload or {}
-    if not isinstance(payload, dict):
-        raise PluginRegistryValidationError("PROGRAM_PLUGIN_SETTINGS_INVALID", "program_settings must be a JSON object.")
-    field_map = _field_map(plugin_id)
-    unknown_keys = sorted(set(payload.keys()) - set(field_map.keys()))
-    if unknown_keys:
-        raise PluginRegistryValidationError(
-            "PROGRAM_PLUGIN_SETTINGS_INVALID",
-            f"Unknown Program settings keys for {plugin_id}: {', '.join(unknown_keys)}",
-        )
-    normalized_payload: dict[str, Any] = {}
-    for key, value in payload.items():
-        field = field_map[key]
-        normalized_payload[key] = _normalize_field_value(
-            field_type=field.field_type,
-            field_label=field.label,
-            value=value,
-            options=field.options,
-            error_code="PROGRAM_PLUGIN_SETTINGS_INVALID",
-        )
-    return normalized_payload
-
-
-def normalize_semester_overrides(plugin_id: str, payload: dict[str, Any] | None) -> dict[str, Any]:
-    payload = payload or {}
-    if not isinstance(payload, dict):
-        raise PluginRegistryValidationError("SEMESTER_PLUGIN_OVERRIDES_INVALID", "semester_overrides must be a JSON object.")
-    field_map = _field_map(plugin_id)
-    unknown_keys = sorted(set(payload.keys()) - set(field_map.keys()))
-    if unknown_keys:
-        raise PluginRegistryValidationError(
-            "SEMESTER_PLUGIN_OVERRIDES_INVALID",
-            f"Unknown Semester override keys for {plugin_id}: {', '.join(unknown_keys)}",
-        )
-    disallowed = sorted(
-        key
-        for key, value in payload.items()
-        if value is not None and field_map[key].scope != FIELD_SCOPE_SEMESTER_OVERRIDE
-    )
-    if disallowed:
-        raise PluginRegistryValidationError(
-            "SEMESTER_PLUGIN_OVERRIDES_INVALID",
-            f"Semester overrides are not allowed for {plugin_id}: {', '.join(disallowed)}",
-        )
-    normalized_payload: dict[str, Any] = {}
-    for key, value in payload.items():
-        field = field_map[key]
-        normalized_payload[key] = _normalize_field_value(
-            field_type=field.field_type,
-            field_label=field.label,
-            value=value,
-            options=field.options,
-            error_code="SEMESTER_PLUGIN_OVERRIDES_INVALID",
-        )
-    return normalized_payload
-
-
 def normalize_setup_values(plugin_id: str, payload: dict[str, Any] | None) -> dict[str, Any]:
     payload = payload or {}
     if not isinstance(payload, dict):
@@ -1043,20 +889,6 @@ def normalize_setup_values(plugin_id: str, payload: dict[str, Any] | None) -> di
             error_code="SEMESTER_PLUGIN_SETUP_INVALID",
         )
     return normalized_payload
-
-
-def resolve_plugin_settings(
-    plugin_id: str,
-    *,
-    program_settings: dict[str, Any] | None = None,
-    semester_overrides: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    definition = get_plugin_definition(plugin_id)
-    resolved = deepcopy(definition.default_settings)
-    resolved.update(normalize_program_settings(plugin_id, program_settings))
-    resolved.update(normalize_semester_overrides(plugin_id, semester_overrides))
-    return resolved
-
 
 def _is_missing_setup_value(field: PluginSetupFieldDefinition, value: Any) -> bool:
     if value is None:
@@ -1198,12 +1030,10 @@ def validate_resolved_plugin_setup_values(plugin_id: str, values: dict[str, Any]
 def review_plugin_setup(
     plugin_id: str,
     *,
-    program_settings: dict[str, Any] | None = None,
     setup_values: dict[str, Any] | None = None,
     program: Any = None,
     semester: Any = None,
 ) -> dict[str, Any]:
-    normalized_program_settings = normalize_program_settings(plugin_id, program_settings)
     normalized_setup_values = normalize_setup_values(plugin_id, setup_values)
     setup_values = validate_resolved_plugin_setup_values(
         plugin_id,
@@ -1222,7 +1052,6 @@ def review_plugin_setup(
     if definition.setup_review is not None:
         review_context = PluginSetupReviewContext(
             plugin_id=plugin_id,
-            program_settings=deepcopy(normalized_program_settings),
             setup_values=deepcopy(setup_values),
             program=program,
             semester=semester,

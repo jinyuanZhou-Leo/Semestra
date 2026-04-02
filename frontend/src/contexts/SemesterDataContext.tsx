@@ -1,4 +1,4 @@
-// input:  [semester ID, semester fetch/update API functions, generic `useEntityContext` hook]
+// input:  [semester ID, semester fetch/update API functions, app-side Semester query keys, and generic `useEntityContext` hook]
 // output: [`SemesterDataProvider`, `useSemesterData()`, and `SemesterWithDetails` type]
 // pos:    [Semester-level data context providing optimistic edit, refresh capabilities, and longer-lived entity detail reuse across workspace re-entry]
 //
@@ -9,8 +9,8 @@
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Semester, Course, Widget, Tab } from '../services/api';
+import { semesterKeys } from '@/data/keys';
 import { useEntityContext } from '../hooks/useEntityContext';
-import { queryKeys } from '../services/queryKeys';
 
 export type SemesterWithDetails = Semester & {
     courses: Course[];
@@ -55,7 +55,7 @@ export const SemesterDataProvider: React.FC<SemesterDataProviderProps> = ({ seme
         isLoading
     } = useEntityContext<SemesterWithDetails>({
         entityId: semesterId,
-        queryKey: queryKeys.semesters.detail(semesterId),
+        queryKey: semesterKeys.detail(semesterId),
         fetchFn,
         updateFn,
         staleTimeMs: 300_000,

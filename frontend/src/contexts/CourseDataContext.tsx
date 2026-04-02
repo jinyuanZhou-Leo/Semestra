@@ -1,4 +1,4 @@
-// input:  [course ID, course fetch/update API functions, generic `useEntityContext` hook]
+// input:  [course ID, course fetch/update API functions, app-side Course query keys, and generic `useEntityContext` hook]
 // output: [`CourseDataProvider`, `useCourseData()`, and `CourseWithDetails` type]
 // pos:    [Course-level data context with optimistic updates, refresh abstraction, and longer-lived entity detail reuse across workspace re-entry]
 //
@@ -9,8 +9,8 @@
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import type { Course, Widget, Tab } from '../services/api';
+import { courseKeys } from '@/data/keys';
 import { useEntityContext } from '../hooks/useEntityContext';
-import { queryKeys } from '../services/queryKeys';
 
 export type CourseWithDetails = Course & {
     widgets?: Widget[];
@@ -55,7 +55,7 @@ export const CourseDataProvider: React.FC<CourseDataProviderProps> = ({ courseId
         isLoading
     } = useEntityContext<CourseWithDetails>({
         entityId: courseId,
-        queryKey: queryKeys.courses.detail(courseId),
+        queryKey: courseKeys.detail(courseId),
         fetchFn,
         updateFn,
         staleTimeMs: 300_000,

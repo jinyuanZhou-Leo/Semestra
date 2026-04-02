@@ -31,7 +31,6 @@ def _serialize_runtime_plugin_payloads(
             "plugin_id": activation["plugin_id"],
             "available_tab_types": list(activation.get("capabilities", {}).get("available_tab_types", [])),
             "available_widget_types": list(activation.get("capabilities", {}).get("available_widget_types", [])),
-            "resolved_settings": activation.get("resolved_settings", {}),
         }
         for activation in runtime_activations
     ]
@@ -99,6 +98,13 @@ def serialize_tab_settings_payloads(
 
     payloads: list[dict[str, object]] = []
     for row in crud.get_tab_settings_for_context(db, **context_kwargs):
+        settings_metadata = crud.resolve_tab_settings_metadata(
+            db,
+            row.tab_type,
+            program_id=program_id,
+            semester_id=semester_id,
+            course_id=course_id,
+        )
         payloads.append({
             "id": row.id,
             "tab_type": row.tab_type,
@@ -106,13 +112,7 @@ def serialize_tab_settings_payloads(
             "program_id": row.program_id,
             "semester_id": row.semester_id,
             "course_id": row.course_id,
-            "resolved_settings": crud.resolve_tab_settings(
-                db,
-                row.tab_type,
-                program_id=program_id,
-                semester_id=semester_id,
-                course_id=course_id,
-            ),
+            **settings_metadata,
         })
     return payloads
 
@@ -125,6 +125,13 @@ def serialize_tab_setting_payload(
     semester_id: str | None = None,
     course_id: str | None = None,
 ) -> dict[str, object]:
+    settings_metadata = crud.resolve_tab_settings_metadata(
+        db,
+        row.tab_type,
+        program_id=program_id,
+        semester_id=semester_id,
+        course_id=course_id,
+    )
     return {
         "id": row.id,
         "tab_type": row.tab_type,
@@ -132,13 +139,7 @@ def serialize_tab_setting_payload(
         "program_id": row.program_id,
         "semester_id": row.semester_id,
         "course_id": row.course_id,
-        "resolved_settings": crud.resolve_tab_settings(
-            db,
-            row.tab_type,
-            program_id=program_id,
-            semester_id=semester_id,
-            course_id=course_id,
-        ),
+        **settings_metadata,
     }
 
 
@@ -326,18 +327,22 @@ def _build_runtime_tab_payload(
             tab_type,
             **scoped_setting_kwargs,
         )
+        settings_metadata = crud.resolve_tab_settings_metadata(
+            db,
+            tab_type,
+            program_id=program_id,
+            semester_id=semester_id,
+            course_id=course_id,
+        )
         runtime_tabs.append({
             "plugin_id": catalog_item.get("plugin_id"),
             "tab_type": tab_type,
             "title": str(catalog_item.get("title") or tab_type),
             "settings": _parse_json_object(scoped_tab_setting.settings if scoped_tab_setting is not None else None),
-            "resolved_settings": crud.resolve_tab_settings(
-                db,
-                tab_type,
-                program_id=program_id,
-                semester_id=semester_id,
-                course_id=course_id,
-            ),
+            "scope_settings": settings_metadata["scope_settings"],
+            "inherited_settings": settings_metadata["inherited_settings"],
+            "resolved_settings": settings_metadata["resolved_settings"],
+            "setting_sources": settings_metadata["setting_sources"],
             "order_index": order_index,
             "is_removable": True,
             "is_draggable": True,

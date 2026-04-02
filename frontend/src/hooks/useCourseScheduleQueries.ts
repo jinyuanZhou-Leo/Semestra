@@ -1,100 +1,19 @@
-// input:  [course ids, schedule params, TanStack Query primitives, shared query keys, and schedule REST APIs]
-// output: [`useCourseEventTypesQuery()`, `useCourseSectionsQuery()`, `useCourseEventsQuery()`, reusable schedule query builders, and shared invalidation helpers]
-// pos:    [Host data-layer schedule query helpers that centralize course-schedule cache keys and refresh rules for plugin consumers]
+// input:  [legacy imports requesting Course schedule query helpers]
+// output: [re-exported Course schedule query builders, hooks, and invalidation helpers from the app-side data resource layer]
+// pos:    [Compatibility hook entry preserving existing import paths while Course schedule helpers live under `@/data/resources`]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query';
-
-import scheduleService from '@/services/schedule';
-import { queryKeys } from '@/services/queryKeys';
-
-const COURSE_SCHEDULE_STALE_TIME_MS = 30_000;
-
-export const getCourseEventTypesQueryOptions = (courseId: string) => queryOptions({
-  queryKey: queryKeys.courses.eventTypes(courseId),
-  queryFn: () => scheduleService.getCourseEventTypes(courseId),
-  staleTime: COURSE_SCHEDULE_STALE_TIME_MS,
-});
-
-export const getCourseSectionsQueryOptions = (courseId: string) => queryOptions({
-  queryKey: queryKeys.courses.sections(courseId),
-  queryFn: () => scheduleService.getCourseSections(courseId),
-  staleTime: COURSE_SCHEDULE_STALE_TIME_MS,
-});
-
-export const getCourseEventsQueryOptions = (courseId: string) => queryOptions({
-  queryKey: queryKeys.courses.events(courseId),
-  queryFn: () => scheduleService.getCourseEvents(courseId),
-  staleTime: COURSE_SCHEDULE_STALE_TIME_MS,
-});
-
-export const getCourseScheduleQueryOptions = (
-  courseId: string,
-  params: { week?: number; withConflicts?: boolean } = {},
-) => queryOptions({
-  queryKey: queryKeys.courses.schedule(courseId, params),
-  queryFn: () => scheduleService.getCourseSchedule(courseId, params),
-  staleTime: COURSE_SCHEDULE_STALE_TIME_MS,
-});
-
-export const useCourseEventTypesQuery = (courseId?: string) => {
-  return useQuery({
-    ...(getCourseEventTypesQueryOptions(courseId ?? 'disabled')),
-    enabled: Boolean(courseId),
-  });
-};
-
-export const useCourseSectionsQuery = (courseId?: string) => {
-  return useQuery({
-    ...(getCourseSectionsQueryOptions(courseId ?? 'disabled')),
-    enabled: Boolean(courseId),
-  });
-};
-
-export const useCourseEventsQuery = (courseId?: string) => {
-  return useQuery({
-    ...(getCourseEventsQueryOptions(courseId ?? 'disabled')),
-    enabled: Boolean(courseId),
-  });
-};
-
-export const useCourseScheduleSnapshotQuery = (
-  courseId?: string,
-  params: { week?: number; withConflicts?: boolean } = {},
-  enabled = true,
-) => {
-  return useQuery({
-    ...getCourseScheduleQueryOptions(courseId ?? 'disabled', params),
-    enabled: Boolean(courseId) && enabled,
-  });
-};
-
-export const invalidateCourseScheduleRelatedQueries = async (
-  queryClient: QueryClient,
-  {
-    courseId,
-    semesterId,
-  }: {
-    courseId: string;
-    semesterId?: string;
-  },
-) => {
-  const invalidations = [
-    queryClient.invalidateQueries({ queryKey: queryKeys.courses.eventTypes(courseId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.courses.sections(courseId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.courses.events(courseId) }),
-    queryClient.invalidateQueries({ queryKey: ['courses', courseId, 'schedule'] }),
-  ];
-
-  if (semesterId) {
-    invalidations.push(
-      queryClient.invalidateQueries({ queryKey: ['semesters', semesterId, 'schedule'] }),
-      queryClient.invalidateQueries({ queryKey: ['semesters', semesterId, 'calendar-schedule'] }),
-    );
-  }
-
-  await Promise.all(invalidations);
-};
+export {
+  getCourseEventTypesQueryOptions,
+  getCourseEventsQueryOptions,
+  getCourseScheduleQueryOptions,
+  getCourseSectionsQueryOptions,
+  invalidateCourseScheduleRelatedQueries,
+  useCourseEventsQuery,
+  useCourseEventTypesQuery,
+  useCourseScheduleSnapshotQuery,
+  useCourseSectionsQuery,
+} from '@/data/resources/courseSchedule';

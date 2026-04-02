@@ -38,11 +38,6 @@ export default definePlugin({
         max_instances: 'unlimited',
       },
     ],
-    settings: {
-      defaults: {},
-      schema: [],
-      panels: [],
-    },
   }),
   loadRuntime: async () => (await import('./index')).default,
 });

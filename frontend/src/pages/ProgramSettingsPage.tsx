@@ -1,4 +1,4 @@
-// input:  [route params/navigation primitives, shared layout/container/back button components, program entity context, LMS integration query, reusable Program settings form, plugin settings registry helpers, and Program plugin management panel]
+// input:  [route params/navigation primitives, shared layout/container/back button components, program entity context, app-side LMS/Program resource queries, reusable Program settings form, plugin settings registry helpers, and Program plugin management panel]
 // output: [`ProgramSettingsPage` route component]
 // pos:    [Dedicated Program settings workspace route with breadcrumb-aware navigation, single-current-page breadcrumb semantics, query-backed Program/LMS data loading, Program-level plugin lifecycle management plus plugin settings sections, and page-based autosaving settings management]
 //
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getPluginIconById, PluginSettingsSectionRenderer, usePluginSettingsRegistry } from "@/plugin-system";
+import { PluginSettingsSectionRenderer, usePluginSettingsRegistry } from "@/plugin-system";
 import { Layout } from "../components/Layout";
 import { Container } from "../components/Container";
 import { BackButton } from "../components/BackButton";
@@ -29,8 +29,10 @@ import { AppEmptyState } from "../components/AppEmptyState";
 import { ProgramPluginManagementPanel } from "../components/ProgramPluginManagementPanel";
 import { ProgramSettingsPanel } from "../components/ProgramSettingsPanel";
 import { ProgramDataProvider, useProgramData } from "../contexts/ProgramDataContext";
-import api from "../services/api";
-import { queryKeys } from "@/services/queryKeys";
+import {
+    getProgramPluginInstallationsQueryOptions,
+    getUserLmsIntegrationsQueryOptions,
+} from "@/data/resources";
 import { resolveCourseSubjectCode } from "@/utils/courseCategoryBadge";
 
 const ProgramSettingsPageContent: React.FC = () => {
@@ -39,15 +41,12 @@ const ProgramSettingsPageContent: React.FC = () => {
     const settingsFlushRef = useRef<(() => Promise<void>) | null>(null);
 
     const lmsIntegrationsQuery = useQuery({
-        queryKey: queryKeys.user.lmsIntegrations(),
-        queryFn: api.listLmsIntegrations,
+        ...getUserLmsIntegrationsQueryOptions(),
         retry: false,
     });
     const programPluginInstallationsQuery = useQuery({
-        queryKey: queryKeys.programs.pluginInstallations(program?.id ?? "__missing__"),
-        queryFn: () => api.getProgramPluginInstallations(program!.id),
+        ...getProgramPluginInstallationsQueryOptions(program?.id ?? "__missing__"),
         enabled: Boolean(program?.id),
-        staleTime: 30_000,
     });
     const allPluginSettingsDefinitions = usePluginSettingsRegistry("program");
 
@@ -83,7 +82,6 @@ const ProgramSettingsPageContent: React.FC = () => {
                 {
                     displayName: installation.display_name,
                     description: installation.description,
-                    resolvedSettings: installation.resolved_program_settings,
                 },
             ]),
         );
@@ -96,7 +94,6 @@ const ProgramSettingsPageContent: React.FC = () => {
                 <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
                     <PluginSettingsSectionRenderer
                         pluginId={definition.pluginId}
-                        pluginIcon={getPluginIconById(definition.pluginId)}
                         pluginDisplayName={pluginMetadata?.displayName}
                         pluginDescription={pluginMetadata?.description}
                         showPluginHeader={showPluginHeader}

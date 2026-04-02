@@ -1,6 +1,6 @@
 // input:  [auth context/actions, user settings/import-export/account-deletion/LMS persistence APIs, dialog helpers, theme hooks, switch controls, shadcn alert-dialog primitives, responsive dialog wrapper, LMS integration manager component, and shadcn scroll-area]
 // output: [`SettingsPage` route component]
-// pos:    [Global settings workspace for profile defaults, multi-integration LMS management, plugin preload preferences, GPA rules, irreversible account deletion, and data transfer with mobile-safe responsive layout, shadcn Field-based form structure, a dialog-gated typed account-deletion confirmation flow, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
+// pos:    [Global settings workspace for profile defaults, multi-integration LMS management, plugin preload preferences, GPA rules, irreversible account deletion, data transfer, and footer build metadata/GitHub access with mobile-safe responsive layout, shadcn Field-based form structure, a dialog-gated typed account-deletion confirmation flow, debounced auto-save persistence, backup restore dialog flow, and account sign-out]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -65,6 +65,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 // Lazy load ImportPreviewModal - only loaded when user clicks Import
 const ImportPreviewModal = lazy(() => import('../components/ImportPreviewModal').then(m => ({ default: m.ImportPreviewModal })));
 const DELETE_ACCOUNT_CONFIRMATION_TEXT = "I confirm deleting my account";
+
+const GitHubMark: React.FC = () => (
+    <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="size-3.5 shrink-0 fill-current"
+    >
+        <path d="M12 .5C5.648.5.5 5.648.5 12c0 5.082 3.292 9.395 7.861 10.916.575.106.786-.25.786-.556 0-.274-.01-1-.015-1.962-3.198.695-3.873-1.54-3.873-1.54-.523-1.33-1.277-1.684-1.277-1.684-1.044-.714.079-.699.079-.699 1.154.081 1.761 1.186 1.761 1.186 1.026 1.759 2.692 1.251 3.348.957.104-.743.402-1.251.731-1.539-2.553-.291-5.238-1.277-5.238-5.686 0-1.256.449-2.283 1.185-3.088-.119-.291-.514-1.463.113-3.05 0 0 .967-.309 3.169 1.179A11.037 11.037 0 0 1 12 6.048c.978.005 1.963.132 2.883.388 2.2-1.488 3.166-1.18 3.166-1.18.629 1.588.234 2.76.115 3.051.738.805 1.183 1.832 1.183 3.088 0 4.42-2.689 5.391-5.25 5.676.414.356.783 1.058.783 2.133 0 1.541-.014 2.783-.014 3.162 0 .309.208.668.792.555C20.211 21.391 23.5 17.08 23.5 12 23.5 5.648 18.352.5 12 .5Z" />
+    </svg>
+);
 
 export const SettingsPage: React.FC = () => {
     const { user, logout, clearSession, refreshUser } = useAuth();
@@ -958,6 +968,17 @@ export const SettingsPage: React.FC = () => {
                     <span className="break-all">
                         {versionInfo.branch} ({versionInfo.commit})
                     </span>
+                    <span>•</span>
+                    <a
+                        href="https://github.com/jinyuanZhou-Leo/Semestra"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-sm align-middle leading-none transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        aria-label="Open Semestra GitHub repository"
+                    >
+                        <GitHubMark />
+                        <span className="leading-none">jinyuanZhou-Leo/Semestra</span>
+                    </a>
                 </div>
             </Container>
         </Layout>

@@ -1,6 +1,6 @@
-// input:  [registered calendar sources, source visibility/color settings, LMS description safety state, and source-setting callbacks]
+// input:  [registered calendar sources, source visibility/color settings, LMS description safety state, title-adjacent hint nodes, and source-setting callbacks]
 // output: [`CalendarSourceSettingsList` source list UI that combines enable toggles, colors, and per-source settings sections]
-// pos:    [Calendar settings subcomponent that renders one integrated configuration card per registered Calendar source with a flatter side-by-side color control layout]
+// pos:    [Calendar settings subcomponent that renders one integrated configuration card per registered Calendar source with a flatter side-by-side color control layout and optional inline title hints]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -28,6 +28,7 @@ interface CalendarSourceSettingsListProps {
   eventColors: Record<string, string>;
   sourceVisibility: Record<string, boolean>;
   renderUnsafeLmsDescriptionHtml: boolean;
+  renderUnsafeLmsDescriptionHint?: React.ReactNode;
   onToggleSourceVisibility: (sourceId: string, enabled: boolean) => void;
   onChangeSourceColor: (sourceId: string, color: string) => void;
   onToggleUnsafeLmsDescriptionHtml: (enabled: boolean) => void;
@@ -39,6 +40,7 @@ export const CalendarSourceSettingsList: React.FC<CalendarSourceSettingsListProp
   eventColors,
   sourceVisibility,
   renderUnsafeLmsDescriptionHtml,
+  renderUnsafeLmsDescriptionHint,
   onToggleSourceVisibility,
   onChangeSourceColor,
   onToggleUnsafeLmsDescriptionHtml,
@@ -80,7 +82,10 @@ export const CalendarSourceSettingsList: React.FC<CalendarSourceSettingsListProp
                     <div className="flex items-center justify-between gap-4">
                       <div className="space-y-1">
                         <Label htmlFor={lmsDescriptionInputId} className="cursor-pointer text-destructive">
-                          Render LMS description styles
+                          <span className="inline-flex flex-wrap items-center gap-2">
+                            <span>Render LMS description styles</span>
+                            {renderUnsafeLmsDescriptionHint}
+                          </span>
                         </Label>
                         <p className="text-xs text-destructive/90">
                           Enable richer LMS HTML. This increases rendering risk.

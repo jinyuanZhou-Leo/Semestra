@@ -8,6 +8,7 @@
 
 import unittest
 from datetime import date
+import json
 from pathlib import Path
 import sys
 
@@ -75,6 +76,37 @@ class GradebookServiceTests(unittest.TestCase):
             [category.name for category in payload.categories],
             ["Quiz", "Exam", "Assignment", "Project", "Lab", "Presentation", "Participation"],
         )
+
+    def test_program_tab_settings_seed_new_gradebook_defaults(self) -> None:
+        course = self.db.query(models.Course).filter(models.Course.id == self.course_id).first()
+        assert course is not None
+
+        existing_gradebook = self.db.query(models.CourseGradebook).filter(models.CourseGradebook.course_id == self.course_id).first()
+        if existing_gradebook is not None:
+            self.db.delete(existing_gradebook)
+            self.db.commit()
+
+        self.db.add(models.TabSetting(
+            tab_type="builtin-gradebook",
+            program_id=course.program_id,
+            settings=json.dumps({
+                "forecast_model": "simple_minimum_needed",
+                "categories": [
+                    {"name": "Problem Set", "color_token": "emerald"},
+                    {"name": "Studio", "color_token": "#123abc"},
+                ],
+            }),
+        ))
+        self.db.commit()
+
+        payload = self._payload()
+
+        self.assertEqual(payload.forecast_model, schemas.GradebookForecastModel.SIMPLE_MINIMUM_NEEDED)
+        self.assertEqual(
+            [category.name for category in payload.categories],
+            ["Problem Set", "Studio"],
+        )
+        self.assertEqual(payload.categories[1].color_token, "#123abc")
 
     def test_delete_category_reassigns_assessments_to_uncategorized(self) -> None:
         payload = self._payload()

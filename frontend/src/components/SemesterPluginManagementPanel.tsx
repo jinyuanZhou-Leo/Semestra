@@ -1,4 +1,4 @@
-// input:  [Semester plugin activations spanning all Program-enabled plugins, Semester id, plugin-manifest icon helpers, refresh callback, shared settings-section primitives, the shared data-table shell, shared plugin details, and shared row-actions dropdown helpers]
+// input:  [Semester plugin activations spanning all Program-enabled plugins, Semester id, plugin-manifest icon helpers, app-side Semester query keys, refresh callback, shared settings-section primitives, the shared data-table shell, shared plugin details, and shared row-actions dropdown helpers]
 // output: [`SemesterPluginManagementPanel` component]
 // pos:    [Semester settings surface for Program-enabled plugin visibility, Semester-level enable/disable state, and reusable plugin info using the shared data-table pattern plus an explicit plugin-table minimum width and a shadcn-style row-actions dropdown]
 //
@@ -16,8 +16,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
+import { courseKeys, semesterKeys } from "@/data/keys";
 import { getPluginIconById } from "@/plugin-system";
-import { queryKeys } from "@/services/queryKeys";
 
 import api, { type SemesterPluginActivation } from "../services/api";
 import { DataTable, DataTableActionMenu } from "./DataTable";
@@ -66,9 +66,9 @@ export const SemesterPluginManagementPanel: React.FC<SemesterPluginManagementPan
 
   const invalidateAll = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.semesters.detail(semesterId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.semesters.pluginActivations(semesterId) }),
-      queryClient.invalidateQueries({ queryKey: ["courses", "detail"] }),
+      queryClient.invalidateQueries({ queryKey: semesterKeys.detail(semesterId) }),
+      queryClient.invalidateQueries({ queryKey: semesterKeys.pluginActivations(semesterId) }),
+      queryClient.invalidateQueries({ queryKey: courseKeys.all }),
     ]);
     await onChanged?.();
   };

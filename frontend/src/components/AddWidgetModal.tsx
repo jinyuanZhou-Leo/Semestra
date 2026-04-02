@@ -134,7 +134,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
                     </div>
                 ) : (
                     <ScrollArea className="h-full pr-3">
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-2">
                             {filteredWidgets.map((widget) => {
                                 const metadata = getResolvedWidgetMetadataByType(widget.type);
                                 const displayName = metadata.name ?? widget.name;
@@ -198,7 +198,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
             desktopHeaderClassName="px-6 pt-6 pb-4 flex-none"
             mobileHeaderClassName="px-6 pt-6 pb-4 flex-none text-left"
             footer={actionButtons}
-            desktopFooterClassName="px-6 pb-6 pt-4 flex-none border-t"
+            desktopFooterClassName="mx-0 mb-0 flex-none rounded-b-xl border-t bg-background px-6 pt-4 pb-6"
             mobileFooterClassName="pt-2 border-t flex-row justify-end"
         >
             {listContent}
