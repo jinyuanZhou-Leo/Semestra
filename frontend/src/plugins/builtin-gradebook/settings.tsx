@@ -12,8 +12,8 @@ import { toast } from 'sonner';
 
 import {
     definePluginSettings,
+    PluginSettingsFieldLabelRow,
     PluginSettingsSelectField,
-    usePluginSettingField,
     usePluginSettingsBucket,
 } from '@/plugin-sdk';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
@@ -21,7 +21,6 @@ import type { PluginSettingsSectionProps } from '@/plugin-sdk';
 import api, { type CourseGradebook, type GradebookAssessmentCategory } from '@/services/api';
 
 import { SettingsSection } from '@/components/SettingsSection';
-import { TabSettingSourceHint } from '@/components/settings/TabSettingSourceHint';
 import { DataTable, DataTableActionMenu } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -203,7 +202,6 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
 }) => {
     const programId = scope.kind === 'program' ? scope.programId : undefined;
     const defaultsBucket = usePluginSettingsBucket(BUILTIN_GRADEBOOK_TAB_TYPE);
-    const categoriesField = usePluginSettingField<GradebookDefaultCategoryTemplate[]>(BUILTIN_GRADEBOOK_TAB_TYPE, 'categories');
     const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
     const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
     const [pendingDeleteCategoryIndex, setPendingDeleteCategoryIndex] = useState<number | null>(null);
@@ -300,13 +298,9 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
 
             <SettingsSection
                 title={(
-                    <span className="inline-flex flex-wrap items-center gap-2">
-                        <span>Categories</span>
-                        <TabSettingSourceHint
-                            source={categoriesField.source}
-                            onReset={categoriesField.reset}
-                        />
-                    </span>
+                    <PluginSettingsFieldLabelRow
+                        label="Categories"
+                    />
                 )}
                 description="Define the default categories newly initialized course gradebooks should receive."
             >

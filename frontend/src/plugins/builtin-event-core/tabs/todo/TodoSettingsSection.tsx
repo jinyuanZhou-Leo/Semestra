@@ -10,16 +10,13 @@
 
 import React from 'react';
 import { SettingsSection } from '@/components/SettingsSection';
-import { TabSettingSourceHint } from '@/components/settings/TabSettingSourceHint';
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
-import { getSettingSource } from '@/plugin-system/tabSettingsMeta';
 import type { TabSettingsProps } from '@/services/tabRegistry';
 import { Switch } from '@/components/ui/switch';
 import { patchTodoBehaviorSettings, normalizeTodoBehaviorSettings } from './preferences';
 
-export const TodoSettingsSection: React.FC<TabSettingsProps> = ({ settings, settingsMeta, updateSettings, resetSetting }) => {
+export const TodoSettingsSection: React.FC<TabSettingsProps> = ({ settings, updateSettings }) => {
   const behavior = React.useMemo(() => normalizeTodoBehaviorSettings(settings), [settings]);
-  const todoBehaviorSource = React.useMemo(() => getSettingSource(settingsMeta, 'todoBehavior'), [settingsMeta]);
 
   return (
     <SettingsSection
@@ -30,15 +27,7 @@ export const TodoSettingsSection: React.FC<TabSettingsProps> = ({ settings, sett
         <FieldGroup>
           <Field orientation="responsive">
             <FieldContent>
-              <FieldLabel htmlFor="todo-settings-move-completed">
-                <span className="inline-flex flex-wrap items-center gap-2">
-                  <span>Store completed tasks in the hidden completed bucket</span>
-                  <TabSettingSourceHint
-                    source={todoBehaviorSource}
-                    onReset={resetSetting ? () => resetSetting('todoBehavior') : undefined}
-                  />
-                </span>
-              </FieldLabel>
+              <FieldLabel htmlFor="todo-settings-move-completed">Store completed tasks in the hidden completed bucket</FieldLabel>
               <FieldDescription>
                 When disabled, completed tasks stay attached to their original section records.
               </FieldDescription>

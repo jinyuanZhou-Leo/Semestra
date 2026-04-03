@@ -1,5 +1,5 @@
 // input:  [bound plugin settings field hooks/components, mocked tab-settings APIs, query cache, and testing-library interactions]
-// output: [regression tests covering plugin-panel bound settings fields, source hints, resets, and custom hook usage]
+// output: [regression tests covering plugin-panel bound settings fields, scoped persistence, and custom hook usage]
 // pos:    [UI and hook coverage for the frontend-only plugin settings binding layer used by settings.tsx panels]
 //
 // ⚠️ When this file is updated:
@@ -119,10 +119,9 @@ describe("plugin settings bound fields", () => {
     );
 
     expect(result.current.value).toBe("Scoped title");
-    expect(result.current.source.effective_layer).toBe("program");
   });
 
-  it("renders inline source hint and reset for overridden template fields", () => {
+  it("does not render source or reset chrome for overridden template fields", () => {
     const { Wrapper } = createWrapper(buildProgram([buildTabSetting()]));
 
     render(
@@ -134,8 +133,8 @@ describe("plugin settings bound fields", () => {
       { wrapper: Wrapper },
     );
 
-    expect(screen.getByText("Modified in Program")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Restore default" })).toBeInTheDocument();
+    expect(screen.queryByText("Modified in Program")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restore default" })).not.toBeInTheDocument();
   });
 
   it("does not render source hint when the field is not overridden in scope", () => {
@@ -197,99 +196,4 @@ describe("plugin settings bound fields", () => {
     });
   });
 
-  it("resets only the scoped field value and keeps the remaining scope settings", async () => {
-    let currentProgram = buildProgram([buildTabSetting()]);
-    apiMock.getProgram.mockImplementation(async () => currentProgram);
-    apiMock.upsertProgramTabSettings.mockImplementation(async (_programId: string, settingsKey: string, payload: { settings: string }) => {
-      const nextScopeSettings = JSON.parse(payload.settings) as Record<string, unknown>;
-      const nextTabSetting = buildTabSetting({
-        settings_key: settingsKey,
-        settings: payload.settings,
-        scope_settings: nextScopeSettings,
-        resolved_settings: {
-          title: "Inherited title",
-          showChecklist: Boolean(nextScopeSettings.showChecklist ?? false),
-        },
-        setting_sources: {
-          title: {
-            effective_layer: "default",
-            is_overridden_in_scope: false,
-            fallback_layer: null,
-          },
-          showChecklist: {
-            effective_layer: "program",
-            is_overridden_in_scope: true,
-            fallback_layer: "default",
-          },
-        },
-      });
-      currentProgram = buildProgram([nextTabSetting]);
-      return nextTabSetting;
-    });
-
-    const { Wrapper } = createWrapper(currentProgram);
-
-    render(
-      <PluginSettingsTextField
-        settingsKey="template-settings"
-        fieldPath="title"
-        label="Template title"
-      />,
-      { wrapper: Wrapper },
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Restore default" }));
-
-    await waitFor(() => {
-      expect(apiMock.upsertProgramTabSettings).toHaveBeenCalledWith("program-1", "template-settings", {
-        settings: JSON.stringify({
-          showChecklist: true,
-        }),
-      });
-    });
-  });
-
-  it("lets custom UIs place reset controls outside the default label position", async () => {
-    let currentProgram = buildProgram([buildTabSetting()]);
-    apiMock.getProgram.mockImplementation(async () => currentProgram);
-    apiMock.upsertProgramTabSettings.mockImplementation(async (_programId: string, settingsKey: string, payload: { settings: string }) => {
-      const nextScopeSettings = JSON.parse(payload.settings) as Record<string, unknown>;
-      const nextTabSetting = buildTabSetting({
-        settings_key: settingsKey,
-        settings: payload.settings,
-        scope_settings: nextScopeSettings,
-        resolved_settings: {
-          title: "Inherited title",
-          showChecklist: Boolean(nextScopeSettings.showChecklist ?? false),
-        },
-      });
-      currentProgram = buildProgram([nextTabSetting]);
-      return nextTabSetting;
-    });
-
-    const CustomField = () => {
-      const field = usePluginSettingField<string>("template-settings", "title");
-      return (
-        <div>
-          <span>{field.value}</span>
-          <button type="button" onClick={() => { void field.reset(); }}>
-            Reset title outside
-          </button>
-        </div>
-      );
-    };
-
-    const { Wrapper } = createWrapper(currentProgram);
-    render(<CustomField />, { wrapper: Wrapper });
-
-    fireEvent.click(screen.getByRole("button", { name: "Reset title outside" }));
-
-    await waitFor(() => {
-      expect(apiMock.upsertProgramTabSettings).toHaveBeenCalledWith("program-1", "template-settings", {
-        settings: JSON.stringify({
-          showChecklist: true,
-        }),
-      });
-    });
-  });
 });

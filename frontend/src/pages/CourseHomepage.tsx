@@ -287,15 +287,6 @@ const CourseHomepageContent: React.FC = () => {
     const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
         updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
     }, [updateTabSettingsDebounced]);
-    const handleResetTabSetting = useCallback((tabId: string, key: string) => {
-        const targetTab = tabs.find((tab) => tab.id === tabId);
-        if (!targetTab) {
-            return;
-        }
-        const nextSettings = { ...(targetTab.settings ?? {}) };
-        delete nextSettings[key];
-        handleUpdateTabSettings(tabId, nextSettings);
-    }, [handleUpdateTabSettings, tabs]);
 
     const {
         isActiveTabPluginLoading,
@@ -568,9 +559,7 @@ const CourseHomepageContent: React.FC = () => {
                                     settings={tab.settings || {}}
                                     semesterId={course?.semester_id}
                                     courseId={course?.id}
-                                    settingsMeta={tab.settings_meta}
                                     updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
-                                    resetSetting={(key) => handleResetTabSetting(tab.id, key)}
                                 />
                             </SettingsSectionPluginOwnerProvider>
                         </React.Fragment>
@@ -629,7 +618,6 @@ const CourseHomepageContent: React.FC = () => {
         visibleTabs,
         course?.id,
         handleUpdateTabSettings,
-        handleResetTabSetting,
         isSettingsTabActive,
         pluginLoadStateVersion
     ]);

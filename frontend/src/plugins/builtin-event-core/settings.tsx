@@ -19,18 +19,14 @@ import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from './shared/constants';
 export const BuiltinAcademicCalendarTabSettings: React.FC<TabSettingsProps> = ({
   semesterId,
   settings,
-  settingsMeta,
   updateSettings,
-  resetSetting,
 }) => {
   if (!semesterId) return null;
   return (
     <CalendarSettingsSection
       semesterId={semesterId}
       settings={settings}
-      settingsMeta={settingsMeta}
       updateSettings={updateSettings}
-      resetSetting={resetSetting}
     />
   );
 };
@@ -73,11 +69,7 @@ const ProgramTodoDefaultsSettingsSection: React.FC<PluginSettingsSectionProps> =
     <TodoSettingsSection
       tabId={BUILTIN_TIMETABLE_TODO_TAB_TYPE}
       settings={bucket.resolvedSettings}
-      settingsMeta={bucket.settingsMeta}
       updateSettings={handleUpdateSettings}
-      resetSetting={async (key) => {
-        await bucket.resetField(key);
-      }}
     />
   );
 };

@@ -36,3 +36,5 @@ export const usePluginSettingsPanelContext = (): PluginSettingsPanelContextValue
   }
   return context;
 };
+
+export const usePluginSettingsContext = usePluginSettingsPanelContext;

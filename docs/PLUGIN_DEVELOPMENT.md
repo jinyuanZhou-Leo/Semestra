@@ -133,8 +133,17 @@ Most plugin runtime code should use:
 - `defineSettingsSection`
 - `definePluginSetup`
 - `createPluginSetupBinding`
+- `PluginSettingsTextField`
+- `PluginSettingsTextareaField`
+- `PluginSettingsNumberField`
+- `PluginSettingsBooleanField`
+- `PluginSettingsSelectField`
+- `PluginSettingsDateField`
+- `PluginSettingsJsonField`
+- `PluginSettingsFieldLabelRow`
 - `usePluginSettingsBucket`
 - `usePluginSettingField`
+- `usePluginSettingsContext`
 - `usePluginHost`
 - `usePluginRuntimeInstance`
 - `usePluginUiState`
@@ -221,9 +230,13 @@ That declaration is required because the descriptor is what the host validates a
 
 If a section exists in `settings.tsx` but is missing from `settings.panels`, plugin validation fails.
 
-## 4.3 Common settings-field templates
+## 4.3 Plugin settings API layers
 
-`settings.tsx` plugin panels can now use host-provided bound field templates from `@/plugin-sdk` for common field shapes:
+`settings.tsx` plugin panels should choose the simplest API layer that fits the UI.
+
+### Layer A: Standard bound fields
+
+Use host-provided bound field templates from `@/plugin-sdk` for common field shapes:
 
 - `PluginSettingsTextField`
 - `PluginSettingsTextareaField`
@@ -243,12 +256,76 @@ They:
 - show inline `Modified in ...` hints
 - expose the matching reset action automatically
 
+Example:
+
+```tsx
+import {
+  PluginSettingsBooleanField,
+  PluginSettingsDateField,
+  PluginSettingsTextField,
+} from "@/plugin-sdk";
+
+<PluginSettingsTextField
+  settingsKey="example-tab"
+  fieldPath="title"
+  label="Title"
+/>
+<PluginSettingsBooleanField
+  settingsKey="example-tab"
+  fieldPath="show_completed"
+  label="Show completed items"
+/>
+<PluginSettingsDateField
+  settingsKey="example-tab"
+  fieldPath="deadline"
+  label="Default deadline"
+/>
+```
+
+### Layer B: Custom controls with host-managed hint/reset
+
 For custom layouts, plugin authors can drop to:
 
 - `usePluginSettingsBucket(settingsKey)`
 - `usePluginSettingField(settingsKey, fieldPath)`
+- `PluginSettingsFieldLabelRow`
 
 Those hooks expose the same bucket, source, update, and reset behavior without forcing the default inline field layout.
+
+Example:
+
+```tsx
+import {
+  PluginSettingsFieldLabelRow,
+  usePluginSettingField,
+} from "@/plugin-sdk";
+
+const titleField = usePluginSettingField<string>("example-tab", "title");
+
+<Field>
+  <FieldLabel>
+    <PluginSettingsFieldLabelRow
+      label="Title"
+      source={titleField.source}
+      onReset={titleField.reset}
+    />
+  </FieldLabel>
+  <Input
+    value={titleField.value ?? ""}
+    onChange={(event) => {
+      void titleField.setValue(event.target.value);
+    }}
+  />
+</Field>
+```
+
+Use this layer when the control is still a single setting field, but the default host input is not enough.
+
+### Layer C: Fully custom settings UIs
+
+Use `usePluginSettingsBucket(settingsKey)` when one UI edits a compound settings object, and use `usePluginSettingsContext()` when the section needs direct access to the host-injected `pluginId`, `scope`, or refresh callback.
+
+Use this layer for CRUD-style panels, tables, or multi-field editors that do not map cleanly to one host field component.
 
 ## 5. `index.ts`
 
@@ -371,6 +448,12 @@ Rules:
 - the plugin renders the section body
 - the plugin owns persistence logic
 - the section id must exist in `descriptor.settings.panels`
+
+Settings implementation guidance:
+
+- prefer Layer A bound field components for standard text, boolean, select, date, number, textarea, and JSON fields
+- use Layer B only when one field needs custom rendering but should still keep the standard source hint and reset action
+- use Layer C only when the settings UI is genuinely compound or CRUD-heavy
 
 ## 9. `setup.tsx`
 
@@ -535,11 +618,13 @@ If you are changing builtin/host-only policy:
 Useful reference files:
 
 - `frontend/src/plugins/tab-template/plugin.ts`
+- `frontend/src/plugins/tab-template/settings.tsx`
 - `frontend/src/plugins/tab-template/setup.tsx`
 - `frontend/src/plugins/tab-template/tab.tsx`
 - `frontend/src/plugins/builtin-event-core/plugin.ts`
 - `frontend/src/plugins/builtin-event-core/setup.tsx`
 - `frontend/src/plugins/builtin-event-core/settings.tsx`
+- `frontend/src/plugins/builtin-gradebook/settings.tsx`
 - `frontend/src/plugin-sdk/index.ts`
 - `frontend/src/plugin-sdk/authoring.ts`
 - `frontend/src/plugin-system/setup.ts`

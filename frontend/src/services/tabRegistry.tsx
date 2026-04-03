@@ -7,7 +7,6 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React from 'react';
-import type { TabSettingsMeta } from '../plugin-system/tabSettingsMeta';
 import { createPluginRegistry } from './createPluginRegistry';
 
 export interface TabProps<S = any> {
@@ -23,9 +22,7 @@ export interface TabSettingsProps<S = any> {
     settings: S;
     semesterId?: string;
     courseId?: string;
-    settingsMeta?: TabSettingsMeta;
     updateSettings: (newSettings: S) => void | Promise<void>;
-    resetSetting: (key: string) => void | Promise<void>;
 }
 
 export interface TabLifecycleContext {

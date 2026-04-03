@@ -1,6 +1,6 @@
 // input:  [plugin settings panel scope context, TanStack Query cache, tab-settings APIs, and shadcn field primitives]
-// output: [bound plugin-settings bucket hooks plus host-provided common field templates with inline source hint and reset]
-// pos:    [frontend-only plugin settings binding layer that lets settings.tsx panels reuse tab-settings persistence and inherited-source metadata without manual query/update plumbing]
+// output: [bound plugin-settings bucket hooks plus host-provided common field templates]
+// pos:    [frontend-only plugin settings binding layer that lets settings.tsx panels reuse tab-settings persistence without manual query/update plumbing]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -18,7 +18,6 @@ import { getCourseDetailQueryOptions } from "@/data/resources/courses";
 import { getProgramDetailQueryOptions } from "@/data/resources/programs";
 import { getSemesterDetailQueryOptions } from "@/data/resources/semesters";
 
-import { TabSettingSourceHint } from "@/components/settings/TabSettingSourceHint";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -36,11 +35,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
 
-import { getSettingSource, type SettingSource, type TabSettingsMeta } from "./tabSettingsMeta";
 import { usePluginSettingsPanelContext } from "./pluginSettingsPanelContext";
 import {
   applyScopeEntityUpdate,
-  buildSettingsMeta,
   invalidateScopeQuery,
   parseSettingsObject,
   persistScopeSettings,
@@ -75,20 +72,15 @@ export interface PluginSettingsBucketState {
   resolvedSettings: Record<string, unknown>;
   scopeSettings: Record<string, unknown>;
   inheritedSettings: Record<string, unknown>;
-  settingsMeta: TabSettingsMeta;
   refresh: () => void;
   setSettings: (nextSettings: Record<string, unknown>) => Promise<void>;
   updateField: (fieldPath: string, value: unknown) => Promise<void>;
-  resetField: (fieldPath: string) => Promise<void>;
 }
 
 export interface PluginSettingsFieldState<TValue = unknown> {
   fieldPath: string;
   value: TValue | null;
-  source: SettingSource;
-  isOverriddenInScope: boolean;
   setValue: (value: TValue) => Promise<void>;
-  reset: () => Promise<void>;
   bucket: PluginSettingsBucketState;
 }
 
@@ -152,8 +144,6 @@ const usePluginSettingsBucketInternal = (
   ), [tabSetting?.resolved_settings, tabSetting?.settings]);
   const scopeSettings = useMemo(() => tabSetting?.scope_settings ?? {}, [tabSetting?.scope_settings]);
   const inheritedSettings = useMemo(() => tabSetting?.inherited_settings ?? {}, [tabSetting?.inherited_settings]);
-  const settingsMeta = useMemo(() => buildSettingsMeta(tabSetting), [tabSetting]);
-
   const setSettings = React.useCallback(async (nextSettings: Record<string, unknown>) => {
     setIsSaving(true);
     try {
@@ -177,14 +167,6 @@ const usePluginSettingsBucketInternal = (
     });
   }, [scopeSettings, setSettings]);
 
-  const resetField = React.useCallback(async (fieldPath: string) => {
-    const nextSettings = {
-      ...scopeSettings,
-    };
-    delete nextSettings[fieldPath];
-    await setSettings(nextSettings);
-  }, [scopeSettings, setSettings]);
-
   return {
     pluginId,
     settingsKey,
@@ -195,14 +177,12 @@ const usePluginSettingsBucketInternal = (
     resolvedSettings,
     scopeSettings,
     inheritedSettings,
-    settingsMeta,
     refresh: () => {
       void refetch();
       onRefresh();
     },
     setSettings,
     updateField,
-    resetField,
   };
 };
 
@@ -216,18 +196,12 @@ export const usePluginSettingField = <TValue = unknown,>(
   fieldPath: string,
 ): PluginSettingsFieldState<TValue> => {
   const bucket = usePluginSettingsBucket(settingsKey);
-  const source = useMemo(() => getSettingSource(bucket.settingsMeta, fieldPath), [bucket.settingsMeta, fieldPath]);
 
   return {
     fieldPath,
     value: (bucket.resolvedSettings[fieldPath] ?? null) as TValue | null,
-    source,
-    isOverriddenInScope: source.is_overridden_in_scope,
     setValue: async (value: TValue) => {
       await bucket.updateField(fieldPath, value);
-    },
-    reset: async () => {
-      await bucket.resetField(fieldPath);
     },
     bucket,
   };
@@ -257,14 +231,13 @@ const parseDateOrUndefined = (value: unknown) => {
 
 const toIsoDate = (value?: Date) => (value ? format(value, "yyyy-MM-dd") : "");
 
-const PluginSettingsFieldLabelRow: React.FC<{
+export interface PluginSettingsFieldLabelRowProps {
   label: React.ReactNode;
-  source: SettingSource;
-  onReset: () => Promise<void>;
-}> = ({ label, source, onReset }) => (
+}
+
+export const PluginSettingsFieldLabelRow: React.FC<PluginSettingsFieldLabelRowProps> = ({ label }) => (
   <span className="inline-flex flex-wrap items-center gap-2">
     <span>{label}</span>
-    <TabSettingSourceHint source={source} onReset={() => { void onReset(); }} />
   </span>
 );
 
@@ -284,7 +257,7 @@ const PluginSettingsTextLikeField: React.FC<PluginSettingsBoundFieldBaseProps & 
   return (
     <Field className="gap-2">
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
+        <PluginSettingsFieldLabelRow label={label} />
       </FieldLabel>
       {multiline ? (
         <Textarea
@@ -331,7 +304,7 @@ export const PluginSettingsNumberField: React.FC<PluginSettingsNumberFieldProps>
   return (
     <Field className="gap-2">
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
+        <PluginSettingsFieldLabelRow label={label} />
       </FieldLabel>
       <Input
         id={fieldId}
@@ -361,7 +334,7 @@ export const PluginSettingsBooleanField: React.FC<PluginSettingsBooleanFieldProp
     <Field orientation="responsive" className="gap-3 py-1">
       <FieldContent>
         <FieldLabel htmlFor={fieldId}>
-          <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
+          <PluginSettingsFieldLabelRow label={label} />
         </FieldLabel>
         {description ? <FieldDescription>{description}</FieldDescription> : null}
       </FieldContent>
@@ -391,7 +364,7 @@ export const PluginSettingsSelectField: React.FC<PluginSettingsSelectFieldProps>
   return (
     <Field className="gap-2">
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
+        <PluginSettingsFieldLabelRow label={label} />
       </FieldLabel>
       <Select
         value={field.value ?? ""}
@@ -432,7 +405,7 @@ export const PluginSettingsDateField: React.FC<PluginSettingsDateFieldProps> = (
   return (
     <Field className="gap-2">
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
+        <PluginSettingsFieldLabelRow label={label} />
       </FieldLabel>
       <Popover>
         <PopoverTrigger asChild>
@@ -485,7 +458,7 @@ export const PluginSettingsJsonField: React.FC<PluginSettingsJsonFieldProps> = (
   return (
     <Field className="gap-2" data-invalid={Boolean(jsonError) || undefined}>
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
+        <PluginSettingsFieldLabelRow label={label} />
       </FieldLabel>
       <Textarea
         id={fieldId}

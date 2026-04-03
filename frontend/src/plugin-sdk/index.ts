@@ -39,6 +39,7 @@ export {
 export {
   PluginSettingsBooleanField,
   PluginSettingsDateField,
+  PluginSettingsFieldLabelRow,
   PluginSettingsJsonField,
   PluginSettingsNumberField,
   PluginSettingsSelectField,
@@ -47,6 +48,8 @@ export {
   usePluginSettingField,
   usePluginSettingsBucket,
 } from "@/plugin-system/pluginSettingsFields";
+export type { PluginSettingsFieldLabelRowProps } from "@/plugin-system/pluginSettingsFields";
+export { usePluginSettingsContext } from "@/plugin-system/pluginSettingsPanelContext";
 export { PluginHostProvider, usePluginHost } from '@/plugin-system/PluginHostContext';
 export type {
   PluginHostJumpOptions,
