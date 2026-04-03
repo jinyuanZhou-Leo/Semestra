@@ -17,8 +17,6 @@ import { PluginSettingsPanelProvider } from './pluginSettingsPanelContext';
 interface PluginSettingsSectionRendererProps {
   pluginId: string;
   pluginDisplayName?: string;
-  pluginDescription?: string;
-  showPluginHeader?: boolean;
   component: React.FC<PluginSettingsSectionProps>;
   programId?: string;
   semesterId?: string;
@@ -35,8 +33,6 @@ const formatPluginLabel = (pluginId: string) => pluginId
 export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRendererProps> = ({
   pluginId,
   pluginDisplayName,
-  pluginDescription,
-  showPluginHeader = true,
   component: Component,
   programId,
   semesterId,
@@ -70,9 +66,6 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
     return null;
   }
 
-  void pluginDescription;
-  void showPluginHeader;
-
   return (
     <PluginSettingsPanelProvider
       pluginId={pluginId}
@@ -89,3 +82,4 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
     </PluginSettingsPanelProvider>
   );
 };
+

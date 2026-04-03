@@ -55,9 +55,8 @@ import {
     hasTabPluginForType,
     PluginHostProvider,
     PluginRuntimeInstanceProvider,
-    PluginSettingsSectionRenderer,
+    PluginSettingsSectionsGroup,
     usePluginLoadStateVersion,
-    usePluginSettingsRegistry,
     useTabPluginLoadState,
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
@@ -212,11 +211,6 @@ const SemesterHomepageContent: React.FC = () => {
         isTabsInitialized,
     });
 
-    const allPluginSettingsDefinitions = usePluginSettingsRegistry('semester');
-    const pluginSettingsDefinitions = useMemo(
-        () => allPluginSettingsDefinitions.filter((definition) => enabledPluginIds.has(definition.pluginId)),
-        [allPluginSettingsDefinitions, enabledPluginIds]
-    );
     const activeTabType = useMemo(
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
@@ -583,44 +577,21 @@ const SemesterHomepageContent: React.FC = () => {
     ]);
 
     const pluginSettingsSections = useMemo(() => {
-        const pluginMetadataById = new Map(
-            (semester?.plugin_activations ?? []).map((activation) => [
-                activation.plugin_id,
-                {
-                    displayName: activation.display_name,
-                    description: activation.description,
-                },
-            ])
-        );
-        const renderedPluginHeaders = new Set<string>();
-        const sections = pluginSettingsDefinitions
-            .map((definition) => {
-                const pluginMetadata = pluginMetadataById.get(definition.pluginId);
-                const showPluginHeader = !renderedPluginHeaders.has(definition.pluginId);
-                renderedPluginHeaders.add(definition.pluginId);
-                return (
-                    <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
-                        <PluginSettingsSectionRenderer
-                            pluginId={definition.pluginId}
-                            pluginDisplayName={pluginMetadata?.displayName}
-                            pluginDescription={pluginMetadata?.description}
-                            showPluginHeader={showPluginHeader}
-                            component={definition.component}
-                            semesterId={semester?.id}
-                            onRefresh={refreshSemester}
-                        />
-                    </React.Fragment>
-                );
-            });
-
-        if (sections.length === 0) return null;
+        const pluginActivations = semester?.plugin_activations ?? [];
+        if (pluginActivations.length === 0 || enabledPluginIds.size === 0) {
+            return null;
+        }
 
         return (
-            <div className="flex flex-col gap-4">
-                {sections}
-            </div>
+            <PluginSettingsSectionsGroup
+                context="semester"
+                enabledPluginIds={enabledPluginIds}
+                pluginActivations={pluginActivations}
+                semesterId={semester?.id}
+                onRefresh={refreshSemester}
+            />
         );
-    }, [pluginSettingsDefinitions, refreshSemester, semester?.id, semester?.plugin_activations]);
+    }, [enabledPluginIds, refreshSemester, semester?.id, semester?.plugin_activations]);
 
     const semesterCourseManagementSection = useMemo(() => {
         if (!semester?.id || !semester.program_id) {

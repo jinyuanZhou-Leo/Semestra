@@ -57,9 +57,10 @@ export const buildPluginCatalogIndex = (pluginEntries: PluginEntry[]): PluginCat
 };
 
 export const getTabCatalogItems = (pluginEntries: PluginEntry[], context?: TabContext): TabCatalogItem[] => {
+  const manifestById = buildManifestLookup(pluginEntries);
   const items = pluginEntries
     .flatMap((entry) => entry.tabCatalog)
-    .filter((item) => entryOwnsPublicContribution(pluginEntries, item.pluginId));
+    .filter((item) => isPublicContribution(manifestById, item.pluginId));
   if (!context) {
     return items;
   }
@@ -67,9 +68,10 @@ export const getTabCatalogItems = (pluginEntries: PluginEntry[], context?: TabCo
 };
 
 export const getWidgetCatalogItems = (pluginEntries: PluginEntry[], context?: WidgetContext): WidgetCatalogItem[] => {
+  const manifestById = buildManifestLookup(pluginEntries);
   const items = pluginEntries
     .flatMap((entry) => entry.widgetCatalog)
-    .filter((item) => entryOwnsPublicContribution(pluginEntries, item.pluginId));
+    .filter((item) => isPublicContribution(manifestById, item.pluginId));
   if (!context) {
     return items;
   }
@@ -82,12 +84,20 @@ export const getPublicPluginManifest = (pluginEntries: PluginEntry[]): PluginMan
     .filter((manifest) => manifest.kind !== 'host-shell' && manifest.visibility === 'public');
 };
 
-const entryOwnsPublicContribution = (pluginEntries: PluginEntry[], pluginId: string): boolean => {
-  const entry = pluginEntries.find((candidate) => candidate.id === pluginId);
-  if (!entry) {
+const buildManifestLookup = (pluginEntries: PluginEntry[]): Map<string, PluginManifestItem> => {
+  const map = new Map<string, PluginManifestItem>();
+  for (const entry of pluginEntries) {
+    map.set(entry.id, entry.manifest);
+  }
+  return map;
+};
+
+const isPublicContribution = (manifestById: Map<string, PluginManifestItem>, pluginId: string): boolean => {
+  const manifest = manifestById.get(pluginId);
+  if (!manifest) {
     return false;
   }
-  return entry.manifest.kind !== 'host-shell' && entry.manifest.visibility === 'public';
+  return manifest.kind !== 'host-shell' && manifest.visibility === 'public';
 };
 
 export const resolveCatalogMetadata = (

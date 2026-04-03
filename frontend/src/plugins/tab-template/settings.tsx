@@ -10,15 +10,19 @@
 
 import React, { useCallback, useId, useMemo } from 'react';
 
+import { definePluginSettings, PluginSettingsBooleanField, PluginSettingsTextField } from '@/plugin-sdk';
 import { SettingsSection } from '@/components/SettingsSection';
 import { TabSettingSourceHint } from '@/components/settings/TabSettingSourceHint';
 import { Checkbox } from '@/components/ui/checkbox';
+import { FieldGroup, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getSettingSource } from '@/plugin-system/tabSettingsMeta';
 import type { TabSettingsProps } from '@/services/tabRegistry';
 
 import { resolveTemplateSettings } from './shared';
+
+const TEMPLATE_SETTINGS_KEY = 'tab-template';
 
 export const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ settings, settingsMeta, updateSettings, resetSetting }) => {
   const resolved = useMemo(() => resolveTemplateSettings(settings), [settings]);
@@ -80,3 +84,41 @@ export const TemplateTabSettingsComponent: React.FC<TabSettingsProps> = ({ setti
     </SettingsSection>
   );
 };
+
+const TemplateProgramSettingsSection: React.FC = () => {
+
+  return (
+    <SettingsSection
+      title="Display"
+      description="Configure how this tab is displayed."
+    >
+      <FieldSet>
+        <FieldGroup>
+          <PluginSettingsTextField
+            settingsKey={TEMPLATE_SETTINGS_KEY}
+            fieldPath="title"
+            label="Template title"
+            description="Choose the title this template should use by default in the current scope."
+            placeholder="Template workspace title"
+          />
+          <PluginSettingsBooleanField
+            settingsKey={TEMPLATE_SETTINGS_KEY}
+            fieldPath="showChecklist"
+            label="Show quick-start checklist"
+            description="Keep the quick-start checklist enabled for newly opened template tabs."
+          />
+        </FieldGroup>
+      </FieldSet>
+    </SettingsSection>
+  );
+};
+
+export default definePluginSettings({
+  pluginSettings: [
+    {
+      id: 'template-program-settings',
+      component: TemplateProgramSettingsSection,
+      allowedContexts: ['program'],
+    },
+  ],
+});

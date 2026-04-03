@@ -75,6 +75,21 @@ export type PluginSetupValidator<TFields extends Record<string, PluginSetupField
     context: PluginSetupValidationContext<TFields>,
 ) => PluginSetupValidationIssue | PluginSetupValidationIssue[] | null | undefined | Promise<PluginSetupValidationIssue | PluginSetupValidationIssue[] | null | undefined>;
 
+// ─── Field naming convention note (P-07 / P-13) ──────────────────────────────
+// Frontend field props use camelCase (e.g. `settingsKey`, `defaultValue`,
+// `summaryLabels`).  These are intentionally different from the backend Python
+// snake_case names (`settings_key`, `default_value`, `summary_labels`).
+// The adapter layer that bridges the two styles lives exclusively in
+// `serializePluginSetupDefinition` below.  Do NOT mix snake_case into these
+// TypeScript interfaces — all serialization must go through that adapter.
+//
+// ─── Setup vs Settings system boundary note (P-08) ────────────────────────────
+// This file owns the **Setup** system: fields filled once during semester
+// creation and stored via tab-settings at the plugin's designated `settingsKey`.
+// The **Settings** system (see `pluginSettingsFields.tsx`) handles runtime
+// settings that can be changed at any time.  The two systems share field types
+// but are intentionally kept separate.  Do NOT reuse the same field `path`/
+// `settingsKey` across both systems for the same plugin.
 interface PluginSetupFieldBase<TType extends PluginSetupFieldType, TValue> {
     type: TType;
     settingsKey: string;
@@ -225,6 +240,18 @@ export const resolvePluginSetupValues = <TFields extends Record<string, PluginSe
     );
 };
 
+// ─── Frontend validation note (P-12) ─────────────────────────────────────────
+// This function implements frontend-side validation for Setup fields.  The
+// backend (`plugin_registry.py:_validate_plugin_setup_values`) also validates
+// independently on every API call.  Both sides MUST stay consistent:
+//
+//   • `required` fields → enforced on both sides
+//   • Per-field `validate` callbacks → frontend only (UX convenience)
+//   • `validation_rules` from setup schema → backend only (structural integrity)
+//
+// If you add a new validation rule type to the backend schema, consider whether
+// a corresponding frontend check should be added here too, and vice versa.
+// A future contract-test in CI should enforce this consistency (see P-12).
 export const validatePluginSetupDefinition = async <TFields extends Record<string, PluginSetupFieldDefinition>>(
     definition: PluginSetupDefinition<TFields>,
     values: Record<string, unknown>,
@@ -282,6 +309,21 @@ const cloneFieldOptions = (field: PluginSetupFieldDefinition) => (
     "options" in field && Array.isArray(field.options) ? [...field.options] : []
 );
 
+type FieldTypeMapping = {
+    type: PluginSetupFieldType;
+    defaultValueGuard: (value: unknown) => unknown;
+};
+
+const FIELD_TYPE_MAP = new Map<unknown, FieldTypeMapping>([
+    [PluginSetupTextField, { type: 'text', defaultValueGuard: (v) => typeof v === 'string' ? v : undefined }],
+    [PluginSetupTextareaField, { type: 'textarea', defaultValueGuard: (v) => typeof v === 'string' ? v : undefined }],
+    [PluginSetupNumberField, { type: 'number', defaultValueGuard: (v) => typeof v === 'number' ? v : undefined }],
+    [PluginSetupBooleanField, { type: 'boolean', defaultValueGuard: (v) => typeof v === 'boolean' ? v : undefined }],
+    [PluginSetupSelectField, { type: 'select', defaultValueGuard: (v) => typeof v === 'string' ? v : undefined }],
+    [PluginSetupDateField, { type: 'date', defaultValueGuard: (v) => typeof v === 'string' ? v : undefined }],
+    [PluginSetupJsonField, { type: 'json', defaultValueGuard: (v) => v }],
+]);
+
 const toFieldDefinition = (
     element: ReactElement,
 ): { path: string; definition: PluginSetupFieldDefinition } => {
@@ -296,6 +338,11 @@ const toFieldDefinition = (
         throw new Error(`[plugin-system] Setup field "${path}" must declare a non-empty settingsKey.`);
     }
 
+    const mapping = FIELD_TYPE_MAP.get(element.type);
+    if (!mapping) {
+        throw new Error("[plugin-system] Setup sections can only contain host-provided setup field components.");
+    }
+
     const baseDefinition = {
         settingsKey,
         label: String(fieldProps.label ?? path),
@@ -306,38 +353,19 @@ const toFieldDefinition = (
         validate: fieldProps.validate as PluginSetupFieldValidator | undefined,
     };
 
-    if (element.type === PluginSetupTextField) {
-        return { path, definition: { type: "text", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "string" ? fieldProps.defaultValue : undefined } };
-    }
-    if (element.type === PluginSetupTextareaField) {
-        return { path, definition: { type: "textarea", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "string" ? fieldProps.defaultValue : undefined } };
-    }
-    if (element.type === PluginSetupNumberField) {
-        return { path, definition: { type: "number", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "number" ? fieldProps.defaultValue : undefined } };
-    }
-    if (element.type === PluginSetupBooleanField) {
-        return { path, definition: { type: "boolean", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "boolean" ? fieldProps.defaultValue : undefined } };
-    }
-    if (element.type === PluginSetupSelectField) {
+    const definition: Record<string, unknown> = {
+        type: mapping.type,
+        ...baseDefinition,
+        defaultValue: mapping.defaultValueGuard(fieldProps.defaultValue),
+    };
+
+    // Select fields carry inline options.
+    if (mapping.type === 'select') {
         const options = Array.isArray(fieldProps.options) ? fieldProps.options as Array<{ label: string; value: string }> : [];
-        return {
-            path,
-            definition: {
-                type: "select",
-                ...baseDefinition,
-                defaultValue: typeof fieldProps.defaultValue === "string" ? fieldProps.defaultValue : undefined,
-                options: [...options],
-            },
-        };
-    }
-    if (element.type === PluginSetupDateField) {
-        return { path, definition: { type: "date", ...baseDefinition, defaultValue: typeof fieldProps.defaultValue === "string" ? fieldProps.defaultValue : undefined } };
-    }
-    if (element.type === PluginSetupJsonField) {
-        return { path, definition: { type: "json", ...baseDefinition, defaultValue: fieldProps.defaultValue } };
+        definition.options = [...options];
     }
 
-    throw new Error("[plugin-system] Setup sections can only contain host-provided setup field components.");
+    return { path, definition: definition as unknown as PluginSetupFieldDefinition };
 };
 
 const extractSetupSchema = (
@@ -398,6 +426,12 @@ export const definePluginSetup = <TFields extends Record<string, PluginSetupFiel
     };
 };
 
+// ─── Serialization / adapter layer (P-07 / P-13) ─────────────────────────────
+// This is the ONLY place where frontend camelCase field names are converted to
+// backend snake_case names.  All callers of this function receive a payload
+// compatible with `PluginDescriptorSetupSchema` (backend JSON manifest format).
+// Never add snake_case keys to the TypeScript interfaces above; keep the
+// conversion centralised here.
 export const serializePluginSetupDefinition = <TFields extends Record<string, PluginSetupFieldDefinition>>(
     definition: PluginSetupDefinition<TFields>,
 ): PluginDescriptorSetupSchema => ({
@@ -412,6 +446,7 @@ export const serializePluginSetupDefinition = <TFields extends Record<string, Pl
             }
             return {
                 path: fieldKey,
+                // camelCase → snake_case adapter (P-07): these renames are intentional.
                 settings_key: field.settingsKey,
                 label: field.label,
                 type: field.type,

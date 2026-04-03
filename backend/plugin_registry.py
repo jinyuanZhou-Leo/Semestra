@@ -11,6 +11,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import date
+import functools
 import json
 from pathlib import Path
 from typing import Any, Callable
@@ -379,11 +380,10 @@ def _load_plugin_capabilities(plugin_id: str, raw_entry: dict[str, Any]) -> dict
     }
 
 
-def _load_plugin_metadata() -> dict[str, PluginMetadata]:
-    raw_manifest = _load_plugin_descriptors()
+def _load_plugin_metadata(raw_descriptors: list[dict[str, Any]]) -> dict[str, PluginMetadata]:
     metadata_by_plugin_id: dict[str, PluginMetadata] = {}
 
-    for raw_entry in raw_manifest:
+    for raw_entry in raw_descriptors:
         plugin_id = raw_entry.get("id")
         display_name = raw_entry.get("display_name")
         description = raw_entry.get("description")
@@ -422,12 +422,13 @@ def _load_plugin_metadata() -> dict[str, PluginMetadata]:
     return metadata_by_plugin_id
 
 
-PLUGIN_METADATA = _load_plugin_metadata()
+_CACHED_RAW_DESCRIPTORS = _load_plugin_descriptors()
+PLUGIN_METADATA = _load_plugin_metadata(_CACHED_RAW_DESCRIPTORS)
 
 
-def _load_descriptor_registry_definitions() -> dict[str, PluginRegistryDefinition]:
+def _load_descriptor_registry_definitions(raw_descriptors: list[dict[str, Any]]) -> dict[str, PluginRegistryDefinition]:
     registry_definitions: dict[str, PluginRegistryDefinition] = {}
-    for raw_entry in _load_plugin_descriptors():
+    for raw_entry in raw_descriptors:
         plugin_id = raw_entry.get("id")
         if not isinstance(plugin_id, str) or not plugin_id.strip():
             _raise_manifest_error("Plugin descriptor is missing id.")
@@ -436,7 +437,7 @@ def _load_descriptor_registry_definitions() -> dict[str, PluginRegistryDefinitio
     return registry_definitions
 
 
-DESCRIPTOR_REGISTRY_DEFINITIONS = _load_descriptor_registry_definitions()
+DESCRIPTOR_REGISTRY_DEFINITIONS = _load_descriptor_registry_definitions(_CACHED_RAW_DESCRIPTORS)
 
 
 def _merge_registry_definitions() -> dict[str, PluginRegistryDefinition]:
@@ -572,10 +573,10 @@ def _load_manifest_field(
     )
 
 
-def _load_plugin_setup_definitions() -> dict[str, PluginSetupDefinition]:
+def _load_plugin_setup_definitions(raw_descriptors: list[dict[str, Any]]) -> dict[str, PluginSetupDefinition]:
     definitions: dict[str, PluginSetupDefinition] = {}
 
-    for raw_entry in _load_plugin_descriptors():
+    for raw_entry in raw_descriptors:
         plugin_id = raw_entry.get("id")
         directory_name = raw_entry.get("_directory_name")
         if not isinstance(plugin_id, str) or not plugin_id.strip():
@@ -672,11 +673,11 @@ def _load_plugin_setup_definitions() -> dict[str, PluginSetupDefinition]:
     return definitions
 
 
-PLUGIN_SETUP_DEFINITIONS = _load_plugin_setup_definitions()
+PLUGIN_SETUP_DEFINITIONS = _load_plugin_setup_definitions(_CACHED_RAW_DESCRIPTORS)
 
 
 def is_host_reserved_plugin(plugin_id: str) -> bool:
-    return normalize_plugin_id(plugin_id) in HOST_RESERVED_PLUGIN_IDS
+    return is_host_reserved_plugin_id(plugin_id)
 
 
 def list_plugin_definitions(*, include_host_reserved: bool = False) -> list[PluginDefinition]:
@@ -784,6 +785,7 @@ def resolve_plugin_availability(
     return True, None
 
 
+@functools.lru_cache(maxsize=None)
 def _setup_field_map(plugin_id: str) -> dict[str, PluginSetupFieldDefinition]:
     definition = get_plugin_setup_definition(plugin_id)
     if definition is None:
@@ -869,17 +871,21 @@ def _normalize_field_value(
     return str(value)
 
 
+def _check_unknown_keys(field_map: dict[str, PluginSetupFieldDefinition], keys: set[str], *, error_code: str, plugin_id: str) -> None:
+    unknown_keys = sorted(keys - set(field_map.keys()))
+    if unknown_keys:
+        raise PluginRegistryValidationError(
+            error_code,
+            f"Unknown setup keys for {plugin_id}: {', '.join(unknown_keys)}",
+        )
+
+
 def normalize_setup_values(plugin_id: str, payload: dict[str, Any] | None) -> dict[str, Any]:
     payload = payload or {}
     if not isinstance(payload, dict):
         raise PluginRegistryValidationError("SEMESTER_PLUGIN_SETUP_INVALID", "setup_values must be a JSON object.")
     setup_field_map = _setup_field_map(plugin_id)
-    unknown_keys = sorted(set(payload.keys()) - set(setup_field_map.keys()))
-    if unknown_keys:
-        raise PluginRegistryValidationError(
-            "SEMESTER_PLUGIN_SETUP_INVALID",
-            f"Unknown setup keys for {plugin_id}: {', '.join(unknown_keys)}",
-        )
+    _check_unknown_keys(setup_field_map, set(payload.keys()), error_code="SEMESTER_PLUGIN_SETUP_INVALID", plugin_id=plugin_id)
     normalized_payload: dict[str, Any] = {}
     for key, value in payload.items():
         field = setup_field_map[key]
@@ -970,12 +976,7 @@ def _validate_plugin_setup_values(
         raise PluginRegistryValidationError("PLUGIN_SYSTEM_SETUP_INVALID", "values must be a JSON object.")
 
     field_map = _setup_field_map(plugin_id)
-    unknown_keys = sorted(set(values.keys()) - set(field_map.keys()))
-    if unknown_keys:
-        raise PluginRegistryValidationError(
-            "PLUGIN_SYSTEM_SETUP_UNKNOWN_FIELD",
-            f"Unknown plugin setup keys for {plugin_id}: {', '.join(unknown_keys)}",
-        )
+    _check_unknown_keys(field_map, set(values.keys()), error_code="PLUGIN_SYSTEM_SETUP_UNKNOWN_FIELD", plugin_id=plugin_id)
 
     normalized_values: dict[str, Any] = {}
     for field in definition.fields:

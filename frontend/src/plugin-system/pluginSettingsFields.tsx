@@ -9,13 +9,15 @@
 "use no memo";
 
 import React, { useEffect, useId, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 
 import { getCourseDetailQueryOptions } from "@/data/resources/courses";
-import { getProgramDetailQueryOptions, invalidateProgramDetailQuery, setProgramDetailQueryData } from "@/data/resources/programs";
-import { getSemesterDetailQueryOptions, setSemesterDetailQueryData } from "@/data/resources/semesters";
+import { getProgramDetailQueryOptions } from "@/data/resources/programs";
+import { getSemesterDetailQueryOptions } from "@/data/resources/semesters";
+
 import { TabSettingSourceHint } from "@/components/settings/TabSettingSourceHint";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -32,14 +34,32 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import api, { type Course, type Program, type Semester, type TabSetting } from "@/services/api";
 import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
 
-import { getDefaultSettingSource, getSettingSource, type SettingSource, type TabSettingsMeta } from "./tabSettingsMeta";
+import { getSettingSource, type SettingSource, type TabSettingsMeta } from "./tabSettingsMeta";
 import { usePluginSettingsPanelContext } from "./pluginSettingsPanelContext";
+import {
+  applyScopeEntityUpdate,
+  buildSettingsMeta,
+  invalidateScopeQuery,
+  parseSettingsObject,
+  persistScopeSettings,
+  type SettingsEntity,
+} from "./pluginSettingsPersistence";
 
-type SettingsEntity = Program | Semester | Course;
-type SettingsEntityKind = PluginSettingsScope["kind"];
+
+import type { TabSetting } from "@/services/api";
+
+// ─── Setup vs Settings system boundary note (P-08) ────────────────────────────
+// This file owns the **Settings** system: frontend-only binding layer that lets
+// settings.tsx panels reuse tab-settings persistence and inherited-source metadata
+// without manual query/update plumbing. It is used for runtime settings that can
+// be changed at any time.
+// The **Setup** system (see `setup.ts`) handles installation-time configuration
+// during semester creation. The two systems share field types but are intentionally
+// kept separate. Do NOT reuse the same field `path` or `settingsKey` across both
+// systems for the same plugin.
+
 type SelectOption = {
   label: string;
   value: string;
@@ -90,65 +110,6 @@ interface PluginSettingsSelectFieldProps extends PluginSettingsBoundFieldBasePro
   options: SelectOption[];
 }
 
-const parseSettingsObject = (value: unknown): Record<string, unknown> => {
-  if (!value) {
-    return {};
-  }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : {};
-    } catch {
-      return {};
-    }
-  }
-  if (typeof value === "object") {
-    return value as Record<string, unknown>;
-  }
-  return {};
-};
-
-const buildSettingsMeta = (tabSetting: TabSetting | null): TabSettingsMeta => ({
-  scopeSettings: tabSetting?.scope_settings ?? {},
-  inheritedSettings: tabSetting?.inherited_settings ?? {},
-  settingSources: tabSetting?.setting_sources ?? {},
-});
-
-const upsertTabSetting = (
-  tabSettings: TabSetting[] | undefined,
-  nextTabSetting: TabSetting,
-): TabSetting[] => {
-  const current = [...(tabSettings ?? [])];
-  const index = current.findIndex((entry) => entry.settings_key === nextTabSetting.settings_key);
-  if (index >= 0) {
-    current[index] = nextTabSetting;
-    return current;
-  }
-  current.push(nextTabSetting);
-  return current;
-};
-
-const updateSettingsEntity = (
-  entity: SettingsEntity | null | undefined,
-  nextTabSetting: TabSetting,
-): SettingsEntity | null | undefined => {
-  if (!entity) {
-    return entity;
-  }
-  return {
-    ...entity,
-    tab_settings: upsertTabSetting(entity.tab_settings, nextTabSetting),
-  };
-};
-
-const setCourseDetailQueryData = (
-  queryClient: ReturnType<typeof useQueryClient>,
-  courseId: string,
-  updater: (current: Course | null | undefined) => Course | null | undefined,
-) => {
-  queryClient.setQueryData<Course | null | undefined>(["courses", "detail", courseId], updater);
-};
-
 const useSettingsEntityQuery = (scope: PluginSettingsScope) => {
   const programQuery = useQuery({
     ...getProgramDetailQueryOptions(scope.kind === "program" ? scope.programId : "__missing__"),
@@ -164,70 +125,12 @@ const useSettingsEntityQuery = (scope: PluginSettingsScope) => {
   });
 
   if (scope.kind === "program") {
-    return {
-      entity: programQuery.data ?? null,
-      isLoading: programQuery.isLoading,
-      refetch: programQuery.refetch,
-    };
+    return { entity: programQuery.data as SettingsEntity | null ?? null, isLoading: programQuery.isLoading, refetch: programQuery.refetch };
   }
   if (scope.kind === "semester") {
-    return {
-      entity: semesterQuery.data ?? null,
-      isLoading: semesterQuery.isLoading,
-      refetch: semesterQuery.refetch,
-    };
+    return { entity: semesterQuery.data as SettingsEntity | null ?? null, isLoading: semesterQuery.isLoading, refetch: semesterQuery.refetch };
   }
-  return {
-    entity: courseQuery.data ?? null,
-    isLoading: courseQuery.isLoading,
-    refetch: courseQuery.refetch,
-  };
-};
-
-const applyScopeEntityUpdate = (
-  queryClient: ReturnType<typeof useQueryClient>,
-  scope: PluginSettingsScope,
-  nextTabSetting: TabSetting,
-) => {
-  if (scope.kind === "program") {
-    setProgramDetailQueryData(queryClient, scope.programId, (current) => updateSettingsEntity(current, nextTabSetting) as Program | null | undefined);
-    return;
-  }
-  if (scope.kind === "semester") {
-    setSemesterDetailQueryData(queryClient, scope.semesterId, (current) => updateSettingsEntity(current, nextTabSetting) as Semester | null | undefined);
-    return;
-  }
-  setCourseDetailQueryData(queryClient, scope.courseId, (current) => updateSettingsEntity(current, nextTabSetting) as Course | null | undefined);
-};
-
-const persistScopeSettings = async (
-  scope: PluginSettingsScope,
-  settingsKey: string,
-  nextSettings: Record<string, unknown>,
-): Promise<TabSetting> => {
-  const payload = { settings: JSON.stringify(nextSettings) };
-  if (scope.kind === "program") {
-    return api.upsertProgramTabSettings(scope.programId, settingsKey, payload);
-  }
-  if (scope.kind === "semester") {
-    return api.upsertSemesterTabSettings(scope.semesterId, settingsKey, payload);
-  }
-  return api.upsertCourseTabSettings(scope.courseId, settingsKey, payload);
-};
-
-const invalidateScopeQuery = async (
-  queryClient: ReturnType<typeof useQueryClient>,
-  scope: PluginSettingsScope,
-) => {
-  if (scope.kind === "program") {
-    await invalidateProgramDetailQuery(queryClient, scope.programId);
-    return;
-  }
-  if (scope.kind === "semester") {
-    await queryClient.invalidateQueries({ queryKey: ["semesters", "detail", scope.semesterId] });
-    return;
-  }
-  await queryClient.invalidateQueries({ queryKey: ["courses", "detail", scope.courseId] });
+  return { entity: courseQuery.data as SettingsEntity | null ?? null, isLoading: courseQuery.isLoading, refetch: courseQuery.refetch };
 };
 
 const usePluginSettingsBucketInternal = (
@@ -258,6 +161,10 @@ const usePluginSettingsBucketInternal = (
       applyScopeEntityUpdate(queryClient, scope, nextTabSetting);
       await invalidateScopeQuery(queryClient, scope);
       onRefresh();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to save settings.";
+      toast.error(message);
+      throw error;
     } finally {
       setIsSaving(false);
     }

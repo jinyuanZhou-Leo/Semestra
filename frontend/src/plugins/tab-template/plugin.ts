@@ -10,6 +10,7 @@ import { PanelsTopLeft } from 'lucide-react';
 
 import { createPluginSetupBinding, definePlugin, definePluginManifest } from '../../plugin-sdk/authoring.ts';
 
+import settingsDefinition from './settings.tsx';
 import setupDefinition from './setup.tsx';
 
 export default definePlugin({
@@ -31,7 +32,16 @@ export default definePlugin({
       },
     ],
     widgets: [],
+    settings: {
+      panels: [
+        {
+          id: 'template-program-settings',
+          contexts: ['program'],
+        },
+      ],
+    },
   }),
   loadRuntime: async () => (await import('./index')).default,
+  settingsDefinition,
   setup: createPluginSetupBinding(setupDefinition),
 });

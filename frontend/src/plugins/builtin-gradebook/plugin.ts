@@ -8,7 +8,7 @@
 
 import { BookOpenCheck, NotebookTabs } from 'lucide-react';
 
-import { definePlugin, definePluginManifest, defineSettingsSection } from '../../plugin-sdk/authoring.ts';
+import { definePlugin, definePluginManifest } from '../../plugin-sdk/authoring.ts';
 
 import settingsDefinition from './settings.tsx';
 
@@ -62,5 +62,5 @@ export default definePlugin({
     },
   }),
   loadRuntime: async () => (await import('./index')).default,
-  settingsSections: (settingsDefinition.pluginSettings ?? []).map((definition) => defineSettingsSection(definition)),
+  settingsDefinition,
 });

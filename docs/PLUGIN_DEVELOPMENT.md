@@ -133,6 +133,8 @@ Most plugin runtime code should use:
 - `defineSettingsSection`
 - `definePluginSetup`
 - `createPluginSetupBinding`
+- `usePluginSettingsBucket`
+- `usePluginSettingField`
 - `usePluginHost`
 - `usePluginRuntimeInstance`
 - `usePluginUiState`
@@ -218,6 +220,35 @@ If a plugin renders a host settings section from `settings.tsx`, every section i
 That declaration is required because the descriptor is what the host validates and exposes before the lazy runtime loads.
 
 If a section exists in `settings.tsx` but is missing from `settings.panels`, plugin validation fails.
+
+## 4.3 Common settings-field templates
+
+`settings.tsx` plugin panels can now use host-provided bound field templates from `@/plugin-sdk` for common field shapes:
+
+- `PluginSettingsTextField`
+- `PluginSettingsTextareaField`
+- `PluginSettingsNumberField`
+- `PluginSettingsBooleanField`
+- `PluginSettingsSelectField`
+- `PluginSettingsDateField`
+- `PluginSettingsJsonField`
+
+These components are frontend-only helpers for host-rendered Program/Semester/Course plugin settings panels.
+
+They:
+
+- bind directly to a `settingsKey` bucket in the current scope
+- read the resolved value for one `fieldPath`
+- write back through the existing `tab_settings` endpoints
+- show inline `Modified in ...` hints
+- expose the matching reset action automatically
+
+For custom layouts, plugin authors can drop to:
+
+- `usePluginSettingsBucket(settingsKey)`
+- `usePluginSettingField(settingsKey, fieldPath)`
+
+Those hooks expose the same bucket, source, update, and reset behavior without forcing the default inline field layout.
 
 ## 5. `index.ts`
 

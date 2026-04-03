@@ -8,7 +8,7 @@
 
 import { CalendarDays, Clock3, ListTodo, NotebookPen } from 'lucide-react';
 
-import { createPluginSetupBinding, definePlugin, definePluginManifest, defineSettingsSection } from '../../plugin-sdk/authoring.ts';
+import { createPluginSetupBinding, definePlugin, definePluginManifest } from '../../plugin-sdk/authoring.ts';
 
 import settingsDefinition from './settings.tsx';
 import setupDefinition from './setup.tsx';
@@ -77,6 +77,6 @@ export default definePlugin({
     },
   }),
   loadRuntime: async () => (await import('./index')).default,
-  settingsSections: (settingsDefinition.pluginSettings ?? []).map((definition) => defineSettingsSection(definition)),
+  settingsDefinition,
   setup: createPluginSetupBinding(setupDefinition),
 });

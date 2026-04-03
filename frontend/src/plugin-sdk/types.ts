@@ -54,19 +54,19 @@ export interface PluginTabLifecycleContext {
 
 export interface PluginTabDefinition {
   type: string;
-  component: FC<any>;
-  defaultSettings?: any;
-  SettingsComponent?: FC<any>;
+  component: FC<PluginTabProps>;
+  defaultSettings?: unknown;
+  SettingsComponent?: FC<PluginTabSettingsProps>;
   onCreate?: (context: PluginTabLifecycleContext) => Promise<void> | void;
   onDelete?: (context: PluginTabLifecycleContext) => Promise<void> | void;
 }
 
 export interface PluginHeaderButtonContext {
   widgetId: string;
-  settings: any;
+  settings: unknown;
   semesterId?: string;
   courseId?: string;
-  updateSettings: (nextSettings: any) => void | Promise<void>;
+  updateSettings: (nextSettings: unknown) => void | Promise<void>;
 }
 
 export interface PluginHeaderActionButtonProps {
@@ -120,10 +120,10 @@ export interface PluginWidgetSettingsProps<S = any> {
 
 export interface PluginWidgetDefinition {
   type: string;
-  component: FC<any>;
-  defaultSettings?: any;
+  component: FC<PluginWidgetProps>;
+  defaultSettings?: unknown;
   headerButtons?: PluginHeaderButton[];
-  SettingsComponent?: FC<any>;
+  SettingsComponent?: FC<PluginWidgetSettingsProps>;
   onCreate?: (context: PluginWidgetLifecycleContext) => Promise<void> | void;
   onDelete?: (context: PluginWidgetLifecycleContext) => Promise<void> | void;
 }
@@ -152,7 +152,10 @@ export interface PluginSetupUiDefinition {
 export interface PluginDefinition {
   descriptor: PluginDescriptor;
   loadRuntime: () => Promise<PluginRuntimeDefinition>;
+  /** @deprecated Use `settingsDefinition` instead. */
   settingsSections?: PluginSettingsSectionDefinition[];
+  /** Pass the return value of `definePluginSettings()` directly. */
+  settingsDefinition?: PluginSettingsDefinition;
   setup?: PluginSetupUiDefinition;
 }
 

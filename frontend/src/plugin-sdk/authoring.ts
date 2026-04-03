@@ -41,35 +41,43 @@ export {
 export { definePluginManifest, definePluginSetupSchema };
 export type * from './types.ts';
 
-export const definePlugin = (definition: PluginDefinition): PluginDefinition => ({
-  descriptor: {
-    ...definition.descriptor,
-    tabs: [...(definition.descriptor.tabs ?? [])],
-    widgets: [...(definition.descriptor.widgets ?? [])],
-    settings: {
-      panels: [...(definition.descriptor.settings?.panels ?? [])],
-    },
-  },
-  loadRuntime: definition.loadRuntime,
-  settingsSections: [...(definition.settingsSections ?? [])],
-  setup: definition.setup
-    ? {
-      schema: {
-        sections: definition.setup.schema.sections.map((section) => ({
-          ...section,
-          fields: section.fields.map((field) => ({
-            ...field,
-            options: [...(field.options ?? [])],
-            summary_labels: { ...(field.summary_labels ?? {}) },
-          })),
-        })),
-        validation_rules: [...(definition.setup.schema.validation_rules ?? [])],
+export const definePlugin = (definition: PluginDefinition): PluginDefinition => {
+  // Resolve settings sections: prefer settingsDefinition (new path), fall back to settingsSections (legacy).
+  const rawSections: PluginSettingsSectionDefinition[] =
+    definition.settingsDefinition?.pluginSettings
+    ?? definition.settingsSections
+    ?? [];
+
+  return Object.freeze({
+    descriptor: {
+      ...definition.descriptor,
+      tabs: [...(definition.descriptor.tabs ?? [])],
+      widgets: [...(definition.descriptor.widgets ?? [])],
+      settings: {
+        panels: [...(definition.descriptor.settings?.panels ?? [])],
       },
-      ui: definition.setup.ui,
-      validate: definition.setup.validate,
-    }
-    : undefined,
-});
+    },
+    loadRuntime: definition.loadRuntime,
+    settingsSections: rawSections.map((section) => defineSettingsSection(section)),
+    setup: definition.setup
+      ? {
+        schema: {
+          sections: definition.setup.schema.sections.map((section) => ({
+            ...section,
+            fields: section.fields.map((field) => ({
+              ...field,
+              options: [...(field.options ?? [])],
+              summary_labels: { ...(field.summary_labels ?? {}) },
+            })),
+          })),
+          validation_rules: [...(definition.setup.schema.validation_rules ?? [])],
+        },
+        ui: definition.setup.ui,
+        validate: definition.setup.validate,
+      }
+      : undefined,
+  });
+};
 
 export const definePluginRuntime = (definition: PluginRuntimeDefinition): PluginRuntimeDefinition => ({
   tabDefinitions: [...(definition.tabDefinitions ?? [])],

@@ -6,21 +6,14 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
-
 import React from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 
-import { getProgramDetailQueryOptions, invalidateProgramDetailQuery } from '@/data/resources';
-import { definePluginSettings, type PluginSettingsSectionProps } from '@/plugin-sdk';
-import api from '@/services/api';
+import { definePluginSettings, usePluginSettingsBucket, type PluginSettingsSectionProps } from '@/plugin-sdk';
 import type { TabSettingsProps } from '@/services/tabRegistry';
 
 import { CalendarSettingsSection } from './tabs/calendar/CalendarSettingsSection';
 import { CourseScheduleSettings } from './tabs/course-schedule';
 import { TodoSettingsSection } from './tabs/todo/TodoSettingsSection';
-import { getApiErrorMessage } from '../builtin-gradebook/shared';
 import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from './shared/constants';
 
 export const BuiltinAcademicCalendarTabSettings: React.FC<TabSettingsProps> = ({
@@ -58,71 +51,32 @@ const SemesterEventTypesSettingsSection: React.FC<PluginSettingsSectionProps> = 
 
 const ProgramTodoDefaultsSettingsSection: React.FC<PluginSettingsSectionProps> = ({
   scope,
-  onRefresh,
 }) => {
-  const queryClient = useQueryClient();
   const programId = scope.kind === 'program' ? scope.programId : undefined;
-  const programQuery = getProgramDetailQueryOptions(programId ?? '__missing__');
-  const program = queryClient.getQueryData<Awaited<ReturnType<typeof api.getProgram>>>(programQuery.queryKey);
-
-  const initialSettings = React.useMemo(() => {
-    if (!programId || !program?.tab_settings) {
-      return {};
-    }
-    const todoTabSetting = program.tab_settings.find((setting) => setting.settings_key === BUILTIN_TIMETABLE_TODO_TAB_TYPE);
-    if (!todoTabSetting?.resolved_settings && !todoTabSetting?.settings) {
-      return {};
-    }
-    if (typeof todoTabSetting.resolved_settings === 'object' && todoTabSetting.resolved_settings !== null) {
-      return todoTabSetting.resolved_settings;
-    }
-    try {
-      return JSON.parse(todoTabSetting.settings || '{}');
-    } catch {
-      return {};
-    }
-  }, [program?.tab_settings, programId]);
-  const todoTabSetting = React.useMemo(() => {
-    if (!programId || !program?.tab_settings) {
-      return null;
-    }
-    return program.tab_settings.find((setting) => setting.settings_key === BUILTIN_TIMETABLE_TODO_TAB_TYPE) ?? null;
-  }, [program?.tab_settings, programId]);
+  const bucket = usePluginSettingsBucket(BUILTIN_TIMETABLE_TODO_TAB_TYPE);
 
   const handleUpdateSettings = React.useCallback(async (nextSettings: Record<string, unknown>) => {
     if (!programId) return;
     try {
-      await api.updateProgramTabSettings(programId, BUILTIN_TIMETABLE_TODO_TAB_TYPE, {
-        settings: JSON.stringify(nextSettings),
-      });
-      await invalidateProgramDetailQuery(queryClient, programId);
-      onRefresh();
+      await bucket.setSettings(nextSettings);
     } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error));
+      // toast is already shown by the bucket's setSettings
+      console.error('Failed to update todo defaults', error);
     }
-  }, [onRefresh, programId, queryClient]);
+  }, [bucket, programId]);
 
-    if (!programId) {
-      return null;
-    }
+  if (!programId) {
+    return null;
+  }
 
   return (
     <TodoSettingsSection
       tabId={BUILTIN_TIMETABLE_TODO_TAB_TYPE}
-      settings={initialSettings}
-      settingsMeta={todoTabSetting ? {
-        scopeSettings: todoTabSetting.scope_settings ?? {},
-        inheritedSettings: todoTabSetting.inherited_settings ?? {},
-        settingSources: todoTabSetting.setting_sources ?? {},
-      } : undefined}
+      settings={bucket.resolvedSettings}
+      settingsMeta={bucket.settingsMeta}
       updateSettings={handleUpdateSettings}
       resetSetting={async (key) => {
-        if (!programId) return;
-        const nextSettings = {
-          ...(todoTabSetting?.scope_settings ?? {}),
-        };
-        delete nextSettings[key];
-        await handleUpdateSettings(nextSettings);
+        await bucket.resetField(key);
       }}
     />
   );

@@ -65,9 +65,8 @@ import {
     hasTabPluginForType,
     PluginHostProvider,
     PluginRuntimeInstanceProvider,
-    PluginSettingsSectionRenderer,
+    PluginSettingsSectionsGroup,
     usePluginLoadStateVersion,
-    usePluginSettingsRegistry,
     useTabPluginLoadState,
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
@@ -312,11 +311,6 @@ const CourseHomepageContent: React.FC = () => {
         isTabsInitialized,
     });
 
-    const allPluginSettingsDefinitions = usePluginSettingsRegistry('course');
-    const pluginSettingsDefinitions = useMemo(
-        () => allPluginSettingsDefinitions.filter((definition) => enabledPluginIds.has(definition.pluginId)),
-        [allPluginSettingsDefinitions, enabledPluginIds]
-    );
     const activeTabType = useMemo(
         () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
         [activeTabId, visibleTabs]
@@ -641,47 +635,21 @@ const CourseHomepageContent: React.FC = () => {
     ]);
 
     const pluginSettingsSections = useMemo(() => {
-        const pluginMetadataById = new Map(
-            (course?.plugin_activations ?? parentSemesterQuery.data?.plugin_activations ?? [])
-                .filter((activation) => enabledPluginIds.has(activation.plugin_id))
-                .map((activation) => [
-                    activation.plugin_id,
-                    {
-                        displayName: activation.display_name,
-                        description: activation.description,
-                    },
-                ])
-        );
-        const renderedPluginHeaders = new Set<string>();
-        const sections = pluginSettingsDefinitions
-            .filter((definition) => enabledPluginIds.has(definition.pluginId))
-            .map((definition) => {
-                const pluginMetadata = pluginMetadataById.get(definition.pluginId);
-                const showPluginHeader = !renderedPluginHeaders.has(definition.pluginId);
-                renderedPluginHeaders.add(definition.pluginId);
-                return (
-                    <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
-                        <PluginSettingsSectionRenderer
-                            pluginId={definition.pluginId}
-                            pluginDisplayName={pluginMetadata?.displayName}
-                            pluginDescription={pluginMetadata?.description}
-                            showPluginHeader={showPluginHeader}
-                            component={definition.component}
-                            courseId={course?.id}
-                            onRefresh={refreshCourse}
-                        />
-                    </React.Fragment>
-                );
-            });
-
-        if (sections.length === 0) return null;
+        const pluginActivations = course?.plugin_activations ?? parentSemesterQuery.data?.plugin_activations ?? [];
+        if (pluginActivations.length === 0 || enabledPluginIds.size === 0) {
+            return null;
+        }
 
         return (
-            <div className="flex flex-col gap-4">
-                {sections}
-            </div>
+            <PluginSettingsSectionsGroup
+                context="course"
+                enabledPluginIds={enabledPluginIds}
+                pluginActivations={pluginActivations}
+                courseId={course?.id}
+                onRefresh={refreshCourse}
+            />
         );
-    }, [course?.id, course?.plugin_activations, enabledPluginIds, parentSemesterQuery.data?.plugin_activations, pluginSettingsDefinitions, refreshCourse]);
+    }, [course?.id, course?.plugin_activations, enabledPluginIds, parentSemesterQuery.data?.plugin_activations, refreshCourse]);
 
     const coursePluginGovernanceSection = useMemo(() => {
         if (!course?.id || course.semester_id) {

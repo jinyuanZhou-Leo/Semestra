@@ -20,11 +20,12 @@ import {
   getAllPluginSetupDefinitions,
   getPluginSetupDefinitionById,
   hasPluginSetupDefinition,
+  initSetupRegistry,
 } from './setupRegistry';
 import {
   buildPluginCatalogIndex,
-  canAddTabCatalogItem as canAddTabCatalogItemInternal,
-  canAddWidgetCatalogItem as canAddWidgetCatalogItemInternal,
+  canAddTabCatalogItem,
+  canAddWidgetCatalogItem,
   getPublicPluginManifest,
   getTabCatalogItems,
   getWidgetCatalogItems,
@@ -62,6 +63,8 @@ export * from './setup';
 export * from './pluginSettingsFields';
 export * from './host-api';
 export { PluginSettingsSectionRenderer, getPluginSettingsSections, usePluginSettingsRegistry } from './settings-sections';
+export { PluginSettingsSectionsGroup } from './PluginSettingsSectionsGroup';
+export type { PluginActivationMeta } from './PluginSettingsSectionsGroup';
 export type { PluginLoadState, PluginLoadStatus } from './pluginLoadState';
 
 type PluginModule = {
@@ -82,6 +85,9 @@ const pluginModulePaths = Object.keys(pluginModules);
 const isDev = import.meta.env.DEV;
 const loadStateStore = createPluginLoadStateStore();
 
+// Initialize setup registry from the shared modules (P-15: eliminate duplicate import.meta.glob)
+initSetupRegistry(pluginModules);
+
 type HostPolicyRecord = {
   kind?: PluginKind;
   visibility?: PluginManifestVisibility;
@@ -97,10 +103,12 @@ const getDirectoryName = (path: string): string | null => {
 const toError = (error: unknown) => error instanceof Error ? error : new Error(String(error));
 
 const failValidation = (message: string) => {
-  if (isDev) {
-    throw new Error(message);
-  }
   console.error(message);
+  if (isDev) {
+    // Log as a group for visibility in dev tools without crashing the app.
+    // Callers already skip invalid plugins gracefully.
+    console.trace('[plugin-system] Stack trace for validation failure above');
+  }
 };
 
 const resolveHostPolicy = (pluginId: string): Required<HostPolicyRecord> => {
@@ -111,16 +119,19 @@ const resolveHostPolicy = (pluginId: string): Required<HostPolicyRecord> => {
   };
 };
 
-const toManifestItem = (descriptor: PluginDescriptor): PluginManifestItem => ({
-  pluginId: descriptor.id,
-  displayName: descriptor.display_name,
-  author: descriptor.author,
-  description: descriptor.description,
-  longDescription: descriptor.long_description,
-  kind: resolveHostPolicy(descriptor.id).kind,
-  visibility: resolveHostPolicy(descriptor.id).visibility,
-  icon: resolvePluginIcon(descriptor.icon) ?? null,
-});
+const toManifestItem = (descriptor: PluginDescriptor): PluginManifestItem => {
+  const policy = resolveHostPolicy(descriptor.id);
+  return {
+    pluginId: descriptor.id,
+    displayName: descriptor.display_name,
+    author: descriptor.author,
+    description: descriptor.description,
+    longDescription: descriptor.long_description,
+    kind: policy.kind,
+    visibility: policy.visibility,
+    icon: resolvePluginIcon(descriptor.icon) ?? null,
+  };
+};
 
 const toTabCatalogItem = (
   descriptor: PluginDescriptor,
@@ -452,17 +463,7 @@ export const getResolvedWidgetMetadataByType = (type: string): ResolvedPluginMet
 
 export const getResolvedWidgetLayoutByType = (type: string): WidgetLayoutDefinition | undefined => getWidgetCatalogItemByType(type)?.layout;
 
-export const canAddTabCatalogItem = (
-  item: TabCatalogItem,
-  context: TabContext,
-  currentCount: number,
-) => canAddTabCatalogItemInternal(item, context, currentCount);
-
-export const canAddWidgetCatalogItem = (
-  item: WidgetCatalogItem,
-  context: WidgetContext,
-  currentCount: number,
-) => canAddWidgetCatalogItemInternal(item, context, currentCount);
+export { canAddTabCatalogItem, canAddWidgetCatalogItem };
 
 export const getTabComponentByType = (type: string): FC<TabProps> | undefined => TabRegistry.getComponent(type);
 

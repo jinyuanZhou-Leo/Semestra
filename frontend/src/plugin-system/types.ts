@@ -7,11 +7,13 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { ReactNode } from 'react';
-import type {
-    PluginWorkspaceContext as TabContext,
-    PluginWorkspaceContext as WidgetContext,
-} from '@/plugin-sdk';
+import type { PluginWorkspaceContext } from '@/plugin-sdk';
 import type { MaxInstances as WidgetMaxInstances } from './utils';
+
+/** Workspace contexts supported by tabs and widgets — both are the same underlying type. */
+type WorkspaceContext = PluginWorkspaceContext;
+type TabContext = WorkspaceContext;
+type WidgetContext = WorkspaceContext;
 
 export type PluginKind = 'host-shell' | 'builtin' | 'external';
 export type PluginManifestVisibility = 'public' | 'hidden';

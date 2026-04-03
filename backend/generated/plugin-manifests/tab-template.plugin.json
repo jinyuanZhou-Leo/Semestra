@@ -19,6 +19,13 @@
   ],
   "widgets": [],
   "settings": {
-    "panels": []
+    "panels": [
+      {
+        "id": "template-program-settings",
+        "contexts": [
+          "program"
+        ]
+      }
+    ]
   }
 }

@@ -1,4 +1,4 @@
-// input:  [widget plugin definitions, header-button render contracts, and React subscriptions]
+// input:  [createPluginRegistry factory, widget plugin definitions, header-button render contracts]
 // output: [widget prop/definition types, singleton `WidgetRegistry`, and helper hooks]
 // pos:    [Runtime registry for widget components, instance settings UIs, constraints, and lifecycle callbacks]
 //
@@ -8,12 +8,12 @@
 
 "use no memo";
 
-import React, { useSyncExternalStore } from 'react';
-import { jsonDeepEqual } from '../plugin-system/utils';
+import React from 'react';
+import { createPluginRegistry } from './createPluginRegistry';
 
 export interface HeaderButtonContext {
     widgetId: string;
-    settings: any;
+    settings: unknown;
     semesterId?: string;
     courseId?: string;
     updateSettings: (newSettings: any) => void | Promise<void>;
@@ -62,7 +62,7 @@ export interface WidgetLifecycleContext {
     widgetId: string;
     semesterId?: string;
     courseId?: string;
-    settings: any;
+    settings: unknown;
 }
 
 export type WidgetContext = 'semester' | 'course';
@@ -79,7 +79,7 @@ export interface WidgetSettingsProps<S = any> {
 export interface WidgetDefinition {
     type: string;
     component: React.FC<WidgetProps>;
-    defaultSettings?: any;
+    defaultSettings?: unknown;
     /** Custom buttons to display in the widget header */
     headerButtons?: HeaderButton[];
     /** Optional settings component for individual widget instance. If provided, a settings button will be shown in the widget header. */
@@ -90,86 +90,15 @@ export interface WidgetDefinition {
     onDelete?: (context: WidgetLifecycleContext) => Promise<void> | void;
 }
 
-type Listener = () => void;
+const { registry, useRegistry } = createPluginRegistry<WidgetDefinition, WidgetProps>(
+    'Widget',
+    'widgetId',
+);
 
-class WidgetRegistryClass {
-    private widgets: Map<string, WidgetDefinition> = new Map();
-    private memoizedComponents: Map<string, React.FC<WidgetProps>> = new Map();
-    private listeners: Set<Listener> = new Set();
-    private snapshot: WidgetDefinition[] = [];
-
-    register(definition: WidgetDefinition) {
-        if (this.widgets.has(definition.type)) {
-            console.warn(`Widget type ${definition.type} is already registered. Overwriting.`);
-            this.memoizedComponents.delete(definition.type);
-        }
-        this.widgets.set(definition.type, definition);
-        this.snapshot = Array.from(this.widgets.values());
-        // Notify all subscribers when a new widget is registered
-        this.notifyListeners();
-    }
-
-    unregister(type: string) {
-        const existed = this.widgets.delete(type);
-        this.memoizedComponents.delete(type);
-        if (existed) {
-            this.snapshot = Array.from(this.widgets.values());
-            this.notifyListeners();
-        }
-    }
-
-    private notifyListeners() {
-        this.listeners.forEach(listener => listener());
-    }
-
-    subscribe(listener: Listener): () => void {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
-    }
-
-    get(type: string): WidgetDefinition | undefined {
-        return this.widgets.get(type);
-    }
-
-    getAll(): WidgetDefinition[] {
-        return this.snapshot;
-    }
-
-    getComponent(type: string): React.FC<WidgetProps> | undefined {
-        const definition = this.widgets.get(type);
-        if (!definition) return undefined;
-
-        // Return cached memoized component if available
-        if (this.memoizedComponents.has(type)) {
-            return this.memoizedComponents.get(type);
-        }
-
-        // Create memoized version with custom comparison
-        const MemoizedComponent = React.memo(definition.component, (prevProps, nextProps) => {
-            return (
-                prevProps.widgetId === nextProps.widgetId &&
-                prevProps.semesterId === nextProps.semesterId &&
-                prevProps.courseId === nextProps.courseId &&
-                jsonDeepEqual(prevProps.settings, nextProps.settings)
-            );
-        });
-
-        // Cache and return
-        this.memoizedComponents.set(type, MemoizedComponent);
-        return MemoizedComponent;
-    }
-}
-
-export const WidgetRegistry = new WidgetRegistryClass();
+export const WidgetRegistry = registry;
 
 /**
  * React Hook to subscribe to widget registry changes.
  * Automatically re-renders when new widgets are registered.
  */
-export const useWidgetRegistry = (): WidgetDefinition[] => {
-    return useSyncExternalStore(
-        (listener) => WidgetRegistry.subscribe(listener),
-        () => WidgetRegistry.getAll(),
-        () => WidgetRegistry.getAll()
-    );
-};
+export const useWidgetRegistry = useRegistry;

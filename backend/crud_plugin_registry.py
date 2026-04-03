@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
+from typing import Callable
 
 from sqlalchemy.orm import Session
 
@@ -26,6 +28,34 @@ from crud_shared import (
     _validate_reading_week,
     _wrap_plugin_validation,
 )
+
+
+# ── B-13: decorator to auto-canonicalize the `plugin_id` argument (positional or keyword) ─
+def _with_canonical_plugin_id(func):
+    """Decorator that normalises the ``plugin_id`` argument before the wrapped
+    function sees it, eliminating the repetitive first-line pattern
+    ``plugin_id = _canonical_plugin_id(plugin_id)`` in every public function.
+
+    Supports both positional and keyword call styles so existing call-sites
+    do not need to be changed.
+    """
+    import inspect as _inspect
+    _params = list(_inspect.signature(func).parameters.keys())
+    try:
+        _plugin_id_index = _params.index("plugin_id")
+    except ValueError as _exc:
+        raise TypeError(
+            f"@_with_canonical_plugin_id: '{func.__name__}' has no 'plugin_id' parameter"
+        ) from _exc
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if "plugin_id" in kwargs:
+            kwargs["plugin_id"] = _canonical_plugin_id(kwargs["plugin_id"])
+        elif _plugin_id_index < len(args):
+            args = args[:_plugin_id_index] + (_canonical_plugin_id(args[_plugin_id_index]),) + args[_plugin_id_index + 1:]
+        return func(*args, **kwargs)
+    return wrapper
 
 
 def _build_availability(
@@ -57,7 +87,7 @@ class _PluginSetupStoragePlan:
 def _build_plugin_setup_storage_plan(plugin_id: str) -> _PluginSetupStoragePlan:
     try:
         definition = plugin_registry.get_plugin_setup_definition(plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     if definition is None:
         return _PluginSetupStoragePlan(definition=None, field_map={}, settings_keys=())
@@ -95,19 +125,36 @@ def _resolve_semester_plugin_setup_values(
     db: Session,
     semester: models.Semester,
     plugin_id: str,
+    *,
+    tab_settings_cache: dict[str, models.TabSetting] | None = None,
 ) -> dict[str, object]:
+    """Resolve setup values for one plugin in a semester.
+
+    Args:
+        tab_settings_cache: Optional pre-loaded mapping of ``settings_key ->
+            TabSetting`` for this semester.  When provided, no additional
+            database queries are issued for TabSetting rows (B-05 fix).
+    """
     storage_plan = _build_plugin_setup_storage_plan(plugin_id)
     if storage_plan.definition is None:
         return {}
-    resolved_values_by_settings_key = {
-        settings_key: resolve_tab_settings(
-            db,
-            settings_key,
-            program_id=semester.program_id,
-            semester_id=semester.id,
-        )
-        for settings_key in storage_plan.settings_keys
-    }
+
+    resolved_values_by_settings_key: dict[str, dict[str, object]] = {}
+    for settings_key in storage_plan.settings_keys:
+        if tab_settings_cache is not None:
+            # B-05: use pre-loaded cache instead of hitting the DB each time
+            tab_setting = tab_settings_cache.get(settings_key)
+            resolved_values_by_settings_key[settings_key] = _parse_json_object(
+                tab_setting.settings if tab_setting is not None else None
+            )
+        else:
+            resolved_values_by_settings_key[settings_key] = resolve_tab_settings(
+                db,
+                settings_key,
+                program_id=semester.program_id,
+                semester_id=semester.id,
+            )
+
     return plugin_registry.resolve_plugin_setup_values(
         plugin_id,
         setup_values={
@@ -122,12 +169,16 @@ def _build_semester_plugin_setup_summary(
     db: Session,
     semester: models.Semester,
     plugin_id: str,
+    *,
+    tab_settings_cache: dict[str, models.TabSetting] | None = None,
 ) -> list[dict[str, object]]:
     if not plugin_registry.has_plugin_setup_definition(plugin_id):
         return []
     return plugin_registry.build_plugin_setup_summary(
         plugin_id,
-        setup_values=_resolve_semester_plugin_setup_values(db, semester, plugin_id),
+        setup_values=_resolve_semester_plugin_setup_values(
+            db, semester, plugin_id, tab_settings_cache=tab_settings_cache
+        ),
     )
 
 
@@ -254,6 +305,17 @@ def _build_semester_review_state(db: Session, semester: models.Semester) -> dict
             reading_week_end=semester.reading_week_end,
         ))
 
+    # B-05: Pre-load all TabSetting rows for this semester in one query to avoid
+    # N×M database hits (N plugins × M settings_keys per plugin).
+    tab_settings_cache: dict[str, models.TabSetting] = {
+        ts.settings_key: ts
+        for ts in (
+            db.query(models.TabSetting)
+            .filter(models.TabSetting.semester_id == semester.id)
+            .all()
+        )
+    }
+
     for activation in semester.plugin_activations:
         plugin_id = activation.program_plugin_installation.plugin_id if activation.program_plugin_installation else None
         plugin_errors: list[dict] = []
@@ -274,9 +336,13 @@ def _build_semester_review_state(db: Session, semester: models.Semester) -> dict
 
         installation = activation.program_plugin_installation
         try:
-            setup_values = _resolve_semester_plugin_setup_values(db, semester, plugin_id)
-            setup_summary = _build_semester_plugin_setup_summary(db, semester, plugin_id)
-        except Exception as exc:
+            setup_values = _resolve_semester_plugin_setup_values(
+                db, semester, plugin_id, tab_settings_cache=tab_settings_cache
+            )
+            setup_summary = _build_semester_plugin_setup_summary(
+                db, semester, plugin_id, tab_settings_cache=tab_settings_cache
+            )
+        except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
             _wrap_plugin_validation(exc)
 
         available, _, availability_reason = _resolve_semester_plugin_availability(semester, installation, activation)
@@ -311,7 +377,7 @@ def _refresh_semester_review_ready(db: Session, semester: models.Semester) -> di
 def _normalize_auth_state(plugin_id: str, auth_state: str | None) -> str:
     try:
         definition = plugin_registry.get_plugin_definition(plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     value = (auth_state or "").strip() or ("not-required" if not definition.requires_authorization else "pending")
     allowed = {"not-required", "pending", "authorized", "failed"}
@@ -414,37 +480,55 @@ def _delete_program_plugin_runtime_data(
                 models.Widget.widget_type.in_(widget_types),
             ).delete(synchronize_session=False)
 
-    if plugin_id == "course-resources" and course_ids:
+    # ─── Plugin-specific domain data cleanup (registered via _PLUGIN_CLEANUP_HOOKS) ───
+    cleanup_hook = _PLUGIN_CLEANUP_HOOKS.get(plugin_id)
+    if cleanup_hook is not None:
+        cleanup_hook(db, semester_ids=semester_ids, course_ids=course_ids)
+
+
+def _cleanup_course_resources(db: Session, *, semester_ids: list[str], course_ids: list[str]) -> None:
+    if course_ids:
         db.query(models.CourseResourceFile).filter(
             models.CourseResourceFile.course_id.in_(course_ids),
         ).delete(synchronize_session=False)
 
-    if plugin_id == "builtin-gradebook" and course_ids:
-        gradebook_ids = [
-            gradebook_id
-            for (gradebook_id,) in db.query(models.CourseGradebook.id).filter(
-                models.CourseGradebook.course_id.in_(course_ids),
-            ).all()
-        ]
-        if gradebook_ids:
-            db.query(models.GradebookAssessment).filter(
-                models.GradebookAssessment.gradebook_id.in_(gradebook_ids),
-            ).delete(synchronize_session=False)
-            db.query(models.GradebookAssessmentCategory).filter(
-                models.GradebookAssessmentCategory.gradebook_id.in_(gradebook_ids),
-            ).delete(synchronize_session=False)
-            db.query(models.CourseGradebook).filter(
-                models.CourseGradebook.id.in_(gradebook_ids),
-            ).delete(synchronize_session=False)
 
-    if plugin_id == "builtin-event-core":
-        if semester_ids:
-            db.query(models.TodoTask).filter(models.TodoTask.semester_id.in_(semester_ids)).delete(synchronize_session=False)
-            db.query(models.TodoSection).filter(models.TodoSection.semester_id.in_(semester_ids)).delete(synchronize_session=False)
-        if course_ids:
-            db.query(models.CourseEvent).filter(models.CourseEvent.course_id.in_(course_ids)).delete(synchronize_session=False)
-            db.query(models.CourseSection).filter(models.CourseSection.course_id.in_(course_ids)).delete(synchronize_session=False)
-            db.query(models.CourseEventType).filter(models.CourseEventType.course_id.in_(course_ids)).delete(synchronize_session=False)
+def _cleanup_builtin_gradebook(db: Session, *, semester_ids: list[str], course_ids: list[str]) -> None:
+    if not course_ids:
+        return
+    gradebook_ids = [
+        gradebook_id
+        for (gradebook_id,) in db.query(models.CourseGradebook.id).filter(
+            models.CourseGradebook.course_id.in_(course_ids),
+        ).all()
+    ]
+    if gradebook_ids:
+        db.query(models.GradebookAssessment).filter(
+            models.GradebookAssessment.gradebook_id.in_(gradebook_ids),
+        ).delete(synchronize_session=False)
+        db.query(models.GradebookAssessmentCategory).filter(
+            models.GradebookAssessmentCategory.gradebook_id.in_(gradebook_ids),
+        ).delete(synchronize_session=False)
+        db.query(models.CourseGradebook).filter(
+            models.CourseGradebook.id.in_(gradebook_ids),
+        ).delete(synchronize_session=False)
+
+
+def _cleanup_builtin_event_core(db: Session, *, semester_ids: list[str], course_ids: list[str]) -> None:
+    if semester_ids:
+        db.query(models.TodoTask).filter(models.TodoTask.semester_id.in_(semester_ids)).delete(synchronize_session=False)
+        db.query(models.TodoSection).filter(models.TodoSection.semester_id.in_(semester_ids)).delete(synchronize_session=False)
+    if course_ids:
+        db.query(models.CourseEvent).filter(models.CourseEvent.course_id.in_(course_ids)).delete(synchronize_session=False)
+        db.query(models.CourseSection).filter(models.CourseSection.course_id.in_(course_ids)).delete(synchronize_session=False)
+        db.query(models.CourseEventType).filter(models.CourseEventType.course_id.in_(course_ids)).delete(synchronize_session=False)
+
+
+_PLUGIN_CLEANUP_HOOKS: dict[str, Callable[..., None]] = {
+    "course-resources": _cleanup_course_resources,
+    "builtin-gradebook": _cleanup_builtin_gradebook,
+    "builtin-event-core": _cleanup_builtin_event_core,
+}
 
 
 def _ensure_default_semester_plugin_activations(
@@ -519,14 +603,25 @@ def _resolve_program_plugin_availability(
     return True, None, None
 
 
+# ── B-14: shared base for semester/course availability check ──────────────────
+def _resolve_scoped_plugin_availability_base(
+    *,
+    program: models.Program,
+    installation: models.ProgramPluginInstallation,
+    plugin_id: str,
+) -> tuple[bool, str | None, str | None]:
+    """Check program-level availability; shared by semester and course resolvers."""
+    return _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
+
+
 def _resolve_semester_plugin_availability(
     semester: models.Semester,
     installation: models.ProgramPluginInstallation,
     activation: models.SemesterPluginActivation | None,
 ) -> tuple[bool, str | None, str | None]:
-    available, reason_code, reason_message = _resolve_program_plugin_availability(
-        semester.program or installation.program,
-        installation,
+    available, reason_code, reason_message = _resolve_scoped_plugin_availability_base(
+        program=semester.program or installation.program,
+        installation=installation,
         plugin_id=installation.plugin_id,
     )
     if not available:
@@ -539,7 +634,7 @@ def _resolve_semester_plugin_availability(
 def _supports_unassigned_course(plugin_id: str) -> bool:
     try:
         definition = plugin_registry.get_plugin_definition(plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     return bool((definition.capabilities or {}).get("supports_unassigned_course"))
 
@@ -552,7 +647,10 @@ def _resolve_course_plugin_availability(
     program = course.program or installation.program
     if program is None:
         raise PluginRegistryError("PROGRAM_NOT_FOUND", f"Course '{course.id}' is missing its parent Program.")
-    available, reason_code, reason_message = _resolve_program_plugin_availability(program, installation, plugin_id=installation.plugin_id)
+    # B-14: reuse shared base instead of duplicating _resolve_program_plugin_availability call
+    available, reason_code, reason_message = _resolve_scoped_plugin_availability_base(
+        program=program, installation=installation, plugin_id=installation.plugin_id
+    )
     if not available:
         return available, reason_code, reason_message
     if course.semester_id is not None:
@@ -592,12 +690,12 @@ def _serialize_program_plugin_installation(program: models.Program, installation
     plugin_id = _canonical_plugin_id(plugin_id)
     try:
         definition = plugin_registry.get_plugin_definition(plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     auth_state = installation.auth_state if installation is not None else ("not-required" if not definition.requires_authorization else "pending")
     try:
         available, reason_code, availability_reason = _resolve_program_plugin_availability(program, installation, plugin_id=plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     return {
         "id": installation.id if installation is not None else None,
@@ -641,11 +739,11 @@ def _serialize_semester_plugin_activation(
     program = semester.program
     if program is None:
         raise PluginRegistryError("PROGRAM_NOT_FOUND", f"Semester '{semester.id}' is missing its parent Program.")
-    installation.plugin_id = _canonical_plugin_id(installation.plugin_id)
-    installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
-    setup_values = _resolve_semester_plugin_setup_values(db, semester, installation.plugin_id)
+    canonical_id = _canonical_plugin_id(installation.plugin_id)
+    installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=canonical_id)
+    setup_values = _resolve_semester_plugin_setup_values(db, semester, canonical_id)
     current_review_state = review_state or _build_semester_review_state(db, semester)
-    plugin_review = (current_review_state.get("plugin_reviews") or {}).get(installation.plugin_id, {})
+    plugin_review = (current_review_state.get("plugin_reviews") or {}).get(canonical_id, {})
     setup_summary = plugin_review.get("setup_summary") or []
     review_errors = plugin_review.get("review_errors") or []
     runtime_available, runtime_reason_code, runtime_reason_message = _resolve_semester_plugin_availability(
@@ -657,7 +755,7 @@ def _serialize_semester_plugin_activation(
         "id": activation.id if activation is not None else None,
         "semester_id": semester.id,
         "program_plugin_installation_id": installation.id,
-        "plugin_id": installation.plugin_id,
+        "plugin_id": canonical_id,
         "display_name": installation_payload["display_name"],
         "description": installation_payload["description"],
         "long_description": installation_payload["long_description"],
@@ -699,8 +797,8 @@ def _serialize_course_plugin_activation(
     program = course.program or installation.program
     if program is None:
         raise PluginRegistryError("PROGRAM_NOT_FOUND", f"Course '{course.id}' is missing its parent Program.")
-    installation.plugin_id = _canonical_plugin_id(installation.plugin_id)
-    installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=installation.plugin_id)
+    canonical_id = _canonical_plugin_id(installation.plugin_id)
+    installation_payload = _serialize_program_plugin_installation(program, installation, plugin_id=canonical_id)
     runtime_available_default, runtime_reason_code, runtime_reason_message = _resolve_course_plugin_availability(
         course,
         installation,
@@ -713,7 +811,7 @@ def _serialize_course_plugin_activation(
         "id": activation.id if activation is not None else None,
         "course_id": course.id,
         "program_plugin_installation_id": installation.id,
-        "plugin_id": installation.plugin_id,
+        "plugin_id": canonical_id,
         "display_name": installation_payload["display_name"],
         "description": installation_payload["description"],
         "long_description": installation_payload["long_description"],
@@ -790,15 +888,15 @@ def get_program_plugin_installations(db: Session, program_id: str) -> list[dict]
     ]
 
 
+@_with_canonical_plugin_id
 def upsert_program_plugin_installation(db: Session, program_id: str, plugin_id: str, payload: schemas.ProgramPluginInstallationUpsertRequest) -> dict:
-    plugin_id = _canonical_plugin_id(plugin_id)
     program = db.query(models.Program).filter(models.Program.id == program_id).first()
     if program is None:
         raise PluginRegistryError("PROGRAM_NOT_FOUND", "Program not found.")
     _normalize_program_plugin_installations(db, program)
     try:
         definition = plugin_registry.get_plugin_definition(plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     installation = (
         db.query(models.ProgramPluginInstallation)
@@ -874,7 +972,7 @@ def bulk_update_program_plugin_installations(db: Session, program_id: str, paylo
         installation = installations_by_plugin_id[plugin_id]
         try:
             definition = plugin_registry.get_plugin_definition(plugin_id)
-        except Exception as exc:
+        except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
             _wrap_plugin_validation(exc)
         if definition.locked:
             raise PluginRegistryError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
@@ -897,11 +995,11 @@ def bulk_update_program_plugin_installations(db: Session, program_id: str, paylo
     ]
 
 
+@_with_canonical_plugin_id
 def delete_program_plugin_installation(db: Session, program_id: str, plugin_id: str) -> models.ProgramPluginInstallation | None:
-    plugin_id = _canonical_plugin_id(plugin_id)
     try:
         definition = plugin_registry.get_plugin_definition(plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     if definition.locked:
         raise PluginRegistryError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be uninstalled.")
@@ -944,13 +1042,13 @@ def get_semester_plugin_activations(db: Session, semester_id: str) -> list[dict]
     ]
 
 
+@_with_canonical_plugin_id
 def get_plugin_system_setup_definition(plugin_id: str) -> dict:
-    plugin_id = _canonical_plugin_id(plugin_id)
     try:
         plugin_registry.get_plugin_definition(plugin_id)
     except KeyError as exc:
         raise PluginRegistryError("PLUGIN_NOT_FOUND", str(exc)) from exc
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     return {"plugin_id": plugin_id, "sections": plugin_registry.build_plugin_setup_sections(plugin_id)}
 
@@ -988,8 +1086,8 @@ def review_semester_plugin_system(db: Session, semester_id: str) -> dict:
     }
 
 
+@_with_canonical_plugin_id
 def update_semester_plugin_system_setup(db: Session, semester_id: str, plugin_id: str, payload: schemas.PluginSystemSemesterSetupUpdateRequest) -> dict:
-    plugin_id = _canonical_plugin_id(plugin_id)
     semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
     if semester is None:
         raise PluginRegistryError("SEMESTER_NOT_FOUND", "Semester not found.")
@@ -1028,7 +1126,7 @@ def update_semester_plugin_system_setup(db: Session, semester_id: str, plugin_id
             plugin_id,
             candidate_setup_values,
         )
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     normalized_update_values = {
         field_path: validated_setup_values[field_path]
@@ -1060,6 +1158,7 @@ def update_semester_plugin_system_setup(db: Session, semester_id: str, plugin_id
     }
 
 
+@_with_canonical_plugin_id
 def upsert_semester_plugin_activation(db: Session, semester_id: str, plugin_id: str, payload: schemas.SemesterPluginActivationUpsertRequest) -> dict:
     semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
     if semester is None:
@@ -1075,7 +1174,7 @@ def upsert_semester_plugin_activation(db: Session, semester_id: str, plugin_id: 
         raise PluginRegistryError("PLUGIN_NOT_INSTALLED", f"Plugin '{plugin_id}' is not installed for this Program.")
     try:
         definition = plugin_registry.get_plugin_definition(plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     activation = (
         db.query(models.SemesterPluginActivation)
@@ -1157,7 +1256,7 @@ def bulk_update_semester_plugin_activations(db: Session, semester_id: str, paylo
         activation = activations_by_installation_id.get(installation.id)
         try:
             definition = plugin_registry.get_plugin_definition(plugin_id)
-        except Exception as exc:
+        except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
             _wrap_plugin_validation(exc)
         if not payload.is_enabled and definition.locked:
             raise PluginRegistryError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
@@ -1182,11 +1281,11 @@ def bulk_update_semester_plugin_activations(db: Session, semester_id: str, paylo
     return _serialize_semester_draft(semester)
 
 
+@_with_canonical_plugin_id
 def delete_semester_plugin_activation(db: Session, semester_id: str, plugin_id: str) -> models.SemesterPluginActivation | None:
-    plugin_id = _canonical_plugin_id(plugin_id)
     try:
         definition = plugin_registry.get_plugin_definition(plugin_id)
-    except Exception as exc:
+    except (KeyError, RuntimeError, plugin_registry.PluginRegistryValidationError) as exc:
         _wrap_plugin_validation(exc)
     if definition.locked:
         raise PluginRegistryError("PLUGIN_LOCKED", f"Plugin '{plugin_id}' is locked and cannot be disabled.")
@@ -1241,8 +1340,8 @@ def get_course_plugin_activations(db: Session, course_id: str) -> list[dict]:
     ]
 
 
+@_with_canonical_plugin_id
 def upsert_course_plugin_activation(db: Session, course_id: str, plugin_id: str, payload: schemas.CoursePluginActivationUpsertRequest) -> dict:
-    plugin_id = _canonical_plugin_id(plugin_id)
     course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if course is None:
         raise PluginRegistryError("COURSE_NOT_FOUND", "Course not found.")

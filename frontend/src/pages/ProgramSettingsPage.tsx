@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { PluginSettingsSectionRenderer, usePluginSettingsRegistry } from "@/plugin-system";
+import { PluginSettingsSectionsGroup } from "@/plugin-system";
 import { Layout } from "../components/Layout";
 import { Container } from "../components/Container";
 import { BackButton } from "../components/BackButton";
@@ -48,8 +48,6 @@ const ProgramSettingsPageContent: React.FC = () => {
         ...getProgramPluginInstallationsQueryOptions(program?.id ?? "__missing__"),
         enabled: Boolean(program?.id),
     });
-    const allPluginSettingsDefinitions = usePluginSettingsRegistry("program");
-
     const discoveredSubjectCodes = useMemo(() => {
         if (!program) return [];
         return Array.from(new Set(
@@ -70,47 +68,26 @@ const ProgramSettingsPageContent: React.FC = () => {
                 .filter((installation) => installation.installed !== false)
                 .map((installation) => installation.plugin_id),
         );
-        const pluginSettingsDefinitions = allPluginSettingsDefinitions.filter((definition) => installedPluginIds.has(definition.pluginId));
+        const pluginActivations = installations.map((installation) => ({
+            plugin_id: installation.plugin_id,
+            display_name: installation.display_name,
+            description: installation.description,
+        }));
 
-        if (pluginSettingsDefinitions.length === 0) {
+        if (installedPluginIds.size === 0) {
             return null;
         }
 
-        const pluginMetadataById = new Map(
-            installations.map((installation) => [
-                installation.plugin_id,
-                {
-                    displayName: installation.display_name,
-                    description: installation.description,
-                },
-            ]),
-        );
-        const renderedPluginHeaders = new Set<string>();
-        const sections = pluginSettingsDefinitions.map((definition) => {
-            const pluginMetadata = pluginMetadataById.get(definition.pluginId);
-            const showPluginHeader = !renderedPluginHeaders.has(definition.pluginId);
-            renderedPluginHeaders.add(definition.pluginId);
-            return (
-                <React.Fragment key={`${definition.pluginId}:${definition.id}`}>
-                    <PluginSettingsSectionRenderer
-                        pluginId={definition.pluginId}
-                        pluginDisplayName={pluginMetadata?.displayName}
-                        pluginDescription={pluginMetadata?.description}
-                        showPluginHeader={showPluginHeader}
-                        component={definition.component}
-                        programId={program.id}
-                        onRefresh={refreshProgram}
-                    />
-                </React.Fragment>
-            );
-        });
-
         return (
-            <div className="flex flex-col gap-4">
-                {sections}
-            </div>
+            <PluginSettingsSectionsGroup
+                context="program"
+                enabledPluginIds={installedPluginIds}
+                pluginActivations={pluginActivations}
+                programId={program.id}
+                onRefresh={refreshProgram}
+            />
         );
-    }, [allPluginSettingsDefinitions, program?.id, programPluginInstallationsQuery.data, refreshProgram]);
+    }, [program?.id, programPluginInstallationsQuery.data, refreshProgram]);
 
     const handleBack = async () => {
         await settingsFlushRef.current?.();
