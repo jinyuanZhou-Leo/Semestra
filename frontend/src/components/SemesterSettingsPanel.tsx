@@ -88,18 +88,12 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
   const [isConfirmingUnpin, setIsConfirmingUnpin] = useState(false);
   const savedSnapshot = useMemo(
     () => buildSemesterDraft(initialName, initialSettings),
-    [
-      initialName,
-      initialSettings.end_date,
-      initialSettings.reading_week_end,
-      initialSettings.reading_week_start,
-      initialSettings.start_date,
-    ],
+    [initialName, initialSettings],
   );
   const lastLoadedSnapshotRef = useRef(savedSnapshot);
   const validation = useMemo(
     () => getSemesterBasicsValidation(draft),
-    [draft.end_date, draft.reading_week_end, draft.reading_week_start, draft.start_date],
+    [draft],
   );
 
   useEffect(() => {

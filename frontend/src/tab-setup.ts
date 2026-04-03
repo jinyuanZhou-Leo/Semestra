@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 // Compatibility export: tab plugins are loaded on demand.
 export const tabsReady = Promise.resolve();

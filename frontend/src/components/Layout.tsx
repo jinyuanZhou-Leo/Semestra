@@ -1,18 +1,19 @@
-// input:  [auth state/actions including active-Program mutation, app-status notifications, header slot props, page-scoped command groups, theme state/actions, API-backed account/workspace navigation loaders with structured course metadata, global Workspace-switch commands, and children]
+// input:  [auth state/actions including active-Program mutation, app-status notifications, header slot props, page-scoped command groups, theme state/actions, query-cached account/workspace navigation loaders with structured course metadata, global Workspace-switch commands, and children]
 // output: [`Layout` component]
-// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, a navbar Program workspace switcher, a slash-triggered command palette that mixes lazy account navigation with direct workspace actions plus Workspace switching and structured course-row metadata, authenticated header actions, and sign-out handling]
+// pos:    [Shared authenticated page chrome with a stable brand-plus-breadcrumb header cluster, a navbar Program workspace switcher that reuses cached list state across route changes, a slash-triggered command palette that mixes lazy account navigation with direct workspace actions plus Workspace switching and structured course-row metadata, authenticated header actions, and sign-out handling]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStatus } from '../hooks/useAppStatus';
 import api, { type Course, type Program, type Semester } from '../services/api';
 import { Container } from './Container';
 import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +35,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { useTheme } from './ThemeProvider';
 import { Kbd } from '@/components/ui/kbd';
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, resolveCourseColor } from '@/utils/courseCategoryBadge';
+import { useProgramsListQuery } from '@/data/resources/programs';
 import {
     GlobalCommandPalette,
     type LayoutCommandGroup,
@@ -45,6 +47,8 @@ interface LayoutProps {
     breadcrumb?: React.ReactNode;
     commandGroups?: LayoutCommandGroup[];
 }
+
+const EMPTY_PROGRAMS: Program[] = [];
 
 export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGroups = [] }) => {
     const { user, logout, setActiveProgram } = useAuth();
@@ -58,9 +62,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
     const lastToastIdRef = useRef<number | null>(null);
     const [isRetryingSync, setIsRetryingSync] = useState(false);
     const [isCommandOpen, setIsCommandOpen] = useState(false);
-    const [programs, setPrograms] = useState<Program[]>([]);
-    const [isProgramsLoading, setIsProgramsLoading] = useState(false);
     const [isSwitchingProgram, setIsSwitchingProgram] = useState(false);
+    const programsQuery = useProgramsListQuery();
+    const programs = programsQuery.data ?? EMPTY_PROGRAMS;
+    const isProgramsLoading = programsQuery.isLoading;
 
     useEffect(() => {
         if (!status || !isSyncStatus) return;
@@ -85,41 +90,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
             });
         }
     }, [clearStatus, isSyncRetrying, isSyncStatus, status]);
-
-    useEffect(() => {
-        if (!user) {
-            setPrograms([]);
-            setIsProgramsLoading(false);
-            return;
-        }
-
-        let isActive = true;
-        setIsProgramsLoading(true);
-
-        void api.getPrograms()
-            .then((nextPrograms) => {
-                if (!isActive) {
-                    return;
-                }
-                setPrograms(nextPrograms);
-            })
-            .catch((error) => {
-                if (!isActive) {
-                    return;
-                }
-                console.error('Failed to fetch programs for navbar workspace switcher', error);
-            })
-            .finally(() => {
-                if (!isActive) {
-                    return;
-                }
-                setIsProgramsLoading(false);
-            });
-
-        return () => {
-            isActive = false;
-        };
-    }, [location.pathname, user]);
 
     const handleManualSyncRetry = async () => {
         if (isRetryingSync) return;
@@ -147,7 +117,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
         [programs, user?.active_program_id],
     );
 
-    const handleProgramSwitch = async (programId: string) => {
+    useEffect(() => {
+        if (!user || !programsQuery.error) {
+            return;
+        }
+
+        console.error('Failed to fetch programs for navbar workspace switcher', programsQuery.error);
+    }, [programsQuery.error, user]);
+
+    const handleProgramSwitch = useCallback(async (programId: string) => {
         if (!programId || isSwitchingProgram) {
             return;
         }
@@ -162,7 +140,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
         } finally {
             setIsSwitchingProgram(false);
         }
-    };
+    }, [isSwitchingProgram, navigate, setActiveProgram]);
 
     useEffect(() => {
         const body = document.body;
@@ -588,16 +566,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                                         >
                                             <span className="flex min-w-0 items-center gap-2">
                                                 <FolderKanban data-icon="inline-start" />
-                                                <span className="truncate">
-                                                    {activeProgram?.name ?? (isProgramsLoading ? 'Loading programs...' : 'Select Program')}
-                                                </span>
+                                                {isProgramsLoading && !activeProgram ? (
+                                                    <Skeleton className="h-4 w-28 rounded-sm" />
+                                                ) : (
+                                                    <span className="truncate">
+                                                        {activeProgram?.name ?? 'Select Program'}
+                                                    </span>
+                                                )}
                                             </span>
                                             <ChevronDown className="shrink-0 text-muted-foreground" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="start" className="min-w-56">
                                         <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-                                        {programs.length > 0 ? (
+                                        {isProgramsLoading && programs.length === 0 ? (
+                                            <DropdownMenuGroup>
+                                                <div className="flex flex-col gap-2 px-2 py-2">
+                                                    <Skeleton className="h-8 w-full rounded-sm" />
+                                                    <Skeleton className="h-8 w-full rounded-sm" />
+                                                    <Skeleton className="h-8 w-4/5 rounded-sm" />
+                                                </div>
+                                            </DropdownMenuGroup>
+                                        ) : programs.length > 0 ? (
                                             <DropdownMenuGroup>
                                                 <DropdownMenuRadioGroup
                                                     value={user.active_program_id ?? ''}

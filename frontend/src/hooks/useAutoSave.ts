@@ -87,7 +87,7 @@ export const useAutoSave = <T>({
     if (isEqual(latestValueRef.current, savedValue)) {
       failedValueRef.current = null;
     }
-  }, [savedValue]);
+  }, [isEqual, savedValue]);
 
   const clearDebounceTimer = useCallback(() => {
     if (debounceTimerRef.current) {
@@ -210,6 +210,7 @@ export const useAutoSave = <T>({
     debounceMs,
     enabled,
     hasPendingChanges,
+    isEqual,
     isValid,
     maxWaitMs,
     runSave,

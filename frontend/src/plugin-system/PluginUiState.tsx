@@ -227,10 +227,13 @@ export const usePluginUiState = <T,>(
 
     const instance = usePluginRuntimeInstanceContext();
     const initialStateRef = useRef<State | (() => State)>(initialState);
-    initialStateRef.current = initialState;
 
     const storageKey = buildPluginUiStateStorageKey(instance, stateKey);
     const [state, setStateValue] = useState<State>(() => readUiState<State>(storageKey, initialState));
+
+    useEffect(() => {
+        initialStateRef.current = initialState;
+    }, [initialState]);
 
     useEffect(() => {
         setStateValue(readUiState<State>(storageKey, initialStateRef.current));

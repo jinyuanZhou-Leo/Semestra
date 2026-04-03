@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -296,12 +295,14 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
         ...quizzes.map((quiz) => quiz.html_url),
     );
 
-    const pagesEntryId = sectionEntries.find((entry) => entry.section === 'pages')?.id ?? 'pages';
-    const assignmentsEntryId = sectionEntries.find((entry) => entry.section === 'assignments')?.id ?? 'assignments';
-    const quizzesEntryId = sectionEntries.find((entry) => entry.section === 'quizzes')?.id ?? 'quizzes';
-    const hasPagesEntry = sectionEntries.some((entry) => entry.section === 'pages');
-    const hasAssignmentsEntry = sectionEntries.some((entry) => entry.section === 'assignments');
-    const hasQuizzesEntry = sectionEntries.some((entry) => entry.section === 'quizzes');
+    const sectionEntryState = React.useMemo(() => ({
+        pagesEntryId: sectionEntries.find((entry) => entry.section === 'pages')?.id ?? 'pages',
+        assignmentsEntryId: sectionEntries.find((entry) => entry.section === 'assignments')?.id ?? 'assignments',
+        quizzesEntryId: sectionEntries.find((entry) => entry.section === 'quizzes')?.id ?? 'quizzes',
+        hasPagesEntry: sectionEntries.some((entry) => entry.section === 'pages'),
+        hasAssignmentsEntry: sectionEntries.some((entry) => entry.section === 'assignments'),
+        hasQuizzesEntry: sectionEntries.some((entry) => entry.section === 'quizzes'),
+    }), [sectionEntries]);
     const homeEntryLabel = sectionEntries.find((entry) => entry.section === 'home')?.label ?? 'Home';
     const homeEntryUrl = sectionEntries.find((entry) => entry.section === 'home')?.htmlUrl ?? null;
 
@@ -322,10 +323,10 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
     }, [homeLandingTarget, navigationEntries, updateNavigationState]);
 
     const handleOpenPage = React.useCallback((pageRef: string) => {
-        if (hasPagesEntry) {
+        if (sectionEntryState.hasPagesEntry) {
             updateNavigationState({
                 pagesSelectedPageRef: pageRef,
-                activeEntryId: pagesEntryId,
+                activeEntryId: sectionEntryState.pagesEntryId,
             });
             return;
         }
@@ -333,21 +334,21 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
             homePageRef: pageRef,
             activeEntryId: 'home',
         });
-    }, [hasPagesEntry, pagesEntryId, updateNavigationState]);
+    }, [sectionEntryState, updateNavigationState]);
 
     const handleOpenAssignments = React.useCallback(() => {
-        if (!hasAssignmentsEntry) {
+        if (!sectionEntryState.hasAssignmentsEntry) {
             return;
         }
-        updateNavigationState({ activeEntryId: assignmentsEntryId });
-    }, [assignmentsEntryId, hasAssignmentsEntry, updateNavigationState]);
+        updateNavigationState({ activeEntryId: sectionEntryState.assignmentsEntryId });
+    }, [sectionEntryState, updateNavigationState]);
 
     const handleOpenQuizzes = React.useCallback(() => {
-        if (!hasQuizzesEntry) {
+        if (!sectionEntryState.hasQuizzesEntry) {
             return;
         }
-        updateNavigationState({ activeEntryId: quizzesEntryId });
-    }, [hasQuizzesEntry, quizzesEntryId, updateNavigationState]);
+        updateNavigationState({ activeEntryId: sectionEntryState.quizzesEntryId });
+    }, [sectionEntryState, updateNavigationState]);
 
     const handleOpenGradebook = React.useCallback(() => {
         void jumpToTab({
@@ -604,8 +605,8 @@ export const CanvasPagesTab: React.FC<TabProps> = ({ courseId }) => {
                     items={modulesQuery.data?.items ?? EMPTY_MODULE_ITEMS}
                     courseExternalId={courseExternalId}
                     canvasOrigin={canvasOrigin}
-                    onOpenAssignments={hasAssignmentsEntry ? handleOpenAssignments : undefined}
-                    onOpenQuizzes={hasQuizzesEntry ? handleOpenQuizzes : undefined}
+                    onOpenAssignments={sectionEntryState.hasAssignmentsEntry ? handleOpenAssignments : undefined}
+                    onOpenQuizzes={sectionEntryState.hasQuizzesEntry ? handleOpenQuizzes : undefined}
                 />
             );
         }

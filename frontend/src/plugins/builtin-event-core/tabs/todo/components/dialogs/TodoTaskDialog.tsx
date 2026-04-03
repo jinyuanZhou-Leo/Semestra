@@ -5,7 +5,6 @@
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
-"use no memo";
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
@@ -64,14 +63,14 @@ export const TodoTaskDialog: React.FC<TodoTaskDialogProps> = ({
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden select-none sm:max-w-lg">
-        <DialogHeader className="shrink-0 border-b pb-4">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 select-none sm:max-w-lg">
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>{editingTaskId ? 'Edit Task' : 'Create Task'}</DialogTitle>
           <DialogDescription>Set task details, schedule, and priority.</DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="grid gap-4 pr-4">
+          <div className="grid gap-4 px-6 py-5">
             <div className="grid gap-2">
               <Label htmlFor="todo-task-title">Title</Label>
               <Input
@@ -184,7 +183,7 @@ export const TodoTaskDialog: React.FC<TodoTaskDialogProps> = ({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="shrink-0 border-t pt-4">
+        <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-xl border-t bg-background px-6 pt-4 pb-6">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

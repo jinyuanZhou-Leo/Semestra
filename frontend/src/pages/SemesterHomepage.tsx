@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -56,7 +55,6 @@ import {
     PluginHostProvider,
     PluginRuntimeInstanceProvider,
     PluginSettingsSectionsGroup,
-    usePluginLoadStateVersion,
     useTabPluginLoadState,
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
@@ -134,7 +132,7 @@ const SemesterHomepageContent: React.FC = () => {
             'semester',
             semester.id,
         );
-    }, [parentProgramQuery.data, semester?.id]);
+    }, [parentProgramQuery.data, semester]);
 
     const runtimeTabs = useMemo(
         () => resolveRuntimeTabs(semester?.runtime, `semester:${semester?.id ?? 'unknown'}`),
@@ -213,7 +211,6 @@ const SemesterHomepageContent: React.FC = () => {
     }, [activeTabType]);
     const activeTabLoadState = useTabPluginLoadState(activeTabType);
     const isSettingsTabActive = activeTabType === HOMEPAGE_SETTINGS_TAB_TYPE;
-    const pluginLoadStateVersion = usePluginLoadStateVersion();
     useVisibleTabSettingsPreload({
         tabs: visibleTabs,
         enabled: isSettingsTabActive,
@@ -280,7 +277,7 @@ const SemesterHomepageContent: React.FC = () => {
                 items: semesterCourseItems,
             },
         ];
-    }, [openAddWidgetModal, semester?.id, semesterCourseItems, visibleTabs]);
+    }, [openAddWidgetModal, semester, semesterCourseItems, visibleTabs]);
 
     useEffect(() => {
         if (visibleTabs.length === 0) {
@@ -484,7 +481,7 @@ const SemesterHomepageContent: React.FC = () => {
             await invalidateProgramDetailQuery(queryClient, programId);
             await queryClient.refetchQueries({ queryKey: programKeys.detail(programId), type: 'active' });
         }
-    }, [parentProgramQuery.data, queryClient, semester?.id, semester?.program_id]);
+    }, [parentProgramQuery.data, queryClient, semester]);
 
     const tabInstanceSettingsSections = useMemo(() => {
         const sections = visibleTabs
@@ -561,7 +558,6 @@ const SemesterHomepageContent: React.FC = () => {
         semester?.id,
         handleUpdateTabSettings,
         isSettingsTabActive,
-        pluginLoadStateVersion
     ]);
 
     const pluginSettingsSections = useMemo(() => {
@@ -592,7 +588,7 @@ const SemesterHomepageContent: React.FC = () => {
                 onRefresh={refreshSemester}
             />
         );
-    }, [refreshSemester, semester?.id, semester?.program_id]);
+    }, [refreshSemester, semester]);
 
     const hasPluginSettings = Boolean(semesterCourseManagementSection || pluginSettingsSections || tabInstanceSettingsSections);
 
@@ -649,7 +645,6 @@ const SemesterHomepageContent: React.FC = () => {
         }
     }), [
         isLoading,
-        widgets,
         visibleWidgets,
         handleRemoveWidget,
         handleRemoveUnavailableWidget,
@@ -666,7 +661,8 @@ const SemesterHomepageContent: React.FC = () => {
         semesterCourseManagementSection,
         pluginSettingsSections,
         tabInstanceSettingsSections,
-        openAddWidgetModal
+        openAddWidgetModal,
+        refreshSemester
     ]);
 
     return (

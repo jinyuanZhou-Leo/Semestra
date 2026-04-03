@@ -5,7 +5,6 @@
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
-"use no memo";
 
 import React from 'react';
 import { toast } from 'sonner';
@@ -635,7 +634,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     handleToggleTaskCompleted,
     mode,
     openTaskDialogForEdit,
+    runMutation,
     selectedTaskId,
+    semesterId,
   ]);
 
   if (mode === 'unsupported') {

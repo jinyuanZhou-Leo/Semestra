@@ -240,7 +240,7 @@ export const ProgramsPage: React.FC = () => {
     const queryClient = useQueryClient();
 
     const programsQuery = useProgramsListQuery();
-    const programs = programsQuery.data ?? [];
+    const programs = useMemo(() => programsQuery.data ?? [], [programsQuery.data]);
     const programDetailsQueries = useProgramDetailQueries(programs.map((program) => program.id));
     const isProgramCreditsLoading = programDetailsQueries.some((query) => !query.data && !query.error);
     const isLoading = programsQuery.isLoading || isProgramCreditsLoading;

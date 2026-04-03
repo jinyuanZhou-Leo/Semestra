@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -486,13 +485,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
       reading_week_start: draft.reading_week_start ?? "",
       reading_week_end: draft.reading_week_end ?? "",
     };
-  }, [
-    currentDraftQuery.data?.end_date,
-    currentDraftQuery.data?.name,
-    currentDraftQuery.data?.reading_week_end,
-    currentDraftQuery.data?.reading_week_start,
-    currentDraftQuery.data?.start_date,
-  ]);
+  }, [currentDraftQuery.data]);
   const isBasicsDirty = !areBasicsEqual(basics, savedBasics);
   const isPluginSetupDirty = !arePluginSetupDraftsEqual(pluginSetupDrafts, savedPluginSetupDrafts);
   const setupStepPlugins = useMemo(

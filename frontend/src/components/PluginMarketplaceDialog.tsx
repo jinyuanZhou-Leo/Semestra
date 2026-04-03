@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import React, { useDeferredValue, useMemo, useState } from "react";
 import { ArrowDownToLine, ArrowLeft, Search } from "lucide-react";
@@ -54,6 +53,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
   open,
   onOpenChange,
   title,
+  description,
   searchPlaceholder,
   emptyLabel,
   noResultsLabel,
@@ -98,6 +98,7 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
       open={open}
       onOpenChange={handleOpenChange}
       title={selectedItem ? "Plugin Information" : title}
+      description={selectedItem ? undefined : description}
       desktopContentClassName="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-3xl h-[640px] flex flex-col"
       mobileContentClassName="gap-0 overflow-hidden border-border/70 p-0 h-[85vh] max-h-[85vh] flex flex-col"
       desktopHeaderClassName="border-b border-border/70 px-6 pt-6 pb-4 flex-none"

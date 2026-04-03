@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -41,12 +40,7 @@ export const useSemesterCalendarContext = (semesterId?: string) => {
         semesterQuery.data.reading_week_end,
       )
       : FALLBACK_RANGE
-  ), [
-    semesterQuery.data?.end_date,
-    semesterQuery.data?.reading_week_end,
-    semesterQuery.data?.reading_week_start,
-    semesterQuery.data?.start_date,
-  ]);
+  ), [semesterQuery.data]);
   const maxWeek = useMemo(() => (
     semesterQuery.data ? getMaxWeekFromRange(semesterRange) : FALLBACK_MAX_WEEK
   ), [semesterQuery.data, semesterRange]);

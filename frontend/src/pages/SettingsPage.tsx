@@ -170,11 +170,11 @@ export const SettingsPage: React.FC = () => {
         }
 
         let cancelled = false;
+        const buttonContainer = googleLinkRef.current;
         setIsGoogleLinkReady(false);
         setGoogleLinkError('');
 
         const initGoogle = async () => {
-            const buttonContainer = googleLinkRef.current;
             if (cancelled || !buttonContainer) {
                 return;
             }
@@ -227,8 +227,8 @@ export const SettingsPage: React.FC = () => {
 
         return () => {
             cancelled = true;
-            if (googleLinkRef.current) {
-                googleLinkRef.current.innerHTML = '';
+            if (buttonContainer) {
+                buttonContainer.innerHTML = '';
             }
         };
     }, [googleClientId, refreshUser, themeMode, user]);

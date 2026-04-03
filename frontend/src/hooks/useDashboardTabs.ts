@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -490,9 +489,10 @@ export const useDashboardTabs = ({
     }, [flushTabOrder]);
 
     useEffect(() => {
+        const settingsTimers = settingsTimersRef.current;
         return () => {
-            settingsTimersRef.current.forEach((timer) => clearTimeout(timer));
-            settingsTimersRef.current.clear();
+            settingsTimers.forEach((timer) => clearTimeout(timer));
+            settingsTimers.clear();
             if (orderTimerRef.current) {
                 clearTimeout(orderTimerRef.current);
             }

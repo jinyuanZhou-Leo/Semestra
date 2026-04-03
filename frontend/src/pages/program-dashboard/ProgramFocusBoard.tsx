@@ -583,108 +583,108 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
     return nextMap;
   }, [activeLayout]);
 
-  const updateActiveLayout = (nextActiveLayout: readonly FocusBoardLayoutItem[]) => {
-    const sanitized = sanitizeInteractiveStripLayout(nextActiveLayout, visibleEntities, activeDevice);
-    setInteractiveLayouts((current) => ({
-      lg: activeLayoutKey === 'lg' ? [...sanitized] : (current?.lg ?? layouts.lg),
-      sm: activeLayoutKey === 'sm' ? [...sanitized] : (current?.sm ?? layouts.sm),
-    }));
-    return sanitized;
-  };
-
-  const commitActiveLayout = async (nextActiveLayout: readonly FocusBoardLayoutItem[]) => {
-    const normalized = updateActiveLayout(nextActiveLayout);
-    const nextSettings = applyStripLayoutToSettings({
-      ...settings,
-      sort_mode: 'manual',
-    }, normalized, activeDevice);
-    await onCommit(nextSettings);
-  };
-
-  const resolvePreviewFromPointer = (clientX: number, clientY: number) => {
-    const dragState = dragStateRef.current;
-    const viewport = viewportRef.current;
-    if (!dragState || !viewport) {
-      return null;
-    }
-
-    const rect = viewport.getBoundingClientRect();
-    const pointerLeft = clientX - rect.left + viewport.scrollLeft;
-    const pointerTop = clientY - rect.top;
-    const candidateLeft = pointerLeft - dragState.grabOffsetX;
-    const candidateTop = pointerTop - dragState.grabOffsetY;
-    const draggedLayout = activeLayoutMap.get(dragState.id);
-    if (!draggedLayout) {
-      return null;
-    }
-
-    const targetX = Math.max(0, Math.round(candidateLeft / unitX));
-    const targetY = draggedLayout.h >= FOCUS_BOARD_ROWS
-      ? 0
-      : Math.max(0, Math.min(FOCUS_BOARD_ROWS - draggedLayout.h, Math.round(candidateTop / unitY)));
-
-    return solveFocusBoardDragLayout(
-      activeLayout,
-      dragState.id,
-      { x: targetX, y: targetY },
-      visibleEntities,
-      dragState.device,
-    );
-  };
-
-  const stopAutoScroll = () => {
-    autoScrollVelocityRef.current = 0;
-    if (rafHandleRef.current !== null) {
-      window.cancelAnimationFrame(rafHandleRef.current);
-      rafHandleRef.current = null;
-    }
-  };
-
-  const runAutoScroll = () => {
-    const viewport = viewportRef.current;
-    const pointer = latestPointerRef.current;
-    if (!viewport || !pointer || autoScrollVelocityRef.current === 0 || !dragStateRef.current) {
-      rafHandleRef.current = null;
-      return;
-    }
-
-    viewport.scrollLeft = Math.max(0, viewport.scrollLeft + autoScrollVelocityRef.current);
-    const preview = resolvePreviewFromPointer(pointer.clientX, pointer.clientY);
-    if (preview) {
-      updateActiveLayout(preview);
-    }
-    rafHandleRef.current = window.requestAnimationFrame(runAutoScroll);
-  };
-
-  const updateAutoScrollVelocity = (clientX: number) => {
-    const viewport = viewportRef.current;
-    if (!viewport) {
-      return;
-    }
-    const rect = viewport.getBoundingClientRect();
-    const offsetLeft = clientX - rect.left;
-    const offsetRight = rect.right - clientX;
-
-    let velocity = 0;
-    if (offsetLeft < AUTO_SCROLL_EDGE_PX) {
-      velocity = -Math.ceil(((AUTO_SCROLL_EDGE_PX - offsetLeft) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_STEP);
-    } else if (offsetRight < AUTO_SCROLL_EDGE_PX) {
-      velocity = Math.ceil(((AUTO_SCROLL_EDGE_PX - offsetRight) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_STEP);
-    }
-
-    autoScrollVelocityRef.current = velocity;
-    if (velocity !== 0 && rafHandleRef.current === null) {
-      rafHandleRef.current = window.requestAnimationFrame(runAutoScroll);
-    }
-    if (velocity === 0) {
-      stopAutoScroll();
-    }
-  };
-
   useEffect(() => {
     if (!draggingId) {
       return;
     }
+
+    const stopAutoScroll = () => {
+      autoScrollVelocityRef.current = 0;
+      if (rafHandleRef.current !== null) {
+        window.cancelAnimationFrame(rafHandleRef.current);
+        rafHandleRef.current = null;
+      }
+    };
+
+    const updateActiveLayout = (nextActiveLayout: readonly FocusBoardLayoutItem[]) => {
+      const sanitized = sanitizeInteractiveStripLayout(nextActiveLayout, visibleEntities, activeDevice);
+      setInteractiveLayouts((current) => ({
+        lg: activeLayoutKey === 'lg' ? [...sanitized] : (current?.lg ?? layouts.lg),
+        sm: activeLayoutKey === 'sm' ? [...sanitized] : (current?.sm ?? layouts.sm),
+      }));
+      return sanitized;
+    };
+
+    const commitActiveLayout = async (nextActiveLayout: readonly FocusBoardLayoutItem[]) => {
+      const normalized = updateActiveLayout(nextActiveLayout);
+      const nextSettings = applyStripLayoutToSettings({
+        ...settings,
+        sort_mode: 'manual',
+      }, normalized, activeDevice);
+      await onCommit(nextSettings);
+    };
+
+    const resolvePreviewFromPointer = (clientX: number, clientY: number) => {
+      const dragState = dragStateRef.current;
+      const viewport = viewportRef.current;
+      if (!dragState || !viewport) {
+        return null;
+      }
+
+      const rect = viewport.getBoundingClientRect();
+      const pointerLeft = clientX - rect.left + viewport.scrollLeft;
+      const pointerTop = clientY - rect.top;
+      const candidateLeft = pointerLeft - dragState.grabOffsetX;
+      const candidateTop = pointerTop - dragState.grabOffsetY;
+      const draggedLayout = activeLayoutMap.get(dragState.id);
+      if (!draggedLayout) {
+        return null;
+      }
+
+      const targetX = Math.max(0, Math.round(candidateLeft / unitX));
+      const targetY = draggedLayout.h >= FOCUS_BOARD_ROWS
+        ? 0
+        : Math.max(0, Math.min(FOCUS_BOARD_ROWS - draggedLayout.h, Math.round(candidateTop / unitY)));
+
+      return solveFocusBoardDragLayout(
+        activeLayout,
+        dragState.id,
+        { x: targetX, y: targetY },
+        visibleEntities,
+        dragState.device,
+      );
+    };
+
+    const runAutoScroll = () => {
+      const viewport = viewportRef.current;
+      const pointer = latestPointerRef.current;
+      if (!viewport || !pointer || autoScrollVelocityRef.current === 0 || !dragStateRef.current) {
+        rafHandleRef.current = null;
+        return;
+      }
+
+      viewport.scrollLeft = Math.max(0, viewport.scrollLeft + autoScrollVelocityRef.current);
+      const preview = resolvePreviewFromPointer(pointer.clientX, pointer.clientY);
+      if (preview) {
+        updateActiveLayout(preview);
+      }
+      rafHandleRef.current = window.requestAnimationFrame(runAutoScroll);
+    };
+
+    const updateAutoScrollVelocity = (clientX: number) => {
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return;
+      }
+      const rect = viewport.getBoundingClientRect();
+      const offsetLeft = clientX - rect.left;
+      const offsetRight = rect.right - clientX;
+
+      let velocity = 0;
+      if (offsetLeft < AUTO_SCROLL_EDGE_PX) {
+        velocity = -Math.ceil(((AUTO_SCROLL_EDGE_PX - offsetLeft) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_STEP);
+      } else if (offsetRight < AUTO_SCROLL_EDGE_PX) {
+        velocity = Math.ceil(((AUTO_SCROLL_EDGE_PX - offsetRight) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_STEP);
+      }
+
+      autoScrollVelocityRef.current = velocity;
+      if (velocity !== 0 && rafHandleRef.current === null) {
+        rafHandleRef.current = window.requestAnimationFrame(runAutoScroll);
+      }
+      if (velocity === 0) {
+        stopAutoScroll();
+      }
+    };
 
     const handlePointerMove = (event: PointerEvent) => {
       latestPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
@@ -723,7 +723,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
       window.removeEventListener('pointercancel', cancelDrag);
       stopAutoScroll();
     };
-  }, [activeDevice, activeLayout, activeLayoutMap, draggingId, layouts.lg, layouts.sm, settings, unitX, unitY, visibleEntities]);
+  }, [activeDevice, activeLayout, activeLayoutKey, activeLayoutMap, draggingId, layouts.lg, layouts.sm, onCommit, settings, unitX, unitY, visibleEntities]);
 
   const handleAddCandidate = (entityType: ProgramHomeEntityType, entityId: string) => {
     void onCommit(upsertProgramHomeItem(settings, entityType, entityId, 'medium'));

@@ -102,21 +102,21 @@ interface PluginSetupFieldBase<TType extends PluginSetupFieldType, TValue> {
     validate?: PluginSetupFieldValidator;
 }
 
-export interface PluginSetupTextFieldDefinition extends PluginSetupFieldBase<"text", string> {}
+export type PluginSetupTextFieldDefinition = PluginSetupFieldBase<"text", string>;
 
-export interface PluginSetupTextareaFieldDefinition extends PluginSetupFieldBase<"textarea", string> {}
+export type PluginSetupTextareaFieldDefinition = PluginSetupFieldBase<"textarea", string>;
 
-export interface PluginSetupNumberFieldDefinition extends PluginSetupFieldBase<"number", number> {}
+export type PluginSetupNumberFieldDefinition = PluginSetupFieldBase<"number", number>;
 
-export interface PluginSetupBooleanFieldDefinition extends PluginSetupFieldBase<"boolean", boolean> {}
+export type PluginSetupBooleanFieldDefinition = PluginSetupFieldBase<"boolean", boolean>;
 
 export interface PluginSetupSelectFieldDefinition extends PluginSetupFieldBase<"select", string> {
     options: Array<{ label: string; value: string }>;
 }
 
-export interface PluginSetupDateFieldDefinition extends PluginSetupFieldBase<"date", string> {}
+export type PluginSetupDateFieldDefinition = PluginSetupFieldBase<"date", string>;
 
-export interface PluginSetupJsonFieldDefinition extends PluginSetupFieldBase<"json", unknown> {}
+export type PluginSetupJsonFieldDefinition = PluginSetupFieldBase<"json", unknown>;
 
 export type PluginSetupFieldDefinition =
     | PluginSetupTextFieldDefinition
@@ -145,21 +145,21 @@ interface PluginSetupDeclarativeFieldPropsBase<TType extends PluginSetupFieldTyp
     path: string;
 }
 
-export interface PluginSetupTextFieldProps extends PluginSetupDeclarativeFieldPropsBase<"text", string> {}
+export type PluginSetupTextFieldProps = PluginSetupDeclarativeFieldPropsBase<"text", string>;
 
-export interface PluginSetupTextareaFieldProps extends PluginSetupDeclarativeFieldPropsBase<"textarea", string> {}
+export type PluginSetupTextareaFieldProps = PluginSetupDeclarativeFieldPropsBase<"textarea", string>;
 
-export interface PluginSetupNumberFieldProps extends PluginSetupDeclarativeFieldPropsBase<"number", number> {}
+export type PluginSetupNumberFieldProps = PluginSetupDeclarativeFieldPropsBase<"number", number>;
 
-export interface PluginSetupBooleanFieldProps extends PluginSetupDeclarativeFieldPropsBase<"boolean", boolean> {}
+export type PluginSetupBooleanFieldProps = PluginSetupDeclarativeFieldPropsBase<"boolean", boolean>;
 
 export interface PluginSetupSelectFieldProps extends PluginSetupDeclarativeFieldPropsBase<"select", string> {
     options: Array<{ label: string; value: string }>;
 }
 
-export interface PluginSetupDateFieldProps extends PluginSetupDeclarativeFieldPropsBase<"date", string> {}
+export type PluginSetupDateFieldProps = PluginSetupDeclarativeFieldPropsBase<"date", string>;
 
-export interface PluginSetupJsonFieldProps extends PluginSetupDeclarativeFieldPropsBase<"json", unknown> {}
+export type PluginSetupJsonFieldProps = PluginSetupDeclarativeFieldPropsBase<"json", unknown>;
 
 export interface PluginSetupUiDefinition {
     setupComponent?: ComponentType<PluginSetupWizardRenderProps>;
@@ -187,7 +187,10 @@ export type InferPluginSetupValues<TDefinition extends PluginSetupDefinition> = 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
 const createDeclarativeComponent = <TProps,>(displayName: string) => {
-    const Component = (_props: TProps) => null;
+    const Component = (_props: TProps) => {
+        void _props;
+        return null;
+    };
     Component.displayName = displayName;
     return Component;
 };

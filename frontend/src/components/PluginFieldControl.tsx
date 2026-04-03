@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import React, { useEffect, useId, useState } from "react";
 import { format, parseISO } from "date-fns";

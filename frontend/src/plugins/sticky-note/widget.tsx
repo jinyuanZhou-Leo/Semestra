@@ -1,4 +1,3 @@
-"use no memo";
 
 import React, { useCallback, useId } from 'react';
 import type { WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';

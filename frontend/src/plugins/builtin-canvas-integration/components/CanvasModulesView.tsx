@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -131,7 +130,7 @@ const CanvasModuleItemRow = React.memo(function CanvasModuleItemRow({
             externalUrl: resolvedExternalUrl,
             isExternalItem: isModuleItemExternal(item),
         };
-    }, [canvasOrigin, item.content_details, item.external_url, item.html_url, item.item_type, item.target_type, item.url]);
+    }, [canvasOrigin, item]);
 
     return (
         <button

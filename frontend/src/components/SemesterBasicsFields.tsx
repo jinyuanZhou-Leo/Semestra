@@ -114,7 +114,7 @@ export const SemesterBasicsFields: React.FC<SemesterBasicsFieldsProps> = ({
   const readingWeekEnd = useMemo(() => parseDateOrUndefined(value.reading_week_end), [value.reading_week_end]);
   const validation = useMemo(
     () => getSemesterBasicsValidation(value),
-    [value.end_date, value.reading_week_end, value.reading_week_start, value.start_date],
+    [value],
   );
 
   const dateRangeLabel = startDate

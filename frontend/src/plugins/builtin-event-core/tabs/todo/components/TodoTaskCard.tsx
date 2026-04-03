@@ -5,7 +5,6 @@
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
-"use no memo";
 
 import React from 'react';
 import { addDays, format, isSameDay } from 'date-fns';
@@ -52,6 +51,17 @@ const isInteractiveTarget = (target: EventTarget | null) => {
     && Boolean(target.closest('button,input,textarea,[role="button"],[data-slot="select-trigger"],[data-slot="popover-trigger"],[data-no-swipe="true"]'));
 };
 
+const DEFAULT_DUE_TIME = '23:59';
+
+const getDueTimestamp = (task: TodoTask) => {
+  if (!task.dueDate) {
+    return null;
+  }
+
+  const dueTimestamp = new Date(`${task.dueDate}T${task.dueTime || DEFAULT_DUE_TIME}:00`).getTime();
+  return Number.isNaN(dueTimestamp) ? null : dueTimestamp;
+};
+
 export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
   mode,
   task,
@@ -80,8 +90,11 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
   const [titleDraft, setTitleDraft] = React.useState(task.title);
   const [noteDraft, setNoteDraft] = React.useState(task.note);
   const [swipeOffset, setSwipeOffset] = React.useState(0);
+  const [clockMs, setClockMs] = React.useState(() => Date.now());
   const pointerStateRef = React.useRef<{ pointerId: number; startX: number; startY: number; swiping: boolean } | null>(null);
-  const isOverdue = !task.completed && Boolean(task.dueDate) && new Date(`${task.dueDate}T${task.dueTime || '23:59'}:00`).getTime() < Date.now();
+  const dueTimestamp = React.useMemo(() => getDueTimestamp(task), [task]);
+  const currentDate = React.useMemo(() => new Date(clockMs), [clockMs]);
+  const isOverdue = !task.completed && dueTimestamp !== null && dueTimestamp < clockMs;
   const isExpanded = editorOpen;
   const rowMode: TodoRowMode = isExpanded ? 'editing' : 'view';
   const compactDescription = task.note.trim();
@@ -92,9 +105,8 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
 
     if (task.dueDate) {
       const parsedDate = new Date(`${task.dueDate}T12:00:00`);
-      const today = new Date();
-      const tomorrow = addDays(today, 1);
-      const dateLabel = isSameDay(parsedDate, today)
+      const tomorrow = addDays(currentDate, 1);
+      const dateLabel = isSameDay(parsedDate, currentDate)
         ? 'Today'
         : isSameDay(parsedDate, tomorrow)
           ? 'Tomorrow'
@@ -127,7 +139,29 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
     }
 
     return parts;
-  }, [courseOptions, distinctCourseIds, isOverdue, showCourseTag, task.courseCategory, task.courseId, task.courseName, task.dueDate, task.dueTime, task.priority]);
+  }, [courseOptions, currentDate, distinctCourseIds, isOverdue, showCourseTag, task.completed, task.courseCategory, task.courseId, task.courseName, task.dueDate, task.dueTime, task.priority]);
+
+  React.useEffect(() => {
+    setClockMs(Date.now());
+
+    const nextRefreshTargets: number[] = [];
+    const nextMidnight = new Date(clockMs);
+    nextMidnight.setHours(24, 0, 0, 0);
+    nextRefreshTargets.push(nextMidnight.getTime());
+
+    if (!task.completed && dueTimestamp !== null && dueTimestamp > clockMs) {
+      nextRefreshTargets.push(dueTimestamp);
+    }
+
+    const nextRefreshAt = Math.min(...nextRefreshTargets);
+    const timer = globalThis.setTimeout(() => {
+      setClockMs(Date.now());
+    }, Math.max(1, nextRefreshAt - clockMs));
+
+    return () => {
+      globalThis.clearTimeout(timer);
+    };
+  }, [clockMs, dueTimestamp, task.completed]);
 
   React.useEffect(() => {
     if (!editingTitle) {
@@ -154,7 +188,7 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
     }
     if (nextTitle === task.title) return;
     onPatchTask(task.id, { title: nextTitle });
-  }, [onPatchTask, onRequestDelete, task, task.id, task.title, titleDraft]);
+  }, [onPatchTask, onRequestDelete, task, titleDraft]);
 
   const commitNote = React.useCallback(() => {
     if (noteDraft === task.note) return;

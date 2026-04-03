@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import React, { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -87,7 +86,7 @@ const ProgramSettingsPageContent: React.FC = () => {
                 onRefresh={refreshProgram}
             />
         );
-    }, [program?.id, programPluginInstallationsQuery.data, refreshProgram]);
+    }, [program, programPluginInstallationsQuery.data, refreshProgram]);
 
     const handleBack = async () => {
         await settingsFlushRef.current?.();

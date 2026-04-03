@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -66,7 +65,6 @@ import {
     PluginHostProvider,
     PluginRuntimeInstanceProvider,
     PluginSettingsSectionsGroup,
-    usePluginLoadStateVersion,
     useTabPluginLoadState,
 } from '../plugin-system';
 import { useHomepageBuiltinTabs } from '../hooks/useHomepageBuiltinTabs';
@@ -164,7 +162,7 @@ const CourseHomepageContent: React.FC = () => {
             'course',
             course.id,
         );
-    }, [course?.id, parentProgramQuery.data]);
+    }, [course, parentProgramQuery.data]);
 
     const parentSemesterQuery = useQuery({
         ...getSemesterDetailQueryOptions(course?.semester_id ?? 'unknown'),
@@ -191,7 +189,7 @@ const CourseHomepageContent: React.FC = () => {
     const currentCourseIndex = useMemo(() => {
         if (!course?.id) return -1;
         return siblingCourses.findIndex((siblingCourse) => siblingCourse.id === course.id);
-    }, [course?.id, siblingCourses]);
+    }, [course, siblingCourses]);
     const programSubjectColorMap = useMemo(
         () => parseSubjectColorMap(programSubjectColorMapJson),
         [programSubjectColorMapJson],
@@ -311,7 +309,6 @@ const CourseHomepageContent: React.FC = () => {
         : null;
     const activeTabLoadState = useTabPluginLoadState(activeTabType);
     const isSettingsTabActive = activeTabType === HOMEPAGE_SETTINGS_TAB_TYPE;
-    const pluginLoadStateVersion = usePluginLoadStateVersion();
     useVisibleTabSettingsPreload({
         tabs: visibleTabs,
         enabled: isSettingsTabActive,
@@ -479,7 +476,7 @@ const CourseHomepageContent: React.FC = () => {
                     void navigateToSiblingCourse(siblingCourse.id, direction);
                 },
             }));
-    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses]);
+    }, [course, currentCourseIndex, navigateToSiblingCourse, siblingCourses]);
     const layoutCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
         if (!course?.id) {
             return [];
@@ -525,7 +522,7 @@ const CourseHomepageContent: React.FC = () => {
                 items: siblingCourseItems,
             },
         ];
-    }, [course?.id, openAddWidgetModal, siblingCourseItems, visibleTabs]);
+    }, [course, openAddWidgetModal, siblingCourseItems, visibleTabs]);
 
     useEffect(() => {
         if (visibleTabs.length === 0) {
@@ -617,9 +614,9 @@ const CourseHomepageContent: React.FC = () => {
     }, [
         visibleTabs,
         course?.id,
+        course?.semester_id,
         handleUpdateTabSettings,
         isSettingsTabActive,
-        pluginLoadStateVersion
     ]);
 
     const pluginSettingsSections = useMemo(() => {
@@ -637,7 +634,7 @@ const CourseHomepageContent: React.FC = () => {
                 onRefresh={refreshCourse}
             />
         );
-    }, [course?.id, course?.plugin_activations, enabledPluginIds, parentSemesterQuery.data?.plugin_activations, refreshCourse]);
+    }, [course, enabledPluginIds, parentSemesterQuery.data, refreshCourse]);
 
     const coursePluginGovernanceSection = useMemo(() => {
         if (!course?.id || course.semester_id) {
@@ -650,7 +647,7 @@ const CourseHomepageContent: React.FC = () => {
                 onChanged={refreshCourse}
             />
         );
-    }, [course?.id, course?.plugin_activations, course?.semester_id, refreshCourse]);
+    }, [course, refreshCourse]);
 
     const hasPluginSettings = Boolean(coursePluginGovernanceSection || pluginSettingsSections || tabInstanceSettingsSections);
 
@@ -700,7 +697,7 @@ const CourseHomepageContent: React.FC = () => {
             await invalidateProgramDetailQuery(queryClient, programId);
             await queryClient.refetchQueries({ queryKey: programKeys.detail(programId), type: 'active' });
         }
-    }, [course?.id, course?.program_id, parentProgramQuery.data, queryClient]);
+    }, [course, parentProgramQuery.data, queryClient]);
 
     useEffect(() => {
         if (!course?.id) {
@@ -764,7 +761,7 @@ const CourseHomepageContent: React.FC = () => {
             courseId: course.id,
             semesterId: course.semester_id,
         });
-    }, [course?.id, course?.program_id, course?.semester_id, queryClient, refreshCourse]);
+    }, [course, queryClient, refreshCourse]);
 
     const handleLinkCourse = useCallback(async (data: { external_course_id: string; sync_enabled: boolean }) => {
         if (!course) return;
@@ -848,7 +845,6 @@ const CourseHomepageContent: React.FC = () => {
         }
     }), [
         isLoading,
-        widgets,
         visibleWidgets,
         handleRemoveWidget,
         handleRemoveUnavailableWidget,
@@ -879,7 +875,7 @@ const CourseHomepageContent: React.FC = () => {
         coursePluginGovernanceSection,
         pluginSettingsSections,
         tabInstanceSettingsSections,
-        openAddWidgetModal
+        openAddWidgetModal,
     ]);
 
     if (!isLoading && !course) {

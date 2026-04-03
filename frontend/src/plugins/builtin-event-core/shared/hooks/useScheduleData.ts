@@ -152,9 +152,14 @@ export const useScheduleData = (options: UseScheduleDataOptions): UseScheduleDat
   const safeWeek = clampPositiveInteger(week, DEFAULT_WEEK);
   const safeCacheTtlMs = clampPositiveInteger(cacheTtlMs, SCHEDULE_CACHE_TTL_MS);
   const safeMaxParallelRequests = clampPositiveInteger(maxParallelRequests, SCHEDULE_MAX_PARALLEL_REQUESTS);
-  const queryKey = semesterId
-    ? queryKeys.semesters.schedule(semesterId, { mode, week: safeWeek, withConflicts })
-    : ['semesters', 'schedule', 'disabled'];
+  const queryKey = React.useMemo(
+    () => (
+      semesterId
+        ? queryKeys.semesters.schedule(semesterId, { mode, week: safeWeek, withConflicts })
+        : ['semesters', 'schedule', 'disabled']
+    ),
+    [mode, safeWeek, semesterId, withConflicts],
+  );
 
   const scheduleQuery = useQuery<ScheduleDataSnapshot>({
     queryKey,

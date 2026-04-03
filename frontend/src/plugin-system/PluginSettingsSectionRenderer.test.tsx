@@ -18,7 +18,6 @@ describe("PluginSettingsSectionRenderer", () => {
       <PluginSettingsSectionRenderer
         pluginId="course-list"
         pluginDisplayName="Course List"
-        pluginDescription="Manage semester course data."
         component={({ pluginId, scope }) => (
           <SettingsSection title="Display">
             <div>

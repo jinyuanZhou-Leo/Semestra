@@ -1,5 +1,5 @@
 // input:  [plugin settings panel scope context, TanStack Query cache, tab-settings APIs, and shadcn field primitives]
-// output: [bound plugin-settings bucket hooks plus host-provided common field templates]
+// output: [bound plugin-settings bucket hooks plus host-provided common field templates, including automatic inheritance source badges and reset for standard fields, and an opt-in PluginSettingsBucketSourceBanner for CRUD-style custom panels]
 // pos:    [frontend-only plugin settings binding layer that lets settings.tsx panels reuse tab-settings persistence without manual query/update plumbing]
 //
 // ⚠️ When this file is updated:
@@ -12,7 +12,7 @@ import React, { useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, RotateCcw } from "lucide-react";
 
 import { getCourseDetailQueryOptions } from "@/data/resources/courses";
 import { getProgramDetailQueryOptions } from "@/data/resources/programs";
@@ -38,12 +38,19 @@ import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
 import { usePluginSettingsPanelContext } from "./pluginSettingsPanelContext";
 import {
   applyScopeEntityUpdate,
+  buildSettingsMeta,
   invalidateScopeQuery,
   parseSettingsObject,
   persistScopeSettings,
   type SettingsEntity,
 } from "./pluginSettingsPersistence";
-
+import {
+  getSettingLayerLabel,
+  getSettingResetLabel,
+  getSettingSource,
+  type SettingSource,
+  type TabSettingsMeta,
+} from "./tabSettingsMeta";
 
 import type { TabSetting } from "@/services/api";
 
@@ -62,6 +69,23 @@ type SelectOption = {
   value: string;
 };
 
+const bucketSaveQueueMap = new Map<string, Promise<void>>();
+const bucketOptimisticScopeSettingsMap = new Map<string, Record<string, unknown>>();
+const bucketPendingSaveCountMap = new Map<string, number>();
+
+const buildPluginSettingsBucketKey = (
+  scope: PluginSettingsScope,
+  settingsKey: string,
+) => {
+  if (scope.kind === "program") {
+    return `program:${scope.programId}:${settingsKey}`;
+  }
+  if (scope.kind === "semester") {
+    return `semester:${scope.semesterId}:${settingsKey}`;
+  }
+  return `course:${scope.courseId}:${settingsKey}`;
+};
+
 export interface PluginSettingsBucketState {
   pluginId: string;
   settingsKey: string;
@@ -72,15 +96,23 @@ export interface PluginSettingsBucketState {
   resolvedSettings: Record<string, unknown>;
   scopeSettings: Record<string, unknown>;
   inheritedSettings: Record<string, unknown>;
+  /** Per-field inheritance metadata derived from `setting_sources`. Available to custom CRUD panels via `getSettingSource(bucket.settingsMeta, fieldPath)`. */
+  settingsMeta: TabSettingsMeta;
   refresh: () => void;
   setSettings: (nextSettings: Record<string, unknown>) => Promise<void>;
   updateField: (fieldPath: string, value: unknown) => Promise<void>;
+  /** Remove a field's override at this scope so it falls back to the inherited value. */
+  resetField: (fieldPath: string) => Promise<void>;
 }
 
 export interface PluginSettingsFieldState<TValue = unknown> {
   fieldPath: string;
   value: TValue | null;
+  /** Inheritance source for this field — layer, override status, and fallback layer. */
+  source: SettingSource;
   setValue: (value: TValue) => Promise<void>;
+  /** Removes this field's scope override, falling back to the inherited value. */
+  reset: () => Promise<void>;
   bucket: PluginSettingsBucketState;
 }
 
@@ -92,12 +124,12 @@ interface PluginSettingsBoundFieldBaseProps {
   placeholder?: string;
 }
 
-interface PluginSettingsTextFieldProps extends PluginSettingsBoundFieldBaseProps {}
-interface PluginSettingsTextareaFieldProps extends PluginSettingsBoundFieldBaseProps {}
-interface PluginSettingsNumberFieldProps extends PluginSettingsBoundFieldBaseProps {}
-interface PluginSettingsBooleanFieldProps extends PluginSettingsBoundFieldBaseProps {}
-interface PluginSettingsDateFieldProps extends PluginSettingsBoundFieldBaseProps {}
-interface PluginSettingsJsonFieldProps extends PluginSettingsBoundFieldBaseProps {}
+type PluginSettingsTextFieldProps = PluginSettingsBoundFieldBaseProps;
+type PluginSettingsTextareaFieldProps = PluginSettingsBoundFieldBaseProps;
+type PluginSettingsNumberFieldProps = PluginSettingsBoundFieldBaseProps;
+type PluginSettingsBooleanFieldProps = PluginSettingsBoundFieldBaseProps;
+type PluginSettingsDateFieldProps = PluginSettingsBoundFieldBaseProps;
+type PluginSettingsJsonFieldProps = PluginSettingsBoundFieldBaseProps;
 interface PluginSettingsSelectFieldProps extends PluginSettingsBoundFieldBaseProps {
   options: SelectOption[];
 }
@@ -134,6 +166,7 @@ const usePluginSettingsBucketInternal = (
   const queryClient = useQueryClient();
   const { entity, isLoading, refetch } = useSettingsEntityQuery(scope);
   const [isSaving, setIsSaving] = React.useState(false);
+  const bucketKey = useMemo(() => buildPluginSettingsBucketKey(scope, settingsKey), [scope, settingsKey]);
 
   const tabSetting = useMemo(() => (
     entity?.tab_settings?.find((entry) => entry.settings_key === settingsKey) ?? null
@@ -144,28 +177,60 @@ const usePluginSettingsBucketInternal = (
   ), [tabSetting?.resolved_settings, tabSetting?.settings]);
   const scopeSettings = useMemo(() => tabSetting?.scope_settings ?? {}, [tabSetting?.scope_settings]);
   const inheritedSettings = useMemo(() => tabSetting?.inherited_settings ?? {}, [tabSetting?.inherited_settings]);
-  const setSettings = React.useCallback(async (nextSettings: Record<string, unknown>) => {
-    setIsSaving(true);
-    try {
-      const nextTabSetting = await persistScopeSettings(scope, settingsKey, nextSettings);
-      applyScopeEntityUpdate(queryClient, scope, nextTabSetting);
-      await invalidateScopeQuery(queryClient, scope);
-      onRefresh();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to save settings.";
-      toast.error(message);
-      throw error;
-    } finally {
-      setIsSaving(false);
+  const settingsMeta = useMemo(() => buildSettingsMeta(tabSetting), [tabSetting]);
+
+  useEffect(() => {
+    if ((bucketPendingSaveCountMap.get(bucketKey) ?? 0) === 0) {
+      bucketOptimisticScopeSettingsMap.set(bucketKey, scopeSettings);
     }
-  }, [onRefresh, queryClient, scope, settingsKey]);
+  }, [bucketKey, scopeSettings]);
+
+  const setSettings = React.useCallback(async (nextSettings: Record<string, unknown>) => {
+    bucketOptimisticScopeSettingsMap.set(bucketKey, nextSettings);
+    bucketPendingSaveCountMap.set(bucketKey, (bucketPendingSaveCountMap.get(bucketKey) ?? 0) + 1);
+    setIsSaving(true);
+
+    const queuedSave = (bucketSaveQueueMap.get(bucketKey) ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          const optimisticSettings = bucketOptimisticScopeSettingsMap.get(bucketKey) ?? nextSettings;
+          const nextTabSetting = await persistScopeSettings(
+            scope,
+            settingsKey,
+            optimisticSettings,
+          );
+          applyScopeEntityUpdate(queryClient, scope, nextTabSetting);
+          await invalidateScopeQuery(queryClient, scope);
+          onRefresh();
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : "Failed to save settings.";
+          toast.error(message);
+          throw error;
+        } finally {
+          const nextPendingCount = Math.max(0, (bucketPendingSaveCountMap.get(bucketKey) ?? 1) - 1);
+          bucketPendingSaveCountMap.set(bucketKey, nextPendingCount);
+          setIsSaving(nextPendingCount > 0);
+        }
+      });
+
+    bucketSaveQueueMap.set(bucketKey, queuedSave.then(() => undefined, () => undefined));
+    return queuedSave;
+  }, [bucketKey, onRefresh, queryClient, scope, settingsKey]);
 
   const updateField = React.useCallback(async (fieldPath: string, value: unknown) => {
+    const currentSettings = bucketOptimisticScopeSettingsMap.get(bucketKey) ?? scopeSettings;
     await setSettings({
-      ...scopeSettings,
+      ...currentSettings,
       [fieldPath]: value,
     });
-  }, [scopeSettings, setSettings]);
+  }, [bucketKey, scopeSettings, setSettings]);
+
+  const resetField = React.useCallback(async (fieldPath: string) => {
+    const current = { ...(bucketOptimisticScopeSettingsMap.get(bucketKey) ?? scopeSettings) };
+    delete current[fieldPath];
+    await setSettings(current);
+  }, [bucketKey, scopeSettings, setSettings]);
 
   return {
     pluginId,
@@ -177,12 +242,14 @@ const usePluginSettingsBucketInternal = (
     resolvedSettings,
     scopeSettings,
     inheritedSettings,
+    settingsMeta,
     refresh: () => {
       void refetch();
       onRefresh();
     },
     setSettings,
     updateField,
+    resetField,
   };
 };
 
@@ -200,8 +267,12 @@ export const usePluginSettingField = <TValue = unknown,>(
   return {
     fieldPath,
     value: (bucket.resolvedSettings[fieldPath] ?? null) as TValue | null,
+    source: getSettingSource(bucket.settingsMeta, fieldPath),
     setValue: async (value: TValue) => {
       await bucket.updateField(fieldPath, value);
+    },
+    reset: async () => {
+      await bucket.resetField(fieldPath);
     },
     bucket,
   };
@@ -233,13 +304,51 @@ const toIsoDate = (value?: Date) => (value ? format(value, "yyyy-MM-dd") : "");
 
 export interface PluginSettingsFieldLabelRowProps {
   label: React.ReactNode;
+  source?: SettingSource;
+  onReset?: () => void;
 }
 
-export const PluginSettingsFieldLabelRow: React.FC<PluginSettingsFieldLabelRowProps> = ({ label }) => (
-  <span className="inline-flex flex-wrap items-center gap-2">
-    <span>{label}</span>
-  </span>
-);
+export const PluginSettingsFieldLabelRow: React.FC<PluginSettingsFieldLabelRowProps> = ({ label, source, onReset }) => {
+  // Only show chrome when there is an override at this scope that can be reset.
+  // "From X" text for inherited-only (non-overridden) fields is also shown.
+  const showModified = source?.is_overridden_in_scope === true;
+  const resetLabel = source ? getSettingResetLabel(source) : undefined;
+  const fromLayer = source && !source.is_overridden_in_scope && source.effective_layer !== 'default'
+    ? getSettingLayerLabel(source.effective_layer)
+    : undefined;
+
+  return (
+    // Note: `group` lives on the parent <Field> component so that hovering
+    // anywhere on the field row triggers the reset button visibility.
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <span>{label}</span>
+      {showModified && (
+        <span className="inline-flex items-center gap-1">
+          <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-px text-[10px] font-medium leading-tight text-blue-600 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">
+            Modified
+          </span>
+          {onReset && resetLabel && (
+            <button
+              type="button"
+              aria-label={resetLabel}
+              title={resetLabel}
+              onClick={onReset}
+              className="inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+            >
+              <RotateCcw className="size-2.5" />
+              {resetLabel}
+            </button>
+          )}
+        </span>
+      )}
+      {fromLayer && (
+        <span className="text-[10px] font-normal text-muted-foreground">
+          From {fromLayer}
+        </span>
+      )}
+    </span>
+  );
+};
 
 const PluginSettingsTextLikeField: React.FC<PluginSettingsBoundFieldBaseProps & {
   multiline?: boolean;
@@ -255,9 +364,9 @@ const PluginSettingsTextLikeField: React.FC<PluginSettingsBoundFieldBaseProps & 
   const fieldId = useId();
 
   return (
-    <Field className="gap-2">
+    <Field className="group gap-2" data-modified={field.source.is_overridden_in_scope || undefined}>
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} />
+        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
       </FieldLabel>
       {multiline ? (
         <Textarea
@@ -302,9 +411,9 @@ export const PluginSettingsNumberField: React.FC<PluginSettingsNumberFieldProps>
   const fieldId = useId();
 
   return (
-    <Field className="gap-2">
+    <Field className="group gap-2" data-modified={field.source.is_overridden_in_scope || undefined}>
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} />
+        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
       </FieldLabel>
       <Input
         id={fieldId}
@@ -331,10 +440,10 @@ export const PluginSettingsBooleanField: React.FC<PluginSettingsBooleanFieldProp
   const fieldId = useId();
 
   return (
-    <Field orientation="responsive" className="gap-3 py-1">
+    <Field orientation="responsive" className="group gap-3 py-1" data-modified={field.source.is_overridden_in_scope || undefined}>
       <FieldContent>
         <FieldLabel htmlFor={fieldId}>
-          <PluginSettingsFieldLabelRow label={label} />
+          <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
         </FieldLabel>
         {description ? <FieldDescription>{description}</FieldDescription> : null}
       </FieldContent>
@@ -362,9 +471,9 @@ export const PluginSettingsSelectField: React.FC<PluginSettingsSelectFieldProps>
   const fieldId = useId();
 
   return (
-    <Field className="gap-2">
+    <Field className="group gap-2" data-modified={field.source.is_overridden_in_scope || undefined}>
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} />
+        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
       </FieldLabel>
       <Select
         value={field.value ?? ""}
@@ -403,9 +512,9 @@ export const PluginSettingsDateField: React.FC<PluginSettingsDateFieldProps> = (
   const dateLabel = selectedDate ? format(selectedDate, "PP") : placeholder || "Pick a date";
 
   return (
-    <Field className="gap-2">
+    <Field className="group gap-2" data-modified={field.source.is_overridden_in_scope || undefined}>
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} />
+        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
       </FieldLabel>
       <Popover>
         <PopoverTrigger asChild>
@@ -456,9 +565,9 @@ export const PluginSettingsJsonField: React.FC<PluginSettingsJsonFieldProps> = (
   }, [field.value]);
 
   return (
-    <Field className="gap-2" data-invalid={Boolean(jsonError) || undefined}>
+    <Field className="group gap-2" data-invalid={Boolean(jsonError) || undefined} data-modified={field.source.is_overridden_in_scope || undefined}>
       <FieldLabel htmlFor={fieldId}>
-        <PluginSettingsFieldLabelRow label={label} />
+        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
       </FieldLabel>
       <Textarea
         id={fieldId}
@@ -487,5 +596,85 @@ export const PluginSettingsJsonField: React.FC<PluginSettingsJsonFieldProps> = (
         {jsonError ? <FieldError>{jsonError}</FieldError> : null}
       </FieldContent>
     </Field>
+  );
+};
+
+// ─── CRUD / custom panel helpers ──────────────────────────────────────────────
+
+export interface PluginSettingsBucketSourceBannerProps {
+  /** The bucket returned by `usePluginSettingsBucket`. */
+  bucket: PluginSettingsBucketState;
+  /**
+   * The field path that represents the compound data managed by this panel
+   * (e.g. `"rows"` for a CRUD table). Used to look up the source in `settingsMeta`.
+   */
+  fieldPath: string;
+}
+
+/**
+ * Drop-in banner for CRUD / fully-custom plugin settings panels.
+ *
+ * Shows an "Inherited from X" notice when the panel data comes entirely from a
+ * parent scope, and a "Modified here" notice with a reset action when it has
+ * been overridden at the current scope.  Standard field components (`PluginSettingsTextField`,
+ * etc.) handle this automatically; use this component only when your panel owns
+ * the full rendering of a compound data field via `usePluginSettingsBucket`.
+ *
+ * @example
+ * ```tsx
+ * const bucket = usePluginSettingsBucket('events');
+ * return (
+ *   <>
+ *     <PluginSettingsBucketSourceBanner bucket={bucket} fieldPath="rows" />
+ *     <MyEventsTable data={bucket.resolvedSettings.rows} />
+ *   </>
+ * );
+ * ```
+ */
+export const PluginSettingsBucketSourceBanner: React.FC<PluginSettingsBucketSourceBannerProps> = ({
+  bucket,
+  fieldPath,
+}) => {
+  const source = getSettingSource(bucket.settingsMeta, fieldPath);
+
+  if (source.effective_layer === 'default' && !source.is_overridden_in_scope) {
+    // Nothing to show: data is at default, no override.
+    return null;
+  }
+
+  const resetLabel = getSettingResetLabel(source);
+
+  if (source.is_overridden_in_scope) {
+    return (
+      <div className="mb-3 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
+        <span className="flex-1">
+          <span className="font-medium">Modified here.</span>
+          {source.fallback_layer && source.fallback_layer !== 'default' && (
+            <span className="text-blue-600 dark:text-blue-400">
+              {" "}Overrides {getSettingLayerLabel(source.fallback_layer)} defaults.
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={() => void bucket.resetField(fieldPath)}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900"
+        >
+          <RotateCcw className="size-3" />
+          {resetLabel}
+        </button>
+      </div>
+    );
+  }
+
+  // Inherited from a parent scope.
+  return (
+    <div className="mb-3 flex items-center gap-2 rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+      <span className="flex-1">
+        Inherited from{" "}
+        <span className="font-medium">{getSettingLayerLabel(source.effective_layer)}</span>.
+        {" "}Changes here will override the inherited value.
+      </span>
+    </div>
   );
 };

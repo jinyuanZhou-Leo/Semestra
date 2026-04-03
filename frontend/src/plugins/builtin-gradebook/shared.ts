@@ -6,7 +6,6 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-"use no memo";
 
 import { format, formatDistanceToNowStrict, isValid, parseISO, startOfDay } from 'date-fns';
 import type React from 'react';

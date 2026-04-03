@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import api, { type TodoSemesterStateRecord } from '@/services/api';
@@ -24,7 +24,10 @@ export const useSemesterTodoQuery = (semesterId?: string) => {
 
 export const useSemesterTodoCache = (semesterId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = semesterId ? semesterKeys.todo(semesterId) : ['semesters', 'todo', 'disabled'];
+  const queryKey = useMemo(
+    () => (semesterId ? semesterKeys.todo(semesterId) : ['semesters', 'todo', 'disabled']),
+    [semesterId],
+  );
 
   const getTodoState = useCallback(() => {
     if (!semesterId) return undefined;

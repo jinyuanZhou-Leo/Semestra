@@ -14,6 +14,7 @@ import {
     definePluginSettings,
     PluginSettingsFieldLabelRow,
     PluginSettingsSelectField,
+    PluginSettingsBucketSourceBanner,
     usePluginSettingsBucket,
 } from '@/plugin-sdk';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
@@ -304,6 +305,7 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
                 )}
                 description="Define the default categories newly initialized course gradebooks should receive."
             >
+                <PluginSettingsBucketSourceBanner bucket={defaultsBucket} fieldPath="categories" />
                 <DataTable
                     title="Default Categories"
                     description="These category templates seed new course gradebooks in this Program."

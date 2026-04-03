@@ -45,6 +45,7 @@ export {
   PluginSettingsSelectField,
   PluginSettingsTextField,
   PluginSettingsTextareaField,
+  PluginSettingsBucketSourceBanner,
   usePluginSettingField,
   usePluginSettingsBucket,
 } from "@/plugin-system/pluginSettingsFields";
