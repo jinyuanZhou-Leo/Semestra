@@ -10,24 +10,34 @@
 import React, { useMemo } from "react";
 
 import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
+import { usePluginSettingsEntityQuery, type PluginSettingsEntityQueryResult } from './pluginSettingsEntity';
 
 export interface PluginSettingsPanelContextValue {
   pluginId: string;
   scope: PluginSettingsScope;
   onRefresh: () => void;
+  entityQuery: PluginSettingsEntityQueryResult;
 }
 
 const PluginSettingsPanelContext = React.createContext<PluginSettingsPanelContextValue | null>(null);
 
-export const PluginSettingsPanelProvider: React.FC<React.PropsWithChildren<PluginSettingsPanelContextValue>> = ({
+interface PluginSettingsPanelProviderProps {
+  children: React.ReactNode;
+  pluginId: string;
+  scope: PluginSettingsScope;
+  onRefresh: () => void;
+}
+
+export const PluginSettingsPanelProvider: React.FC<PluginSettingsPanelProviderProps> = ({
   children,
   pluginId,
   scope,
   onRefresh,
 }) => {
+  const entityQuery = usePluginSettingsEntityQuery(scope);
   const value = useMemo(
-    () => ({ pluginId, scope, onRefresh }),
-    [pluginId, scope, onRefresh],
+    () => ({ pluginId, scope, onRefresh, entityQuery }),
+    [entityQuery, pluginId, scope, onRefresh],
   );
   return (
     <PluginSettingsPanelContext.Provider value={value}>

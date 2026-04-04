@@ -18,6 +18,8 @@ interface UseEntityContextOptions<T> {
     updateFn: (id: string, updates: Partial<T>) => Promise<Partial<T>>;
     debounceMs?: number;
     staleTimeMs?: number;
+    initialData?: T | (() => T | undefined);
+    initialDataUpdatedAt?: number | (() => number | undefined);
 }
 
 interface UseEntityContextResult<T> {
@@ -49,7 +51,9 @@ export function useEntityContext<T extends object>({
     fetchFn,
     updateFn,
     debounceMs = 1000,
-    staleTimeMs
+    staleTimeMs,
+    initialData,
+    initialDataUpdatedAt,
 }: UseEntityContextOptions<T>): UseEntityContextResult<T> {
     const pendingUpdates = useRef<Partial<T>>({});
     const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,6 +66,8 @@ export function useEntityContext<T extends object>({
         queryFn: () => fetchFn(entityId),
         enabled: !!entityId,
         staleTime: staleTimeMs,
+        initialData,
+        initialDataUpdatedAt,
     });
 
     const setData = useCallback<React.Dispatch<React.SetStateAction<T | null>>>((updater) => {

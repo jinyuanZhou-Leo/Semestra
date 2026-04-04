@@ -6,31 +6,15 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { queryOptions, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
-import api from '@/services/api';
+import { getCourseDetailQueryOptions } from './courses';
+import { getProgramDetailQueryOptions } from './programs';
+import { getSemesterDetailQueryOptions } from './semesters';
 
-import { courseKeys, programKeys, semesterKeys } from '../keys';
-
-const ENTITY_STALE_TIME_MS = 60_000;
-
-export const getProgramQueryOptions = (programId: string) => queryOptions({
-  queryKey: programKeys.detail(programId),
-  queryFn: () => api.getProgram(programId),
-  staleTime: ENTITY_STALE_TIME_MS,
-});
-
-export const getSemesterQueryOptions = (semesterId: string) => queryOptions({
-  queryKey: semesterKeys.detail(semesterId),
-  queryFn: () => api.getSemester(semesterId),
-  staleTime: ENTITY_STALE_TIME_MS,
-});
-
-export const getCourseQueryOptions = (courseId: string) => queryOptions({
-  queryKey: courseKeys.detail(courseId),
-  queryFn: () => api.getCourse(courseId),
-  staleTime: ENTITY_STALE_TIME_MS,
-});
+export const getProgramQueryOptions = getProgramDetailQueryOptions;
+export const getSemesterQueryOptions = getSemesterDetailQueryOptions;
+export const getCourseQueryOptions = getCourseDetailQueryOptions;
 
 export const useProgramQuery = (programId?: string) => {
   return useQuery({

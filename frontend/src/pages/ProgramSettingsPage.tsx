@@ -122,7 +122,7 @@ const ProgramSettingsPageContent: React.FC = () => {
     if (!isLoading && !program) {
         return (
             <Layout breadcrumb={breadcrumb}>
-                <Container>
+                <Container size="wide">
                     <AppEmptyState
                         scenario="not-found"
                         size="page"
@@ -141,7 +141,7 @@ const ProgramSettingsPageContent: React.FC = () => {
 
     return (
         <Layout breadcrumb={breadcrumb}>
-            <Container className="space-y-8 py-8">
+            <Container size="wide" className="space-y-8 py-8">
                 <BackButton label="Back to Program" onClick={() => { void handleBack(); }} />
 
                 <div className="space-y-2">
@@ -190,7 +190,7 @@ export const ProgramSettingsPage: React.FC = () => {
     if (!id) {
         return (
             <Layout>
-                <Container>
+                <Container size="wide">
                     <AppEmptyState
                         scenario="not-found"
                         size="page"

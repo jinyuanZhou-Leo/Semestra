@@ -10,13 +10,9 @@
 
 import React, { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { CalendarDays, Clock3, RotateCcw } from "lucide-react";
-
-import { getCourseDetailQueryOptions } from "@/data/resources/courses";
-import { getProgramDetailQueryOptions } from "@/data/resources/programs";
-import { getSemesterDetailQueryOptions } from "@/data/resources/semesters";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -43,7 +39,6 @@ import {
   invalidateScopeQuery,
   parseSettingsObject,
   persistScopeSettings,
-  type SettingsEntity,
 } from "./pluginSettingsPersistence";
 import { jsonDeepEqual } from './utils';
 import {
@@ -168,47 +163,6 @@ interface PluginSettingsTimeFieldProps extends PluginSettingsBoundFieldBaseProps
   onCommit?: (minutes: number) => void | Promise<void>;
 }
 
-interface SettingsEntityQueryResult {
-  entity: SettingsEntity | null;
-  isLoading: boolean;
-  refetch: () => Promise<unknown>;
-}
-
-function useSettingsEntityQuery(scope: PluginSettingsScope): SettingsEntityQueryResult {
-  const programQuery = useQuery({
-    ...getProgramDetailQueryOptions(scope.kind === "program" ? scope.programId : "__missing__"),
-    enabled: scope.kind === "program",
-  });
-  const semesterQuery = useQuery({
-    ...getSemesterDetailQueryOptions(scope.kind === "semester" ? scope.semesterId : "__missing__"),
-    enabled: scope.kind === "semester",
-  });
-  const courseQuery = useQuery({
-    ...getCourseDetailQueryOptions(scope.kind === "course" ? scope.courseId : "__missing__"),
-    enabled: scope.kind === "course",
-  });
-
-  if (scope.kind === "program") {
-    return {
-      entity: (programQuery.data as SettingsEntity | null) ?? null,
-      isLoading: programQuery.isLoading,
-      refetch: programQuery.refetch,
-    };
-  }
-  if (scope.kind === "semester") {
-    return {
-      entity: (semesterQuery.data as SettingsEntity | null) ?? null,
-      isLoading: semesterQuery.isLoading,
-      refetch: semesterQuery.refetch,
-    };
-  }
-  return {
-    entity: (courseQuery.data as SettingsEntity | null) ?? null,
-    isLoading: courseQuery.isLoading,
-    refetch: courseQuery.refetch,
-  };
-}
-
 function getFieldFallbackValue<TValue>(
   bucket: PluginSettingsBucketState,
   fieldPath: string,
@@ -225,7 +179,8 @@ const usePluginSettingsBucketInternal = (
   settingsKey: string,
 ): PluginSettingsBucketState => {
   const queryClient = useQueryClient();
-  const { entity, isLoading, refetch } = useSettingsEntityQuery(scope);
+  const { entityQuery } = usePluginSettingsPanelContext();
+  const { entity, isLoading, refetch } = entityQuery;
   const [isSaving, setIsSaving] = React.useState(false);
   const bucketKey = useMemo(() => buildPluginSettingsBucketKey(scope, settingsKey), [scope, settingsKey]);
 

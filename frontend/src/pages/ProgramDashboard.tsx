@@ -488,7 +488,7 @@ const ProgramDashboardContent: React.FC = () => {
     if (!isLoading && !program) {
         return (
             <Layout>
-                <Container>
+                <Container size="wide">
                     <AppEmptyState
                         scenario="not-found"
                         size="page"
@@ -508,7 +508,7 @@ const ProgramDashboardContent: React.FC = () => {
     return (
         <Layout breadcrumb={breadcrumb} commandGroups={layoutCommandGroups}>
             <div className="sticky-page-header border-b bg-background sticky top-[60px] z-20">
-                <Container className="py-4 md:py-6">
+                <Container size="wide" className="py-4 md:py-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-1">
                             {isLoading || !program ? (
@@ -551,13 +551,13 @@ const ProgramDashboardContent: React.FC = () => {
                 </Container>
             </div>
 
-            <Container className="space-y-8 py-8 md:space-y-10 md:py-10">
+            <Container size="wide" className="space-y-8 py-8 md:space-y-10 md:py-10">
                 {isLoading || !program ? (
                     <>
                         {/* Overview Section Skeleton */}
                         <section>
                             <TextSkeleton variant="h3" className="mb-4" />
-                            <div className="grid gap-4 md:grid-cols-3">
+                            <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-4">
                                 {[1, 2, 3].map(i => (
                                     <StatCardSkeleton key={i} />
                                 ))}
@@ -572,7 +572,7 @@ const ProgramDashboardContent: React.FC = () => {
                                 <TextSkeleton variant="h3" />
                                 <Skeleton className="h-10 w-full max-w-sm" />
                             </div>
-                            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                                 {[1, 2, 3, 4, 5, 6].map(i => (
                                     <SemesterCardSkeleton key={i} />
                                 ))}
@@ -653,7 +653,7 @@ const ProgramDashboardContent: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="hidden gap-4 md:grid md:grid-cols-3">
+                                <div className="hidden gap-4 md:grid md:grid-cols-3 xl:grid-cols-4">
                                     <Card className="border-border/50 bg-muted/10 shadow-none">
                                         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1.5">
                                             <CardTitle className="text-sm font-medium text-muted-foreground">CGPA (Scaled)</CardTitle>
@@ -760,7 +760,7 @@ const ProgramDashboardContent: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                                     {filteredSemesters.map(semester => (
                                     <div key={semester.id} className="group relative">
                                         <Link to={`/semesters/${semester.id}`} className="block h-full">
@@ -1086,7 +1086,7 @@ export const ProgramHomePage: React.FC = () => {
     if (!id) {
         return (
             <Layout>
-                <Container>
+                <Container size="wide">
                     <AppEmptyState
                         scenario="not-found"
                         size="page"

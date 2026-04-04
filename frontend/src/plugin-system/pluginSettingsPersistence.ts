@@ -9,8 +9,7 @@ import { setSemesterDetailQueryData } from "@/data/resources/semesters";
 import api, { type Course, type Program, type Semester, type TabSetting } from "@/services/api";
 import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
 import type { TabSettingsMeta } from "./tabSettingsMeta";
-
-export type SettingsEntity = Program | Semester | Course;
+import type { SettingsEntity } from './pluginSettingsEntity';
 
 export const parseSettingsObject = (value: unknown): Record<string, unknown> => {
   if (!value) {

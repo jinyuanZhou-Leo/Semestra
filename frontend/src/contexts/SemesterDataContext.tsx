@@ -7,10 +7,12 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import type { Semester, Course, Widget, Tab } from '../services/api';
 import { semesterKeys } from '@/data/keys';
 import { useEntityContext } from '../hooks/useEntityContext';
+import { getSemesterInitialData } from './entityContextInitialData';
 
 export type SemesterWithDetails = Semester & {
     courses: Course[];
@@ -43,8 +45,10 @@ interface SemesterDataProviderProps {
 }
 
 export const SemesterDataProvider: React.FC<SemesterDataProviderProps> = ({ semesterId, children }) => {
+    const queryClient = useQueryClient();
     const fetchFn = useCallback((id: string) => api.getSemester(id), []);
     const updateFn = useCallback((id: string, updates: Partial<SemesterWithDetails>) => api.updateSemester(id, updates), []);
+    const initialData = useMemo(() => getSemesterInitialData(queryClient, semesterId), [queryClient, semesterId]);
 
     const {
         data: semester,
@@ -59,6 +63,8 @@ export const SemesterDataProvider: React.FC<SemesterDataProviderProps> = ({ seme
         fetchFn,
         updateFn,
         staleTimeMs: 300_000,
+        initialData: initialData?.data,
+        initialDataUpdatedAt: initialData?.updatedAt,
     });
 
     const value: SemesterDataContextType = useMemo(() => ({

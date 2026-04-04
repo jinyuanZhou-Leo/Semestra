@@ -301,7 +301,6 @@ describe("plugin settings bound fields", () => {
       {
         settings: JSON.stringify({
           title: "Updated title",
-          showChecklist: false,
         }),
       },
     );
@@ -363,7 +362,7 @@ describe("plugin settings bound fields", () => {
 
     render(<BannerWrapper />, { wrapper: Wrapper });
 
-    expect(screen.getByText(/Inherited from/)).toBeInTheDocument();
+    expect(screen.getByText(/From/)).toBeInTheDocument();
     expect(screen.getByText("Program")).toBeInTheDocument();
   });
 
@@ -397,7 +396,7 @@ describe("plugin settings bound fields", () => {
 
     render(<BannerWrapper />, { wrapper: Wrapper });
 
-    expect(screen.getByText(/Modified here/)).toBeInTheDocument();
+    expect(screen.getByText(/^Modified$/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore default" })).toBeInTheDocument();
   });
 

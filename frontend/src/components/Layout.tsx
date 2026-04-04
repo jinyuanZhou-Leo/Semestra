@@ -550,7 +550,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                     isVisible ? 'translate-y-0' : '-translate-y-full'
                 )}
             >
-                <Container className="flex h-full items-center justify-between gap-4">
+                <Container size="wide" className="flex h-full items-center justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-full shrink-0 items-center gap-3">
                             <Link to="/" className="inline-flex h-9 items-center text-lg font-bold leading-none text-foreground no-underline transition-opacity hover:opacity-80">

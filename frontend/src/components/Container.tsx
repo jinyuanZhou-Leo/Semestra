@@ -1,6 +1,6 @@
-// input:  [children node, optional width/padding/style overrides, class merge helper]
-// output: [`Container` component]
-// pos:    [Common max-width wrapper that normalizes horizontal page spacing]
+// input:  [children node, semantic width variant, optional inline style overrides, and class merge helper]
+// output: [`Container` component plus shared container-size definitions]
+// pos:    [Common page wrapper that normalizes horizontal spacing while allowing distinct reading, settings, and workspace widths]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,29 +9,36 @@
 import { cn } from '@/lib/utils';
 import React from 'react';
 
+const CONTAINER_SIZE_CLASSNAMES = {
+    narrow: 'max-w-3xl',
+    default: 'max-w-6xl',
+    wide: 'max-w-[96rem]',
+    full: 'max-w-none',
+} as const;
+
+export type ContainerSize = keyof typeof CONTAINER_SIZE_CLASSNAMES;
+
 interface ContainerProps {
     children: React.ReactNode;
-    maxWidth?: string; // Kept for backwards compatibility but handled via classes generally
-    padding?: string; // Kept for backwards compatibility
+    size?: ContainerSize;
     style?: React.CSSProperties;
     className?: string;
 }
 
 export const Container: React.FC<ContainerProps> = ({ 
     children, 
-    maxWidth, 
-    padding,
+    size = 'default',
     style,
     className
 }) => {
     return (
         <div
-            className={cn('w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8', className)}
-            style={{
-                ...(maxWidth ? { maxWidth } : {}),
-                ...(padding ? { padding } : {}),
-                ...style
-            }}
+            className={cn(
+                'mx-auto w-full px-4 sm:px-6 lg:px-8',
+                CONTAINER_SIZE_CLASSNAMES[size],
+                className,
+            )}
+            style={style}
         >
             {children}
         </div>

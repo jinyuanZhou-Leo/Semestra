@@ -610,9 +610,9 @@ const SemesterHomepageContent: React.FC = () => {
                         )}
                     />
 
-                    <Container className="py-5 sm:py-6">
+                    <Container size="wide" className="py-5 sm:py-6">
                         {isLoading || !semester ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                                 {[1, 2, 3, 4, 5, 6].map(i => (
                                     <CardSkeleton key={i} className="h-[240px]" />
                                 ))}
@@ -653,7 +653,7 @@ export const SemesterHomepage: React.FC = () => {
     if (!id) {
         return (
             <Layout>
-                <Container>
+                <Container size="wide">
                     <AppEmptyState
                         scenario="not-found"
                         size="page"

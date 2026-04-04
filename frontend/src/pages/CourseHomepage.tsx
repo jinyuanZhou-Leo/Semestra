@@ -14,6 +14,7 @@ import {
     programKeys,
     semesterKeys,
 } from '@/data/keys';
+import type { Program, Semester } from '@/services/api';
 import {
     getCourseDetailQueryOptions,
     getProgramDetailQueryOptions,
@@ -152,7 +153,17 @@ const CourseHomepageContent: React.FC = () => {
         initialData: () => {
             const programId = course?.program_id;
             if (!programId) return undefined;
-            return queryClient.getQueryData(programKeys.detail(programId)) ?? course?.program ?? undefined;
+            const cachedProgram = queryClient.getQueryData<Program & { semesters: Semester[] }>(programKeys.detail(programId));
+            if (cachedProgram) {
+                return cachedProgram;
+            }
+            if (!course?.program) {
+                return undefined;
+            }
+            return {
+                ...course.program,
+                semesters: [],
+            };
         },
     });
     const programName = parentProgramQuery.data?.name ?? null;
@@ -806,7 +817,7 @@ const CourseHomepageContent: React.FC = () => {
     if (!isLoading && !course) {
         return (
             <Layout>
-                <Container>
+                <Container size="wide">
                     <AppEmptyState
                         scenario="not-found"
                         size="page"
@@ -960,9 +971,9 @@ const CourseHomepageContent: React.FC = () => {
                         )}
                     />
 
-                    <Container className="py-5 sm:py-6">
+                    <Container size="wide" className="py-5 sm:py-6">
                     {isLoading || !course || !course.id ? (  /* Check course.id since useDashboardWidgets needs it */
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                                 {[1, 2, 3, 4, 5, 6].map(i => (
                                     <CardSkeleton key={i} className="h-[240px]" />
                                 ))}
@@ -1006,7 +1017,7 @@ export const CourseHomepage: React.FC = () => {
     if (!id) {
         return (
             <Layout>
-                <Container>
+                <Container size="wide">
                     <AppEmptyState
                         scenario="not-found"
                         size="page"
