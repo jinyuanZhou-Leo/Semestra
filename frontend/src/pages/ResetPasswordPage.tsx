@@ -50,7 +50,39 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-export const ResetPasswordPage: React.FC = () => {
+function getStepTitle(step: ResetStep): string {
+  switch (step) {
+    case 'email':
+      return 'Reset your password';
+    case 'code':
+      return 'Check your inbox';
+    case 'password':
+      return 'Choose a new password';
+  }
+}
+
+function getStepDescription(step: ResetStep): string {
+  switch (step) {
+    case 'email':
+      return 'Get a verification code by email.';
+    case 'code':
+      return 'Enter your verification code.';
+    case 'password':
+      return 'Choose a new password.';
+  }
+}
+
+function getResendButtonLabel(isSendingCode: boolean, cooldownRemaining: number): string | React.ReactElement {
+  if (isSendingCode) {
+    return <div className="size-3.5 animate-spin rounded-full border-2 border-current/25 border-t-current" />;
+  }
+  if (cooldownRemaining > 0) {
+    return `${cooldownRemaining}s`;
+  }
+  return 'Resend';
+}
+
+export function ResetPasswordPage(): React.ReactElement {
   const location = useLocation();
   const prefilledEmail = typeof (location.state as ResetPasswordLocationState | null)?.email === 'string'
     ? (location.state as ResetPasswordLocationState).email ?? ''
@@ -214,14 +246,10 @@ export const ResetPasswordPage: React.FC = () => {
           <FieldGroup>
             <div className="flex flex-col items-center gap-1 text-center">
               <h1 className="select-none text-2xl font-bold">
-                {step === 'email' ? 'Reset your password' : step === 'code' ? 'Check your inbox' : 'Choose a new password'}
+                {getStepTitle(step)}
               </h1>
               <p className="select-none text-sm text-muted-foreground">
-                {step === 'email'
-                  ? 'Get a verification code by email.'
-                  : step === 'code'
-                    ? 'Enter your verification code.'
-                    : 'Choose a new password.'}
+                {getStepDescription(step)}
               </p>
             </div>
 
@@ -263,7 +291,7 @@ export const ResetPasswordPage: React.FC = () => {
                     onClick={handleSendCode}
                     disabled={isSendingCode || cooldownRemaining > 0}
                   >
-                    {isSendingCode ? <div className="size-3.5 animate-spin rounded-full border-2 border-current/25 border-t-current" /> : cooldownRemaining > 0 ? `${cooldownRemaining}s` : 'Resend'}
+                    {getResendButtonLabel(isSendingCode, cooldownRemaining)}
                   </Button>
                 </div>
                 <AuthCodeInput
@@ -367,4 +395,4 @@ export const ResetPasswordPage: React.FC = () => {
       </div>
     </motion.div>
   );
-};
+}

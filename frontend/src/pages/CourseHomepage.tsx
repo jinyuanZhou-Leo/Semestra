@@ -105,6 +105,16 @@ interface CourseHomepageLocationState {
     preferredTabType?: string;
 }
 
+function getCourseSwitchOffset(direction: -1 | 0 | 1, phase: 'enter' | 'exit'): number {
+    if (direction === 0) {
+        return 0;
+    }
+    if (phase === 'enter') {
+        return direction > 0 ? 10 : -10;
+    }
+    return direction > 0 ? -10 : 10;
+}
+
 // Inner component that uses the context
 const CourseHomepageContent: React.FC = () => {
     const { course, updateCourse, saveCourse, refreshCourse, isLoading } = useCourseData();
@@ -142,7 +152,7 @@ const CourseHomepageContent: React.FC = () => {
         initialData: () => {
             const programId = course?.program_id;
             if (!programId) return undefined;
-            return queryClient.getQueryData(programKeys.detail(programId));
+            return queryClient.getQueryData(programKeys.detail(programId)) ?? course?.program ?? undefined;
         },
     });
     const programName = parentProgramQuery.data?.name ?? null;
@@ -414,10 +424,11 @@ const CourseHomepageContent: React.FC = () => {
             return;
         }
 
-        siblingCourses
-            .filter((siblingCourse) => siblingCourse.id !== course.id)
+        const idx = siblingCourses.findIndex((c) => c.id === course.id);
+        [siblingCourses[idx - 1], siblingCourses[idx + 1]]
+            .filter(Boolean)
             .forEach((siblingCourse) => {
-                void queryClient.prefetchQuery(getCourseDetailQueryOptions(siblingCourse.id));
+                void queryClient.prefetchQuery(getCourseDetailQueryOptions(siblingCourse!.id));
             });
     }, [course?.id, queryClient, siblingCourses]);
 
@@ -550,7 +561,7 @@ const CourseHomepageContent: React.FC = () => {
                 onRefresh={refreshCourse}
             />
         );
-    }, [course, enabledPluginIds, parentSemesterQuery.data, refreshCourse]);
+    }, [course?.id, course?.plugin_activations, enabledPluginIds, parentSemesterQuery.data?.plugin_activations, refreshCourse]);
 
     const coursePluginGovernanceSection = useMemo(() => {
         if (!course?.id || course.semester_id) {
@@ -846,12 +857,12 @@ const CourseHomepageContent: React.FC = () => {
                                                                 className="truncate"
                                                                 initial={prefersReducedMotion ? { opacity: 1 } : {
                                                                     opacity: 0,
-                                                                    y: courseSwitchDirection > 0 ? 10 : courseSwitchDirection < 0 ? -10 : 0,
+                                                                    y: getCourseSwitchOffset(courseSwitchDirection, 'enter'),
                                                                 }}
                                                                 animate={{ opacity: 1, y: 0 }}
                                                                 exit={prefersReducedMotion ? { opacity: 1 } : {
                                                                     opacity: 0,
-                                                                    y: courseSwitchDirection > 0 ? -10 : courseSwitchDirection < 0 ? 10 : 0,
+                                                                    y: getCourseSwitchOffset(courseSwitchDirection, 'exit'),
                                                                 }}
                                                                 transition={prefersReducedMotion
                                                                     ? { duration: 0.12 }
@@ -898,12 +909,12 @@ const CourseHomepageContent: React.FC = () => {
                                                 className="truncate text-foreground"
                                                 initial={prefersReducedMotion ? { opacity: 1 } : {
                                                     opacity: 0,
-                                                    y: courseSwitchDirection > 0 ? 10 : courseSwitchDirection < 0 ? -10 : 0,
+                                                    y: getCourseSwitchOffset(courseSwitchDirection, 'enter'),
                                                 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={prefersReducedMotion ? { opacity: 1 } : {
                                                     opacity: 0,
-                                                    y: courseSwitchDirection > 0 ? -10 : courseSwitchDirection < 0 ? 10 : 0,
+                                                    y: getCourseSwitchOffset(courseSwitchDirection, 'exit'),
                                                 }}
                                                 transition={prefersReducedMotion
                                                     ? { duration: 0.12 }

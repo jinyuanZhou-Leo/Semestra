@@ -34,11 +34,21 @@ interface WidgetContainerProps {
     isEditMode?: boolean; // Enable edit mode for widget actions
 }
 
+function getDragHandleVisibilityClass(controlsVisible: boolean, isTouchDevice: boolean): string {
+    if (controlsVisible) {
+        return 'opacity-100 pointer-events-auto';
+    }
+    if (isTouchDevice) {
+        return 'opacity-0 pointer-events-none';
+    }
+    return 'opacity-55 pointer-events-auto';
+}
+
 /**
  * WidgetContainer - Memoized for performance
  * Contains the visual wrapper and control buttons for widgets
  */
-const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, onRemove, onEdit, headerButtons, isEditMode = false }) => {
+function WidgetContainerComponent({ children, onRemove, onEdit, headerButtons, isEditMode = false }: WidgetContainerProps): React.ReactElement {
     const [isHovered, setIsHovered] = React.useState(false);
     const isTouchDevice = useTouchDevice();
     const controlsVisible = isTouchDevice || isHovered;
@@ -90,7 +100,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
                                     glassControlClass,
                                     glassControlHoverClass,
                                     controlSizeClass,
-                                    controlsVisible ? 'opacity-100 pointer-events-auto' : (isTouchDevice ? 'opacity-0 pointer-events-none' : 'opacity-55 pointer-events-auto')
+                                    getDragHandleVisibilityClass(controlsVisible, isTouchDevice)
                                 )}
                                 title="Drag to move"
                                 style={{ cursor: 'grab', touchAction: 'none' }}
@@ -191,7 +201,7 @@ const WidgetContainerComponent: React.FC<WidgetContainerProps> = ({ children, on
             </div>
         </Card>
     );
-};
+}
 
 // Custom comparison function to ensure edit mode changes trigger re-renders
 const arePropsEqual = (

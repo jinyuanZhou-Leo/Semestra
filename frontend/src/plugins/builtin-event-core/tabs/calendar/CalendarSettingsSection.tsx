@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Clock3, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { queryKeys } from '@/services/queryKeys';
 import { SettingsSection } from '@/components/SettingsSection';
 import {
@@ -25,31 +25,30 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
-  Field,
   FieldGroup,
-  FieldLabel,
   FieldSet,
 } from '@/components/ui/field';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { useCalendarSourceRegistry } from '@/calendar-core';
 import {
   PluginSettingsBooleanField,
   PluginSettingsSelectField,
+  PluginSettingsTimeField,
 } from '@/plugin-sdk';
 import type { CalendarSettingsState } from '../../shared/types';
 import { getWeekFromSemesterDate, resolveSemesterDateRange } from '../../shared/utils';
 import { CalendarSourceSettingsList } from './components/CalendarSourceSettingsList';
 import {
   DEFAULT_CALENDAR_SETTINGS,
-  CALENDAR_TIME_INPUT_STEP_SECONDS,
   getScheduleEventColor,
   normalizeDayMinuteWindow,
   normalizeCalendarSettings,
-  parseTimeInputValue,
-  toTimeInputValue,
 } from './settings';
 import { SemesterScheduleExportModal } from './SemesterScheduleExportModal';
-import { BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../shared/constants';
+import {
+  BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
+  CALENDAR_DEFAULT_END_MINUTES,
+  CALENDAR_DEFAULT_START_MINUTES,
+} from '../../shared/constants';
 
 interface CalendarSettingsSectionProps {
   semesterId?: string;
@@ -82,9 +81,6 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
   const calendarSources = useCalendarSourceRegistry();
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
   const [isLmsDescriptionRiskDialogOpen, setIsLmsDescriptionRiskDialogOpen] = React.useState(false);
-  const [dayStartDraft, setDayStartDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayStartMinutes));
-  const [dayEndDraft, setDayEndDraft] = React.useState(() => toTimeInputValue(normalizedSettings.dayEndMinutes));
-  const timeInputClassName = 'appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none';
   const cachedSemester = React.useMemo(() => {
     if (!semesterId) return null;
     return queryClient.getQueryData<CachedSemesterDetail>(queryKeys.semesters.detail(semesterId)) ?? null;
@@ -106,7 +102,8 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
       name: course.name,
     }));
   }, [cachedSemester]);
-  const patchSettings = (patch: Partial<CalendarSettingsState>) => {
+
+  const patchSettings = React.useCallback((patch: Partial<CalendarSettingsState>) => {
     const nextSettings: CalendarSettingsState = {
       ...normalizedSettings,
       ...patch,
@@ -121,41 +118,7 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
     };
 
     void Promise.resolve(updateSettings(nextSettings));
-  };
-
-  React.useEffect(() => {
-    setDayStartDraft(toTimeInputValue(normalizedSettings.dayStartMinutes));
-  }, [normalizedSettings.dayStartMinutes]);
-
-  React.useEffect(() => {
-    setDayEndDraft(toTimeInputValue(normalizedSettings.dayEndMinutes));
-  }, [normalizedSettings.dayEndMinutes]);
-
-  const commitDayStartTime = (value: string) => {
-    const parsed = parseTimeInputValue(value);
-    if (parsed === null) {
-      setDayStartDraft(toTimeInputValue(normalizedSettings.dayStartMinutes));
-      return;
-    }
-    const minuteWindow = normalizeDayMinuteWindow(parsed, normalizedSettings.dayEndMinutes);
-    patchSettings({
-      dayStartMinutes: minuteWindow.dayStartMinutes,
-      dayEndMinutes: minuteWindow.dayEndMinutes,
-    });
-  };
-
-  const commitDayEndTime = (value: string) => {
-    const parsed = parseTimeInputValue(value);
-    if (parsed === null) {
-      setDayEndDraft(toTimeInputValue(normalizedSettings.dayEndMinutes));
-      return;
-    }
-    const minuteWindow = normalizeDayMinuteWindow(normalizedSettings.dayStartMinutes, parsed);
-    patchSettings({
-      dayStartMinutes: minuteWindow.dayStartMinutes,
-      dayEndMinutes: minuteWindow.dayEndMinutes,
-    });
-  };
+  }, [normalizedSettings, updateSettings]);
 
   return (
     <>
@@ -177,62 +140,26 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
               />
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="calendar-settings-day-start">Day start time</FieldLabel>
-                  <InputGroup>
-                    <InputGroupInput
-                      id="calendar-settings-day-start"
-                      type="time"
-                      step={CALENDAR_TIME_INPUT_STEP_SECONDS}
-                      value={dayStartDraft}
-                      onChange={(event) => {
-                        const nextValue = event.target.value;
-                        setDayStartDraft(nextValue);
-                        if (parseTimeInputValue(nextValue) !== null) {
-                          commitDayStartTime(nextValue);
-                        }
-                      }}
-                      onBlur={(event) => commitDayStartTime(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key !== 'Enter') return;
-                        commitDayStartTime(event.currentTarget.value);
-                        event.currentTarget.blur();
-                      }}
-                      className={timeInputClassName}
-                    />
-                    <InputGroupAddon align="inline-end" className="pr-2">
-                      <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-                    </InputGroupAddon>
-                  </InputGroup>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="calendar-settings-day-end">Day end time</FieldLabel>
-                  <InputGroup>
-                    <InputGroupInput
-                      id="calendar-settings-day-end"
-                      type="time"
-                      step={CALENDAR_TIME_INPUT_STEP_SECONDS}
-                      value={dayEndDraft}
-                      onChange={(event) => {
-                        const nextValue = event.target.value;
-                        setDayEndDraft(nextValue);
-                        if (parseTimeInputValue(nextValue) !== null) {
-                          commitDayEndTime(nextValue);
-                        }
-                      }}
-                      onBlur={(event) => commitDayEndTime(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key !== 'Enter') return;
-                        commitDayEndTime(event.currentTarget.value);
-                        event.currentTarget.blur();
-                      }}
-                      className={timeInputClassName}
-                    />
-                    <InputGroupAddon align="inline-end" className="pr-2">
-                      <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-                    </InputGroupAddon>
-                  </InputGroup>
-                </Field>
+                <PluginSettingsTimeField
+                  settingsKey={BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE}
+                  fieldPath="dayStartMinutes"
+                  label="Day start time"
+                  defaultValue={CALENDAR_DEFAULT_START_MINUTES}
+                  onCommit={(minutes) => {
+                    const w = normalizeDayMinuteWindow(minutes, normalizedSettings.dayEndMinutes);
+                    patchSettings({ dayStartMinutes: w.dayStartMinutes, dayEndMinutes: w.dayEndMinutes });
+                  }}
+                />
+                <PluginSettingsTimeField
+                  settingsKey={BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE}
+                  fieldPath="dayEndMinutes"
+                  label="Day end time"
+                  defaultValue={CALENDAR_DEFAULT_END_MINUTES}
+                  onCommit={(minutes) => {
+                    const w = normalizeDayMinuteWindow(normalizedSettings.dayStartMinutes, minutes);
+                    patchSettings({ dayStartMinutes: w.dayStartMinutes, dayEndMinutes: w.dayEndMinutes });
+                  }}
+                />
               </div>
 
               <PluginSettingsBooleanField

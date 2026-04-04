@@ -48,7 +48,7 @@ const BuiltinAcademicCalendarTab: React.FC<TabProps> = ({ tabId, semesterId, set
   );
 };
 
-const BuiltinCourseScheduleTab: React.FC<TabProps> = ({ courseId }) => {
+const BuiltinCourseScheduleTab: React.FC<TabProps> = ({ courseId, semesterId }) => {
   if (!courseId) {
     return (
       <UnsupportedContextCard
@@ -58,7 +58,7 @@ const BuiltinCourseScheduleTab: React.FC<TabProps> = ({ courseId }) => {
     );
   }
 
-  return <CourseScheduleTab courseId={courseId} />;
+  return <CourseScheduleTab courseId={courseId} semesterId={semesterId} />;
 };
 
 const BuiltinTodoTab: React.FC<TabProps> = ({ settings, updateSettings, semesterId, courseId }) => {

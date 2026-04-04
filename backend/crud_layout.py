@@ -356,6 +356,7 @@ def upsert_tab_setting(
     program_id: str | None = None,
     semester_id: str | None = None,
     course_id: str | None = None,
+    commit: bool = True,
 ) -> models.TabSetting:
     _ensure_tab_settings_context(program_id=program_id, semester_id=semester_id, course_id=course_id)
     normalized_settings_key = str(tab_setting.settings_key or "").strip()
@@ -377,8 +378,11 @@ def upsert_tab_setting(
         )
     existing.settings = tab_setting.settings
     db.add(existing)
-    db.commit()
-    db.refresh(existing)
+    if commit:
+        db.commit()
+        db.refresh(existing)
+    else:
+        db.flush()
     return existing
 
 

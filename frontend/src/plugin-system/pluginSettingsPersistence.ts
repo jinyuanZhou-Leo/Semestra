@@ -4,7 +4,7 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import { setCourseDetailQueryData } from "@/data/resources/courses";
-import { invalidateProgramDetailQuery, setProgramDetailQueryData } from "@/data/resources/programs";
+import { setProgramDetailQueryData } from "@/data/resources/programs";
 import { setSemesterDetailQueryData } from "@/data/resources/semesters";
 import api, { type Course, type Program, type Semester, type TabSetting } from "@/services/api";
 import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
@@ -96,17 +96,20 @@ export const persistScopeSettings = async (
   return api.upsertCourseTabSettings(scope.courseId, settingsKey, payload);
 };
 
-export const invalidateScopeQuery = async (
+export const invalidateScopeQuery = (
   queryClient: QueryClient,
   scope: PluginSettingsScope,
-) => {
+): void => {
+  // Mark stale so the next mount/focus refetch picks up the change, but do NOT trigger
+  // an immediate background refetch. applyScopeEntityUpdate already wrote the API response
+  // into the cache, so the UI is already up-to-date.
   if (scope.kind === "program") {
-    await invalidateProgramDetailQuery(queryClient, scope.programId);
+    queryClient.invalidateQueries({ queryKey: ["programs", "detail", scope.programId], refetchType: 'none' });
     return;
   }
   if (scope.kind === "semester") {
-    await queryClient.invalidateQueries({ queryKey: ["semesters", "detail", scope.semesterId] });
+    queryClient.invalidateQueries({ queryKey: ["semesters", "detail", scope.semesterId], refetchType: 'none' });
     return;
   }
-  await queryClient.invalidateQueries({ queryKey: ["courses", "detail", scope.courseId] });
+  queryClient.invalidateQueries({ queryKey: ["courses", "detail", scope.courseId], refetchType: 'none' });
 };

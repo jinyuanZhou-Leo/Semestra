@@ -71,6 +71,23 @@ type RankedCommandItem = LayoutCommandItem & {
   originalIndex: number;
 };
 
+function getCommandPaletteEmptyMessage(
+  activePage: LayoutCommandPage | null,
+  pageErrorMessage: string | null,
+  isPageLoading: boolean,
+): string {
+  if (!activePage) {
+    return "No matching command found.";
+  }
+  if (pageErrorMessage) {
+    return pageErrorMessage;
+  }
+  if (isPageLoading) {
+    return "Loading navigation items...";
+  }
+  return activePage.emptyMessage;
+}
+
 const normalizeSearchText = (value: string) => value.trim().toLowerCase();
 
 const buildSearchHaystack = (item: LayoutCommandItem) => [
@@ -315,9 +332,7 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
     ));
   }, [normalizedSearch, pageItems]);
   const commandScopeKey = activePage?.id ?? "root";
-  const emptyMessage = activePage
-    ? pageErrorMessage ?? (isPageLoading ? "Loading navigation items..." : activePage.emptyMessage)
-    : "No matching command found.";
+  const emptyMessage = getCommandPaletteEmptyMessage(activePage, pageErrorMessage, isPageLoading);
 
   return (
     <CommandDialog

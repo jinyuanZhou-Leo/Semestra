@@ -400,7 +400,7 @@ def ensure_course_event_type_exists(db: Session, course_id: str, event_type_code
         icon=None,
     )
     next_items = resolve_course_event_types(db, course) + [event_type]
-    upsert_course_event_types_settings(db, course, next_items)
+    upsert_course_event_types_settings(db, course, next_items, commit=False)
     return event_type
 
 
@@ -483,6 +483,7 @@ def import_course_schedule_from_ics(
                 db_section = models.CourseSection(course_id=course.id, **section_payload)
                 touch_model_timestamp(db_section)
                 db.add(db_section)
+                db.flush()
                 linked_section_id = section_id
             elif existing_section.event_type_code == event_type_code:
                 linked_section_id = section_id

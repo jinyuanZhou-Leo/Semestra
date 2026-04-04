@@ -284,7 +284,6 @@ class Course(Base):
     tab_settings = relationship("TabSetting", back_populates="course_context", cascade="all, delete-orphan")
     tab_order_entries = relationship("WorkspaceTabOrderEntry", back_populates="course_context", cascade="all, delete-orphan")
     plugin_activations = relationship("ProgramCoursePluginActivation", back_populates="course", cascade="all, delete-orphan")
-    event_types = relationship("CourseEventType", back_populates="course", cascade="all, delete-orphan")
     sections = relationship("CourseSection", back_populates="course", cascade="all, delete-orphan")
     events = relationship("CourseEvent", back_populates="course", cascade="all, delete-orphan")
     gradebook = relationship("CourseGradebook", back_populates="course", uselist=False, cascade="all, delete-orphan")
@@ -454,35 +453,9 @@ class CourseResourceFile(Base):
 
     course = relationship("Course", back_populates="resource_files")
 
-class CourseEventType(Base):
-    __tablename__ = "course_event_types"
-    __table_args__ = (
-        UniqueConstraint("course_id", "code", name="uq_course_event_types_course_code"),
-        UniqueConstraint("course_id", "abbreviation", name="uq_course_event_types_course_abbreviation"),
-        Index("ix_course_event_types_course_code", "course_id", "code"),
-    )
-
-    id = Column(String, primary_key=True, index=True, default=generate_uuid)
-    course_id = Column(String, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
-    code = Column(String, nullable=False)
-    abbreviation = Column(String, nullable=False)
-    track_attendance = Column(Boolean, nullable=False, default=False)
-    color = Column(String, nullable=True)
-    icon = Column(String, nullable=True)
-    created_at = Column(String, nullable=False, default="")
-    updated_at = Column(String, nullable=False, default="")
-
-    course = relationship("Course", back_populates="event_types")
-
 class CourseSection(Base):
     __tablename__ = "course_sections"
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["course_id", "event_type_code"],
-            ["course_event_types.course_id", "course_event_types.code"],
-            ondelete="CASCADE",
-            name="fk_course_sections_event_type",
-        ),
         UniqueConstraint("course_id", "section_id", name="uq_course_sections_course_section"),
         CheckConstraint("day_of_week >= 1 AND day_of_week <= 7", name="ck_course_sections_day_of_week"),
         CheckConstraint("start_time < end_time", name="ck_course_sections_time_range"),
@@ -515,12 +488,6 @@ class CourseSection(Base):
 class CourseEvent(Base):
     __tablename__ = "course_events"
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["course_id", "event_type_code"],
-            ["course_event_types.course_id", "course_event_types.code"],
-            ondelete="CASCADE",
-            name="fk_course_events_event_type",
-        ),
         ForeignKeyConstraint(
             ["course_id", "section_id"],
             ["course_sections.course_id", "course_sections.section_id"],

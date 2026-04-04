@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 
-import React from "react";
+import React, { useMemo } from "react";
 
 import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
 
@@ -21,12 +21,20 @@ const PluginSettingsPanelContext = React.createContext<PluginSettingsPanelContex
 
 export const PluginSettingsPanelProvider: React.FC<React.PropsWithChildren<PluginSettingsPanelContextValue>> = ({
   children,
-  ...value
-}) => (
-  <PluginSettingsPanelContext.Provider value={value}>
-    {children}
-  </PluginSettingsPanelContext.Provider>
-);
+  pluginId,
+  scope,
+  onRefresh,
+}) => {
+  const value = useMemo(
+    () => ({ pluginId, scope, onRefresh }),
+    [pluginId, scope, onRefresh],
+  );
+  return (
+    <PluginSettingsPanelContext.Provider value={value}>
+      {children}
+    </PluginSettingsPanelContext.Provider>
+  );
+};
 
 export const usePluginSettingsPanelContext = (): PluginSettingsPanelContextValue => {
   const context = React.useContext(PluginSettingsPanelContext);

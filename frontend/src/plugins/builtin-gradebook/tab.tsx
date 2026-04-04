@@ -98,6 +98,17 @@ interface GradebookAssessmentViewUiState {
     sortDirection: GradebookSortDirection;
 }
 
+function getNextSortDirection(direction: GradebookSortDirection): GradebookSortDirection {
+    switch (direction) {
+        case 'none':
+            return 'asc';
+        case 'asc':
+            return 'desc';
+        case 'desc':
+            return 'none';
+    }
+}
+
 const publishGradebookAssessmentCalendarRefresh = async (courseId: string, semesterId?: string) => {
     await publishTimetableScheduleChange({
         source: 'course',
@@ -309,7 +320,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
         if (assessmentViewState.sortKey === nextSortKey) {
             setAssessmentViewState((current) => ({
                 ...current,
-                sortDirection: current.sortDirection === 'none' ? 'asc' : current.sortDirection === 'asc' ? 'desc' : 'none',
+                sortDirection: getNextSortDirection(current.sortDirection),
             }));
             return;
         }

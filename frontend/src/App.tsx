@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense, lazy, useEffect, type ReactElement } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { SpeedInsights } from '@vercel/speed-insights/react';
@@ -33,7 +33,7 @@ const SemesterHomepage = lazy(() => import('./pages/SemesterHomepage').then(modu
 const CourseHomepage = lazy(() => import('./pages/CourseHomepage').then(module => ({ default: module.CourseHomepage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 
-const RootGate = () => {
+function RootGate(): ReactElement {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -52,9 +52,9 @@ const RootGate = () => {
   }
 
   return <Navigate to="/login" replace />;
-};
+}
 
-const PluginIdlePreloadController = () => {
+function PluginIdlePreloadController(): null {
   const { user, isLoading } = useAuth();
 
   useEffect(() => {
@@ -66,7 +66,7 @@ const PluginIdlePreloadController = () => {
   }, [isLoading, user, user?.background_plugin_preload]);
 
   return null;
-};
+}
 
 function App() {
   return (

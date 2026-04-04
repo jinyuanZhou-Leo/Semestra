@@ -18,12 +18,23 @@ interface CardSkeletonProps {
     linesCount?: number;
 }
 
-export const CardSkeleton: React.FC<CardSkeletonProps> = ({
+function getSkeletonLineWidthClass(index: number): string {
+    switch (index) {
+        case 0:
+            return 'w-full';
+        case 1:
+            return 'w-5/6';
+        default:
+            return 'w-4/6';
+    }
+}
+
+export function CardSkeleton({
     className,
     showHeader = true,
     showFooter = false,
     linesCount = 3
-}) => {
+}: CardSkeletonProps): React.ReactElement {
     return (
         <Card className={cn("h-full", className)}>
             {showHeader && (
@@ -37,7 +48,7 @@ export const CardSkeleton: React.FC<CardSkeletonProps> = ({
                         key={i}
                         className={cn(
                             "h-4",
-                            i === 0 ? "w-full" : i === 1 ? "w-5/6" : "w-4/6"
+                            getSkeletonLineWidthClass(i)
                         )}
                     />
                 ))}
@@ -49,4 +60,4 @@ export const CardSkeleton: React.FC<CardSkeletonProps> = ({
             )}
         </Card>
     );
-};
+}

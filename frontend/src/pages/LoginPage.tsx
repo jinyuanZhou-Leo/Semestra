@@ -106,7 +106,17 @@ const getInitialView = (state: LoginLocationState | null): AuthView => {
   return 'entry';
 };
 
-export const LoginPage: React.FC = () => {
+function getResendButtonLabel(isSendingCode: boolean, cooldownRemaining: number): string | React.ReactElement {
+  if (isSendingCode) {
+    return <div className="size-3.5 animate-spin rounded-full border-2 border-current/25 border-t-current" />;
+  }
+  if (cooldownRemaining > 0) {
+    return `${cooldownRemaining}s`;
+  }
+  return 'Resend';
+}
+
+export function LoginPage(): React.ReactElement {
   const location = useLocation();
   const loginLocationState = (location.state as LoginLocationState | null) ?? null;
   const prefilledEmail = typeof loginLocationState?.email === 'string' ? loginLocationState.email : '';
@@ -768,11 +778,11 @@ export const LoginPage: React.FC = () => {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="shrink-0"
-                    onClick={handleSendCode}
-                    disabled={isSendingCode || cooldownRemaining > 0}
+                  className="shrink-0"
+                  onClick={handleSendCode}
+                  disabled={isSendingCode || cooldownRemaining > 0}
                   >
-                    {isSendingCode ? <div className="size-3.5 animate-spin rounded-full border-2 border-current/25 border-t-current" /> : cooldownRemaining > 0 ? `${cooldownRemaining}s` : 'Resend'}
+                    {getResendButtonLabel(isSendingCode, cooldownRemaining)}
                   </Button>
                 </div>
 
@@ -942,4 +952,4 @@ export const LoginPage: React.FC = () => {
       </div>
     </motion.div>
   );
-};
+}

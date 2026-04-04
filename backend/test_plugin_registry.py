@@ -24,6 +24,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 import crud
 from database import Base
+import event_core_settings
 import main
 import models
 import plugin_registry
@@ -1339,17 +1340,19 @@ class PluginGovernanceDraftTests(unittest.TestCase):
                 updated_at="2026-03-27T10:00:00Z",
             )
         )
-        self.db.add(
-            models.CourseEventType(
-                course_id=course.id,
-                code="WORKSHOP",
-                abbreviation="WKS",
-                track_attendance=False,
-                color=None,
-                icon=None,
-                created_at="2026-03-27T10:00:00Z",
-                updated_at="2026-03-27T10:00:00Z",
-            )
+        event_core_settings.upsert_course_event_types_settings(
+            self.db,
+            course,
+            [
+                schemas.CourseEventType(
+                    id="workshop",
+                    code="WORKSHOP",
+                    abbreviation="WKS",
+                    track_attendance=False,
+                    color=None,
+                    icon=None,
+                )
+            ],
         )
         self.db.add(
             models.CourseSection(
@@ -1427,12 +1430,6 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertEqual(
             self.db.query(models.TodoTask).filter(
                 models.TodoTask.semester_id == semester.id,
-            ).count(),
-            0,
-        )
-        self.assertEqual(
-            self.db.query(models.CourseEventType).filter(
-                models.CourseEventType.course_id == course.id,
             ).count(),
             0,
         )

@@ -167,11 +167,6 @@ def delete_user_account(db: Session, *, base_dir: Path, user: models.User) -> No
             .filter(models.CourseSection.course_id.in_(owned_course_ids))
             .delete(synchronize_session=False)
         )
-        (
-            db.query(models.CourseEventType)
-            .filter(models.CourseEventType.course_id.in_(owned_course_ids))
-            .delete(synchronize_session=False)
-        )
         if owned_gradebook_ids:
             (
                 db.query(models.GradebookAssessment)

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 import course_resources
 import crud
+import event_core_settings
 import gradebook
 import logic
 import lms_service
@@ -107,7 +108,10 @@ def _export_course_resources(
     return exported
 
 
-def _export_course_event_types(course: models.Course) -> list[schemas.CourseEventTypeExport]:
+def _export_course_event_types(
+    db: Session,
+    course: models.Course,
+) -> list[schemas.CourseEventTypeExport]:
     return [
         schemas.CourseEventTypeExport(
             id=event_type.id,
@@ -117,7 +121,10 @@ def _export_course_event_types(course: models.Course) -> list[schemas.CourseEven
             color=event_type.color,
             icon=event_type.icon,
         )
-        for event_type in sorted(course.event_types, key=lambda item: (item.code or "", item.id))
+        for event_type in sorted(
+            event_core_settings.resolve_course_event_types(db, course),
+            key=lambda item: (item.code or "", item.id),
+        )
     ]
 
 
@@ -163,6 +170,7 @@ def _export_course_events(course: models.Course) -> list[schemas.CourseEventExpo
 
 
 def _export_course(
+    db: Session,
     course: models.Course,
     *,
     base_dir: Path,
@@ -210,7 +218,7 @@ def _export_course(
         gradebook=gradebook.export_course_gradebook(course),
         resource_files=_export_course_resources(course, base_dir=base_dir, error_detail=error_detail),
         lms_link=lms_link,
-        event_types=_export_course_event_types(course),
+        event_types=_export_course_event_types(db, course),
         sections=_export_course_sections(course),
         events=_export_course_events(course),
     )
@@ -299,7 +307,7 @@ def export_user_data(
                     reading_week_start=semester.reading_week_start,
                     reading_week_end=semester.reading_week_end,
                     courses=[
-                        _export_course(course, base_dir=base_dir, error_detail=error_detail)
+                        _export_course(db, course, base_dir=base_dir, error_detail=error_detail)
                         for course in semester.courses
                     ],
                     widgets=[_export_widget(widget) for widget in semester.widgets],
@@ -321,7 +329,7 @@ def export_user_data(
                 program_timezone=program.program_timezone or "UTC",
                 lms_integration_id=program.lms_integration_id,
                 courses=[
-                    _export_course(course, base_dir=base_dir, error_detail=error_detail)
+                    _export_course(db, course, base_dir=base_dir, error_detail=error_detail)
                     for course in program.courses
                     if course.id not in semester_courses_by_id
                 ],
@@ -474,29 +482,26 @@ def _import_course_resources(
 
 def _import_course_event_types(
     db: Session,
-    course_id: str,
+    course: models.Course,
     event_types: list[schemas.CourseEventTypeExport],
     *,
     touch_model_timestamp: Callable[[object], None],
 ) -> None:
     if not event_types:
         return
-    db.query(models.CourseEventType).filter(models.CourseEventType.course_id == course_id).delete(synchronize_session=False)
-    db.commit()
+    settings_event_types: list[schemas.CourseEventType] = []
     for event_type_data in event_types:
-        row = models.CourseEventType(
-            course_id=course_id,
+        settings_event_type = schemas.CourseEventType(
+            id=event_type_data.id,
             code=event_type_data.code,
             abbreviation=event_type_data.abbreviation,
             track_attendance=event_type_data.track_attendance,
             color=event_type_data.color,
             icon=event_type_data.icon,
-            created_at="",
-            updated_at="",
         )
-        touch_model_timestamp(row)
-        db.add(row)
-    db.commit()
+        settings_event_types.append(settings_event_type)
+    event_core_settings.upsert_course_event_types_settings(db, course, settings_event_types)
+    db.flush()
 
 
 def _import_course_sections(
@@ -607,7 +612,7 @@ def _import_course_export(
     )
     if course_data.gradebook is not None:
         gradebook.import_course_gradebook(db, course.id, course_data.gradebook)
-    _import_course_event_types(db, course.id, course_data.event_types, touch_model_timestamp=runtime.touch_model_timestamp)
+    _import_course_event_types(db, course, course_data.event_types, touch_model_timestamp=runtime.touch_model_timestamp)
     _import_course_sections(db, course.id, course_data.sections, runtime=runtime)
     _import_course_events(db, course.id, course_data.events, runtime=runtime)
     _import_course_resources(

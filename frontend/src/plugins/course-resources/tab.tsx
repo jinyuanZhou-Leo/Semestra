@@ -75,6 +75,13 @@ const BLOCKED_UPLOAD_EXTENSIONS = new Set([
     '.zsh',
 ]);
 
+function getUploadButtonLabel(pendingFileCount: number, isUploading: boolean): string {
+    if (isUploading) {
+        return 'Uploading...';
+    }
+    return `Upload ${pendingFileCount > 0 ? pendingFileCount : ''}`.trim();
+}
+
 const getResourceIcon = (resource: Pick<CourseResourceFile, 'mime_type' | 'filename_display' | 'filename_original' | 'resource_kind'>) => {
     if (resource.resource_kind === 'link') return Link2;
     const name = resource.filename_display || resource.filename_original;
@@ -531,7 +538,7 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                                 onClick={submitPendingFiles}
                                 disabled={pendingFiles.length === 0 || uploadMutation.isPending}
                             >
-                                {uploadMutation.isPending ? 'Uploading...' : `Upload ${pendingFiles.length > 0 ? pendingFiles.length : ''}`.trim()}
+                                {getUploadButtonLabel(pendingFiles.length, uploadMutation.isPending)}
                             </Button>
                         ) : (
                             <Button

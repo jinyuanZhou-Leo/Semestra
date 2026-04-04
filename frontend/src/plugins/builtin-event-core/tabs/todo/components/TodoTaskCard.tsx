@@ -62,6 +62,16 @@ const getDueTimestamp = (task: TodoTask) => {
   return Number.isNaN(dueTimestamp) ? null : dueTimestamp;
 };
 
+function getDueMetaTextClassName(completed: boolean, isOverdue: boolean): string {
+  if (completed) {
+    return 'text-muted-foreground/88';
+  }
+  if (isOverdue) {
+    return 'text-destructive';
+  }
+  return 'text-muted-foreground';
+}
+
 export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
   mode,
   task,
@@ -114,7 +124,7 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
       parts.push({
         key: 'due',
         label: task.dueTime ? `${dateLabel}, ${task.dueTime}` : dateLabel,
-        className: task.completed ? 'text-muted-foreground/88' : (isOverdue ? 'text-destructive' : 'text-muted-foreground'),
+        className: getDueMetaTextClassName(task.completed, isOverdue),
       });
     }
 

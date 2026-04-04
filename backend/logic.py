@@ -176,7 +176,7 @@ def get_minimum_percentage_for_gpa(target_gpa: float, scaling_table: dict) -> fl
         return None
     return min(eligible)
 
-def update_course_stats(course: models.Course, db: Session):
+def update_course_stats(course: models.Course, db: Session, *, commit: bool = True):
     """
     Updates the scaled GPA for a course.
     """
@@ -190,14 +190,17 @@ def update_course_stats(course: models.Course, db: Session):
     course.grade_scaled = calculate_gpa(course.grade_percentage, table)
     
     db.add(course)
-    db.commit()
-    db.refresh(course)
+    if commit:
+        db.commit()
+        db.refresh(course)
+    else:
+        db.flush()
     
     # Trigger update up the chain
     if semester:
-        update_semester_stats(semester, db)
+        update_semester_stats(semester, db, commit=commit)
 
-def update_semester_stats(semester: models.Semester, db: Session):
+def update_semester_stats(semester: models.Semester, db: Session, *, commit: bool = True):
     """
     Updates average stats for a semester.
     """
@@ -231,13 +234,16 @@ def update_semester_stats(semester: models.Semester, db: Session):
         semester.average_percentage = 0.0
         
     db.add(semester)
-    db.commit()
-    db.refresh(semester)
+    if commit:
+        db.commit()
+        db.refresh(semester)
+    else:
+        db.flush()
     
     if semester.program:
-        update_program_stats(semester.program, db)
+        update_program_stats(semester.program, db, commit=commit)
 
-def update_program_stats(program: models.Program, db: Session):
+def update_program_stats(program: models.Program, db: Session, *, commit: bool = True):
     """
     Updates CGPA for the program.
     """
@@ -276,8 +282,11 @@ def update_program_stats(program: models.Program, db: Session):
         program.cgpa_percentage = 0.0
         
     db.add(program)
-    db.commit()
-    db.refresh(program)
+    if commit:
+        db.commit()
+        db.refresh(program)
+    else:
+        db.flush()
 
 def recalculate_all_stats(program: models.Program, db: Session):
     """

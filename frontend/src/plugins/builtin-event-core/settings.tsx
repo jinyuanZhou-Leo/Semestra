@@ -40,7 +40,7 @@ const DEFAULT_EVENT_TYPES: CourseEventType[] = [
   { id: 'builtin-tutorial', code: 'TUTORIAL', abbreviation: 'TUT', track_attendance: false, color: null, icon: null },
 ];
 
-const normalizeEventTypes = (value: unknown): CourseEventType[] => {
+function normalizeEventTypes(value: unknown): CourseEventType[] {
   if (!Array.isArray(value)) {
     return DEFAULT_EVENT_TYPES;
   }
@@ -60,16 +60,38 @@ const normalizeEventTypes = (value: unknown): CourseEventType[] => {
     }];
   });
   return normalized.length > 0 ? normalized : DEFAULT_EVENT_TYPES;
-};
+}
 
-const serializeEventTypes = (items: CourseEventType[]) => items.map((item) => ({
-  id: item.id,
-  code: item.code,
-  abbreviation: item.abbreviation,
-  track_attendance: item.track_attendance,
-  color: item.color ?? null,
-  icon: item.icon ?? null,
-}));
+function serializeEventTypes(items: CourseEventType[]): Array<Record<string, unknown>> {
+  return items.map((item) => ({
+    id: item.id,
+    code: item.code,
+    abbreviation: item.abbreviation,
+    track_attendance: item.track_attendance,
+    color: item.color ?? null,
+    icon: item.icon ?? null,
+  }));
+}
+
+function buildCreatedEventType(data: EventTypeFormData): CourseEventType {
+  const code = data.code.trim().toUpperCase();
+  return {
+    id: code,
+    code,
+    abbreviation: data.abbreviation.trim().toUpperCase(),
+    track_attendance: data.track_attendance,
+    color: null,
+    icon: null,
+  };
+}
+
+function getEventTypesFallback(bucket: { inheritedSettings: Record<string, unknown> }): Array<Record<string, unknown>> {
+  const inheritedValue = bucket.inheritedSettings[EVENT_CORE_EVENT_TYPES_FIELD];
+  if (inheritedValue === undefined) {
+    return serializeEventTypes(DEFAULT_EVENT_TYPES);
+  }
+  return serializeEventTypes(normalizeEventTypes(inheritedValue));
+}
 
 // ── Calendar settings section (semester only) ─────────────────────────────────
 
@@ -130,19 +152,17 @@ const SemesterEventTypesSettingsSection: React.FC<PluginSettingsSectionProps> = 
     [bucket.resolvedSettings],
   );
 
+  const { updateField, resetField, inheritedSettings } = bucket;
   const saveEventTypes = React.useCallback(async (next: CourseEventType[]) => {
     const serializedNext = serializeEventTypes(next);
-    const inheritedValue = bucket.inheritedSettings[EVENT_CORE_EVENT_TYPES_FIELD];
-    const effectiveFallback = inheritedValue !== undefined
-      ? serializeEventTypes(normalizeEventTypes(inheritedValue))
-      : serializeEventTypes(DEFAULT_EVENT_TYPES);
+    const fallbackEventTypes = getEventTypesFallback({ inheritedSettings });
 
-    if (jsonDeepEqual(serializedNext, effectiveFallback)) {
-      await bucket.resetField(EVENT_CORE_EVENT_TYPES_FIELD);
+    if (jsonDeepEqual(serializedNext, fallbackEventTypes)) {
+      await resetField(EVENT_CORE_EVENT_TYPES_FIELD);
     } else {
-      await bucket.updateField(EVENT_CORE_EVENT_TYPES_FIELD, serializedNext);
+      await updateField(EVENT_CORE_EVENT_TYPES_FIELD, serializedNext);
     }
-  }, [bucket]);
+  }, [updateField, resetField, inheritedSettings]);
 
   const handleCreateOrUpdate = React.useCallback(async (
     data: EventTypeFormData,
@@ -150,17 +170,7 @@ const SemesterEventTypesSettingsSection: React.FC<PluginSettingsSectionProps> = 
   ) => {
     const next = editingType
       ? eventTypes.map((item) => item.id === editingType.id ? { ...item, ...data } : item)
-      : [
-        ...eventTypes,
-        {
-          id: data.code.trim().toUpperCase(),
-          code: data.code.trim().toUpperCase(),
-          abbreviation: data.abbreviation.trim().toUpperCase(),
-          track_attendance: data.track_attendance,
-          color: null,
-          icon: null,
-        },
-      ];
+      : [...eventTypes, buildCreatedEventType(data)];
     await saveEventTypes(next);
   }, [eventTypes, saveEventTypes]);
 

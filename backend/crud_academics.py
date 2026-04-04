@@ -169,7 +169,13 @@ def get_semesters(db: Session, program_id: str):
     return db.query(models.Semester).filter(models.Semester.program_id == program_id).all()
 
 
-def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: str):
+def create_semester(
+    db: Session,
+    semester: schemas.SemesterCreate,
+    program_id: str,
+    *,
+    commit: bool = True,
+):
     program = db.query(models.Program).filter(models.Program.id == program_id).first()
     if program is None:
         raise PluginRegistryError("PROGRAM_NOT_FOUND", "Program not found.")
@@ -183,13 +189,19 @@ def create_semester(db: Session, semester: schemas.SemesterCreate, program_id: s
         payload["end_date"] = end_date or default_end
     db_semester = models.Semester(**payload, program_id=program_id)
     db.add(db_semester)
-    db.commit()
-    db.refresh(db_semester)
-    _ensure_default_semester_plugin_activations(db, db_semester)
+    if commit:
+        db.commit()
+        db.refresh(db_semester)
+    else:
+        db.flush()
+    _ensure_default_semester_plugin_activations(db, db_semester, commit=commit)
     _refresh_semester_review_ready(db, db_semester)
     db.add(db_semester)
-    db.commit()
-    db.refresh(db_semester)
+    if commit:
+        db.commit()
+        db.refresh(db_semester)
+    else:
+        db.flush()
     return db_semester
 
 
@@ -242,25 +254,42 @@ def _validate_course_semester_assignment(db: Session, course: models.Course, sem
         raise CourseSemesterAssignmentError("SEMESTER_PROGRAM_MISMATCH")
 
 
-def create_course(db: Session, course: schemas.CourseCreate, program_id: str, semester_id: str | None = None):
+def create_course(
+    db: Session,
+    course: schemas.CourseCreate,
+    program_id: str,
+    semester_id: str | None = None,
+    *,
+    commit: bool = True,
+):
     db_course = models.Course(**course.model_dump(), program_id=program_id, semester_id=semester_id)
     db.add(db_course)
-    db.commit()
-    db.refresh(db_course)
+    if commit:
+        db.commit()
+        db.refresh(db_course)
+    else:
+        db.flush()
 
     gradebook.ensure_course_gradebook(db, db_course)
     if db_course.program and _sync_program_subject_color_map(db_course.program):
         db.add(db_course.program)
-        db.commit()
-    db.refresh(db_course)
+        if commit:
+            db.commit()
+        else:
+            db.flush()
+    if commit:
+        db.refresh(db_course)
 
-    logic.update_course_stats(db_course, db)
+    logic.update_course_stats(db_course, db, commit=commit)
     if db_course.semester is not None and db_course.semester.lifecycle_state == "draft":
         db_course.semester.draft_updated_at = _now_utc_iso()
         _refresh_semester_review_ready(db, db_course.semester)
         db.add(db_course.semester)
-        db.commit()
-        db.refresh(db_course.semester)
+        if commit:
+            db.commit()
+            db.refresh(db_course.semester)
+        else:
+            db.flush()
     return db_course
 
 

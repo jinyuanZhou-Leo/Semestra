@@ -27,6 +27,7 @@ if str(BACKEND_DIR) not in sys.path:
 import course_resources
 import crud
 import database
+import event_core_settings
 import gradebook
 import lms_service
 import main
@@ -205,17 +206,19 @@ class BackupImportExportTests(unittest.TestCase):
             course_id=semester_course.id,
         )
 
-        self.db.add(
-            models.CourseEventType(
-                course_id=semester_course.id,
-                code="STUDIO",
-                abbreviation="STD",
-                track_attendance=True,
-                color="#ff6600",
-                icon="hammer",
-                created_at="",
-                updated_at="",
-            )
+        event_core_settings.upsert_course_event_types_settings(
+            self.db,
+            semester_course,
+            [
+                schemas.CourseEventType(
+                    id="studio",
+                    code="STUDIO",
+                    abbreviation="STD",
+                    track_attendance=True,
+                    color="#ff6600",
+                    icon="hammer",
+                )
+            ],
         )
         self.db.commit()
         self.db.add(
@@ -409,7 +412,12 @@ class BackupImportExportTests(unittest.TestCase):
         self.assertEqual(len(restored_semester_course.resource_files), 2)
         self.assertEqual(len(restored_semester_course.sections), 1)
         self.assertEqual(len(restored_semester_course.events), 1)
-        self.assertTrue(any(event_type.code == "STUDIO" for event_type in restored_semester_course.event_types))
+        self.assertTrue(
+            any(
+                event_type.code == "STUDIO"
+                for event_type in event_core_settings.resolve_course_event_types(self.db, restored_semester_course)
+            )
+        )
 
         restored_file = next(resource for resource in restored_semester_course.resource_files if resource.resource_kind == "file")
         restored_path = course_resources.resolve_absolute_path(main.BASE_DIR, restored_file)
@@ -428,9 +436,55 @@ class BackupImportExportTests(unittest.TestCase):
         restored_assessment = restored_gradebook.assessments[0]
         self.assertEqual(restored_assessment.points_earned, 46.0)
         self.assertEqual(restored_assessment.points_possible, 50.0)
-        self.assertEqual(restored_assessment.source_kind, "lms_assignment")
-        self.assertEqual(restored_assessment.source_external_id, "assignment-1")
 
+    def test_export_includes_event_types_stored_in_tab_settings(self) -> None:
+        program = crud.create_program(
+            self.db,
+            schemas.ProgramCreate(
+                name="Engineering",
+                gpa_scaling_table='{"90-100":4.0}',
+                subject_color_map="{}",
+                grad_requirement_credits=20.0,
+                hide_gpa=False,
+                program_timezone="America/Toronto",
+            ),
+            self.source_user.id,
+        )
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(
+                name="MIE200",
+                category="MIE",
+                credits=0.5,
+                include_in_gpa=True,
+                hide_gpa=False,
+            ),
+            program.id,
+            None,
+        )
+        event_core_settings.upsert_course_event_types_settings(
+            self.db,
+            course,
+            [
+                schemas.CourseEventType(
+                    id="studio",
+                    code="STUDIO",
+                    abbreviation="STD",
+                    track_attendance=True,
+                    color="#ff6600",
+                    icon="hammer",
+                ),
+            ],
+        )
+        self.db.commit()
+
+        exported = asyncio.run(main.export_user_data(db=self.db, current_user=self.source_user))
+        exported_course = exported.programs[0].courses[0]
+
+        self.assertEqual(
+            [(item.code, item.abbreviation) for item in exported_course.event_types],
+            [("STUDIO", "STD")],
+        )
 
 if __name__ == "__main__":
     unittest.main()

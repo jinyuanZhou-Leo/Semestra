@@ -8,11 +8,11 @@
 
 "use no memo";
 
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { CalendarDays, RotateCcw } from "lucide-react";
+import { CalendarDays, Clock3, RotateCcw } from "lucide-react";
 
 import { getCourseDetailQueryOptions } from "@/data/resources/courses";
 import { getProgramDetailQueryOptions } from "@/data/resources/programs";
@@ -28,6 +28,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -74,10 +75,10 @@ const bucketSaveQueueMap = new Map<string, Promise<void>>();
 const bucketOptimisticScopeSettingsMap = new Map<string, Record<string, unknown>>();
 const bucketPendingSaveCountMap = new Map<string, number>();
 
-const buildPluginSettingsBucketKey = (
+function buildPluginSettingsBucketKey(
   scope: PluginSettingsScope,
   settingsKey: string,
-) => {
+): string {
   if (scope.kind === "program") {
     return `program:${scope.programId}:${settingsKey}`;
   }
@@ -85,7 +86,7 @@ const buildPluginSettingsBucketKey = (
     return `semester:${scope.semesterId}:${settingsKey}`;
   }
   return `course:${scope.courseId}:${settingsKey}`;
-};
+}
 
 export interface PluginSettingsBucketState {
   pluginId: string;
@@ -125,6 +126,27 @@ interface PluginSettingsBoundFieldBaseProps {
   placeholder?: string;
 }
 
+// ─── Time field utilities ──────────────────────────────────────────────────────
+
+const TIME_INPUT_STEP_SECONDS = 60;
+const TIME_INPUT_CLASS = 'appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none';
+
+function minutesToTimeString(totalMinutes: number): string {
+  const clamped = Math.max(0, Math.min(1439, Math.floor(totalMinutes)));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function parseTimeString(value: string): number | null {
+  const matched = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!matched) return null;
+  const h = Number(matched[1]);
+  const m = Number(matched[2]);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return (h * 60) + m;
+}
+
 interface PluginSettingsTextFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: string; }
 interface PluginSettingsTextareaFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: string; }
 interface PluginSettingsNumberFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: number; }
@@ -135,8 +157,24 @@ interface PluginSettingsSelectFieldProps extends PluginSettingsBoundFieldBasePro
   options: SelectOption[];
   defaultValue?: string;
 }
+interface PluginSettingsTimeFieldProps extends PluginSettingsBoundFieldBaseProps {
+  /** Default value in minutes from midnight (0–1439). */
+  defaultValue?: number;
+  /**
+   * Override the save behavior on commit. Useful for cross-field validation
+   * (e.g. clamping a day-start/end window). When omitted the field saves directly
+   * via the bucket. When provided, the caller is responsible for persisting the value.
+   */
+  onCommit?: (minutes: number) => void | Promise<void>;
+}
 
-const useSettingsEntityQuery = (scope: PluginSettingsScope) => {
+interface SettingsEntityQueryResult {
+  entity: SettingsEntity | null;
+  isLoading: boolean;
+  refetch: () => Promise<unknown>;
+}
+
+function useSettingsEntityQuery(scope: PluginSettingsScope): SettingsEntityQueryResult {
   const programQuery = useQuery({
     ...getProgramDetailQueryOptions(scope.kind === "program" ? scope.programId : "__missing__"),
     enabled: scope.kind === "program",
@@ -151,13 +189,34 @@ const useSettingsEntityQuery = (scope: PluginSettingsScope) => {
   });
 
   if (scope.kind === "program") {
-    return { entity: programQuery.data as SettingsEntity | null ?? null, isLoading: programQuery.isLoading, refetch: programQuery.refetch };
+    return {
+      entity: (programQuery.data as SettingsEntity | null) ?? null,
+      isLoading: programQuery.isLoading,
+      refetch: programQuery.refetch,
+    };
   }
   if (scope.kind === "semester") {
-    return { entity: semesterQuery.data as SettingsEntity | null ?? null, isLoading: semesterQuery.isLoading, refetch: semesterQuery.refetch };
+    return {
+      entity: (semesterQuery.data as SettingsEntity | null) ?? null,
+      isLoading: semesterQuery.isLoading,
+      refetch: semesterQuery.refetch,
+    };
   }
-  return { entity: courseQuery.data as SettingsEntity | null ?? null, isLoading: courseQuery.isLoading, refetch: courseQuery.refetch };
-};
+  return {
+    entity: (courseQuery.data as SettingsEntity | null) ?? null,
+    isLoading: courseQuery.isLoading,
+    refetch: courseQuery.refetch,
+  };
+}
+
+function getFieldFallbackValue<TValue>(
+  bucket: PluginSettingsBucketState,
+  fieldPath: string,
+  defaultValue: TValue | undefined,
+): TValue | undefined {
+  const inheritedValue = bucket.inheritedSettings[fieldPath];
+  return (inheritedValue !== undefined ? inheritedValue : defaultValue) as TValue | undefined;
+}
 
 const usePluginSettingsBucketInternal = (
   pluginId: string,
@@ -203,8 +262,7 @@ const usePluginSettingsBucketInternal = (
             optimisticSettings,
           );
           applyScopeEntityUpdate(queryClient, scope, nextTabSetting);
-          await invalidateScopeQuery(queryClient, scope);
-          onRefresh();
+          invalidateScopeQuery(queryClient, scope);
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : "Failed to save settings.";
           toast.error(message);
@@ -218,7 +276,7 @@ const usePluginSettingsBucketInternal = (
 
     bucketSaveQueueMap.set(bucketKey, queuedSave.then(() => undefined, () => undefined));
     return queuedSave;
-  }, [bucketKey, onRefresh, queryClient, scope, settingsKey]);
+  }, [bucketKey, queryClient, scope, settingsKey]);
 
   const updateField = React.useCallback(async (fieldPath: string, value: unknown) => {
     const currentSettings = bucketOptimisticScopeSettingsMap.get(bucketKey) ?? scopeSettings;
@@ -276,13 +334,8 @@ export const usePluginSettingField = <TValue = unknown,>(
     value,
     source,
     setValue: async (nextValue: TValue) => {
-      const inheritedValue = bucket.inheritedSettings[fieldPath];
-      const effectiveFallback = inheritedValue !== undefined ? inheritedValue : defaultValue;
-      
-      if (
-        effectiveFallback !== undefined &&
-        jsonDeepEqual(nextValue, effectiveFallback)
-      ) {
+      const fallbackValue = getFieldFallbackValue(bucket, fieldPath, defaultValue);
+      if (fallbackValue !== undefined && jsonDeepEqual(nextValue, fallbackValue)) {
         await bucket.resetField(fieldPath);
       } else {
         await bucket.updateField(fieldPath, nextValue);
@@ -295,7 +348,7 @@ export const usePluginSettingField = <TValue = unknown,>(
   };
 };
 
-const formatJsonValue = (value: unknown) => {
+function formatJsonValue(value: unknown): string {
   if (value == null) {
     return "";
   }
@@ -307,17 +360,19 @@ const formatJsonValue = (value: unknown) => {
   } catch {
     return String(value);
   }
-};
+}
 
-const parseDateOrUndefined = (value: unknown) => {
+function parseDateOrUndefined(value: unknown): Date | undefined {
   if (typeof value !== "string" || value.length === 0) {
     return undefined;
   }
   const parsed = parseISO(value);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-};
+}
 
-const toIsoDate = (value?: Date) => (value ? format(value, "yyyy-MM-dd") : "");
+function toIsoDate(value?: Date): string {
+  return value ? format(value, "yyyy-MM-dd") : "";
+}
 
 export interface PluginSettingsFieldLabelRowProps {
   label: React.ReactNode;
@@ -615,6 +670,71 @@ export const PluginSettingsJsonField: React.FC<PluginSettingsJsonFieldProps> = (
         {description ? <FieldDescription>{description}</FieldDescription> : null}
         {jsonError ? <FieldError>{jsonError}</FieldError> : null}
       </FieldContent>
+    </Field>
+  );
+};
+
+export const PluginSettingsTimeField: React.FC<PluginSettingsTimeFieldProps> = ({
+  settingsKey,
+  fieldPath,
+  label,
+  description,
+  defaultValue = 0,
+  onCommit,
+}) => {
+  const field = usePluginSettingField<number>(settingsKey, fieldPath, defaultValue);
+  const fieldId = useId();
+  const currentMinutes = field.value ?? defaultValue;
+  const [draft, setDraft] = useState(() => minutesToTimeString(currentMinutes));
+
+  useEffect(() => {
+    setDraft(minutesToTimeString(currentMinutes));
+  }, [currentMinutes]);
+
+  const handleCommit = useCallback((value: string) => {
+    const parsed = parseTimeString(value);
+    if (parsed === null) {
+      setDraft(minutesToTimeString(currentMinutes));
+      return;
+    }
+    if (onCommit) {
+      void Promise.resolve(onCommit(parsed));
+    } else {
+      void field.setValue(parsed);
+    }
+  }, [currentMinutes, field, onCommit]);
+
+  return (
+    <Field className="group gap-2" data-modified={field.source.is_overridden_in_scope || undefined}>
+      <FieldLabel htmlFor={fieldId}>
+        <PluginSettingsFieldLabelRow label={label} source={field.source} onReset={field.reset} />
+      </FieldLabel>
+      <InputGroup>
+        <InputGroupInput
+          id={fieldId}
+          type="time"
+          step={TIME_INPUT_STEP_SECONDS}
+          value={draft}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraft(nextValue);
+            if (parseTimeString(nextValue) !== null) {
+              handleCommit(nextValue);
+            }
+          }}
+          onBlur={(event) => handleCommit(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            handleCommit(event.currentTarget.value);
+            event.currentTarget.blur();
+          }}
+          className={TIME_INPUT_CLASS}
+        />
+        <InputGroupAddon align="inline-end" className="pr-2">
+          <Clock3 className="size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+        </InputGroupAddon>
+      </InputGroup>
+      {description ? <FieldDescription>{description}</FieldDescription> : null}
     </Field>
   );
 };

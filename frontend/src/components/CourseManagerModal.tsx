@@ -34,6 +34,13 @@ interface CourseManagerModalProps {
     onCourseAdded: () => void | Promise<void>;
 }
 
+function getImportCoursesLabel(selectedCount: number, isImporting: boolean): string {
+    if (isImporting) {
+        return 'Importing...';
+    }
+    return `Import ${selectedCount || ''} LMS Course${selectedCount === 1 ? '' : 's'}`;
+}
+
 export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
     isOpen,
     onClose,
@@ -429,7 +436,7 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                     onClick={() => void handleImportFromLms()}
                 >
                     <Plus className="mr-2 h-4 w-4" />
-                    {isImporting ? 'Importing...' : `Import ${selectedLmsCourseIds.length || ''} LMS Course${selectedLmsCourseIds.length === 1 ? '' : 's'}`}
+                    {getImportCoursesLabel(selectedLmsCourseIds.length, isImporting)}
                 </Button>
             ) : null}
         </>

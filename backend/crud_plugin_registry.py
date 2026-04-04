@@ -521,7 +521,6 @@ def _cleanup_builtin_event_core(db: Session, *, semester_ids: list[str], course_
     if course_ids:
         db.query(models.CourseEvent).filter(models.CourseEvent.course_id.in_(course_ids)).delete(synchronize_session=False)
         db.query(models.CourseSection).filter(models.CourseSection.course_id.in_(course_ids)).delete(synchronize_session=False)
-        db.query(models.CourseEventType).filter(models.CourseEventType.course_id.in_(course_ids)).delete(synchronize_session=False)
 
 
 _PLUGIN_CLEANUP_HOOKS: dict[str, Callable[..., None]] = {

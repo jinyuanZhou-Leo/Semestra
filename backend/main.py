@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Optional
 import os
 from pathlib import Path
@@ -556,38 +556,52 @@ async def create_semester_from_ics(
     if not name:
         name = file.filename.replace(".ics", "")
 
-    start_date = parsed_schedule.get("semesterStartDate") or datetime.utcnow().date()
+    start_date = parsed_schedule.get("semesterStartDate") or datetime.now(UTC).date()
     end_date = parsed_schedule.get("semesterEndDate") or (start_date + timedelta(days=111))
     if end_date < start_date:
         end_date = start_date
 
     semester_create = schemas.SemesterCreate(name=name, start_date=start_date, end_date=end_date)
-    semester = crud.create_semester(db=db, semester=semester_create, program_id=program_id)
-    
-    # Create courses and import structured schedule data from ICS.
-    user_setting = crud.get_user_setting_dict(current_user)
-    default_course_credit = float(user_setting.get("default_course_credit", crud.DEFAULT_COURSE_CREDIT))
-    if not parsed_courses:
-        parsed_courses = [{"name": course_name, "category": utils.extract_category(course_name), "meetings": []} for course_name in utils.parse_ics(content)]
+    try:
+        semester = crud.create_semester(
+            db=db,
+            semester=semester_create,
+            program_id=program_id,
+            commit=False,
+        )
 
-    for parsed_course in parsed_courses:
-        course_name = str(parsed_course.get("name", "")).strip()
-        if not course_name:
-            continue
-        category = parsed_course.get("category") or utils.extract_category(course_name)
-        course_create = schemas.CourseCreate(name=course_name, credits=default_course_credit, category=category)
-        created_course = crud.create_course(db=db, course=course_create, program_id=program_id, semester_id=semester.id)
+        # Create courses and import structured schedule data from ICS.
+        user_setting = crud.get_user_setting_dict(current_user)
+        default_course_credit = float(user_setting.get("default_course_credit", crud.DEFAULT_COURSE_CREDIT))
+        if not parsed_courses:
+            parsed_courses = [{"name": course_name, "category": utils.extract_category(course_name), "meetings": []} for course_name in utils.parse_ics(content)]
 
-        meetings = parsed_course.get("meetings", [])
-        if not isinstance(meetings, list) or len(meetings) == 0:
-            continue
+        for parsed_course in parsed_courses:
+            course_name = str(parsed_course.get("name", "")).strip()
+            if not course_name:
+                continue
+            category = parsed_course.get("category") or utils.extract_category(course_name)
+            course_create = schemas.CourseCreate(name=course_name, credits=default_course_credit, category=category)
+            created_course = crud.create_course(
+                db=db,
+                course=course_create,
+                program_id=program_id,
+                semester_id=semester.id,
+                commit=False,
+            )
 
-        try:
+            meetings = parsed_course.get("meetings", [])
+            if not isinstance(meetings, list) or len(meetings) == 0:
+                continue
+
             import_course_schedule_from_ics(db, created_course, meetings)
-            db.commit()
-        except Exception:
-            db.rollback()
-        
+
+        db.commit()
+        db.refresh(semester)
+    except Exception:
+        db.rollback()
+        raise
+
     return semester
 
 @app.post("/programs/{program_id}/courses/upload", response_model=list[schemas.Course])
@@ -623,30 +637,35 @@ async def create_courses_from_ics(
         parsed_courses = [{"name": course_name, "category": utils.extract_category(course_name), "meetings": []} for course_name in utils.parse_ics(content)]
 
     created_courses: list[models.Course] = []
-    for parsed_course in parsed_courses:
-        course_name = str(parsed_course.get("name", "")).strip()
-        if not course_name:
-            continue
+    try:
+        for parsed_course in parsed_courses:
+            course_name = str(parsed_course.get("name", "")).strip()
+            if not course_name:
+                continue
 
-        category = parsed_course.get("category") or utils.extract_category(course_name)
-        course_create = schemas.CourseCreate(name=course_name, credits=default_course_credit, category=category)
-        created_course = crud.create_course(
-            db=db,
-            course=course_create,
-            program_id=program_id,
-            semester_id=target_semester_id,
-        )
-        created_courses.append(created_course)
+            category = parsed_course.get("category") or utils.extract_category(course_name)
+            course_create = schemas.CourseCreate(name=course_name, credits=default_course_credit, category=category)
+            created_course = crud.create_course(
+                db=db,
+                course=course_create,
+                program_id=program_id,
+                semester_id=target_semester_id,
+                commit=False,
+            )
+            created_courses.append(created_course)
 
-        meetings = parsed_course.get("meetings", [])
-        if not isinstance(meetings, list) or len(meetings) == 0:
-            continue
+            meetings = parsed_course.get("meetings", [])
+            if not isinstance(meetings, list) or len(meetings) == 0:
+                continue
 
-        import_course_schedule_from_ics(db, created_course, meetings)
+            import_course_schedule_from_ics(db, created_course, meetings)
 
-    db.commit()
-    for course in created_courses:
-        db.refresh(course)
+        db.commit()
+        for course in created_courses:
+            db.refresh(course)
+    except Exception:
+        db.rollback()
+        raise
 
     return created_courses
 

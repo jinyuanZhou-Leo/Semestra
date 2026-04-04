@@ -899,7 +899,12 @@ export const CreateSemesterWizardPage: React.FC = () => {
     }
     try {
       await api.discardSemesterDraft(draftId);
-      await invalidateDraftData({ includeProgramDetail: true });
+      queryClient.removeQueries({ queryKey: semesterKeys.detail(draftId) });
+      removeSemesterDraftWorkflowQueries(queryClient, draftId);
+      await invalidateSemesterDraftWorkflowQueries(queryClient, {
+        programId: programId!,
+        includeProgramDetail: true,
+      });
       setIsExitDialogOpen(false);
       navigate(`/programs/${programId}`);
     } catch (error) {

@@ -160,6 +160,8 @@ def upsert_course_event_types_settings(
     db: Session,
     course: models.Course,
     event_types: list[schemas.CourseEventType],
+    *,
+    commit: bool = True,
 ) -> models.TabSetting:
     existing = get_tab_setting(db, EVENT_CORE_SETTINGS_KEY, course_id=course.id)
     current_settings = _parse_json_object(existing.settings if existing is not None else None)
@@ -169,6 +171,7 @@ def upsert_course_event_types_settings(
         db,
         schemas.TabSettingCreate(settings_key=EVENT_CORE_SETTINGS_KEY, settings=_serialize_json_object(next_settings)),
         course_id=course.id,
+        commit=commit,
     )
 
 
@@ -176,6 +179,8 @@ def upsert_semester_event_types_settings(
     db: Session,
     semester: models.Semester,
     event_types: list[schemas.CourseEventType],
+    *,
+    commit: bool = True,
 ) -> models.TabSetting:
     existing = get_tab_setting(db, EVENT_CORE_SETTINGS_KEY, semester_id=semester.id)
     current_settings = _parse_json_object(existing.settings if existing is not None else None)
@@ -185,6 +190,7 @@ def upsert_semester_event_types_settings(
         db,
         schemas.TabSettingCreate(settings_key=EVENT_CORE_SETTINGS_KEY, settings=_serialize_json_object(next_settings)),
         semester_id=semester.id,
+        commit=commit,
     )
 
 

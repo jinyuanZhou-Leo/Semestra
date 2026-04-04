@@ -9,7 +9,6 @@
 import React from 'react';
 import { ChevronDown, ChevronUp, Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
@@ -53,11 +52,27 @@ import { asChecked, extractLocationFromNote, getDayLabel, groupCourseEventsBySec
 const dayLabel = (value: number) => DAY_OF_WEEK_OPTIONS.find((item) => item.value === value)?.label ?? String(value);
 const resolveEventLocation = (event: CourseEvent, fallbackLocation?: string | null) => extractLocationFromNote(event.note) || fallbackLocation || '';
 
-export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) => {
+function extractErrorMessage(err: unknown, fallback: string): string {
+  const detail = (err as any)?.response?.data?.detail?.message;
+  if (detail) return detail;
+  if (err instanceof Error) return err.message;
+  return fallback;
+}
+
+function getSectionCheckboxState(allEnabled: boolean, isIndeterminate: boolean): boolean | 'indeterminate' {
+  if (allEnabled) {
+    return true;
+  }
+  if (isIndeterminate) {
+    return 'indeterminate';
+  }
+  return false;
+}
+
+export const CourseScheduleTab: React.FC<{ courseId: string; semesterId?: string }> = ({ courseId, semesterId }) => {
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
   const [sections, setSections] = React.useState<CourseSection[]>([]);
   const [events, setEvents] = React.useState<CourseEvent[]>([]);
-  const [semesterId, setSemesterId] = React.useState<string | undefined>(undefined);
 
   const [isSectionFormOpen, setIsSectionFormOpen] = React.useState(false);
   const [isQuickAddTypeOpen, setIsQuickAddTypeOpen] = React.useState(false);
@@ -92,7 +107,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
       setEventTypes(typeData);
       setSections(sectionData);
       setEvents(eventData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (loadRequestIdRef.current !== loadRequestId) return;
       throw err;
     }
@@ -101,8 +116,8 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
   const reloadAll = React.useCallback(async () => {
     try {
       await loadBaseData();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to load course schedule data.');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to load course schedule data.'));
     }
   }, [loadBaseData]);
 
@@ -113,24 +128,6 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
       loadRequestIdRef.current += 1;
     };
   }, [reloadAll]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    api.getCourse(courseId)
-      .then((course) => {
-        if (cancelled) return;
-        setSemesterId(course.semester_id ?? undefined);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSemesterId(undefined);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [courseId]);
 
   const eventsBySectionId = React.useMemo(() => groupCourseEventsBySection(events), [events]);
 
@@ -210,8 +207,8 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
       await scheduleService.deleteCourseSection(courseId, sectionId);
       await publishScheduleChange('section-deleted');
       await reloadAll();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete section.');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to delete section.'));
     }
   }, [courseId, publishScheduleChange, reloadAll]);
 
@@ -220,8 +217,8 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
       await scheduleService.updateCourseEvent(courseId, event.id, { enable: checked });
       await publishScheduleChange('event-updated');
       await reloadAll();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update event.');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to update event.'));
     }
   }, [courseId, publishScheduleChange, reloadAll]);
 
@@ -240,8 +237,8 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
       });
       await publishScheduleChange('events-updated');
       await reloadAll();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to update section events.');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to update section events.'));
       await reloadAll();
     }
   }, [courseId, eventsBySectionId, publishScheduleChange, reloadAll]);
@@ -330,7 +327,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string }> = ({ courseId }) 
                       </TableCell>
                       <TableCell onClick={(event) => event.stopPropagation()}>
                         <Checkbox
-                          checked={allEnabled ? true : isIndeterminate ? 'indeterminate' : false}
+                          checked={getSectionCheckboxState(allEnabled, isIndeterminate)}
                           onCheckedChange={(checked) => handleToggleSectionEnable(section.sectionId, asChecked(checked))}
                           aria-label={`Toggle all events in section ${section.sectionId}`}
                         />
