@@ -106,9 +106,9 @@ export const AuthArtPanel: React.FC = () => {
                     sizes="(min-width: 1024px) 50vw, 100vw"
                     alt={selectedArtwork.alt}
                     className="absolute max-w-none object-cover"
-                    loading="eager"
+                    loading="lazy"
                     decoding="async"
-                    fetchPriority="high"
+                    fetchPriority="auto"
                     style={{
                         width: '140%',
                         height: '140%',
