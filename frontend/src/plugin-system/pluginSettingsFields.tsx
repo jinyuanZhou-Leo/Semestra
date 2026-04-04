@@ -44,6 +44,7 @@ import {
   persistScopeSettings,
   type SettingsEntity,
 } from "./pluginSettingsPersistence";
+import { jsonDeepEqual } from './utils';
 import {
   getSettingLayerLabel,
   getSettingResetLabel,
@@ -124,14 +125,15 @@ interface PluginSettingsBoundFieldBaseProps {
   placeholder?: string;
 }
 
-type PluginSettingsTextFieldProps = PluginSettingsBoundFieldBaseProps;
-type PluginSettingsTextareaFieldProps = PluginSettingsBoundFieldBaseProps;
-type PluginSettingsNumberFieldProps = PluginSettingsBoundFieldBaseProps;
-type PluginSettingsBooleanFieldProps = PluginSettingsBoundFieldBaseProps;
-type PluginSettingsDateFieldProps = PluginSettingsBoundFieldBaseProps;
-type PluginSettingsJsonFieldProps = PluginSettingsBoundFieldBaseProps;
+interface PluginSettingsTextFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: string; }
+interface PluginSettingsTextareaFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: string; }
+interface PluginSettingsNumberFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: number; }
+interface PluginSettingsBooleanFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: boolean; }
+interface PluginSettingsDateFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: string; }
+interface PluginSettingsJsonFieldProps extends PluginSettingsBoundFieldBaseProps { defaultValue?: unknown; }
 interface PluginSettingsSelectFieldProps extends PluginSettingsBoundFieldBaseProps {
   options: SelectOption[];
+  defaultValue?: string;
 }
 
 const useSettingsEntityQuery = (scope: PluginSettingsScope) => {
@@ -261,15 +263,30 @@ export const usePluginSettingsBucket = (settingsKey: string): PluginSettingsBuck
 export const usePluginSettingField = <TValue = unknown,>(
   settingsKey: string,
   fieldPath: string,
+  defaultValue?: TValue,
 ): PluginSettingsFieldState<TValue> => {
   const bucket = usePluginSettingsBucket(settingsKey);
 
+  const rawValue = bucket.resolvedSettings[fieldPath];
+  const value = (rawValue !== undefined ? rawValue : (defaultValue ?? null)) as TValue | null;
+  const source = getSettingSource(bucket.settingsMeta, fieldPath);
+
   return {
     fieldPath,
-    value: (bucket.resolvedSettings[fieldPath] ?? null) as TValue | null,
-    source: getSettingSource(bucket.settingsMeta, fieldPath),
-    setValue: async (value: TValue) => {
-      await bucket.updateField(fieldPath, value);
+    value,
+    source,
+    setValue: async (nextValue: TValue) => {
+      const inheritedValue = bucket.inheritedSettings[fieldPath];
+      const effectiveFallback = inheritedValue !== undefined ? inheritedValue : defaultValue;
+      
+      if (
+        effectiveFallback !== undefined &&
+        jsonDeepEqual(nextValue, effectiveFallback)
+      ) {
+        await bucket.resetField(fieldPath);
+      } else {
+        await bucket.updateField(fieldPath, nextValue);
+      }
     },
     reset: async () => {
       await bucket.resetField(fieldPath);
@@ -309,49 +326,46 @@ export interface PluginSettingsFieldLabelRowProps {
 }
 
 export const PluginSettingsFieldLabelRow: React.FC<PluginSettingsFieldLabelRowProps> = ({ label, source, onReset }) => {
-  // Only show chrome when there is an override at this scope that can be reset.
-  // "From X" text for inherited-only (non-overridden) fields is also shown.
   const showModified = source?.is_overridden_in_scope === true;
   const resetLabel = source ? getSettingResetLabel(source) : undefined;
   const fromLayer = source && !source.is_overridden_in_scope && source.effective_layer !== 'default'
     ? getSettingLayerLabel(source.effective_layer)
     : undefined;
 
+  // No source info at all — render label only, no placeholder chrome.
+  if (!showModified && !fromLayer) {
+    return <span>{label}</span>;
+  }
+
   return (
-    // Note: `group` lives on the parent <Field> component so that hovering
-    // anywhere on the field row triggers the reset button visibility.
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <span>{label}</span>
-      {showModified && (
-        <span className="inline-flex items-center gap-1">
-          <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-px text-[10px] font-medium leading-tight text-blue-600 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">
-            Modified
-          </span>
-          {onReset && resetLabel && (
-            <button
-              type="button"
-              aria-label={resetLabel}
-              title={resetLabel}
-              onClick={onReset}
-              className="inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-            >
-              <RotateCcw className="size-2.5" />
-              {resetLabel}
-            </button>
-          )}
+    <span className="flex w-full items-center gap-2">
+      <span className="flex-1">{label}</span>
+      <span className="flex shrink-0 items-center gap-1">
+        {showModified && (
+          <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
+        )}
+        <span className="text-[10px] text-muted-foreground">
+          {showModified ? "Modified" : `Inherited from ${fromLayer}`}
         </span>
-      )}
-      {fromLayer && (
-        <span className="text-[10px] font-normal text-muted-foreground">
-          From {fromLayer}
-        </span>
-      )}
+        {showModified && (
+          <button
+            type="button"
+            aria-label={resetLabel}
+            title={resetLabel}
+            onClick={(e) => { e.preventDefault(); void onReset?.(); }}
+            className="inline-flex size-4 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <RotateCcw className="size-3" />
+          </button>
+        )}
+      </span>
     </span>
   );
 };
 
 const PluginSettingsTextLikeField: React.FC<PluginSettingsBoundFieldBaseProps & {
   multiline?: boolean;
+  defaultValue?: string;
 }> = ({
   settingsKey,
   fieldPath,
@@ -359,8 +373,9 @@ const PluginSettingsTextLikeField: React.FC<PluginSettingsBoundFieldBaseProps & 
   description,
   placeholder,
   multiline = false,
+  defaultValue = "",
 }) => {
-  const field = usePluginSettingField<string>(settingsKey, fieldPath);
+  const field = usePluginSettingField<string>(settingsKey, fieldPath, defaultValue);
   const fieldId = useId();
 
   return (
@@ -406,8 +421,9 @@ export const PluginSettingsNumberField: React.FC<PluginSettingsNumberFieldProps>
   label,
   description,
   placeholder,
+  defaultValue = null,
 }) => {
-  const field = usePluginSettingField<number | null>(settingsKey, fieldPath);
+  const field = usePluginSettingField<number | null>(settingsKey, fieldPath, defaultValue);
   const fieldId = useId();
 
   return (
@@ -435,8 +451,9 @@ export const PluginSettingsBooleanField: React.FC<PluginSettingsBooleanFieldProp
   fieldPath,
   label,
   description,
+  defaultValue = false,
 }) => {
-  const field = usePluginSettingField<boolean>(settingsKey, fieldPath);
+  const field = usePluginSettingField<boolean>(settingsKey, fieldPath, defaultValue);
   const fieldId = useId();
 
   return (
@@ -466,8 +483,9 @@ export const PluginSettingsSelectField: React.FC<PluginSettingsSelectFieldProps>
   description,
   placeholder,
   options,
+  defaultValue = "",
 }) => {
-  const field = usePluginSettingField<string>(settingsKey, fieldPath);
+  const field = usePluginSettingField<string>(settingsKey, fieldPath, defaultValue);
   const fieldId = useId();
 
   return (
@@ -505,8 +523,9 @@ export const PluginSettingsDateField: React.FC<PluginSettingsDateFieldProps> = (
   label,
   description,
   placeholder,
+  defaultValue = "",
 }) => {
-  const field = usePluginSettingField<string>(settingsKey, fieldPath);
+  const field = usePluginSettingField<string>(settingsKey, fieldPath, defaultValue);
   const fieldId = useId();
   const selectedDate = parseDateOrUndefined(field.value);
   const dateLabel = selectedDate ? format(selectedDate, "PP") : placeholder || "Pick a date";
@@ -553,8 +572,9 @@ export const PluginSettingsJsonField: React.FC<PluginSettingsJsonFieldProps> = (
   label,
   description,
   placeholder,
+  defaultValue = null,
 }) => {
-  const field = usePluginSettingField(settingsKey, fieldPath);
+  const field = usePluginSettingField(settingsKey, fieldPath, defaultValue);
   const fieldId = useId();
   const [jsonDraft, setJsonDraft] = useState(() => formatJsonValue(field.value));
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -636,45 +656,35 @@ export const PluginSettingsBucketSourceBanner: React.FC<PluginSettingsBucketSour
   fieldPath,
 }) => {
   const source = getSettingSource(bucket.settingsMeta, fieldPath);
+  const resetLabel = getSettingResetLabel(source);
 
   if (source.effective_layer === 'default' && !source.is_overridden_in_scope) {
-    // Nothing to show: data is at default, no override.
     return null;
   }
 
-  const resetLabel = getSettingResetLabel(source);
-
-  if (source.is_overridden_in_scope) {
-    return (
-      <div className="mb-3 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
-        <span className="flex-1">
-          <span className="font-medium">Modified here.</span>
-          {source.fallback_layer && source.fallback_layer !== 'default' && (
-            <span className="text-blue-600 dark:text-blue-400">
-              {" "}Overrides {getSettingLayerLabel(source.fallback_layer)} defaults.
-            </span>
-          )}
-        </span>
-        <button
-          type="button"
-          onClick={() => void bucket.resetField(fieldPath)}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900"
-        >
-          <RotateCcw className="size-3" />
-          {resetLabel}
-        </button>
-      </div>
-    );
-  }
-
-  // Inherited from a parent scope.
   return (
-    <div className="mb-3 flex items-center gap-2 rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-      <span className="flex-1">
-        Inherited from{" "}
-        <span className="font-medium">{getSettingLayerLabel(source.effective_layer)}</span>.
-        {" "}Changes here will override the inherited value.
+    <div className="mb-3 flex items-center gap-1.5">
+      {source.is_overridden_in_scope && (
+        <span className="size-2 shrink-0 rounded-full bg-blue-500" />
+      )}
+      <span className="flex-1 text-xs text-muted-foreground">
+        {source.is_overridden_in_scope
+          ? "Modified"
+          : <>From <span className="font-medium">{getSettingLayerLabel(source.effective_layer)}</span></>}
       </span>
+      {source.is_overridden_in_scope && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={resetLabel}
+          title={resetLabel}
+          onClick={() => void bucket.resetField(fieldPath)}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <RotateCcw />
+        </Button>
+      )}
     </div>
   );
 };

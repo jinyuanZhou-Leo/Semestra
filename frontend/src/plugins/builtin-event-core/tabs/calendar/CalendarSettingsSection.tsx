@@ -26,16 +26,16 @@ import {
 import { Button } from '@/components/ui/button';
 import {
   Field,
-  FieldContent,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldSet,
 } from '@/components/ui/field';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { useCalendarSourceRegistry } from '@/calendar-core';
+import {
+  PluginSettingsBooleanField,
+  PluginSettingsSelectField,
+} from '@/plugin-sdk';
 import type { CalendarSettingsState } from '../../shared/types';
 import { getWeekFromSemesterDate, resolveSemesterDateRange } from '../../shared/utils';
 import { CalendarSourceSettingsList } from './components/CalendarSourceSettingsList';
@@ -49,6 +49,7 @@ import {
   toTimeInputValue,
 } from './settings';
 import { SemesterScheduleExportModal } from './SemesterScheduleExportModal';
+import { BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../shared/constants';
 
 interface CalendarSettingsSectionProps {
   semesterId?: string;
@@ -57,6 +58,10 @@ interface CalendarSettingsSectionProps {
 }
 
 const WEEK_VIEW_DAY_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
+const WEEK_VIEW_DAY_COUNT_SELECT_OPTIONS = WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => ({
+  label: `${dayCount} day${dayCount === 1 ? '' : 's'}`,
+  value: String(dayCount),
+}));
 const FALLBACK_MAX_WEEK = 16;
 
 interface CachedSemesterDetail {
@@ -161,29 +166,15 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
         <div className="space-y-5">
           <FieldSet>
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="calendar-settings-week-view-day-count">Days per screen</FieldLabel>
-                <Select
-                  value={String(normalizedSettings.weekViewDayCount)}
-                  onValueChange={(value) => patchSettings({ weekViewDayCount: Number(value) })}
-                >
-                  <SelectTrigger id="calendar-settings-week-view-day-count" className="w-full">
-                    <SelectValue placeholder="Select visible days" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {WEEK_VIEW_DAY_COUNT_OPTIONS.map((dayCount) => (
-                        <SelectItem key={dayCount} value={String(dayCount)}>
-                          {dayCount} day{dayCount === 1 ? '' : 's'}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  Keep the full week visible and enable horizontal scrolling when this is smaller than the week width.
-                </FieldDescription>
-              </Field>
+              <PluginSettingsSelectField
+                settingsKey={BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE}
+                fieldPath="weekViewDayCount"
+                label="Days per screen"
+                description="Keep the full week visible and enable horizontal scrolling when this is smaller than the week width."
+                placeholder="Select visible days"
+                options={WEEK_VIEW_DAY_COUNT_SELECT_OPTIONS}
+                defaultValue="5"
+              />
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
@@ -244,44 +235,29 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
                 </Field>
               </div>
 
-              <Field orientation="responsive">
-                <FieldContent>
-                  <FieldLabel htmlFor="calendar-settings-highlight-conflicts">Highlight conflicts</FieldLabel>
-                  <FieldDescription>Use stronger visual emphasis for conflict events.</FieldDescription>
-                </FieldContent>
-                <Switch
-                  id="calendar-settings-highlight-conflicts"
-                  checked={normalizedSettings.highlightConflicts}
-                  onCheckedChange={(checked) => patchSettings({ highlightConflicts: checked })}
-                  className="shrink-0"
-                />
-              </Field>
+              <PluginSettingsBooleanField
+                settingsKey={BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE}
+                fieldPath="highlightConflicts"
+                label="Highlight conflicts"
+                description="Use stronger visual emphasis for conflict events."
+                defaultValue={true}
+              />
 
-              <Field orientation="responsive">
-                <FieldContent>
-                  <FieldLabel htmlFor="calendar-settings-show-weekends">Show weekends</FieldLabel>
-                  <FieldDescription>Display Saturday and Sunday columns in calendar views.</FieldDescription>
-                </FieldContent>
-                <Switch
-                  id="calendar-settings-show-weekends"
-                  checked={normalizedSettings.showWeekends}
-                  onCheckedChange={(checked) => patchSettings({ showWeekends: checked })}
-                  className="shrink-0"
-                />
-              </Field>
+              <PluginSettingsBooleanField
+                settingsKey={BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE}
+                fieldPath="showWeekends"
+                label="Show weekends"
+                description="Display Saturday and Sunday columns in calendar views."
+                defaultValue={true}
+              />
 
-              <Field orientation="responsive">
-                <FieldContent>
-                  <FieldLabel htmlFor="calendar-settings-count-reading-week">Count Reading Week in week number</FieldLabel>
-                  <FieldDescription>When disabled, weeks after Reading Week keep their academic numbering without counting the break week.</FieldDescription>
-                </FieldContent>
-                <Switch
-                  id="calendar-settings-count-reading-week"
-                  checked={normalizedSettings.countReadingWeekInWeekNumber}
-                  onCheckedChange={(checked) => patchSettings({ countReadingWeekInWeekNumber: checked })}
-                  className="shrink-0"
-                />
-              </Field>
+              <PluginSettingsBooleanField
+                settingsKey={BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE}
+                fieldPath="countReadingWeekInWeekNumber"
+                label="Count Reading Week in week number"
+                description="When disabled, weeks after Reading Week keep their academic numbering without counting the break week."
+                defaultValue={false}
+              />
 
             </FieldGroup>
           </FieldSet>

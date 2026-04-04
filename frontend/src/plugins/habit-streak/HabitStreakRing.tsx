@@ -134,9 +134,9 @@ export const HabitStreakRing: React.FC<HabitStreakRingProps> = ({
                     {streakCount}
                 </motion.span>
                 <span
-                    className="mt-0 font-bold uppercase tracking-widest"
+                    className="mt-0 font-medium tracking-tight"
                     style={{
-                        fontSize: 'clamp(0.45rem, 6cqmin, 0.6rem)',
+                        fontSize: 'clamp(0.55rem, 7cqmin, 0.7rem)',
                         color: 'var(--habit-ring-center-label)',
                     }}
                 >

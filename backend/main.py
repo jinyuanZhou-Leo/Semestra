@@ -659,8 +659,18 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
     if semester is None:
         raise HTTPException(status_code=404, detail="Semester not found")
     crud.ensure_semester_tabs_normalized(db, semester)
-    plugin_activations = crud.get_semester_plugin_activations(db, semester_id)
     runtime_payload = runtime_payloads.build_semester_runtime_payload(db, semester)
+    program = semester.program
+    program_summary = {
+        "id": program.id,
+        "name": program.name,
+        "cgpa_scaled": program.cgpa_scaled or 0,
+        "cgpa_percentage": program.cgpa_percentage or 0,
+        "grad_requirement_credits": program.grad_requirement_credits or 0,
+        "subject_color_map": program.subject_color_map,
+        "lms_integration_id": program.lms_integration_id,
+        "tab_settings": runtime_payloads.serialize_tab_settings_payloads(db, program_id=program.id),
+    } if program is not None else None
     return {
         "id": semester.id,
         "name": semester.name,
@@ -678,7 +688,7 @@ def read_semester(semester_id: str, db: Session = Depends(get_db), current_user:
         "courses": semester.courses,
         "widgets": semester.widgets,
         "tabs": semester.tabs,
-        "plugin_activations": plugin_activations,
+        "program": program_summary,
         **runtime_payload,
     }
 
@@ -1065,6 +1075,17 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
         raise HTTPException(status_code=404, detail="Course not found")
     crud.ensure_course_tabs_normalized(db, db_course)
     runtime_payload = runtime_payloads.build_course_runtime_payload(db, db_course)
+    program = db_course.program
+    program_summary = {
+        "id": program.id,
+        "name": program.name,
+        "cgpa_scaled": program.cgpa_scaled or 0,
+        "cgpa_percentage": program.cgpa_percentage or 0,
+        "grad_requirement_credits": program.grad_requirement_credits or 0,
+        "subject_color_map": program.subject_color_map,
+        "lms_integration_id": program.lms_integration_id,
+        "tab_settings": runtime_payloads.serialize_tab_settings_payloads(db, program_id=program.id),
+    } if program is not None else None
     return {
         "id": db_course.id,
         "name": db_course.name,
@@ -1084,7 +1105,7 @@ def read_course(course_id: str, db: Session = Depends(get_db), current_user: mod
         "lms_link": db_course.lms_link,
         "widgets": db_course.widgets,
         "tabs": db_course.tabs,
-        "plugin_activations": crud.get_course_plugin_activations(db, course_id),
+        "program": program_summary,
         **runtime_payload,
     }
 

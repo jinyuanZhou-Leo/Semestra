@@ -11,6 +11,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { programKeys } from '@/data/keys';
+import type { Program, Semester } from '@/services/api';
 import {
     getProgramDetailQueryOptions,
     invalidateProgramDetailQuery,
@@ -36,7 +37,6 @@ import { BuiltinTabProvider } from '../contexts/BuiltinTabContext';
 import { SemesterPluginManagementPanel } from '../components/SemesterPluginManagementPanel';
 import { SemesterCourseManagementSection } from '../components/SemesterCourseManagementSection';
 import { SemesterSettingsPanel } from '../components/SemesterSettingsPanel';
-import { SettingsSectionPluginOwnerProvider } from '@/components/SettingsSection';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 import { WorkspaceOverviewStats } from '../components/WorkspaceOverviewStats';
 import { BookOpen, GraduationCap, Percent, Plus, Settings, LayoutDashboard } from 'lucide-react';
@@ -45,12 +45,8 @@ import type { LayoutCommandGroup } from '../components/GlobalCommandPalette';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
-    getPluginIdByTabType,
-    getPluginManifestItemById,
     getResolvedTabMetadataByType,
-    getTabPluginLoadState,
     getTabComponentByType,
-    getTabSettingsComponentByType,
     hasTabPluginForType,
     PluginHostProvider,
     PluginRuntimeInstanceProvider,
@@ -116,10 +112,20 @@ const SemesterHomepageContent: React.FC = () => {
         },
         enabled: Boolean(semester?.program_id),
         staleTime: 300_000,
-        initialData: () => {
+        initialData: (): (Program & { semesters: Semester[] }) | undefined => {
             const programId = semester?.program_id;
             if (!programId) return undefined;
-            return queryClient.getQueryData(programKeys.detail(programId));
+            const cachedProgram = queryClient.getQueryData<Program & { semesters: Semester[] }>(programKeys.detail(programId));
+            if (cachedProgram) {
+                return cachedProgram;
+            }
+            if (!semester?.program) {
+                return undefined;
+            }
+            return {
+                ...semester.program,
+                semesters: [],
+            };
         },
     });
     const programName = parentProgramQuery.data?.name ?? null;
@@ -483,83 +489,6 @@ const SemesterHomepageContent: React.FC = () => {
         }
     }, [parentProgramQuery.data, queryClient, semester]);
 
-    const tabInstanceSettingsSections = useMemo(() => {
-        const sections = visibleTabs
-            .filter((tab) => tab.type !== HOMEPAGE_DASHBOARD_TAB_TYPE && tab.type !== HOMEPAGE_SETTINGS_TAB_TYPE)
-            .map((tab) => {
-                const SettingsComponent = getTabSettingsComponentByType(tab.type);
-                if (SettingsComponent) {
-                    const pluginId = getPluginIdByTabType(tab.type);
-                    const pluginDisplayName = pluginId ? getPluginManifestItemById(pluginId)?.displayName ?? null : null;
-                    return (
-                        <React.Fragment key={tab.id}>
-                            <SettingsSectionPluginOwnerProvider value={pluginDisplayName}>
-                                <SettingsComponent
-                                    tabId={tab.id}
-                                    settings={tab.settings || {}}
-                                    semesterId={semester?.id}
-                                    updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
-                                />
-                            </SettingsSectionPluginOwnerProvider>
-                        </React.Fragment>
-                    );
-                }
-                if (!isSettingsTabActive) return null;
-
-                if (!hasTabPluginForType(tab.type)) {
-                    return (
-                        <div
-                            key={tab.id}
-                            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground"
-                            role="status"
-                            aria-live="polite"
-                        >
-                            Settings unavailable for {tab.title || tab.type}: unknown tab type.
-                        </div>
-                    );
-                }
-
-                const tabLoadState = getTabPluginLoadState(tab.type);
-                if (tabLoadState.status === 'error') {
-                    return (
-                        <div
-                            key={tab.id}
-                            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground"
-                            role="status"
-                            aria-live="polite"
-                        >
-                            Settings unavailable for {tab.title || tab.type}: plugin failed to load.
-                        </div>
-                    );
-                }
-                if (tabLoadState.status === 'loaded') return null;
-                return (
-                    <div
-                        key={tab.id}
-                        className="rounded-xl border border-border/70 bg-card/60 px-4 py-3 text-sm text-muted-foreground"
-                        role="status"
-                        aria-live="polite"
-                    >
-                        Loading settings for {tab.title || tab.type}...
-                    </div>
-                );
-            })
-            .filter(Boolean);
-
-        if (sections.length === 0) return null;
-
-        return (
-            <div className="flex flex-col gap-4">
-                {sections}
-            </div>
-        );
-    }, [
-        visibleTabs,
-        semester?.id,
-        handleUpdateTabSettings,
-        isSettingsTabActive,
-    ]);
-
     const pluginSettingsSections = useMemo(() => {
         const pluginActivations = semester?.plugin_activations ?? [];
         if (pluginActivations.length === 0 || enabledPluginIds.size === 0) {
@@ -590,7 +519,7 @@ const SemesterHomepageContent: React.FC = () => {
         );
     }, [refreshSemester, semester]);
 
-    const hasPluginSettings = Boolean(semesterCourseManagementSection || pluginSettingsSections || tabInstanceSettingsSections);
+    const hasPluginSettings = Boolean(semesterCourseManagementSection || pluginSettingsSections);
 
     const builtinTabContext = useMemo(() => ({
         isLoading: isLoading,
@@ -633,7 +562,6 @@ const SemesterHomepageContent: React.FC = () => {
                     ) : null}
                     {semesterCourseManagementSection}
                     {pluginSettingsSections}
-                    {tabInstanceSettingsSections}
                 </div>
             ) : semester?.program_id ? (
                 <SemesterPluginManagementPanel
@@ -660,7 +588,6 @@ const SemesterHomepageContent: React.FC = () => {
         hasPluginSettings,
         semesterCourseManagementSection,
         pluginSettingsSections,
-        tabInstanceSettingsSections,
         openAddWidgetModal,
         refreshSemester
     ]);

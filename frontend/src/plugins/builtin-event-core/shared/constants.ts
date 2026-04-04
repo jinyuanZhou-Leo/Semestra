@@ -6,6 +6,9 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
+export const BUILTIN_EVENT_CORE_SETTINGS_KEY = 'builtin-event-core';
+export const EVENT_CORE_EVENT_TYPES_FIELD = 'eventTypes';
+
 export const BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE = 'builtin-academic-calendar';
 export const BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE = 'builtin-course-schedule';
 export const BUILTIN_TIMETABLE_TODO_TAB_TYPE = 'builtin-todo';

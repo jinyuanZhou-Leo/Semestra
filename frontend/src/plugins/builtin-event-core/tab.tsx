@@ -15,7 +15,6 @@ import {
   BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,
   BUILTIN_TIMETABLE_TODO_TAB_TYPE,
 } from './shared/constants';
-import { BuiltinAcademicCalendarTabSettings, BuiltinCourseScheduleTabSettings, TodoSettingsSection } from './settings';
 import { CalendarTab } from './tabs/calendar';
 import { CourseScheduleTab } from './tabs/course-schedule';
 import { TodoTab } from './tabs/todo';
@@ -76,19 +75,16 @@ const BuiltinTodoTab: React.FC<TabProps> = ({ settings, updateSettings, semester
 export const BuiltinAcademicCalendarTabDefinition: TabDefinition = {
   type: BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
   component: BuiltinAcademicCalendarTab,
-  SettingsComponent: BuiltinAcademicCalendarTabSettings,
 };
 
 export const BuiltinCourseScheduleTabDefinition: TabDefinition = {
   type: BUILTIN_TIMETABLE_COURSE_SCHEDULE_TAB_TYPE,
   component: BuiltinCourseScheduleTab,
-  SettingsComponent: BuiltinCourseScheduleTabSettings,
 };
 
 export const BuiltinTodoTabDefinition: TabDefinition = {
   type: BUILTIN_TIMETABLE_TODO_TAB_TYPE,
   component: BuiltinTodoTab,
-  SettingsComponent: TodoSettingsSection,
 };
 
 export const BuiltinTimetableTabDefinitions: TabDefinition[] = [

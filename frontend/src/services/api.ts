@@ -18,7 +18,7 @@ export interface RuntimeAvailability {
 }
 
 export interface TabSetting {
-    id: string;
+    id: string | null;
     settings_key: string;
     settings: string;
     scope_settings?: Record<string, unknown>;
@@ -140,6 +140,7 @@ export interface Semester {
     reading_week_start?: string | null;
     reading_week_end?: string | null;
     program_id?: string;
+    program?: Program;
     lifecycle_state?: 'draft' | 'active' | 'abandoned' | string;
     creation_step?: SemesterDraftStep;
     draft_updated_at?: string | null;
@@ -161,6 +162,7 @@ export interface Course {
     grade_scaled: number;
     grade_percentage: number;
     program_id: string;
+    program?: Program;
     semester_id?: string;
     include_in_gpa?: boolean;
     hide_gpa?: boolean;

@@ -744,7 +744,7 @@ class TabSettingUpdate(BaseModel):
 
 
 class TabSetting(TabSettingBase):
-    id: str
+    id: Optional[str] = None
     program_id: Optional[str] = None
     semester_id: Optional[str] = None
     course_id: Optional[str] = None

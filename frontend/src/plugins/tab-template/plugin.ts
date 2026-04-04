@@ -35,8 +35,8 @@ export default definePlugin({
     settings: {
       panels: [
         {
-          id: 'template-program-settings',
-          contexts: ['program'],
+          id: 'template-settings',
+          contexts: ['program', 'semester', 'course'],
         },
       ],
     },

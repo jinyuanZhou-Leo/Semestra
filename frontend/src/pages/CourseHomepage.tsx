@@ -50,17 +50,12 @@ import { useDashboardTabs } from '../hooks/useDashboardTabs';
 import { useVisibleTabSettingsPreload } from '../hooks/useVisibleTabSettingsPreload';
 import { CourseSettingsPanel } from '../components/CourseSettingsPanel';
 import { CoursePluginManagementPanel } from '../components/CoursePluginManagementPanel';
-import { SettingsSectionPluginOwnerProvider } from '@/components/SettingsSection';
 import { WorkspaceNav } from '../components/WorkspaceNav';
 
 import { PluginContentFadeIn, PluginTabSkeleton } from '../plugin-system/PluginLoadSkeleton';
 import {
-    getPluginIdByTabType,
-    getPluginManifestItemById,
     getResolvedTabMetadataByType,
-    getTabPluginLoadState,
     getTabComponentByType,
-    getTabSettingsComponentByType,
     hasTabPluginForType,
     PluginHostProvider,
     PluginRuntimeInstanceProvider,
@@ -540,85 +535,6 @@ const CourseHomepageContent: React.FC = () => {
         }
     }, [activeTabId, areBuiltinTabsReady, requestedTabType, visibleTabs]);
 
-    const tabInstanceSettingsSections = useMemo(() => {
-        const sections = visibleTabs
-            .filter((tab) => tab.type !== HOMEPAGE_DASHBOARD_TAB_TYPE && tab.type !== HOMEPAGE_SETTINGS_TAB_TYPE)
-            .map((tab) => {
-                const SettingsComponent = getTabSettingsComponentByType(tab.type);
-                if (SettingsComponent) {
-                    const pluginId = getPluginIdByTabType(tab.type);
-                    const pluginDisplayName = pluginId ? getPluginManifestItemById(pluginId)?.displayName ?? null : null;
-                    return (
-                        <React.Fragment key={tab.id}>
-                            <SettingsSectionPluginOwnerProvider value={pluginDisplayName}>
-                                <SettingsComponent
-                                    tabId={tab.id}
-                                    settings={tab.settings || {}}
-                                    semesterId={course?.semester_id}
-                                    courseId={course?.id}
-                                    updateSettings={(newSettings) => handleUpdateTabSettings(tab.id, newSettings)}
-                                />
-                            </SettingsSectionPluginOwnerProvider>
-                        </React.Fragment>
-                    );
-                }
-                if (!isSettingsTabActive) return null;
-
-                if (!hasTabPluginForType(tab.type)) {
-                    return (
-                        <div
-                            key={tab.id}
-                            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground"
-                            role="status"
-                            aria-live="polite"
-                        >
-                            Settings unavailable for {tab.title || tab.type}: unknown tab type.
-                        </div>
-                    );
-                }
-
-                const tabLoadState = getTabPluginLoadState(tab.type);
-                if (tabLoadState.status === 'error') {
-                    return (
-                        <div
-                            key={tab.id}
-                            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground"
-                            role="status"
-                            aria-live="polite"
-                        >
-                            Settings unavailable for {tab.title || tab.type}: plugin failed to load.
-                        </div>
-                    );
-                }
-                if (tabLoadState.status === 'loaded') return null;
-                return (
-                    <div
-                        key={tab.id}
-                        className="rounded-xl border border-border/70 bg-card/60 px-4 py-3 text-sm text-muted-foreground"
-                        role="status"
-                        aria-live="polite"
-                    >
-                        Loading settings for {tab.title || tab.type}...
-                    </div>
-                );
-            })
-            .filter(Boolean);
-
-        if (sections.length === 0) return null;
-
-        return (
-            <div className="flex flex-col gap-4">
-                {sections}
-            </div>
-        );
-    }, [
-        visibleTabs,
-        course?.id,
-        course?.semester_id,
-        handleUpdateTabSettings,
-        isSettingsTabActive,
-    ]);
-
     const pluginSettingsSections = useMemo(() => {
         const pluginActivations = course?.plugin_activations ?? parentSemesterQuery.data?.plugin_activations ?? [];
         if (pluginActivations.length === 0 || enabledPluginIds.size === 0) {
@@ -649,7 +565,7 @@ const CourseHomepageContent: React.FC = () => {
         );
     }, [course, refreshCourse]);
 
-    const hasPluginSettings = Boolean(coursePluginGovernanceSection || pluginSettingsSections || tabInstanceSettingsSections);
+    const hasPluginSettings = Boolean(coursePluginGovernanceSection || pluginSettingsSections);
 
     const handleUpdateCourse = useCallback(async (data: any) => {
         if (!course) return;
@@ -839,7 +755,6 @@ const CourseHomepageContent: React.FC = () => {
                 <div className="space-y-6">
                     {coursePluginGovernanceSection}
                     {pluginSettingsSections}
-                    {tabInstanceSettingsSections}
                 </div>
             ) : undefined
         }
@@ -874,7 +789,6 @@ const CourseHomepageContent: React.FC = () => {
         hasPluginSettings,
         coursePluginGovernanceSection,
         pluginSettingsSections,
-        tabInstanceSettingsSections,
         openAddWidgetModal,
     ]);
 

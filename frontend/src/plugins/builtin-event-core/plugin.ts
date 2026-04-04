@@ -66,12 +66,16 @@ export default definePlugin({
     settings: {
       panels: [
         {
+          id: 'semester-calendar',
+          contexts: ['semester'],
+        },
+        {
           id: 'todo-defaults',
-          contexts: ['program'],
+          contexts: ['program', 'semester', 'course'],
         },
         {
           id: 'semester-event-types',
-          contexts: ['semester'],
+          contexts: ['semester', 'course'],
         },
       ],
     },

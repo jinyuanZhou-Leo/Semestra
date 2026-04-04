@@ -31,10 +31,14 @@ const parseMinuteValue = (value: unknown, fallback: number) => {
 };
 
 const normalizeWeekViewDayCount = (value: unknown) => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 5;
+  let numValue = value;
+  if (typeof numValue === 'string') {
+    numValue = Number(numValue);
+  }
+  if (typeof numValue !== 'number' || !Number.isFinite(numValue)) return 5;
   return Math.max(
     CALENDAR_MIN_WEEK_VIEW_DAY_COUNT,
-    Math.min(CALENDAR_MAX_WEEK_VIEW_DAY_COUNT, Math.floor(value)),
+    Math.min(CALENDAR_MAX_WEEK_VIEW_DAY_COUNT, Math.floor(numValue)),
   );
 };
 

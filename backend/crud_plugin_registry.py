@@ -1016,8 +1016,9 @@ def delete_program_plugin_installation(db: Session, program_id: str, plugin_id: 
     return installation
 
 
-def get_semester_plugin_activations(db: Session, semester_id: str) -> list[dict]:
-    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+def get_semester_plugin_activations(db: Session, semester_id: str, *, semester: models.Semester | None = None) -> list[dict]:
+    if semester is None:
+        semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
     if semester is None:
         return []
     if semester.program is not None:
@@ -1308,12 +1309,13 @@ def delete_semester_plugin_activation(db: Session, semester_id: str, plugin_id: 
     return activation
 
 
-def get_course_plugin_activations(db: Session, course_id: str) -> list[dict]:
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+def get_course_plugin_activations(db: Session, course_id: str, *, course: models.Course | None = None) -> list[dict]:
+    if course is None:
+        course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if course is None:
         return []
     if course.semester_id is not None:
-        return get_course_inherited_plugin_activations(db, course_id)
+        return get_course_inherited_plugin_activations(db, course_id, course=course)
     if course.program is None:
         db.refresh(course, attribute_names=["program"])
     program = course.program
@@ -1452,8 +1454,9 @@ def bulk_update_course_plugin_activations(db: Session, course_id: str, payload: 
     return get_course_plugin_activations(db, course_id)
 
 
-def get_course_inherited_plugin_activations(db: Session, course_id: str) -> list[dict]:
-    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+def get_course_inherited_plugin_activations(db: Session, course_id: str, *, course: models.Course | None = None) -> list[dict]:
+    if course is None:
+        course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if course is None or course.semester_id is None:
         return []
     if course.program is None:
@@ -1466,7 +1469,7 @@ def get_course_inherited_plugin_activations(db: Session, course_id: str) -> list
         for installation in ((course.program.plugin_installations if course.program is not None else []) or [])
     }
     inherited_activations: list[dict] = []
-    for activation in get_semester_plugin_activations(db, course.semester_id):
+    for activation in get_semester_plugin_activations(db, course.semester_id, semester=course.semester):
         if not activation.get("is_enabled"):
             continue
         installation = installations_by_id.get(activation["program_plugin_installation_id"])

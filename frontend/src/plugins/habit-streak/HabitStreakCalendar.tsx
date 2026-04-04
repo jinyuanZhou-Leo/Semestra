@@ -39,7 +39,7 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
     const { milestoneBursts } = useStreakBursts(targetProgress, reactionSignal, prefersReducedMotion);
 
     return (
-        <div className="relative flex w-full max-w-[286px] flex-col items-center justify-center gap-2.5">
+        <div className="relative flex w-full flex-col items-center justify-center gap-3">
             <AnimatePresence>
                 {milestoneBursts.map((burst) => (
                     <MilestoneBurstLayer key={burst.id} burst={burst} prefersReducedMotion={prefersReducedMotion} />
@@ -48,7 +48,7 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
 
             <div className="w-full">
                 <div className="mb-2.5 flex items-center justify-between gap-3 whitespace-nowrap px-1">
-                    <span className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-stone-500 dark:text-white/45">
+                    <span className="text-xs font-medium text-stone-500 dark:text-white/50">
                         Week
                     </span>
                     <motion.div
@@ -78,7 +78,7 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
                     </motion.div>
                 </div>
 
-                <div className="grid w-full grid-cols-7 gap-1.5" data-testid="habit-calendar-board">
+                <div className="grid w-full grid-cols-7 gap-1 sm:gap-1.5 md:gap-2" data-testid="habit-calendar-board">
                     {recentDayCells.map((day) => (
                         <motion.div
                             key={day.key}
@@ -87,7 +87,7 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
                             data-today={day.isToday ? 'true' : 'false'}
                             data-feedback-target={day.isToday ? 'true' : 'false'}
                             className={cn(
-                                'relative flex min-h-[84px] flex-col items-center justify-between overflow-hidden rounded-[18px] px-1 py-2.5 text-center ring-1 transition-transform duration-300',
+                                'relative flex min-h-[72px] sm:min-h-[84px] flex-col items-center justify-between overflow-hidden rounded-2xl px-1 py-2 sm:py-2.5 text-center ring-1 transition-transform duration-300',
                                 day.isCompleted
                                     ? 'bg-[linear-gradient(180deg,#ffbb52_0%,#ff8c40_50%,#e45433_100%)] text-white ring-transparent shadow-[0_10px_20px_rgba(232,73,45,0.2)]'
                                     : 'bg-white/84 text-stone-600 ring-black/6 dark:bg-white/6 dark:text-white/72 dark:ring-white/10',
@@ -126,7 +126,7 @@ export const HabitStreakCalendar: React.FC<HabitStreakCalendarProps> = ({
                                 </AnimatePresence>
                             ) : null}
 
-                            <span className={cn('relative z-10 text-[0.56rem] font-bold uppercase tracking-[0.18em]', day.isCompleted ? 'text-white/72' : 'text-stone-400 dark:text-white/45')}>
+                            <span className={cn('relative z-10 text-[0.65rem] font-medium', day.isCompleted ? 'text-white/90' : 'text-stone-500 dark:text-white/60')}>
                                 {day.dayLabel}
                             </span>
                             <span className="relative z-10 text-[1.08rem] font-black leading-none tracking-tight">

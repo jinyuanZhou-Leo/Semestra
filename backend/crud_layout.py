@@ -415,6 +415,112 @@ def _build_tab_settings_scope_chain(
     return chain
 
 
+# Type alias: layer_name → settings_key → TabSetting row
+ScopeChainRows = dict[str, dict[str, models.TabSetting]]
+
+
+def fetch_scope_chain_rows(
+    db: Session,
+    *,
+    program_id: str | None = None,
+    semester_id: str | None = None,
+    course_id: str | None = None,
+) -> tuple[list[tuple[str, dict[str, str]]], ScopeChainRows]:
+    """Bulk-fetch all TabSetting rows for every level of the scope chain.
+
+    Fires exactly K queries (one per scope level) regardless of how many
+    settings keys will be resolved. Callers pass the returned (scope_chain,
+    rows_by_layer) to resolve_tab_settings_metadata_from_rows to avoid any
+    further DB access during per-key resolution.
+
+    Returns:
+        scope_chain   — ordered [(layer_name, context_kwargs), ...] broadest→current
+        rows_by_layer — {layer_name: {settings_key: TabSetting}}
+    """
+    scope_chain = _build_tab_settings_scope_chain(
+        program_id=program_id,
+        semester_id=semester_id,
+        course_id=course_id,
+    )
+    rows_by_layer: ScopeChainRows = {}
+    for layer, context_kwargs in scope_chain:
+        rows = get_tab_settings_for_context(db, **context_kwargs)
+        rows_by_layer[layer] = {row.settings_key: row for row in rows}
+    return scope_chain, rows_by_layer
+
+
+def resolve_tab_settings_metadata_from_rows(
+    settings_key: str,
+    scope_chain: list[tuple[str, dict[str, str]]],
+    rows_by_layer: ScopeChainRows,
+) -> dict[str, object]:
+    """Resolve metadata for one settings key using pre-fetched scope-chain rows.
+
+    Identical logic to resolve_tab_settings_metadata but performs no DB access —
+    suitable for bulk resolution where scope rows are already loaded.
+    """
+    normalized_key = str(settings_key or "").strip()
+    scoped_settings_by_layer: dict[str, dict[str, object]] = {
+        layer: _parse_json_object(
+            rows_by_layer[layer][normalized_key].settings
+            if normalized_key in rows_by_layer[layer]
+            else None
+        )
+        for layer, _ in scope_chain
+    }
+
+    resolved_settings: dict[str, object] = {}
+    inherited_settings: dict[str, object] = {}
+    current_scope_settings: dict[str, object] = {}
+    current_layer = scope_chain[-1][0] if scope_chain else None
+
+    for index, (layer, _) in enumerate(scope_chain):
+        layer_settings = scoped_settings_by_layer[layer]
+        resolved_settings.update(layer_settings)
+        if current_layer is None or layer == current_layer:
+            continue
+        inherited_settings.update(layer_settings)
+        if index == len(scope_chain) - 1:
+            current_scope_settings = dict(layer_settings)
+
+    if current_layer is not None:
+        current_scope_settings = dict(scoped_settings_by_layer[current_layer])
+
+    setting_sources: dict[str, dict[str, object]] = {}
+    all_keys = set().union(*(layer_settings.keys() for layer_settings in scoped_settings_by_layer.values()))
+    for key in all_keys:
+        effective_layer = "default"
+        for layer, _ in reversed(scope_chain):
+            if key in scoped_settings_by_layer[layer]:
+                effective_layer = layer
+                break
+
+        is_overridden_in_scope = current_layer is not None and key in current_scope_settings
+        if is_overridden_in_scope and key in inherited_settings and current_scope_settings.get(key) == inherited_settings.get(key):
+            is_overridden_in_scope = False
+        fallback_layer: str | None = None
+        if is_overridden_in_scope:
+            for layer, _ in reversed(scope_chain[:-1]):
+                if key in scoped_settings_by_layer[layer]:
+                    fallback_layer = layer
+                    break
+            if fallback_layer is None:
+                fallback_layer = "default"
+
+        setting_sources[key] = {
+            "effective_layer": effective_layer,
+            "is_overridden_in_scope": is_overridden_in_scope,
+            "fallback_layer": fallback_layer,
+        }
+
+    return {
+        "scope_settings": current_scope_settings,
+        "inherited_settings": inherited_settings,
+        "resolved_settings": resolved_settings,
+        "setting_sources": setting_sources,
+    }
+
+
 def resolve_tab_settings_metadata(
     db: Session,
     settings_key: str,
@@ -461,6 +567,10 @@ def resolve_tab_settings_metadata(
                 break
 
         is_overridden_in_scope = current_layer is not None and key in current_scope_settings
+        # Suppress override chrome when the scope value is identical to the inherited
+        # value — e.g. the user changed a field then reverted it to the parent's value.
+        if is_overridden_in_scope and key in inherited_settings and current_scope_settings.get(key) == inherited_settings.get(key):
+            is_overridden_in_scope = False
         fallback_layer: str | None = None
         if is_overridden_in_scope:
             for layer, _ in reversed(scope_chain[:-1]):

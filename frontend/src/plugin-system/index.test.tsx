@@ -19,7 +19,6 @@ import {
   getPluginSetupDefinitionById,
   getAllPluginSetupDefinitions,
   getPluginIconById,
-  getTabSettingsComponentByType,
   getTabCatalog,
   hasPluginSetupDefinition,
   getWidgetSettingsComponentByType,
@@ -27,11 +26,15 @@ import {
 } from './index';
 
 describe('plugin-system settings API', () => {
-  it('resolves tab and widget instance settings components from runtime definitions', async () => {
+  it('resolves plugin settings sections and widget instance settings from runtime definitions', async () => {
     await expect(ensureTabPluginByTypeLoaded('tab-template')).resolves.toBe(true);
     await expect(ensureWidgetPluginByTypeLoaded('world-clock')).resolves.toBe(true);
 
-    expect(getTabSettingsComponentByType('tab-template')).toBeTypeOf('function');
+    expect(
+      getPluginSettingsSections('program').some(
+        ({ pluginId, id }) => pluginId === 'tab-template' && id === 'template-settings',
+      ),
+    ).toBe(true);
     expect(getWidgetSettingsComponentByType('world-clock')).toBeTypeOf('function');
   });
 

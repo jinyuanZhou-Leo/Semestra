@@ -59,15 +59,24 @@
   "settings": {
     "panels": [
       {
+        "id": "semester-calendar",
+        "contexts": [
+          "semester"
+        ]
+      },
+      {
         "id": "todo-defaults",
         "contexts": [
-          "program"
+          "program",
+          "semester",
+          "course"
         ]
       },
       {
         "id": "semester-event-types",
         "contexts": [
-          "semester"
+          "semester",
+          "course"
         ]
       }
     ]

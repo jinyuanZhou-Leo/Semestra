@@ -21,9 +21,11 @@
   "settings": {
     "panels": [
       {
-        "id": "template-program-settings",
+        "id": "template-settings",
         "contexts": [
-          "program"
+          "program",
+          "semester",
+          "course"
         ]
       }
     ]

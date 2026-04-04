@@ -79,6 +79,64 @@ def _read_activation_availability(activation: dict) -> dict[str, object]:
     )
 
 
+def _serialize_tab_settings_payloads_from_rows(
+    scope_chain: list,
+    rows_by_layer: dict,
+    *,
+    program_id: str | None,
+    semester_id: str | None,
+    course_id: str | None,
+) -> list[dict[str, object]]:
+    """Build tab-settings payloads from pre-fetched scope rows — no DB access.
+
+    Resolves metadata for every settings key that appears anywhere in the scope
+    chain. Callers that already hold (scope_chain, rows_by_layer) from
+    crud.fetch_scope_chain_rows can call this directly instead of going through
+    serialize_tab_settings_payloads to avoid a redundant fetch.
+    """
+    current_layer = scope_chain[-1][0] if scope_chain else None
+    current_rows = rows_by_layer.get(current_layer, {}) if current_layer else {}
+    all_keys: set[str] = set()
+    for layer_rows in rows_by_layer.values():
+        all_keys.update(layer_rows.keys())
+
+    if course_id is not None:
+        ctx_program_id, ctx_semester_id, ctx_course_id = None, None, course_id
+    elif semester_id is not None:
+        ctx_program_id, ctx_semester_id, ctx_course_id = None, semester_id, None
+    else:
+        ctx_program_id, ctx_semester_id, ctx_course_id = program_id, None, None
+
+    payloads: list[dict[str, object]] = []
+    for settings_key in sorted(all_keys):
+        settings_metadata = crud.resolve_tab_settings_metadata_from_rows(
+            settings_key, scope_chain, rows_by_layer,
+        )
+        row = current_rows.get(settings_key)
+        if row is not None:
+            payloads.append({
+                "id": row.id,
+                "settings_key": row.settings_key,
+                "settings": row.settings,
+                "program_id": row.program_id,
+                "semester_id": row.semester_id,
+                "course_id": row.course_id,
+                **settings_metadata,
+            })
+        else:
+            # Key exists only in a parent scope — emit a virtual entry with no local row
+            payloads.append({
+                "id": None,
+                "settings_key": settings_key,
+                "settings": "{}",
+                "program_id": ctx_program_id,
+                "semester_id": ctx_semester_id,
+                "course_id": ctx_course_id,
+                **settings_metadata,
+            })
+    return payloads
+
+
 def serialize_tab_settings_payloads(
     db: Session,
     *,
@@ -86,35 +144,21 @@ def serialize_tab_settings_payloads(
     semester_id: str | None = None,
     course_id: str | None = None,
 ) -> list[dict[str, object]]:
-    context_kwargs: dict[str, str] = {}
-    if course_id is not None:
-        context_kwargs["course_id"] = course_id
-    elif semester_id is not None:
-        context_kwargs["semester_id"] = semester_id
-    elif program_id is not None:
-        context_kwargs["program_id"] = program_id
-    else:
+    if course_id is None and semester_id is None and program_id is None:
         raise ValueError("Tab settings serialization requires a concrete Program, Semester, or Course context.")
-
-    payloads: list[dict[str, object]] = []
-    for row in crud.get_tab_settings_for_context(db, **context_kwargs):
-        settings_metadata = crud.resolve_tab_settings_metadata(
-            db,
-            row.settings_key,
-            program_id=program_id,
-            semester_id=semester_id,
-            course_id=course_id,
-        )
-        payloads.append({
-            "id": row.id,
-            "settings_key": row.settings_key,
-            "settings": row.settings,
-            "program_id": row.program_id,
-            "semester_id": row.semester_id,
-            "course_id": row.course_id,
-            **settings_metadata,
-        })
-    return payloads
+    scope_chain, rows_by_layer = crud.fetch_scope_chain_rows(
+        db,
+        program_id=program_id,
+        semester_id=semester_id,
+        course_id=course_id,
+    )
+    return _serialize_tab_settings_payloads_from_rows(
+        scope_chain,
+        rows_by_layer,
+        program_id=program_id,
+        semester_id=semester_id,
+        course_id=course_id,
+    )
 
 
 def serialize_tab_setting_payload(
@@ -313,26 +357,24 @@ def _build_runtime_tab_payload(
         ]
     )
 
+    # Pre-fetch all scope-chain rows once. Both the per-tab metadata loop and
+    # tab_settings serialization share these rows — no further DB access needed.
+    scope_chain, rows_by_layer = crud.fetch_scope_chain_rows(
+        db,
+        program_id=program_id,
+        semester_id=semester_id,
+        course_id=course_id,
+    )
+    current_layer = scope_chain[-1][0] if scope_chain else None
+    current_scope_rows = rows_by_layer.get(current_layer, {}) if current_layer else {}
+
     runtime_tabs: list[dict[str, object]] = []
     for order_index, tab_type in enumerate(selected_tab_types):
         catalog_item = tab_catalog_map.get(tab_type) or _missing_tab_catalog_item(tab_type)
         catalog_item["selected"] = True
-        scoped_setting_kwargs: dict[str, str] = {}
-        if course_id is not None:
-            scoped_setting_kwargs["course_id"] = course_id
-        elif semester_id is not None:
-            scoped_setting_kwargs["semester_id"] = semester_id
-        scoped_tab_setting = crud.get_tab_setting(
-            db,
-            tab_type,
-            **scoped_setting_kwargs,
-        )
-        settings_metadata = crud.resolve_tab_settings_metadata(
-            db,
-            tab_type,
-            program_id=program_id,
-            semester_id=semester_id,
-            course_id=course_id,
+        scoped_tab_setting = current_scope_rows.get(tab_type)
+        settings_metadata = crud.resolve_tab_settings_metadata_from_rows(
+            tab_type, scope_chain, rows_by_layer,
         )
         runtime_tabs.append({
             "plugin_id": catalog_item.get("plugin_id"),
@@ -363,8 +405,9 @@ def _build_runtime_tab_payload(
 
     return {
         **runtime_payload,
-        "tab_settings": serialize_tab_settings_payloads(
-            db,
+        "tab_settings": _serialize_tab_settings_payloads_from_rows(
+            scope_chain,
+            rows_by_layer,
             program_id=program_id,
             semester_id=semester_id,
             course_id=course_id,
@@ -379,35 +422,41 @@ def build_semester_runtime_payload(
     db: Session,
     semester: models.Semester,
 ) -> dict[str, object]:
-    plugin_activations = crud.get_semester_plugin_activations(db, semester.id)
-    return _build_runtime_tab_payload(
-        db,
-        program_id=semester.program_id,
-        activations=plugin_activations,
-        bucket_type=crud.SEMESTER_HOMEPAGE_TAB_ORDER_BUCKET,
-        bucket_semester_id=semester.id,
-        context_kind="semester",
-        semester_id=semester.id,
-    )
+    plugin_activations = crud.get_semester_plugin_activations(db, semester.id, semester=semester)
+    return {
+        "plugin_activations": plugin_activations,
+        **_build_runtime_tab_payload(
+            db,
+            program_id=semester.program_id,
+            activations=plugin_activations,
+            bucket_type=crud.SEMESTER_HOMEPAGE_TAB_ORDER_BUCKET,
+            bucket_semester_id=semester.id,
+            context_kind="semester",
+            semester_id=semester.id,
+        ),
+    }
 
 
 def build_course_runtime_payload(
     db: Session,
     course: models.Course,
 ) -> dict[str, object]:
-    course_plugin_activations = crud.get_course_plugin_activations(db, course.id)
+    course_plugin_activations = crud.get_course_plugin_activations(db, course.id, course=course)
     bucket_type, bucket_context = crud.get_tab_order_bucket_for_course(course)
-    return _build_runtime_tab_payload(
-        db,
-        program_id=course.program_id,
-        activations=course_plugin_activations,
-        bucket_type=bucket_type,
-        bucket_semester_id=bucket_context.get("semester_id"),
-        bucket_course_id=bucket_context.get("course_id"),
-        context_kind="course",
-        semester_id=course.semester_id,
-        course_id=course.id,
-    )
+    return {
+        "plugin_activations": course_plugin_activations,
+        **_build_runtime_tab_payload(
+            db,
+            program_id=course.program_id,
+            activations=course_plugin_activations,
+            bucket_type=bucket_type,
+            bucket_semester_id=bucket_context.get("semester_id"),
+            bucket_course_id=bucket_context.get("course_id"),
+            context_kind="course",
+            semester_id=course.semester_id,
+            course_id=course.id,
+        ),
+    }
 
 
 def find_runtime_tab(payload: dict[str, object], tab_type: str) -> dict[str, object] | None:

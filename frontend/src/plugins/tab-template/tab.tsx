@@ -12,7 +12,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import type { TabDefinition, TabProps } from '@/plugin-system';
 
-import { TemplateTabSettingsComponent } from './settings';
 import { resolveTemplateSettings } from './shared';
 
 const TemplateTabComponent: React.FC<TabProps> = ({ settings, updateSettings }) => {
@@ -81,7 +80,6 @@ export const TemplateTab = TemplateTabComponent;
 export const TemplateTabDefinition: TabDefinition = {
     type: 'tab-template',
     component: TemplateTab,
-    SettingsComponent: TemplateTabSettingsComponent,
     defaultSettings: {
         title: 'Tab Template',
         note: '',
