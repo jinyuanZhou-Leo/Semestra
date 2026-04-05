@@ -252,7 +252,6 @@ const CourseHomepageContent: React.FC = () => {
     const {
         tabs,
         isInitialized: isTabsInitialized,
-        updateTabSettingsDebounced,
         reorderTabs
     } = useDashboardTabs({
         courseId: course?.id,
@@ -297,10 +296,6 @@ const CourseHomepageContent: React.FC = () => {
             </BreadcrumbList>
         </Breadcrumb>
     );
-
-    const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
-        updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
-    }, [updateTabSettingsDebounced]);
 
     const {
         isActiveTabPluginLoading,
@@ -399,16 +394,14 @@ const CourseHomepageContent: React.FC = () => {
                     <PluginContentFadeIn key={activeTab.id}>
                         <TabComponent
                             tabId={activeTab.id}
-                            settings={activeTab.settings || {}}
                             semesterId={course.semester_id}
                             courseId={course.id}
-                            updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
                         />
                     </PluginContentFadeIn>
                 </PluginRuntimeInstanceProvider>
             </React.Suspense>
         );
-    }, [activeTabId, course, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading, activeTabLoadState.status]);
+    }, [activeTabId, course, visibleTabs, isActiveTabPluginLoading, activeTabLoadState.status]);
 
     const triggerBoundaryShake = useCallback(async () => {
         if (prefersReducedMotion) {

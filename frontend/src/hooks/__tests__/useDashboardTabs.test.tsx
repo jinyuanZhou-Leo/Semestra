@@ -15,8 +15,6 @@ const { apiMock } = vi.hoisted(() => ({
     apiMock: {
         reorderCourseRuntimeTabs: vi.fn(),
         reorderSemesterRuntimeTabs: vi.fn(),
-        updateCourseRuntimeTabSettings: vi.fn(),
-        updateSemesterRuntimeTabSettings: vi.fn(),
         updateTab: vi.fn(),
     },
 }));
@@ -33,8 +31,6 @@ describe('useDashboardTabs', () => {
     beforeEach(() => {
         apiMock.reorderCourseRuntimeTabs.mockReset();
         apiMock.reorderSemesterRuntimeTabs.mockReset();
-        apiMock.updateCourseRuntimeTabSettings.mockReset();
-        apiMock.updateSemesterRuntimeTabSettings.mockReset();
         apiMock.updateTab.mockReset();
     });
 

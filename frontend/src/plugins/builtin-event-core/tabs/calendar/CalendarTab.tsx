@@ -1,6 +1,6 @@
-// input:  [semester context, calendar-core registry, shared timetable event bus, todo sync helpers, calendar settings, and calendar subcomponents]
+// input:  [semester context, calendar-core registry, shared timetable event bus, todo sync helpers, calendar settings bucket, and calendar subcomponents]
 // output: [Calendar tab runtime component with source-driven event rendering, per-source enable filtering, source-aware event detail safety controls, todo completion sync, and low-coupling extension wiring]
-// pos:    [built-in event-core Calendar composition shell that binds registry sources, navigation state, per-source settings, editing flows, todo completion updates, and external refresh signals]
+// pos:    [built-in event-core Calendar composition shell — settings are read directly from the plugin settings bucket (usePluginSettingsBucketWithScope) so they stay in sync with the settings panel without relying on host-passed TabProps.settings]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -14,9 +14,11 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import type { CalendarEventData, CalendarRefreshSignal } from '@/calendar-core';
 import { useCalendarSourceRegistry } from '@/calendar-core';
 import type { TabProps } from '@/plugin-system';
+import { usePluginSettingsBucketWithScope } from '@/plugin-sdk';
 import { useEventBus } from '../../shared/eventBus';
 import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 import { isDateInReadingWeek } from '../../shared/utils';
+import { BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../shared/constants';
 import { CalendarToolbar } from './CalendarToolbar';
 import { CalendarSkeleton } from './components/CalendarSkeleton';
 import {
@@ -70,8 +72,18 @@ const toRefreshSignal = (payload: {
   ...payload,
 });
 
-export const CalendarTab: React.FC<TabProps> = ({ semesterId, settings: inputSettings }) => {
-  const settings = React.useMemo(() => normalizeCalendarSettings(inputSettings), [inputSettings]);
+export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
+  // Read settings directly from the plugin settings bucket so the tab view always reflects
+  // the same inheritance-resolved values as the settings panel — no host adapter needed.
+  const calendarScope = React.useMemo(
+    () => ({ kind: 'semester' as const, semesterId: semesterId ?? '__missing__' }),
+    [semesterId],
+  );
+  const calendarBucket = usePluginSettingsBucketWithScope(BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE, calendarScope);
+  const settings = React.useMemo(
+    () => normalizeCalendarSettings(calendarBucket.resolvedSettings),
+    [calendarBucket.resolvedSettings],
+  );
   const calendarSources = useCalendarSourceRegistry();
   const enabledCalendarSources = React.useMemo(
     () => calendarSources.filter((source) => settings.sourceVisibility[source.id] ?? true),

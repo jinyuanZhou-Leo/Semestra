@@ -10,6 +10,7 @@ export const programKeys = {
   all: ['programs'] as const,
   list: () => ['programs', 'list'] as const,
   detail: (programId: string) => ['programs', 'detail', programId] as const,
+  tabSettings: (programId: string) => ['programs', programId, 'tab-settings'] as const,
   pluginCatalog: (programId: string) => ['programs', programId, 'plugin-catalog'] as const,
   pluginInstallations: (programId: string) => ['programs', programId, 'plugin-installations'] as const,
   semesterDraft: (programId: string) => ['programs', programId, 'semester-draft'] as const,

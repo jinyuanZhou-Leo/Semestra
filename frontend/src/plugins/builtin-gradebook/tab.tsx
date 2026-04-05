@@ -1012,5 +1012,4 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
 export const BuiltinGradebookTabDefinition: TabDefinition = {
     type: BUILTIN_GRADEBOOK_TAB_TYPE,
     component: BuiltinGradebookTab,
-    defaultSettings: {},
 };

@@ -612,5 +612,4 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
 export const CourseResourcesTabDefinition: TabDefinition = {
     type: COURSE_RESOURCES_TAB_TYPE,
     component: CourseResourcesTab,
-    defaultSettings: {},
 };

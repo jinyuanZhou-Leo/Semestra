@@ -1314,28 +1314,6 @@ const api = {
         );
         return normalizeTabSetting(response.data);
     },
-    updateSemesterRuntimeTabSettings: async (semesterId: string, tabType: string, data: { settings: string }) => {
-        const response = await axios.put<RuntimeResolvedTabWire>(
-            `/api/semesters/${semesterId}/runtime-tabs/${encodeURIComponent(tabType)}/settings`,
-            data,
-        );
-        const normalized = normalizeRuntimeResolvedTab(response.data);
-        if (!normalized) {
-            throw new Error('Semester runtime tab settings response is missing a tab type.');
-        }
-        return normalized;
-    },
-    updateCourseRuntimeTabSettings: async (courseId: string, tabType: string, data: { settings: string }) => {
-        const response = await axios.put<RuntimeResolvedTabWire>(
-            `/api/courses/${courseId}/runtime-tabs/${encodeURIComponent(tabType)}/settings`,
-            data,
-        );
-        const normalized = normalizeRuntimeResolvedTab(response.data);
-        if (!normalized) {
-            throw new Error('Course runtime tab settings response is missing a tab type.');
-        }
-        return normalized;
-    },
     reorderSemesterRuntimeTabs: async (semesterId: string, tabTypes: string[]) => {
         const response = await axios.put<RuntimeResolvedTabWire[]>(
             `/api/semesters/${semesterId}/runtime-tabs/order`,

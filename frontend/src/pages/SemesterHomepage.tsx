@@ -171,7 +171,6 @@ const SemesterHomepageContent: React.FC = () => {
     const {
         tabs: customTabs,
         isInitialized: isTabsInitialized,
-        updateTabSettingsDebounced,
         reorderTabs
     } = useDashboardTabs({
         semesterId: semester?.id,
@@ -187,10 +186,6 @@ const SemesterHomepageContent: React.FC = () => {
             setEditingWidget(null);
         }
     };
-
-    const handleUpdateTabSettings = useCallback((tabId: string, newSettings: any) => {
-        updateTabSettingsDebounced(tabId, { settings: JSON.stringify(newSettings) });
-    }, [updateTabSettingsDebounced]);
 
     const {
         isActiveTabPluginLoading,
@@ -438,15 +433,13 @@ const SemesterHomepageContent: React.FC = () => {
                     <PluginContentFadeIn key={activeTab.id}>
                         <TabComponent
                             tabId={activeTab.id}
-                            settings={activeTab.settings || {}}
                             semesterId={semester.id}
-                            updateSettings={(newSettings) => handleUpdateTabSettings(activeTab.id, newSettings)}
                         />
                     </PluginContentFadeIn>
                 </PluginRuntimeInstanceProvider>
             </React.Suspense>
         );
-    }, [activeTabId, semester, visibleTabs, handleUpdateTabSettings, isActiveTabPluginLoading, activeTabLoadState.status]);
+    }, [activeTabId, semester, visibleTabs, isActiveTabPluginLoading, activeTabLoadState.status]);
 
     const handleUpdateSemester = useCallback(async (data: any) => {
         if (!semester) return;

@@ -1,6 +1,6 @@
 // input:  [TanStack Query primitives, Program APIs, app-side Program query keys, and QueryClient helpers]
 // output: [Program query option builders, hooks, and cache invalidation helpers for app-side Program resources]
-// pos:    [App-side Program data resource module centralizing list/detail/catalog/draft/LMS query wiring and cache orchestration]
+// pos:    [App-side Program data resource module centralizing list/detail/catalog/draft/tab-settings/LMS query wiring and cache orchestration]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,7 +8,7 @@
 
 import { queryOptions, useQueries, useQuery, type QueryClient } from '@tanstack/react-query';
 
-import api, { type Program } from '@/services/api';
+import api, { type Program, type TabSetting } from '@/services/api';
 
 import { courseKeys, programKeys, semesterKeys } from '../keys';
 
@@ -26,6 +26,24 @@ export const getProgramDetailQueryOptions = (programId: string) => queryOptions(
   queryFn: () => api.getProgram(programId),
   staleTime: PROGRAM_DETAIL_STALE_TIME_MS,
 });
+
+export const getProgramTabSettingsQueryOptions = (programId: string) => queryOptions({
+  queryKey: programKeys.tabSettings(programId),
+  queryFn: () => api.getProgramTabSettings(programId),
+  staleTime: Infinity,
+});
+
+export const setProgramTabSettingsQueryData = (
+  queryClient: QueryClient,
+  programId: string,
+  updater:
+    | TabSetting[]
+    | null
+    | undefined
+    | ((current: TabSetting[] | null | undefined) => TabSetting[] | null | undefined),
+) => {
+  queryClient.setQueryData<TabSetting[] | null | undefined>(programKeys.tabSettings(programId), updater);
+};
 
 export const getProgramPluginCatalogQueryOptions = (programId: string) => queryOptions({
   queryKey: programKeys.pluginCatalog(programId),

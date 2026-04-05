@@ -69,7 +69,6 @@ export const useHomepageBuiltinTabs = ({
                 id: `${scopeKey}:synthetic-builtin:${type}`,
                 type,
                 title: metadata.name ?? type,
-                settings: {},
                 order_index: -1,
                 is_draggable: false,
                 is_removable: false,

@@ -142,6 +142,7 @@ Most plugin runtime code should use:
 - `PluginSettingsJsonField`
 - `PluginSettingsFieldLabelRow`
 - `usePluginSettingsBucket`
+- `usePluginSettingsBucketWithScope`
 - `usePluginSettingField`
 - `usePluginSettingsContext`
 - `usePluginHost`
@@ -326,6 +327,30 @@ Use this layer when the control is still a single setting field, but the default
 Use `usePluginSettingsBucket(settingsKey)` when one UI edits a compound settings object, and use `usePluginSettingsContext()` when the section needs direct access to the host-injected `pluginId`, `scope`, or refresh callback.
 
 Use this layer for CRUD-style panels, tables, or multi-field editors that do not map cleanly to one host field component.
+
+### Reading settings inside a tab component
+
+Tab runtime components (`tab.tsx`) live outside the `PluginSettingsPanelProvider` context. Use `usePluginSettingsBucketWithScope(settingsKey, scope)` to read plugin settings directly. It subscribes to the same TanStack Query cache as the settings panel, so changes made in the settings panel are immediately reflected in the tab without any additional wiring.
+
+```tsx
+import { usePluginSettingsBucketWithScope } from "@/plugin-sdk";
+import { useMemo } from "react";
+import type { TabProps } from "@/plugin-system";
+
+export const MyTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
+  const scope = useMemo(
+    () => courseId
+      ? { kind: "course" as const, courseId }
+      : { kind: "semester" as const, semesterId: semesterId ?? "__missing__" },
+    [courseId, semesterId],
+  );
+  const bucket = usePluginSettingsBucketWithScope("my-tab-settings", scope);
+  const settings = useMemo(() => normalizeSettings(bucket.resolvedSettings), [bucket.resolvedSettings]);
+  // ... use settings for rendering
+};
+```
+
+For inline tab writes (e.g. a note field the user edits directly in the tab), call `bucket.updateField(key, value)`. Structural settings that appear in the plugin settings panel are managed exclusively through `settings.tsx` (Layers A–C above).
 
 ## 5. `index.ts`
 

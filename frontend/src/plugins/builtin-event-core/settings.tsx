@@ -19,14 +19,11 @@ import { jsonDeepEqual } from '@/plugin-system/utils';
 import { SettingsSection } from '@/components/SettingsSection';
 import { FieldGroup, FieldSet } from '@/components/ui/field';
 import type { CourseEventType } from '@/services/schedule';
-import type { CalendarSettingsState } from './shared/types';
 
 import { CalendarSettingsSection } from './tabs/calendar/CalendarSettingsSection';
-import { normalizeCalendarSettings } from './tabs/calendar/settings';
 import { CourseScheduleSettings } from './tabs/course-schedule';
 import { EventTypesDataTable, type EventTypeFormData } from './tabs/course-schedule/EventTypesDataTable';
 import {
-  BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
   BUILTIN_TIMETABLE_TODO_TAB_TYPE,
   BUILTIN_EVENT_CORE_SETTINGS_KEY,
   EVENT_CORE_EVENT_TYPES_FIELD,
@@ -96,30 +93,10 @@ function getEventTypesFallback(bucket: { inheritedSettings: Record<string, unkno
 // ── Calendar settings section (semester only) ─────────────────────────────────
 
 const SemesterCalendarSettingsSection: React.FC<PluginSettingsSectionProps> = ({ scope }) => {
-  const bucket = usePluginSettingsBucket(BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE);
   const semesterId = scope.kind === 'semester' ? scope.semesterId : undefined;
-
-  const handleUpdateSettings = React.useCallback(
-    (newSettings: CalendarSettingsState) => {
-      // CalendarSettingsSection's patchSettings spreads the full resolved settings object.
-      // Compute what actually changed vs. current resolved, then merge only that delta onto
-      // existing scope overrides — avoids baking inherited defaults in as explicit overrides.
-      const resolved = bucket.resolvedSettings;
-      const delta = Object.fromEntries(
-        Object.entries(newSettings).filter(([k, v]) => !jsonDeepEqual(v, resolved[k]))
-      );
-      void bucket.setSettings({ ...bucket.scopeSettings, ...delta });
-    },
-    [bucket],
-  );
-
-  return (
-    <CalendarSettingsSection
-      semesterId={semesterId}
-      settings={normalizeCalendarSettings(bucket.resolvedSettings)}
-      updateSettings={handleUpdateSettings}
-    />
-  );
+  // CalendarSettingsSection is self-contained: it reads and writes via usePluginSettingsBucket
+  // directly. No adapter layer is needed here.
+  return <CalendarSettingsSection semesterId={semesterId} />;
 };
 
 // ── Todo defaults settings section (program/semester/course) ──────────────────

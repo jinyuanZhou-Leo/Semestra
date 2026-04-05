@@ -49,6 +49,7 @@ export {
   PluginSettingsBucketSourceBanner,
   usePluginSettingField,
   usePluginSettingsBucket,
+  usePluginSettingsBucketWithScope,
 } from "@/plugin-system/pluginSettingsFields";
 export type { PluginSettingsFieldLabelRowProps } from "@/plugin-system/pluginSettingsFields";
 export { usePluginSettingsContext } from "@/plugin-system/pluginSettingsPanelContext";

@@ -35,7 +35,9 @@ import { useTodoSectionOpenMap } from './hooks/useTodoSectionOpenMap';
 import { useTodoSectionTasks } from './hooks/useTodoSectionTasks';
 import { useTodoTaskDrag } from './hooks/useTodoTaskDrag';
 import { useTodoViewPreferences } from './hooks/useTodoViewPreferences';
+import { usePluginSettingsBucketWithScope } from '@/plugin-sdk';
 import { normalizeTodoBehaviorSettings } from './preferences';
+import { BUILTIN_TIMETABLE_TODO_TAB_TYPE } from '../../shared/constants';
 import {
   COMPLETED_MOVE_TIMEOUT_MS,
   COMPLETED_SECTION_ID,
@@ -63,8 +65,6 @@ import {
 } from './utils/todoData';
 
 interface TodoTabProps {
-  settings: unknown;
-  updateSettings: (nextSettings: unknown) => void | Promise<void>;
   courseId?: string;
   semesterId?: string;
 }
@@ -103,12 +103,24 @@ const isTextEditingElement = (element: EventTarget | null) => {
   );
 };
 
-export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId }) => {
+export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
   const mode: TodoTabMode = courseId
     ? 'course'
     : semesterId
       ? 'semester'
       : 'unsupported';
+
+  const todoScope = React.useMemo(
+    () => courseId
+      ? { kind: 'course' as const, courseId }
+      : { kind: 'semester' as const, semesterId: semesterId ?? '__missing__' },
+    [courseId, semesterId],
+  );
+  const todoBucket = usePluginSettingsBucketWithScope(BUILTIN_TIMETABLE_TODO_TAB_TYPE, todoScope);
+  const behavior = React.useMemo(
+    () => normalizeTodoBehaviorSettings(todoBucket.resolvedSettings),
+    [todoBucket.resolvedSettings],
+  );
 
   const [semesterStorage, setSemesterStorage] = React.useState<TodoListStorage>({ sections: [], tasks: [] });
   const semesterStorageRef = React.useRef<TodoListStorage>({ sections: [], tasks: [] });
@@ -123,15 +135,11 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [pendingDeleteTarget, setPendingDeleteTarget] = React.useState<TodoPendingDeleteTarget | null>(null);
   const [recentCompletedTaskIds, setRecentCompletedTaskIds] = React.useState<RecentCompletedMap>({});
-  const [semesterSettingsSnapshot, setSemesterSettingsSnapshot] = React.useState<Record<string, unknown>>(
-    settings && typeof settings === 'object' && !Array.isArray(settings) ? settings as Record<string, unknown> : {},
-  );
   const semesterTodoQuery = useSemesterTodoQuery(semesterId);
   const { getTodoState, setTodoState } = useSemesterTodoCache(semesterId);
 
   const completionTimeoutsRef = React.useRef<Record<string, TimerHandle>>({});
 
-  const behavior = React.useMemo(() => normalizeTodoBehaviorSettings(semesterSettingsSnapshot), [semesterSettingsSnapshot]);
   const viewPreferenceScopeKey = React.useMemo(
     () => courseId ? `course:${courseId}` : `semester:${semesterId ?? 'todo'}`,
     [courseId, semesterId],
@@ -142,14 +150,6 @@ export const TodoTab: React.FC<TodoTabProps> = ({ settings, semesterId, courseId
     setSortMode,
     setSortDirection,
   } = useTodoViewPreferences(viewPreferenceScopeKey);
-
-  React.useEffect(() => {
-    if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
-      setSemesterSettingsSnapshot(settings as Record<string, unknown>);
-      return;
-    }
-    setSemesterSettingsSnapshot({});
-  }, [settings]);
 
   const applyTodoStateRecord = React.useCallback((stateRecord: TodoSemesterStateRecord) => {
     const nextState = fromTodoApiState(stateRecord, behavior.moveCompletedToCompletedSection);

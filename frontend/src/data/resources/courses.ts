@@ -8,7 +8,7 @@
 
 import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query';
 
-import api, { type Course } from '@/services/api';
+import api, { type Course, type TabSetting } from '@/services/api';
 
 import { courseKeys, programKeys, semesterKeys } from '../keys';
 
@@ -19,6 +19,24 @@ export const getCourseDetailQueryOptions = (courseId: string) => queryOptions({
   queryFn: () => api.getCourse(courseId),
   staleTime: COURSE_DETAIL_STALE_TIME_MS,
 });
+
+export const getCourseTabSettingsQueryOptions = (courseId: string) => queryOptions({
+  queryKey: courseKeys.tabSettings(courseId),
+  queryFn: () => api.getCourseTabSettings(courseId),
+  staleTime: Infinity,
+});
+
+export const setCourseTabSettingsQueryData = (
+  queryClient: QueryClient,
+  courseId: string,
+  updater:
+    | TabSetting[]
+    | null
+    | undefined
+    | ((current: TabSetting[] | null | undefined) => TabSetting[] | null | undefined),
+) => {
+  queryClient.setQueryData<TabSetting[] | null | undefined>(courseKeys.tabSettings(courseId), updater);
+};
 
 export const useCourseDetailQuery = (courseId?: string) => {
   return useQuery({

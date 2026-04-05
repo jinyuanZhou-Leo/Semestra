@@ -28,7 +28,8 @@ const UnsupportedContextCard: React.FC<{ title: string; description: string }> =
   </Card>
 );
 
-const BuiltinAcademicCalendarTab: React.FC<TabProps> = ({ tabId, semesterId, settings, updateSettings }) => {
+const BuiltinAcademicCalendarTab: React.FC<TabProps> = (props) => {
+  const { semesterId } = props;
   if (!semesterId) {
     return (
       <UnsupportedContextCard
@@ -38,14 +39,11 @@ const BuiltinAcademicCalendarTab: React.FC<TabProps> = ({ tabId, semesterId, set
     );
   }
 
-  return (
-    <CalendarTab
-      tabId={tabId}
-      semesterId={semesterId}
-      settings={settings}
-      updateSettings={updateSettings}
-    />
-  );
+  // CalendarTab reads its own settings via usePluginSettingsBucketWithScope — no
+  // settings/updateSettings forwarding required. The host TabProps.settings value
+  // (from useDashboardTabs runtime-tabs state) is intentionally ignored here; the
+  // plugin bucket is the single source of truth for calendar settings.
+  return <CalendarTab {...props} />;
 };
 
 const BuiltinCourseScheduleTab: React.FC<TabProps> = ({ courseId, semesterId }) => {
@@ -61,11 +59,9 @@ const BuiltinCourseScheduleTab: React.FC<TabProps> = ({ courseId, semesterId }) 
   return <CourseScheduleTab courseId={courseId} semesterId={semesterId} />;
 };
 
-const BuiltinTodoTab: React.FC<TabProps> = ({ settings, updateSettings, semesterId, courseId }) => {
+const BuiltinTodoTab: React.FC<TabProps> = ({ semesterId, courseId }) => {
   return (
     <TodoTab
-      settings={settings}
-      updateSettings={updateSettings}
       semesterId={semesterId}
       courseId={courseId}
     />

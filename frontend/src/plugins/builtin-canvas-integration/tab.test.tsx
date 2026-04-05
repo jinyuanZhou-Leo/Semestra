@@ -60,7 +60,7 @@ const renderCanvasTab = (visibleTabs: PluginHostTabLike[] = [{ id: 'gradebook-ta
                         pluginType: 'builtin-canvas-pages',
                     }}
                 >
-                    <CanvasPagesTab tabId="tab-1" courseId="course-1" settings={{}} updateSettings={vi.fn()} />
+                    <CanvasPagesTab tabId="tab-1" courseId="course-1" />
                 </PluginRuntimeInstanceProvider>
             </PluginHostProvider>
         </DialogProvider>,

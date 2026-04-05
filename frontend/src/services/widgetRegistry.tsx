@@ -8,6 +8,7 @@
 
 
 import React from 'react';
+import { jsonDeepEqual } from '../plugin-system/utils';
 import { createPluginRegistry } from './createPluginRegistry';
 
 export interface HeaderButtonContext {
@@ -92,6 +93,14 @@ export interface WidgetDefinition {
 const { registry, useRegistry } = createPluginRegistry<WidgetDefinition, WidgetProps>(
     'Widget',
     'widgetId',
+    (prevProps, nextProps, idPropKey) => (
+        prevProps[idPropKey] === nextProps[idPropKey] &&
+        prevProps.semesterId === nextProps.semesterId &&
+        prevProps.courseId === nextProps.courseId &&
+        prevProps.updateSettings === nextProps.updateSettings &&
+        prevProps.updateCourse === nextProps.updateCourse &&
+        jsonDeepEqual(prevProps.settings, nextProps.settings)
+    ),
 );
 
 export const WidgetRegistry = registry;

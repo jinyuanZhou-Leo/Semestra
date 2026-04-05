@@ -96,39 +96,4 @@ describe('api runtime normalization', () => {
     ]);
   });
 
-  it('normalizes runtime-tab update responses before returning them', async () => {
-    mockedAxios.put.mockResolvedValue({
-      data: {
-        id: 'tab-2',
-        tab_type: 'builtin-gradebook',
-        title: 'Gradebook',
-        resolved_settings: '{"display":"compact"}',
-        order_index: 1,
-        plugin_id: 'builtin-gradebook',
-      },
-    });
-
-    const result = await api.updateSemesterRuntimeTabSettings('semester-1', 'builtin-gradebook', {
-      settings: '{"display":"compact"}',
-    });
-
-    expect(result).toEqual({
-      id: 'tab-2',
-      type: 'builtin-gradebook',
-      title: 'Gradebook',
-      settings: { display: 'compact' },
-      scope_settings: {},
-      inherited_settings: {},
-      settings_meta: {
-        scopeSettings: {},
-        inheritedSettings: {},
-        settingSources: {},
-      },
-      order_index: 1,
-      is_draggable: undefined,
-      is_removable: undefined,
-      plugin_id: 'builtin-gradebook',
-      availability: { state: 'available' },
-    });
-  });
 });

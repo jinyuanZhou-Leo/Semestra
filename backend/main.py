@@ -884,30 +884,6 @@ def reorder_semester_runtime_tabs(
     return runtime_payloads.build_semester_runtime_payload(db, semester)["runtime_tabs"]
 
 
-@app.put("/semesters/{semester_id}/runtime-tabs/{tab_type}/settings", response_model=schemas.RuntimeTabDefinition)
-def update_semester_runtime_tab_settings(
-    semester_id: str,
-    tab_type: str,
-    payload: schemas.TabSettingUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    semester = get_owned_semester(db, current_user, semester_id)
-    runtime_payload = runtime_payloads.build_semester_runtime_payload(db, semester)
-    runtime_tab = runtime_payloads.find_runtime_tab(runtime_payload, tab_type)
-    if runtime_tab is None:
-        raise HTTPException(status_code=404, detail="Runtime tab not found")
-    crud.upsert_tab_setting(
-        db,
-        schemas.TabSettingCreate(settings_key=tab_type, settings=payload.settings),
-        semester_id=semester.id,
-    )
-    updated_runtime_payload = runtime_payloads.build_semester_runtime_payload(db, semester)
-    updated_runtime_tab = runtime_payloads.find_runtime_tab(updated_runtime_payload, tab_type)
-    if updated_runtime_tab is None:
-        raise HTTPException(status_code=404, detail="Runtime tab not found")
-    return updated_runtime_tab
-
 @app.put("/semesters/{semester_id}", response_model=schemas.Semester)
 def update_semester(semester_id: str, semester: schemas.SemesterCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     # Verify ownership
@@ -1482,30 +1458,6 @@ def reorder_course_runtime_tabs(
     )
     return runtime_payloads.build_course_runtime_payload(db, course)["runtime_tabs"]
 
-
-@app.put("/courses/{course_id}/runtime-tabs/{tab_type}/settings", response_model=schemas.RuntimeTabDefinition)
-def update_course_runtime_tab_settings(
-    course_id: str,
-    tab_type: str,
-    payload: schemas.TabSettingUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    course = get_owned_course(db, current_user, course_id)
-    runtime_payload = runtime_payloads.build_course_runtime_payload(db, course)
-    runtime_tab = runtime_payloads.find_runtime_tab(runtime_payload, tab_type)
-    if runtime_tab is None:
-        raise HTTPException(status_code=404, detail="Runtime tab not found")
-    crud.upsert_tab_setting(
-        db,
-        schemas.TabSettingCreate(settings_key=tab_type, settings=payload.settings),
-        course_id=course.id,
-    )
-    updated_runtime_payload = runtime_payloads.build_course_runtime_payload(db, course)
-    updated_runtime_tab = runtime_payloads.find_runtime_tab(updated_runtime_payload, tab_type)
-    if updated_runtime_tab is None:
-        raise HTTPException(status_code=404, detail="Runtime tab not found")
-    return updated_runtime_tab
 
 @app.get("/courses/{course_id}/resources", response_model=schemas.CourseResourceListResponse)
 def read_course_resources(

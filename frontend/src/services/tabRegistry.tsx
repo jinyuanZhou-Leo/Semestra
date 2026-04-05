@@ -9,27 +9,16 @@
 import React from 'react';
 import { createPluginRegistry } from './createPluginRegistry';
 
-export interface TabProps<S = any> {
+export interface TabProps {
     tabId: string;
-    settings: S;
     semesterId?: string;
     courseId?: string;
-    updateSettings: (newSettings: S) => void | Promise<void>;
-}
-
-export interface TabSettingsProps<S = any> {
-    tabId: string;
-    settings: S;
-    semesterId?: string;
-    courseId?: string;
-    updateSettings: (newSettings: S) => void | Promise<void>;
 }
 
 export interface TabLifecycleContext {
     tabId: string;
     semesterId?: string;
     courseId?: string;
-    settings: unknown;
 }
 
 export type TabContext = 'semester' | 'course';
@@ -37,8 +26,6 @@ export type TabContext = 'semester' | 'course';
 export interface TabDefinition {
     type: string;
     component: React.FC<TabProps>;
-    defaultSettings?: unknown;
-    SettingsComponent?: React.FC<TabSettingsProps>;
     onCreate?: (context: TabLifecycleContext) => Promise<void> | void;
     onDelete?: (context: TabLifecycleContext) => Promise<void> | void;
 }

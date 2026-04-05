@@ -12,7 +12,7 @@ import type { FC } from 'react';
 import hostPolicyJson from '@/plugins/host-policy.json';
 import type { PluginDefinition, PluginDescriptor, PluginDescriptorTabDefinition, PluginDescriptorWidgetDefinition } from '@/plugin-sdk';
 import { PluginSettingsRegistry } from '../services/pluginSettingsRegistry';
-import type { TabContext, TabProps, TabSettingsProps } from '../services/tabRegistry';
+import type { TabContext, TabProps } from '../services/tabRegistry';
 import { TabRegistry } from '../services/tabRegistry';
 import type { WidgetContext, WidgetProps, WidgetSettingsProps } from '../services/widgetRegistry';
 import { WidgetRegistry } from '../services/widgetRegistry';
@@ -469,7 +469,6 @@ export const getTabComponentByType = (type: string): FC<TabProps> | undefined =>
 
 export const getWidgetComponentByType = (type: string): FC<WidgetProps> | undefined => WidgetRegistry.getComponent(type);
 
-export const getTabSettingsComponentByType = (type: string): FC<TabSettingsProps> | undefined => TabRegistry.get(type)?.SettingsComponent;
 
 export const getWidgetSettingsComponentByType = (type: string): FC<WidgetSettingsProps> | undefined => WidgetRegistry.get(type)?.SettingsComponent;
 

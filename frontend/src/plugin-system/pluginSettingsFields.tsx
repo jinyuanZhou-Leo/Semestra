@@ -1,6 +1,6 @@
 // input:  [plugin settings panel scope context, TanStack Query cache, tab-settings APIs, and shadcn field primitives]
-// output: [bound plugin-settings bucket hooks plus host-provided common field templates, including automatic inheritance source badges and reset for standard fields, and an opt-in PluginSettingsBucketSourceBanner for CRUD-style custom panels]
-// pos:    [frontend-only plugin settings binding layer that lets settings.tsx panels reuse tab-settings persistence without manual query/update plumbing]
+// output: [bound plugin-settings bucket hooks (context-based and explicit-scope variants) plus host-provided common field templates, including automatic inheritance source badges and reset for standard fields, and an opt-in PluginSettingsBucketSourceBanner for CRUD-style custom panels]
+// pos:    [frontend-only plugin settings binding layer that lets settings.tsx panels reuse tab-settings persistence without manual query/update plumbing; also exposes usePluginSettingsBucketWithScope for tab components that need settings outside a settings panel context]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -8,12 +8,14 @@
 
 "use no memo";
 
-import React, { useCallback, useEffect, useId, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { CalendarDays, Clock3, RotateCcw } from "lucide-react";
 
+import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
+import { usePluginSettingsEntityQuery, type PluginSettingsEntityQueryResult } from "./pluginSettingsEntity";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -30,7 +32,6 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
 
 import { usePluginSettingsPanelContext } from "./pluginSettingsPanelContext";
 import {
@@ -39,6 +40,7 @@ import {
   invalidateScopeQuery,
   parseSettingsObject,
   persistScopeSettings,
+  refetchScopeTabSettings,
 } from "./pluginSettingsPersistence";
 import { jsonDeepEqual } from './utils';
 import {
@@ -66,9 +68,8 @@ type SelectOption = {
   value: string;
 };
 
+const DEBOUNCE_MS = 600;
 const bucketSaveQueueMap = new Map<string, Promise<void>>();
-const bucketOptimisticScopeSettingsMap = new Map<string, Record<string, unknown>>();
-const bucketPendingSaveCountMap = new Map<string, number>();
 
 function buildPluginSettingsBucketKey(
   scope: PluginSettingsScope,
@@ -96,10 +97,10 @@ export interface PluginSettingsBucketState {
   /** Per-field inheritance metadata derived from `setting_sources`. Available to custom CRUD panels via `getSettingSource(bucket.settingsMeta, fieldPath)`. */
   settingsMeta: TabSettingsMeta;
   refresh: () => void;
-  setSettings: (nextSettings: Record<string, unknown>) => Promise<void>;
-  updateField: (fieldPath: string, value: unknown) => Promise<void>;
+  setSettings: (nextSettings: Record<string, unknown>) => void;
+  updateField: (fieldPath: string, value: unknown) => void;
   /** Remove a field's override at this scope so it falls back to the inherited value. */
-  resetField: (fieldPath: string) => Promise<void>;
+  resetField: (fieldPath: string) => void;
 }
 
 export interface PluginSettingsFieldState<TValue = unknown> {
@@ -107,9 +108,9 @@ export interface PluginSettingsFieldState<TValue = unknown> {
   value: TValue | null;
   /** Inheritance source for this field — layer, override status, and fallback layer. */
   source: SettingSource;
-  setValue: (value: TValue) => Promise<void>;
+  setValue: (value: TValue) => void;
   /** Removes this field's scope override, falling back to the inherited value. */
-  reset: () => Promise<void>;
+  reset: () => void;
   bucket: PluginSettingsBucketState;
 }
 
@@ -177,11 +178,12 @@ const usePluginSettingsBucketInternal = (
   scope: PluginSettingsScope,
   onRefresh: () => void,
   settingsKey: string,
+  entityQuery: PluginSettingsEntityQueryResult,
 ): PluginSettingsBucketState => {
   const queryClient = useQueryClient();
-  const { entityQuery } = usePluginSettingsPanelContext();
   const { entity, isLoading, refetch } = entityQuery;
   const [isSaving, setIsSaving] = React.useState(false);
+  const queuedFlushCountRef = useRef(0);
   const bucketKey = useMemo(() => buildPluginSettingsBucketKey(scope, settingsKey), [scope, settingsKey]);
 
   const tabSetting = useMemo(() => (
@@ -195,57 +197,95 @@ const usePluginSettingsBucketInternal = (
   const inheritedSettings = useMemo(() => tabSetting?.inherited_settings ?? {}, [tabSetting?.inherited_settings]);
   const settingsMeta = useMemo(() => buildSettingsMeta(tabSetting), [tabSetting]);
 
-  useEffect(() => {
-    if ((bucketPendingSaveCountMap.get(bucketKey) ?? 0) === 0) {
-      bucketOptimisticScopeSettingsMap.set(bucketKey, scopeSettings);
+  // Debounce state — all mutable, never cause re-renders
+  const pendingRef = useRef<Record<string, unknown> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Stable refs so flush never captures stale scope/settingsKey/tabSetting
+  const scopeRef = useRef(scope);
+  const settingsKeyRef = useRef(settingsKey);
+  const bucketKeyRef = useRef(bucketKey);
+  const tabSettingRef = useRef(tabSetting);
+  const inheritedSettingsRef = useRef(inheritedSettings);
+  useEffect(() => { scopeRef.current = scope; }, [scope]);
+  useEffect(() => { settingsKeyRef.current = settingsKey; }, [settingsKey]);
+  useEffect(() => { bucketKeyRef.current = bucketKey; }, [bucketKey]);
+  useEffect(() => { tabSettingRef.current = tabSetting; }, [tabSetting]);
+  useEffect(() => { inheritedSettingsRef.current = inheritedSettings; }, [inheritedSettings]);
+
+  // flush: immediately send the pending write to the API (called by debounce timer and on unmount)
+  const flush = useCallback(async () => {
+    if (pendingRef.current === null) return;
+    const nextSettings = pendingRef.current;
+    pendingRef.current = null;
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
-  }, [bucketKey, scopeSettings]);
+    const runSave = async () => {
+      try {
+        const nextTabSetting = await persistScopeSettings(scopeRef.current, settingsKeyRef.current, nextSettings);
+        applyScopeEntityUpdate(queryClient, scopeRef.current, nextTabSetting);
+        invalidateScopeQuery(queryClient, scopeRef.current);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to save settings.";
+        toast.error(message);
+        // Roll back the optimistic cache write to server truth
+        refetchScopeTabSettings(queryClient, scopeRef.current);
+      } finally {
+        queuedFlushCountRef.current = Math.max(0, queuedFlushCountRef.current - 1);
+        setIsSaving(queuedFlushCountRef.current > 0 || pendingRef.current !== null);
+      }
+    };
 
-  const setSettings = React.useCallback(async (nextSettings: Record<string, unknown>) => {
-    bucketOptimisticScopeSettingsMap.set(bucketKey, nextSettings);
-    bucketPendingSaveCountMap.set(bucketKey, (bucketPendingSaveCountMap.get(bucketKey) ?? 0) + 1);
+    queuedFlushCountRef.current += 1;
     setIsSaving(true);
-
-    const queuedSave = (bucketSaveQueueMap.get(bucketKey) ?? Promise.resolve())
+    const bucketKeyValue = bucketKeyRef.current;
+    const queuedSave = (bucketSaveQueueMap.get(bucketKeyValue) ?? Promise.resolve())
       .catch(() => undefined)
-      .then(async () => {
-        try {
-          const optimisticSettings = bucketOptimisticScopeSettingsMap.get(bucketKey) ?? nextSettings;
-          const nextTabSetting = await persistScopeSettings(
-            scope,
-            settingsKey,
-            optimisticSettings,
-          );
-          applyScopeEntityUpdate(queryClient, scope, nextTabSetting);
-          invalidateScopeQuery(queryClient, scope);
-        } catch (error: unknown) {
-          const message = error instanceof Error ? error.message : "Failed to save settings.";
-          toast.error(message);
-          throw error;
-        } finally {
-          const nextPendingCount = Math.max(0, (bucketPendingSaveCountMap.get(bucketKey) ?? 1) - 1);
-          bucketPendingSaveCountMap.set(bucketKey, nextPendingCount);
-          setIsSaving(nextPendingCount > 0);
-        }
-      });
-
-    bucketSaveQueueMap.set(bucketKey, queuedSave.then(() => undefined, () => undefined));
-    return queuedSave;
-  }, [bucketKey, queryClient, scope, settingsKey]);
-
-  const updateField = React.useCallback(async (fieldPath: string, value: unknown) => {
-    const currentSettings = bucketOptimisticScopeSettingsMap.get(bucketKey) ?? scopeSettings;
-    await setSettings({
-      ...currentSettings,
-      [fieldPath]: value,
+      .then(runSave);
+    bucketSaveQueueMap.set(bucketKeyValue, queuedSave);
+    await queuedSave.finally(() => {
+      if (bucketSaveQueueMap.get(bucketKeyValue) === queuedSave) {
+        bucketSaveQueueMap.delete(bucketKeyValue);
+      }
     });
-  }, [bucketKey, scopeSettings, setSettings]);
+  }, [queryClient]);
 
-  const resetField = React.useCallback(async (fieldPath: string) => {
-    const current = { ...(bucketOptimisticScopeSettingsMap.get(bucketKey) ?? scopeSettings) };
-    delete current[fieldPath];
-    await setSettings(current);
-  }, [bucketKey, scopeSettings, setSettings]);
+  // Flush any pending write when the bucket unmounts (e.g. panel closed mid-edit)
+  useEffect(() => () => { void flush(); }, [flush]);
+
+  const setSettings = useCallback((nextSettings: Record<string, unknown>) => {
+    pendingRef.current = nextSettings;
+
+    // Optimistic cache update — immediate UI feedback before the debounced API call
+    const current = tabSettingRef.current;
+    const optimisticTabSetting: TabSetting = {
+      ...(current ?? { id: null, settings_key: settingsKeyRef.current, settings: '{}', inherited_settings: {}, setting_sources: {} }),
+      scope_settings: nextSettings,
+      resolved_settings: { ...inheritedSettingsRef.current, ...nextSettings },
+    };
+    applyScopeEntityUpdate(queryClient, scopeRef.current, optimisticTabSetting);
+
+    // (Re)start the debounce timer
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      void flush();
+    }, DEBOUNCE_MS);
+  }, [queryClient, flush]);
+
+  const updateField = useCallback((fieldPath: string, value: unknown) => {
+    setSettings({ ...(pendingRef.current ?? scopeSettings), [fieldPath]: value });
+  }, [scopeSettings, setSettings]);
+
+  const resetField = useCallback((fieldPath: string) => {
+    const next = { ...(pendingRef.current ?? scopeSettings) };
+    delete next[fieldPath];
+    setSettings(next);
+  }, [scopeSettings, setSettings]);
 
   return {
     pluginId,
@@ -269,8 +309,32 @@ const usePluginSettingsBucketInternal = (
 };
 
 export const usePluginSettingsBucket = (settingsKey: string): PluginSettingsBucketState => {
-  const { pluginId, scope, onRefresh } = usePluginSettingsPanelContext();
-  return usePluginSettingsBucketInternal(pluginId, scope, onRefresh, settingsKey);
+  const { pluginId, scope, onRefresh, entityQuery } = usePluginSettingsPanelContext();
+  return usePluginSettingsBucketInternal(pluginId, scope, onRefresh, settingsKey, entityQuery);
+};
+
+/**
+ * Standalone bucket hook for tab components that need to read plugin settings
+ * **outside** a `PluginSettingsPanelProvider` context (e.g. the tab view itself).
+ *
+ * - Does NOT require being wrapped in `PluginSettingsPanelProvider`.
+ * - Subscribes to the entity query directly; shares the same TanStack Query key as the
+ *   settings-panel path so there is no double fetch when both panel and tab are mounted.
+ * - `onRefresh` is a no-op because tab components do not own the host refresh lifecycle.
+ *
+ * @example
+ * // Inside a tab component (outside the settings panel context):
+ * const scope = useMemo((): PluginSettingsScope =>
+ *   ({ kind: 'semester', semesterId: semesterId ?? '__missing__' }), [semesterId]);
+ * const bucket = usePluginSettingsBucketWithScope(MY_SETTINGS_KEY, scope);
+ * const settings = normalizeSettings(bucket.resolvedSettings);
+ */
+export const usePluginSettingsBucketWithScope = (
+  settingsKey: string,
+  scope: PluginSettingsScope,
+): PluginSettingsBucketState => {
+  const entityQuery = usePluginSettingsEntityQuery(scope);
+  return usePluginSettingsBucketInternal('__tab__', scope, () => undefined, settingsKey, entityQuery);
 };
 
 export const usePluginSettingField = <TValue = unknown,>(
@@ -288,16 +352,16 @@ export const usePluginSettingField = <TValue = unknown,>(
     fieldPath,
     value,
     source,
-    setValue: async (nextValue: TValue) => {
+    setValue: (nextValue: TValue) => {
       const fallbackValue = getFieldFallbackValue(bucket, fieldPath, defaultValue);
       if (fallbackValue !== undefined && jsonDeepEqual(nextValue, fallbackValue)) {
-        await bucket.resetField(fieldPath);
+        bucket.resetField(fieldPath);
       } else {
-        await bucket.updateField(fieldPath, nextValue);
+        bucket.updateField(fieldPath, nextValue);
       }
     },
-    reset: async () => {
-      await bucket.resetField(fieldPath);
+    reset: () => {
+      bucket.resetField(fieldPath);
     },
     bucket,
   };
@@ -362,7 +426,7 @@ export const PluginSettingsFieldLabelRow: React.FC<PluginSettingsFieldLabelRowPr
             type="button"
             aria-label={resetLabel}
             title={resetLabel}
-            onClick={(e) => { e.preventDefault(); void onReset?.(); }}
+            onClick={(e) => { e.preventDefault(); onReset?.(); }}
             className="inline-flex size-4 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
           >
             <RotateCcw className="size-3" />
@@ -399,7 +463,7 @@ const PluginSettingsTextLikeField: React.FC<PluginSettingsBoundFieldBaseProps & 
           value={field.value ?? ""}
           placeholder={placeholder}
           onChange={(event) => {
-            void field.setValue(event.target.value);
+            field.setValue(event.target.value);
           }}
         />
       ) : (
@@ -408,7 +472,7 @@ const PluginSettingsTextLikeField: React.FC<PluginSettingsBoundFieldBaseProps & 
           value={field.value ?? ""}
           placeholder={placeholder}
           onChange={(event) => {
-            void field.setValue(event.target.value);
+            field.setValue(event.target.value);
           }}
         />
       )}
@@ -448,7 +512,7 @@ export const PluginSettingsNumberField: React.FC<PluginSettingsNumberFieldProps>
         placeholder={placeholder}
         onChange={(event) => {
           const nextValue = event.target.value;
-          void field.setValue(nextValue === "" ? null : Number(nextValue));
+          field.setValue(nextValue === "" ? null : Number(nextValue));
         }}
       />
       {description ? <FieldDescription>{description}</FieldDescription> : null}
@@ -478,7 +542,7 @@ export const PluginSettingsBooleanField: React.FC<PluginSettingsBooleanFieldProp
         id={fieldId}
         checked={Boolean(field.value)}
         onCheckedChange={(checked) => {
-          void field.setValue(checked);
+          field.setValue(checked);
         }}
         className="shrink-0"
       />
@@ -506,7 +570,7 @@ export const PluginSettingsSelectField: React.FC<PluginSettingsSelectFieldProps>
       <Select
         value={field.value ?? ""}
         onValueChange={(value) => {
-          void field.setValue(value);
+          field.setValue(value);
         }}
       >
         <SelectTrigger id={fieldId}>
@@ -566,7 +630,7 @@ export const PluginSettingsDateField: React.FC<PluginSettingsDateFieldProps> = (
             mode="single"
             selected={selectedDate}
             onSelect={(nextDate) => {
-              void field.setValue(toIsoDate(nextDate));
+              field.setValue(toIsoDate(nextDate));
             }}
           />
         </PopoverContent>
@@ -608,13 +672,13 @@ export const PluginSettingsJsonField: React.FC<PluginSettingsJsonFieldProps> = (
           setJsonDraft(nextDraft);
           if (nextDraft.trim() === "") {
             setJsonError(null);
-            void field.setValue(null);
+            field.setValue(null);
             return;
           }
           try {
             const parsed = JSON.parse(nextDraft);
             setJsonError(null);
-            void field.setValue(parsed);
+            field.setValue(parsed);
           } catch {
             setJsonError("Enter valid JSON.");
           }
@@ -655,7 +719,7 @@ export const PluginSettingsTimeField: React.FC<PluginSettingsTimeFieldProps> = (
     if (onCommit) {
       void Promise.resolve(onCommit(parsed));
     } else {
-      void field.setValue(parsed);
+      field.setValue(parsed);
     }
   }, [currentMinutes, field, onCommit]);
 
@@ -754,7 +818,7 @@ export const PluginSettingsBucketSourceBanner: React.FC<PluginSettingsBucketSour
           size="icon-xs"
           aria-label={resetLabel}
           title={resetLabel}
-          onClick={() => void bucket.resetField(fieldPath)}
+          onClick={() => bucket.resetField(fieldPath)}
           className="text-muted-foreground hover:text-foreground transition-colors"
         >
           <RotateCcw />

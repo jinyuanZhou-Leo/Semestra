@@ -15,7 +15,6 @@ export type {
   PluginTabDefinition as TabDefinition,
   PluginTabLifecycleContext as TabLifecycleContext,
   PluginTabProps as TabProps,
-  PluginTabSettingsProps as TabSettingsProps,
   PluginWidgetDefinition as WidgetDefinition,
   PluginWidgetLifecycleContext as WidgetLifecycleContext,
   PluginWidgetProps as WidgetProps,

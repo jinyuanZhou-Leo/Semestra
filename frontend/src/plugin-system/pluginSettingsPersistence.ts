@@ -1,15 +1,17 @@
-// input:  [TanStack Query cache, tab-settings APIs, scope helpers]
+// input:  [TanStack Query cache, tab-settings APIs, scope helpers, and dedicated tab-settings cache setters]
 // output: [persistence utilities for plugin settings CRUD — scope-aware API calls and query cache updates]
 // pos:    [Internal plumbing layer for pluginSettingsFields.tsx that handles the settings read/write lifecycle]
 
 import type { QueryClient } from "@tanstack/react-query";
-import { setCourseDetailQueryData } from "@/data/resources/courses";
-import { setProgramDetailQueryData } from "@/data/resources/programs";
-import { setSemesterDetailQueryData } from "@/data/resources/semesters";
-import api, { type Course, type Program, type Semester, type TabSetting } from "@/services/api";
+import { setCourseTabSettingsQueryData } from "@/data/resources/courses";
+import { setProgramTabSettingsQueryData } from "@/data/resources/programs";
+import { setSemesterTabSettingsQueryData } from "@/data/resources/semesters";
+import { courseKeys } from "@/data/keys/courses";
+import { programKeys } from "@/data/keys/programs";
+import { semesterKeys } from "@/data/keys/semesters";
+import api, { type TabSetting } from "@/services/api";
 import type { PluginSettingsScope } from "@/services/pluginSettingsRegistry";
 import type { TabSettingsMeta } from "./tabSettingsMeta";
-import type { SettingsEntity } from './pluginSettingsEntity';
 
 export const parseSettingsObject = (value: unknown): Record<string, unknown> => {
   if (!value) {
@@ -36,33 +38,18 @@ export const buildSettingsMeta = (tabSetting: TabSetting | null): TabSettingsMet
 });
 
 const upsertTabSetting = (
-  tabSettings: TabSetting[] | undefined,
+  current: TabSetting[] | null | undefined,
   nextTabSetting: TabSetting,
 ): TabSetting[] => {
-  const current = [...(tabSettings ?? [])];
-  const index = current.findIndex((entry) => entry.settings_key === nextTabSetting.settings_key);
+  const list = [...(current ?? [])];
+  const index = list.findIndex((entry) => entry.settings_key === nextTabSetting.settings_key);
   if (index >= 0) {
-    current[index] = nextTabSetting;
-    return current;
+    list[index] = nextTabSetting;
+    return list;
   }
-  current.push(nextTabSetting);
-  return current;
+  list.push(nextTabSetting);
+  return list;
 };
-
-const updateSettingsEntity = (
-  entity: SettingsEntity | null | undefined,
-  nextTabSetting: TabSetting,
-): SettingsEntity | null | undefined => {
-  if (!entity) {
-    return entity;
-  }
-  return {
-    ...entity,
-    tab_settings: upsertTabSetting(entity.tab_settings, nextTabSetting),
-  };
-};
-
-
 
 export const applyScopeEntityUpdate = (
   queryClient: QueryClient,
@@ -70,14 +57,14 @@ export const applyScopeEntityUpdate = (
   nextTabSetting: TabSetting,
 ) => {
   if (scope.kind === "program") {
-    setProgramDetailQueryData(queryClient, scope.programId, (current) => updateSettingsEntity(current, nextTabSetting) as Program | null | undefined);
+    setProgramTabSettingsQueryData(queryClient, scope.programId, (current) => upsertTabSetting(current, nextTabSetting));
     return;
   }
   if (scope.kind === "semester") {
-    setSemesterDetailQueryData(queryClient, scope.semesterId, (current) => updateSettingsEntity(current, nextTabSetting) as Semester | null | undefined);
+    setSemesterTabSettingsQueryData(queryClient, scope.semesterId, (current) => upsertTabSetting(current, nextTabSetting));
     return;
   }
-  setCourseDetailQueryData(queryClient, scope.courseId, (current) => updateSettingsEntity(current, nextTabSetting) as Course | null | undefined);
+  setCourseTabSettingsQueryData(queryClient, scope.courseId, (current) => upsertTabSetting(current, nextTabSetting));
 };
 
 export const persistScopeSettings = async (
@@ -103,12 +90,28 @@ export const invalidateScopeQuery = (
   // an immediate background refetch. applyScopeEntityUpdate already wrote the API response
   // into the cache, so the UI is already up-to-date.
   if (scope.kind === "program") {
-    queryClient.invalidateQueries({ queryKey: ["programs", "detail", scope.programId], refetchType: 'none' });
+    queryClient.invalidateQueries({ queryKey: programKeys.tabSettings(scope.programId), refetchType: 'none' });
     return;
   }
   if (scope.kind === "semester") {
-    queryClient.invalidateQueries({ queryKey: ["semesters", "detail", scope.semesterId], refetchType: 'none' });
+    queryClient.invalidateQueries({ queryKey: semesterKeys.tabSettings(scope.semesterId), refetchType: 'none' });
     return;
   }
-  queryClient.invalidateQueries({ queryKey: ["courses", "detail", scope.courseId], refetchType: 'none' });
+  queryClient.invalidateQueries({ queryKey: courseKeys.tabSettings(scope.courseId), refetchType: 'none' });
+};
+
+export const refetchScopeTabSettings = (
+  queryClient: QueryClient,
+  scope: PluginSettingsScope,
+): void => {
+  // Force an active refetch to roll back the cache to server truth after a failed write.
+  if (scope.kind === "program") {
+    queryClient.invalidateQueries({ queryKey: programKeys.tabSettings(scope.programId), refetchType: 'active' });
+    return;
+  }
+  if (scope.kind === "semester") {
+    queryClient.invalidateQueries({ queryKey: semesterKeys.tabSettings(scope.semesterId), refetchType: 'active' });
+    return;
+  }
+  queryClient.invalidateQueries({ queryKey: courseKeys.tabSettings(scope.courseId), refetchType: 'active' });
 };

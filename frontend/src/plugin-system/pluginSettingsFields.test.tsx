@@ -10,9 +10,9 @@ import React from "react";
 import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getProgramDetailQueryOptions } from "@/data/resources/programs";
+import { getProgramTabSettingsQueryOptions } from "@/data/resources/programs";
 import { createQueryClientWrapper } from "@/test/queryClientWrapper";
-import type { Program, TabSetting } from "@/services/api";
+import type { TabSetting } from "@/services/api";
 
 import { PluginSettingsPanelProvider } from "./pluginSettingsPanelContext";
 import {
@@ -25,7 +25,7 @@ import {
 
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {
-    getProgram: vi.fn(),
+    getProgramTabSettings: vi.fn(),
     upsertProgramTabSettings: vi.fn(),
   },
 }));
@@ -33,18 +33,6 @@ const { apiMock } = vi.hoisted(() => ({
 vi.mock("@/services/api", () => ({
   default: apiMock,
 }));
-
-type ProgramDetail = Program & { semesters: never[] };
-
-const buildProgram = (tabSettings: TabSetting[] = []): ProgramDetail => ({
-  id: "program-1",
-  name: "Program One",
-  cgpa_scaled: 0,
-  cgpa_percentage: 0,
-  grad_requirement_credits: 0,
-  semesters: [],
-  tab_settings: tabSettings,
-});
 
 const buildTabSetting = (overrides?: Partial<TabSetting>): TabSetting => ({
   id: "setting-1",
@@ -80,15 +68,15 @@ const buildTabSetting = (overrides?: Partial<TabSetting>): TabSetting => ({
   ...overrides,
 });
 
-const createWrapper = (program: ProgramDetail) => {
+const createWrapper = (tabSettings: TabSetting[]) => {
   const { Wrapper, queryClient } = createQueryClientWrapper();
-  queryClient.setQueryData(getProgramDetailQueryOptions(program.id).queryKey, program);
+  queryClient.setQueryData(getProgramTabSettingsQueryOptions("program-1").queryKey, tabSettings);
 
   const Provider: React.FC<React.PropsWithChildren> = ({ children }) => (
     <Wrapper>
       <PluginSettingsPanelProvider
         pluginId="tab-template"
-        scope={{ kind: "program", programId: program.id }}
+        scope={{ kind: "program", programId: "program-1" }}
         onRefresh={() => {}}
       >
         {children}
@@ -104,7 +92,7 @@ const createWrapper = (program: ProgramDetail) => {
 
 describe("plugin settings bound fields", () => {
   beforeEach(() => {
-    apiMock.getProgram.mockReset();
+    apiMock.getProgramTabSettings.mockReset();
     apiMock.upsertProgramTabSettings.mockReset();
   });
 
@@ -113,7 +101,7 @@ describe("plugin settings bound fields", () => {
   });
 
   it("reads a resolved field value from the current scope bucket", () => {
-    const { Wrapper } = createWrapper(buildProgram([buildTabSetting()]));
+    const { Wrapper } = createWrapper([buildTabSetting()]);
 
     const { result } = renderHook(
       () => usePluginSettingField<string>("template-settings", "title"),
@@ -124,7 +112,7 @@ describe("plugin settings bound fields", () => {
   });
 
   it("renders Modified badge and reset button when the field is overridden in scope", () => {
-    const { Wrapper } = createWrapper(buildProgram([buildTabSetting()]));
+    const { Wrapper } = createWrapper([buildTabSetting()]);
 
     render(
       <PluginSettingsTextField
@@ -142,7 +130,7 @@ describe("plugin settings bound fields", () => {
   });
 
   it("does not render source hint when the field is at default layer and not overridden", () => {
-    const { Wrapper } = createWrapper(buildProgram([buildTabSetting()]));
+    const { Wrapper } = createWrapper([buildTabSetting()]);
 
     render(
       <PluginSettingsBooleanField
@@ -159,8 +147,8 @@ describe("plugin settings bound fields", () => {
   });
 
   it("updates the scoped settings bucket when a bound field changes", async () => {
-    let currentProgram = buildProgram([buildTabSetting()]);
-    apiMock.getProgram.mockImplementation(async () => currentProgram);
+    let currentTabSettings = [buildTabSetting()];
+    apiMock.getProgramTabSettings.mockImplementation(async () => currentTabSettings);
     apiMock.upsertProgramTabSettings.mockImplementation(async (_programId: string, settingsKey: string, payload: { settings: string }) => {
       const nextScopeSettings = JSON.parse(payload.settings) as Record<string, unknown>;
       const nextTabSetting = buildTabSetting({
@@ -172,11 +160,11 @@ describe("plugin settings bound fields", () => {
           showChecklist: Boolean(nextScopeSettings.showChecklist ?? false),
         },
       });
-      currentProgram = buildProgram([nextTabSetting]);
+      currentTabSettings = [nextTabSetting];
       return nextTabSetting;
     });
 
-    const { Wrapper } = createWrapper(currentProgram);
+    const { Wrapper } = createWrapper(currentTabSettings);
 
     render(
       <PluginSettingsTextField
@@ -202,15 +190,15 @@ describe("plugin settings bound fields", () => {
   });
 
   it("serializes overlapping saves so later edits keep earlier pending field changes", async () => {
-    let currentProgram = buildProgram([buildTabSetting()]);
+    let currentTabSettings = [buildTabSetting()];
     let resolveFirstSave: ((value: TabSetting) => void) | null = null;
 
-    apiMock.getProgram.mockImplementation(async () => currentProgram);
+    apiMock.getProgramTabSettings.mockImplementation(async () => currentTabSettings);
     apiMock.upsertProgramTabSettings
       .mockImplementationOnce(async () => {
         return await new Promise<TabSetting>((resolve) => {
           resolveFirstSave = (nextTabSetting) => {
-            currentProgram = buildProgram([nextTabSetting]);
+            currentTabSettings = [nextTabSetting];
             resolve(nextTabSetting);
           };
         });
@@ -226,11 +214,11 @@ describe("plugin settings bound fields", () => {
             showChecklist: Boolean(nextScopeSettings.showChecklist ?? false),
           },
         });
-        currentProgram = buildProgram([nextTabSetting]);
+        currentTabSettings = [nextTabSetting];
         return nextTabSetting;
       });
 
-    const { Wrapper } = createWrapper(currentProgram);
+    const { Wrapper } = createWrapper(currentTabSettings);
 
     render(
       <>
@@ -307,8 +295,8 @@ describe("plugin settings bound fields", () => {
   });
 
   it("resetField removes the field from scope settings and persists", async () => {
-    let currentProgram = buildProgram([buildTabSetting()]);
-    apiMock.getProgram.mockImplementation(async () => currentProgram);
+    let currentTabSettings = [buildTabSetting()];
+    apiMock.getProgramTabSettings.mockImplementation(async () => currentTabSettings);
     apiMock.upsertProgramTabSettings.mockImplementation(async (_programId: string, settingsKey: string, payload: { settings: string }) => {
       const nextScopeSettings = JSON.parse(payload.settings) as Record<string, unknown>;
       const nextTabSetting = buildTabSetting({
@@ -317,18 +305,18 @@ describe("plugin settings bound fields", () => {
         scope_settings: nextScopeSettings,
         resolved_settings: nextScopeSettings,
       });
-      currentProgram = buildProgram([nextTabSetting]);
+      currentTabSettings = [nextTabSetting];
       return nextTabSetting;
     });
 
-    const { Wrapper } = createWrapper(currentProgram);
+    const { Wrapper } = createWrapper(currentTabSettings);
 
     const { result } = renderHook(
       () => usePluginSettingField<string>("template-settings", "title"),
       { wrapper: Wrapper },
     );
 
-    await result.current.reset();
+    result.current.reset();
 
     await waitFor(() => {
       expect(apiMock.upsertProgramTabSettings).toHaveBeenCalledWith(
@@ -353,7 +341,7 @@ describe("plugin settings bound fields", () => {
         },
       },
     });
-    const { Wrapper } = createWrapper(buildProgram([inheritedTabSetting]));
+    const { Wrapper } = createWrapper([inheritedTabSetting]);
 
     const BannerWrapper: React.FC = () => {
       const bucket = usePluginSettingsBucket("template-settings");
@@ -367,8 +355,8 @@ describe("plugin settings bound fields", () => {
   });
 
   it("PluginSettingsBucketSourceBanner shows modified notice and reset button when field is overridden", async () => {
-    let currentProgram = buildProgram([buildTabSetting()]);
-    apiMock.getProgram.mockImplementation(async () => currentProgram);
+    let currentTabSettings = [buildTabSetting()];
+    apiMock.getProgramTabSettings.mockImplementation(async () => currentTabSettings);
     apiMock.upsertProgramTabSettings.mockImplementation(async (_programId: string, settingsKey: string, payload: { settings: string }) => {
       const nextTabSetting = buildTabSetting({
         settings_key: settingsKey,
@@ -378,7 +366,7 @@ describe("plugin settings bound fields", () => {
           rows: { effective_layer: "program", is_overridden_in_scope: true, fallback_layer: null },
         },
       });
-      currentProgram = buildProgram([nextTabSetting]);
+      currentTabSettings = [nextTabSetting];
       return nextTabSetting;
     });
 
@@ -387,7 +375,7 @@ describe("plugin settings bound fields", () => {
         rows: { effective_layer: "program", is_overridden_in_scope: true, fallback_layer: null },
       },
     });
-    const { Wrapper } = createWrapper(buildProgram([overriddenTabSetting]));
+    const { Wrapper } = createWrapper([overriddenTabSetting]);
 
     const BannerWrapper: React.FC = () => {
       const bucket = usePluginSettingsBucket("template-settings");

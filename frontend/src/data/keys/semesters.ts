@@ -1,5 +1,5 @@
 // input:  [Semester ids plus Semester-scoped request parameter objects from app-side data resources]
-// output: [`semesterKeys` factory for stable Semester detail, draft, plugin, todo, schedule, and LMS cache identifiers]
+// output: [`semesterKeys` factory for stable Semester detail, draft, plugin, tab-settings, todo, schedule, and LMS cache identifiers]
 // pos:    [App-side Semester query-key registry used by host data resources, contexts, and pages]
 //
 // ⚠️ When this file is updated:
@@ -9,6 +9,7 @@
 export const semesterKeys = {
   all: ['semesters'] as const,
   detail: (semesterId: string) => ['semesters', 'detail', semesterId] as const,
+  tabSettings: (semesterId: string) => ['semesters', semesterId, 'tab-settings'] as const,
   pluginActivations: (semesterId: string) => ['semesters', semesterId, 'plugin-activations'] as const,
   pluginSystemSetup: (semesterId: string) => ['plugin-system', 'semesters', semesterId, 'setup'] as const,
   todo: (semesterId: string) => ['semesters', semesterId, 'todo'] as const,

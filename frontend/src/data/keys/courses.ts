@@ -1,5 +1,5 @@
 // input:  [Course ids plus Course-scoped request parameter objects from app-side data resources]
-// output: [`courseKeys` factory for stable Course detail, plugin, LMS, resource, and schedule cache identifiers]
+// output: [`courseKeys` factory for stable Course detail, plugin, tab-settings, LMS, resource, and schedule cache identifiers]
 // pos:    [App-side Course query-key registry used by host data resources, contexts, and pages]
 //
 // ⚠️ When this file is updated:
@@ -9,6 +9,7 @@
 export const courseKeys = {
   all: ['courses'] as const,
   detail: (courseId: string) => ['courses', 'detail', courseId] as const,
+  tabSettings: (courseId: string) => ['courses', courseId, 'tab-settings'] as const,
   pluginActivations: (courseId: string) => ['courses', courseId, 'plugin-activations'] as const,
   resources: (courseId: string) => ['courses', courseId, 'resources'] as const,
   gradebook: (courseId: string) => ['courses', courseId, 'gradebook'] as const,

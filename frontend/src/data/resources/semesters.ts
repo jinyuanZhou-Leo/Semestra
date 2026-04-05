@@ -8,7 +8,7 @@
 
 import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query';
 
-import api, { type Semester } from '@/services/api';
+import api, { type Semester, type TabSetting } from '@/services/api';
 
 import { programKeys, semesterKeys } from '../keys';
 
@@ -20,6 +20,24 @@ export const getSemesterDetailQueryOptions = (semesterId: string) => queryOption
   queryFn: () => api.getSemester(semesterId),
   staleTime: SEMESTER_DETAIL_STALE_TIME_MS,
 });
+
+export const getSemesterTabSettingsQueryOptions = (semesterId: string) => queryOptions({
+  queryKey: semesterKeys.tabSettings(semesterId),
+  queryFn: () => api.getSemesterTabSettings(semesterId),
+  staleTime: Infinity,
+});
+
+export const setSemesterTabSettingsQueryData = (
+  queryClient: QueryClient,
+  semesterId: string,
+  updater:
+    | TabSetting[]
+    | null
+    | undefined
+    | ((current: TabSetting[] | null | undefined) => TabSetting[] | null | undefined),
+) => {
+  queryClient.setQueryData<TabSetting[] | null | undefined>(semesterKeys.tabSettings(semesterId), updater);
+};
 
 export const getSemesterPluginSystemSetupQueryOptions = (semesterId: string) => queryOptions({
   queryKey: semesterKeys.pluginSystemSetup(semesterId),

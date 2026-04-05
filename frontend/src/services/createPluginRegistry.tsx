@@ -1,9 +1,8 @@
-// input:  [React memo utilities, deep-equality helper]
+// input:  [React memo utilities and optional caller-provided prop comparators]
 // output: [Generic `createPluginRegistry<TDef, TProps>` factory function]
 // pos:    [Shared registry class builder to eliminate identical logic in TabRegistry and WidgetRegistry]
 
 import React, { useSyncExternalStore } from 'react';
-import { jsonDeepEqual } from '../plugin-system/utils';
 
 type Listener = () => void;
 
@@ -13,7 +12,7 @@ type Listener = () => void;
  * - React-aware `useSyncExternalStore` hook
  * - Memoized component caching with deep settings comparison
  */
-export interface PluginRegistry<TDefinition extends { type: string; component: React.FC<TProps> }, TProps extends { settings: unknown }> {
+export interface PluginRegistry<TDefinition extends { type: string; component: React.FC<TProps> }, TProps extends { semesterId?: string; courseId?: string }> {
     register(definition: TDefinition): void;
     unregister(type: string): void;
     subscribe(listener: Listener): () => void;
@@ -22,7 +21,7 @@ export interface PluginRegistry<TDefinition extends { type: string; component: R
     getComponent(type: string): React.FC<TProps> | undefined;
 }
 
-export interface PluginRegistryResult<TDefinition extends { type: string; component: React.FC<TProps> }, TProps extends { settings: unknown }> {
+export interface PluginRegistryResult<TDefinition extends { type: string; component: React.FC<TProps> }, TProps extends { semesterId?: string; courseId?: string }> {
     registry: PluginRegistry<TDefinition, TProps>;
     useRegistry: () => TDefinition[];
 }
@@ -35,10 +34,11 @@ export interface PluginRegistryResult<TDefinition extends { type: string; compon
  */
 export function createPluginRegistry<
     TDefinition extends { type: string; component: React.FC<TProps> },
-    TProps extends { settings: unknown; semesterId?: string; courseId?: string },
+    TProps extends { semesterId?: string; courseId?: string },
 >(
     name: string,
     idPropKey: keyof TProps,
+    arePropsEqual?: (prevProps: TProps, nextProps: TProps, idPropKey: keyof TProps) => boolean,
 ): PluginRegistryResult<TDefinition, TProps> {
     const items = new Map<string, TDefinition>();
     const memoizedComponents = new Map<string, React.FC<TProps>>();
@@ -91,11 +91,13 @@ export function createPluginRegistry<
             }
 
             const MemoizedComponent = React.memo(definition.component, (prevProps, nextProps) => {
+                if (arePropsEqual) {
+                    return arePropsEqual(prevProps, nextProps, idPropKey);
+                }
                 return (
                     prevProps[idPropKey] === nextProps[idPropKey] &&
                     prevProps.semesterId === nextProps.semesterId &&
-                    prevProps.courseId === nextProps.courseId &&
-                    jsonDeepEqual(prevProps.settings, nextProps.settings)
+                    prevProps.courseId === nextProps.courseId
                 );
             });
 

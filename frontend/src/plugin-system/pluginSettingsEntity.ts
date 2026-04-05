@@ -1,16 +1,16 @@
-// input:  [plugin settings scope plus app-side Program/Semester/Course detail query options]
+// input:  [plugin settings scope plus dedicated tab-settings query options for Program/Semester/Course]
 // output: [single-entity query hook shared across plugin settings panels and field buckets]
-// pos:    [Provider-level plugin settings entity loader that avoids one query observer per bound field]
+// pos:    [Provider-level plugin settings entity loader backed by independent tab-settings queries, decoupled from entity detail]
 
 import { useQuery } from '@tanstack/react-query';
 
-import { getCourseDetailQueryOptions } from '@/data/resources/courses';
-import { getProgramDetailQueryOptions } from '@/data/resources/programs';
-import { getSemesterDetailQueryOptions } from '@/data/resources/semesters';
-import type { Course, Program, Semester } from '@/services/api';
+import { getCourseTabSettingsQueryOptions } from '@/data/resources/courses';
+import { getProgramTabSettingsQueryOptions } from '@/data/resources/programs';
+import { getSemesterTabSettingsQueryOptions } from '@/data/resources/semesters';
+import type { TabSetting } from '@/services/api';
 import type { PluginSettingsScope } from '@/services/pluginSettingsRegistry';
 
-export type SettingsEntity = Program | Semester | Course;
+export type SettingsEntity = { tab_settings: TabSetting[] };
 
 export interface PluginSettingsEntityQueryResult {
   entity: SettingsEntity | null;
@@ -20,21 +20,21 @@ export interface PluginSettingsEntityQueryResult {
 
 export function usePluginSettingsEntityQuery(scope: PluginSettingsScope): PluginSettingsEntityQueryResult {
   const programQuery = useQuery({
-    ...getProgramDetailQueryOptions(scope.kind === 'program' ? scope.programId : '__missing__'),
+    ...getProgramTabSettingsQueryOptions(scope.kind === 'program' ? scope.programId : '__missing__'),
     enabled: scope.kind === 'program',
   });
   const semesterQuery = useQuery({
-    ...getSemesterDetailQueryOptions(scope.kind === 'semester' ? scope.semesterId : '__missing__'),
+    ...getSemesterTabSettingsQueryOptions(scope.kind === 'semester' ? scope.semesterId : '__missing__'),
     enabled: scope.kind === 'semester',
   });
   const courseQuery = useQuery({
-    ...getCourseDetailQueryOptions(scope.kind === 'course' ? scope.courseId : '__missing__'),
+    ...getCourseTabSettingsQueryOptions(scope.kind === 'course' ? scope.courseId : '__missing__'),
     enabled: scope.kind === 'course',
   });
 
   if (scope.kind === 'program') {
     return {
-      entity: (programQuery.data as SettingsEntity | null) ?? null,
+      entity: programQuery.data ? { tab_settings: programQuery.data } : null,
       isLoading: programQuery.isLoading,
       refetch: programQuery.refetch,
     };
@@ -42,14 +42,14 @@ export function usePluginSettingsEntityQuery(scope: PluginSettingsScope): Plugin
 
   if (scope.kind === 'semester') {
     return {
-      entity: (semesterQuery.data as SettingsEntity | null) ?? null,
+      entity: semesterQuery.data ? { tab_settings: semesterQuery.data } : null,
       isLoading: semesterQuery.isLoading,
       refetch: semesterQuery.refetch,
     };
   }
 
   return {
-    entity: (courseQuery.data as SettingsEntity | null) ?? null,
+    entity: courseQuery.data ? { tab_settings: courseQuery.data } : null,
     isLoading: courseQuery.isLoading,
     refetch: courseQuery.refetch,
   };

@@ -109,8 +109,6 @@ const renderGradebookTab = () => {
                     <TabComponent
                         tabId="gradebook-tab"
                         courseId="course-1"
-                        settings={{}}
-                        updateSettings={vi.fn()}
                     />
                 </PluginRuntimeInstanceProvider>
             </DialogProvider>

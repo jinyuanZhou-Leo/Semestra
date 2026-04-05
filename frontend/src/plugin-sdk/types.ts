@@ -26,34 +26,21 @@ import type {
 } from './manifest-types.ts';
 export type * from './manifest-types.ts';
 
-export interface PluginTabProps<S = any> {
+export interface PluginTabProps {
   tabId: string;
-  settings: S;
   semesterId?: string;
   courseId?: string;
-  updateSettings: (nextSettings: S) => void | Promise<void>;
-}
-
-export interface PluginTabSettingsProps<S = any> {
-  tabId: string;
-  settings: S;
-  semesterId?: string;
-  courseId?: string;
-  updateSettings: (nextSettings: S) => void | Promise<void>;
 }
 
 export interface PluginTabLifecycleContext {
   tabId: string;
   semesterId?: string;
   courseId?: string;
-  settings: unknown;
 }
 
 export interface PluginTabDefinition {
   type: string;
   component: FC<PluginTabProps>;
-  defaultSettings?: unknown;
-  SettingsComponent?: FC<PluginTabSettingsProps>;
   onCreate?: (context: PluginTabLifecycleContext) => Promise<void> | void;
   onDelete?: (context: PluginTabLifecycleContext) => Promise<void> | void;
 }

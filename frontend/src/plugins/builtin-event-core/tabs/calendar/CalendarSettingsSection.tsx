@@ -1,6 +1,6 @@
-// input:  [calendar settings state, settings update callback, schedule data hooks, shadcn settings/time-input UI primitives, and registered calendar sources]
-// output: [`CalendarSettingsSection` settings UI for calendar behavior, source list visibility/color controls, LMS description safety, Reading Week week-number controls, and export actions]
-// pos:    [Calendar tab settings panel entry that normalizes state, applies granular patches, and uses shadcn Field-based form structure for standard controls plus source list controls]
+// input:  [plugin settings bucket for calendar tab, registered calendar sources, semester detail cache, and shadcn settings/alert-dialog primitives]
+// output: [`CalendarSettingsSection` self-contained settings panel that reads and writes calendar settings directly via the plugin settings bucket, with source list controls, LMS description safety, and export/reset actions]
+// pos:    [Calendar tab settings panel entry — fully decoupled from the host TabProps.settings/updateSettings chain; reads resolved settings from the plugin settings inheritance chain and writes scoped overrides via the bucket]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -33,12 +33,12 @@ import {
   PluginSettingsBooleanField,
   PluginSettingsSelectField,
   PluginSettingsTimeField,
+  usePluginSettingsBucket,
 } from '@/plugin-sdk';
 import type { CalendarSettingsState } from '../../shared/types';
 import { getWeekFromSemesterDate, resolveSemesterDateRange } from '../../shared/utils';
 import { CalendarSourceSettingsList } from './components/CalendarSourceSettingsList';
 import {
-  DEFAULT_CALENDAR_SETTINGS,
   getScheduleEventColor,
   normalizeDayMinuteWindow,
   normalizeCalendarSettings,
@@ -52,8 +52,6 @@ import {
 
 interface CalendarSettingsSectionProps {
   semesterId?: string;
-  settings: unknown;
-  updateSettings: (newSettings: CalendarSettingsState) => void | Promise<void>;
 }
 
 const WEEK_VIEW_DAY_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
@@ -73,14 +71,20 @@ interface CachedSemesterDetail {
 
 export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = ({
   semesterId,
-  settings,
-  updateSettings,
 }) => {
   const queryClient = useQueryClient();
-  const normalizedSettings = React.useMemo(() => normalizeCalendarSettings(settings), [settings]);
+  const bucket = usePluginSettingsBucket(BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE);
+
+  // Derived from bucket for complex-field patches and export/reset
+  const normalizedSettings = React.useMemo(
+    () => normalizeCalendarSettings(bucket.resolvedSettings),
+    [bucket.resolvedSettings],
+  );
+
   const calendarSources = useCalendarSourceRegistry();
   const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
   const [isLmsDescriptionRiskDialogOpen, setIsLmsDescriptionRiskDialogOpen] = React.useState(false);
+
   const cachedSemester = React.useMemo(() => {
     if (!semesterId) return null;
     return queryClient.getQueryData<CachedSemesterDetail>(queryKeys.semesters.detail(semesterId)) ?? null;
@@ -103,22 +107,25 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
     }));
   }, [cachedSemester]);
 
+  /**
+   * Patch a subset of calendar settings.
+   * Only the patched keys are written to the scope bucket; other scope overrides
+   * are preserved, and inherited defaults are never baked in as explicit overrides.
+   * Complex fields (eventColors, sourceVisibility) are merged onto current resolved
+   * values before writing to avoid losing sibling entries.
+   */
   const patchSettings = React.useCallback((patch: Partial<CalendarSettingsState>) => {
-    const nextSettings: CalendarSettingsState = {
-      ...normalizedSettings,
-      ...patch,
-      eventColors: {
-        ...normalizedSettings.eventColors,
-        ...(patch.eventColors ?? {}),
-      },
-      sourceVisibility: {
-        ...normalizedSettings.sourceVisibility,
-        ...(patch.sourceVisibility ?? {}),
-      },
-    };
-
-    void Promise.resolve(updateSettings(nextSettings));
-  }, [normalizedSettings, updateSettings]);
+    // Merge complex fields; keep other patch keys verbatim
+    const fullPatch: Partial<CalendarSettingsState> = { ...patch };
+    if (patch.eventColors !== undefined) {
+      fullPatch.eventColors = { ...normalizedSettings.eventColors, ...patch.eventColors };
+    }
+    if (patch.sourceVisibility !== undefined) {
+      fullPatch.sourceVisibility = { ...normalizedSettings.sourceVisibility, ...patch.sourceVisibility };
+    }
+    // Merge onto existing scope settings so only the patched keys become overrides
+    void bucket.setSettings({ ...bucket.scopeSettings, ...fullPatch });
+  }, [normalizedSettings, bucket]);
 
   return (
     <>
@@ -254,7 +261,11 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     variant="destructive"
-                    onClick={() => void Promise.resolve(updateSettings(DEFAULT_CALENDAR_SETTINGS))}
+                    onClick={() => {
+                      // Clear all scope-level overrides so every field falls back to
+                      // inherited / default values — equivalent to Reset All.
+                      void bucket.setSettings({});
+                    }}
                   >
                     Reset
                   </AlertDialogAction>

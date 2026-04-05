@@ -132,8 +132,6 @@ describe('CalendarTab', () => {
           <CalendarTab
             tabId="calendar-1"
             semesterId="semester-1"
-            settings={{}}
-            updateSettings={vi.fn()}
           />
         </PluginRuntimeInstanceProvider>,
         { wrapper: Wrapper },
