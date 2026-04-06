@@ -12,13 +12,13 @@ import { Button } from '@/components/ui/button';
 import { usePluginUiState } from '@/plugin-system';
 import { CardSkeleton } from '../../components/skeletons';
 import { DashboardGrid } from '../../components/widgets/DashboardGrid';
-import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
+import { useBuiltinDashboardContext } from '../../contexts/BuiltinTabContext';
 import type { TabDefinition, TabProps } from '@/plugin-system';
 import { Check, Pencil, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const BuiltinDashboardTabComponent: React.FC<TabProps> = () => {
-    const { isLoading, dashboard } = useBuiltinTabContext();
+    const { isLoading, dashboard } = useBuiltinDashboardContext();
     const fabBaseButtonClassName =
         "border border-border/80 bg-background/95 text-foreground shadow-[0_10px_24px_color-mix(in_srgb,var(--color-foreground)_12%,transparent)] dark:shadow-none backdrop-blur-md backdrop-saturate-150 supports-[backdrop-filter]:bg-background/88 hover:bg-background hover:text-foreground hover:border-border transition-colors duration-200";
     const fabActiveButtonClassName =

@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 
-import React from 'react';
+import React, { memo } from 'react';
 
 import { SettingsSectionPluginOwnerProvider } from '@/components/SettingsSection';
 import type { PluginSettingsScope, PluginSettingsSectionProps } from '@/services/pluginSettingsRegistry';
@@ -29,7 +29,7 @@ const formatPluginLabel = (pluginId: string) => pluginId
   .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
   .join(' ');
 
-export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRendererProps> = ({
+export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRendererProps> = memo(({
   pluginId,
   pluginDisplayName,
   component: Component,
@@ -80,5 +80,5 @@ export const PluginSettingsSectionRenderer: React.FC<PluginSettingsSectionRender
       </SettingsSectionPluginOwnerProvider>
     </PluginSettingsPanelProvider>
   );
-};
+});
 

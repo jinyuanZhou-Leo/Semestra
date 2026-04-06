@@ -2,6 +2,7 @@
 // output: [single-entity query hook shared across plugin settings panels and field buckets]
 // pos:    [Provider-level plugin settings entity loader backed by independent tab-settings queries, decoupled from entity detail]
 
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { getCourseTabSettingsQueryOptions } from '@/data/resources/courses';
@@ -32,25 +33,32 @@ export function usePluginSettingsEntityQuery(scope: PluginSettingsScope): Plugin
     enabled: scope.kind === 'course',
   });
 
-  if (scope.kind === 'program') {
-    return {
-      entity: programQuery.data ? { tab_settings: programQuery.data } : null,
-      isLoading: programQuery.isLoading,
-      refetch: programQuery.refetch,
-    };
-  }
+  return useMemo(() => {
+    if (scope.kind === 'program') {
+      return {
+        entity: programQuery.data ? { tab_settings: programQuery.data } : null,
+        isLoading: programQuery.isLoading,
+        refetch: programQuery.refetch,
+      };
+    }
 
-  if (scope.kind === 'semester') {
-    return {
-      entity: semesterQuery.data ? { tab_settings: semesterQuery.data } : null,
-      isLoading: semesterQuery.isLoading,
-      refetch: semesterQuery.refetch,
-    };
-  }
+    if (scope.kind === 'semester') {
+      return {
+        entity: semesterQuery.data ? { tab_settings: semesterQuery.data } : null,
+        isLoading: semesterQuery.isLoading,
+        refetch: semesterQuery.refetch,
+      };
+    }
 
-  return {
-    entity: courseQuery.data ? { tab_settings: courseQuery.data } : null,
-    isLoading: courseQuery.isLoading,
-    refetch: courseQuery.refetch,
-  };
+    return {
+      entity: courseQuery.data ? { tab_settings: courseQuery.data } : null,
+      isLoading: courseQuery.isLoading,
+      refetch: courseQuery.refetch,
+    };
+  }, [
+    scope.kind,
+    programQuery.data, programQuery.isLoading, programQuery.refetch,
+    semesterQuery.data, semesterQuery.isLoading, semesterQuery.refetch,
+    courseQuery.data, courseQuery.isLoading, courseQuery.refetch,
+  ]);
 }

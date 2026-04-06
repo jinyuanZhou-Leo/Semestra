@@ -727,7 +727,7 @@ const CourseHomepageContent: React.FC = () => {
         }
     }, [course, refreshLmsCourseState]);
 
-    const builtinTabContext = useMemo(() => ({
+    const builtinDashboardContext = useMemo(() => ({
         isLoading,
         dashboard: {
             widgets: visibleWidgets,
@@ -740,8 +740,24 @@ const CourseHomepageContent: React.FC = () => {
             onLayoutChange: handleLayoutChange,
             onLayoutCommit: handleLayoutCommit,
             courseId: course?.id,
-            updateCourse
+            updateCourse,
         },
+    }), [
+        isLoading,
+        visibleWidgets,
+        openAddWidgetModal,
+        handleRemoveWidget,
+        handleRemoveUnavailableWidget,
+        handleUpdateWidget,
+        handleUpdateWidgetDebounced,
+        handleLayoutChange,
+        handleLayoutCommit,
+        course?.id,
+        updateCourse,
+    ]);
+
+    const builtinSettingsContext = useMemo(() => ({
+        isLoading,
         settings: {
             content: (
                 <CourseSettingsPanel
@@ -771,18 +787,10 @@ const CourseHomepageContent: React.FC = () => {
                     {coursePluginGovernanceSection}
                     {pluginSettingsSections}
                 </div>
-            ) : undefined
-        }
+            ) : undefined,
+        },
     }), [
         isLoading,
-        visibleWidgets,
-        handleRemoveWidget,
-        handleRemoveUnavailableWidget,
-        handleUpdateWidget,
-        handleUpdateWidgetDebounced,
-        handleLayoutChange,
-        handleLayoutCommit,
-        course?.id,
         course?.name,
         course?.alias,
         course?.category,
@@ -799,12 +807,10 @@ const CourseHomepageContent: React.FC = () => {
         handleUnlinkCourse,
         handleTogglePinnedToHomepage,
         isPinnedToProgramHome,
-        updateCourse,
         handleUpdateCourse,
         hasPluginSettings,
         coursePluginGovernanceSection,
         pluginSettingsSections,
-        openAddWidgetModal,
     ]);
 
     if (!isLoading && !course) {
@@ -830,7 +836,7 @@ const CourseHomepageContent: React.FC = () => {
     return (
         <Layout breadcrumb={breadcrumb} commandGroups={layoutCommandGroups}>
             <PluginHostProvider visibleTabs={visibleTabs} setActiveTabId={setActiveTabId}>
-                <BuiltinTabProvider value={builtinTabContext}>
+                <BuiltinTabProvider dashboard={builtinDashboardContext} settings={builtinSettingsContext}>
                     <WorkspaceNav
                         title={course ? (
                             <div className="flex min-w-0 items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-2xl">

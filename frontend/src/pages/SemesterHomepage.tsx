@@ -514,9 +514,9 @@ const SemesterHomepageContent: React.FC = () => {
 
     const hasPluginSettings = Boolean(semesterCourseManagementSection || pluginSettingsSections);
 
-    const builtinTabContext = useMemo(() => ({
-        isLoading: isLoading,
-            dashboard: {
+    const builtinDashboardContext = useMemo(() => ({
+        isLoading,
+        dashboard: {
             widgets: visibleWidgets,
             overview: semesterOverview,
             onAddWidgetClick: openAddWidgetModal,
@@ -527,8 +527,24 @@ const SemesterHomepageContent: React.FC = () => {
             onUpdateWidgetDebounced: handleUpdateWidgetDebounced,
             onLayoutChange: handleLayoutChange,
             onLayoutCommit: handleLayoutCommit,
-            semesterId: semester?.id
+            semesterId: semester?.id,
         },
+    }), [
+        isLoading,
+        visibleWidgets,
+        semesterOverview,
+        openAddWidgetModal,
+        handleRemoveWidget,
+        handleRemoveUnavailableWidget,
+        handleUpdateWidget,
+        handleUpdateWidgetDebounced,
+        handleLayoutChange,
+        handleLayoutCommit,
+        semester?.id,
+    ]);
+
+    const builtinSettingsContext = useMemo(() => ({
+        isLoading,
         settings: {
             content: (
                 <SemesterSettingsPanel
@@ -562,33 +578,24 @@ const SemesterHomepageContent: React.FC = () => {
                     pluginActivations={semester.plugin_activations ?? []}
                     onChanged={refreshSemester}
                 />
-            ) : undefined
-        }
+            ) : undefined,
+        },
     }), [
         isLoading,
-        visibleWidgets,
-        handleRemoveWidget,
-        handleRemoveUnavailableWidget,
-        handleUpdateWidget,
-        handleUpdateWidgetDebounced,
-        handleLayoutChange,
-        handleLayoutCommit,
-        semesterOverview,
         semester,
-        handleUpdateSemester,
-        handleTogglePinnedToHomepage,
         isPinnedToProgramHome,
+        handleTogglePinnedToHomepage,
+        handleUpdateSemester,
         hasPluginSettings,
         semesterCourseManagementSection,
         pluginSettingsSections,
-        openAddWidgetModal,
-        refreshSemester
+        refreshSemester,
     ]);
 
     return (
         <Layout breadcrumb={breadcrumb} commandGroups={layoutCommandGroups}>
             <PluginHostProvider visibleTabs={visibleTabs} setActiveTabId={setActiveTabId}>
-                <BuiltinTabProvider value={builtinTabContext}>
+                <BuiltinTabProvider dashboard={builtinDashboardContext} settings={builtinSettingsContext}>
                     <WorkspaceNav
                         title={semester?.name || 'Semester'}
                         isLoading={isLoading || !semester}

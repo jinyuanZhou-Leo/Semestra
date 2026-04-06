@@ -11,7 +11,7 @@ import React from 'react';
 import { Separator } from '@/components/ui/separator';
 
 import { SettingsStickyTopProvider } from '../../components/SettingsSection';
-import { useBuiltinTabContext } from '../../contexts/BuiltinTabContext';
+import { useBuiltinSettingsContext } from '../../contexts/BuiltinTabContext';
 import type { TabDefinition, TabProps } from '@/plugin-system';
 
 const GLOBAL_HEADER_HEIGHT = 60;
@@ -19,7 +19,7 @@ const SETTINGS_TITLE_GAP = 24;
 const FALLBACK_WORKSPACE_NAV_HEIGHT = 104;
 
 const BuiltinSettingTabComponent: React.FC<TabProps> = () => {
-    const { isLoading, settings } = useBuiltinTabContext();
+    const { isLoading, settings } = useBuiltinSettingsContext();
     const [stickyTop, setStickyTop] = React.useState(
         GLOBAL_HEADER_HEIGHT + FALLBACK_WORKSPACE_NAV_HEIGHT + SETTINGS_TITLE_GAP,
     );

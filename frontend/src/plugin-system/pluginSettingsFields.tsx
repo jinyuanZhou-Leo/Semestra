@@ -255,6 +255,11 @@ const usePluginSettingsBucketInternal = (
   // Flush any pending write when the bucket unmounts (e.g. panel closed mid-edit)
   useEffect(() => () => { void flush(); }, [flush]);
 
+  const refresh = useCallback(() => {
+    void refetch();
+    onRefresh();
+  }, [refetch, onRefresh]);
+
   const setSettings = useCallback((nextSettings: Record<string, unknown>) => {
     pendingRef.current = nextSettings;
 
@@ -298,10 +303,7 @@ const usePluginSettingsBucketInternal = (
     scopeSettings,
     inheritedSettings,
     settingsMeta,
-    refresh: () => {
-      void refetch();
-      onRefresh();
-    },
+    refresh,
     setSettings,
     updateField,
     resetField,

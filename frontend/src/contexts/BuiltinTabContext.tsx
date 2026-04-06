@@ -1,6 +1,8 @@
 // input:  [dashboard widget actions (including unavailable-widget delete routing and layout sync/commit callbacks), optional overview nodes, and settings section nodes passed from homepage pages]
-// output: [`BuiltinTabProvider`, `useBuiltinTabContext()`, and built-in tab context types]
-// pos:    [Bridge context consumed by builtin dashboard/settings tab implementations with split layout sync, persistence actions, and dashboard overview slots]
+// output: [`BuiltinTabProvider`, `useBuiltinDashboardContext()`, `useBuiltinSettingsContext()`, and built-in tab context types]
+// pos:    [Bridge context consumed by builtin dashboard/settings tab implementations with split layout sync, persistence actions, and dashboard overview slots.
+//          Dashboard and settings are intentionally split into two separate contexts so that dashboard state changes (widget drag, layout update)
+//          do not cause the settings tab to re-render, and vice-versa.]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -32,26 +34,57 @@ type SettingsContextValue = {
     extraSections?: React.ReactNode;
 };
 
-export type BuiltinTabContextValue = {
+export type BuiltinDashboardContextValue = {
     isLoading: boolean;
     dashboard: DashboardContextValue;
+};
+
+export type BuiltinSettingsContextValue = {
+    isLoading: boolean;
     settings: SettingsContextValue;
 };
 
-const BuiltinTabContext = createContext<BuiltinTabContextValue | null>(null);
+/** @deprecated Use BuiltinDashboardContextValue or BuiltinSettingsContextValue directly. */
+export type BuiltinTabContextValue = BuiltinDashboardContextValue & { settings: SettingsContextValue };
 
-export const BuiltinTabProvider: React.FC<{ value: BuiltinTabContextValue; children: React.ReactNode }> = ({ value, children }) => {
+const BuiltinDashboardContext = createContext<BuiltinDashboardContextValue | null>(null);
+const BuiltinSettingsContext = createContext<BuiltinSettingsContextValue | null>(null);
+
+interface BuiltinTabProviderProps {
+    dashboard: BuiltinDashboardContextValue;
+    settings: BuiltinSettingsContextValue;
+    children: React.ReactNode;
+}
+
+export const BuiltinTabProvider: React.FC<BuiltinTabProviderProps> = ({ dashboard, settings, children }) => {
     return (
-        <BuiltinTabContext.Provider value={value}>
-            {children}
-        </BuiltinTabContext.Provider>
+        <BuiltinDashboardContext.Provider value={dashboard}>
+            <BuiltinSettingsContext.Provider value={settings}>
+                {children}
+            </BuiltinSettingsContext.Provider>
+        </BuiltinDashboardContext.Provider>
     );
 };
 
-export const useBuiltinTabContext = () => {
-    const context = useContext(BuiltinTabContext);
+export const useBuiltinDashboardContext = (): BuiltinDashboardContextValue => {
+    const context = useContext(BuiltinDashboardContext);
     if (!context) {
-        throw new Error('useBuiltinTabContext must be used within BuiltinTabProvider');
+        throw new Error('useBuiltinDashboardContext must be used within BuiltinTabProvider');
     }
     return context;
+};
+
+export const useBuiltinSettingsContext = (): BuiltinSettingsContextValue => {
+    const context = useContext(BuiltinSettingsContext);
+    if (!context) {
+        throw new Error('useBuiltinSettingsContext must be used within BuiltinTabProvider');
+    }
+    return context;
+};
+
+/** @deprecated Use useBuiltinDashboardContext or useBuiltinSettingsContext. */
+export const useBuiltinTabContext = (): BuiltinTabContextValue => {
+    const dashboard = useBuiltinDashboardContext();
+    const settings = useBuiltinSettingsContext();
+    return { ...dashboard, settings: settings.settings };
 };
