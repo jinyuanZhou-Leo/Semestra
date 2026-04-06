@@ -1,10 +1,12 @@
 import * as React from 'react';
+import { Check } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
 
 export interface ColorPickerPreset {
   name: string;
@@ -68,7 +70,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
             aria-label={triggerAriaLabel}
           >
             <span
-              className="h-5 w-5 rounded border"
+              className="h-5 w-5 rounded border border-border/50"
               style={{ backgroundColor: fallbackColor }}
               aria-hidden="true"
             />
@@ -79,29 +81,38 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
         <PopoverContent className="w-72 space-y-3">
           {presetColors.length > 0 ? (
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Preset colors</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Preset colors</Label>
               <div className="grid grid-cols-6 gap-2">
-                {presetColors.map((preset) => (
-                  <button
-                    key={`${preset.name}-${preset.value}`}
-                    type="button"
-                    className={[
-                      'h-8 w-8 rounded border-2 transition-transform hover:scale-105',
-                      'focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none',
-                      value.toLowerCase() === preset.value.toLowerCase() ? 'border-primary' : 'border-border',
-                    ].join(' ')}
-                    style={{ backgroundColor: preset.value }}
-                    onClick={() => onChange(preset.value)}
-                    aria-label={`${preset.name} color`}
-                  />
-                ))}
+                {presetColors.map((preset) => {
+                  const isSelected = value.toLowerCase() === preset.value.toLowerCase();
+                  return (
+                    <button
+                      key={`${preset.name}-${preset.value}`}
+                      type="button"
+                      className={cn(
+                        'relative h-8 w-8 rounded-md border-2 transition-all hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none',
+                        isSelected ? 'border-primary shadow-md' : 'border-border/50 hover:border-border',
+                      )}
+                      style={{ backgroundColor: preset.value }}
+                      onClick={() => onChange(preset.value)}
+                      aria-label={`${preset.name} color`}
+                      title={preset.name}
+                    >
+                      {isSelected && (
+                        <Check className="absolute inset-0 m-auto h-4 w-4 text-white drop-shadow-md" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
 
-          <div className="space-y-2">
-            <Label htmlFor={colorInputId} className="text-xs text-muted-foreground">
-              Custom hex
+          <Separator />
+
+          <div className="space-y-3">
+            <Label htmlFor={colorInputId} className="text-xs font-medium text-muted-foreground">
+              Custom color
             </Label>
             <div className="flex items-center gap-2">
               <Input
@@ -113,39 +124,42 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
                   setCustomColorInput(nextColor);
                   onChange(nextColor);
                 }}
-                className="h-10 w-14 cursor-pointer p-1"
+                className="h-10 w-16 cursor-pointer border p-1"
               />
               <Input
                 id={hexInputId}
                 value={customColorInput}
                 onChange={(event) => setCustomColorInput(event.target.value)}
                 onBlur={() => {
-                  const nextColor = customColorInput.trim();
+                  const nextColor = customColorInput.trim().toUpperCase();
                   if (!isHexColor(nextColor)) {
                     setCustomColorInput(value);
                     return;
                   }
                   onChange(nextColor);
                 }}
-                placeholder="#3b82f6"
+                placeholder="#3B82F6"
                 className="font-mono text-xs"
               />
             </div>
           </div>
 
           {defaultColor ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => {
-                setCustomColorInput(defaultColor);
-                onChange(defaultColor);
-              }}
-            >
-              {resetLabel}
-            </Button>
+            <>
+              <Separator />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  setCustomColorInput(defaultColor);
+                  onChange(defaultColor);
+                }}
+              >
+                {resetLabel}
+              </Button>
+            </>
           ) : null}
         </PopoverContent>
       </Popover>

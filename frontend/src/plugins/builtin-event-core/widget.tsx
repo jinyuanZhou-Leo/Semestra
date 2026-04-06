@@ -8,9 +8,11 @@
 
 
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Clock3 } from 'lucide-react';
 import api from '@/services/api';
 import type { WidgetDefinition, WidgetProps } from '@/plugin-system';
+import { queryKeys } from '@/services/queryKeys';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { BUILTIN_TIMETABLE_TODAY_EVENTS_WIDGET_TYPE } from './shared/constants';
@@ -30,10 +32,6 @@ const toScheduleDayOfWeek = (date: Date) => {
 };
 
 const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseId }) => {
-  const [resolvedSemesterId, setResolvedSemesterId] = React.useState<string | undefined>(semesterId);
-  const [isResolvingSemesterId, setIsResolvingSemesterId] = React.useState(false);
-  const [semesterRange, setSemesterRange] = React.useState(FALLBACK_RANGE);
-  const [isLoadingSemesterRange, setIsLoadingSemesterRange] = React.useState(false);
   const [now, setNow] = React.useState(() => new Date());
 
   React.useEffect(() => {
@@ -46,68 +44,38 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
     };
   }, []);
 
-  React.useEffect(() => {
-    if (semesterId) {
-      setResolvedSemesterId(semesterId);
-      setIsResolvingSemesterId(false);
-      return;
-    }
-    if (!courseId) {
-      setResolvedSemesterId(undefined);
-      setIsResolvingSemesterId(false);
-      return;
-    }
+  // Step 1: When only a courseId is available (no semesterId), look up the
+  // course to find its semester_id. Use the shared cache so this piggybacks on
+  // any existing course fetch already in flight elsewhere in the app.
+  const courseQuery = useQuery({
+    queryKey: courseId
+      ? queryKeys.courses.detail(courseId)
+      : (['courses', 'detail', '__disabled__'] as const),
+    queryFn: () => api.getCourse(courseId!),
+    enabled: Boolean(courseId && !semesterId),
+    staleTime: 30_000,
+  });
 
-    let isActive = true;
-    setIsResolvingSemesterId(true);
+  const resolvedSemesterId: string | undefined = semesterId
+    ?? courseQuery.data?.semester_id
+    ?? undefined;
 
-    api.getCourse(courseId)
-      .then((course) => {
-        if (!isActive) return;
-        setResolvedSemesterId(course.semester_id ?? undefined);
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setResolvedSemesterId(undefined);
-      })
-      .finally(() => {
-        if (!isActive) return;
-        setIsResolvingSemesterId(false);
-      });
+  const isResolvingSemesterId = Boolean(courseId && !semesterId && courseQuery.isLoading);
 
-    return () => {
-      isActive = false;
-    };
-  }, [courseId, semesterId]);
+  // Step 2: Load the semester date range once we know the semester ID. Again,
+  // the shared cache lets this reuse data already fetched by the main views.
+  const semesterQuery = useQuery({
+    queryKey: resolvedSemesterId
+      ? queryKeys.semesters.detail(resolvedSemesterId)
+      : (['semesters', 'detail', '__disabled__'] as const),
+    queryFn: () => api.getSemester(resolvedSemesterId!),
+    enabled: Boolean(resolvedSemesterId),
+    staleTime: 30_000,
+    select: (semester) => resolveSemesterDateRange(semester.start_date, semester.end_date, 16),
+  });
 
-  React.useEffect(() => {
-    if (!resolvedSemesterId) {
-      setSemesterRange(FALLBACK_RANGE);
-      setIsLoadingSemesterRange(false);
-      return;
-    }
-
-    let isActive = true;
-    setIsLoadingSemesterRange(true);
-
-    api.getSemester(resolvedSemesterId)
-      .then((semester) => {
-        if (!isActive) return;
-        setSemesterRange(resolveSemesterDateRange(semester.start_date, semester.end_date, 16));
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setSemesterRange(FALLBACK_RANGE);
-      })
-      .finally(() => {
-        if (!isActive) return;
-        setIsLoadingSemesterRange(false);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [resolvedSemesterId]);
+  const semesterRange = semesterQuery.data ?? FALLBACK_RANGE;
+  const isLoadingSemesterRange = Boolean(resolvedSemesterId && semesterQuery.isLoading);
 
   const today = React.useMemo(() => normalizeToDay(now), [now]);
   const todayDayOfWeek = React.useMemo(() => toScheduleDayOfWeek(today), [today]);

@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 export type TodoPriority = '' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
-export type TodoSortMode = 'created' | 'due-date' | 'priority' | 'title';
+export type TodoSortMode = 'created' | 'due-date' | 'priority' | 'title' | 'manual';
 export type TodoSortDirection = 'asc' | 'desc';
 
 export type TodoListSource = 'course' | 'semester';

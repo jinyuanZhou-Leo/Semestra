@@ -22,8 +22,14 @@ interface TodoTaskCardProps {
   mode: TodoTabMode;
   task: TodoTask;
   sectionId: string;
-  draggingTaskId: string | null;
-  dragOverTaskId: string | null;
+  /** True only for the card that is actively being dragged. Derived in parent
+   *  so React.memo can skip re-rendering all non-dragged cards when drag state changes. */
+  isDragging: boolean;
+  /** True only for the card immediately below the current drop position. */
+  isDragOver: boolean;
+  /** Shared clock timestamp from the parent. A single timer in the parent drives
+   *  all cards so N per-card timers are replaced with one. */
+  clockMs: number;
   showCourseTag: boolean;
   isSelected: boolean;
   courseOptions: TodoCourseOption[];
@@ -72,12 +78,13 @@ function getDueMetaTextClassName(completed: boolean, isOverdue: boolean): string
   return 'text-muted-foreground';
 }
 
-export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
+const TodoTaskCardInner: React.FC<TodoTaskCardProps> = ({
   mode,
   task,
   sectionId,
-  draggingTaskId,
-  dragOverTaskId,
+  isDragging,
+  isDragOver,
+  clockMs,
   showCourseTag,
   isSelected,
   courseOptions,
@@ -100,7 +107,6 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
   const [titleDraft, setTitleDraft] = React.useState(task.title);
   const [noteDraft, setNoteDraft] = React.useState(task.note);
   const [swipeOffset, setSwipeOffset] = React.useState(0);
-  const [clockMs, setClockMs] = React.useState(() => Date.now());
   const pointerStateRef = React.useRef<{ pointerId: number; startX: number; startY: number; swiping: boolean } | null>(null);
   const dueTimestamp = React.useMemo(() => getDueTimestamp(task), [task]);
   const currentDate = React.useMemo(() => new Date(clockMs), [clockMs]);
@@ -144,34 +150,12 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
       parts.push({
         key: 'priority',
         label: priorityMeta.label,
-        className: priorityMeta.className.split(' ').find((token) => token.startsWith('text-')) ?? 'text-muted-foreground',
+        className: priorityMeta.className,
       });
     }
 
     return parts;
   }, [courseOptions, currentDate, distinctCourseIds, isOverdue, showCourseTag, task.completed, task.courseCategory, task.courseId, task.courseName, task.dueDate, task.dueTime, task.priority]);
-
-  React.useEffect(() => {
-    setClockMs(Date.now());
-
-    const nextRefreshTargets: number[] = [];
-    const nextMidnight = new Date(clockMs);
-    nextMidnight.setHours(24, 0, 0, 0);
-    nextRefreshTargets.push(nextMidnight.getTime());
-
-    if (!task.completed && dueTimestamp !== null && dueTimestamp > clockMs) {
-      nextRefreshTargets.push(dueTimestamp);
-    }
-
-    const nextRefreshAt = Math.min(...nextRefreshTargets);
-    const timer = globalThis.setTimeout(() => {
-      setClockMs(Date.now());
-    }, Math.max(1, nextRefreshAt - clockMs));
-
-    return () => {
-      globalThis.clearTimeout(timer);
-    };
-  }, [clockMs, dueTimestamp, task.completed]);
 
   React.useEffect(() => {
     if (!editingTitle) {
@@ -315,8 +299,8 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
           'group/task rounded-[18px] px-3 py-2.5 transition-colors outline-none sm:px-2',
           task.completed ? 'text-muted-foreground' : 'hover:bg-muted/28',
           isSelected && 'bg-muted/40 ring-1 ring-primary/20',
-          draggingTaskId === task.id && 'opacity-45',
-          dragOverTaskId === task.id && 'before:absolute before:-top-1 before:left-4 before:right-4 before:h-0.5 before:rounded-full before:bg-primary',
+          isDragging && 'opacity-45',
+          isDragOver && 'before:absolute before:-top-1 before:left-4 before:right-4 before:h-0.5 before:rounded-full before:bg-primary',
         )}
       >
         <TodoRowShell
@@ -488,13 +472,15 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
               ) : null}
               {compactMeta.length > 0 ? (
                 <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] leading-[1.25]', task.completed ? 'text-muted-foreground/88' : 'text-muted-foreground/92')}>
-                  {compactMeta.map((item) => (
-                    item.kind === 'course' ? (
+                  {compactMeta.map((item) => {
+                    const isBadgeItem = item.kind === 'course' || item.key === 'priority';
+                    return isBadgeItem ? (
                       <span
                         key={item.key}
                         className={cn(
                           'inline-flex h-4.5 max-w-[8rem] items-center rounded-full px-1.5 text-[11px] font-medium leading-none',
                           item.className,
+                          task.completed && 'opacity-50',
                         )}
                         style={item.style}
                       >
@@ -504,8 +490,8 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
                       <span key={item.key} className={cn('truncate', task.completed ? 'text-muted-foreground/88' : item.className)}>
                         {item.label}
                       </span>
-                    )
-                  ))}
+                    );
+                  })}
                 </div>
               ) : null}
             </>
@@ -515,3 +501,8 @@ export const TodoTaskCard: React.FC<TodoTaskCardProps> = ({
     </motion.div>
   );
 };
+
+// Wrap with React.memo so that sibling cards are skipped during drag/selection
+// state changes. The parent derives isDragging and isDragOver as booleans, so
+// only the one affected card sees a prop change and re-renders.
+export const TodoTaskCard = React.memo(TodoTaskCardInner);

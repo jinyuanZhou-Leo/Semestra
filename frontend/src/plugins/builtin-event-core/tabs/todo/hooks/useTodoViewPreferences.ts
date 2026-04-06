@@ -21,7 +21,7 @@ const DEFAULT_TODO_VIEW_PREFERENCES: TodoViewPreferences = {
 };
 
 const isSortMode = (value: unknown): value is TodoSortMode => {
-  return value === 'created' || value === 'due-date' || value === 'priority' || value === 'title';
+  return value === 'created' || value === 'due-date' || value === 'priority' || value === 'title' || value === 'manual';
 };
 
 const isSortDirection = (value: unknown): value is TodoSortDirection => {

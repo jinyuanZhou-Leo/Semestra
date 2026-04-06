@@ -684,7 +684,9 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                         <div className={toolbarSecondarySlotClassName}>
                             <div className="flex h-11 min-w-[188px] flex-1 items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-3 dark:border-amber-500/40 dark:bg-amber-950/20">
                                 <Target className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
-                                <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground whitespace-nowrap">Target</Label>
+                                <Label htmlFor="gradebook-target-gpa" className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                    {targetInputMode === 'gpa' ? 'Target GPA' : 'Target %'}
+                                </Label>
                                 <Input
                                     id="gradebook-target-gpa"
                                     className="h-8 flex-1 min-w-0 border-0 bg-transparent px-0 text-right tabular-nums shadow-none focus-visible:ring-0 text-amber-950 dark:text-amber-50 font-medium"
@@ -702,6 +704,9 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     disabled={!planMode}
                                     tabIndex={planMode ? 0 : -1}
                                 />
+                                <div className="text-xs font-medium text-amber-900/60 dark:text-amber-200/60 min-w-fit">
+                                    {targetInputMode === 'gpa' ? 'GPA' : '%'}
+                                </div>
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -711,6 +716,7 @@ const BuiltinGradebookTab: React.FC<TabProps> = ({ courseId }) => {
                                     disabled={!planMode}
                                     tabIndex={planMode ? 0 : -1}
                                     aria-label={targetInputMode === 'gpa' ? 'Switch target input to GPA Percentage' : 'Switch target input to GPA'}
+                                    title={targetInputMode === 'gpa' ? 'Switch to GPA Percentage' : 'Switch to GPA'}
                                 >
                                     {targetInputMode === 'gpa' ? (
                                         <Percent className="h-3.5 w-3.5 shrink-0" />

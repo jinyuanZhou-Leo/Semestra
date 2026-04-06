@@ -121,6 +121,31 @@ export const CourseScheduleTab: React.FC<{ courseId: string; semesterId?: string
     }
   }, [loadBaseData]);
 
+  // Targeted reloads used after mutations that only affect events or sections.
+  // These avoid re-fetching eventTypes (which never change after initial load)
+  // and cut the number of parallel requests from 3 down to 1 or 2.
+  const reloadEvents = React.useCallback(async () => {
+    try {
+      const eventData = await scheduleService.getCourseEvents(courseId);
+      setEvents(eventData);
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to reload course events.'));
+    }
+  }, [courseId]);
+
+  const reloadSectionsAndEvents = React.useCallback(async () => {
+    try {
+      const [sectionData, eventData] = await Promise.all([
+        scheduleService.getCourseSections(courseId),
+        scheduleService.getCourseEvents(courseId),
+      ]);
+      setSections(sectionData);
+      setEvents(eventData);
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to reload course schedule data.'));
+    }
+  }, [courseId]);
+
   React.useEffect(() => {
     void reloadAll();
 
@@ -206,21 +231,21 @@ export const CourseScheduleTab: React.FC<{ courseId: string; semesterId?: string
     try {
       await scheduleService.deleteCourseSection(courseId, sectionId);
       await publishScheduleChange('section-deleted');
-      await reloadAll();
+      await reloadSectionsAndEvents();
     } catch (err: unknown) {
       toast.error(extractErrorMessage(err, 'Failed to delete section.'));
     }
-  }, [courseId, publishScheduleChange, reloadAll]);
+  }, [courseId, publishScheduleChange, reloadSectionsAndEvents]);
 
   const handleToggleEventEnable = React.useCallback(async (event: CourseEvent, checked: boolean) => {
     try {
       await scheduleService.updateCourseEvent(courseId, event.id, { enable: checked });
       await publishScheduleChange('event-updated');
-      await reloadAll();
+      await reloadEvents();
     } catch (err: unknown) {
       toast.error(extractErrorMessage(err, 'Failed to update event.'));
     }
-  }, [courseId, publishScheduleChange, reloadAll]);
+  }, [courseId, publishScheduleChange, reloadEvents]);
 
   const handleToggleSectionEnable = React.useCallback(async (sectionId: string, enable: boolean) => {
     const sectionEvents = eventsBySectionId.get(sectionId) ?? [];
@@ -236,12 +261,12 @@ export const CourseScheduleTab: React.FC<{ courseId: string; semesterId?: string
         })),
       });
       await publishScheduleChange('events-updated');
-      await reloadAll();
+      await reloadEvents();
     } catch (err: unknown) {
       toast.error(extractErrorMessage(err, 'Failed to update section events.'));
-      await reloadAll();
+      await reloadEvents();
     }
-  }, [courseId, eventsBySectionId, publishScheduleChange, reloadAll]);
+  }, [courseId, eventsBySectionId, publishScheduleChange, reloadEvents]);
 
   return (
     <div className="space-y-4 select-none">
@@ -436,7 +461,7 @@ export const CourseScheduleTab: React.FC<{ courseId: string; semesterId?: string
         onOpenQuickAddType={() => setIsQuickAddTypeOpen(true)}
         onSuccess={async () => {
           await publishScheduleChange(editingSectionId ? 'section-updated' : 'section-created');
-          await reloadAll();
+          await reloadSectionsAndEvents();
         }}
       />
 

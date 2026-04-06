@@ -54,7 +54,7 @@ export const TodoMainHeader: React.FC<TodoMainHeaderProps> = ({
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="icon" className="h-9 w-9" aria-label="Open sorting options">
+            <Button type="button" variant="outline" size="icon-lg" aria-label="Open sorting options">
               <ArrowUpDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -87,13 +87,13 @@ export const TodoMainHeader: React.FC<TodoMainHeaderProps> = ({
         </DropdownMenu>
 
         {mode === 'semester' ? (
-          <Button type="button" variant="outline" className="flex-1 sm:flex-none" onClick={onAddSection}>
+          <Button type="button" variant="outline" size="lg" className="flex-1 sm:flex-none" onClick={onAddSection}>
             <ListTree className="mr-2 h-4 w-4" />
             Add Section
           </Button>
         ) : null}
 
-        <Button type="button" className="flex-1 sm:flex-none" onClick={onOpenCreateTaskDialog}>
+        <Button type="button" size="lg" className="flex-1 sm:flex-none" onClick={onOpenCreateTaskDialog}>
           <CirclePlus className="mr-2 h-4 w-4" />
           Add Task
         </Button>

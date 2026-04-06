@@ -82,53 +82,6 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
   const previousSourceIdsRef = React.useRef<Set<string>>(new Set());
   const hasInitializedSourcesRef = React.useRef(false);
 
-  const commitSourceEvents = React.useCallback((
-    sourceId: string,
-    events: CalendarEventData[],
-    requestId: number,
-  ) => {
-    if (requestCounterRef.current !== requestId) return;
-
-    setState((current) => {
-      const dataBySourceId = new Map(current.dataBySourceId);
-      const errorBySourceId = new Map(current.errorBySourceId);
-      const loadingSourceIds = new Set(current.loadingSourceIds);
-
-      dataBySourceId.set(sourceId, events);
-      errorBySourceId.delete(sourceId);
-      loadingSourceIds.delete(sourceId);
-
-      return {
-        dataBySourceId,
-        errorBySourceId,
-        loadingSourceIds,
-      };
-    });
-  }, []);
-
-  const commitSourceError = React.useCallback((
-    sourceId: string,
-    error: Error,
-    requestId: number,
-  ) => {
-    if (requestCounterRef.current !== requestId) return;
-
-    setState((current) => {
-      const dataBySourceId = new Map(current.dataBySourceId);
-      const errorBySourceId = new Map(current.errorBySourceId);
-      const loadingSourceIds = new Set(current.loadingSourceIds);
-
-      errorBySourceId.set(sourceId, error);
-      loadingSourceIds.delete(sourceId);
-
-      return {
-        dataBySourceId,
-        errorBySourceId,
-        loadingSourceIds,
-      };
-    });
-  }, []);
-
   const loadSources = React.useCallback(async (targetSources: CalendarSourceDefinition[]) => {
     if (!context || targetSources.length === 0) return;
 
@@ -142,22 +95,41 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       loadingSourceIds: new Set([...current.loadingSourceIds, ...targetSourceIds]),
     }));
 
-    await Promise.allSettled(
+    // Collect all results first, then commit in a single setState to avoid N
+    // intermediate renders (one per source) and the associated reconciliation
+    // and derived-event re-computations they would trigger.
+    const settled = await Promise.allSettled(
       targetSources.map(async (source) => {
-        try {
-          const events = await source.load(context);
-          commitSourceEvents(source.id, events, requestId);
-        } catch (error) {
-          commitSourceError(
-            source.id,
-            error instanceof Error ? error : new Error(String(error)),
-            requestId,
-          );
-          throw error;
-        }
+        const events = await source.load(context);
+        return { sourceId: source.id, events };
       }),
     );
-  }, [commitSourceError, commitSourceEvents, context]);
+
+    // Bail out if a newer request has superseded this one while we were loading.
+    if (requestCounterRef.current !== requestId) return;
+
+    setState((current) => {
+      const dataBySourceId = new Map(current.dataBySourceId);
+      const errorBySourceId = new Map(current.errorBySourceId);
+      const loadingSourceIds = new Set(current.loadingSourceIds);
+
+      settled.forEach((result, index) => {
+        const sourceId = targetSources[index]!.id;
+        loadingSourceIds.delete(sourceId);
+        if (result.status === 'fulfilled') {
+          dataBySourceId.set(sourceId, result.value.events);
+          errorBySourceId.delete(sourceId);
+        } else {
+          errorBySourceId.set(
+            sourceId,
+            result.reason instanceof Error ? result.reason : new Error(String(result.reason)),
+          );
+        }
+      });
+
+      return { dataBySourceId, errorBySourceId, loadingSourceIds };
+    });
+  }, [context]);
 
   React.useEffect(() => {
     if (!context) {

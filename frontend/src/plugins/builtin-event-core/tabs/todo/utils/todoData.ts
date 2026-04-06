@@ -550,6 +550,10 @@ export const sortTasksForDisplay = (
         if (result !== 0) return result * direction;
         break;
       }
+      case 'manual': {
+        // Preserve the caller's array order — no comparison needed.
+        return 0;
+      }
       case 'created':
       default: {
         const result = a.createdAt.localeCompare(b.createdAt);

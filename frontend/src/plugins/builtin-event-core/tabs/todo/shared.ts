@@ -25,6 +25,7 @@ export const PRIORITY_OPTIONS: TodoPriorityOption[] = [
 ];
 
 export const SORT_OPTIONS: TodoSortOption[] = [
+  { value: 'manual', label: 'Manual Order' },
   { value: 'created', label: 'Created Order' },
   { value: 'due-date', label: 'Due Date' },
   { value: 'priority', label: 'Priority' },

@@ -135,10 +135,23 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [pendingDeleteTarget, setPendingDeleteTarget] = React.useState<TodoPendingDeleteTarget | null>(null);
   const [recentCompletedTaskIds, setRecentCompletedTaskIds] = React.useState<RecentCompletedMap>({});
+  // Shared clock for all task cards. A single timer replaces N per-card timers.
+  // Refreshes at the next midnight so "Today"/"Tomorrow" date labels stay current.
+  const [clockMs, setClockMs] = React.useState(() => Date.now());
   const semesterTodoQuery = useSemesterTodoQuery(semesterId);
   const { getTodoState, setTodoState } = useSemesterTodoCache(semesterId);
 
   const completionTimeoutsRef = React.useRef<Record<string, TimerHandle>>({});
+
+  React.useEffect(() => {
+    const now = Date.now();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timer = globalThis.setTimeout(() => {
+      setClockMs(Date.now());
+    }, nextMidnight.getTime() - now);
+    return () => globalThis.clearTimeout(timer);
+  }, [clockMs]);
 
   const viewPreferenceScopeKey = React.useMemo(
     () => courseId ? `course:${courseId}` : `semester:${semesterId ?? 'todo'}`,
@@ -291,7 +304,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
     handleTaskDragOverItem,
     handleTaskDropToSection,
   } = useTodoTaskDrag({
-    onTaskDrop: (sourceTaskId, targetSectionId) => {
+    onTaskDrop: (sourceTaskId, targetSectionId, beforeTaskId) => {
       if (!semesterId) return;
       const current = semesterStorageRef.current;
       const sourceTask = current.tasks.find((task) => task.id === sourceTaskId);
@@ -302,24 +315,53 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
 
       const validSectionIds = new Set(current.sections.map((section) => section.id));
       if (nextTargetSectionId && !validSectionIds.has(nextTargetSectionId)) return;
-      if (sourceTask.sectionId === nextTargetSectionId) return;
+
+      const sectionChanged = sourceTask.sectionId !== nextTargetSectionId;
+
+      // Reorder the flat tasks array: remove source, then insert before beforeTaskId
+      // (or append to end of its section when beforeTaskId is null).
+      const withoutSource = current.tasks.filter((task) => task.id !== sourceTaskId);
+      const updatedSourceTask = sectionChanged
+        ? { ...sourceTask, sectionId: nextTargetSectionId, updatedAt: nowIso() }
+        : sourceTask;
+
+      let reordered: typeof current.tasks;
+      if (beforeTaskId) {
+        const insertIdx = withoutSource.findIndex((task) => task.id === beforeTaskId);
+        if (insertIdx === -1) {
+          reordered = [...withoutSource, updatedSourceTask];
+        } else {
+          reordered = [
+            ...withoutSource.slice(0, insertIdx),
+            updatedSourceTask,
+            ...withoutSource.slice(insertIdx),
+          ];
+        }
+      } else {
+        // No specific target task — place after the last task in the target section.
+        const lastInSection = withoutSource.reduce<number>((lastIdx, task, idx) => {
+          const effectiveSectionId = task.sectionId === COMPLETED_SECTION_ID
+            ? (task.originSectionId ?? '')
+            : task.sectionId;
+          return effectiveSectionId === nextTargetSectionId ? idx : lastIdx;
+        }, -1);
+        reordered = lastInSection === -1
+          ? [...withoutSource, updatedSourceTask]
+          : [
+            ...withoutSource.slice(0, lastInSection + 1),
+            updatedSourceTask,
+            ...withoutSource.slice(lastInSection + 1),
+          ];
+      }
 
       const previousStorage = current;
-      const nextStorage = {
-        ...current,
-        tasks: current.tasks.map((task) => (
-          task.id === sourceTaskId
-            ? {
-              ...task,
-              sectionId: nextTargetSectionId,
-              updatedAt: nowIso(),
-            }
-            : task
-        )),
-      };
-
+      const nextStorage = { ...current, tasks: reordered };
       semesterStorageRef.current = nextStorage;
       setSemesterStorage(nextStorage);
+      // Auto-switch to manual sort so the reordered position is immediately visible.
+      setSortMode('manual');
+
+      if (!sectionChanged) return;
 
       void (async () => {
         const saved = await runMutation(
@@ -538,6 +580,11 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
           void runMutation(
             async () => {
               await Promise.all(completedTaskIds.map((taskId) => api.deleteSemesterTodoTask(semesterId, taskId)));
+              const cached = getTodoState();
+              if (cached) {
+                const deletedIdSet = new Set(completedTaskIds);
+                return { ...cached, tasks: cached.tasks.filter((t) => !deletedIdSet.has(t.id)) };
+              }
               return api.getSemesterTodo(semesterId);
             },
             'course',
@@ -565,6 +612,29 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
     setPendingDeleteTarget(null);
   }, [courseId, pendingDeleteTarget, runMutation, semesterId]);
 
+  // Stable callbacks passed to TodoTaskCard so React.memo can skip re-renders
+  // when neither the task data nor the interaction state changes.
+  const handleRequestDelete = React.useCallback((task: TodoTask, options?: { skipConfirm?: boolean }) => {
+    if (options?.skipConfirm) {
+      if (!semesterId) return;
+      void runMutation(
+        () => api.deleteSemesterTodoTask(semesterId, task.id),
+        task.courseId ? 'course' : 'semester',
+        task.courseId || undefined,
+      );
+      return;
+    }
+    setPendingDeleteTarget({
+      kind: 'task',
+      taskId: task.id,
+      taskTitle: task.title,
+    });
+  }, [runMutation, semesterId]);
+
+  const handleSelect = React.useCallback((taskId: string) => {
+    setSelectedTaskId(taskId);
+  }, []);
+
   const renderComposer = React.useCallback((sectionId: string, placeholder: string) => {
     return (
       <TodoInlineCreateRow
@@ -586,8 +656,9 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
         mode={mode}
         task={task}
         sectionId={sectionId}
-        draggingTaskId={draggingTaskId}
-        dragOverTaskId={dragOverTaskId}
+        isDragging={draggingTaskId === task.id}
+        isDragOver={dragOverTaskId === task.id}
+        clockMs={clockMs}
         showCourseTag={activeList.showCourseTag}
         isSelected={selectedTaskId === task.id}
         courseOptions={courseOptions}
@@ -599,34 +670,19 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
         onToggleTaskCompleted={handleToggleTaskCompleted}
         onPatchTask={handlePatchTask}
         onOpenDetails={openTaskDialogForEdit}
-        onRequestDelete={(targetTask, options) => {
-          if (options?.skipConfirm) {
-            if (!semesterId) return;
-            void runMutation(
-              () => api.deleteSemesterTodoTask(semesterId, targetTask.id),
-              targetTask.courseId ? 'course' : 'semester',
-              targetTask.courseId || undefined,
-            );
-            return;
-          }
-
-          setPendingDeleteTarget({
-            kind: 'task',
-            taskId: targetTask.id,
-            taskTitle: targetTask.title,
-          });
-        }}
-        onSelect={(taskId) => {
-          setSelectedTaskId(taskId);
-        }}
+        onRequestDelete={handleRequestDelete}
+        onSelect={handleSelect}
       />
     );
   }, [
     activeList.showCourseTag,
+    clockMs,
     courseOptions,
     dragOverTaskId,
     draggingTaskId,
     handlePatchTask,
+    handleRequestDelete,
+    handleSelect,
     handleTaskDragEnd,
     handleTaskDragOverItem,
     handleTaskDragStart,
@@ -634,9 +690,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
     handleToggleTaskCompleted,
     mode,
     openTaskDialogForEdit,
-    runMutation,
     selectedTaskId,
-    semesterId,
   ]);
 
   if (mode === 'unsupported') {

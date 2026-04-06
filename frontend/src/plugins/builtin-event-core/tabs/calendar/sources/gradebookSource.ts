@@ -206,6 +206,15 @@ export const builtinGradebookCalendarSource: CalendarSourceDefinition = {
       return;
     }
 
+    // Broadly invalidate all course gradebook caches only when the entire course list
+    // may have changed (manual refresh or a course-updated signal without a specific
+    // courseId). For semester-metadata-only signals (date range, name, etc.) the
+    // semester detail invalidation above is sufficient; ensureQueryData in load will
+    // pick up any newly added courses organically without busting existing caches.
+    if (signal.type !== 'manual' && signal.reason !== 'course-updated') {
+      return;
+    }
+
     const semester = queryClient.getQueryData<{ courses?: Course[] }>(queryKeys.semesters.detail(context.semesterId));
     const courseIds = (semester?.courses ?? [])
       .filter((course) => course.has_gradebook)
