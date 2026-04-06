@@ -41,7 +41,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import {
     BUILTIN_GRADEBOOK_TAB_TYPE,
@@ -317,17 +316,16 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
                             Create Category
                         </Button>
                     )}
-                    renderHeader={() => (
-                        <TableRow>
-                            <TableHead>Category</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    )}
-                    renderRow={(category, index) => {
-                        const swatchProps = getCategorySwatchStyle(category.color_token);
-                        return (
-                            <TableRow key={`${category.name}:${index}`}>
-                                <TableCell className="font-medium">
+                    getRowKey={(category, index) => `${category.name}:${index}`}
+                    columns={[
+                        {
+                            key: 'name',
+                            label: 'Category',
+                            fit: 'fill',
+                            cellClassName: 'font-medium',
+                            cell: (category) => {
+                                const swatchProps = getCategorySwatchStyle(category.color_token);
+                                return (
                                     <div className="flex items-center gap-2">
                                         <span
                                             className={cn('inline-block h-3 w-3 shrink-0 rounded-full border border-border/50', swatchProps.className)}
@@ -335,32 +333,33 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
                                         />
                                         <span className="text-sm">{category.name}</span>
                                     </div>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex justify-end">
-                                        <DataTableActionMenu triggerLabel={`Open actions for ${category.name}`}>
-                                            <DropdownMenuItem
-                                                disabled={defaultsBucket.isSaving}
-                                                onClick={() => handleOpenEdit(index)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                                Edit
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                                variant="destructive"
-                                                disabled={defaultsBucket.isSaving}
-                                                onClick={() => setPendingDeleteCategoryIndex(index)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                                Delete
-                                            </DropdownMenuItem>
-                                        </DataTableActionMenu>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        );
-                    }}
+                                );
+                            },
+                        },
+                        {
+                            key: 'actions',
+                            label: 'Actions',
+                            width: 64,
+                            align: 'right',
+                            cell: (category, index) => (
+                                <DataTableActionMenu triggerLabel={`Open actions for ${category.name}`}>
+                                    <DropdownMenuItem disabled={defaultsBucket.isSaving} onClick={() => handleOpenEdit(index)}>
+                                        <Edit className="h-4 w-4" />
+                                        Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        variant="destructive"
+                                        disabled={defaultsBucket.isSaving}
+                                        onClick={() => setPendingDeleteCategoryIndex(index)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete
+                                    </DropdownMenuItem>
+                                </DataTableActionMenu>
+                            ),
+                        },
+                    ]}
                 />
                 <AlertDialog open={pendingDeleteCategoryIndex !== null} onOpenChange={(open) => !open && setPendingDeleteCategoryIndex(null)}>
                     <AlertDialogContent size="sm">
@@ -532,17 +531,16 @@ const CourseGradebookSettings: React.FC<PluginSettingsSectionProps> = ({
                             Create Category
                         </Button>
                     )}
-                    renderHeader={() => (
-                        <TableRow>
-                            <TableHead>Category</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    )}
-                    renderRow={(category) => {
-                        const swatchProps = getCategorySwatchStyle(category.color_token);
-                        return (
-                            <TableRow key={category.id}>
-                                <TableCell className="font-medium">
+                    getRowKey={(category) => category.id}
+                    columns={[
+                        {
+                            key: 'name',
+                            label: 'Category',
+                            fit: 'fill',
+                            cellClassName: 'font-medium',
+                            cell: (category) => {
+                                const swatchProps = getCategorySwatchStyle(category.color_token);
+                                return (
                                     <div className="flex items-center gap-2">
                                         <span
                                             className={cn('inline-block h-3 w-3 shrink-0 rounded-full border border-border/50', swatchProps.className)}
@@ -550,33 +548,33 @@ const CourseGradebookSettings: React.FC<PluginSettingsSectionProps> = ({
                                         />
                                         <span className="text-sm">{category.name}</span>
                                     </div>
-                                </TableCell>
-
-                                <TableCell className="text-right">
-                                    <div className="flex justify-end">
-                                        <DataTableActionMenu triggerLabel={`Open actions for ${category.name}`}>
-                                            <DropdownMenuItem
-                                                disabled={isMutating}
-                                                onClick={() => handleOpenEdit(category)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                                Edit
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                                variant="destructive"
-                                                disabled={isMutating}
-                                                onClick={() => setPendingDeleteCategory(category)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                                Delete
-                                            </DropdownMenuItem>
-                                        </DataTableActionMenu>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        );
-                    }}
+                                );
+                            },
+                        },
+                        {
+                            key: 'actions',
+                            label: 'Actions',
+                            width: 64,
+                            align: 'right',
+                            cell: (category) => (
+                                <DataTableActionMenu triggerLabel={`Open actions for ${category.name}`}>
+                                    <DropdownMenuItem disabled={isMutating} onClick={() => handleOpenEdit(category)}>
+                                        <Edit className="h-4 w-4" />
+                                        Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        variant="destructive"
+                                        disabled={isMutating}
+                                        onClick={() => setPendingDeleteCategory(category)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete
+                                    </DropdownMenuItem>
+                                </DataTableActionMenu>
+                            ),
+                        },
+                    ]}
                 />
                 <AlertDialog open={pendingDeleteCategory !== null} onOpenChange={(open) => !open && setPendingDeleteCategory(null)}>
                     <AlertDialogContent size="sm">

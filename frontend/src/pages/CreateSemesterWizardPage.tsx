@@ -1084,39 +1084,48 @@ export const CreateSemesterWizardPage: React.FC = () => {
       minWidthClassName="min-w-[34rem] sm:min-w-[42rem]"
       shellClassName="min-h-[18rem] min-w-0 flex-1 overflow-y-auto"
       emptyRowClassName="h-[15rem] align-middle sm:h-full"
-      tableClassName="h-full w-full min-w-full table-auto sm:w-max sm:min-w-full [&_td]:max-w-[14rem] sm:[&_td]:max-w-[18rem] [&_td]:whitespace-normal sm:[&_td]:whitespace-nowrap [&_th]:max-w-[14rem] sm:[&_th]:max-w-[18rem] [&_th]:whitespace-normal sm:[&_th]:whitespace-nowrap"
-      renderHeader={() => (
-        <TableRow>
-          <TableHead className="min-w-[13rem]">Name</TableHead>
-          <TableHead className="w-[6.5rem]">Credits</TableHead>
-          <TableHead className="w-[7rem]">Grade</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      )}
-      renderRow={(course) => (
-        <TableRow key={course.id} className="align-middle">
-          <TableCell className="align-middle font-medium">
+      tableClassName="h-full w-full min-w-full sm:w-max sm:min-w-full [&_td]:max-w-[14rem] sm:[&_td]:max-w-[18rem] [&_td]:whitespace-normal sm:[&_td]:whitespace-nowrap [&_th]:max-w-[14rem] sm:[&_th]:max-w-[18rem] [&_th]:whitespace-normal sm:[&_th]:whitespace-nowrap"
+      getRowKey={(course) => course.id}
+      columns={[
+        {
+          key: 'name',
+          label: 'Name',
+          fit: 'fill',
+          minWidth: 208,
+          cellClassName: 'align-middle font-medium',
+          cell: (course) => (
             <div className="flex flex-col gap-1">
               <span className="break-words">{course.name}</span>
               {course.alias ? (
-                <span className="break-words text-xs text-muted-foreground">
-                  {course.alias}
-                </span>
+                <span className="break-words text-xs text-muted-foreground">{course.alias}</span>
               ) : null}
             </div>
-          </TableCell>
-          <TableCell className="align-middle whitespace-nowrap">{course.credits}</TableCell>
-          <TableCell className="align-middle whitespace-nowrap">{formatGpaPercentage(course.grade_percentage)}</TableCell>
-          <TableCell className="w-[3.5rem] text-right align-middle">
+          ),
+        },
+        { key: 'credits', label: 'Credits', width: 104, cellClassName: 'align-middle whitespace-nowrap' },
+        {
+          key: 'grade',
+          label: 'Grade',
+          width: 112,
+          cellClassName: 'align-middle whitespace-nowrap',
+          cell: (course) => formatGpaPercentage(course.grade_percentage),
+        },
+        {
+          key: 'actions',
+          label: 'Actions',
+          width: 56,
+          align: 'right',
+          cellClassName: 'align-middle',
+          cell: (course) => (
             <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
               <DropdownMenuItem variant="destructive" onClick={() => setPendingRemoveCourse(course)}>
                 <Trash2 className="h-4 w-4" />
                 Remove
               </DropdownMenuItem>
             </DataTableActionMenu>
-          </TableCell>
-        </TableRow>
-      )}
+          ),
+        },
+      ]}
     />
   );
 

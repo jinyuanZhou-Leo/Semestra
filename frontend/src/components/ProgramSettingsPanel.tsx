@@ -50,7 +50,6 @@ import {
 import { DataTable, DataTableActionMenu } from "./DataTable";
 import { GPAScalingTable } from "./GPAScalingTable";
 import { SettingsSection } from "./SettingsSection";
-import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 
 const SUBJECT_COLOR_PRESETS: readonly ColorPickerPreset[] = [
   { name: "Blue", value: "#2563eb" },
@@ -368,51 +367,57 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
           items={visibleSubjectCodes}
           emptyMessage="Subject codes appear here after courses such as APS105 or MAT180 are detected."
           minWidthClassName="min-w-[34rem] sm:min-w-[40rem]"
-          renderHeader={() => (
-            <TableRow>
-              <TableHead>Code</TableHead>
-              <TableHead>Color</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </TableRow>
-          )}
-          renderRow={(subjectCode) => {
-            const automaticColor = resolvedSubjectColorMap[subjectCode];
-            const selectedColor = subjectColorMap[subjectCode] ?? automaticColor;
-
-            return (
-              <TableRow key={subjectCode}>
-                <TableCell>
-                  <span className="font-mono text-sm font-semibold tracking-[0.08em] sm:tracking-[0.12em]">
-                    {subjectCode}
-                  </span>
-                </TableCell>
-                <TableCell className="py-3">
-                  <div>
-                    <ColorPicker
-                      id={`${fieldId}-subject-color-${subjectCode}`}
-                      value={selectedColor}
-                      onChange={(color) => {
-                        setSubjectColorMap((current) => ({
-                          ...current,
-                          [subjectCode]: color,
-                        }));
-                      }}
-                      presetColors={SUBJECT_COLOR_PRESETS}
-                      triggerAriaLabel={`Choose Program default color for ${subjectCode}`}
-                    />
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <DataTableActionMenu triggerLabel={`Open actions for ${subjectCode}`}>
-                    <DropdownMenuItem variant="destructive" onClick={() => setPendingResetSubjectCode(subjectCode)}>
-                      <RotateCcw className="h-4 w-4" />
-                      Reset
-                    </DropdownMenuItem>
-                  </DataTableActionMenu>
-                </TableCell>
-              </TableRow>
-            );
-          }}
+          getRowKey={(subjectCode) => subjectCode}
+          columns={[
+            {
+              key: 'code',
+              label: 'Code',
+              fit: 'fill',
+              cell: (subjectCode) => (
+                <span className="font-mono text-sm font-semibold tracking-[0.08em] sm:tracking-[0.12em]">
+                  {subjectCode}
+                </span>
+              ),
+            },
+            {
+              key: 'color',
+              label: 'Color',
+              width: 120,
+              cellClassName: 'py-3',
+              cell: (subjectCode) => {
+                const automaticColor = resolvedSubjectColorMap[subjectCode];
+                const selectedColor = subjectColorMap[subjectCode] ?? automaticColor;
+                return (
+                  <ColorPicker
+                    id={`${fieldId}-subject-color-${subjectCode}`}
+                    value={selectedColor}
+                    onChange={(color) => {
+                      setSubjectColorMap((current) => ({
+                        ...current,
+                        [subjectCode]: color,
+                      }));
+                    }}
+                    presetColors={SUBJECT_COLOR_PRESETS}
+                    triggerAriaLabel={`Choose Program default color for ${subjectCode}`}
+                  />
+                );
+              },
+            },
+            {
+              key: 'action',
+              label: 'Action',
+              width: 64,
+              align: 'right',
+              cell: (subjectCode) => (
+                <DataTableActionMenu triggerLabel={`Open actions for ${subjectCode}`}>
+                  <DropdownMenuItem variant="destructive" onClick={() => setPendingResetSubjectCode(subjectCode)}>
+                    <RotateCcw className="h-4 w-4" />
+                    Reset
+                  </DropdownMenuItem>
+                </DataTableActionMenu>
+              ),
+            },
+          ]}
         />
         <AlertDialog open={pendingResetSubjectCode !== null} onOpenChange={(open) => !open && setPendingResetSubjectCode(null)}>
           <AlertDialogContent size="sm">

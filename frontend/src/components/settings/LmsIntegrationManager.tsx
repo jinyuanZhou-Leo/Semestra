@@ -32,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import {
   invalidateUserLmsIntegrationQueries,
   invalidateUserLmsIntegrationsQuery,
@@ -357,82 +356,87 @@ export const LmsIntegrationManager: React.FC = () => {
         items={integrationsQuery.data ?? []}
         isLoading={integrationsQuery.isLoading}
         emptyMessage="No LMS integrations yet."
-        renderHeader={() => (
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>LMS Provider</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        )}
-        renderRow={(integration) => {
-          const definition = getLmsProviderDefinition(integration.provider);
-          const isRevalidating = revalidatingIntegrationId === integration.id;
-          const isConnected = integration.status === 'connected';
-          return (
-            <TableRow key={integration.id}>
-              <TableCell>
-                <span className="text-sm font-medium">{integration.display_name}</span>
-              </TableCell>
-              <TableCell>
+        getRowKey={(integration) => integration.id}
+        columns={[
+          {
+            key: 'display_name',
+            label: 'Name',
+            fit: 'fill',
+            cell: (integration) => (
+              <span className="text-sm font-medium">{integration.display_name}</span>
+            ),
+          },
+          {
+            key: 'provider',
+            label: 'LMS Provider',
+            width: 200,
+            cell: (integration) => {
+              const definition = getLmsProviderDefinition(integration.provider);
+              return definition ? (
                 <div className="flex items-center gap-3">
-                  {definition ? (
-                    <>
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background p-2">
-                        <img src={definition.logoSrc} alt={definition.logoAlt} className="h-6 w-6 object-contain" />
-                      </div>
-                      <span className="text-sm font-medium">{definition.label}</span>
-                    </>
-                  ) : (
-                    <span className="text-sm font-medium">{integration.provider}</span>
-                  )}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background p-2">
+                    <img src={definition.logoSrc} alt={definition.logoAlt} className="h-6 w-6 object-contain" />
+                  </div>
+                  <span className="text-sm font-medium">{definition.label}</span>
                 </div>
-              </TableCell>
-              <TableCell>
+              ) : (
+                <span className="text-sm font-medium">{integration.provider}</span>
+              );
+            },
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            width: 160,
+            cell: (integration) => {
+              const isRevalidating = revalidatingIntegrationId === integration.id;
+              const isConnected = integration.status === 'connected';
+              return (
                 <div className="space-y-1">
                   <Badge
                     variant={isRevalidating || !isConnected ? 'outline' : 'default'}
-                    className={cn(
-                      isConnected && !isRevalidating && 'bg-emerald-600 hover:bg-emerald-700',
-                    )}
+                    className={cn(isConnected && !isRevalidating && 'bg-emerald-600 hover:bg-emerald-700')}
                   >
                     {isRevalidating ? 'Validating' : isConnected ? 'Connected' : integration.status}
                   </Badge>
                   {integration.last_error?.message ? (
-                    <p className="text-xs text-destructive">
-                      {integration.last_error.message}
-                    </p>
+                    <p className="text-xs text-destructive">{integration.last_error.message}</p>
                   ) : null}
                 </div>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end">
-                  <DataTableActionMenu triggerLabel={`Open actions for ${integration.display_name}`}>
-                    <DropdownMenuItem
-                      disabled={!definition}
-                      onClick={() => openEditDialog(integration)}
-                    >
-                      <Pencil className="size-4" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={validateSavedMutation.isPending || deleteMutation.isPending}
-                      onClick={() => void handleValidateSaved(integration)}
-                    >
-                      <RefreshCw className={cn('size-4', isRevalidating && 'animate-spin')} />
-                      Revalidate
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteIntegration(integration)}>
-                      <Trash2 className="size-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DataTableActionMenu>
-                </div>
-              </TableCell>
-            </TableRow>
-          );
-        }}
+              );
+            },
+          },
+          {
+            key: 'actions',
+            label: 'Actions',
+            width: 64,
+            align: 'right',
+            cell: (integration) => {
+              const definition = getLmsProviderDefinition(integration.provider);
+              const isRevalidating = revalidatingIntegrationId === integration.id;
+              return (
+                <DataTableActionMenu triggerLabel={`Open actions for ${integration.display_name}`}>
+                  <DropdownMenuItem disabled={!definition} onClick={() => openEditDialog(integration)}>
+                    <Pencil className="size-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={validateSavedMutation.isPending || deleteMutation.isPending}
+                    onClick={() => void handleValidateSaved(integration)}
+                  >
+                    <RefreshCw className={cn('size-4', isRevalidating && 'animate-spin')} />
+                    Revalidate
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteIntegration(integration)}>
+                    <Trash2 className="size-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DataTableActionMenu>
+              );
+            },
+          },
+        ]}
       />
       <ResponsiveDialogDrawer
         open={dialogOpen}

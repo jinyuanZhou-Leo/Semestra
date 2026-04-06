@@ -1,24 +1,50 @@
-// input:  [`DataTable`, testing-library render helpers, and shared table-row primitives]
-// output: [test suite for mobile-safe DataTable overflow containment, fixed left-right header layout, optional caller-owned minimum widths, and shared fill-width plus small minimum-column defaults]
-// pos:    [Regression coverage for shared settings data-table shell sizing, scrolling wrappers, header layout, and shared column-layout defaults that keep width policy with the caller instead of a forced shared minimum while still filling available width]
+// input:  [`DataTable`, testing-library render/user-event helpers, and shared table-row primitives]
+// output: [test suite covering render-props layout, columns-API rendering, client-side sorting,
+//          declarative column widths, and empty/loading states]
+// pos:    [Regression coverage for the shared settings data-table shell. Validates both the legacy
+//          render-props path (for backwards compatibility) and the new columns API (sorting,
+//          fixed/auto layout, colgroup widths, alignment, custom cell renderers, and row keys).]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { DataTable } from '@/components/DataTable';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 
-describe('DataTable', () => {
+
+// ─── Shared fixtures ──────────────────────────────────────────────────────────
+
+interface Course {
+    id: string;
+    name: string;
+    credits: number;
+    grade: string;
+}
+
+const COURSES: Course[] = [
+    { id: 'c1', name: 'Algorithms',   credits: 3, grade: 'A' },
+    { id: 'c2', name: 'Databases',    credits: 4, grade: 'B' },
+    { id: 'c3', name: 'Compilers',    credits: 3, grade: 'A+' },
+];
+
+const BASE_PROPS = {
+    title: 'Courses',
+    description: 'Manage semester courses.',
+};
+
+
+// ─── Render-props (legacy) ────────────────────────────────────────────────────
+
+describe('DataTable — render-props (legacy path)', () => {
     it('keeps horizontal scrolling contained inside the table shell while applying fill-width and small minimum-column defaults', () => {
         const { container } = render(
             <DataTable
-                title="Courses"
-                description="Manage semester courses."
-                items={[{ id: 'course-1', name: 'Course 1' }]}
+                {...BASE_PROPS}
+                items={COURSES}
                 minWidthClassName="min-w-[500px] sm:min-w-[560px]"
                 renderHeader={() => (
                     <TableRow>
@@ -26,7 +52,7 @@ describe('DataTable', () => {
                         <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 )}
-                renderRow={(item: { id: string; name: string }) => (
+                renderRow={(item: Course) => (
                     <TableRow key={item.id}>
                         <TableCell>{item.name}</TableCell>
                         <TableCell className="text-right">Open</TableCell>
@@ -45,38 +71,21 @@ describe('DataTable', () => {
         expect(shell).toHaveClass('w-full', 'min-w-0', 'max-w-full', 'overflow-x-auto', 'overflow-y-hidden');
         expect(minWidthWrapper).toHaveClass('min-w-[500px]', 'sm:min-w-[560px]');
         expect(table).toHaveClass(
-            'min-w-full',
-            'w-full',
-            'table-auto',
-            '[&_td]:min-w-[6rem]',
-            '[&_td]:max-w-[18rem]',
-            '[&_td]:overflow-hidden',
-            '[&_td]:text-ellipsis',
-            '[&_td]:whitespace-nowrap',
-            '[&_th]:min-w-[6rem]',
-            '[&_th]:max-w-[18rem]',
-            '[&_th]:overflow-hidden',
-            '[&_th]:text-ellipsis',
-            '[&_th]:whitespace-nowrap',
+            'min-w-full', 'w-full', 'table-auto',
+            '[&_td]:min-w-[6rem]', '[&_td]:max-w-[18rem]',
+            '[&_td]:overflow-hidden', '[&_td]:text-ellipsis', '[&_td]:whitespace-nowrap',
+            '[&_th]:min-w-[6rem]', '[&_th]:max-w-[18rem]',
+            '[&_th]:overflow-hidden', '[&_th]:text-ellipsis', '[&_th]:whitespace-nowrap',
         );
     });
 
     it('does not force a shared minimum width when the caller does not provide one', () => {
         render(
             <DataTable
-                title="Courses"
-                description="Manage semester courses."
-                items={[{ id: 'course-1', name: 'Course 1' }]}
-                renderHeader={() => (
-                    <TableRow>
-                        <TableHead>Name</TableHead>
-                    </TableRow>
-                )}
-                renderRow={(item: { id: string; name: string }) => (
-                    <TableRow key={item.id}>
-                        <TableCell>{item.name}</TableCell>
-                    </TableRow>
-                )}
+                {...BASE_PROPS}
+                items={COURSES}
+                renderHeader={() => <TableRow><TableHead>Name</TableHead></TableRow>}
+                renderRow={(item: Course) => <TableRow key={item.id}><TableCell>{item.name}</TableCell></TableRow>}
             />,
         );
 
@@ -90,20 +99,11 @@ describe('DataTable', () => {
     it('keeps the title copy and action area in a left-right header layout', () => {
         render(
             <DataTable
-                title="Courses"
-                description="Manage semester courses."
+                {...BASE_PROPS}
                 actionButton={<button type="button">Add Course</button>}
-                items={[{ id: 'course-1', name: 'Course 1' }]}
-                renderHeader={() => (
-                    <TableRow>
-                        <TableHead>Name</TableHead>
-                    </TableRow>
-                )}
-                renderRow={(item: { id: string; name: string }) => (
-                    <TableRow key={item.id}>
-                        <TableCell>{item.name}</TableCell>
-                    </TableRow>
-                )}
+                items={COURSES}
+                renderHeader={() => <TableRow><TableHead>Name</TableHead></TableRow>}
+                renderRow={(item: Course) => <TableRow key={item.id}><TableCell>{item.name}</TableCell></TableRow>}
             />,
         );
 
@@ -120,25 +120,370 @@ describe('DataTable', () => {
     it('can hide the duplicate panel header when embedded in a parent settings section', () => {
         render(
             <DataTable
-                title="Courses"
-                description="Manage semester courses."
+                {...BASE_PROPS}
                 showHeader={false}
                 actionButton={<button type="button">Add Course</button>}
-                items={[{ id: 'course-1', name: 'Course 1' }]}
-                renderHeader={() => (
-                    <TableRow>
-                        <TableHead>Name</TableHead>
-                    </TableRow>
-                )}
-                renderRow={(item: { id: string; name: string }) => (
-                    <TableRow key={item.id}>
-                        <TableCell>{item.name}</TableCell>
-                    </TableRow>
-                )}
+                items={COURSES}
+                renderHeader={() => <TableRow><TableHead>Name</TableHead></TableRow>}
+                renderRow={(item: Course) => <TableRow key={item.id}><TableCell>{item.name}</TableCell></TableRow>}
             />,
         );
 
         expect(screen.queryByText('Manage semester courses.')).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Add Course' })).toBeInTheDocument();
+    });
+});
+
+
+// ─── Columns API — rendering ──────────────────────────────────────────────────
+
+describe('DataTable — columns API rendering', () => {
+    it('renders all column headers and cell values from item fields', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name',    label: 'Name'    },
+                    { key: 'credits', label: 'Credits' },
+                    { key: 'grade',   label: 'Grade'   },
+                ]}
+            />,
+        );
+
+        expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Credits' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Grade' })).toBeInTheDocument();
+
+        // Every row's data appears in the table.
+        for (const course of COURSES) {
+            expect(screen.getByText(course.name)).toBeInTheDocument();
+        }
+        // credits values (may repeat across rows — use getAllByText)
+        for (const course of COURSES) {
+            expect(screen.getAllByText(String(course.credits)).length).toBeGreaterThan(0);
+        }
+    });
+
+    it('renders custom cell content when a cell renderer is provided', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name', label: 'Name' },
+                    {
+                        key: 'grade',
+                        label: 'Grade',
+                        cell: (item) => <span data-testid={`badge-${item.id}`}>{item.grade}</span>,
+                    },
+                ]}
+            />,
+        );
+
+        for (const course of COURSES) {
+            expect(screen.getByTestId(`badge-${course.id}`)).toHaveTextContent(course.grade);
+        }
+    });
+
+    it('applies per-column text alignment to headers and cells', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={[COURSES[0]]}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name',    label: 'Name',    align: 'left'   },
+                    { key: 'credits', label: 'Credits', align: 'center' },
+                    { key: 'grade',   label: 'Grade',   align: 'right'  },
+                ]}
+            />,
+        );
+
+        const headers = container.querySelectorAll('th');
+        expect(headers[0]).toHaveClass('text-left');
+        expect(headers[1]).toHaveClass('text-center');
+        expect(headers[2]).toHaveClass('text-right');
+
+        const cells = container.querySelectorAll('tbody td');
+        expect(cells[0]).toHaveClass('text-left');
+        expect(cells[1]).toHaveClass('text-center');
+        expect(cells[2]).toHaveClass('text-right');
+    });
+});
+
+
+// ─── Columns API — layout & widths ────────────────────────────────────────────
+
+describe('DataTable — columns API layout', () => {
+    it('uses table-auto and no colgroup when no column declares width or fit', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                columns={[
+                    { key: 'name',  label: 'Name'  },
+                    { key: 'grade', label: 'Grade' },
+                ]}
+            />,
+        );
+
+        const table = screen.getByRole('table');
+        expect(table).toHaveClass('table-auto');
+        expect(table).not.toHaveClass('table-fixed');
+        expect(container.querySelector('colgroup')).toBeNull();
+    });
+
+    it('switches to table-fixed and renders colgroup when any column declares a width', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                columns={[
+                    { key: 'name',    label: 'Name',    fit: 'fill' },
+                    { key: 'credits', label: 'Credits', width: 90   },
+                    { key: 'grade',   label: 'Grade',   width: 80   },
+                ]}
+            />,
+        );
+
+        const table = screen.getByRole('table');
+        expect(table).toHaveClass('table-fixed');
+        expect(table).not.toHaveClass('table-auto');
+
+        const colgroup = container.querySelector('colgroup');
+        expect(colgroup).not.toBeNull();
+
+        const cols = colgroup!.querySelectorAll('col');
+        expect(cols).toHaveLength(3);
+
+        // fit:'fill' column — width style should be empty / absent
+        expect((cols[0] as HTMLElement).style.width).toBeFalsy();
+
+        // Fixed-width columns — width normalised to px string
+        expect(cols[1]).toHaveStyle({ width: '90px' });
+        expect(cols[2]).toHaveStyle({ width: '80px' });
+    });
+
+    it('switches to table-fixed when only fit columns are declared (no explicit widths)', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                columns={[
+                    { key: 'name',  label: 'Name',  fit: 'fill' },
+                    { key: 'grade', label: 'Grade', fit: 'fill' },
+                ]}
+            />,
+        );
+
+        expect(screen.getByRole('table')).toHaveClass('table-fixed');
+        expect(container.querySelector('colgroup')).not.toBeNull();
+    });
+
+    it('applies minWidth style to col elements when specified', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                columns={[
+                    { key: 'name',    label: 'Name',    fit: 'fill', minWidth: 120 },
+                    { key: 'credits', label: 'Credits', width: 90 },
+                ]}
+            />,
+        );
+
+        const cols = container.querySelectorAll('colgroup col');
+        expect((cols[0] as HTMLElement).style.minWidth).toBe('120px');
+        expect((cols[1] as HTMLElement).style.minWidth).toBeFalsy();
+    });
+
+    it('accepts string widths (e.g. percentages) and passes them through verbatim', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                columns={[
+                    { key: 'name',    label: 'Name',    width: '60%' },
+                    { key: 'credits', label: 'Credits', width: '40%' },
+                ]}
+            />,
+        );
+
+        const cols = container.querySelectorAll('colgroup col');
+        expect(cols[0]).toHaveStyle({ width: '60%' });
+        expect(cols[1]).toHaveStyle({ width: '40%' });
+    });
+});
+
+
+// ─── Columns API — sorting ────────────────────────────────────────────────────
+
+describe('DataTable — columns API sorting', () => {
+    it('renders a sort icon only on sortable column headers', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                columns={[
+                    { key: 'name',    label: 'Name',    sortable: true },
+                    { key: 'credits', label: 'Credits'                 },
+                ]}
+            />,
+        );
+
+        // Sortable header is a button-like clickable element (cursor-pointer class).
+        const nameHeader = screen.getByRole('columnheader', { name: /Name/i });
+        expect(nameHeader).toHaveClass('cursor-pointer');
+
+        const creditsHeader = screen.getByRole('columnheader', { name: 'Credits' });
+        expect(creditsHeader).not.toHaveClass('cursor-pointer');
+    });
+
+    it('sorts string column ascending on first click then descending on second click', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name', label: 'Name', sortable: true },
+                ]}
+            />,
+        );
+
+        const nameHeader = screen.getByRole('columnheader', { name: /Name/i });
+
+        // Initial order: Algorithms, Databases, Compilers
+        let cells = screen.getAllByRole('cell');
+        expect(cells[0]).toHaveTextContent('Algorithms');
+
+        // First click → ascending (A → Z): Algorithms, Compilers, Databases
+        fireEvent.click(nameHeader);
+        cells = screen.getAllByRole('cell');
+        expect(cells[0]).toHaveTextContent('Algorithms');
+        expect(cells[1]).toHaveTextContent('Compilers');
+        expect(cells[2]).toHaveTextContent('Databases');
+
+        // Second click → descending (Z → A): Databases, Compilers, Algorithms
+        fireEvent.click(nameHeader);
+        cells = screen.getAllByRole('cell');
+        expect(cells[0]).toHaveTextContent('Databases');
+        expect(cells[1]).toHaveTextContent('Compilers');
+        expect(cells[2]).toHaveTextContent('Algorithms');
+
+        // Third click → reset to original order
+        fireEvent.click(nameHeader);
+        cells = screen.getAllByRole('cell');
+        expect(cells[0]).toHaveTextContent('Algorithms');
+    });
+
+    it('sorts numeric columns correctly', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'credits', label: 'Credits', sortable: true },
+                ]}
+            />,
+        );
+
+        fireEvent.click(screen.getByRole('columnheader', { name: /Credits/i }));
+
+        // Ascending: 3, 3, 4  (Algorithms/Compilers=3 then Databases=4)
+        const cells = screen.getAllByRole('cell');
+        const values = cells.map((c) => Number(c.textContent));
+        expect(values).toEqual([...values].sort((a, b) => a - b));
+    });
+
+    it('uses a custom comparator when sortable is a function', () => {
+        // Sort by grade string length as a custom comparator test
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    {
+                        key: 'grade',
+                        label: 'Grade',
+                        sortable: (a: Course, b: Course) =>
+                            a.grade.length - b.grade.length,
+                    },
+                ]}
+            />,
+        );
+
+        fireEvent.click(screen.getByRole('columnheader', { name: /Grade/i }));
+
+        // A+ (len 2) should sort after A and B (len 1) in ascending order
+        const cells = screen.getAllByRole('cell');
+        expect(cells[2]).toHaveTextContent('A+');
+    });
+
+    it('resets sort state when a different column header is clicked', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name',    label: 'Name',    sortable: true },
+                    { key: 'credits', label: 'Credits', sortable: true },
+                ]}
+            />,
+        );
+
+        // Sort by name ascending then switch to credits — sort key should reset to credits
+        fireEvent.click(screen.getByRole('columnheader', { name: /Name/i }));
+        fireEvent.click(screen.getByRole('columnheader', { name: /Credits/i }));
+
+        // 2 columns × 3 rows = 6 cells; credits are at indices 1, 3, 5
+        // Ascending credits: last credits cell should be 4 (Databases)
+        let cells = screen.getAllByRole('cell');
+        expect(cells[5]).toHaveTextContent('4');
+
+        // Regression: second click on credits → descending; first credits cell should now be 4
+        fireEvent.click(screen.getByRole('columnheader', { name: /Credits/i }));
+        cells = screen.getAllByRole('cell');
+        expect(cells[1]).toHaveTextContent('4');
+    });
+});
+
+
+// ─── Empty & loading states ───────────────────────────────────────────────────
+
+describe('DataTable — empty and loading states', () => {
+    it('shows the custom empty message when items is empty', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={[]}
+                emptyMessage="No courses assigned yet."
+                columns={[{ key: 'name', label: 'Name' }]}
+            />,
+        );
+
+        expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument();
+    });
+
+    it('shows a loading spinner and hides rows while isLoading is true', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                isLoading
+                columns={[{ key: 'name', label: 'Name' }]}
+            />,
+        );
+
+        // None of the course names should be visible during loading
+        for (const course of COURSES) {
+            expect(screen.queryByText(course.name)).not.toBeInTheDocument();
+        }
     });
 });

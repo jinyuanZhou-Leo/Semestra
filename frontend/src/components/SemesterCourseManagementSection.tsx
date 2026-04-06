@@ -22,9 +22,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { DataTable, DataTableActionMenu } from '@/components/DataTable';
+import { DataTable, DataTableActionMenu, type ColumnDef } from '@/components/DataTable';
 import { SettingsSection } from '@/components/SettingsSection';
-import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { CourseManagerModal } from '@/components/CourseManagerModal';
 import api from '@/services/api';
 import type { Course, Semester } from '@/services/api';
@@ -125,6 +124,48 @@ export const SemesterCourseManagementSection: React.FC<SemesterCourseManagementS
   const programId = semester?.program_id || '';
   const canManageCourses = programId.length > 0 && !isLoading && !loadError;
 
+  const courseColumns: ColumnDef<Course>[] = [
+    {
+      key: 'name',
+      label: 'Name',
+      fit: 'fill',
+      cellClassName: 'font-medium',
+      cell: (course) => (
+        <div className="flex flex-col">
+          <span>{course.name}</span>
+          {course.alias ? (
+            <span className="mt-0.5 text-xs text-muted-foreground">{course.alias}</span>
+          ) : null}
+        </div>
+      ),
+    },
+    { key: 'credits', label: 'Credits', width: 104 },
+    {
+      key: 'grade',
+      label: 'Grade',
+      width: 112,
+      cell: (course) => formatCourseListGpaPercentage(course.grade_percentage),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      width: 64,
+      align: 'right',
+      cell: (course) => (
+        <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={removingCourseId !== null}
+            onClick={() => setPendingRemoveCourse(course)}
+          >
+            <Trash2 className="size-4" />
+            Remove
+          </DropdownMenuItem>
+        </DataTableActionMenu>
+      ),
+    },
+  ];
+
   return (
     <SettingsSection
       title="Courses"
@@ -162,42 +203,8 @@ export const SemesterCourseManagementSection: React.FC<SemesterCourseManagementS
           isLoading={isLoading && !semester}
           emptyMessage="No courses assigned."
           minWidthClassName="min-w-[34rem] sm:min-w-[38rem]"
-          renderHeader={() => (
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Credits</TableHead>
-              <TableHead>Grade</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          )}
-          renderRow={(course: Course) => (
-            <TableRow key={course.id}>
-              <TableCell className="font-medium">
-                <div className="flex flex-col">
-                  <span>{course.name}</span>
-                  {course.alias ? (
-                    <span className="mt-0.5 text-xs text-muted-foreground">
-                      {course.alias}
-                    </span>
-                  ) : null}
-                </div>
-              </TableCell>
-              <TableCell>{course.credits}</TableCell>
-              <TableCell>{formatCourseListGpaPercentage(course.grade_percentage)}</TableCell>
-              <TableCell className="text-right">
-                <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    disabled={removingCourseId !== null}
-                    onClick={() => setPendingRemoveCourse(course)}
-                  >
-                    <Trash2 className="size-4" />
-                    Remove
-                  </DropdownMenuItem>
-                </DataTableActionMenu>
-              </TableCell>
-            </TableRow>
-          )}
+          columns={courseColumns}
+          getRowKey={(course) => course.id}
         />
         <AlertDialog open={pendingRemoveCourse !== null} onOpenChange={(open) => !open && setPendingRemoveCourse(null)}>
           <AlertDialogContent size="sm">

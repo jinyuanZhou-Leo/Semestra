@@ -31,7 +31,7 @@ import {
   PluginSetupFormSurface,
 } from "@/components/PluginSetupForm";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TableCell, TableHead, TableRow } from "@/components/ui/table";
+import type { ColumnDef } from "@/components/DataTable";
 import {
   definePluginSetup,
   PluginSetupJsonField,
@@ -238,6 +238,40 @@ const EventTypeSetupTable: React.FC<{
     setPendingDeleteType(null);
   }, [items, onChange, pendingDeleteType]);
 
+  const columns: ColumnDef<EventTypeSetupItem>[] = [
+    { key: 'code',         label: 'Type',             fit: 'fill', cellClassName: 'font-medium' },
+    { key: 'abbreviation', label: 'Abbr',             width: 80 },
+    {
+      key: 'track_attendance',
+      label: 'Track Attendance',
+      width: 168,
+      cell: (item) => (
+        <Badge variant={item.track_attendance ? "default" : "secondary"}>
+          {item.track_attendance ? "Yes" : "No"}
+        </Badge>
+      ),
+    },
+    ...(!readOnly ? [{
+      key: 'actions',
+      label: 'Actions',
+      width: 72,
+      align: 'right' as const,
+      cell: (item: EventTypeSetupItem) => (
+        <DataTableActionMenu triggerLabel={`Open actions for ${item.code}`}>
+          <DropdownMenuItem onClick={() => { setEditingType(item); setIsDialogOpen(true); }}>
+            <Edit className="h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteType(item)}>
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </DropdownMenuItem>
+        </DataTableActionMenu>
+      ),
+    }] : []),
+  ];
+
   return (
     <>
       <DataTable
@@ -253,46 +287,8 @@ const EventTypeSetupTable: React.FC<{
             Create Type
           </Button>
         )}
-        renderHeader={() => (
-          <TableRow>
-            <TableHead>Type</TableHead>
-            <TableHead>Abbr</TableHead>
-            <TableHead>Track Attendance</TableHead>
-            {!readOnly ? <TableHead className="text-right">Actions</TableHead> : null}
-          </TableRow>
-        )}
-        renderRow={(item) => (
-          <TableRow key={item.id}>
-            <TableCell className="font-medium">{item.code}</TableCell>
-            <TableCell>{item.abbreviation}</TableCell>
-            <TableCell>
-              <Badge variant={item.track_attendance ? "default" : "secondary"}>
-                {item.track_attendance ? "Yes" : "No"}
-              </Badge>
-            </TableCell>
-            {!readOnly ? (
-              <TableCell className="text-right">
-                <div className="flex justify-end">
-                  <DataTableActionMenu triggerLabel={`Open actions for ${item.code}`}>
-                    <DropdownMenuItem onClick={() => {
-                      setEditingType(item);
-                      setIsDialogOpen(true);
-                    }}
-                    >
-                      <Edit className="h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteType(item)}>
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DataTableActionMenu>
-                </div>
-              </TableCell>
-            ) : null}
-          </TableRow>
-        )}
+        getRowKey={(item) => item.id}
+        columns={columns}
       />
 
       {!readOnly ? (
