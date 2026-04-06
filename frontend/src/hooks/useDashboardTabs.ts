@@ -43,7 +43,12 @@ const toTabItem = (
     const type = 'tab_type' in tab ? tab.tab_type : tab.type;
     if (!type) return null;
 
-    const id = ('id' in tab && typeof tab.id === 'string' && tab.id.length > 0)
+    // For managed runtime tabs the server never provides a real stable ID — only a synthetic
+    // `${type}:${index}` fallback that changes whenever tab order changes, causing activeTabId
+    // to go stale and the UI to flash back to the first tab. Always use the scope-stable ID
+    // for managed tabs; only keep the server ID for legacy (managed=false) tabs that need it
+    // to call api.updateTab by real database id.
+    const id = (!managed && 'id' in tab && typeof tab.id === 'string' && tab.id.length > 0)
         ? tab.id
         : `${scopeKey}:${type}`;
     const title = ('title' in tab && typeof tab.title === 'string' && tab.title.length > 0)
@@ -153,10 +158,10 @@ export const useDashboardTabs = ({
         try {
             if (managed) {
                 const reorderSemesterId = orderOwnerSemesterId ?? semesterId;
-                const result = reorderSemesterId
-                    ? await api.reorderSemesterRuntimeTabs(reorderSemesterId, orderedTypes)
-                    : courseId
-                        ? await api.reorderCourseRuntimeTabs(courseId, orderedTypes)
+                const result = courseId
+                    ? await api.reorderCourseRuntimeTabs(courseId, orderedTypes)
+                    : reorderSemesterId
+                        ? await api.reorderSemesterRuntimeTabs(reorderSemesterId, orderedTypes)
                         : [];
                 const normalizedTabs = result
                     .map((tab, index) => toTabItem(tab, scopeKey, index, true))

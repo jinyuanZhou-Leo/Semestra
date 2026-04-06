@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
+    courseKeys,
     programKeys,
     semesterKeys,
 } from '@/data/keys';
@@ -249,6 +250,19 @@ const CourseHomepageContent: React.FC = () => {
         [enabledPluginIds, widgets]
     );
 
+    const onTabReorderRefresh = useCallback(async () => {
+        await refreshCourse();
+        // Invalidate sibling courses so they re-fetch with the updated shared tab order
+        // (all courses in the same semester share one SEMESTER_COURSE_SHARED_TAB_ORDER_BUCKET)
+        if (course?.semester_id) {
+            await Promise.all(
+                siblingCourses
+                    .filter((c) => c.id !== course.id)
+                    .map((c) => queryClient.invalidateQueries({ queryKey: courseKeys.detail(c.id) }))
+            );
+        }
+    }, [course?.id, course?.semester_id, queryClient, refreshCourse, siblingCourses]);
+
     const {
         tabs,
         isInitialized: isTabsInitialized,
@@ -258,7 +272,7 @@ const CourseHomepageContent: React.FC = () => {
         orderOwnerSemesterId: course?.semester_id,
         initialTabs: runtimeTabs,
         managed: true,
-        onRefresh: refreshCourse
+        onRefresh: onTabReorderRefresh
     });
 
     const breadcrumb = (
