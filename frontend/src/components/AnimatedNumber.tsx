@@ -39,10 +39,12 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     rainbowDurationMs = 5000,
     rainbowFadeOutMs = 1200
 }) => {
-    const [displayValue, setDisplayValue] = useState(() => (animateOnMount ? 0 : value));
     const [rainbowState, setRainbowState] = useState<'hidden' | 'running' | 'fading'>('hidden');
+    const baseTextRef = useRef<HTMLSpanElement | null>(null);
+    const rainbowTextRef = useRef<HTMLSpanElement | null>(null);
     const previousValueRef = useRef<number | null>(null);
     const displayValueRef = useRef<number>(animateOnMount ? 0 : value);
+    const renderedTextRef = useRef<string>('');
     const hasAnimatedOnMountRef = useRef(false);
     const rafRef = useRef<number | null>(null);
     const animationGenerationRef = useRef(0);
@@ -54,6 +56,29 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
         if (typeof window === 'undefined' || !('matchMedia' in window)) return false;
         return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     }, []);
+
+    const renderValue = React.useCallback((nextValue: number) => {
+        return format ? format(nextValue) : nextValue.toString();
+    }, [format]);
+
+    const syncRenderedText = React.useCallback((nextValue: number) => {
+        const nextText = renderValue(nextValue);
+        if (renderedTextRef.current === nextText) {
+            return;
+        }
+
+        renderedTextRef.current = nextText;
+        if (baseTextRef.current) {
+            baseTextRef.current.textContent = nextText;
+        }
+        if (rainbowTextRef.current) {
+            rainbowTextRef.current.textContent = nextText;
+        }
+    }, [renderValue]);
+
+    useEffect(() => {
+        syncRenderedText(displayValueRef.current);
+    }, [syncRenderedText]);
 
     useEffect(() => {
         const currentGeneration = animationGenerationRef.current + 1;
@@ -104,14 +129,14 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
 
         if (!Number.isFinite(value)) {
             displayValueRef.current = value;
-            setDisplayValue(value);
+            syncRenderedText(value);
             return () => {};
         }
 
         const shouldAnimate = !prefersReducedMotion && duration > 0 && (isFirstAnimation || previousValue !== null);
         if (!shouldAnimate || (previousValue === value && !isFirstAnimation)) {
             displayValueRef.current = value;
-            setDisplayValue(value);
+            syncRenderedText(value);
             if (typeof rainbowThreshold === 'number' && value >= rainbowThreshold) {
                 triggerRainbowMarquee();
             }
@@ -130,7 +155,7 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
             const eased = easeInOutCubic(progress);
             const nextValue = startValue + (value - startValue) * eased;
             displayValueRef.current = nextValue;
-            setDisplayValue(nextValue);
+            syncRenderedText(nextValue);
 
             if (progress < 1) {
                 rafRef.current = requestAnimationFrame(tick);
@@ -166,9 +191,9 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
                 rainbowHideTimeoutRef.current = null;
             }
         };
-    }, [animateOnMount, duration, prefersReducedMotion, rainbowDurationMs, rainbowFadeOutMs, rainbowStartDelayMs, rainbowThreshold, value]);
+    }, [animateOnMount, duration, prefersReducedMotion, rainbowDurationMs, rainbowFadeOutMs, rainbowStartDelayMs, rainbowThreshold, syncRenderedText, value]);
 
-    const renderedValue = format ? format(displayValue) : displayValue.toString();
+    const initialRenderedValue = renderValue(displayValueRef.current);
     const rainbowLayerClassName =
         rainbowState === 'running'
             ? 'animated-number__rainbow--running'
@@ -181,12 +206,13 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
             className={`animated-number ${className}`.trim()}
             style={style}
         >
-            <span className="animated-number__base">{renderedValue}</span>
+            <span ref={baseTextRef} className="animated-number__base">{initialRenderedValue}</span>
             <span
+                ref={rainbowTextRef}
                 aria-hidden="true"
                 className={`animated-number__rainbow ${rainbowLayerClassName}`}
             >
-                {renderedValue}
+                {initialRenderedValue}
             </span>
         </span>
     );
