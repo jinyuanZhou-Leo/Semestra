@@ -229,7 +229,7 @@ const DefaultPluginSetupReviewView: React.FC<{
 );
 
 export const PluginSetupReviewRenderer: React.FC<{
-  plugin: SemesterPluginActivation;
+  plugin: SemesterPluginActivation | PluginSystemSemesterSetupPlugin;
   values: Record<string, unknown>;
   semesterId?: string;
   programId?: string;

@@ -143,7 +143,7 @@ export const SemesterSettingsPanel: React.FC<SemesterSettingsPanelProps> = ({
 
   useEffect(() => {
     return () => {
-      void flushRef.current();
+      void flushRef.current().catch(() => {});
     };
   }, []);
 

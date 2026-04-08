@@ -3,22 +3,30 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPluginRegistry } from './createPluginRegistry';
+import type { TabProps } from './tabRegistry';
 import type { WidgetProps } from './widgetRegistry';
 import { jsonDeepEqual } from '../plugin-system/utils';
 
 describe('createPluginRegistry', () => {
   it('keeps default memoization for tabs without a custom comparator', () => {
     const renderSpy = vi.fn();
-    const TabComponent: React.FC<{ tabId: string; semesterId?: string; courseId?: string }> = (props) => {
+    const TabComponent: React.FC<TabProps> = (props) => {
       renderSpy(props);
       return <div>{props.tabId}</div>;
     };
 
-    const { registry } = createPluginRegistry('Tab', 'tabId');
+    const { registry } = createPluginRegistry<
+      { type: string; component: React.FC<TabProps> },
+      TabProps
+    >('Tab', 'tabId');
     registry.register({ type: 'demo-tab', component: TabComponent });
     const RegisteredComponent = registry.getComponent('demo-tab');
 
     expect(RegisteredComponent).toBeDefined();
+    if (!RegisteredComponent) {
+      throw new Error('Expected tab component to be registered.');
+    }
+
     const { rerender } = render(<RegisteredComponent tabId="tab-1" semesterId="semester-1" />);
     rerender(<RegisteredComponent tabId="tab-1" semesterId="semester-1" />);
 
@@ -52,6 +60,10 @@ describe('createPluginRegistry', () => {
     const RegisteredComponent = registry.getComponent('demo-widget');
 
     expect(RegisteredComponent).toBeDefined();
+    if (!RegisteredComponent) {
+      throw new Error('Expected widget component to be registered.');
+    }
+
     const updateSettings = vi.fn();
     const { rerender } = render(
       <RegisteredComponent

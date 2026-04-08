@@ -337,6 +337,11 @@ def _build_runtime_tab_payload(
         activations,
         context_kind=context_kind,
     )
+    available_tab_types = {
+        tab_type
+        for tab_type, catalog_item in tab_catalog_map.items()
+        if catalog_item.get("availability", {}).get("state") == "available"
+    }
     order_entries = crud.get_workspace_tab_order_entries(
         db,
         bucket_type,
@@ -347,13 +352,12 @@ def _build_runtime_tab_payload(
         [
             entry.tab_type
             for entry in order_entries
-            if entry.tab_type in tab_catalog_map
+            if entry.tab_type in available_tab_types
         ]
         if order_entries
         else [
             tab_type
-            for tab_type, catalog_item in tab_catalog_map.items()
-            if catalog_item.get("availability", {}).get("state") == "available"
+            for tab_type in available_tab_types
         ]
     )
 

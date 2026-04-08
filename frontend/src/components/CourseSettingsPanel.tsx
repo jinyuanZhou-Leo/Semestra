@@ -253,7 +253,7 @@ export const CourseSettingsPanel: React.FC<CourseSettingsPanelProps> = ({
 
   useEffect(() => {
     return () => {
-      void flushRef.current();
+      void flushRef.current().catch(() => {});
     };
   }, []);
 

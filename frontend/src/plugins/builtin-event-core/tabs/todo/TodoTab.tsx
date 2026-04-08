@@ -610,7 +610,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
     }
 
     setPendingDeleteTarget(null);
-  }, [courseId, pendingDeleteTarget, runMutation, semesterId]);
+  }, [courseId, getTodoState, pendingDeleteTarget, runMutation, semesterId]);
 
   // Stable callbacks passed to TodoTaskCard so React.memo can skip re-renders
   // when neither the task data nor the interaction state changes.

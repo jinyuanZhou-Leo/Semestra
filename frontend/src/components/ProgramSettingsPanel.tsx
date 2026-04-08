@@ -261,7 +261,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
 
   useEffect(() => {
     return () => {
-      void flushRef.current();
+      void flushRef.current().catch(() => {});
     };
   }, []);
 

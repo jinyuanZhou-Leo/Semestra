@@ -71,6 +71,23 @@ def _serialize_semester_draft(semester: models.Semester) -> dict:
     }
 
 
+def _resolve_and_validate_semester_draft_dates(
+    *,
+    start_date,
+    end_date,
+) -> tuple:
+    default_start, default_end = get_default_semester_dates()
+    resolved_start = start_date or default_start
+    resolved_end = end_date or default_end
+    if resolved_start > resolved_end:
+        raise PluginRegistryError(
+            "INVALID_SEMESTER_DATE_RANGE",
+            "start_date must be earlier than or equal to end_date.",
+        )
+
+    return resolved_start, resolved_end
+
+
 def create_semester_draft(db: Session, program_id: str, payload: schemas.SemesterDraftCreateRequest) -> dict:
     program = db.query(models.Program).filter(models.Program.id == program_id).first()
     if program is None:
@@ -80,12 +97,10 @@ def create_semester_draft(db: Session, program_id: str, payload: schemas.Semeste
     if existing_draft is not None:
         raise PluginRegistryError("SEMESTER_DRAFT_EXISTS", "A Semester draft is already in progress for this Program.")
     create_payload = payload.model_dump()
-    start_date = create_payload.get("start_date")
-    end_date = create_payload.get("end_date")
-    if start_date is None or end_date is None:
-        default_start, default_end = get_default_semester_dates()
-        create_payload["start_date"] = start_date or default_start
-        create_payload["end_date"] = end_date or default_end
+    create_payload["start_date"], create_payload["end_date"] = _resolve_and_validate_semester_draft_dates(
+        start_date=create_payload.get("start_date"),
+        end_date=create_payload.get("end_date"),
+    )
     now = _now_utc_iso()
     db_semester = models.Semester(
         **create_payload,
@@ -123,6 +138,12 @@ def update_semester_draft(db: Session, semester_id: str, payload: schemas.Semest
         update_data["start_date"] = semester.start_date
     if "end_date" in update_data and update_data["end_date"] is None:
         update_data["end_date"] = semester.end_date
+    next_start_date, next_end_date = _resolve_and_validate_semester_draft_dates(
+        start_date=update_data.get("start_date", semester.start_date),
+        end_date=update_data.get("end_date", semester.end_date),
+    )
+    update_data["start_date"] = next_start_date
+    update_data["end_date"] = next_end_date
     for key, value in update_data.items():
         setattr(semester, key, value)
     semester.draft_updated_at = _now_utc_iso()

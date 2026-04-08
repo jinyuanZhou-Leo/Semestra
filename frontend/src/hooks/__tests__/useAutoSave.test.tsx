@@ -1,6 +1,6 @@
 // input:  [React testing-library hook helpers, fake timers, and `useAutoSave` hook]
-// output: [regression tests for object equality, latest-value debounce behavior, and pause-after-error behavior in `useAutoSave`]
-// pos:    [Hook-level autosave tests guarding settings forms against stalled, repeated, or stale retries]
+// output: [regression tests for object equality, latest-value debounce behavior, pause-after-error behavior, and direct flush failure propagation in `useAutoSave`]
+// pos:    [Hook-level autosave tests guarding settings forms against stalled, repeated, stale, or silently swallowed manual-save failures]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,7 +9,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAutoSave } from "../useAutoSave";
+import { AutoSaveError, useAutoSave } from "../useAutoSave";
 
 describe("useAutoSave", () => {
   beforeEach(() => {
@@ -139,5 +139,26 @@ describe("useAutoSave", () => {
 
     expect(onSave).toHaveBeenCalledTimes(2);
     expect(onSave).toHaveBeenLastCalledWith({ name: "APS1" });
+  });
+
+  it("rejects manual flush calls when the save fails", async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error("network"));
+    const onError = vi.fn();
+    const { result } = renderHook(() => useAutoSave({
+      value: { name: "APS" },
+      savedValue: { name: "" },
+      onSave,
+      onError,
+      debounceMs: 50,
+      maxWaitMs: 200,
+      successMs: 50,
+    }));
+
+    await act(async () => {
+      await expect(result.current.flush()).rejects.toBeInstanceOf(AutoSaveError);
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 });

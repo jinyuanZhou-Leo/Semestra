@@ -261,7 +261,7 @@ const CourseHomepageContent: React.FC = () => {
                     .map((c) => queryClient.invalidateQueries({ queryKey: courseKeys.detail(c.id) }))
             );
         }
-    }, [course?.id, course?.semester_id, queryClient, refreshCourse, siblingCourses]);
+    }, [course, queryClient, refreshCourse, siblingCourses]);
 
     const {
         tabs,

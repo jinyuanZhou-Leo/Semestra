@@ -484,11 +484,6 @@ def discard_current_semester_draft(
     return {"ok": True}
 
 
-async def create_semester_from_ics(*args, **kwargs):
-    _sync_academics_compat_globals()
-    return await academics_api.create_semester_from_ics(*args, **kwargs)
-
-
 async def create_courses_from_ics(*args, **kwargs):
     _sync_academics_compat_globals()
     return await academics_api.create_courses_from_ics(*args, **kwargs)

@@ -1,6 +1,6 @@
 // input:  [current draft value, saved snapshot value, async save callback, optional equality/validation/timing config, and shared timer handles]
-// output: [`useAutoSave()` hook exposing save state, pending-change status, and a manual flush action for auto-saving forms]
-// pos:    [Cross-page auto-save scheduler with debounce, max-wait throttling, save-state feedback, and retry pause after failed saves until the draft changes]
+// output: [`useAutoSave()` hook exposing save state, pending-change status, and a manual flush action for auto-saving forms that rejects on direct flush failures]
+// pos:    [Cross-page auto-save scheduler with debounce, max-wait throttling, save-state feedback, retry pause after failed saves until the draft changes, and explicit direct-flush failure propagation for blocking navigation flows]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -9,6 +9,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type AutoSaveState = "idle" | "saving" | "success";
+
+export class AutoSaveError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message);
+    this.name = "AutoSaveError";
+    if (options && "cause" in options) {
+      Object.defineProperty(this, "cause", {
+        configurable: true,
+        enumerable: false,
+        value: options.cause,
+        writable: true,
+      });
+    }
+  }
+}
+
+export const isAutoSaveError = (error: unknown): error is AutoSaveError => error instanceof AutoSaveError;
 
 interface UseAutoSaveOptions<T> {
   value: T;
@@ -78,6 +95,7 @@ export const useAutoSave = <T>({
   const isSavingRef = useRef(false);
   const shouldRetryAfterSaveRef = useRef(false);
   const failedValueRef = useRef<T | null>(null);
+  const runSaveRef = useRef<(propagateError?: boolean) => Promise<void>>(async () => {});
 
   latestValueRef.current = value;
   latestSavedValueRef.current = savedValue;
@@ -107,7 +125,7 @@ export const useAutoSave = <T>({
     enabled && !isEqual(latestValueRef.current, acknowledgedSavedValueRef.current);
   const isValid = validate ? validate(latestValueRef.current) : true;
 
-  const runSave = useCallback(async () => {
+  const runSave = useCallback(async (propagateError = false) => {
     if (!enabled) return;
     if (!isValid) return;
     if (isEqual(latestValueRef.current, acknowledgedSavedValueRef.current)) return;
@@ -139,6 +157,9 @@ export const useAutoSave = <T>({
       failedValueRef.current = snapshot;
       setSaveState("idle");
       await onError?.(error);
+      if (propagateError) {
+        throw new AutoSaveError("Auto-save failed.", { cause: error });
+      }
     } finally {
       isSavingRef.current = false;
 
@@ -148,7 +169,7 @@ export const useAutoSave = <T>({
       ) {
         shouldRetryAfterSaveRef.current = false;
         pendingSinceRef.current = Date.now();
-        void runSave();
+        void runSaveRef.current(false);
       }
     }
   }, [
@@ -161,6 +182,8 @@ export const useAutoSave = <T>({
     onSave,
     successMs,
   ]);
+
+  runSaveRef.current = runSave;
 
   useEffect(() => {
     if (!enabled) {
@@ -201,7 +224,7 @@ export const useAutoSave = <T>({
 
     clearDebounceTimer();
     debounceTimerRef.current = globalThis.setTimeout(() => {
-      void runSave();
+      void runSaveRef.current(false);
     }, delayMs);
 
     return clearDebounceTimer;
@@ -229,6 +252,6 @@ export const useAutoSave = <T>({
     saveState,
     hasPendingChanges,
     isValid,
-    flush: runSave,
+    flush: () => runSaveRef.current(true),
   };
 };

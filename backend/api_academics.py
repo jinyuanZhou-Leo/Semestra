@@ -1,6 +1,6 @@
 # input:  [FastAPI router/dependencies, backend academic CRUD/domain services, LMS/resource helpers, and shared ownership validators]
-# output: [semester and course route handlers for LMS import/browse, ICS upload, runtime payload reads, todo, resources, and gradebook operations]
-# pos:    [backend API router for academic entities outside widget/layout routing, including semester/course orchestration, LMS-linked reads, resource uploads, and gradebook CRUD]
+# output: [semester and course route handlers for LMS course import/browse, ICS course upload, runtime payload reads, todo, resources, and gradebook operations]
+# pos:    [backend API router for academic entities outside widget/layout routing, including semester/course reads and mutation flows, LMS-linked reads, resource uploads, and gradebook CRUD]
 #
 # ⚠️ When this file is updated:
 #    1. Update these header comments
@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -305,23 +305,6 @@ def import_program_lms_courses(
         raise_lms_http_error(exc)
 
 
-@router.post("/programs/{program_id}/lms/semesters/import", response_model=schemas.LmsSemesterImportResponse)
-def import_program_lms_semester(
-    program_id: str,
-    payload: schemas.LmsSemesterImportRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    try:
-        semester, import_response = lms_service.import_semester_with_courses(db, current_user.id, program_id, payload)
-    except Exception as exc:
-        raise_lms_http_error(exc)
-    return {
-        "semester": semester,
-        "courses": import_response,
-    }
-
-
 @router.post("/programs/{program_id}/semesters/", response_model=schemas.Semester)
 def create_semester_for_program(
     program_id: str,
@@ -345,50 +328,6 @@ def create_semester_for_program(
         semester.reading_week_end,
     )
     return crud.create_semester(db=db, semester=semester, program_id=program_id)
-
-
-@router.post("/programs/{program_id}/semesters/upload", response_model=schemas.Semester)
-async def create_semester_from_ics(
-    program_id: str,
-    file: UploadFile = File(...),
-    name: str = Form(None),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    get_owned_program(db, current_user, program_id)
-
-    if not name:
-        name = file.filename.replace(".ics", "")
-
-    default_course_credit = _get_default_course_credit(current_user)
-    _, parsed_schedule, parsed_courses = await _read_ics_import_context(file)
-    start_date = parsed_schedule.get("semesterStartDate") or datetime.now(UTC).date()
-    end_date = parsed_schedule.get("semesterEndDate") or (start_date + timedelta(days=111))
-    if end_date < start_date:
-        end_date = start_date
-
-    semester_create = schemas.SemesterCreate(name=name, start_date=start_date, end_date=end_date)
-    try:
-        semester = crud.create_semester(
-            db=db,
-            semester=semester_create,
-            program_id=program_id,
-            commit=False,
-        )
-        _import_courses_from_ics_payloads(
-            db,
-            program_id=program_id,
-            semester_id=semester.id,
-            parsed_courses=parsed_courses,
-            default_course_credit=default_course_credit,
-        )
-        db.commit()
-        db.refresh(semester)
-    except Exception:
-        db.rollback()
-        raise
-
-    return semester
 
 
 @router.post("/programs/{program_id}/courses/upload", response_model=list[schemas.Course])

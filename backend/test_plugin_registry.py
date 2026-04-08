@@ -93,6 +93,48 @@ class PluginGovernanceDraftTests(unittest.TestCase):
 
         self.assertEqual(context.exception.code, "SEMESTER_DRAFT_REVIEW_FAILED")
 
+    def test_draft_creation_rejects_invalid_date_range(self) -> None:
+        program = self._create_program()
+
+        with self.assertRaises(crud.PluginRegistryError) as context:
+            crud.create_semester_draft(
+                self.db,
+                program.id,
+                schemas.SemesterDraftCreateRequest(
+                    name="Winter 2026",
+                    start_date=date(2026, 4, 10),
+                    end_date=date(2026, 1, 5),
+                    creation_step="basics",
+                ),
+            )
+
+        self.assertEqual(context.exception.code, "INVALID_SEMESTER_DATE_RANGE")
+
+    def test_draft_update_rejects_invalid_date_range(self) -> None:
+        program = self._create_program()
+        draft = crud.create_semester_draft(
+            self.db,
+            program.id,
+            schemas.SemesterDraftCreateRequest(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+                creation_step="basics",
+            ),
+        )
+
+        with self.assertRaises(crud.PluginRegistryError) as context:
+            crud.update_semester_draft(
+                self.db,
+                draft["id"],
+                schemas.SemesterDraftUpdateRequest(
+                    start_date=date(2026, 4, 10),
+                    end_date=date(2026, 1, 5),
+                ),
+            )
+
+        self.assertEqual(context.exception.code, "INVALID_SEMESTER_DATE_RANGE")
+
     def test_draft_creation_starts_without_homepage_shell_tabs(self) -> None:
         program = self._create_program()
 
@@ -788,6 +830,58 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         ).first()
         self.assertIsNotNone(stored_activation)
         self.assertFalse(bool(stored_activation.is_enabled))
+
+    def test_disabled_semester_plugin_tabs_do_not_remain_in_runtime_tabs(self) -> None:
+        program = self._create_program()
+        crud.upsert_program_plugin_installation(
+            self.db,
+            program.id,
+            "builtin-event-core",
+            schemas.ProgramPluginInstallationUpsertRequest(is_enabled=True),
+        )
+        semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(
+                name="Winter 2026",
+                start_date=date(2026, 1, 5),
+                end_date=date(2026, 4, 10),
+            ),
+            program.id,
+        )
+        crud.upsert_semester_plugin_activation(
+            self.db,
+            semester.id,
+            "builtin-event-core",
+            schemas.SemesterPluginActivationUpsertRequest(is_enabled=True),
+        )
+
+        self.db.add(
+            models.WorkspaceTabOrderEntry(
+                bucket_type=crud.SEMESTER_HOMEPAGE_TAB_ORDER_BUCKET,
+                semester_id=semester.id,
+                tab_type="builtin-academic-calendar",
+                order_index=0,
+            )
+        )
+        self.db.commit()
+
+        crud.upsert_semester_plugin_activation(
+            self.db,
+            semester.id,
+            "builtin-event-core",
+            schemas.SemesterPluginActivationUpsertRequest(is_enabled=False),
+        )
+
+        semester_payload = main.read_semester(semester.id, db=self.db, current_user=self.user)
+
+        runtime_tab_types = {tab["tab_type"] for tab in semester_payload["runtime_tabs"]}
+        catalog_by_type = {
+            item["tab_type"]: item
+            for item in semester_payload["tab_catalog_items"]
+        }
+
+        self.assertNotIn("builtin-academic-calendar", runtime_tab_types)
+        self.assertEqual(catalog_by_type["builtin-academic-calendar"]["availability"]["state"], "unavailable")
 
     def test_bulk_enabling_semester_plugins_updates_draft_in_one_payload(self) -> None:
         program = self._create_program()

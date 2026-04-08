@@ -665,11 +665,6 @@ export interface LmsCalendarEventListResponse {
     items: LmsCalendarEventSummary[];
 }
 
-export interface LmsSemesterImportResponse {
-    semester: Semester;
-    courses: LmsCourseImportResponse;
-}
-
 export type TodoPriority = '' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 export interface TodoSectionRecord {
@@ -1047,23 +1042,6 @@ const api = {
     },
 
     // Semesters
-    createSemester: async (programId: string, data: { name: string }) => {
-        const response = await axios.post<SemesterWire>(`/api/programs/${programId}/semesters/`, data);
-        return normalizeSemester(response.data);
-    },
-    uploadSemesterICS: async (programId: string, file: File, name?: string) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        if (name) {
-            formData.append('name', name);
-        }
-        const response = await axios.post<SemesterWire>(`/api/programs/${programId}/semesters/upload`, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
-        return normalizeSemester(response.data);
-    },
     uploadProgramCourseICS: async (programId: string, file: File, semesterId?: string) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -1524,20 +1502,6 @@ const api = {
         }
     ) => {
         const response = await axios.post<LmsCourseImportResponse>(`/api/programs/${programId}/lms/courses/import`, data);
-        return response.data;
-    },
-    importProgramLmsSemester: async (
-        programId: string,
-        data: {
-            name: string;
-            start_date?: string;
-            end_date?: string;
-            reading_week_start?: string | null;
-            reading_week_end?: string | null;
-            external_course_ids: string[];
-        }
-    ) => {
-        const response = await axios.post<LmsSemesterImportResponse>(`/api/programs/${programId}/lms/semesters/import`, data);
         return response.data;
     },
     getCourseLmsLink: async (courseId: string) => {

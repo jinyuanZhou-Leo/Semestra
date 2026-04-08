@@ -550,29 +550,6 @@ class LmsCourseImportResponse(BaseModel):
     results: List[LmsCourseImportResult] = []
 
 
-class LmsSemesterImportRequest(BaseModel):
-    name: str
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    reading_week_start: Optional[date] = None
-    reading_week_end: Optional[date] = None
-    external_course_ids: List[str]
-
-    @field_validator("name")
-    def validate_semester_name(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("name is required.")
-        return normalized
-
-    @field_validator("external_course_ids")
-    def validate_semester_external_course_ids(cls, value: List[str]) -> List[str]:
-        normalized = [item.strip() for item in value if item and item.strip()]
-        if not normalized:
-            raise ValueError("external_course_ids must include at least one course id.")
-        return normalized
-
-
 class LmsAssignmentSummary(BaseModel):
     external_id: str
     course_id: str
@@ -642,11 +619,6 @@ class LmsCalendarEventSummary(BaseModel):
 
 class LmsCalendarEventListResponse(BaseModel):
     items: List[LmsCalendarEventSummary] = []
-
-
-class LmsSemesterImportResponse(BaseModel):
-    semester: "Semester"
-    courses: LmsCourseImportResponse
 
 # --- Widget Schemas ---
 class WidgetBase(BaseModel):
@@ -1818,4 +1790,3 @@ class UserDataImport(BaseModel):
 
 
 LmsCourseImportResult.model_rebuild()
-LmsSemesterImportResponse.model_rebuild()

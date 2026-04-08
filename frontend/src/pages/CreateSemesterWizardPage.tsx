@@ -1,6 +1,6 @@
 // input:  [program route params, Program/Semester governance APIs including plugin-system setup routes, axios-backed draft-conflict inspection, app-side Program/Semester resource queries plus draft cache helpers, plugin-manifest icon helpers, existing course CRUD APIs, query cache, shadcn form/layout primitives, motion helpers, plugin setup definitions/validation helpers, and shared data-table row-actions dropdown helpers]
-// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step visibility sourced from activation-plus-plugin-system payloads, setup-step saves, custom setup context wiring for draft-semester APIs, finalize-safe draft teardown, blank-by-default semester dates for new local drafts, a unified Program-exit confirmation dialog, tighter review-summary typography/layout, overflow-safe condensed wizard pagination for large step counts, and animated compact bottom navigation labels]
-// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, draft-conflict-safe resume behavior, refetch-safe local draft state, duplicate-free plugin setup shells, activation-plus-plugin-system-aware setup-step visibility, draft-semester context passthrough for plugin-owned setup UIs, compact large-step pagination rendering, unified Program-exit choices, and polished bottom action transitions]
+// output: [`CreateSemesterWizardPage` route component with animated step-scoped header/content render blocks, draft-resume-safe create-or-update basics persistence, per-plugin setup wizard steps, guarded initial draft loading plus explicit unavailable-state handling, guarded server-to-local draft hydration, custom-or-DSL plugin setup validation, setup-step visibility sourced from activation-plus-plugin-system payloads, setup-step saves, custom setup context wiring for draft-semester APIs, finalize-safe draft teardown, blank-by-default semester dates for new local drafts, a unified Program-exit confirmation dialog, merged review-status/blocker rendering, tighter review-summary typography/layout, overflow-safe condensed wizard pagination for large step counts, and animated compact bottom navigation labels]
+// pos:    [Standalone Semester creation host that owns the draft lifecycle, step navigation, a Semester-settings-aligned shadcn basics step, synchronized smooth header/content step transitions, per-plugin setup orchestration, host-validated plugin setup review handoff, guarded initial loading so local edits do not race draft hydration, refetch-safe local draft state, duplicate-free plugin setup shells, activation-plus-plugin-system-aware setup-step visibility and review summaries, display-name-aware review blockers, unified Program-exit choices, and polished bottom action transitions]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -43,6 +43,7 @@ import { FieldSet } from "@/components/ui/field";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem } from "@/components/ui/pagination";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -60,7 +61,7 @@ import {
   SemesterBasicsFields,
   type SemesterBasicsValue,
 } from "../components/SemesterBasicsFields";
-import { useAutoSave } from "../hooks/useAutoSave";
+import { isAutoSaveError, useAutoSave } from "../hooks/useAutoSave";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { reportError } from "../services/appStatus";
 import api, {
@@ -104,7 +105,7 @@ const getPersistedStepId = (step: StoredStepId): PersistedStepId => (
 );
 
 const getPluginReviewValues = (
-  plugin: SemesterPluginActivation,
+  plugin: Pick<SemesterPluginActivation, "setup_values">,
   draftValues: Record<string, unknown> | undefined,
 ): Record<string, unknown> => ({
   ...(plugin.setup_values ?? {}),
@@ -231,6 +232,7 @@ const getVisibleStepOrder = (setupPlugins: Array<{ plugin_id: string; display_na
 
 const normalizeWizardStep = (step: StoredStepId, setupPlugins: Array<{ plugin_id: string }>): StepId => {
   const fallbackPluginStep = setupPlugins[0] ? getPluginSetupStepId(setupPlugins[0].plugin_id) : "review";
+  const isStaticStep = STATIC_STEP_ORDER.some((entry) => entry.id === step);
 
   if (step === "plugin-setup") {
     return fallbackPluginStep;
@@ -242,7 +244,7 @@ const normalizeWizardStep = (step: StoredStepId, setupPlugins: Array<{ plugin_id
       : fallbackPluginStep;
   }
 
-  return step;
+  return isStaticStep ? step : "basics";
 };
 
 const buildSemesterPluginActivation = (
@@ -390,6 +392,13 @@ const makeInitialBasics = (): BasicsDraft => ({
   reading_week_start: "",
   reading_week_end: "",
 });
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  return fallback;
+};
 
 const isSemesterDraftExistsError = (error: unknown): boolean => {
   if (!axios.isAxiosError(error) || error.response?.status !== 409) {
@@ -689,8 +698,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
 
   useEffect(() => {
     return () => {
-      void basicsFlushRef.current();
-      void pluginSetupFlushRef.current();
+      void basicsFlushRef.current().catch(() => {});
+      void pluginSetupFlushRef.current().catch(() => {});
     };
   }, []);
 
@@ -760,7 +769,9 @@ export const CreateSemesterWizardPage: React.FC = () => {
       setCurrentStep(nextStep);
     } catch (error) {
       console.error("Failed to change Semester wizard step", error);
-      reportError("Failed to change steps. Please retry.");
+      if (!isAutoSaveError(error)) {
+        reportError("Failed to change steps. Please retry.");
+      }
     } finally {
       setIsSavingStep(false);
     }
@@ -886,7 +897,9 @@ export const CreateSemesterWizardPage: React.FC = () => {
       navigate(`/semesters/${result.id}`);
     } catch (error) {
       console.error("Failed to finalize Semester draft", error);
-      reportError("Failed to finalize the Semester. Please retry.");
+      if (!isAutoSaveError(error)) {
+        reportError("Failed to finalize the Semester. Please retry.");
+      }
     } finally {
       setIsFinalizing(false);
     }
@@ -972,6 +985,71 @@ export const CreateSemesterWizardPage: React.FC = () => {
     );
   }
 
+  const isInitialWizardLoading = programQuery.isLoading
+    || currentDraftQuery.isLoading
+    || (Boolean(draftId) && (semesterDetailQuery.isLoading || pluginSystemSetupQuery.isLoading));
+
+  if (isInitialWizardLoading) {
+    return (
+      <Layout breadcrumb={breadcrumb}>
+        <Container className="flex h-[calc(100svh-60px)] flex-col gap-6 overflow-hidden pt-6 pb-0">
+          <section className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
+              <div className="flex flex-col gap-4">
+                <Skeleton className="h-8 w-40" />
+                <Skeleton className="h-px w-full" />
+              </div>
+              <div className="flex flex-col gap-4">
+                <Skeleton className="h-24 w-full rounded-2xl" />
+                <Skeleton className="h-24 w-full rounded-2xl" />
+                <Skeleton className="h-24 w-full rounded-2xl" />
+              </div>
+              <div className="mt-auto flex gap-4">
+                <Skeleton className="h-10 flex-1 rounded-xl sm:max-w-44" />
+                <Skeleton className="h-10 flex-1 rounded-xl sm:ml-auto sm:max-w-44" />
+              </div>
+            </div>
+          </section>
+        </Container>
+      </Layout>
+    );
+  }
+
+  const wizardLoadError = programQuery.error
+    ?? currentDraftQuery.error
+    ?? semesterDetailQuery.error
+    ?? pluginSystemSetupQuery.error;
+
+  if (wizardLoadError) {
+    return (
+      <Layout breadcrumb={breadcrumb}>
+        <Container>
+          <AppEmptyState
+            scenario="unavailable"
+            size="page"
+            title="Semester setup is unavailable"
+            description={getErrorMessage(wizardLoadError, "The wizard data could not be loaded. Please retry.")}
+            primaryAction={(
+              <Button
+                type="button"
+                onClick={() => {
+                  void programQuery.refetch();
+                  void currentDraftQuery.refetch();
+                  if (draftId) {
+                    void semesterDetailQuery.refetch();
+                    void pluginSystemSetupQuery.refetch();
+                  }
+                }}
+              >
+                Retry
+              </Button>
+            )}
+          />
+        </Container>
+      </Layout>
+    );
+  }
+
   if (!programQuery.isLoading && !programQuery.data) {
     return (
       <Layout breadcrumb={breadcrumb}>
@@ -983,10 +1061,19 @@ export const CreateSemesterWizardPage: React.FC = () => {
   }
 
   const courseList = semesterDetailQuery.data?.courses ?? [];
-  const reviewReady = Boolean(currentDraftQuery.data?.review_ready ?? semesterDetailQuery.data?.review_ready);
-  const reviewErrors = currentDraftQuery.data?.review_errors
-    ?? semesterDetailQuery.data?.review_errors
-    ?? [];
+  const reviewErrors = Array.from(
+    new Map(
+      [...(currentDraftQuery.data?.review_errors ?? []), ...(semesterDetailQuery.data?.review_errors ?? [])]
+        .map((error) => [
+          `${error.step}:${error.code}:${error.plugin_id ?? "platform"}:${error.field_path ?? "detail"}:${error.message}`,
+          error,
+        ]),
+    ).values(),
+  );
+  const reviewReady = reviewErrors.length === 0 && Boolean(
+    currentDraftQuery.data?.review_ready
+    || semesterDetailQuery.data?.review_ready,
+  );
   const blockedEnabledPlugins = enabledPlugins.filter((plugin) => !plugin.available);
   const hasBlockedEnabledPlugins = blockedEnabledPlugins.length > 0;
   const courseCount = courseList.length;
@@ -1000,10 +1087,14 @@ export const CreateSemesterWizardPage: React.FC = () => {
     : buildReviewPreviewText(enabledPlugins.map((plugin) => (
       plugin.available ? plugin.display_name : `${plugin.display_name} (blocked)`
     )));
-  const reviewSummaryPlugins = enabledPlugins.filter((plugin) => (
+  const reviewSummaryPlugins = setupPlugins.filter((plugin) => (
     (plugin.setup_summary ?? []).length > 0
     || Boolean(getPluginSetupDefinitionById(plugin.plugin_id)?.ui?.reviewComponent)
   ));
+  const pluginDisplayNameById = new Map(
+    [...pluginCatalog, ...enabledPlugins, ...setupPlugins]
+      .map((plugin) => [plugin.plugin_id, plugin.display_name] as const),
+  );
   const reviewDateRangeValue = basics.start_date && basics.end_date
     ? `${basics.start_date} to ${basics.end_date}`
     : "Start and end dates are not set yet.";
@@ -1306,7 +1397,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
               <CardContent className="space-y-2">
                 <div className="font-medium text-foreground">
                   {getReviewErrorStepLabel(error.step)}
-                  {error.plugin_id ? ` · ${error.plugin_id}` : ""}
+                  {error.plugin_id ? ` · ${pluginDisplayNameById.get(error.plugin_id) ?? error.plugin_id}` : ""}
                 </div>
                 <div className="text-sm text-muted-foreground">{error.message}</div>
               </CardContent>

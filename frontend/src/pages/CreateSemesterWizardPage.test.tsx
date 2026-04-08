@@ -1,6 +1,6 @@
 // input:  [`CreateSemesterWizardPage`, mocked Semester wizard APIs, React Router memory routes, and QueryClient test wrappers]
-// output: [page-level regression tests for Semester basics validation, blank default dates, setup-aware wizard navigation, compact animated bottom navigation labels, draft-conflict-safe resume behavior, finalize handoff safety, unified Program-exit choices, Program-installed plugin filtering, plugin-system-backed setup-step visibility, plugin-system setup rendering, large-step pagination condensation, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
-// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, blank-default-date regressions, draft-create conflict regressions, setup-step drift, activation-vs-plugin-system setup visibility mismatches, pagination overflow regressions, bottom-navigation regressions, unified Program-exit regressions, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, and invalid finalize states]
+// output: [page-level regression tests for Semester basics validation, guarded initial loading and unavailable states, setup-aware wizard navigation, compact animated bottom navigation labels, draft-conflict-safe resume behavior, flush-failure-safe step transitions, plugin-system-backed review rendering, finalize handoff safety, unified Program-exit choices, Program-installed plugin filtering, plugin-system-backed setup-step visibility, large-step pagination condensation, invalid step guards, and stale-refetch no-clobber behavior inside the Semester creation wizard]
+// pos:    [Route test suite guarding the standalone Create Semester wizard host flow against invalid basics input, premature interaction before draft hydration, load-error masking, draft-create conflict regressions, setup-step drift, activation-vs-plugin-system setup/review mismatches, pagination overflow regressions, bottom-navigation regressions, unified Program-exit regressions, stale refetch overwrites, finalize teardown regressions, availability leaks, missing plugin-system setup wiring, and invalid finalize states]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -109,6 +109,16 @@ const renderWizard = () => {
 const flushMicrotasks = async () => {
   await Promise.resolve();
   await Promise.resolve();
+};
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
 };
 
 describe("CreateSemesterWizardPage", () => {
@@ -253,6 +263,47 @@ describe("CreateSemesterWizardPage", () => {
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
   });
 
+  it("keeps the wizard in a loading state until the current draft lookup settles", async () => {
+    const currentDraftDeferred = createDeferred<null>();
+
+    apiMock.getProgram.mockResolvedValue({
+      id: "program-1",
+      name: "Engineering",
+      plugin_installations: [],
+    });
+    apiMock.getCurrentSemesterDraft.mockReturnValue(currentDraftDeferred.promise);
+
+    renderWizard();
+
+    expect(screen.queryByRole("heading", { name: "Basics" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Program" })).not.toBeInTheDocument();
+
+    currentDraftDeferred.resolve(null);
+
+    expect(await screen.findByRole("heading", { name: "Basics" })).toBeInTheDocument();
+  });
+
+  it("shows an explicit unavailable state when loading the current draft fails and can retry", async () => {
+    apiMock.getProgram.mockResolvedValue({
+      id: "program-1",
+      name: "Engineering",
+      plugin_installations: [],
+    });
+    apiMock.getCurrentSemesterDraft
+      .mockRejectedValueOnce(new Error("Draft fetch failed"))
+      .mockResolvedValueOnce(null);
+
+    renderWizard();
+
+    expect(await screen.findByText("Semester setup is unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Draft fetch failed")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("heading", { name: "Basics" })).toBeInTheDocument();
+    expect(apiMock.getCurrentSemesterDraft).toHaveBeenCalledTimes(2);
+  });
+
   it("reuses Semester date-picker validation in the Basics step before navigation", async () => {
     apiMock.getProgram.mockResolvedValue({
       id: "program-1",
@@ -296,6 +347,79 @@ describe("CreateSemesterWizardPage", () => {
     expect(screen.getByText("Feb 16, 2026 - Feb 20, 2026")).toBeInTheDocument();
     expect(screen.getByText("Reading Week must span exactly one Monday-to-Sunday week.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Courses" })).toBeDisabled();
+  });
+
+  it("does not advance when saving Basics fails during a step transition", async () => {
+    apiMock.getProgram.mockResolvedValue({
+      id: "program-1",
+      name: "Engineering",
+      plugin_installations: [],
+    });
+    apiMock.getCurrentSemesterDraft.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "basics",
+      draft_updated_at: "2026-03-27T10:00:00Z",
+      review_ready: false,
+      review_errors: [],
+      plugin_activations: [],
+    });
+    apiMock.getSemester.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "basics",
+      review_ready: false,
+      review_errors: [],
+      courses: [],
+      plugin_activations: [],
+    });
+    apiMock.updateSemesterDraft.mockImplementation(async (_draftId: string, data: Record<string, unknown>) => {
+      if (Object.prototype.hasOwnProperty.call(data, "name")) {
+        throw new Error("save failed");
+      }
+      return {
+        id: "draft-1",
+        program_id: "program-1",
+        name: "Winter 2026",
+        start_date: "2026-01-05",
+        end_date: "2026-04-10",
+        reading_week_start: null,
+        reading_week_end: null,
+        lifecycle_state: "draft",
+        creation_step: String(data.creation_step ?? "basics"),
+        draft_updated_at: "2026-03-27T10:00:00Z",
+        review_ready: false,
+        review_errors: [],
+        plugin_activations: [],
+      };
+    });
+
+    renderWizard();
+
+    expect(await screen.findByRole("heading", { name: "Basics" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Updated Winter 2026" } });
+    fireEvent.click(screen.getByRole("button", { name: "Courses" }));
+
+    await waitFor(() => {
+      expect(reportErrorMock).toHaveBeenCalledWith("Failed to save Semester basics. Please retry.");
+    });
+
+    expect(reportErrorMock).not.toHaveBeenCalledWith("Failed to change steps. Please retry.");
+    expect(screen.getByRole("heading", { name: "Basics" })).toBeInTheDocument();
+    expect(apiMock.updateSemesterDraft).toHaveBeenCalledTimes(1);
   });
 
   it("falls back safely when the server returns an unknown draft step", async () => {
@@ -1167,6 +1291,187 @@ describe("CreateSemesterWizardPage", () => {
     await waitFor(() => {
       expect(document.body.textContent).toContain("Custom review value: enabled");
     });
+  });
+
+  it("uses plugin-system review summaries and display names in the Review step", async () => {
+    apiMock.getProgram.mockResolvedValue({
+      id: "program-1",
+      name: "Engineering",
+      plugin_installations: [
+        {
+          id: "installation-1",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Plugin used for review summary coverage.",
+          author: "Jinyuan",
+          default_version: "workspace",
+          locked: false,
+          version: "workspace",
+          is_enabled: true,
+          auth_state: "not-required",
+          auth_message: null,
+          capabilities: { contexts: ["semester"], available_tab_types: ["mock-setup-plugin"] },
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [],
+            },
+          ],
+          available: true,
+          availability_reason: null,
+          installed: true,
+        },
+      ],
+    });
+    apiMock.getCurrentSemesterDraft.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "review",
+      draft_updated_at: "2026-03-27T10:00:00Z",
+      review_ready: false,
+      review_errors: [],
+      plugin_activations: [
+        {
+          id: "activation-1",
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-1",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Plugin used for review summary coverage.",
+          author: "Jinyuan",
+          locked: false,
+          version: "workspace",
+          is_enabled: true,
+          capabilities: { contexts: ["semester"], available_tab_types: ["mock-setup-plugin"] },
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [],
+            },
+          ],
+          setup_values: {},
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+      ],
+    });
+    apiMock.getSemester.mockResolvedValue({
+      id: "draft-1",
+      program_id: "program-1",
+      name: "Winter 2026",
+      start_date: "2026-01-05",
+      end_date: "2026-04-10",
+      reading_week_start: null,
+      reading_week_end: null,
+      lifecycle_state: "draft",
+      creation_step: "review",
+      review_ready: false,
+      review_errors: [
+        {
+          step: "plugin-setup",
+          code: "missing-value",
+          message: "Select a default mock mode before finalizing.",
+          field_path: "mockMode",
+          plugin_id: "mock-setup-plugin",
+        },
+      ],
+      courses: [],
+      plugin_activations: [
+        {
+          id: "activation-1",
+          semester_id: "draft-1",
+          program_plugin_installation_id: "installation-1",
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Plugin used for review summary coverage.",
+          author: "Jinyuan",
+          locked: false,
+          version: "workspace",
+          is_enabled: true,
+          capabilities: { contexts: ["semester"], available_tab_types: ["mock-setup-plugin"] },
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [],
+            },
+          ],
+          setup_values: {},
+          setup_summary: [],
+          review_errors: [],
+          available: true,
+          availability_reason: null,
+        },
+      ],
+    });
+    apiMock.getSemesterPluginSystemSetup.mockResolvedValue({
+      semester_id: "draft-1",
+      step: "plugin-setup",
+      plugins: [
+        {
+          plugin_id: "mock-setup-plugin",
+          display_name: "Mock Setup Plugin",
+          description: "Plugin used for review summary coverage.",
+          long_description: "Plugin used for review summary coverage.",
+          is_enabled: true,
+          available: true,
+          availability_reason: null,
+          setup_sections: [
+            {
+              id: "mock-setup",
+              title: "Mock Setup",
+              description: "Configure the mock plugin before activation.",
+              fields: [],
+            },
+          ],
+          setup_values: { mockMode: "guided" },
+          setup_summary: [
+            {
+              id: "summary",
+              title: "Review Summary",
+              description: "Latest plugin-system summary.",
+              items: [
+                {
+                  path: "mockMode",
+                  label: "Mock mode",
+                  value: "Guided",
+                },
+              ],
+            },
+          ],
+          review_errors: [],
+        },
+      ],
+    });
+
+    renderWizard();
+
+    const reviewSummarySection = (await screen.findByText("Plugin setup summary")).parentElement;
+    expect(reviewSummarySection).not.toBeNull();
+    const reviewTrigger = reviewSummarySection!.querySelector<HTMLButtonElement>('[data-slot="accordion-trigger"]');
+    expect(reviewTrigger).not.toBeNull();
+    fireEvent.click(reviewTrigger!);
+
+    await waitFor(() => {
+      expect(document.body.textContent).toContain("Mock mode");
+      expect(document.body.textContent).toContain("Guided");
+    });
+
+    expect(screen.getByText("Plugin Setup · Mock Setup Plugin")).toBeInTheDocument();
+    expect(screen.queryByText("Plugin Setup · mock-setup-plugin")).not.toBeInTheDocument();
   });
 
   it("recovers from draft-create conflicts by resuming the existing draft and updating it", async () => {

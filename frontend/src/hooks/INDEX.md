@@ -7,7 +7,7 @@ Includes stale-request-safe fetch primitives, governed runtime tab/widget orches
 | File | Role | Description |
 |------|------|-------------|
 | __tests__/ | Subdirectory | Test cases for modules in this folder. |
-| useAutoSave.ts | Hook module | Shared settings auto-save scheduler with structural snapshot comparison, debounce/max-wait throttling, validation gates, save-state feedback, pause-after-error behavior until the draft changes again, and browser-safe timer handle typing for mixed DOM/Node TS environments. |
+| useAutoSave.ts | Hook module | Shared settings auto-save scheduler with structural snapshot comparison, debounce/max-wait throttling, validation gates, save-state feedback, pause-after-error behavior until the draft changes again, browser-safe timer handle typing for mixed DOM/Node TS environments, and direct `flush()` rejection so navigation/finalize flows can fail closed instead of silently advancing after a save error. |
 | useCourseGradebookQuery.ts | Hook module | Compatibility re-export for Course gradebook hooks that now live in the app-side data resource layer. |
 | useCourseScheduleQueries.ts | Hook module | Compatibility re-export for Course schedule query builders, hooks, and invalidation helpers now owned by `src/data/resources/courseSchedule.ts`. |
 | use-mobile.ts | Hook module | Mobile breakpoint hook (640px) with immediate client-side width initialization to avoid first-frame responsive surface mismatches. |

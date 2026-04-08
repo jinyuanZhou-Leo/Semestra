@@ -1010,40 +1010,6 @@ def import_program_courses(
     return schemas.LmsCourseImportResponse(integration_id=integration.id, results=results)
 
 
-def import_semester_with_courses(
-    db: Session,
-    user_id: str,
-    program_id: str,
-    payload: schemas.LmsSemesterImportRequest,
-) -> tuple[schemas.Semester, schemas.LmsCourseImportResponse]:
-    program, integration = _require_program_integration(db, user_id, program_id)
-    resolved_start_date, resolved_end_date = crud.get_default_semester_dates()
-    start_date = payload.start_date or resolved_start_date
-    end_date = payload.end_date or resolved_end_date
-
-    semester = crud.create_semester(
-        db,
-        schemas.SemesterCreate(
-            name=payload.name,
-            start_date=start_date,
-            end_date=end_date,
-            reading_week_start=payload.reading_week_start,
-            reading_week_end=payload.reading_week_end,
-        ),
-        program.id,
-    )
-    import_response = import_program_courses(
-        db,
-        user_id,
-        program_id,
-        schemas.LmsCourseImportRequest(
-            external_course_ids=payload.external_course_ids,
-            semester_id=semester.id,
-        ),
-    )
-    return schemas.Semester.model_validate(semester, from_attributes=True), import_response
-
-
 def list_course_assignments(
     db: Session,
     user_id: str,
