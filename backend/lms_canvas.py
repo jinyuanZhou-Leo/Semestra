@@ -37,13 +37,17 @@ from lms_providers import (
     LmsQuizSummaryData,
 )
 
+CANVAS_API_PREFIX = "/api/v1"
+CANVAS_REQUEST_TIMEOUT_SECONDS = 30
+CANVAS_FILE_STREAM_CHUNK_SIZE = 64 * 1024
+
 
 def normalize_canvas_base_url(raw_value: str) -> str:
     normalized = raw_value.strip().rstrip("/")
     parsed = urlparse(normalized)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas base_url must be a valid http or https URL.")
-    if parsed.path.rstrip("/") == "/api/v1":
+    if parsed.path.rstrip("/") == CANVAS_API_PREFIX:
         raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas base_url must not include the /api/v1 suffix.")
     if parsed.query or parsed.fragment:
         raise LmsProviderError("LMS_CONFIG_INVALID", "Canvas base_url must not include query parameters or fragments.")
@@ -225,10 +229,15 @@ class CanvasLmsProvider:
         *,
         params: Optional[dict[str, Any]] = None,
     ) -> Any:
-        request_url = f"{base_url}/api/v1{path}"
+        request_url = f"{base_url}{CANVAS_API_PREFIX}{path}"
         expected_origin = _validate_outbound_canvas_url(base_url)
         _validate_outbound_canvas_url(request_url, expected_origin=expected_origin)
-        response = session.get(request_url, params=params, timeout=30, allow_redirects=False)
+        response = session.get(
+            request_url,
+            params=params,
+            timeout=CANVAS_REQUEST_TIMEOUT_SECONDS,
+            allow_redirects=False,
+        )
         self._raise_for_redirect(response)
         response.raise_for_status()
         return response.json()
@@ -241,7 +250,12 @@ class CanvasLmsProvider:
         expected_origin: Optional[str] = None,
     ) -> requests.Response:
         _validate_outbound_canvas_url(url, expected_origin=expected_origin)
-        response = session.get(url, timeout=30, allow_redirects=False, stream=True)
+        response = session.get(
+            url,
+            timeout=CANVAS_REQUEST_TIMEOUT_SECONDS,
+            allow_redirects=False,
+            stream=True,
+        )
         self._raise_for_redirect(response)
         response.raise_for_status()
         return response
@@ -258,7 +272,12 @@ class CanvasLmsProvider:
         for _ in range(5):
             next_origin = _validate_outbound_canvas_url(next_url)
             requester = session.get if next_origin == canvas_origin else requests.get
-            response = requester(next_url, timeout=30, allow_redirects=False, stream=True)
+            response = requester(
+                next_url,
+                timeout=CANVAS_REQUEST_TIMEOUT_SECONDS,
+                allow_redirects=False,
+                stream=True,
+            )
 
             if 300 <= response.status_code < 400:
                 location = response.headers.get("Location")
@@ -289,14 +308,19 @@ class CanvasLmsProvider:
         *,
         params: Optional[dict[str, Any]] = None,
     ) -> list[dict[str, Any]]:
-        next_url = f"{base_url}/api/v1{path}"
+        next_url = f"{base_url}{CANVAS_API_PREFIX}{path}"
         expected_origin = _validate_outbound_canvas_url(base_url)
         next_params = dict(params or {})
         items: list[dict[str, Any]] = []
 
         while next_url:
             _validate_outbound_canvas_url(next_url, expected_origin=expected_origin)
-            response = session.get(next_url, params=next_params, timeout=30, allow_redirects=False)
+            response = session.get(
+                next_url,
+                params=next_params,
+                timeout=CANVAS_REQUEST_TIMEOUT_SECONDS,
+                allow_redirects=False,
+            )
             self._raise_for_redirect(response)
             response.raise_for_status()
             payload = response.json()
@@ -853,7 +877,7 @@ class CanvasLmsProvider:
 
             def _iter_content() -> Iterator[bytes]:
                 try:
-                    for chunk in response.iter_content(chunk_size=64 * 1024):
+                    for chunk in response.iter_content(chunk_size=CANVAS_FILE_STREAM_CHUNK_SIZE):
                         if chunk:
                             yield chunk
                 finally:

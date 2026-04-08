@@ -111,6 +111,41 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertIsNotNone(stored_draft)
         self.assertEqual(stored_draft.tabs, [])
 
+    def test_build_plugin_type_index_rejects_duplicate_tab_types(self) -> None:
+        duplicate_definitions = {
+            "plugin-a": plugin_registry.PluginDefinition(
+                plugin_id="plugin-a",
+                metadata=plugin_registry.PluginMetadata(
+                    kind="external",
+                    visibility="public",
+                    display_name="A",
+                    description="A",
+                    author="Test",
+                ),
+                capabilities={"available_tab_types": ["shared-tab"]},
+            ),
+            "plugin-b": plugin_registry.PluginDefinition(
+                plugin_id="plugin-b",
+                metadata=plugin_registry.PluginMetadata(
+                    kind="external",
+                    visibility="public",
+                    display_name="B",
+                    description="B",
+                    author="Test",
+                ),
+                capabilities={"available_tab_types": ["shared-tab"]},
+            ),
+        }
+
+        with self.assertRaises(RuntimeError) as context:
+            plugin_registry._build_plugin_type_index(
+                duplicate_definitions,
+                capability_key="available_tab_types",
+                label="Tab type",
+            )
+
+        self.assertIn("shared-tab", str(context.exception))
+
     def test_database_enforces_one_draft_per_program(self) -> None:
         program = self._create_program()
         self.db.add(
@@ -361,7 +396,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         )
 
         with self.assertRaises(HTTPException) as semester_context:
-            main.update_semester_runtime_tab_settings(
+            main.upsert_semester_tab_setting(
                 semester.id,
                 "builtin-gradebook",
                 schemas.TabSettingUpdate(settings='{"defaultView":"grading"}'),
@@ -372,7 +407,7 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertIsNone(crud.get_tab_setting(self.db, "builtin-gradebook", semester_id=semester.id))
 
         with self.assertRaises(HTTPException) as course_context:
-            main.update_course_runtime_tab_settings(
+            main.upsert_course_tab_setting(
                 course.id,
                 "builtin-gradebook",
                 schemas.TabSettingUpdate(settings='{"showWeighted":true}'),

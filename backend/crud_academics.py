@@ -254,6 +254,14 @@ def _validate_course_semester_assignment(db: Session, course: models.Course, sem
         raise CourseSemesterAssignmentError("SEMESTER_PROGRAM_MISMATCH")
 
 
+def _mark_draft_semester_updated(db: Session, semester: models.Semester | None) -> None:
+    if semester is None or semester.lifecycle_state != "draft":
+        return
+    semester.draft_updated_at = _now_utc_iso()
+    _refresh_semester_review_ready(db, semester)
+    db.add(semester)
+
+
 def create_course(
     db: Session,
     course: schemas.CourseCreate,
@@ -262,6 +270,7 @@ def create_course(
     *,
     commit: bool = True,
 ):
+    _validate_course_semester_assignment(db, models.Course(program_id=program_id), semester_id)
     db_course = models.Course(**course.model_dump(), program_id=program_id, semester_id=semester_id)
     db.add(db_course)
     if commit:
@@ -281,10 +290,8 @@ def create_course(
         db.refresh(db_course)
 
     logic.update_course_stats(db_course, db, commit=commit)
-    if db_course.semester is not None and db_course.semester.lifecycle_state == "draft":
-        db_course.semester.draft_updated_at = _now_utc_iso()
-        _refresh_semester_review_ready(db, db_course.semester)
-        db.add(db_course.semester)
+    if db_course.semester is not None:
+        _mark_draft_semester_updated(db, db_course.semester)
         if commit:
             db.commit()
             db.refresh(db_course.semester)
@@ -301,31 +308,27 @@ def update_course(db: Session, course_id: str, course_update: schemas.CourseUpda
     update_data = course_update.model_dump(exclude_unset=True)
     if "semester_id" in update_data:
         _validate_course_semester_assignment(db, db_course, update_data["semester_id"])
-    for key, value in update_data.items():
-        setattr(db_course, key, value)
-    if db_course.program:
-        _sync_program_subject_color_map(db_course.program)
-    db.add(db_course)
-    db.commit()
-    db.refresh(db_course)
+    try:
+        for key, value in update_data.items():
+            setattr(db_course, key, value)
+        if db_course.program and _sync_program_subject_color_map(db_course.program):
+            db.add(db_course.program)
+        db.add(db_course)
+        db.flush()
 
-    logic.update_course_stats(db_course, db)
-    if previous_semester_id and previous_semester_id != db_course.semester_id:
-        previous_semester = db.query(models.Semester).filter(models.Semester.id == previous_semester_id).first()
-        if previous_semester is not None:
-            logic.update_semester_stats(previous_semester, db)
-            if previous_semester.lifecycle_state == "draft":
-                previous_semester.draft_updated_at = _now_utc_iso()
-                _refresh_semester_review_ready(db, previous_semester)
-                db.add(previous_semester)
-                db.commit()
+        logic.update_course_stats(db_course, db, commit=False)
+        if previous_semester_id and previous_semester_id != db_course.semester_id:
+            previous_semester = db.query(models.Semester).filter(models.Semester.id == previous_semester_id).first()
+            if previous_semester is not None:
+                logic.update_semester_stats(previous_semester, db, commit=False)
+                _mark_draft_semester_updated(db, previous_semester)
 
-    current_semester = db_course.semester
-    if current_semester is not None and current_semester.lifecycle_state == "draft":
-        current_semester.draft_updated_at = _now_utc_iso()
-        _refresh_semester_review_ready(db, current_semester)
-        db.add(current_semester)
+        _mark_draft_semester_updated(db, db_course.semester)
         db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(db_course)
     return db_course
 
 
@@ -336,23 +339,24 @@ def delete_course(db: Session, course_id: str):
 
     previous_semester_id = db_course.semester_id
     program_id = db_course.program_id
-    db.delete(db_course)
-    db.commit()
+    try:
+        db.delete(db_course)
+        db.flush()
 
-    if previous_semester_id:
-        previous_semester = db.query(models.Semester).filter(models.Semester.id == previous_semester_id).first()
-        if previous_semester is not None:
-            logic.update_semester_stats(previous_semester, db)
-            if previous_semester.lifecycle_state == "draft":
-                previous_semester.draft_updated_at = _now_utc_iso()
-                _refresh_semester_review_ready(db, previous_semester)
-                db.add(previous_semester)
-                db.commit()
+        if previous_semester_id:
+            previous_semester = db.query(models.Semester).filter(models.Semester.id == previous_semester_id).first()
+            if previous_semester is not None:
+                logic.update_semester_stats(previous_semester, db, commit=False)
+                _mark_draft_semester_updated(db, previous_semester)
 
-    if program_id:
-        program = db.query(models.Program).filter(models.Program.id == program_id).first()
-        if program is not None and _sync_program_subject_color_map(program):
-            db.add(program)
-            db.commit()
+        if program_id:
+            program = db.query(models.Program).filter(models.Program.id == program_id).first()
+            if program is not None and _sync_program_subject_color_map(program):
+                db.add(program)
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return db_course

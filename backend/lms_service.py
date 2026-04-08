@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 import json
+import logging
 import re
 from typing import Any, Iterable, Iterator, Optional
 
@@ -45,6 +46,7 @@ from lms_providers import (
 
 CANVAS_CALENDAR_CONTEXT_BATCH_SIZE = 10
 COURSE_CODE_PATTERN = re.compile(r"\b([A-Za-z]{2,6})[\s-]*([0-9]{2,4}[A-Za-z0-9]*)\b")
+logger = logging.getLogger(__name__)
 
 
 class LmsServiceError(Exception):
@@ -65,6 +67,7 @@ def _parse_json_dict(raw_value: str | None) -> dict[str, Any]:
     try:
         parsed = json.loads(raw_value)
     except Exception:
+        logger.debug("Failed to parse LMS JSON object payload.", exc_info=True)
         return {}
     return parsed if isinstance(parsed, dict) else {}
 
@@ -110,6 +113,7 @@ def _integration_to_schema(record: models.LmsIntegration) -> schemas.LmsIntegrat
         try:
             masked_api_key = _provider_from_integration(record).mask_credentials(_credentials_from_record(record))
         except Exception:
+            logger.debug("Failed to mask stored LMS credentials for integration '%s'.", record.id, exc_info=True)
             masked_api_key = None
     return schemas.LmsIntegrationResponse(
         id=record.id,
@@ -532,6 +536,41 @@ def _set_record_error(record: models.LmsIntegration, error: LmsServiceError) -> 
     _touch_timestamps(record)
 
 
+def _raise_linked_read_error(
+    db: Session,
+    integration: models.LmsIntegration,
+    link: models.CourseLmsLink,
+    exc: Exception,
+) -> None:
+    mapped = _map_lms_exception(exc)
+    _set_record_error(integration, mapped)
+    link.last_error_code = mapped.code
+    link.last_error_message = mapped.message
+    _touch_timestamps(link)
+    db.add(integration)
+    db.add(link)
+    db.commit()
+    raise mapped from exc
+
+
+def _raise_linked_read_error_for_links(
+    db: Session,
+    integration: models.LmsIntegration,
+    links: Iterable[models.CourseLmsLink],
+    exc: Exception,
+) -> None:
+    mapped = _map_lms_exception(exc)
+    _set_record_error(integration, mapped)
+    db.add(integration)
+    for link in links:
+        link.last_error_code = mapped.code
+        link.last_error_message = mapped.message
+        _touch_timestamps(link)
+        db.add(link)
+    db.commit()
+    raise mapped from exc
+
+
 def _provider_from_integration(record: models.LmsIntegration):
     return get_lms_provider(record.provider)
 
@@ -915,33 +954,26 @@ def import_program_courses(
 
     user = crud.get_user(db, user_id)
     default_credit = float(crud.get_user_setting_dict(user).get("default_course_credit", crud.DEFAULT_COURSE_CREDIT))
-    results: list[schemas.LmsCourseImportResult] = []
+    created_courses: list[tuple[str, models.Course]] = []
 
-    for external_course_id in payload.external_course_ids:
-        existing_conflict = (
-            db.query(models.CourseLmsLink)
-            .filter(
-                models.CourseLmsLink.program_id == program.id,
-                models.CourseLmsLink.lms_integration_id == integration.id,
-                models.CourseLmsLink.external_course_id == external_course_id,
-            )
-            .first()
-        )
-        if existing_conflict is not None:
-            results.append(
-                _build_import_result(
-                    external_course_id,
-                    status="conflict",
-                    error=LmsServiceError(
-                        "COURSE_LMS_LINK_CONFLICT",
-                        "This LMS course is already linked to another Course in the Program.",
-                        status_code=409,
-                    ),
+    try:
+        for external_course_id in payload.external_course_ids:
+            existing_conflict = (
+                db.query(models.CourseLmsLink)
+                .filter(
+                    models.CourseLmsLink.program_id == program.id,
+                    models.CourseLmsLink.lms_integration_id == integration.id,
+                    models.CourseLmsLink.external_course_id == external_course_id,
                 )
+                .first()
             )
-            continue
+            if existing_conflict is not None:
+                raise LmsServiceError(
+                    "COURSE_LMS_LINK_CONFLICT",
+                    "This LMS course is already linked to another Course in the Program.",
+                    status_code=409,
+                )
 
-        try:
             course_summary = _fetch_external_course(integration, external_course_id)
             course = crud.create_course(
                 db=db,
@@ -953,6 +985,7 @@ def import_program_courses(
                 ),
                 program_id=program.id,
                 semester_id=semester.id if semester is not None else None,
+                commit=False,
             )
             link = models.CourseLmsLink(
                 course_id=course.id,
@@ -963,14 +996,17 @@ def import_program_courses(
             )
             _populate_course_link_from_summary(link, course_summary)
             db.add(link)
-            db.commit()
-            db.refresh(course)
-            results.append(_build_import_result(external_course_id, status="created", course=course))
-        except Exception as exc:
-            mapped = _map_lms_exception(exc)
-            db.rollback()
-            results.append(_build_import_result(external_course_id, status="conflict", error=mapped))
+            db.flush()
+            created_courses.append((external_course_id, course))
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise _map_lms_exception(exc) from exc
 
+    results: list[schemas.LmsCourseImportResult] = []
+    for external_course_id, course in created_courses:
+        db.refresh(course)
+        results.append(_build_import_result(external_course_id, status="created", course=course))
     return schemas.LmsCourseImportResponse(integration_id=integration.id, results=results)
 
 
@@ -1048,15 +1084,7 @@ def list_course_assignments(
             ]
         )
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def list_course_grades(
@@ -1080,15 +1108,7 @@ def list_course_grades(
         db.commit()
         return schemas.LmsGradeListResponse(items=[_grade_to_schema(course, item) for item in grades])
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def list_course_pages(
@@ -1112,15 +1132,7 @@ def list_course_pages(
         db.commit()
         return schemas.LmsPageListResponse(items=[_page_summary_to_schema(item) for item in pages])
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def list_course_quizzes(
@@ -1144,15 +1156,7 @@ def list_course_quizzes(
         db.commit()
         return schemas.LmsQuizListResponse(items=[_quiz_to_schema(item) for item in quizzes])
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def get_course_syllabus(
@@ -1176,15 +1180,7 @@ def get_course_syllabus(
         db.commit()
         return _syllabus_to_schema(syllabus)
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def get_course_page(
@@ -1209,15 +1205,7 @@ def get_course_page(
         db.commit()
         return _page_detail_to_schema(page)
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def get_course_navigation(
@@ -1241,15 +1229,7 @@ def get_course_navigation(
         db.commit()
         return _navigation_to_schema(navigation)
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def list_course_announcements(
@@ -1273,15 +1253,7 @@ def list_course_announcements(
         db.commit()
         return schemas.LmsAnnouncementListResponse(items=[_announcement_to_schema(item) for item in announcements])
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def list_course_modules(
@@ -1305,15 +1277,7 @@ def list_course_modules(
         db.commit()
         return schemas.LmsModuleListResponse(items=[_module_to_schema(item) for item in modules])
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def list_course_module_items(
@@ -1338,15 +1302,7 @@ def list_course_module_items(
         db.commit()
         return schemas.LmsModuleItemListResponse(items=[_module_item_to_schema(item) for item in items])
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def get_course_module_file(
@@ -1383,15 +1339,7 @@ def get_course_module_file(
         db.commit()
         return _module_file_to_schema(course_id, module_id, module_item_id, file_data)
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        link.last_error_code = mapped.code
-        link.last_error_message = mapped.message
-        _touch_timestamps(link)
-        db.add(integration)
-        db.add(link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error(db, integration, link, exc)
 
 
 def open_course_module_file(
@@ -1515,16 +1463,12 @@ def list_semester_calendar_events(
             db.add(course.lms_link)
         db.commit()
     except Exception as exc:
-        mapped = _map_lms_exception(exc)
-        _set_record_error(integration, mapped)
-        db.add(integration)
-        for course in linked_courses:
-            course.lms_link.last_error_code = mapped.code
-            course.lms_link.last_error_message = mapped.message
-            _touch_timestamps(course.lms_link)
-            db.add(course.lms_link)
-        db.commit()
-        raise mapped from exc
+        _raise_linked_read_error_for_links(
+            db,
+            integration,
+            [course.lms_link for course in linked_courses if course.lms_link is not None],
+            exc,
+        )
 
     merged_events: list[LmsCalendarEventSummaryData] = []
     seen_identities: set[tuple[str, str, str, str, str]] = set()

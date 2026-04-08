@@ -187,6 +187,11 @@ def _setup_schema_path(directory_name: str) -> Path:
     return _plugin_manifest_root() / f"{directory_name}.setup.schema.json"
 
 
+@functools.cache
+def _setup_schema_exists(directory_name: str) -> bool:
+    return _setup_schema_path(directory_name).exists()
+
+
 def _host_policy_path() -> Path:
     return _plugin_authoring_root() / "host-policy.json"
 
@@ -313,6 +318,49 @@ def _load_manifest_context_map(
     return normalized_map
 
 
+def _load_manifest_contributions(
+    plugin_id: str,
+    raw_entries: list[Any],
+    *,
+    contribution_kind: str,
+) -> dict[str, Any]:
+    available_types: list[str] = []
+    allowed_contexts: dict[str, list[str]] = {}
+    contexts: set[str] = set()
+
+    for raw_entry in raw_entries:
+        if not isinstance(raw_entry, dict):
+            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' {contribution_kind} definition must be an object.")
+        contribution_type = raw_entry.get("type")
+        if not isinstance(contribution_type, str) or not contribution_type.strip():
+            _raise_manifest_error(
+                f"Plugin descriptor '{plugin_id}' has a {contribution_kind} definition with an empty type."
+            )
+        contribution_contexts = _load_manifest_string_list(
+            plugin_id,
+            f"{contribution_kind}s.{contribution_type}.contexts",
+            raw_entry.get("contexts"),
+        )
+        available_types.append(contribution_type)
+        allowed_contexts[contribution_type] = contribution_contexts
+        contexts.update(contribution_contexts)
+
+    return {
+        "available_types": available_types,
+        "allowed_contexts": allowed_contexts,
+        "contexts": sorted(contexts),
+    }
+
+
+def _load_settings_panel_contexts(plugin_id: str, raw_settings_panels: list[Any]) -> set[str]:
+    contexts: set[str] = set()
+    for raw_settings_section in raw_settings_panels:
+        if not isinstance(raw_settings_section, dict):
+            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' settings section must be an object.")
+        contexts.update(_load_manifest_string_list(plugin_id, "settings.panels.contexts", raw_settings_section.get("contexts")))
+    return contexts
+
+
 def _load_plugin_capabilities(plugin_id: str, raw_entry: dict[str, Any]) -> dict[str, Any]:
     raw_tabs = raw_entry.get("tabs") or []
     raw_widgets = raw_entry.get("widgets") or []
@@ -327,50 +375,22 @@ def _load_plugin_capabilities(plugin_id: str, raw_entry: dict[str, Any]) -> dict
     if not isinstance(raw_settings_panels, list):
         _raise_manifest_error(f"Plugin descriptor '{plugin_id}' field 'settings.panels' must be a JSON array.")
 
-    contexts: set[str] = set()
-    available_tab_types: list[str] = []
-    available_widget_types: list[str] = []
-    tab_allowed_contexts: dict[str, list[str]] = {}
-    widget_allowed_contexts: dict[str, list[str]] = {}
-
-    for raw_tab in raw_tabs:
-        if not isinstance(raw_tab, dict):
-            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' tab definition must be an object.")
-        tab_type = raw_tab.get("type")
-        if not isinstance(tab_type, str) or not tab_type.strip():
-            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' has a tab definition with an empty type.")
-        tab_contexts = _load_manifest_string_list(plugin_id, f"tabs.{tab_type}.contexts", raw_tab.get("contexts"))
-        available_tab_types.append(tab_type)
-        tab_allowed_contexts[tab_type] = tab_contexts
-        contexts.update(tab_contexts)
-
-    for raw_widget in raw_widgets:
-        if not isinstance(raw_widget, dict):
-            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' widget definition must be an object.")
-        widget_type = raw_widget.get("type")
-        if not isinstance(widget_type, str) or not widget_type.strip():
-            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' has a widget definition with an empty type.")
-        widget_contexts = _load_manifest_string_list(plugin_id, f"widgets.{widget_type}.contexts", raw_widget.get("contexts"))
-        available_widget_types.append(widget_type)
-        widget_allowed_contexts[widget_type] = widget_contexts
-        contexts.update(widget_contexts)
-
-    for raw_settings_section in raw_settings_panels:
-        if not isinstance(raw_settings_section, dict):
-            _raise_manifest_error(f"Plugin descriptor '{plugin_id}' settings section must be an object.")
-        contexts.update(_load_manifest_string_list(plugin_id, "settings.panels.contexts", raw_settings_section.get("contexts")))
+    tab_capabilities = _load_manifest_contributions(plugin_id, raw_tabs, contribution_kind="tab")
+    widget_capabilities = _load_manifest_contributions(plugin_id, raw_widgets, contribution_kind="widget")
+    settings_contexts = _load_settings_panel_contexts(plugin_id, raw_settings_panels)
+    contexts = set(tab_capabilities["contexts"]) | set(widget_capabilities["contexts"]) | settings_contexts
 
     directory_name = raw_entry.get("_directory_name")
-    has_setup_schema = isinstance(directory_name, str) and _setup_schema_path(directory_name).exists()
+    has_setup_schema = isinstance(directory_name, str) and _setup_schema_exists(directory_name)
     host_policy = HOST_POLICY_BY_PLUGIN_ID.get(plugin_id) or {}
     kind = host_policy.get("kind", "external")
 
     return {
         "contexts": sorted(contexts),
-        "available_tab_types": available_tab_types,
-        "available_widget_types": available_widget_types,
-        "tab_allowed_contexts": tab_allowed_contexts,
-        "widget_allowed_contexts": widget_allowed_contexts,
+        "available_tab_types": tab_capabilities["available_types"],
+        "available_widget_types": widget_capabilities["available_types"],
+        "tab_allowed_contexts": tab_capabilities["allowed_contexts"],
+        "widget_allowed_contexts": widget_capabilities["allowed_contexts"],
         "has_settings": bool(raw_settings_panels) or has_setup_schema,
         "supports_unassigned_course": (
             "course" in contexts
@@ -484,6 +504,24 @@ def _build_plugin_definitions(
     return runtime_definitions
 
 
+def _build_plugin_type_index(
+    definitions: dict[str, PluginDefinition],
+    *,
+    capability_key: str,
+    label: str,
+) -> dict[str, str]:
+    type_index: dict[str, str] = {}
+    for plugin_id, definition in definitions.items():
+        for contribution_type in definition.capabilities.get(capability_key, []):
+            existing_plugin_id = type_index.get(contribution_type)
+            if existing_plugin_id is not None and existing_plugin_id != plugin_id:
+                _raise_manifest_error(
+                    f"{label} '{contribution_type}' is declared by both '{existing_plugin_id}' and '{plugin_id}'."
+                )
+            type_index[contribution_type] = plugin_id
+    return type_index
+
+
 HOST_REGISTRY_OVERRIDES = PLUGIN_REGISTRY_OVERRIDES
 MERGED_REGISTRY_DEFINITIONS = _merge_registry_definitions()
 
@@ -499,16 +537,16 @@ HOST_RESERVED_TAB_TYPES = {
     if definition.kind == "host-shell"
     for tab_type in definition.capabilities.get("available_tab_types", [])
 }
-TAB_TYPE_TO_PLUGIN_ID = {
-    tab_type: plugin_id
-    for plugin_id, definition in PLUGIN_DEFINITIONS.items()
-    for tab_type in definition.capabilities.get("available_tab_types", [])
-}
-WIDGET_TYPE_TO_PLUGIN_ID = {
-    widget_type: plugin_id
-    for plugin_id, definition in PLUGIN_DEFINITIONS.items()
-    for widget_type in definition.capabilities.get("available_widget_types", [])
-}
+TAB_TYPE_TO_PLUGIN_ID = _build_plugin_type_index(
+    PLUGIN_DEFINITIONS,
+    capability_key="available_tab_types",
+    label="Tab type",
+)
+WIDGET_TYPE_TO_PLUGIN_ID = _build_plugin_type_index(
+    PLUGIN_DEFINITIONS,
+    capability_key="available_widget_types",
+    label="Widget type",
+)
 
 def _load_manifest_field(
     plugin_id: str,
@@ -573,6 +611,134 @@ def _load_manifest_field(
     )
 
 
+def _validate_plugin_setup_schema_shape(
+    plugin_id: str,
+    schema_path: Path,
+    schema_value: Any,
+    definitions: dict[str, PluginSetupDefinition],
+) -> tuple[list[Any], list[Any]]:
+    if not isinstance(schema_value, dict):
+        _raise_manifest_error(f"Plugin setup schema '{schema_path}' must be a JSON object.")
+
+    raw_sections = schema_value.get("sections") or []
+    raw_validation_rules = schema_value.get("validation_rules") or []
+    if plugin_id not in PLUGIN_DEFINITIONS:
+        _raise_manifest_error(f"Plugin setup schema references unknown plugin_id '{plugin_id}'.")
+    if plugin_id in definitions:
+        _raise_manifest_error(f"Plugin setup schema repeats plugin_id '{plugin_id}'.")
+    if not isinstance(raw_sections, list):
+        _raise_manifest_error(f"Plugin setup schema '{plugin_id}' has non-array sections.")
+    if not isinstance(raw_validation_rules, list):
+        _raise_manifest_error(f"Plugin setup schema '{plugin_id}' has non-array validation_rules.")
+    return raw_sections, raw_validation_rules
+
+
+def _load_plugin_setup_section_fields(
+    plugin_id: str,
+    section_id: str,
+    section_fields: list[Any],
+    field_order: list[str],
+    field_map: dict[str, PluginSetupFieldDefinition],
+) -> list[PluginSetupFieldDefinition]:
+    normalized_section_fields: list[PluginSetupFieldDefinition] = []
+    section_paths: set[str] = set()
+
+    for raw_section_field in section_fields:
+        if not isinstance(raw_section_field, dict):
+            _raise_manifest_error(
+                f"Plugin setup schema '{plugin_id}' section '{section_id}' contains a non-object field."
+            )
+        field_path = raw_section_field.get("path")
+        if not isinstance(field_path, str) or not field_path.strip():
+            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' section '{section_id}' has an empty field path.")
+        if field_path in section_paths:
+            _raise_manifest_error(
+                f"Plugin setup schema '{plugin_id}' section '{section_id}' repeats field '{field_path}'."
+            )
+        section_paths.add(field_path)
+
+        section_field_definition = _load_manifest_field(plugin_id, raw_section_field)
+        existing_field = field_map.get(field_path)
+        if existing_field is None:
+            field_map[field_path] = section_field_definition
+            field_order.append(field_path)
+        elif section_field_definition != existing_field:
+            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' field '{field_path}' diverges across sections.")
+        normalized_section_fields.append(field_map[field_path])
+
+    return normalized_section_fields
+
+
+def _load_plugin_setup_sections(
+    plugin_id: str,
+    raw_sections: list[Any],
+) -> tuple[list[str], dict[str, PluginSetupFieldDefinition], list[PluginSetupSectionDefinition]]:
+    field_order: list[str] = []
+    field_map: dict[str, PluginSetupFieldDefinition] = {}
+    sections: list[PluginSetupSectionDefinition] = []
+    section_ids: set[str] = set()
+
+    for raw_section in raw_sections:
+        if not isinstance(raw_section, dict):
+            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' contains a non-object section.")
+        section_id = raw_section.get("id")
+        section_title = raw_section.get("title")
+        section_description = raw_section.get("description") or ""
+        section_fields = raw_section.get("fields") or []
+        if not isinstance(section_id, str) or not section_id.strip():
+            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' has a section with an empty id.")
+        if section_id in section_ids:
+            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' repeats section id '{section_id}'.")
+        section_ids.add(section_id)
+        if not isinstance(section_title, str) or not section_title.strip():
+            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' section '{section_id}' has an empty title.")
+        if not isinstance(section_fields, list) or not section_fields:
+            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' section '{section_id}' must declare fields.")
+
+        normalized_fields = _load_plugin_setup_section_fields(
+            plugin_id,
+            section_id,
+            section_fields,
+            field_order,
+            field_map,
+        )
+        sections.append(
+            PluginSetupSectionDefinition(
+                id=section_id,
+                title=section_title,
+                description=str(section_description),
+                fields=tuple(normalized_fields),
+            )
+        )
+
+    return field_order, field_map, sections
+
+
+def _load_plugin_setup_definition(
+    plugin_id: str,
+    schema_path: Path,
+    schema_value: Any,
+    definitions: dict[str, PluginSetupDefinition],
+) -> PluginSetupDefinition:
+    raw_sections, raw_validation_rules = _validate_plugin_setup_schema_shape(
+        plugin_id,
+        schema_path,
+        schema_value,
+        definitions,
+    )
+    field_order, field_map, sections = _load_plugin_setup_sections(plugin_id, raw_sections)
+    return PluginSetupDefinition(
+        plugin_id=plugin_id,
+        fields=tuple(field_map[path] for path in field_order),
+        sections=tuple(sections),
+        validation_rules=tuple(
+            deepcopy(rule)
+            for rule in raw_validation_rules
+            if isinstance(rule, dict)
+        ),
+    )
+
+
 def _load_plugin_setup_definitions(raw_descriptors: list[dict[str, Any]]) -> dict[str, PluginSetupDefinition]:
     definitions: dict[str, PluginSetupDefinition] = {}
 
@@ -584,91 +750,12 @@ def _load_plugin_setup_definitions(raw_descriptors: list[dict[str, Any]]) -> dic
         if not isinstance(directory_name, str) or not directory_name.strip():
             _raise_manifest_error(f"Plugin descriptor '{plugin_id}' is missing its directory binding.")
 
-        schema_path = _setup_schema_path(directory_name)
-        if not schema_path.exists():
+        if not _setup_schema_exists(directory_name):
             continue
+        schema_path = _setup_schema_path(directory_name)
 
         schema_value = _load_json_file(schema_path, label="plugin setup schema")
-        if not isinstance(schema_value, dict):
-            _raise_manifest_error(f"Plugin setup schema '{schema_path}' must be a JSON object.")
-
-        raw_sections = schema_value.get("sections") or []
-        raw_validation_rules = schema_value.get("validation_rules") or []
-        if plugin_id not in PLUGIN_DEFINITIONS:
-            _raise_manifest_error(f"Plugin setup schema references unknown plugin_id '{plugin_id}'.")
-        if plugin_id in definitions:
-            _raise_manifest_error(f"Plugin setup schema repeats plugin_id '{plugin_id}'.")
-        if not isinstance(raw_sections, list):
-            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' has non-array sections.")
-        if not isinstance(raw_validation_rules, list):
-            _raise_manifest_error(f"Plugin setup schema '{plugin_id}' has non-array validation_rules.")
-
-        field_order: list[str] = []
-        field_map: dict[str, PluginSetupFieldDefinition] = {}
-
-        sections: list[PluginSetupSectionDefinition] = []
-        section_ids: set[str] = set()
-        for raw_section in raw_sections:
-            if not isinstance(raw_section, dict):
-                _raise_manifest_error(f"Plugin setup schema '{plugin_id}' contains a non-object section.")
-            section_id = raw_section.get("id")
-            section_title = raw_section.get("title")
-            section_description = raw_section.get("description") or ""
-            section_fields = raw_section.get("fields") or []
-            if not isinstance(section_id, str) or not section_id.strip():
-                _raise_manifest_error(f"Plugin setup schema '{plugin_id}' has a section with an empty id.")
-            if section_id in section_ids:
-                _raise_manifest_error(f"Plugin setup schema '{plugin_id}' repeats section id '{section_id}'.")
-            section_ids.add(section_id)
-            if not isinstance(section_title, str) or not section_title.strip():
-                _raise_manifest_error(f"Plugin setup schema '{plugin_id}' section '{section_id}' has an empty title.")
-            if not isinstance(section_fields, list) or not section_fields:
-                _raise_manifest_error(f"Plugin setup schema '{plugin_id}' section '{section_id}' must declare fields.")
-
-            normalized_section_fields: list[PluginSetupFieldDefinition] = []
-            section_paths: set[str] = set()
-            for raw_section_field in section_fields:
-                if not isinstance(raw_section_field, dict):
-                    _raise_manifest_error(
-                        f"Plugin setup schema '{plugin_id}' section '{section_id}' contains a non-object field."
-                    )
-                field_path = raw_section_field.get("path")
-                if not isinstance(field_path, str) or not field_path.strip():
-                    _raise_manifest_error(f"Plugin setup schema '{plugin_id}' section '{section_id}' has an empty field path.")
-                if field_path in section_paths:
-                    _raise_manifest_error(
-                        f"Plugin setup schema '{plugin_id}' section '{section_id}' repeats field '{field_path}'."
-                    )
-                section_paths.add(field_path)
-
-                section_field_definition = _load_manifest_field(plugin_id, raw_section_field)
-                existing_field = field_map.get(field_path)
-                if existing_field is None:
-                    field_map[field_path] = section_field_definition
-                    field_order.append(field_path)
-                elif section_field_definition != existing_field:
-                    _raise_manifest_error(f"Plugin setup schema '{plugin_id}' field '{field_path}' diverges across sections.")
-                normalized_section_fields.append(field_map[field_path])
-
-            sections.append(
-                PluginSetupSectionDefinition(
-                    id=section_id,
-                    title=section_title,
-                    description=str(section_description),
-                    fields=tuple(normalized_section_fields),
-                )
-            )
-
-        definitions[plugin_id] = PluginSetupDefinition(
-            plugin_id=plugin_id,
-            fields=tuple(field_map[path] for path in field_order),
-            sections=tuple(sections),
-            validation_rules=tuple(
-                deepcopy(rule)
-                for rule in raw_validation_rules
-                if isinstance(rule, dict)
-            ),
-        )
+        definitions[plugin_id] = _load_plugin_setup_definition(plugin_id, schema_path, schema_value, definitions)
 
     return definitions
 

@@ -446,7 +446,8 @@ def create_assessment(
     payload: schemas.GradebookAssessmentCreate,
 ) -> schemas.CourseGradebook:
     gradebook = get_course_gradebook_or_404(db, course_id)
-    if payload.category_id and not any(category.id == payload.category_id for category in gradebook.categories):
+    category_ids = {category.id for category in gradebook.categories}
+    if payload.category_id and payload.category_id not in category_ids:
         raise GradebookValidationError("Selected category does not exist.")
     normalized_score, normalized_points_earned, normalized_points_possible = _resolve_score_inputs(
         score=payload.score,

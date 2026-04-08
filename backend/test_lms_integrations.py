@@ -1331,6 +1331,120 @@ class LmsIntegrationTests(unittest.TestCase):
         linked_courses = self.db.query(models.CourseLmsLink).filter(models.CourseLmsLink.program_id == self.program.id).all()
         self.assertEqual(len(linked_courses), 2)
 
+    def test_import_program_courses_rolls_back_full_batch_when_later_fetch_fails(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        original_get_course = self.provider.get_course
+
+        def failing_get_course(config, credentials, external_course_id):
+            if external_course_id == "course-2":
+                raise LmsProviderError("LMS_PROVIDER_REQUEST_FAILED", "provider exploded", 502)
+            return original_get_course(config, credentials, external_course_id)
+
+        with patch.object(self.provider, "get_course", side_effect=failing_get_course):
+            with self.assertRaises(lms_service.LmsServiceError) as context:
+                lms_service.import_program_courses(
+                    self.db,
+                    self.user.id,
+                    self.program.id,
+                    schemas.LmsCourseImportRequest(
+                        external_course_ids=["course-1", "course-2"],
+                        semester_id=self.semester.id,
+                    ),
+                )
+
+        self.assertEqual(context.exception.code, "LMS_PROVIDER_REQUEST_FAILED")
+        self.assertEqual(
+            self.db.query(models.Course).filter(models.Course.program_id == self.program.id).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.CourseLmsLink).filter(models.CourseLmsLink.program_id == self.program.id).count(),
+            0,
+        )
+
+    def test_import_program_courses_rolls_back_when_link_setup_fails_after_course_creation(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+
+        with patch.object(lms_service, "_populate_course_link_from_summary", side_effect=RuntimeError("bad link")):
+            with self.assertRaises(lms_service.LmsServiceError) as context:
+                lms_service.import_program_courses(
+                    self.db,
+                    self.user.id,
+                    self.program.id,
+                    schemas.LmsCourseImportRequest(
+                        external_course_ids=["course-1"],
+                        semester_id=self.semester.id,
+                    ),
+                )
+
+        self.assertEqual(context.exception.code, "LMS_INTERNAL_ERROR")
+        self.assertEqual(
+            self.db.query(models.Course).filter(models.Course.program_id == self.program.id).count(),
+            0,
+        )
+        self.assertEqual(
+            self.db.query(models.CourseLmsLink).filter(models.CourseLmsLink.program_id == self.program.id).count(),
+            0,
+        )
+
+    def test_import_program_courses_raises_on_existing_link_conflict(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        existing_course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="Existing", credits=0.5, category="CSC"),
+            self.program.id,
+            self.semester.id,
+        )
+        self.db.add(
+            models.CourseLmsLink(
+                course_id=existing_course.id,
+                program_id=self.program.id,
+                lms_integration_id=integration.id,
+                external_course_id="course-1",
+                sync_enabled=True,
+            )
+        )
+        self.db.commit()
+
+        with self.assertRaises(lms_service.LmsServiceError) as context:
+            lms_service.import_program_courses(
+                self.db,
+                self.user.id,
+                self.program.id,
+                schemas.LmsCourseImportRequest(
+                    external_course_ids=["course-1", "course-2"],
+                    semester_id=self.semester.id,
+                ),
+            )
+
+        self.assertEqual(context.exception.code, "COURSE_LMS_LINK_CONFLICT")
+        self.assertEqual(
+            self.db.query(models.Course).filter(models.Course.program_id == self.program.id).count(),
+            1,
+        )
+        self.assertEqual(
+            self.db.query(models.CourseLmsLink).filter(models.CourseLmsLink.program_id == self.program.id).count(),
+            1,
+        )
+
     def test_read_only_assignment_and_calendar_reads_use_local_course_context(self) -> None:
         integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
         crud.update_program(
@@ -1717,6 +1831,164 @@ class LmsIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(str(context.exception), "SEMESTER_PROGRAM_MISMATCH")
+
+    def test_create_course_rejects_semester_in_another_program(self) -> None:
+        other_program = crud.create_program(
+            self.db,
+            schemas.ProgramCreate(name="Other Program", lms_integration_id=None),
+            self.user.id,
+        )
+        other_semester = crud.create_semester(
+            self.db,
+            schemas.SemesterCreate(name="Other Semester"),
+            other_program.id,
+        )
+
+        with self.assertRaises(crud.CourseSemesterAssignmentError) as context:
+            crud.create_course(
+                self.db,
+                schemas.CourseCreate(name="Algorithms", credits=0.5, category="CSC"),
+                self.program.id,
+                other_semester.id,
+            )
+
+        self.assertEqual(str(context.exception), "SEMESTER_PROGRAM_MISMATCH")
+
+    def test_update_course_rolls_back_if_downstream_stats_update_fails(self) -> None:
+        draft_semester = models.Semester(
+            name="Draft Semester",
+            program_id=self.program.id,
+            start_date=date(2026, 1, 5),
+            end_date=date(2026, 4, 20),
+            lifecycle_state="draft",
+            draft_updated_at="2026-01-01T00:00:00+00:00",
+            review_ready=False,
+        )
+        self.db.add(draft_semester)
+        self.db.commit()
+        self.db.refresh(draft_semester)
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="Algorithms", credits=0.5, category="CSC", grade_percentage=80),
+            self.program.id,
+            draft_semester.id,
+        )
+        self.db.refresh(draft_semester)
+        original_draft_updated_at = draft_semester.draft_updated_at
+        original_average_percentage = draft_semester.average_percentage
+        original_average_scaled = draft_semester.average_scaled
+
+        with patch("crud_academics.logic.update_semester_stats", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                crud.update_course(
+                    self.db,
+                    course.id,
+                    schemas.CourseUpdate(grade_percentage=95),
+                )
+
+        self.db.refresh(course)
+        self.db.refresh(draft_semester)
+        self.assertEqual(course.grade_percentage, 80)
+        self.assertEqual(draft_semester.average_percentage, original_average_percentage)
+        self.assertEqual(draft_semester.average_scaled, original_average_scaled)
+        self.assertEqual(draft_semester.draft_updated_at, original_draft_updated_at)
+
+    def test_delete_course_rolls_back_if_downstream_stats_update_fails(self) -> None:
+        course = crud.create_course(
+            self.db,
+            schemas.CourseCreate(name="Algorithms", credits=0.5, category="CSC", grade_percentage=80),
+            self.program.id,
+            self.semester.id,
+        )
+
+        with patch("crud_academics.logic.update_semester_stats", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                crud.delete_course(self.db, course.id)
+
+        restored = self.db.query(models.Course).filter(models.Course.id == course.id).first()
+        self.assertIsNotNone(restored)
+
+    def test_read_error_updates_integration_and_link_state(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        response = lms_service.import_program_courses(
+            self.db,
+            self.user.id,
+            self.program.id,
+            schemas.LmsCourseImportRequest(
+                external_course_ids=["course-1"],
+                semester_id=self.semester.id,
+            ),
+        )
+        course = response.results[0].course
+        assert course is not None
+
+        with patch.object(self.provider, "list_course_pages", side_effect=LmsProviderError("LMS_PROVIDER_REQUEST_FAILED", "nope", 502)):
+            with self.assertRaises(lms_service.LmsServiceError) as context:
+                lms_service.list_course_pages(self.db, self.user.id, course.id)
+
+        self.assertEqual(context.exception.code, "LMS_PROVIDER_REQUEST_FAILED")
+        link = self.db.query(models.CourseLmsLink).filter(models.CourseLmsLink.course_id == course.id).one()
+        integration_record = self.db.query(models.LmsIntegration).filter(models.LmsIntegration.id == integration.id).one()
+        self.assertEqual(link.last_error_code, "LMS_PROVIDER_REQUEST_FAILED")
+        self.assertEqual(integration_record.status, "error")
+
+    def test_semester_calendar_error_updates_all_link_states(self) -> None:
+        integration = lms_service.create_integration(self.db, self.user.id, self._build_create_payload())
+        crud.update_program(
+            self.db,
+            self.program.id,
+            schemas.ProgramUpdate(lms_integration_id=integration.id),
+            self.user.id,
+        )
+        response = lms_service.import_program_courses(
+            self.db,
+            self.user.id,
+            self.program.id,
+            schemas.LmsCourseImportRequest(
+                external_course_ids=["course-1", "course-2"],
+                semester_id=self.semester.id,
+            ),
+        )
+        self.assertEqual(len(response.results), 2)
+
+        with patch.object(self.provider, "list_assignments", side_effect=LmsProviderError("LMS_PROVIDER_REQUEST_FAILED", "calendar failed", 502)):
+            with self.assertRaises(lms_service.LmsServiceError) as context:
+                lms_service.list_semester_calendar_events(self.db, self.user.id, self.semester.id)
+
+        self.assertEqual(context.exception.code, "LMS_PROVIDER_REQUEST_FAILED")
+        links = self.db.query(models.CourseLmsLink).filter(models.CourseLmsLink.program_id == self.program.id).all()
+        self.assertEqual({link.last_error_code for link in links}, {"LMS_PROVIDER_REQUEST_FAILED"})
+
+    def test_parse_json_dict_logs_debug_on_invalid_payload(self) -> None:
+        with self.assertLogs("lms_service", level="DEBUG") as captured:
+            parsed = lms_service._parse_json_dict("{invalid")
+
+        self.assertEqual(parsed, {})
+        self.assertTrue(any("Failed to parse LMS JSON object payload." in message for message in captured.output))
+
+    def test_integration_to_schema_logs_debug_when_masking_fails(self) -> None:
+        integration = models.LmsIntegration(
+            id="integration-mask-test",
+            user_id=self.user.id,
+            display_name="Canvas Main",
+            provider="canvas",
+            status="connected",
+            config_json=json.dumps({"base_url": "https://canvas.example.edu"}),
+            credentials_encrypted=encrypt_credentials({"personal_access_token": "token-1"}),
+        )
+
+        with patch.object(lms_service, "_provider_from_integration", side_effect=RuntimeError("bad mask")):
+            with self.assertLogs("lms_service", level="DEBUG") as captured:
+                response = lms_service._integration_to_schema(integration)
+
+        self.assertIsNone(response.masked_api_key)
+        self.assertTrue(any("Failed to mask stored LMS credentials" in message for message in captured.output))
 
 
 if __name__ == "__main__":

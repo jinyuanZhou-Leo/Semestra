@@ -12,6 +12,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -21,6 +22,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import course_resources
+import main
 import models
 from database import Base
 
@@ -167,6 +169,31 @@ class CourseResourcesServiceTests(unittest.TestCase):
         self.assertTrue(storage_root.exists())
         self.assertTrue(storage_root.is_dir())
         self.assertIsNone(course_resources.get_course_resource(self.db, self.course.id, resource.id))
+
+    def test_upload_route_logs_storage_failures_and_returns_upload_failed(self) -> None:
+        upload = self._FakeUploadFile([b"hello"])
+        upload.filename = "lecture-notes.pdf"
+        upload.content_type = "application/pdf"
+        current_user = self.db.query(models.User).filter(models.User.id == self.user_id).one()
+
+        with patch.object(main, "get_owned_course", return_value=self.course), patch.object(
+            main.course_resources,
+            "create_course_resource",
+            side_effect=RuntimeError("disk full"),
+        ), patch.object(main.logger, "warning") as warning_mock:
+            response = asyncio.run(
+                main.upload_course_resources(
+                    self.course.id,
+                    [upload],
+                    db=self.db,
+                    current_user=current_user,
+                )
+            )
+
+        self.assertEqual(len(response.uploaded_files), 0)
+        self.assertEqual(len(response.failed_files), 1)
+        self.assertEqual(response.failed_files[0].code, "UPLOAD_FAILED")
+        warning_mock.assert_called_once()
 
 
 if __name__ == "__main__":
