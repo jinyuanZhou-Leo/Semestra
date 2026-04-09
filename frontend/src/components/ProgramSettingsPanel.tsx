@@ -366,15 +366,16 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
           description="Manage the default color used for each course code prefix in this Program."
           items={visibleSubjectCodes}
           emptyMessage="Subject codes appear here after courses such as APS105 or MAT180 are detected."
-          minWidthClassName="min-w-[34rem] sm:min-w-[40rem]"
+          minWidthClassName="min-w-[24rem] sm:min-w-[28rem]"
           getRowKey={(subjectCode) => subjectCode}
           columns={[
             {
               key: 'code',
               label: 'Code',
-              fit: 'fill',
+              width: 112,
+              minWidth: 96,
               cell: (subjectCode) => (
-                <span className="font-mono text-sm font-semibold tracking-[0.08em] sm:tracking-[0.12em]">
+                <span className="font-mono text-sm font-semibold tracking-[0.03em]">
                   {subjectCode}
                 </span>
               ),
@@ -382,7 +383,8 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
             {
               key: 'color',
               label: 'Color',
-              width: 120,
+              width: 112,
+              minWidth: 104,
               cellClassName: 'py-3',
               cell: (subjectCode) => {
                 const automaticColor = resolvedSubjectColorMap[subjectCode];
@@ -406,7 +408,7 @@ export const ProgramSettingsPanel: React.FC<ProgramSettingsPanelProps> = ({
             {
               key: 'action',
               label: 'Action',
-              width: 64,
+              width: 56,
               align: 'right',
               cell: (subjectCode) => (
                 <DataTableActionMenu triggerLabel={`Open actions for ${subjectCode}`}>

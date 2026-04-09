@@ -75,6 +75,7 @@ import {
 } from '@/utils/programHome';
 import { getCourseBadgeStyle, resolveCourseColor } from '@/utils/courseCategoryBadge';
 import {
+  ArrowUpDown,
   BookOpen,
   CalendarDays,
   Check,
@@ -82,7 +83,6 @@ import {
   Pencil,
   Pin,
   Plus,
-  Rows3,
 } from 'lucide-react';
 
 const GRID_BREAKPOINTS = { lg: 768 } as const;
@@ -242,7 +242,7 @@ const FocusBoardCard: React.FC<{
   const size = entity.item.size;
   const target = resolveLinkTarget(entity);
   const baseCardClassName = cn(
-    'group relative h-full overflow-hidden border-border/70 shadow-none select-none transition-[border-color,box-shadow,opacity]',
+    'group relative h-full overflow-hidden border-border/70 shadow-none select-none transition-[transform,border-color,box-shadow,opacity] duration-150 ease-out',
     isEditing && 'border-dashed border-primary/60 ring-1 ring-primary/20',
     !isEditing && 'hover:border-primary/40',
     isDragging && 'border-primary/70 shadow-lg shadow-primary/10 opacity-95',
@@ -330,7 +330,14 @@ const FocusBoardCard: React.FC<{
         </CardContent>
       </Card>
     );
-    return isEditing ? content : <Link to={target} className="block h-full">{content}</Link>;
+    return isEditing ? content : (
+      <Link
+        to={target}
+        className="block h-full motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:active:scale-[0.985]"
+      >
+        {content}
+      </Link>
+    );
   }
 
   if (entity.entityType === 'course' && entity.course) {
@@ -404,7 +411,14 @@ const FocusBoardCard: React.FC<{
         </CardContent>
       </Card>
     );
-    return isEditing ? content : <Link to={target} className="block h-full">{content}</Link>;
+    return isEditing ? content : (
+      <Link
+        to={target}
+        className="block h-full motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:active:scale-[0.985]"
+      >
+        {content}
+      </Link>
+    );
   }
 
   return null;
@@ -610,6 +624,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   const activeCols = Math.max(getFocusBoardLayoutCols(activeLayout), visibleCols);
   const boardWidth = getAxisSpan(activeCols, activeMetrics.columnWidth, activeMetrics.gap);
   const boardHeight = getAxisSpan(FOCUS_BOARD_ROWS, activeMetrics.rowHeight, activeMetrics.gap);
+  const boardViewportHeight = boardHeight + 8;
   const unitX = activeMetrics.columnWidth + activeMetrics.gap;
   const unitY = activeMetrics.rowHeight + activeMetrics.gap;
 
@@ -843,24 +858,33 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
             {isEditing ? <Check /> : <Pencil />}
             <span className="sr-only">{isEditing ? 'Done editing board' : 'Edit board'}</span>
           </Button>
-          <Select
-            value={settings.sort_mode}
-            onValueChange={async (value) => {
-              await onCommit({ ...settings, sort_mode: value as ProgramHomeSortMode });
-            }}
-          >
-            <SelectTrigger className="min-w-0 flex-1 sm:min-w-40 sm:flex-none">
-              <Rows3 data-icon="inline-start" />
-              <SelectValue placeholder="Arrange by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                title={`Sort: ${sortLabelMap[settings.sort_mode]}`}
+              >
+                <ArrowUpDown />
+                <span className="sr-only">Sort Focus Board</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuRadioGroup
+                value={settings.sort_mode}
+                onValueChange={async (value) => {
+                  await onCommit({ ...settings, sort_mode: value as ProgramHomeSortMode });
+                }}
+              >
                 {Object.entries(sortLabelMap).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                  <DropdownMenuRadioItem key={value} value={value}>
+                    {label}
+                  </DropdownMenuRadioItem>
                 ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button type="button" onClick={() => {
             blurActiveElement();
             setIsAddOpen(true);
@@ -871,31 +895,36 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
         </div>
       </div>
 
-      {visibleEntities.length === 0 ? (
-        <AppEmptyState
-          scenario="create"
-          size="section"
-          title="Nothing pinned yet"
-          description="Pin a Semester or Course to keep it visible on Program Home."
-          primaryAction={(
-            <Button type="button" onClick={() => {
-              blurActiveElement();
-              setIsAddOpen(true);
-            }} disabled={!hasAvailableCandidates}>
-              <Pin data-icon="inline-start" />
-              Add First Item
-            </Button>
-          )}
-        />
-      ) : (
-        <div
-          ref={viewportRef}
-          className={cn(
-            'min-h-32 overflow-x-auto overflow-y-hidden overscroll-x-contain px-1 py-1',
-            isEditing && draggingId && 'cursor-grabbing select-none',
-          )}
-        >
-          {viewportState.isReady ? (
+      <div
+        ref={viewportRef}
+        className={cn(
+          'overflow-x-auto overflow-y-hidden overscroll-x-contain px-1 py-1',
+          isEditing && draggingId && 'cursor-grabbing select-none',
+        )}
+        style={{ height: `${boardViewportHeight}px` }}
+      >
+        {visibleEntities.length === 0 ? (
+          <div className="flex h-full min-h-0 items-stretch overflow-hidden">
+            <AppEmptyState
+              scenario="create"
+              size="section"
+              hideMedia
+              className="h-full min-h-0 w-full overflow-hidden px-5 py-6 sm:px-6 sm:py-6"
+              title="Nothing pinned yet"
+              description="Pin a Semester or Course to keep it visible on Program Home."
+              primaryAction={(
+                <Button type="button" onClick={() => {
+                  blurActiveElement();
+                  setIsAddOpen(true);
+                }} disabled={!hasAvailableCandidates}>
+                  <Pin data-icon="inline-start" />
+                  Add First Item
+                </Button>
+              )}
+            />
+          </div>
+        ) : (
+          viewportState.isReady ? (
             <div className="min-w-full">
               <div
                 className="relative min-w-max"
@@ -975,9 +1004,9 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
                 })}
               </div>
             </div>
-          ) : null}
-        </div>
-      )}
+          ) : null
+        )}
+      </div>
 
       <ResponsiveDialogDrawer
         open={isAddOpen}
@@ -989,9 +1018,10 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
         }}
         title="Add to Focus Board"
         description="Select a Semester or Course from the current Program."
-        desktopContentClassName="sm:max-w-[640px]"
+        desktopContentClassName="flex h-[min(42rem,calc(100vh-4rem))] max-h-[calc(100vh-4rem)] flex-col overflow-hidden sm:max-w-[640px]"
+        mobileContentClassName="flex h-[85vh] max-h-[85vh] flex-col overflow-hidden"
       >
-        <div className="flex min-h-[32rem] flex-col gap-4 px-4 md:px-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-4 pb-4 md:px-0">
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               placeholder="Search Semesters or Courses..."
@@ -1011,7 +1041,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
             </Select>
           </div>
           <Separator />
-          <div className="min-h-0 flex-1">
+          <div className="min-h-0 flex-1 overflow-hidden">
             {addCandidates.length === 0 ? (
               <div className="flex h-full items-center">
                 <AppEmptyState
@@ -1022,7 +1052,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
                 />
               </div>
             ) : (
-              <ScrollArea className="h-full pr-3">
+              <ScrollArea className="h-full min-h-0 pr-3">
                 <div className="flex flex-col gap-2">
                   {[
                     { title: 'Semesters', items: semesterCandidates },

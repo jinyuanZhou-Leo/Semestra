@@ -32,6 +32,7 @@ interface AppEmptyStateProps {
     primaryAction?: ReactNode;
     secondaryAction?: ReactNode;
     media?: ReactNode;
+    hideMedia?: boolean;
     className?: string;
 }
 
@@ -52,7 +53,7 @@ const scenarioMediaClassMap: Record<AppEmptyStateScenario, string> = {
 const sizeClassMap: Record<AppEmptyStateSize, string> = {
     page: 'my-16 min-h-[320px] px-6 py-12 sm:px-10',
     section: 'min-h-[220px] px-6 py-10 sm:px-8',
-    widget: 'h-full min-h-0 px-4 py-6',
+    widget: 'h-full min-h-0 px-4 py-3 sm:py-4',
     modal: 'min-h-[220px] px-5 py-9',
 };
 
@@ -73,28 +74,28 @@ const inheritSurfaceClassMap: Record<AppEmptyStateSize, string> = {
 const titleClassMap: Record<AppEmptyStateSize, string> = {
     page: 'text-xl',
     section: 'text-lg',
-    widget: 'text-base',
+    widget: 'text-[15px] leading-tight sm:text-base',
     modal: 'text-lg',
 };
 
 const descriptionClassMap: Record<AppEmptyStateSize, string> = {
     page: 'max-w-md text-sm/6',
     section: 'max-w-md text-sm/6',
-    widget: 'max-w-[18rem] text-sm/5',
+    widget: 'max-w-[16rem] text-[13px]/[1.35] sm:max-w-[18rem] sm:text-sm/5',
     modal: 'max-w-sm text-sm/6',
 };
 
 const mediaClassMap: Record<AppEmptyStateSize, string> = {
     page: 'size-14 rounded-2xl [&_svg:not([class*=size-])]:size-7',
     section: 'size-12 rounded-xl [&_svg:not([class*=size-])]:size-6',
-    widget: 'size-11 rounded-xl [&_svg:not([class*=size-])]:size-5',
+    widget: 'size-10 rounded-xl sm:size-11 [&_svg:not([class*=size-])]:size-4 sm:[&_svg:not([class*=size-])]:size-5',
     modal: 'size-12 rounded-xl [&_svg:not([class*=size-])]:size-6',
 };
 
 const contentClassMap: Record<AppEmptyStateSize, string> = {
     page: 'mt-2 max-w-md gap-2 sm:flex-row sm:justify-center [&>*]:w-full sm:[&>*]:w-auto',
     section: 'mt-2 max-w-md gap-2 sm:flex-row sm:justify-center [&>*]:w-full sm:[&>*]:w-auto',
-    widget: 'mt-1 max-w-[18rem] gap-2 [&>*]:w-full',
+    widget: 'mt-0.5 max-w-[16rem] gap-1.5 sm:mt-1 sm:max-w-[18rem] sm:gap-2 [&>*]:w-full',
     modal: 'mt-2 max-w-sm gap-2 sm:flex-row sm:justify-center [&>*]:w-full sm:[&>*]:w-auto',
 };
 
@@ -107,6 +108,7 @@ export function AppEmptyState({
     primaryAction,
     secondaryAction,
     media,
+    hideMedia = false,
     className,
 }: AppEmptyStateProps) {
     const Icon = scenarioIconMap[scenario];
@@ -121,16 +123,18 @@ export function AppEmptyState({
                 className,
             )}
         >
-            <EmptyHeader className="max-w-md">
-                <EmptyMedia
-                    variant="icon"
-                    className={cn(
-                        mediaClassMap[size],
-                        scenarioMediaClassMap[scenario],
-                    )}
-                >
-                    {media ?? <Icon aria-hidden="true" />}
-                </EmptyMedia>
+            <EmptyHeader className={cn('max-w-md', size === 'widget' && 'gap-1.5 sm:gap-2')}>
+                {hideMedia ? null : (
+                    <EmptyMedia
+                        variant="icon"
+                        className={cn(
+                            mediaClassMap[size],
+                            scenarioMediaClassMap[scenario],
+                        )}
+                    >
+                        {media ?? <Icon aria-hidden="true" />}
+                    </EmptyMedia>
+                )}
                 <EmptyTitle className={titleClassMap[size]}>{title}</EmptyTitle>
                 <EmptyDescription className={descriptionClassMap[size]}>
                     {description}

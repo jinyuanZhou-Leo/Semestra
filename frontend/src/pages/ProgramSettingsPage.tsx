@@ -32,6 +32,7 @@ import {
     getProgramPluginInstallationsQueryOptions,
     getUserLmsIntegrationsQueryOptions,
 } from "@/data/resources";
+import api from "@/services/api";
 import { resolveCourseSubjectCode } from "@/utils/courseCategoryBadge";
 
 const ProgramSettingsPageContent: React.FC = () => {
@@ -47,15 +48,22 @@ const ProgramSettingsPageContent: React.FC = () => {
         ...getProgramPluginInstallationsQueryOptions(program?.id ?? "__missing__"),
         enabled: Boolean(program?.id),
     });
+    const unassignedCoursesQuery = useQuery({
+        queryKey: ["programs", program?.id ?? "__missing__", "courses", "unassigned"],
+        queryFn: () => api.getCoursesForProgram(program!.id, { unassigned: true }),
+        enabled: Boolean(program?.id),
+    });
     const discoveredSubjectCodes = useMemo(() => {
         if (!program) return [];
         return Array.from(new Set(
-            program.semesters
-                .flatMap((semester) => semester.courses || [])
+            [
+                ...program.semesters.flatMap((semester) => semester.courses || []),
+                ...(unassignedCoursesQuery.data ?? []),
+            ]
                 .map((course) => resolveCourseSubjectCode(course))
                 .filter(Boolean),
         )).sort((left, right) => left.localeCompare(right));
-    }, [program]);
+    }, [program, unassignedCoursesQuery.data]);
     const programPluginSettingsSections = useMemo(() => {
         if (!program?.id) {
             return null;
