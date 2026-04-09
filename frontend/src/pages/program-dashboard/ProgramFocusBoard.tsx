@@ -1114,7 +1114,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
           setPendingRemove(null);
         }
       }}>
-        <AlertDialogContent>
+        <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>Remove from Focus Board?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1124,6 +1124,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={() => {
                 if (!pendingRemove) {
                   return;
