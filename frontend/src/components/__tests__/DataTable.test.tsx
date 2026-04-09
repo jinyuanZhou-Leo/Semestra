@@ -1,6 +1,6 @@
 // input:  [`DataTable`, testing-library render/user-event helpers, and shared table-row primitives]
 // output: [test suite covering render-props layout, columns-API rendering, client-side sorting,
-//          declarative column widths, and empty/loading states]
+//          built-in pagination, declarative column widths, and empty/loading states]
 // pos:    [Regression coverage for the shared settings data-table shell. Validates both the legacy
 //          render-props path (for backwards compatibility) and the new columns API (sorting,
 //          fixed/auto layout, colgroup widths, alignment, custom cell renderers, and row keys).]
@@ -10,6 +10,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { DataTable } from '@/components/DataTable';
@@ -166,6 +167,23 @@ describe('DataTable — columns API rendering', () => {
         }
     });
 
+    it('renders default text cells with truncate-friendly overflow handling', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={[{ ...COURSES[0], name: 'A very long course name that should truncate cleanly' }]}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name', label: 'Name', width: 120 },
+                ]}
+            />,
+        );
+
+        const text = screen.getByText('A very long course name that should truncate cleanly');
+        expect(text).toHaveClass('block', 'min-w-0', 'truncate');
+        expect(text).toHaveAttribute('title', 'A very long course name that should truncate cleanly');
+    });
+
     it('renders custom cell content when a cell renderer is provided', () => {
         render(
             <DataTable
@@ -186,6 +204,50 @@ describe('DataTable — columns API rendering', () => {
         for (const course of COURSES) {
             expect(screen.getByTestId(`badge-${course.id}`)).toHaveTextContent(course.grade);
         }
+    });
+
+    it('wraps custom cell content in an overflow-hidden container', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={[COURSES[0]]}
+                getRowKey={(c) => c.id}
+                columns={[
+                    {
+                        key: 'grade',
+                        label: 'Grade',
+                        width: 80,
+                        cell: (item) => <div data-testid={`custom-${item.id}`}>Custom UI content</div>,
+                    },
+                ]}
+            />,
+        );
+
+        const custom = screen.getByTestId('custom-c1');
+        expect(custom.parentElement).toHaveClass('min-w-0', 'overflow-hidden');
+        expect(custom.closest('td')).toHaveClass('overflow-hidden');
+    });
+
+    it('renders text returned from a custom cell with ellipsis handling', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={[COURSES[0]]}
+                getRowKey={(c) => c.id}
+                columns={[
+                    {
+                        key: 'grade',
+                        label: 'Grade',
+                        width: 80,
+                        cell: () => 'A very long grade description',
+                    },
+                ]}
+            />,
+        );
+
+        const text = screen.getByText('A very long grade description');
+        expect(text).toHaveClass('block', 'min-w-0', 'truncate');
+        expect(text).toHaveAttribute('title', 'A very long grade description');
     });
 
     it('applies per-column text alignment to headers and cells', () => {
@@ -451,6 +513,183 @@ describe('DataTable — columns API sorting', () => {
         fireEvent.click(screen.getByRole('columnheader', { name: /Credits/i }));
         cells = screen.getAllByRole('cell');
         expect(cells[1]).toHaveTextContent('4');
+    });
+});
+
+
+// ─── Built-in pagination ──────────────────────────────────────────────────────
+
+describe('DataTable — built-in pagination', () => {
+    it('uses the default page size when pagination is enabled without an explicit pageSize', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name', label: 'Name' },
+                ]}
+                pagination={{ itemLabel: 'courses' }}
+            />,
+        );
+
+        expect(screen.getByText('Showing 1-3 of 3 courses')).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: '2' })).not.toBeInTheDocument();
+    });
+
+    it('renders the shadcn pagination footer below the table and paginates rows client-side', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name', label: 'Name' },
+                ]}
+                pagination={{ pageSize: 2, itemLabel: 'courses' }}
+            />,
+        );
+
+        expect(screen.getByText('Showing 1-2 of 3 courses')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Go to previous page' })).toHaveAttribute('aria-disabled', 'true');
+        expect(screen.getByText('Algorithms')).toBeInTheDocument();
+        expect(screen.getByText('Databases')).toBeInTheDocument();
+        expect(screen.queryByText('Compilers')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('link', { name: '2' }));
+
+        expect(screen.getByText('Showing 3-3 of 3 courses')).toBeInTheDocument();
+        expect(screen.getByText('Compilers')).toBeInTheDocument();
+        expect(screen.queryByText('Algorithms')).not.toBeInTheDocument();
+    });
+
+    it('resets pagination back to the first page after sorting changes the visible order', () => {
+        render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name', label: 'Name', sortable: true },
+                ]}
+                pagination={{ pageSize: 2, itemLabel: 'courses' }}
+            />,
+        );
+
+        fireEvent.click(screen.getByRole('link', { name: '2' }));
+        expect(screen.getByText('Compilers')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('columnheader', { name: /Name/i }));
+
+        expect(screen.getByText('Showing 1-2 of 3 courses')).toBeInTheDocument();
+        expect(screen.getByText('Algorithms')).toBeInTheDocument();
+        expect(screen.getByText('Compilers')).toBeInTheDocument();
+        expect(screen.queryByText('Databases')).not.toBeInTheDocument();
+    });
+
+    it('passes absolute row indexes to cell renderers across paginated pages', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    {
+                        key: 'index',
+                        label: '#',
+                        cell: (_item, index) => <span>{index}</span>,
+                    },
+                    { key: 'name', label: 'Name' },
+                ]}
+                pagination={{ pageSize: 2, itemLabel: 'courses' }}
+            />,
+        );
+
+        const body = container.querySelector('tbody');
+        expect(body).not.toBeNull();
+        expect(body).toHaveTextContent('0');
+        expect(body).toHaveTextContent('1');
+
+        fireEvent.click(screen.getByRole('link', { name: '2' }));
+
+        expect(body).toHaveTextContent('2');
+        expect(body).not.toHaveTextContent('0');
+    });
+
+    it('keeps the current page when the parent rebuilds the items array without changing the data', () => {
+        function StableItemsWrapper() {
+            const [version, setVersion] = useState(0);
+            const items = COURSES.map((course) => ({ ...course }));
+
+            return (
+                <>
+                    <button type="button" onClick={() => setVersion((value) => value + 1)}>
+                        Refresh
+                    </button>
+                    <span>{version}</span>
+                    <DataTable
+                        {...BASE_PROPS}
+                        items={items}
+                        getRowKey={(c) => c.id}
+                        columns={[{ key: 'name', label: 'Name' }]}
+                        pagination={{ pageSize: 2, itemLabel: 'courses' }}
+                    />
+                </>
+            );
+        }
+
+        render(<StableItemsWrapper />);
+
+        fireEvent.click(screen.getByRole('link', { name: '2' }));
+        expect(screen.getByText(/Showing\s+3-3\s+of\s+3\s+courses/)).toBeInTheDocument();
+        expect(screen.getByText('Compilers')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+        expect(screen.getByText(/Showing\s+3-3\s+of\s+3\s+courses/)).toBeInTheDocument();
+        expect(screen.getByText('Compilers')).toBeInTheDocument();
+        expect(screen.queryByText('Algorithms')).not.toBeInTheDocument();
+    });
+
+    it('bounds the scrollable table area height while keeping pagination outside that region', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name', label: 'Name' },
+                ]}
+                maxBodyHeight={240}
+                pagination={{ pageSize: 2, itemLabel: 'courses' }}
+            />,
+        );
+
+        const scrollArea = container.querySelector('[data-slot="data-table-scroll-area"]');
+        expect(scrollArea).toHaveClass('overflow-y-auto');
+        expect(scrollArea).toHaveStyle({ maxHeight: '240px' });
+        expect(scrollArea).toContainElement(screen.getByRole('table'));
+        expect(scrollArea).not.toContainElement(screen.getByText('Showing 1-2 of 3 courses'));
+    });
+
+    it('supports a fixed scrollable table height', () => {
+        const { container } = render(
+            <DataTable
+                {...BASE_PROPS}
+                items={COURSES}
+                getRowKey={(c) => c.id}
+                columns={[
+                    { key: 'name', label: 'Name' },
+                ]}
+                bodyHeight={320}
+                pagination={{ pageSize: 2, itemLabel: 'courses' }}
+            />,
+        );
+
+        const scrollArea = container.querySelector('[data-slot="data-table-scroll-area"]');
+        expect(scrollArea).toHaveClass('overflow-y-auto');
+        expect(scrollArea).toHaveStyle({ height: '320px' });
+        expect(scrollArea).not.toHaveStyle({ maxHeight: '320px' });
     });
 });
 

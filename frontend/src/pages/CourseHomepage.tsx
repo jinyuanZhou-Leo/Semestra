@@ -170,6 +170,7 @@ const CourseHomepageContent: React.FC = () => {
     const programName = parentProgramQuery.data?.name ?? null;
     const programSubjectColorMapJson = parentProgramQuery.data?.subject_color_map || '{}';
     const programLmsIntegrationId = parentProgramQuery.data?.lms_integration_id ?? null;
+    const currentCourseId = course?.id ?? null;
     const isPinnedToProgramHome = useMemo(() => {
         if (!parentProgramQuery.data || !course?.id) {
             return false;
@@ -207,6 +208,22 @@ const CourseHomepageContent: React.FC = () => {
         if (!course?.id) return -1;
         return siblingCourses.findIndex((siblingCourse) => siblingCourse.id === course.id);
     }, [course, siblingCourses]);
+    const previousSiblingCourse = currentCourseIndex > 0 ? siblingCourses[currentCourseIndex - 1] : null;
+    const nextSiblingCourse = currentCourseIndex >= 0 && currentCourseIndex < siblingCourses.length - 1
+        ? siblingCourses[currentCourseIndex + 1]
+        : null;
+    const siblingCourseDirections = useMemo(() => {
+        const directions = new Map<string, -1 | 1>();
+
+        siblingCourses.forEach((siblingCourse, index) => {
+            if (!currentCourseId || siblingCourse.id === currentCourseId || currentCourseIndex < 0) {
+                return;
+            }
+            directions.set(siblingCourse.id, index < currentCourseIndex ? -1 : 1);
+        });
+
+        return directions;
+    }, [currentCourseId, currentCourseIndex, siblingCourses]);
     const programSubjectColorMap = useMemo(
         () => parseSubjectColorMap(programSubjectColorMapJson),
         [programSubjectColorMapJson],
@@ -325,10 +342,11 @@ const CourseHomepageContent: React.FC = () => {
         isTabsInitialized,
     });
 
-    const activeTabType = useMemo(
-        () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
+    const activeTab = useMemo(
+        () => visibleTabs.find((tab) => tab.id === activeTabId),
         [activeTabId, visibleTabs]
     );
+    const activeTabType = activeTab?.type;
     const requestedTabType = typeof (location.state as CourseHomepageLocationState | null)?.preferredTabType === 'string'
         ? (location.state as CourseHomepageLocationState).preferredTabType ?? null
         : null;
@@ -343,7 +361,6 @@ const CourseHomepageContent: React.FC = () => {
     const dashboardContent = useMemo(() => {
         if (!course) return null;
         if (!activeTabId) return <PluginTabSkeleton />;
-        const activeTab = visibleTabs.find(tab => tab.id === activeTabId);
         const TabComponent = activeTab ? getTabComponentByType(activeTab.type) : undefined;
         if (!activeTab) {
             return (
@@ -415,7 +432,7 @@ const CourseHomepageContent: React.FC = () => {
                 </PluginRuntimeInstanceProvider>
             </React.Suspense>
         );
-    }, [activeTabId, course, visibleTabs, isActiveTabPluginLoading, activeTabLoadState.status]);
+    }, [activeTab, activeTabId, course, isActiveTabPluginLoading, activeTabLoadState.status]);
 
     const triggerBoundaryShake = useCallback(async () => {
         if (prefersReducedMotion) {
@@ -438,17 +455,16 @@ const CourseHomepageContent: React.FC = () => {
     }, [course?.id, queryClient]);
 
     useEffect(() => {
-        if (!course?.id || siblingCourses.length === 0) {
+        if (!course?.id) {
             return;
         }
 
-        const idx = siblingCourses.findIndex((c) => c.id === course.id);
-        [siblingCourses[idx - 1], siblingCourses[idx + 1]]
+        [previousSiblingCourse, nextSiblingCourse]
             .filter(Boolean)
             .forEach((siblingCourse) => {
                 void queryClient.prefetchQuery(getCourseDetailQueryOptions(siblingCourse!.id));
             });
-    }, [course?.id, queryClient, siblingCourses]);
+    }, [course?.id, nextSiblingCourse, previousSiblingCourse, queryClient]);
 
     const navigateToSiblingCourse = useCallback(async (nextCourseId: string, direction: -1 | 1) => {
         if (!nextCourseId || nextCourseId === course?.id) {
@@ -474,10 +490,12 @@ const CourseHomepageContent: React.FC = () => {
         if (!nextCourseId || nextCourseId === course?.id) {
             return;
         }
-        const nextCourseIndex = siblingCourses.findIndex((siblingCourse) => siblingCourse.id === nextCourseId);
-        const direction: -1 | 1 = nextCourseIndex < currentCourseIndex ? -1 : 1;
+        const direction = siblingCourseDirections.get(nextCourseId);
+        if (!direction) {
+            return;
+        }
         void navigateToSiblingCourse(nextCourseId, direction);
-    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses]);
+    }, [course?.id, navigateToSiblingCourse, siblingCourseDirections]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         reorderTabs(filterReorderableTabIds(orderedIds));
@@ -495,12 +513,14 @@ const CourseHomepageContent: React.FC = () => {
                 keywords: ['semester course', 'course', siblingCourse.alias ?? '', siblingCourse.category ?? ''],
                 icon: BookOpen,
                 onSelect: () => {
-                    const nextCourseIndex = siblingCourses.findIndex((courseItem) => courseItem.id === siblingCourse.id);
-                    const direction: -1 | 1 = nextCourseIndex < currentCourseIndex ? -1 : 1;
+                    const direction = siblingCourseDirections.get(siblingCourse.id);
+                    if (!direction) {
+                        return;
+                    }
                     void navigateToSiblingCourse(siblingCourse.id, direction);
                 },
             }));
-    }, [course, currentCourseIndex, navigateToSiblingCourse, siblingCourses]);
+    }, [course, navigateToSiblingCourse, siblingCourseDirections, siblingCourses]);
     const layoutCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
         if (!course?.id) {
             return [];
@@ -673,7 +693,7 @@ const CourseHomepageContent: React.FC = () => {
 
             event.preventDefault();
             const direction: -1 | 1 = event.key === 'ArrowUp' ? -1 : 1;
-            const nextCourse = siblingCourses[currentCourseIndex + direction];
+            const nextCourse = direction === -1 ? previousSiblingCourse : nextSiblingCourse;
 
             if (!nextCourse) {
                 void triggerBoundaryShake();
@@ -687,7 +707,7 @@ const CourseHomepageContent: React.FC = () => {
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses, triggerBoundaryShake]);
+    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, nextSiblingCourse, previousSiblingCourse, siblingCourses.length, triggerBoundaryShake]);
 
     const refreshLmsCourseState = useCallback(async () => {
         if (!course?.id) return;

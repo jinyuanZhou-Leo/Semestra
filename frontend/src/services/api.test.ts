@@ -96,4 +96,69 @@ describe('api runtime normalization', () => {
     ]);
   });
 
+  it('refetches full program detail after updating a program', async () => {
+    mockedAxios.put.mockResolvedValue({
+      data: {
+        id: 'program-1',
+        name: 'Engineering',
+      },
+    });
+    mockedAxios.get.mockResolvedValue({
+      data: {
+        id: 'program-1',
+        name: 'Engineering',
+        cgpa_scaled: 3.9,
+        cgpa_percentage: 87.5,
+        grad_requirement_credits: 20,
+        hide_gpa: true,
+        tab_settings: [
+          {
+            id: 'tab-setting-1',
+            settings_key: 'builtin-program-home',
+            settings: '{"sort_mode":"manual","items":[]}',
+            resolved_settings: {
+              sort_mode: 'manual',
+              items: [],
+            },
+          },
+        ],
+        semesters: [
+          {
+            id: 'semester-1',
+            name: 'Fall 2026',
+            average_scaled: 0,
+            average_percentage: 0,
+            courses: [],
+            resolved_tabs: [],
+            runtime_plugins: [],
+            tab_catalog_items: [],
+            widget_catalog_items: [],
+          },
+        ],
+      },
+    });
+
+    const program = await api.updateProgram('program-1', { hide_gpa: true });
+
+    expect(mockedAxios.put).toHaveBeenCalledWith('/api/programs/program-1', { hide_gpa: true });
+    expect(mockedAxios.get).toHaveBeenCalledWith('/api/programs/program-1');
+    expect(program.tab_settings).toHaveLength(1);
+    expect(program.tab_settings?.[0]).toMatchObject({
+      id: 'tab-setting-1',
+      settings_key: 'builtin-program-home',
+      settings: '{"sort_mode":"manual","items":[]}',
+      scope_settings: {
+        sort_mode: 'manual',
+        items: [],
+      },
+      inherited_settings: {},
+      resolved_settings: {
+        sort_mode: 'manual',
+        items: [],
+      },
+      setting_sources: {},
+    });
+    expect(program.semesters).toHaveLength(1);
+  });
+
 });

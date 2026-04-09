@@ -922,8 +922,9 @@ const api = {
         });
     },
     updateProgram: async (id: string, data: any) => {
-        const response = await axios.put<Program>(`/api/programs/${id}`, data);
-        return response.data;
+        await axios.put<Program>(`/api/programs/${id}`, data);
+        const response = await axios.get<ProgramWire>(`/api/programs/${id}`);
+        return normalizeProgram(response.data);
     },
     deleteProgram: async (id: string) => {
         await axios.delete(`/api/programs/${id}`);

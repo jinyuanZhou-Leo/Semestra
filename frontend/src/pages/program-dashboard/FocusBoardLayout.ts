@@ -33,6 +33,8 @@ export type ResponsiveStripLayouts = {
   sm: FocusBoardLayoutItem[];
 };
 
+export type FocusBoardSizeMap = Map<string, { w: number; h: number }>;
+
 type ProgramCourseWithContext = Course & {
   semesterName: string;
   semesterStartDate?: string | null;
@@ -149,19 +151,24 @@ export const getFocusBoardLayoutCols = (layout: readonly FocusBoardLayoutItem[])
   Math.max(1, ...layout.map((item) => item.x + item.w))
 );
 
-export const sanitizeInteractiveStripLayout = (
-  layout: readonly FocusBoardLayoutItem[],
+export const buildFocusBoardSizeMap = (
   entities: readonly ProgramHomeResolvedEntity[],
   device: BoardDevice,
-) => {
-  const sizeById = new Map<string, { w: number; h: number }>();
+): FocusBoardSizeMap => {
+  const sizeById: FocusBoardSizeMap = new Map();
   entities.forEach((entity) => {
     sizeById.set(
       getProgramHomeItemKey(entity.entityType, entity.entityId),
       getProgramHomeCardDimensions(entity.item.size, device),
     );
   });
+  return sizeById;
+};
 
+export const sanitizeInteractiveStripLayoutWithSizeMap = (
+  layout: readonly FocusBoardLayoutItem[],
+  sizeById: FocusBoardSizeMap,
+) => {
   const placed: FocusBoardLayoutItem[] = [];
   sortByPosition(layout).forEach((item) => {
     const size = sizeById.get(item.i) ?? { w: item.w, h: item.h };
@@ -170,24 +177,24 @@ export const sanitizeInteractiveStripLayout = (
     placed.push({ i: item.i, ...nextPlacement });
   });
 
-  return layout.map((item) => placed.find((candidate) => candidate.i === item.i) ?? item);
+  const placedMap = toLayoutMap(placed);
+  return layout.map((item) => placedMap.get(item.i) ?? item);
 };
 
-export const solveFocusBoardDragLayout = (
+export const sanitizeInteractiveStripLayout = (
   layout: readonly FocusBoardLayoutItem[],
-  draggedId: string,
-  target: { x: number; y: number },
   entities: readonly ProgramHomeResolvedEntity[],
   device: BoardDevice,
 ) => {
-  const sizeById = new Map<string, { w: number; h: number }>();
-  entities.forEach((entity) => {
-    sizeById.set(
-      getProgramHomeItemKey(entity.entityType, entity.entityId),
-      getProgramHomeCardDimensions(entity.item.size, device),
-    );
-  });
+  return sanitizeInteractiveStripLayoutWithSizeMap(layout, buildFocusBoardSizeMap(entities, device));
+};
 
+export const solveFocusBoardDragLayoutWithSizeMap = (
+  layout: readonly FocusBoardLayoutItem[],
+  draggedId: string,
+  target: { x: number; y: number },
+  sizeById: FocusBoardSizeMap,
+) => {
   const originalMap = toLayoutMap(layout);
   const draggedOriginal = originalMap.get(draggedId);
   if (!draggedOriginal) {
@@ -218,6 +225,21 @@ export const solveFocusBoardDragLayout = (
 
   const nextMap = toLayoutMap(placed);
   return layout.map((item) => nextMap.get(item.i) ?? item);
+};
+
+export const solveFocusBoardDragLayout = (
+  layout: readonly FocusBoardLayoutItem[],
+  draggedId: string,
+  target: { x: number; y: number },
+  entities: readonly ProgramHomeResolvedEntity[],
+  device: BoardDevice,
+) => {
+  return solveFocusBoardDragLayoutWithSizeMap(
+    layout,
+    draggedId,
+    target,
+    buildFocusBoardSizeMap(entities, device),
+  );
 };
 
 export const buildStripLayouts = (

@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { AppEmptyState } from '../components/AppEmptyState';
@@ -25,8 +25,8 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Container } from '../components/Container';
-import { DataTableActionMenu } from '../components/DataTable';
-import api, { type Course } from '../services/api';
+import { DataTable, DataTableActionMenu, type ColumnDef } from '../components/DataTable';
+import api, { type Course, type Semester } from '../services/api';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { AnimatedNumber } from '../components/AnimatedNumber';
@@ -43,14 +43,6 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
     InputGroup,
@@ -71,7 +63,7 @@ import {
     ComboboxValue,
     useComboboxAnchor,
 } from '@/components/ui/combobox';
-import { Settings, Plus, Search, Trash2, GraduationCap, Percent, BookOpen, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
+import { Settings, Plus, Search, Trash2, GraduationCap, Percent, BookOpen, Eye, EyeOff, Tag, Calendar, Hash, TrendingUp, Layers } from 'lucide-react';
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, parseSubjectColorMap, resolveCourseColor, resolveCourseSubjectCode, resolveSubjectColorAssignments } from '@/utils/courseCategoryBadge';
 import { CreateSemesterWizardButton } from './program-dashboard/CreateSemesterWizardButton';
 import { DeleteSemesterButton } from './program-dashboard/DeleteSemesterButton';
@@ -97,13 +89,19 @@ const extractCourseLevel = (courseName: string): number | null => {
     return null;
 };
 
-type CourseSortConfig = { key: string; direction: 'asc' | 'desc' };
 type CourseWithProgramContext = Course & { semesterName: string; semesterId: string; semesterStartDate?: string | null };
 type CourseFilterSuggestion = {
     type: string;
     value: string;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
+};
+type IndexedCourseWithProgramContext = CourseWithProgramContext & {
+    courseLevel: number | null;
+    normalizedName: string;
+    normalizedAlias: string;
+    normalizedCategory: string;
+    subjectCode: string | null;
 };
 
 const COURSE_FILTER_GROUP_LABELS: Record<string, string> = {
@@ -114,206 +112,272 @@ const COURSE_FILTER_GROUP_LABELS: Record<string, string> = {
     gpa: 'GPA',
 };
 
-const ProgramDashboardContent: React.FC = () => {
-    const { program, setProgram, saveProgram, refreshProgram, isLoading } = useProgramData();
-    const { user, setActiveProgram } = useAuth();
-    const { alert: showAlert } = useDialog();
-    const [unassignedCourses, setUnassignedCourses] = useState<Array<CourseWithProgramContext>>([]);
-    const [coursePendingDelete, setCoursePendingDelete] = useState<CourseWithProgramContext | null>(null);
-    const [isDeletingCourse, setIsDeletingCourse] = useState(false);
+const COURSE_PAGE_SIZE = 10;
 
-    // Modal State
-    const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+type ShowAlert = (options: { title: string; description: string }) => Promise<void>;
+type VisibleSemester = Semester & { courses?: Course[] };
+
+type SemestersSectionProps = {
+    semesters: VisibleSemester[];
+    programId: string;
+    onRefresh: () => Promise<void>;
+    showAlert: ShowAlert;
+};
+
+const SemestersSection: React.FC<SemestersSectionProps> = ({
+    semesters,
+    programId,
+    onRefresh,
+    showAlert,
+}) => {
     const [searchQuery, setSearchQuery] = useState('');
-    const [courseSearchQuery, setCourseSearchQuery] = useState('');
-    const [sortConfig, setSortConfig] = useState<CourseSortConfig | null>(null);
-    const [activeFilters, setActiveFilters] = useState<CourseFilterSuggestion[]>([]);
-    const suggestionsAnchor = useComboboxAnchor();
-    const layoutCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
-        if (!program?.id) {
-            return [];
-        }
-
-        return [
-            {
-                heading: 'Program',
-                items: [
-                    {
-                        id: `program-add-course-${program.id}`,
-                        title: 'Add Course',
-                        description: 'Create or import a course in the current Program.',
-                        keywords: ['new course', 'import course'],
-                        icon: Plus,
-                        onSelect: () => setIsCourseModalOpen(true),
-                    },
-                ],
-            },
-        ];
-    }, [program?.id]);
-
-    const refreshUnassignedCourses = useCallback(async () => {
-        if (!program?.id) {
-            setUnassignedCourses([]);
-            return;
-        }
-
-        try {
-            const courses = await api.getCoursesForProgram(program.id, { unassigned: true });
-            setUnassignedCourses(
-                courses.map((course) => ({
-                    ...course,
-                    semesterName: 'Unassigned',
-                    semesterId: '',
-                    semesterStartDate: null,
-                })),
-            );
-        } catch (error) {
-            console.error('Failed to fetch unassigned program courses', error);
-            setUnassignedCourses([]);
-        }
-    }, [program?.id]);
-
-    const refreshDashboardData = useCallback(async () => {
-        await Promise.all([
-            refreshProgram(),
-            refreshUnassignedCourses(),
-        ]);
-    }, [refreshProgram, refreshUnassignedCourses]);
-
-    const handleUpdateProgram = useCallback(async (data: any) => {
-        if (!program) return;
-        await saveProgram(data);
-    }, [program, saveProgram]);
-
-    const subjectColorMap = useMemo(
-        () => parseSubjectColorMap(program?.subject_color_map),
-        [program?.subject_color_map],
+    const deferredSearchQuery = useDeferredValue(searchQuery);
+    const normalizedQuery = useMemo(
+        () => deferredSearchQuery.trim().toLowerCase(),
+        [deferredSearchQuery],
     );
-    const programCourses = useMemo<Array<CourseWithProgramContext>>(() => {
-        if (!program) return [];
-        const semesterCourses = program.semesters
-            .filter((semester) => semester.lifecycle_state !== 'draft')
-            .flatMap((semester) =>
-            (semester.courses || []).map((course) => ({
-                        ...course,
-                        semesterName: semester.name,
-                        semesterId: semester.id,
-                        semesterStartDate: semester.start_date ?? null,
-                    })),
-        );
-        return [...semesterCourses, ...unassignedCourses];
-    }, [program, unassignedCourses]);
-    const totalCredits = React.useMemo(() => {
-        return programCourses.reduce((acc, course) => acc + (course.credits || 0), 0);
-    }, [programCourses]);
-
-    const normalizedQuery = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery]);
 
     const filteredSemesters = useMemo(() => {
-        if (!program) return [];
-        const visibleSemesters = program.semesters.filter((semester) => semester.lifecycle_state !== 'draft');
-        if (!normalizedQuery) return visibleSemesters;
-        return visibleSemesters.filter(semester =>
-            semester.name.toLowerCase().includes(normalizedQuery)
-        );
-    }, [program, normalizedQuery]);
+        if (!normalizedQuery) {
+            return semesters;
+        }
+        return semesters.filter((semester) => semester.name.toLowerCase().includes(normalizedQuery));
+    }, [normalizedQuery, semesters]);
 
-    useEffect(() => {
-        void refreshUnassignedCourses();
-    }, [refreshUnassignedCourses]);
+    return (
+        <section className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 className="text-lg font-semibold tracking-tight">
+                    Semesters
+                </h2>
+                <div className="flex-1 max-w-sm space-y-1.5">
+                    <InputGroup>
+                        <InputGroupAddon>
+                            <Search className="pointer-events-none size-4 text-muted-foreground" />
+                        </InputGroupAddon>
+                        <InputGroupInput
+                            placeholder="Search semesters..."
+                            value={searchQuery}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                        />
+                    </InputGroup>
+                </div>
+            </div>
 
-    // Extract unique values for suggestions
-    const suggestions = useMemo(() => {
-        if (!program) return [];
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {filteredSemesters.map((semester) => (
+                    <div key={semester.id} className="group relative">
+                        <Link to={`/semesters/${semester.id}`} className="block h-full">
+                            <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
+                                <CardHeader className="pb-1">
+                                    <CardTitle className="truncate pr-8 text-base font-semibold">
+                                        {semester.name}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-2">
+                                    <div className="mt-1 grid grid-cols-2 gap-3">
+                                        <div>
+                                            <p className="text-xs tracking-wider text-muted-foreground font-medium">GPA</p>
+                                            <p className="text-base font-semibold">
+                                                <AnimatedNumber
+                                                    value={semester.average_scaled}
+                                                    format={(val) => val.toFixed(2)}
+                                                />
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs tracking-wider text-muted-foreground font-medium">Average</p>
+                                            <p className="text-base font-semibold">{formatGpaPercentage(semester.average_percentage)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm text-muted-foreground">
+                                        <span>{semester.courses?.length || 0} Courses</span>
+                                        <div
+                                            className={`h-2 w-2 rounded-full ${semester.average_scaled >= 3.0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </Link>
+                        <div className="absolute right-4 top-4">
+                            <DeleteSemesterButton
+                                semesterId={semester.id}
+                                semesterName={semester.name}
+                                onDeleted={onRefresh}
+                                showAlert={showAlert}
+                            />
+                        </div>
+                    </div>
+                ))}
+                {filteredSemesters.length === 0 && (
+                    <AppEmptyState
+                        scenario="create"
+                        size="section"
+                        className="col-span-full"
+                        title="No semesters yet"
+                        description="Create your first semester to start organizing courses and schedules."
+                        primaryAction={(
+                            <CreateSemesterWizardButton
+                                programId={programId}
+                                onChanged={onRefresh}
+                            >
+                                Create Semester
+                            </CreateSemesterWizardButton>
+                        )}
+                    />
+                )}
+            </div>
+        </section>
+    );
+};
 
-        const allCourses = programCourses;
+type AllCoursesSectionProps = {
+    programCourses: CourseWithProgramContext[];
+    subjectColorMap: Record<string, string>;
+    onOpenCourseModal: () => void;
+    onRefresh: () => Promise<void>;
+    showAlert: ShowAlert;
+};
 
-        const categories = Array.from(new Set(allCourses.map(c => c.category).filter(Boolean)));
-        const semesters = Array.from(new Set(allCourses.map(c => c.semesterName)));
-        const credits = Array.from(new Set(allCourses.map(c => c.credits)));
-        const levels = Array.from(new Set(
-            allCourses.map(c => extractCourseLevel(c.name)).filter((level): level is number => level !== null)
-        )).sort((a, b) => a - b);
+const AllCoursesSection: React.FC<AllCoursesSectionProps> = ({
+    programCourses,
+    subjectColorMap,
+    onOpenCourseModal,
+    onRefresh,
+    showAlert,
+}) => {
+    const [coursePendingDelete, setCoursePendingDelete] = useState<CourseWithProgramContext | null>(null);
+    const [isDeletingCourse, setIsDeletingCourse] = useState(false);
+    const [courseSearchQuery, setCourseSearchQuery] = useState('');
+    const [activeFilters, setActiveFilters] = useState<CourseFilterSuggestion[]>([]);
+    const suggestionsAnchor = useComboboxAnchor();
+    const deferredCourseSearchQuery = useDeferredValue(courseSearchQuery);
 
-        const items: Array<CourseFilterSuggestion> = [];
+    const allCoursesIndex = useMemo(() => {
+        const categories = new Set<string>();
+        const semesters = new Set<string>();
+        const credits = new Set<number>();
+        const levels = new Set<number>();
+        const subjectCodes = new Set<string>();
 
-        // Add category suggestions
-        categories.forEach(cat => {
-            items.push({
-                type: 'category',
-                value: cat!,
-                label: `Category: ${cat}`,
-                icon: Tag
-            });
+        const indexedCourses: IndexedCourseWithProgramContext[] = programCourses.map((course) => {
+            const normalizedCategory = course.category?.toLowerCase() ?? '';
+            const courseLevel = extractCourseLevel(course.name);
+            const subjectCode = resolveCourseSubjectCode(course);
+
+            if (course.category) {
+                categories.add(course.category);
+            }
+            semesters.add(course.semesterName);
+            credits.add(course.credits ?? 0);
+            if (courseLevel !== null) {
+                levels.add(courseLevel);
+            }
+            if (subjectCode) {
+                subjectCodes.add(subjectCode);
+            }
+
+            return {
+                ...course,
+                courseLevel,
+                normalizedName: course.name.toLowerCase(),
+                normalizedAlias: course.alias?.toLowerCase() ?? '',
+                normalizedCategory,
+                subjectCode,
+            };
         });
 
-        // Add semester suggestions
-        semesters.forEach(sem => {
-            items.push({
-                type: 'semester',
-                value: sem,
-                label: `Semester: ${sem}`,
-                icon: Calendar
+        const groupedSuggestionsMap = new Map<string, Array<CourseFilterSuggestion>>();
+        const pushSuggestion = (suggestion: CourseFilterSuggestion) => {
+            const groupSuggestions = groupedSuggestionsMap.get(suggestion.type);
+            if (groupSuggestions) {
+                groupSuggestions.push(suggestion);
+                return;
+            }
+            groupedSuggestionsMap.set(suggestion.type, [suggestion]);
+        };
+
+        Array.from(categories)
+            .sort((left, right) => left.localeCompare(right))
+            .forEach((category) => {
+                pushSuggestion({
+                    type: 'category',
+                    value: category,
+                    label: `Category: ${category}`,
+                    icon: Tag,
+                });
             });
-        });
 
-        // Add credit suggestions
-        credits.sort((a, b) => a - b).forEach(cred => {
-            items.push({
-                type: 'credits',
-                value: String(cred),
-                label: `Credits: ${cred}`,
-                icon: Hash
+        Array.from(semesters)
+            .sort((left, right) => left.localeCompare(right))
+            .forEach((semester) => {
+                pushSuggestion({
+                    type: 'semester',
+                    value: semester,
+                    label: `Semester: ${semester}`,
+                    icon: Calendar,
+                });
             });
-        });
 
-        // Add level suggestions
-        levels.forEach(level => {
-            items.push({
-                type: 'level',
-                value: String(level),
-                label: `Level: ${level}`,
-                icon: Layers
+        Array.from(credits)
+            .sort((left, right) => left - right)
+            .forEach((credit) => {
+                pushSuggestion({
+                    type: 'credits',
+                    value: String(credit),
+                    label: `Credits: ${credit}`,
+                    icon: Hash,
+                });
             });
-        });
 
-        // Add GPA threshold suggestions
-        items.push(
-            { type: 'gpa', value: '3.0', label: 'GPA ≥ 3.0', icon: TrendingUp },
-            { type: 'gpa', value: '3.5', label: 'GPA ≥ 3.5', icon: TrendingUp },
-            { type: 'gpa', value: '4.0', label: 'GPA = 4.0', icon: TrendingUp }
-        );
+        Array.from(levels)
+            .sort((left, right) => left - right)
+            .forEach((level) => {
+                pushSuggestion({
+                    type: 'level',
+                    value: String(level),
+                    label: `Level: ${level}`,
+                    icon: Layers,
+                });
+            });
 
-        return items;
-    }, [program, programCourses]);
-    const groupedSuggestions = useMemo(() => {
-        const orderedTypes = ['category', 'semester', 'credits', 'level', 'gpa'];
+        pushSuggestion({ type: 'gpa', value: '3.0', label: 'GPA ≥ 3.0', icon: TrendingUp });
+        pushSuggestion({ type: 'gpa', value: '3.5', label: 'GPA ≥ 3.5', icon: TrendingUp });
+        pushSuggestion({ type: 'gpa', value: '4.0', label: 'GPA = 4.0', icon: TrendingUp });
 
-        return orderedTypes
+        const suggestions = Array.from(groupedSuggestionsMap.values()).flat();
+
+        const groupedSuggestions = ['category', 'semester', 'credits', 'level', 'gpa']
             .map((type) => ({
                 type,
                 label: COURSE_FILTER_GROUP_LABELS[type] ?? type,
-                items: suggestions.filter((suggestion) => suggestion.type === type),
+                items: groupedSuggestionsMap.get(type) ?? [],
             }))
             .filter((group) => group.items.length > 0);
-    }, [suggestions]);
 
-    useEffect(() => {
-        if (!program?.id || user?.active_program_id === program.id) {
-            return;
-        }
-        void setActiveProgram(program.id);
-    }, [program?.id, setActiveProgram, user?.active_program_id]);
+        return {
+            indexedCourses,
+            suggestions,
+            groupedSuggestions,
+            discoveredSubjectCodes: Array.from(subjectCodes).sort((left, right) => left.localeCompare(right)),
+        };
+    }, [programCourses]);
+
+    const resolvedSubjectColorMap = useMemo(
+        () => resolveSubjectColorAssignments(allCoursesIndex.discoveredSubjectCodes, subjectColorMap),
+        [allCoursesIndex.discoveredSubjectCodes, subjectColorMap],
+    );
+    const normalizedCourseQuery = useMemo(
+        () => deferredCourseSearchQuery.trim().toLowerCase(),
+        [deferredCourseSearchQuery],
+    );
 
     const filteredAndSortedCourses = useMemo(() => {
-        if (!program) return [];
+        let courses = [...allCoursesIndex.indexedCourses];
 
-        let courses = [...programCourses];
-
-        // Apply active filters
         if (activeFilters.length > 0) {
-            courses = courses.filter(course => {
-                return activeFilters.every(filter => {
+            courses = courses.filter((course) => {
+                return activeFilters.every((filter) => {
                     switch (filter.type) {
                         case 'category':
                             return course.category === filter.value;
@@ -321,10 +385,8 @@ const ProgramDashboardContent: React.FC = () => {
                             return course.semesterName === filter.value;
                         case 'credits':
                             return String(course.credits) === filter.value;
-                        case 'level': {
-                            const courseLevel = extractCourseLevel(course.name);
-                            return courseLevel !== null && String(courseLevel) === filter.value;
-                        }
+                        case 'level':
+                            return course.courseLevel !== null && String(course.courseLevel) === filter.value;
                         case 'gpa': {
                             const threshold = parseFloat(filter.value);
                             if (threshold === 4.0) {
@@ -339,77 +401,119 @@ const ProgramDashboardContent: React.FC = () => {
             });
         }
 
-        if (courseSearchQuery.trim()) {
-            const query = courseSearchQuery.toLowerCase();
-            courses = courses.filter(course =>
-                course.name.toLowerCase().includes(query) ||
-                (course.alias && course.alias.toLowerCase().includes(query)) ||
-                (course.category && course.category.toLowerCase().includes(query))
-            );
-        }
-
-        if (sortConfig) {
-            courses.sort((a, b) => {
-                let aValue: any = a[sortConfig.key as keyof typeof a];
-                let bValue: any = b[sortConfig.key as keyof typeof b];
-
-                // Handle special sorting cases
-                if (sortConfig.key === 'semesterName') {
-                    // For simplicity, sorting by semester name string for now.
-                    // Ideally could sort by semester logical order if available.
-                } else if (sortConfig.key === 'category') {
-                    aValue = a.category || '';
-                    bValue = b.category || '';
-                } else if (sortConfig.key === 'grade_percentage') {
-                    // Use scaling if percentage is not the primary sort or same?
-                }
-
-                if (aValue < bValue) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aValue > bValue) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
-                return 0;
-            });
+        if (normalizedCourseQuery) {
+            courses = courses.filter((course) => (
+                course.normalizedName.includes(normalizedCourseQuery)
+                || course.normalizedAlias.includes(normalizedCourseQuery)
+                || course.normalizedCategory.includes(normalizedCourseQuery)
+            ));
         }
 
         return courses;
-    }, [program, programCourses, courseSearchQuery, sortConfig, activeFilters]);
+    }, [activeFilters, allCoursesIndex.indexedCourses, normalizedCourseQuery]);
 
-    const discoveredSubjectCodes = useMemo(() => {
-        if (programCourses.length === 0) return [];
-        return Array.from(new Set(
-            programCourses
-                .map((course) => resolveCourseSubjectCode(course))
-                .filter(Boolean),
-        )).sort((left, right) => left.localeCompare(right));
-    }, [programCourses]);
-    const resolvedSubjectColorMap = useMemo(
-        () => resolveSubjectColorAssignments(discoveredSubjectCodes, subjectColorMap),
-        [discoveredSubjectCodes, subjectColorMap],
-    );
-
-    const requestSort = (key: string) => {
-        if (!sortConfig || sortConfig.key !== key) {
-            setSortConfig({ key, direction: 'asc' });
-            return;
-        }
-        if (sortConfig.direction === 'asc') {
-            setSortConfig({ key, direction: 'desc' });
-            return;
-        }
-        setSortConfig(null);
-    };
-
-    const getSortIcon = (key: string) => {
-        if (!sortConfig || sortConfig.key !== key) {
-            return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />;
-        }
-        return sortConfig.direction === 'asc'
-            ? <ArrowUp className="ml-2 h-4 w-4 text-foreground" />
-            : <ArrowDown className="ml-2 h-4 w-4 text-foreground" />;
-    };
+    const columns = useMemo<ColumnDef<IndexedCourseWithProgramContext>[]>(() => [
+        {
+            key: 'name',
+            label: 'Course Name',
+            fit: 'fill',
+            minWidth: 220,
+            sortable: true,
+            cell: (course) => (
+                <div className="flex flex-col">
+                    <Link to={`/courses/${course.id}`} className="font-medium hover:underline">
+                        {course.name}
+                    </Link>
+                </div>
+            ),
+        },
+        {
+            key: 'category',
+            label: 'Category',
+            width: 144,
+            sortable: (left, right) => (left.category ?? '').localeCompare(right.category ?? ''),
+            cell: (course) => (
+                course.category ? (
+                    <Badge
+                        variant="outline"
+                        className={`border-0 font-medium ${getCourseCategoryBadgeClassName(course.category)}`}
+                        style={getCourseBadgeStyle(resolveCourseColor(course, resolvedSubjectColorMap))}
+                    >
+                        {course.category}
+                    </Badge>
+                ) : null
+            ),
+        },
+        {
+            key: 'semesterName',
+            label: 'Semester',
+            width: 168,
+            sortable: true,
+            cell: (course) => (
+                <span className="text-muted-foreground">
+                    {course.semesterId ? (
+                        <Link to={`/semesters/${course.semesterId}`} className="hover:underline">
+                            {course.semesterName}
+                        </Link>
+                    ) : (
+                        <span>{course.semesterName}</span>
+                    )}
+                </span>
+            ),
+        },
+        {
+            key: 'credits',
+            label: 'Credits',
+            width: 92,
+            sortable: true,
+        },
+        {
+            key: 'grade_percentage',
+            label: 'Grade',
+            width: 108,
+            align: 'right',
+            sortable: true,
+            cell: (course) => (
+                course.hide_gpa ? '****' : formatGpaPercentage(course.grade_percentage)
+            ),
+        },
+        {
+            key: 'grade_scaled',
+            label: 'GPA',
+            width: 96,
+            align: 'right',
+            sortable: true,
+            cell: (course) => (
+                course.hide_gpa ? '****' : (
+                    <span className={course.grade_scaled >= 3.0 ? 'font-medium text-emerald-600' : 'font-medium text-amber-600'}>
+                        <AnimatedNumber
+                            value={course.grade_scaled}
+                            format={(value) => value.toFixed(2)}
+                        />
+                    </span>
+                )
+            ),
+        },
+        {
+            key: 'actions',
+            label: '',
+            width: 52,
+            align: 'right',
+            cell: (course) => (
+                <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
+                    <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => setCoursePendingDelete(course)}
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                    </DropdownMenuItem>
+                </DataTableActionMenu>
+            ),
+            headerClassName: 'w-[52px]',
+            cellClassName: 'w-[52px] align-middle',
+        },
+    ], [resolvedSubjectColorMap]);
 
     const submitDeleteCourse = useCallback(async () => {
         if (!coursePendingDelete) {
@@ -420,7 +524,7 @@ const ProgramDashboardContent: React.FC = () => {
         try {
             await api.deleteCourse(coursePendingDelete.id);
             setCoursePendingDelete(null);
-            await refreshDashboardData();
+            await onRefresh();
         } catch (error) {
             console.error('Failed to delete course', error);
             await showAlert({
@@ -430,7 +534,237 @@ const ProgramDashboardContent: React.FC = () => {
         } finally {
             setIsDeletingCourse(false);
         }
-    }, [coursePendingDelete, refreshDashboardData, showAlert]);
+    }, [coursePendingDelete, onRefresh, showAlert]);
+
+    return (
+        <section className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 className="text-lg font-semibold tracking-tight">
+                    All Courses
+                </h2>
+                <div className="flex-1 max-w-sm space-y-1.5">
+                    <Combobox<CourseFilterSuggestion, true>
+                        items={allCoursesIndex.suggestions}
+                        multiple
+                        itemToStringValue={(suggestion) => suggestion.label}
+                        isItemEqualToValue={(item, value) => item.type === value.type && item.value === value.value}
+                        onInputValueChange={setCourseSearchQuery}
+                        value={activeFilters}
+                        onValueChange={(value) => {
+                            setActiveFilters(Array.isArray(value) ? value : []);
+                            setCourseSearchQuery('');
+                        }}
+                        autoHighlight
+                    >
+                        <ComboboxChips ref={suggestionsAnchor} className="w-full">
+                            <ComboboxValue>
+                                {(values) => (
+                                    <>
+                                        <Search className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
+                                        {values.map((filter: CourseFilterSuggestion) => (
+                                            <ComboboxChip key={`${filter.type}-${filter.value}`}>
+                                                {filter.label}
+                                            </ComboboxChip>
+                                        ))}
+                                        <ComboboxChipsInput
+                                            placeholder={values.length > 0 ? 'Add more filters...' : 'Search or filter courses...'}
+                                        />
+                                    </>
+                                )}
+                            </ComboboxValue>
+                        </ComboboxChips>
+                        <ComboboxContent anchor={suggestionsAnchor}>
+                            <ComboboxEmpty>No items found.</ComboboxEmpty>
+                            <ComboboxList>
+                                {allCoursesIndex.groupedSuggestions.map((group) => (
+                                    <ComboboxGroup key={group.type}>
+                                        <ComboboxLabel>{group.label}</ComboboxLabel>
+                                        {group.items.map((suggestion) => {
+                                            const Icon = suggestion.icon;
+                                            return (
+                                                <ComboboxItem
+                                                    key={`${suggestion.type}-${suggestion.value}`}
+                                                    value={suggestion}
+                                                    className="pr-2 [&>span.absolute]:hidden"
+                                                >
+                                                    <Icon className="text-muted-foreground" />
+                                                    <span>{suggestion.label}</span>
+                                                </ComboboxItem>
+                                            );
+                                        })}
+                                    </ComboboxGroup>
+                                ))}
+                            </ComboboxList>
+                        </ComboboxContent>
+                    </Combobox>
+                </div>
+            </div>
+            {filteredAndSortedCourses.length === 0 ? (
+                <div className="rounded-md border bg-card min-h-[300px] flex flex-col overflow-hidden">
+                    <AppEmptyState
+                        scenario={courseSearchQuery || activeFilters.length > 0 ? 'no-results' : 'create'}
+                        size="section"
+                        surface="inherit"
+                        className="flex-1 rounded-none border-0 px-6 py-10"
+                        title={courseSearchQuery || activeFilters.length > 0 ? 'No matching courses' : 'No courses yet'}
+                        description={courseSearchQuery || activeFilters.length > 0
+                            ? 'Adjust the search or filters to see more courses.'
+                            : 'Add a course to start tracking grades and organization inside this Program.'}
+                        primaryAction={courseSearchQuery || activeFilters.length > 0 ? undefined : (
+                            <Button
+                                type="button"
+                                onClick={onOpenCourseModal}
+                            >
+                                Add Course
+                            </Button>
+                        )}
+                    />
+                </div>
+            ) : (
+                <DataTable
+                    title="All Courses"
+                    description="Review every course in this Program."
+                    showHeader={false}
+                    items={filteredAndSortedCourses}
+                    getRowKey={(course) => course.id}
+                    columns={columns}
+                    bodyHeight={480}
+                    pagination={{ pageSize: COURSE_PAGE_SIZE, itemLabel: 'courses' }}
+                    minWidthClassName="min-w-[820px]"
+                />
+            )}
+            <AlertDialog
+                open={coursePendingDelete !== null}
+                onOpenChange={(nextOpen) => {
+                    if (!isDeletingCourse && !nextOpen) {
+                        setCoursePendingDelete(null);
+                    }
+                }}
+            >
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete course?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {`Are you sure you want to delete ${coursePendingDelete?.name || 'this course'}? This action cannot be undone.`}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingCourse}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={submitDeleteCourse}
+                            disabled={isDeletingCourse}
+                        >
+                            {isDeletingCourse ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </section>
+    );
+};
+
+const ProgramDashboardContent: React.FC = () => {
+    const { program, setProgram, saveProgram, refreshProgram, isLoading } = useProgramData();
+    const { user, setActiveProgram } = useAuth();
+    const { alert: showAlert } = useDialog();
+    const [unassignedCourses, setUnassignedCourses] = useState<Array<CourseWithProgramContext>>([]);
+    const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+    const programId = program?.id ?? null;
+    const layoutCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
+        if (!programId) {
+            return [];
+        }
+
+        return [
+            {
+                heading: 'Program',
+                items: [
+                    {
+                        id: `program-add-course-${programId}`,
+                        title: 'Add Course',
+                        description: 'Create or import a course in the current Program.',
+                        keywords: ['new course', 'import course'],
+                        icon: Plus,
+                        onSelect: () => setIsCourseModalOpen(true),
+                    },
+                ],
+            },
+        ];
+    }, [programId]);
+
+    const refreshUnassignedCourses = useCallback(async () => {
+        if (!programId) {
+            setUnassignedCourses([]);
+            return;
+        }
+
+        try {
+            const courses = await api.getCoursesForProgram(programId, { unassigned: true });
+            setUnassignedCourses(
+                courses.map((course) => ({
+                    ...course,
+                    semesterName: 'Unassigned',
+                    semesterId: '',
+                    semesterStartDate: null,
+                })),
+            );
+        } catch (error) {
+            console.error('Failed to fetch unassigned program courses', error);
+            setUnassignedCourses([]);
+        }
+    }, [programId]);
+
+    const refreshDashboardData = useCallback(async () => {
+        await Promise.all([
+            refreshProgram(),
+            refreshUnassignedCourses(),
+        ]);
+    }, [refreshProgram, refreshUnassignedCourses]);
+
+    const handleUpdateProgram = useCallback(async (data: any) => {
+        if (!program) return;
+        await saveProgram(data);
+    }, [program, saveProgram]);
+
+    const visibleSemesters = useMemo<VisibleSemester[]>(
+        () => (program?.semesters ?? []).filter((semester) => semester.lifecycle_state !== 'draft'),
+        [program?.semesters],
+    );
+
+    const subjectColorMap = useMemo(
+        () => parseSubjectColorMap(program?.subject_color_map),
+        [program?.subject_color_map],
+    );
+
+    const programCourses = useMemo<Array<CourseWithProgramContext>>(() => {
+        const semesterCourses = visibleSemesters
+            .flatMap((semester) =>
+                (semester.courses || []).map((course) => ({
+                    ...course,
+                    semesterName: semester.name,
+                    semesterId: semester.id,
+                    semesterStartDate: semester.start_date ?? null,
+                })),
+            );
+        return [...semesterCourses, ...unassignedCourses];
+    }, [unassignedCourses, visibleSemesters]);
+
+    const totalCredits = useMemo(
+        () => programCourses.reduce((sum, course) => sum + (course.credits || 0), 0),
+        [programCourses],
+    );
+
+    useEffect(() => {
+        void refreshUnassignedCourses();
+    }, [refreshUnassignedCourses]);
+
+    useEffect(() => {
+        if (!program?.id || user?.active_program_id === program.id) {
+            return;
+        }
+        void setActiveProgram(program.id);
+    }, [program?.id, setActiveProgram, user?.active_program_id]);
 
     const creditsProgressPercent = useMemo(() => {
         if (!program) return 0;
@@ -740,303 +1074,20 @@ const ProgramDashboardContent: React.FC = () => {
 
                             <Separator />
 
-                            {/* Semesters Section */}
-                            <section className="space-y-6">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <h2 className="text-lg font-semibold tracking-tight">
-                                        Semesters
-                                    </h2>
-                                    <div className="flex-1 max-w-sm space-y-1.5">
-                                        <InputGroup>
-                                            <InputGroupAddon>
-                                                <Search className="pointer-events-none size-4 text-muted-foreground" />
-                                            </InputGroupAddon>
-                                            <InputGroupInput
-                                                placeholder="Search semesters..."
-                                                value={searchQuery}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                                            />
-                                        </InputGroup>
-                                    </div>
-                                </div>
+                            <SemestersSection
+                                semesters={visibleSemesters}
+                                programId={program.id}
+                                onRefresh={refreshDashboardData}
+                                showAlert={showAlert}
+                            />
 
-                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                                    {filteredSemesters.map(semester => (
-                                    <div key={semester.id} className="group relative">
-                                        <Link to={`/semesters/${semester.id}`} className="block h-full">
-                                            <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
-                                                <CardHeader className="pb-1">
-                                                    <CardTitle className="truncate pr-8 text-base font-semibold">
-                                                        {semester.name}
-                                                    </CardTitle>
-                                                </CardHeader>
-                                                <CardContent className="pt-2">
-                                                    <div className="mt-1 grid grid-cols-2 gap-3">
-                                                        <div>
-                                                            <p className="text-xs tracking-wider text-muted-foreground font-medium">GPA</p>
-                                                            <p className="text-base font-semibold">
-                                                                <AnimatedNumber
-                                                                    value={semester.average_scaled}
-                                                                    format={(val) => val.toFixed(2)}
-                                                                />
-                                                            </p>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="text-xs tracking-wider text-muted-foreground font-medium">Average</p>
-                                                            <p className="text-base font-semibold">{formatGpaPercentage(semester.average_percentage)}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm text-muted-foreground">
-                                                        <span>{(semester as any).courses?.length || 0} Courses</span>
-                                                        <div
-                                                            className={`h-2 w-2 rounded-full ${semester.average_scaled >= 3.0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                                                        />
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-                                        </Link>
-                                        <div className="absolute right-4 top-4">
-                                            <DeleteSemesterButton
-                                                semesterId={semester.id}
-                                                semesterName={semester.name}
-                                                onDeleted={refreshDashboardData}
-                                                showAlert={showAlert}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                                    {filteredSemesters.length === 0 && (
-                                        <AppEmptyState
-                                            scenario="create"
-                                            size="section"
-                                            className="col-span-full"
-                                            title="No semesters yet"
-                                            description="Create your first semester to start organizing courses and schedules."
-                                            primaryAction={program ? (
-                                                <CreateSemesterWizardButton
-                                                    programId={program.id}
-                                                    onChanged={refreshDashboardData}
-                                                >
-                                                    Create Semester
-                                                </CreateSemesterWizardButton>
-                                            ) : undefined}
-                                        />
-                                    )}
-                                </div>
-                            </section>
-
-                            {/* All Courses Section */}
-                            <section className="space-y-6">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <h2 className="text-lg font-semibold tracking-tight">
-                                        All Courses
-                                    </h2>
-                                    <div className="flex-1 max-w-sm space-y-1.5">
-                                        {/* Search with Suggestions */}
-                                        <Combobox<CourseFilterSuggestion, true>
-                                            items={suggestions}
-                                            multiple
-                                            itemToStringValue={(suggestion) => suggestion.label}
-                                            isItemEqualToValue={(item, value) => item.type === value.type && item.value === value.value}
-                                            onInputValueChange={setCourseSearchQuery}
-                                            value={activeFilters}
-                                            onValueChange={(value) => {
-                                                setActiveFilters(Array.isArray(value) ? value : []);
-                                                setCourseSearchQuery('');
-                                            }}
-                                            autoHighlight
-                                        >
-                                            <ComboboxChips ref={suggestionsAnchor} className="w-full">
-                                                <ComboboxValue>
-                                                    {(values) => (
-                                                        <>
-                                                            <Search className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
-                                                            {values.map((filter: CourseFilterSuggestion) => (
-                                                                <ComboboxChip key={`${filter.type}-${filter.value}`}>
-                                                                    {filter.label}
-                                                                </ComboboxChip>
-                                                            ))}
-                                                            <ComboboxChipsInput
-                                                                placeholder={values.length > 0 ? 'Add more filters...' : 'Search or filter courses...'}
-                                                            />
-                                                        </>
-                                                    )}
-                                                </ComboboxValue>
-                                            </ComboboxChips>
-                                            <ComboboxContent anchor={suggestionsAnchor}>
-                                                <ComboboxEmpty>No items found.</ComboboxEmpty>
-                                                <ComboboxList>
-                                                    {groupedSuggestions.map((group) => (
-                                                        <ComboboxGroup key={group.type}>
-                                                            <ComboboxLabel>{group.label}</ComboboxLabel>
-                                                            {group.items.map((suggestion) => {
-                                                                const Icon = suggestion.icon;
-                                                                return (
-                                                                    <ComboboxItem
-                                                                        key={`${suggestion.type}-${suggestion.value}`}
-                                                                        value={suggestion}
-                                                                        className="pr-2 [&>span.absolute]:hidden"
-                                                                    >
-                                                                        <Icon className="text-muted-foreground" />
-                                                                        <span>{suggestion.label}</span>
-                                                                    </ComboboxItem>
-                                                                );
-                                                            })}
-                                                        </ComboboxGroup>
-                                                    ))}
-                                                </ComboboxList>
-                                            </ComboboxContent>
-                                        </Combobox>
-                                    </div>
-                                </div>
-                                <div className="rounded-md border bg-card min-h-[300px] flex flex-col overflow-hidden">
-                                    {filteredAndSortedCourses.length === 0 ? (
-                                        <AppEmptyState
-                                            scenario={courseSearchQuery || activeFilters.length > 0 ? "no-results" : "create"}
-                                            size="section"
-                                            surface="inherit"
-                                            className="flex-1 rounded-none border-0 px-6 py-10"
-                                            title={courseSearchQuery || activeFilters.length > 0 ? "No matching courses" : "No courses yet"}
-                                            description={courseSearchQuery || activeFilters.length > 0
-                                                ? "Adjust the search or filters to see more courses."
-                                                : "Add a course to start tracking grades and organization inside this Program."}
-                                            primaryAction={courseSearchQuery || activeFilters.length > 0 ? undefined : (
-                                                <Button
-                                                    type="button"
-                                                    onClick={() => setIsCourseModalOpen(true)}
-                                                >
-                                                    Add Course
-                                                </Button>
-                                            )}
-                                        />
-                                    ) : (
-                                    <Table>
-                                                <TableHeader className="sticky top-0 bg-card">
-                                            <TableRow className="hover:bg-transparent">
-                                                <TableHead
-                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                                    onClick={() => requestSort('name')}
-                                                >
-                                                    <div className="flex items-center">
-                                                        Course Name
-                                                        {getSortIcon('name')}
-                                                    </div>
-                                                </TableHead>
-                                                <TableHead
-                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                                    onClick={() => requestSort('category')}
-                                                >
-                                                    <div className="flex items-center">
-                                                        Category
-                                                        {getSortIcon('category')}
-                                                    </div>
-                                                </TableHead>
-                                                <TableHead
-                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                                    onClick={() => requestSort('semesterName')}
-                                                >
-                                                    <div className="flex items-center">
-                                                        Semester
-                                                        {getSortIcon('semesterName')}
-                                                    </div>
-                                                </TableHead>
-                                                <TableHead
-                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                                    onClick={() => requestSort('credits')}
-                                                >
-                                                    <div className="flex items-center">
-                                                        Credits
-                                                        {getSortIcon('credits')}
-                                                    </div>
-                                                </TableHead>
-                                                <TableHead
-                                                    className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
-                                                    onClick={() => requestSort('grade_percentage')}
-                                                >
-                                                    <div className="flex items-center justify-end">
-                                                        Grade
-                                                        {getSortIcon('grade_percentage')}
-                                                    </div>
-                                                </TableHead>
-                                                <TableHead
-                                                    className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
-                                                    onClick={() => requestSort('grade_scaled')}
-                                                >
-                                                    <div className="flex items-center justify-end">
-                                                        GPA
-                                                        {getSortIcon('grade_scaled')}
-                                                    </div>
-                                                </TableHead>
-                                                <TableHead
-                                                    className="w-[52px] text-right"
-                                                    aria-label="Row actions"
-                                                />
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                                    {filteredAndSortedCourses.map(course => (
-                                                    <TableRow key={course.id} className="h-12">
-                                                        <TableCell className="font-medium">
-                                                            <div className="flex flex-col">
-                                                                <Link to={`/courses/${course.id}`} className="hover:underline">
-                                                                    {course.name}
-                                                                </Link>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                                    {course.category && (
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className={`border-0 font-medium ${getCourseCategoryBadgeClassName(course.category)}`}
-                                                                    style={getCourseBadgeStyle(resolveCourseColor(course, resolvedSubjectColorMap))}
-                                                                >
-                                                                    {course.category}
-                                                                </Badge>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="text-muted-foreground">
-                                                            {course.semesterId ? (
-                                                                <Link to={`/semesters/${course.semesterId}`} className="hover:underline">
-                                                                    {course.semesterName}
-                                                                </Link>
-                                                            ) : (
-                                                                <span>{course.semesterName}</span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>{course.credits}</TableCell>
-                                                        <TableCell className="text-right">
-                                                            {course.hide_gpa ? '****' : (
-                                                                <span>{formatGpaPercentage(course.grade_percentage)}</span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-medium">
-                                                            {course.hide_gpa ? '****' : (
-                                                                <span className={course.grade_scaled >= 3.0 ? 'text-emerald-600' : 'text-amber-600'}>
-                                                                    <AnimatedNumber
-                                                                        value={course.grade_scaled}
-                                                                        format={(val) => val.toFixed(2)}
-                                                                    />
-                                                                </span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="w-[52px] text-right align-middle">
-                                                            <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
-                                                                <DropdownMenuItem
-                                                                    variant="destructive"
-                                                                    onClick={() => setCoursePendingDelete(course)}
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                    Delete
-                                                                </DropdownMenuItem>
-                                                            </DataTableActionMenu>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                    ))}
-                                        </TableBody>
-                                    </Table>
-                                    )}
-                                </div>
-                            </section>
+                            <AllCoursesSection
+                                programCourses={programCourses}
+                                subjectColorMap={subjectColorMap}
+                                onOpenCourseModal={() => setIsCourseModalOpen(true)}
+                                onRefresh={refreshDashboardData}
+                                showAlert={showAlert}
+                            />
                     </>
                 )}
             </Container>
@@ -1049,33 +1100,6 @@ const ProgramDashboardContent: React.FC = () => {
                     onCourseAdded={refreshDashboardData}
                 />
             )}
-            <AlertDialog
-                open={coursePendingDelete !== null}
-                onOpenChange={(nextOpen) => {
-                    if (!isDeletingCourse && !nextOpen) {
-                        setCoursePendingDelete(null);
-                    }
-                }}
-            >
-                <AlertDialogContent size="sm">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete course?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {`Are you sure you want to delete ${coursePendingDelete?.name || 'this course'}? This action cannot be undone.`}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isDeletingCourse}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            variant="destructive"
-                            onClick={submitDeleteCourse}
-                            disabled={isDeletingCourse}
-                        >
-                            {isDeletingCourse ? 'Deleting...' : 'Delete'}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </Layout>
     );
 };

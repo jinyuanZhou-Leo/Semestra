@@ -1,22 +1,28 @@
-// input:  [LMS course summaries, selected-course ids, optional disabled-course reasons, shadcn checkbox/input/select/field/scroll-area primitives, and optional empty-state copy]
+// input:  [LMS course summaries, selected-course ids, optional disabled-course reasons, shadcn checkbox/input/select/card/badge/empty/scroll-area primitives, and optional empty-state copy]
 // output: [`LmsCourseSelectionList` component]
-// pos:    [Reusable LMS course picker list for Add Course/Add Semester flows with wrapper-light search/filter/list composition, linked-course disabled states, unclipped focus treatment, year filtering, and overflow-safe scrollable multi-select rows]
+// pos:    [Reusable LMS course picker list for Add Course/Add Semester flows with wrapper-light search/filter/card composition, linked-course disabled states, concise result metadata, year filtering, and overflow-safe scrollable multi-select cards]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { CalendarRange, Search } from 'lucide-react';
 
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { LmsCourseSummary } from '@/services/api';
-import { AppEmptyState } from './AppEmptyState';
 
 const YEAR_PATTERN = /\b(20\d{2})\b/;
 
@@ -69,19 +75,23 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState('all');
   const deferredSearchTerm = useDeferredValue(searchTerm);
+  const visibleCourses = useMemo(
+    () => courses.filter((course) => course.name.trim().length > 0),
+    [courses],
+  );
 
   const yearOptions = useMemo(() => (
     Array.from(new Set(
-      courses
+      visibleCourses
         .map((course) => extractLmsCourseYear(course))
         .filter((year): year is string => year !== null)
     )).sort((left, right) => Number(right) - Number(left))
-  ), [courses]);
+  ), [visibleCourses]);
 
   const filteredCourses = useMemo(() => {
     const normalizedQuery = deferredSearchTerm.trim().toLowerCase();
 
-    return courses.filter((course) => {
+    return visibleCourses.filter((course) => {
       const courseYear = extractLmsCourseYear(course);
       const matchesYear = selectedYear === 'all' || courseYear === selectedYear;
       if (!matchesYear) {
@@ -101,7 +111,7 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
 
       return haystack.includes(normalizedQuery);
     });
-  }, [courses, deferredSearchTerm, selectedYear]);
+  }, [visibleCourses, deferredSearchTerm, selectedYear]);
 
   const toggleCourseSelection = (externalId: string, checked: boolean) => {
     onSelectionChange(
@@ -112,7 +122,7 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
   };
 
   return (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}>
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col gap-4', className)}>
       <div className="grid flex-none gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -140,66 +150,84 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
           </SelectContent>
         </Select>
       </div>
-      <Separator className="my-4" />
 
       <div className="min-h-0 min-w-0 flex-1">
-        {courses.length === 0 ? (
+        {visibleCourses.length === 0 ? (
           <div className="flex h-full min-h-[220px] items-center justify-center">
-            <AppEmptyState
-              scenario="no-results"
-              size="modal"
-              surface="inherit"
-              title={emptyTitle}
-              description={emptyDescription}
-            />
+            <Empty className="border-border/70 bg-muted/20">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CalendarRange />
+                </EmptyMedia>
+                <EmptyTitle>{emptyTitle}</EmptyTitle>
+                <EmptyDescription>{emptyDescription}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </div>
         ) : filteredCourses.length === 0 ? (
           <div className="flex h-full min-h-[220px] items-center justify-center">
-            <AppEmptyState
-              scenario="no-results"
-              size="modal"
-              surface="inherit"
-              title={emptyTitle}
-              description={searchTerm || selectedYear !== 'all' ? noResultsDescription : emptyDescription}
-            />
+            <Empty className="border-border/70 bg-muted/20">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Search />
+                </EmptyMedia>
+                <EmptyTitle>No matching courses</EmptyTitle>
+                <EmptyDescription>
+                  {searchTerm || selectedYear !== 'all' ? noResultsDescription : emptyDescription}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </div>
         ) : (
           <ScrollArea className="h-full min-h-0 min-w-0">
-            <div className="w-full min-w-0 max-w-full pr-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 p-1 pr-4">
               {filteredCourses.map((course) => {
                 const checked = selectedCourseIds.includes(course.external_id);
                 const disabledReason = disabledCourseReasons[course.external_id];
                 const isDisabled = Boolean(disabledReason);
                 const courseYear = extractLmsCourseYear(course);
+                const courseCode = course.course_code || course.external_id;
 
                 return (
                   <label
                     key={course.external_id}
                     className={cn(
-                      "flex cursor-pointer items-start gap-3 border-b border-border/70 py-4 last:border-b-0",
+                      'block',
                       isDisabled
-                        ? "cursor-not-allowed opacity-65"
-                        : "hover:text-foreground",
+                        ? 'cursor-not-allowed'
+                        : 'cursor-pointer',
                     )}
                   >
-                    <Checkbox
-                      checked={checked}
-                      disabled={isDisabled}
-                      onCheckedChange={(nextChecked) => toggleCourseSelection(course.external_id, Boolean(nextChecked))}
-                      className="mt-0.5 shrink-0"
-                    />
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                      <div className="truncate font-semibold">{course.name}</div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>{course.course_code || course.external_id}</span>
-                        {courseYear ? <span>{courseYear}</span> : null}
-                      </div>
-                      {isDisabled ? (
-                        <div className="text-xs text-muted-foreground">
-                          {disabledReason}
+                    <Card
+                      className={cn(
+                        'gap-3 py-0 transition-colors',
+                        checked && !isDisabled && 'bg-accent/40',
+                        isDisabled
+                          ? 'opacity-60'
+                          : 'hover:bg-accent/20',
+                      )}
+                    >
+                      <CardHeader className="grid-cols-[1fr_auto] gap-x-3 gap-y-3 border-b border-border/60 py-4">
+                        <div className="flex min-w-0 flex-col gap-2">
+                          <CardTitle className="truncate text-sm">{course.name}</CardTitle>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">{courseCode}</span>
+                            {courseYear ? <span className="text-xs text-muted-foreground">{courseYear}</span> : null}
+                            {isDisabled ? (
+                              <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                Linked
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
-                      ) : null}
-                    </div>
+                        <Checkbox
+                          checked={checked}
+                          disabled={isDisabled}
+                          onCheckedChange={(nextChecked) => toggleCourseSelection(course.external_id, Boolean(nextChecked))}
+                          className="mt-0.5"
+                        />
+                      </CardHeader>
+                    </Card>
                   </label>
                 );
               })}

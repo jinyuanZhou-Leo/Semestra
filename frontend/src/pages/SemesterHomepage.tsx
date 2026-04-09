@@ -201,10 +201,11 @@ const SemesterHomepageContent: React.FC = () => {
         isTabsInitialized,
     });
 
-    const activeTabType = useMemo(
-        () => visibleTabs.find((tab) => tab.id === activeTabId)?.type,
+    const activeTab = useMemo(
+        () => visibleTabs.find((tab) => tab.id === activeTabId),
         [activeTabId, visibleTabs]
     );
+    const activeTabType = activeTab?.type;
     useEffect(() => {
         if (activeTabType) {
             lastActiveTabTypeRef.current = activeTabType;
@@ -368,7 +369,6 @@ const SemesterHomepageContent: React.FC = () => {
     const dashboardContent = useMemo(() => {
         if (!semester) return null;
         if (!activeTabId) return <PluginTabSkeleton />;
-        const activeTab = visibleTabs.find(tab => tab.id === activeTabId);
         const TabComponent = activeTab ? getTabComponentByType(activeTab.type) : undefined;
         if (!activeTab) {
             return (
@@ -439,7 +439,7 @@ const SemesterHomepageContent: React.FC = () => {
                 </PluginRuntimeInstanceProvider>
             </React.Suspense>
         );
-    }, [activeTabId, semester, visibleTabs, isActiveTabPluginLoading, activeTabLoadState.status]);
+    }, [activeTab, activeTabId, semester, isActiveTabPluginLoading, activeTabLoadState.status]);
 
     const handleUpdateSemester = useCallback(async (data: any) => {
         if (!semester) return;

@@ -50,18 +50,18 @@ import type { Course, Program, Semester } from '@/services/api';
 import {
   FOCUS_BOARD_ROWS,
   applyStripLayoutToSettings,
+  buildFocusBoardSizeMap,
   buildStripLayouts,
   buildResponsiveLayoutsFromStrip,
   getFocusBoardLayoutCols,
   rebuildFocusBoardLayouts,
-  sanitizeInteractiveStripLayout,
-  solveFocusBoardDragLayout,
+  sanitizeInteractiveStripLayoutWithSizeMap,
+  solveFocusBoardDragLayoutWithSizeMap,
   type FocusBoardLayoutItem,
   type ResponsiveStripLayouts,
 } from './FocusBoardLayout';
 import {
   getProgramHomeItemKey,
-  isProgramHomePinned,
   removeProgramHomeItem,
   resolveProgramHomeEntities,
   sortProgramHomeEntities,
@@ -423,6 +423,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   const resizeRafRef = useRef<number | null>(null);
   const autoScrollVelocityRef = useRef(0);
   const latestPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const lastResolvedTargetRef = useRef<{ key: string; x: number; y: number } | null>(null);
 
   const [viewportState, setViewportState] = useState<ViewportLayoutState>({
     isReady: false,
@@ -508,6 +509,10 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   const activeDevice = isMobileLayout ? 'mobile' : 'desktop';
   const activeMetrics = isMobileLayout ? BOARD_METRICS.mobile : BOARD_METRICS.desktop;
   const activeLayoutKey = isMobileLayout ? 'sm' : 'lg';
+  const activeSizeMap = useMemo(
+    () => buildFocusBoardSizeMap(visibleEntities, activeDevice),
+    [activeDevice, visibleEntities],
+  );
 
   const pinnedKeys = useMemo(
     () => new Set(settings.items.map((item) => getProgramHomeItemKey(item.entity_type, item.entity_id))),
@@ -563,9 +568,9 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   );
   const hasAvailableCandidates = useMemo(() => {
     return (program.semesters ?? []).some((semester) => (
-      semester.lifecycle_state !== 'draft' && !isProgramHomePinned(settings, 'semester', semester.id)
-    )) || programCourses.some((course) => !isProgramHomePinned(settings, 'course', course.id));
-  }, [program.semesters, programCourses, settings]);
+      semester.lifecycle_state !== 'draft' && !pinnedKeys.has(getProgramHomeItemKey('semester', semester.id))
+    )) || programCourses.some((course) => !pinnedKeys.has(getProgramHomeItemKey('course', course.id)));
+  }, [pinnedKeys, program.semesters, programCourses]);
 
   const desktopStrip = useMemo(
     () => buildStripLayouts(visibleEntities, 'desktop', settings.sort_mode === 'manual'),
@@ -583,6 +588,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
 
   useEffect(() => {
     if (!dragStateRef.current) {
+      lastResolvedTargetRef.current = null;
       setInteractiveLayouts(null);
     }
   }, [layouts]);
@@ -590,6 +596,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   useEffect(() => {
     if (!isEditing && dragStateRef.current) {
       dragStateRef.current = null;
+      lastResolvedTargetRef.current = null;
       setDraggingId(null);
     }
   }, [isEditing]);
@@ -599,7 +606,6 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   const activeLayoutRef = useRef(activeLayout);
   const settingsRef = useRef(settings);
   const layoutsRef = useRef(layouts);
-  const visibleEntitiesRef = useRef(visibleEntities);
   const visibleCols = isMobileLayout ? viewportState.mobileVisibleCols : viewportState.desktopVisibleCols;
   const activeCols = Math.max(getFocusBoardLayoutCols(activeLayout), visibleCols);
   const boardWidth = getAxisSpan(activeCols, activeMetrics.columnWidth, activeMetrics.gap);
@@ -613,11 +619,16 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
     return nextMap;
   }, [activeLayout]);
   const activeLayoutMapRef = useRef(activeLayoutMap);
+  const activeSizeMapRef = useRef(activeSizeMap);
 
   useEffect(() => {
     activeLayoutRef.current = activeLayout;
     activeLayoutMapRef.current = activeLayoutMap;
   }, [activeLayout, activeLayoutMap]);
+
+  useEffect(() => {
+    activeSizeMapRef.current = activeSizeMap;
+  }, [activeSizeMap]);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -626,10 +637,6 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   useEffect(() => {
     layoutsRef.current = layouts;
   }, [layouts]);
-
-  useEffect(() => {
-    visibleEntitiesRef.current = visibleEntities;
-  }, [visibleEntities]);
 
   useEffect(() => {
     if (!draggingId) {
@@ -649,27 +656,27 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
     };
 
     const updateActiveLayout = (nextActiveLayout: readonly FocusBoardLayoutItem[]) => {
-      const sanitized = sanitizeInteractiveStripLayout(nextActiveLayout, visibleEntitiesRef.current, activeDevice);
       const previousActiveLayout = activeLayoutRef.current;
-      if (areLayoutItemsEqual(previousActiveLayout, sanitized)) {
-        return sanitized;
+      if (areLayoutItemsEqual(previousActiveLayout, nextActiveLayout)) {
+        return nextActiveLayout;
       }
 
-      activeLayoutRef.current = [...sanitized];
-      activeLayoutMapRef.current = new Map(sanitized.map((item) => [item.i, item]));
+      activeLayoutRef.current = [...nextActiveLayout];
+      activeLayoutMapRef.current = new Map(nextActiveLayout.map((item) => [item.i, item]));
       setInteractiveLayouts((current) => {
         const fallbackLayouts = current ?? layoutsRef.current;
         const nextLayouts = {
-          lg: activeLayoutKey === 'lg' ? [...sanitized] : fallbackLayouts.lg,
-          sm: activeLayoutKey === 'sm' ? [...sanitized] : fallbackLayouts.sm,
+          lg: activeLayoutKey === 'lg' ? [...nextActiveLayout] : fallbackLayouts.lg,
+          sm: activeLayoutKey === 'sm' ? [...nextActiveLayout] : fallbackLayouts.sm,
         };
         return nextLayouts;
       });
-      return sanitized;
+      return nextActiveLayout;
     };
 
     const commitActiveLayout = async (nextActiveLayout: readonly FocusBoardLayoutItem[]) => {
-      const normalized = updateActiveLayout(nextActiveLayout);
+      const normalized = sanitizeInteractiveStripLayoutWithSizeMap(nextActiveLayout, activeSizeMapRef.current);
+      updateActiveLayout(normalized);
       const nextSettings = applyStripLayoutToSettings({
         ...settingsRef.current,
         sort_mode: 'manual',
@@ -677,7 +684,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
       await onCommit(nextSettings);
     };
 
-    const resolvePreviewFromPointer = (clientX: number, clientY: number) => {
+    const resolvePreviewFromPointer = (clientX: number, clientY: number, force = false) => {
       const dragState = dragStateRef.current;
       const viewport = viewportRef.current;
       if (!dragState || !viewport) {
@@ -699,12 +706,25 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
         ? 0
         : Math.max(0, Math.min(FOCUS_BOARD_ROWS - draggedLayout.h, Math.round(candidateTop / unitY)));
 
-      return solveFocusBoardDragLayout(
+      if (!force) {
+        const lastResolvedTarget = lastResolvedTargetRef.current;
+        if (
+          lastResolvedTarget
+          && lastResolvedTarget.key === dragState.id
+          && lastResolvedTarget.x === targetX
+          && lastResolvedTarget.y === targetY
+        ) {
+          return null;
+        }
+      }
+
+      lastResolvedTargetRef.current = { key: dragState.id, x: targetX, y: targetY };
+
+      return solveFocusBoardDragLayoutWithSizeMap(
         activeLayoutRef.current,
         dragState.id,
         { x: targetX, y: targetY },
-        visibleEntitiesRef.current,
-        dragState.device,
+        activeSizeMapRef.current,
       );
     };
 
@@ -771,9 +791,10 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
 
     const finishDrag = (event: PointerEvent) => {
       latestPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
-      const preview = resolvePreviewFromPointer(event.clientX, event.clientY);
+      const preview = resolvePreviewFromPointer(event.clientX, event.clientY, true);
       stopAutoScroll();
       dragStateRef.current = null;
+      lastResolvedTargetRef.current = null;
       setDraggingId(null);
       if (preview) {
         void commitActiveLayout(preview);
@@ -783,6 +804,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
     const cancelDrag = () => {
       stopAutoScroll();
       dragStateRef.current = null;
+      lastResolvedTargetRef.current = null;
       setDraggingId(null);
       setInteractiveLayouts(null);
     };
@@ -918,6 +940,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
                           grabOffsetX: event.clientX - rect.left,
                           grabOffsetY: event.clientY - rect.top,
                         };
+                        lastResolvedTargetRef.current = null;
                         latestPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
                         setDraggingId(key);
                         event.preventDefault();

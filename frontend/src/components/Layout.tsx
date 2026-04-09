@@ -8,6 +8,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStatus } from '../hooks/useAppStatus';
 import api, { type Course, type Program, type Semester } from '../services/api';
@@ -35,7 +36,11 @@ import { ThemeToggle } from './ThemeToggle';
 import { useTheme } from './ThemeProvider';
 import { Kbd } from '@/components/ui/kbd';
 import { getCourseBadgeStyle, getCourseCategoryBadgeClassName, resolveCourseColor } from '@/utils/courseCategoryBadge';
-import { useProgramsListQuery } from '@/data/resources/programs';
+import {
+    getProgramDetailQueryOptions,
+    getProgramsListQueryOptions,
+    useProgramsListQuery,
+} from '@/data/resources/programs';
 import {
     GlobalCommandPalette,
     type LayoutCommandGroup,
@@ -54,6 +59,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
     const { user, logout, setActiveProgram } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+    const queryClient = useQueryClient();
     const { status, clearStatus, pendingSyncRetryCount, retryFailedSync } = useAppStatus();
     const { setTheme } = useTheme();
     const isSyncStatus = status?.type === 'error' && /sync/i.test(status.message);
@@ -63,6 +69,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
     const [isRetryingSync, setIsRetryingSync] = useState(false);
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     const [isSwitchingProgram, setIsSwitchingProgram] = useState(false);
+    const commandProgramDetailsRef = useRef(new Map<string, Program & { semesters: Semester[] }>());
+    const commandUnassignedCoursesRef = useRef(new Map<string, Course[]>());
     const programsQuery = useProgramsListQuery();
     const programs = programsQuery.data ?? EMPTY_PROGRAMS;
     const isProgramsLoading = programsQuery.isLoading;
@@ -124,6 +132,37 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
 
         console.error('Failed to fetch programs for navbar workspace switcher', programsQuery.error);
     }, [programsQuery.error, user]);
+
+    const loadProgramsForCommandPalette = useCallback(async () => {
+        if (programs.length > 0) {
+            return programs;
+        }
+        return queryClient.ensureQueryData(getProgramsListQueryOptions());
+    }, [programs, queryClient]);
+
+    const loadProgramDetailForCommandPalette = useCallback(async (programId: string) => {
+        const cachedDetail = commandProgramDetailsRef.current.get(programId)
+            ?? queryClient.getQueryData<Program & { semesters: Semester[] }>(getProgramDetailQueryOptions(programId).queryKey);
+        if (cachedDetail) {
+            commandProgramDetailsRef.current.set(programId, cachedDetail);
+            return cachedDetail;
+        }
+
+        const detail = await queryClient.ensureQueryData(getProgramDetailQueryOptions(programId));
+        commandProgramDetailsRef.current.set(programId, detail);
+        return detail;
+    }, [queryClient]);
+
+    const loadUnassignedCoursesForCommandPalette = useCallback(async (programId: string) => {
+        const cachedCourses = commandUnassignedCoursesRef.current.get(programId);
+        if (cachedCourses) {
+            return cachedCourses;
+        }
+
+        const courses = await api.getCoursesForProgram(programId, { unassigned: true });
+        commandUnassignedCoursesRef.current.set(programId, courses);
+        return courses;
+    }, []);
 
     const handleProgramSwitch = useCallback(async (programId: string) => {
         if (!programId || isSwitchingProgram) {
@@ -291,8 +330,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                 searchPlaceholder: 'Search programs...',
                 emptyMessage: 'No programs found.',
                 loadItems: async () => {
-                    const programs = await api.getPrograms();
-                    return [...programs]
+                    const loadedPrograms = await loadProgramsForCommandPalette();
+                    return [...loadedPrograms]
                         .sort((left, right) => left.name.localeCompare(right.name))
                         .map((program: Program) => ({
                             id: `program-${program.id}`,
@@ -318,8 +357,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                 searchPlaceholder: 'Search semesters...',
                 emptyMessage: 'No semesters found.',
                 loadItems: async () => {
-                    const programs = await api.getPrograms();
-                    const programDetails = await Promise.all(programs.map((program: Program) => api.getProgram(program.id)));
+                    const loadedPrograms = await loadProgramsForCommandPalette();
+                    const programDetails = await Promise.all(
+                        loadedPrograms.map((program: Program) => loadProgramDetailForCommandPalette(program.id))
+                    );
 
                     return programDetails
                         .flatMap((program: Program & { semesters: Semester[] }) => program.semesters
@@ -349,11 +390,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                 searchPlaceholder: 'Search courses...',
                 emptyMessage: 'No courses found.',
                 loadItems: async () => {
-                    const programs = await api.getPrograms();
-                    const programPayloads = await Promise.all(programs.map(async (program: Program) => {
+                    const loadedPrograms = await loadProgramsForCommandPalette();
+                    const programPayloads = await Promise.all(loadedPrograms.map(async (program: Program) => {
                         const [programDetail, unassignedCourses] = await Promise.all([
-                            api.getProgram(program.id),
-                            api.getCoursesForProgram(program.id, { unassigned: true }),
+                            loadProgramDetailForCommandPalette(program.id),
+                            loadUnassignedCoursesForCommandPalette(program.id),
                         ]);
 
                         return { program, programDetail, unassignedCourses };
@@ -445,7 +486,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                         searchPlaceholder: 'Search workspaces...',
                         emptyMessage: 'No workspaces found.',
                         loadItems: async () => {
-                            const workspacePrograms = await api.getPrograms();
+                            const workspacePrograms = await loadProgramsForCommandPalette();
                             return [...workspacePrograms]
                                 .sort((left, right) => left.name.localeCompare(right.name))
                                 .map((program) => ({
@@ -540,7 +581,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
                 ],
             },
         ];
-    }, [accountNavigationItems, commandGroups, currentCourseId, currentProgramId, currentSemesterId, handleProgramSwitch, isPageBlurred, navigate, setTheme, user?.active_program_id]);
+    }, [accountNavigationItems, commandGroups, currentCourseId, currentProgramId, currentSemesterId, handleProgramSwitch, isPageBlurred, loadProgramsForCommandPalette, navigate, setTheme, user?.active_program_id]);
 
     return (
         <div className="flex min-h-screen flex-col">

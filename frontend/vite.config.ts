@@ -23,7 +23,6 @@ const compilerPreset = defineRolldownBabelPreset({
           'src/**/*.test.*',
           'src/**/*.spec.*',
           'src/test/**',
-          'src/plugins/**',
           'src/utils/**',
           'src/types/**',
           'src/services/**',

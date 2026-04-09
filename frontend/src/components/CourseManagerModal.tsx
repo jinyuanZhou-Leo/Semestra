@@ -321,13 +321,6 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                     title: summary.createdCount > 0 ? 'Import completed with conflicts' : 'Import blocked',
                     description: summary.description,
                 });
-            } else {
-                if (!(semesterId && closeOnSuccess)) {
-                    await showAlert({
-                        title: 'Import completed',
-                        description: summary.description,
-                    });
-                }
             }
         } catch (error) {
             console.error('Failed to import LMS courses', error);
