@@ -7,7 +7,7 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -391,11 +391,14 @@ export const CreateSemesterWizardPage: React.FC = () => {
     },
   });
 
-  // Assign flush refs synchronously during render — React's recommended pattern for
-  // "values you want available to effects/cleanup without re-running them". The useEffect
-  // approach introduced a one-frame lag where a fast unmount could call a stale flush.
-  basicsFlushRef.current = flushBasics;
-  pluginSetupFlushRef.current = flushPluginSetup;
+  // Keep flush refs in sync via useLayoutEffect instead of a direct render-phase mutation.
+  // useLayoutEffect runs synchronously in the commit phase (before paint), which gives the
+  // same "no stale flush on fast unmount" guarantee as an inline assignment does, but without
+  // the render-phase side effect that causes React Compiler to bail out of the whole component.
+  useLayoutEffect(() => {
+    basicsFlushRef.current = flushBasics;
+    pluginSetupFlushRef.current = flushPluginSetup;
+  });
 
   useEffect(() => {
     return () => {
