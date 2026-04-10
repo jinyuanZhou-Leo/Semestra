@@ -110,7 +110,7 @@ export const LandingHero = ({ reducedMotion }: LandingHeroProps) => {
                 <br />
                 <span className="landing-font-cursive font-normal text-muted-foreground/80 italic">when everything lives</span>
                 <br />
-                <span className="text-primary italic">in one place.</span>
+                <span className="text-primary">in one place.</span>
               </h1>
               <p className="max-w-xl text-pretty text-lg leading-8 text-muted-foreground md:text-xl">
                 Plan your week, finish tasks faster, and see progress without jumping between apps.

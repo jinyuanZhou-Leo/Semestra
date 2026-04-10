@@ -4,13 +4,13 @@ import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import SemestraLogo from '@/assets/semestra-logo-circ.webp';
 
 // Component to render brand icons from SimpleIcons CDN using brand colors
-const SimpleIcon = ({ name, className }: { name: string, className?: string }) => (
+const SimpleIcon = ({ name, className, darkWhite }: { name: string, className?: string, darkWhite?: boolean }) => (
   <div className={`relative flex items-center justify-center border border-border bg-card shadow-sm overflow-hidden ${className}`}>
     <div className="w-full h-full p-[22%] flex items-center justify-center">
       <img 
         src={`https://cdn.simpleicons.org/${name}`} 
         alt={`${name} Icon`} 
-        className="w-full h-full object-contain" 
+        className={`w-full h-full object-contain ${darkWhite ? 'dark:invert dark:grayscale dark:brightness-200' : ''}`} 
       />
     </div>
   </div>
@@ -104,13 +104,13 @@ export const LandingScrollytelling = () => {
                       <SimpleIcon name="canvas" className="size-16 rounded-2xl bg-card border border-border backdrop-blur-xl" />
                   </motion.div>
                   <motion.div style={{ rotate: counterRotate }} className="absolute z-10 -bottom-2 -right-2 shadow-xl">
-                      <SimpleIcon name="obsidian" className="size-14 rounded-2xl bg-card border border-border backdrop-blur-xl" />
+                      <SimpleIcon name="obsidian" className="size-14 rounded-2xl bg-card border border-border backdrop-blur-xl" darkWhite />
                   </motion.div>
                   <motion.div style={{ rotate: counterRotate }} className="absolute z-10 -bottom-2 -left-2 shadow-xl">
-                      <SimpleIcon name="github" className="size-16 rounded-2xl bg-card border border-border backdrop-blur-xl" />
+                      <SimpleIcon name="github" className="size-16 rounded-2xl bg-card border border-border backdrop-blur-xl" darkWhite />
                   </motion.div>
                   <motion.div style={{ rotate: counterRotate }} className="absolute z-10 -top-2 -right-2 shadow-xl">
-                      <SimpleIcon name="notion" className="size-14 rounded-2xl bg-card border border-border backdrop-blur-xl" />
+                      <SimpleIcon name="notion" className="size-14 rounded-2xl bg-card border border-border backdrop-blur-xl" darkWhite />
                   </motion.div>
                </motion.div>
             </motion.div>
