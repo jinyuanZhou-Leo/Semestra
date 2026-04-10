@@ -5,14 +5,15 @@ import SemestraLogo from '@/assets/semestra-logo-circ.webp';
 
 // Component to render brand icons from SimpleIcons CDN using brand colors
 const SimpleIcon = ({ name, className, darkWhite }: { name: string, className?: string, darkWhite?: boolean }) => (
-  <div className={`relative flex items-center justify-center border border-border bg-card shadow-sm overflow-hidden ${className}`}>
-    <div className="w-full h-full p-[22%] flex items-center justify-center">
-      <img 
-        src={`https://cdn.simpleicons.org/${name}`} 
-        alt={`${name} Icon`} 
-        className={`w-full h-full object-contain ${darkWhite ? 'dark:invert dark:grayscale dark:brightness-200' : ''}`} 
-      />
-    </div>
+  <div className={`relative flex items-center justify-center border border-border bg-card shadow-sm ${className}`}>
+    <img
+      src={`https://cdn.simpleicons.org/${name}`}
+      alt={`${name} Icon`}
+      width={24}
+      height={24}
+      loading="lazy"
+      className={`w-[56%] h-[56%] object-contain ${darkWhite ? 'dark:invert dark:grayscale dark:brightness-200' : ''}`}
+    />
   </div>
 );
 
@@ -70,6 +71,14 @@ export const LandingScrollytelling = () => {
   const cleanOpacity = useTransform(smoothProgress, [0.69, 0.75], [0, 1]);
   const cleanY = useTransform(smoothProgress, [0.66, 0.75], [20, 0]);
   const cleanScale = useTransform(smoothProgress, [0.66, 0.75], [0.95, 1]);
+
+  // Narrative Text Animations (hoisted to avoid creating new MotionValues on every render)
+  const opacityNarrative1 = useTransform(smoothProgress, [0, 0.25, 0.33], [1, 1, 0]);
+  const yNarrative1 = useTransform(smoothProgress, [0, 0.33], [0, -40]);
+  const opacityNarrative2 = useTransform(smoothProgress, [0.25, 0.33, 0.58, 0.66], [0, 1, 1, 0]);
+  const yNarrative2 = useTransform(smoothProgress, [0.25, 0.33, 0.58, 0.66], [40, 0, 0, -40]);
+  const opacityNarrative3 = useTransform(smoothProgress, [0.58, 0.66, 1], [0, 1, 1]);
+  const yNarrative3 = useTransform(smoothProgress, [0.58, 0.66, 1], [40, 0, 0]);
 
   return (
     <section ref={containerRef} className="relative h-[400vh] w-full bg-background text-foreground">
@@ -310,10 +319,10 @@ export const LandingScrollytelling = () => {
           {/* Right Side: Text Narrative */}
           <div className="relative h-[50vh] w-full mx-auto md:h-[60vh] max-w-lg">
             {/* Narrative 1 */}
-            <motion.div 
-              style={{ 
-                opacity: useTransform(smoothProgress, [0, 0.25, 0.33], [1, 1, 0]),
-                y: useTransform(smoothProgress, [0, 0.33], [0, -40]),
+            <motion.div
+              style={{
+                opacity: opacityNarrative1,
+                y: yNarrative1,
               }}
               className="absolute inset-0 flex flex-col justify-center space-y-4"
             >
@@ -325,10 +334,10 @@ export const LandingScrollytelling = () => {
             </motion.div>
 
             {/* Narrative 2 */}
-            <motion.div 
-              style={{ 
-                opacity: useTransform(smoothProgress, [0.25, 0.33, 0.58, 0.66], [0, 1, 1, 0]),
-                y: useTransform(smoothProgress, [0.25, 0.33, 0.58, 0.66], [40, 0, 0, -40]),
+            <motion.div
+              style={{
+                opacity: opacityNarrative2,
+                y: yNarrative2,
               }}
               className="absolute inset-0 flex flex-col justify-center space-y-4"
             >
@@ -340,10 +349,10 @@ export const LandingScrollytelling = () => {
             </motion.div>
 
             {/* Narrative 3 */}
-            <motion.div 
-              style={{ 
-                opacity: useTransform(smoothProgress, [0.58, 0.66, 1], [0, 1, 1]),
-                y: useTransform(smoothProgress, [0.58, 0.66, 1], [40, 0, 0]),
+            <motion.div
+              style={{
+                opacity: opacityNarrative3,
+                y: yNarrative3,
               }}
               className="absolute inset-0 flex flex-col justify-center space-y-4"
             >
