@@ -77,9 +77,9 @@ describe("ProgramPluginManagementPanel", () => {
     const { Wrapper } = createQueryClientWrapper();
     render(<ProgramPluginManagementPanel programId="program-1" />, { wrapper: Wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Install plugin" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Marketplace" }));
     expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Installed" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Uninstall" })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Install" }));
 
     await waitFor(() => {
@@ -115,7 +115,7 @@ describe("ProgramPluginManagementPanel", () => {
     const { Wrapper } = createQueryClientWrapper();
     render(<ProgramPluginManagementPanel programId="program-1" />, { wrapper: Wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Install plugin" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Marketplace" }));
     fireEvent.click(screen.getByRole("button", { name: "Open details for World Clock" }));
 
     expect(await screen.findByRole("button", { name: "Back" })).toBeInTheDocument();
@@ -282,7 +282,40 @@ describe("ProgramPluginManagementPanel", () => {
     expect((await screen.findAllByText("Semester course list widget and course-management defaults.")).length).toBeGreaterThan(0);
   });
 
-  it("disables delete for a required plugin", async () => {
+  it("uninstalls a plugin from the marketplace after confirmation", async () => {
+    apiMock.getProgramPluginCatalog.mockResolvedValue([
+      {
+        id: "installation-1",
+        plugin_id: "course-list",
+        display_name: "Course List",
+        description: "Semester course list widget and course-management defaults.",
+        author: "Jinyuan",
+        default_version: "workspace",
+        locked: false,
+        version: "workspace",
+        is_enabled: true,
+        capabilities: { contexts: ["semester"], available_widget_types: ["course-list"] },
+        setup_sections: [],
+        available: true,
+        availability_reason: null,
+        installed: true,
+      },
+    ]);
+    apiMock.deleteProgramPluginInstallation.mockResolvedValue({});
+
+    const { Wrapper } = createQueryClientWrapper();
+    render(<ProgramPluginManagementPanel programId="program-1" />, { wrapper: Wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Marketplace" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Uninstall" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "Uninstall" })).at(-1)!);
+
+    await waitFor(() => {
+      expect(apiMock.deleteProgramPluginInstallation).toHaveBeenCalledWith("program-1", "course-list");
+    });
+  });
+
+  it("disables uninstall for a required plugin", async () => {
     apiMock.getProgramPluginCatalog.mockResolvedValue([
       {
         id: "installation-1",
@@ -306,6 +339,6 @@ describe("ProgramPluginManagementPanel", () => {
     render(<ProgramPluginManagementPanel programId="program-1" />, { wrapper: Wrapper });
 
     fireEvent.pointerDown(await screen.findByRole("button", { name: "Open actions for Course List" }));
-    expect(await screen.findByRole("menuitem", { name: "Delete" })).toHaveAttribute("data-disabled", "");
+    expect(await screen.findByRole("menuitem", { name: "Uninstall" })).toHaveAttribute("data-disabled", "");
   });
 });

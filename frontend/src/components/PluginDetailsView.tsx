@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Code2,
   Puzzle,
+  Trash2,
   UserRound,
 } from "lucide-react";
 
@@ -41,6 +42,8 @@ export interface PluginDetailsViewProps {
   availableWidgetTypes?: string[];
   actionLabel?: string;
   actionPendingLabel?: string;
+  actionVariant?: "default" | "secondary" | "outline" | "destructive";
+  actionIcon?: "install" | "uninstall";
   actionDisabled?: boolean;
   isActionPending?: boolean;
   onAction?: () => Promise<void> | void;
@@ -60,6 +63,8 @@ export const PluginDetailsView: React.FC<PluginDetailsViewProps> = ({
   availableWidgetTypes,
   actionLabel,
   actionPendingLabel = "Working...",
+  actionVariant = "default",
+  actionIcon = "install",
   actionDisabled = false,
   isActionPending = false,
   onAction,
@@ -140,6 +145,7 @@ export const PluginDetailsView: React.FC<PluginDetailsViewProps> = ({
           {actionLabel && onAction ? (
             <Button
               type="button"
+              variant={actionVariant}
               className="h-9 shrink-0 rounded-full px-5 text-sm font-semibold"
               disabled={actionDisabled || isActionPending}
               onClick={() => {
@@ -147,7 +153,11 @@ export const PluginDetailsView: React.FC<PluginDetailsViewProps> = ({
                 void Promise.resolve(onAction());
               }}
             >
-              <ArrowDownToLine className="mr-2 h-4 w-4" />
+              {actionIcon === "uninstall" ? (
+                <Trash2 className="mr-2 h-4 w-4" />
+              ) : (
+                <ArrowDownToLine className="mr-2 h-4 w-4" />
+              )}
               {isActionPending ? actionPendingLabel : actionLabel}
             </Button>
           ) : null}

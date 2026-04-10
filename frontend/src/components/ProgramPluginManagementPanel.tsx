@@ -58,7 +58,8 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
   const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
   const [detailPlugin, setDetailPlugin] = useState<ProgramPluginInstallation | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ProgramPluginInstallation | null>(null);
-  const [installingPluginId, setInstallingPluginId] = useState<string | null>(null);
+  const [pendingMarketplaceUninstall, setPendingMarketplaceUninstall] = useState<ProgramPluginInstallation | null>(null);
+  const [pendingActionPluginId, setPendingActionPluginId] = useState<string | null>(null);
   const [togglingPluginId, setTogglingPluginId] = useState<string | null>(null);
   const [deletingPluginId, setDeletingPluginId] = useState<string | null>(null);
 
@@ -97,11 +98,16 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
       availableTabTypes: plugin.capabilities.available_tab_types,
       availableWidgetTypes: plugin.capabilities.available_widget_types,
       icon: getPluginIconById(plugin.plugin_id),
-      disabled: !canInstallFromMarketplace(plugin),
-      disabledReason: plugin.available === false
+      disabled: isInstalled(plugin)
+        ? Boolean(plugin.locked)
+        : !canInstallFromMarketplace(plugin),
+      disabledReason: isInstalled(plugin)
+        ? (plugin.locked ? "This plugin cannot be uninstalled." : null)
+        : plugin.available === false
         ? (plugin.availability_reason ?? "This plugin is currently unavailable.")
         : null,
-      label: isInstalled(plugin) ? "Installed" : "Install",
+      label: isInstalled(plugin) ? "Uninstall" : "Install",
+      actionKind: isInstalled(plugin) ? "uninstall" : "install",
     })),
     [pluginCatalogQuery.data],
   );
@@ -113,14 +119,26 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
 
   const handleInstall = async (item: ProgramPluginInstallation) => {
     if (!canInstallFromMarketplace(item)) return;
-    setInstallingPluginId(item.plugin_id);
+    setPendingActionPluginId(item.plugin_id);
     try {
       await api.upsertProgramPluginInstallation(programId, item.plugin_id, {
         is_enabled: true,
       });
       await invalidateAll();
     } finally {
-      setInstallingPluginId(null);
+      setPendingActionPluginId(null);
+    }
+  };
+
+  const handleUninstall = async (item: ProgramPluginInstallation) => {
+    setDeletingPluginId(item.plugin_id);
+    try {
+      await api.deleteProgramPluginInstallation(programId, item.plugin_id);
+      setPendingDelete(null);
+      setPendingMarketplaceUninstall(null);
+      await invalidateAll();
+    } finally {
+      setDeletingPluginId(null);
     }
   };
 
@@ -165,14 +183,7 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
 
   const handleDelete = async () => {
     if (!pendingDelete) return;
-    setDeletingPluginId(pendingDelete.plugin_id);
-    try {
-      await api.deleteProgramPluginInstallation(programId, pendingDelete.plugin_id);
-      setPendingDelete(null);
-      await invalidateAll();
-    } finally {
-      setDeletingPluginId(null);
-    }
+    await handleUninstall(pendingDelete);
   };
 
   return (
@@ -191,7 +202,7 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
         actionButton={(
           <Button type="button" className="shrink-0 self-start" onClick={() => setIsMarketplaceOpen(true)}>
             <PackagePlus className="mr-2 h-4 w-4" />
-            Install plugin
+            Marketplace
           </Button>
         )}
         renderHeader={() => (
@@ -257,7 +268,7 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
                     onClick={() => setPendingDelete(plugin)}
                   >
                     <Trash2 className="h-4 w-4" />
-                    Delete
+                    Uninstall
                   </DropdownMenuItem>
                 </DataTableActionMenu>
               </TableCell>
@@ -269,16 +280,20 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
       <PluginMarketplaceDialog
         open={isMarketplaceOpen}
         onOpenChange={setIsMarketplaceOpen}
-        title="Install plugin"
+        title="Marketplace"
         description="Search the workspace catalog and install a plugin into this Program."
         searchPlaceholder="Search plugins by name, author, or description..."
         emptyLabel="No workspace plugins are available for this Program yet."
         noResultsLabel="No plugins match your search."
         items={marketplaceDialogItems}
-        pendingPluginId={installingPluginId}
-        onSelect={(pluginId) => {
+        pendingPluginId={pendingActionPluginId ?? deletingPluginId}
+        onSelect={(pluginId, actionKind) => {
           const plugin = (pluginCatalogQuery.data ?? []).find((entry) => entry.plugin_id === pluginId);
           if (!plugin) return;
+          if (actionKind === "uninstall") {
+            setPendingMarketplaceUninstall(plugin);
+            return;
+          }
           void handleInstall(plugin);
         }}
       />
@@ -314,11 +329,11 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete plugin?</AlertDialogTitle>
+            <AlertDialogTitle>Uninstall plugin?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingDelete
-                ? `Delete "${pendingDelete.display_name}" from this Program? This removes the saved plugin record and its data.`
-                : "Delete this plugin from the Program?"}
+                ? `Uninstall "${pendingDelete.display_name}" from this Program? This removes the saved plugin record and its data.`
+                : "Uninstall this plugin from the Program?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -328,7 +343,36 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
               onClick={() => void handleDelete()}
               disabled={deletingPluginId !== null}
             >
-              Delete
+              Uninstall
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingMarketplaceUninstall !== null}
+        onOpenChange={(open) => !open && setPendingMarketplaceUninstall(null)}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Uninstall plugin?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingMarketplaceUninstall
+                ? `Uninstall "${pendingMarketplaceUninstall.display_name}" from this Program? This removes the saved plugin record and its data.`
+                : "Uninstall this plugin from the Program?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingPluginId !== null}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (!pendingMarketplaceUninstall) return;
+                void handleUninstall(pendingMarketplaceUninstall);
+              }}
+              disabled={deletingPluginId !== null}
+            >
+              Uninstall
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

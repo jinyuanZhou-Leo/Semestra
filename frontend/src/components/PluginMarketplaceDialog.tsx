@@ -8,7 +8,7 @@
 
 
 import React, { useDeferredValue, useMemo, useState } from "react";
-import { ArrowDownToLine, ArrowLeft, Search } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, Search, Trash2 } from "lucide-react";
 
 import { AppEmptyState } from "@/components/AppEmptyState";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ export interface PluginMarketplaceItem {
   disabled?: boolean;
   disabledReason?: string | null;
   label: string;
+  actionKind?: "install" | "uninstall";
 }
 
 interface PluginMarketplaceDialogProps {
@@ -46,7 +47,7 @@ interface PluginMarketplaceDialogProps {
   noResultsLabel: string;
   items: PluginMarketplaceItem[];
   pendingPluginId?: string | null;
-  onSelect: (pluginId: string) => Promise<void> | void;
+  onSelect: (pluginId: string, actionKind: "install" | "uninstall") => Promise<void> | void;
 }
 
 export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = ({
@@ -127,9 +128,11 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
               availableTabTypes={selectedItem.availableTabTypes}
               availableWidgetTypes={selectedItem.availableWidgetTypes}
               actionLabel={selectedItem.label}
+              actionVariant={selectedItem.actionKind === "uninstall" ? "destructive" : "default"}
+              actionIcon={selectedItem.actionKind === "uninstall" ? "uninstall" : "install"}
               actionDisabled={selectedItem.disabled}
               isActionPending={pendingPluginId === selectedItem.pluginId}
-              onAction={() => onSelect(selectedItem.pluginId)}
+              onAction={() => onSelect(selectedItem.pluginId, selectedItem.actionKind ?? "install")}
             />
           </ScrollArea>
         </div>
@@ -195,20 +198,32 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
                                 </div>
                               </div>
                               <div className="pt-3">
-                                <Button
+                                  <Button
                                   type="button"
                                   size="sm"
-                                  variant={item.disabled ? "outline" : "secondary"}
+                                  variant={
+                                    item.actionKind === "uninstall"
+                                      ? "destructive"
+                                      : item.disabled
+                                        ? "outline"
+                                        : "secondary"
+                                  }
                                   className="h-8 rounded-full px-4 text-sm font-medium"
                                   aria-label={item.disabled ? `${item.label} ${item.displayName} in recommended` : `${item.label} ${item.displayName} from recommended`}
                                   disabled={item.disabled || isPending}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     if (item.disabled || isPending) return;
-                                    void Promise.resolve(onSelect(item.pluginId));
+                                    void Promise.resolve(onSelect(item.pluginId, item.actionKind ?? "install"));
                                   }}
                                 >
-                                  {isPending ? <Spinner className="mr-2" /> : <ArrowDownToLine className="mr-2 h-4 w-4" />}
+                                  {isPending ? (
+                                    <Spinner className="mr-2" />
+                                  ) : item.actionKind === "uninstall" ? (
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                  ) : (
+                                    <ArrowDownToLine className="mr-2 h-4 w-4" />
+                                  )}
                                   {isPending ? "Working..." : item.label}
                                 </Button>
                               </div>
@@ -254,16 +269,28 @@ export const PluginMarketplaceDialog: React.FC<PluginMarketplaceDialogProps> = (
                             <Button
                               type="button"
                               size="sm"
-                              variant={item.disabled ? "outline" : "secondary"}
+                              variant={
+                                item.actionKind === "uninstall"
+                                  ? "destructive"
+                                  : item.disabled
+                                    ? "outline"
+                                    : "secondary"
+                              }
                               className="h-8 shrink-0 rounded-full px-4 text-sm font-medium"
                               disabled={item.disabled || isPending}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 if (item.disabled || isPending) return;
-                                void Promise.resolve(onSelect(item.pluginId));
+                                void Promise.resolve(onSelect(item.pluginId, item.actionKind ?? "install"));
                               }}
                             >
-                              {isPending ? <Spinner className="mr-2" /> : <ArrowDownToLine className="mr-2 h-4 w-4" />}
+                              {isPending ? (
+                                <Spinner className="mr-2" />
+                              ) : item.actionKind === "uninstall" ? (
+                                <Trash2 className="mr-2 h-4 w-4" />
+                              ) : (
+                                <ArrowDownToLine className="mr-2 h-4 w-4" />
+                              )}
                               {isPending ? "Working..." : item.label}
                             </Button>
                           </div>
