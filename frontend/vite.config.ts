@@ -18,23 +18,17 @@ const compilerPreset = defineRolldownBabelPreset({
   rolldown: {
     filter: {
       id: {
-        include: ['src/**/*.tsx', 'src/**/*.jsx'],
+        include: ['**/src/**/*.{tsx,jsx}'],
         exclude: [
-          'src/**/*.test.*',
-          'src/**/*.spec.*',
-          'src/test/**',
-          'src/utils/**',
-          'src/types/**',
-          'src/services/**',
-          'src/calendar-core/**',
+          '**/src/**/*.test.*',
+          '**/src/**/*.spec.*',
+          '**/src/test/**',
+          '**/src/utils/**',
+          '**/src/types/**',
+          '**/src/services/**',
+          '**/src/calendar-core/**',
         ],
       },
-      moduleType: {
-        include: ['tsx', 'jsx'],
-      },
-    },
-    optimizeDeps: {
-      include: ['react/compiler-runtime'],
     },
   },
 })
@@ -46,11 +40,14 @@ export default defineConfig({
   devtools: {
     enabled: devToolsEnabled,
   },
+  optimizeDeps: {
+    include: ['react/compiler-runtime'],
+  },
   plugins: [
-    react(),
     babel({
       presets: [compilerPreset],
     }),
+    react(),
     tailwindcss(),
   ],
   resolve: {
