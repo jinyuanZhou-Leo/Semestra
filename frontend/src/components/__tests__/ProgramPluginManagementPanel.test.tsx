@@ -87,6 +87,8 @@ describe("ProgramPluginManagementPanel", () => {
         is_enabled: true,
       });
     });
+
+    expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
   });
 
   it("opens marketplace detail pages and installs from the reused plugin details view", async () => {

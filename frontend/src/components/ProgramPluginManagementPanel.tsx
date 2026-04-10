@@ -118,7 +118,6 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
       await api.upsertProgramPluginInstallation(programId, item.plugin_id, {
         is_enabled: true,
       });
-      setIsMarketplaceOpen(false);
       await invalidateAll();
     } finally {
       setInstallingPluginId(null);
