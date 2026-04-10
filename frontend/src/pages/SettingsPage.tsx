@@ -76,17 +76,18 @@ const GitHubMark: React.FC = () => (
     </svg>
 );
 
+// Stable module-level constant — no need to recreate on every render
+const THEME_OPTIONS: Array<{ value: "light" | "dark" | "system"; label: string }> = [
+    { value: "light", label: "Light" },
+    { value: "dark", label: "Dark" },
+    { value: "system", label: "System" },
+];
+
 export const SettingsPage: React.FC = () => {
     const { user, logout, clearSession, refreshUser } = useAuth();
     const navigate = useNavigate();
     const { alert: showAlert, confirm } = useDialog();
     const { theme: themeMode, setTheme } = useTheme();
-
-    const themeOptions: Array<{ value: "light" | "dark" | "system"; label: string }> = [
-        { value: "light", label: "Light" },
-        { value: "dark", label: "Dark" },
-        { value: "system", label: "System" }
-    ];
 
     const handleThemeChange = (mode: "light" | "dark" | "system") => {
         setTheme(mode);
@@ -105,7 +106,6 @@ export const SettingsPage: React.FC = () => {
         defaultCourseCredit: number;
         backgroundPluginPreload: boolean;
     } | null>(null);
-    const [isDirty, setIsDirty] = useState(false);
 
     // Import modal state
     const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
@@ -148,16 +148,6 @@ export const SettingsPage: React.FC = () => {
             });
         }
     }, [user]);
-
-    useEffect(() => {
-        if (initialState) {
-            const hasChanged = nickname !== initialState.nickname ||
-                gpaTableJson !== initialState.gpaTableJson ||
-                defaultCourseCredit !== initialState.defaultCourseCredit ||
-                backgroundPluginPreload !== initialState.backgroundPluginPreload;
-            setIsDirty(hasChanged);
-        }
-    }, [nickname, gpaTableJson, defaultCourseCredit, backgroundPluginPreload, initialState]);
 
     useEffect(() => {
         setGoogleLinkError('');
@@ -231,7 +221,19 @@ export const SettingsPage: React.FC = () => {
                 buttonContainer.innerHTML = '';
             }
         };
-    }, [googleClientId, refreshUser, themeMode, user]);
+    // Depend only on google_sub: any other user field change (e.g. last_active_at) should NOT
+    // destroy and recreate the Google Identity button.
+    }, [googleClientId, refreshUser, themeMode, user?.google_sub]);
+
+    // Derived state computed during render — React Compiler memoizes this automatically.
+    // Using useState + useEffect for this was an anti-pattern that caused an extra re-render
+    // and was subtly wrong when the user typed between the debounce fire and the API response.
+    const isDirty = initialState !== null && (
+        nickname !== initialState.nickname ||
+        gpaTableJson !== initialState.gpaTableJson ||
+        defaultCourseCredit !== initialState.defaultCourseCredit ||
+        backgroundPluginPreload !== initialState.backgroundPluginPreload
+    );
 
     // Warn on browser refresh/close
     useEffect(() => {
@@ -284,8 +286,10 @@ export const SettingsPage: React.FC = () => {
         validate: () => isSettingsValid,
         onSave: async (snapshot) => {
             await updateUserMutation.mutateAsync(snapshot);
+            // No need to setIsDirty(false) — isDirty is now a computed value.
+            // After setInitialState(snapshot) the re-render will naturally yield isDirty=false
+            // (unless the user typed more since the debounce fired, in which case isDirty stays true — correct!).
             setInitialState(snapshot);
-            setIsDirty(false);
         },
         onError: async () => {
             await showAlert({
@@ -679,7 +683,7 @@ export const SettingsPage: React.FC = () => {
                                             onValueChange={(value) => handleThemeChange(value as "light" | "dark" | "system")}
                                             className="flex w-full flex-wrap items-center gap-2"
                                         >
-                                            {themeOptions.map((option) => (
+                                            {THEME_OPTIONS.map((option) => (
                                                 <label
                                                     key={option.value}
                                                     className={cn(

@@ -212,6 +212,15 @@ const CourseHomepageContent: React.FC = () => {
     const nextSiblingCourse = currentCourseIndex >= 0 && currentCourseIndex < siblingCourses.length - 1
         ? siblingCourses[currentCourseIndex + 1]
         : null;
+
+    // Refs to always have the latest sibling courses inside the keyboard handler without
+    // adding them as heavy effect deps (which would re-register the listener on every navigation).
+    const previousSiblingCourseRef = useRef(previousSiblingCourse);
+    const nextSiblingCourseRef = useRef(nextSiblingCourse);
+    useEffect(() => {
+        previousSiblingCourseRef.current = previousSiblingCourse;
+        nextSiblingCourseRef.current = nextSiblingCourse;
+    });
     const siblingCourseDirections = useMemo(() => {
         const directions = new Map<string, -1 | 1>();
 
@@ -245,6 +254,8 @@ const CourseHomepageContent: React.FC = () => {
     const availableLmsCoursesQuery = useQuery({
         ...getProgramLmsCoursesQueryOptions(course?.program_id ?? 'unknown', { page: 1, page_size: 100 }),
         enabled: Boolean(course?.program_id && programLmsIntegrationId),
+        // LMS course catalog rarely changes; avoid refetching on every component mount.
+        staleTime: 1000 * 60 * 5,
         retry: false,
     });
 
@@ -268,16 +279,14 @@ const CourseHomepageContent: React.FC = () => {
     );
 
     const onTabReorderRefresh = useCallback(async () => {
-        await refreshCourse();
-        // Invalidate sibling courses so they re-fetch with the updated shared tab order
+        // refreshCourse and sibling-invalidations are independent — run them in parallel
         // (all courses in the same semester share one SEMESTER_COURSE_SHARED_TAB_ORDER_BUCKET)
-        if (course?.semester_id) {
-            await Promise.all(
-                siblingCourses
-                    .filter((c) => c.id !== course.id)
-                    .map((c) => queryClient.invalidateQueries({ queryKey: courseKeys.detail(c.id) }))
-            );
-        }
+        const siblingInvalidations = course?.semester_id
+            ? siblingCourses
+                .filter((c) => c.id !== course.id)
+                .map((c) => queryClient.invalidateQueries({ queryKey: courseKeys.detail(c.id) }))
+            : [];
+        await Promise.all([refreshCourse(), ...siblingInvalidations]);
     }, [course, queryClient, refreshCourse, siblingCourses]);
 
     const {
@@ -701,7 +710,9 @@ const CourseHomepageContent: React.FC = () => {
 
             event.preventDefault();
             const direction: -1 | 1 = event.key === 'ArrowUp' ? -1 : 1;
-            const nextCourse = direction === -1 ? previousSiblingCourse : nextSiblingCourse;
+            // Read from refs so we always have the latest siblings without re-registering
+            // the listener every time the sibling list position changes.
+            const nextCourse = direction === -1 ? previousSiblingCourseRef.current : nextSiblingCourseRef.current;
 
             if (!nextCourse) {
                 void triggerBoundaryShake();
@@ -715,7 +726,9 @@ const CourseHomepageContent: React.FC = () => {
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, nextSiblingCourse, previousSiblingCourse, siblingCourses.length, triggerBoundaryShake]);
+    // previousSiblingCourse / nextSiblingCourse intentionally omitted: read via refs above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses.length, triggerBoundaryShake]);
 
     const refreshLmsCourseState = useCallback(async () => {
         if (!course?.id) return;
