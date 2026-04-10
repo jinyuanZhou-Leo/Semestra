@@ -87,7 +87,7 @@ describe('CourseManagerModal', () => {
       target: { value: 'Intro to Systems' },
     });
 
-    fireEvent.submit(screen.getByRole('button', { name: 'Create Course' }).closest('form')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Course' }));
 
     await waitFor(() => {
       expect(apiMock.createCourseForProgram).toHaveBeenCalledWith('program-1', expect.objectContaining({

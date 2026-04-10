@@ -13,8 +13,8 @@ import { toast } from 'sonner';
 import {
     definePluginSettings,
     PluginSettingsFieldLabelRow,
-    PluginSettingsSelectField,
     PluginSettingsBucketSourceBanner,
+    PluginSettingsInlineSourceBanner,
     usePluginSettingsBucket,
 } from '@/plugin-sdk';
 import { useCourseGradebookMutation, useCourseGradebookQuery } from '@/hooks/useCourseGradebookQuery';
@@ -89,6 +89,78 @@ const FORECAST_MODEL_OPTIONS = [
         description: 'Skip category modeling and focus on the average you still need across remaining weight.',
     },
 ] as const;
+
+type ForecastModelOptionValue = (typeof FORECAST_MODEL_OPTIONS)[number]['value'];
+
+interface ForecastModelSelectorProps {
+    idPrefix: string;
+    value: ForecastModelOptionValue;
+    label: string;
+    labelAdornment?: React.ReactNode;
+    description: string;
+    onValueChange: (value: ForecastModelOptionValue) => void;
+    disabled?: boolean;
+    helperText?: React.ReactNode;
+}
+
+const ForecastModelSelector: React.FC<ForecastModelSelectorProps> = ({
+    idPrefix,
+    value,
+    label,
+    labelAdornment,
+    description,
+    onValueChange,
+    disabled = false,
+    helperText,
+}) => (
+    <FieldSet>
+        <FieldGroup>
+            <Field>
+                <FieldLabel className="flex items-center gap-2">
+                    <span>{label}</span>
+                    {labelAdornment}
+                </FieldLabel>
+                <FieldDescription>{description}</FieldDescription>
+            </Field>
+            <RadioGroup
+                value={value}
+                onValueChange={(nextValue) => onValueChange(nextValue as ForecastModelOptionValue)}
+                className="gap-3"
+            >
+                {FORECAST_MODEL_OPTIONS.map((option) => {
+                    const id = `${idPrefix}-${option.value}`;
+                    const isSelected = value === option.value;
+                    return (
+                        <label
+                            key={option.value}
+                            htmlFor={id}
+                            className={cn(
+                                'flex cursor-pointer items-start justify-between gap-4 rounded-xl border px-4 py-3 transition-colors',
+                                isSelected ? 'border-primary/60 bg-primary/5' : 'border-border/60 hover:border-border hover:bg-muted/20',
+                                disabled && 'cursor-wait opacity-70',
+                            )}
+                        >
+                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                <div className="text-sm font-medium text-foreground">{option.label}</div>
+                                <p className="text-sm text-muted-foreground">{option.description}</p>
+                            </div>
+                            <RadioGroupItem
+                                id={id}
+                                value={option.value}
+                                aria-label={option.label}
+                                disabled={disabled}
+                                className="mt-0.5 shrink-0"
+                            />
+                        </label>
+                    );
+                })}
+            </RadioGroup>
+            {helperText ? (
+                <FieldDescription>{helperText}</FieldDescription>
+            ) : null}
+        </FieldGroup>
+    </FieldSet>
+);
 
 // ── CategoryFormDialog ────────────────────────────────────────────────────────
 
@@ -212,6 +284,10 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
         }
         return normalizeGradebookDefaultsSettings(defaultsBucket.resolvedSettings);
     }, [defaultsBucket.isLoading, defaultsBucket.resolvedSettings]);
+    const inheritedDefaults = React.useMemo(
+        () => normalizeGradebookDefaultsSettings(defaultsBucket.inheritedSettings),
+        [defaultsBucket.inheritedSettings],
+    );
 
     const editingCategory = editingCategoryIndex !== null
         ? (defaults.categories[editingCategoryIndex] ?? null)
@@ -280,20 +356,21 @@ const GradebookDefaultsSettings: React.FC<PluginSettingsSectionProps> = ({
                 title="Forecast"
                 description="Choose the default forecast model newly initialized course gradebooks should start with."
             >
-                <FieldSet>
-                    <FieldGroup>
-                        <PluginSettingsSelectField
-                            settingsKey={BUILTIN_GRADEBOOK_TAB_TYPE}
-                            fieldPath="forecast_model"
-                            label="Default forecast model"
-                            description="These defaults apply when a course creates its gradebook for the first time. Existing courses keep their own saved gradebook state."
-                            options={FORECAST_MODEL_OPTIONS.map((option) => ({
-                                label: option.label,
-                                value: option.value,
-                            }))}
-                        />
-                    </FieldGroup>
-                </FieldSet>
+                <ForecastModelSelector
+                    idPrefix="gradebook-default-forecast-model"
+                    value={defaults.forecast_model}
+                    label="Default forecast model"
+                    labelAdornment={<PluginSettingsInlineSourceBanner bucket={defaultsBucket} fieldPath="forecast_model" />}
+                    description="These defaults apply when a course creates its gradebook for the first time. Existing courses keep their own saved gradebook state."
+                    disabled={defaultsBucket.isSaving}
+                    onValueChange={(nextValue) => {
+                        if (nextValue === inheritedDefaults.forecast_model) {
+                            defaultsBucket.resetField('forecast_model');
+                            return;
+                        }
+                        defaultsBucket.updateField('forecast_model', nextValue);
+                    }}
+                />
             </SettingsSection>
 
             <SettingsSection
@@ -477,47 +554,17 @@ const CourseGradebookSettings: React.FC<PluginSettingsSectionProps> = ({
     return (
         <div className="space-y-6">
             <SettingsSection title="Forecast" description="Choose how the Gradebook tab projects outcomes and powers Plan mode recommendations.">
-                <div className="space-y-4">
-                    <RadioGroup
-                        value={gradebook.forecast_model}
-                        onValueChange={(value) => void commitGradebook(api.updateCourseGradebookPreferences(courseId, {
-                            forecast_model: value as CourseGradebook['forecast_model'],
-                        }))}
-                        className="space-y-3"
-                    >
-                        {FORECAST_MODEL_OPTIONS.map((option) => {
-                            const id = `gradebook-forecast-model-${option.value}`;
-                            const isSelected = gradebook.forecast_model === option.value;
-                            return (
-                                <label
-                                    key={option.value}
-                                    htmlFor={id}
-                                    className={cn(
-                                        'flex cursor-pointer items-start justify-between gap-4 rounded-xl border px-4 py-3 transition-colors',
-                                        isSelected ? 'border-primary/60 bg-primary/5' : 'border-border/60',
-                                        isMutating && 'cursor-wait opacity-70',
-                                    )}
-                                >
-                                    <div className="space-y-1">
-                                        <div className="text-sm font-medium text-foreground">{option.label}</div>
-                                        <p className="text-sm text-muted-foreground">{option.description}</p>
-                                    </div>
-                                    <RadioGroupItem
-                                        id={id}
-                                        value={option.value}
-                                        aria-label={option.label}
-                                        disabled={isMutating}
-                                        className="mt-0.5 shrink-0"
-                                    />
-                                </label>
-                            );
-                        })}
-                    </RadioGroup>
-
-                    <p className="text-sm text-muted-foreground">
-                        Auto is best when you already have some released grades in each remaining category. Use Simple minimum needed when you only want a target-based requirement without category assumptions.
-                    </p>
-                </div>
+                <ForecastModelSelector
+                    idPrefix="gradebook-course-forecast-model"
+                    value={gradebook.forecast_model}
+                    label="Forecast model"
+                    description="Choose the saved projection model this course should use in Gradebook and Plan mode."
+                    disabled={isMutating}
+                    helperText="Auto is best when you already have some released grades in each remaining category. Use Simple minimum needed when you only want a target-based requirement without category assumptions."
+                    onValueChange={(nextValue) => void commitGradebook(api.updateCourseGradebookPreferences(courseId, {
+                        forecast_model: nextValue as CourseGradebook['forecast_model'],
+                    }))}
+                />
             </SettingsSection>
 
             <SettingsSection title="Categories" description="Organize the assessment labels used by the table and forecast model.">

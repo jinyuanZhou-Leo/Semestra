@@ -7,13 +7,24 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { SettingsSection } from "@/components/SettingsSection";
+import { createQueryClientWrapper } from "@/test/queryClientWrapper";
 import { PluginSettingsSectionRenderer } from "./PluginSettingsSectionRenderer";
+
+vi.mock("@/services/api", () => ({
+  default: {
+    getProgramTabSettings: vi.fn().mockResolvedValue([]),
+    getSemesterTabSettings: vi.fn().mockResolvedValue([]),
+    getCourseTabSettings: vi.fn().mockResolvedValue([]),
+  },
+}));
 
 describe("PluginSettingsSectionRenderer", () => {
   it("injects the stable scope contract and plugin ownership label into settings sections", () => {
+    const { Wrapper } = createQueryClientWrapper();
+
     render(
       <PluginSettingsSectionRenderer
         pluginId="course-list"
@@ -27,7 +38,8 @@ describe("PluginSettingsSectionRenderer", () => {
         )}
         semesterId="semester-1"
         onRefresh={() => {}}
-      />
+      />,
+      { wrapper: Wrapper },
     );
 
     expect(screen.getByText("Display")).toBeInTheDocument();

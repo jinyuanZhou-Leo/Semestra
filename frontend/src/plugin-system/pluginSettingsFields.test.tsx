@@ -18,6 +18,7 @@ import { PluginSettingsPanelProvider } from "./pluginSettingsPanelContext";
 import {
   PluginSettingsBooleanField,
   PluginSettingsBucketSourceBanner,
+  PluginSettingsInlineSourceBanner,
   PluginSettingsTextField,
   usePluginSettingField,
   usePluginSettingsBucket,
@@ -354,6 +355,31 @@ describe("plugin settings bound fields", () => {
     expect(screen.getByText("Program")).toBeInTheDocument();
   });
 
+  it("PluginSettingsBucketSourceBanner keeps a reserved row when the field uses the default layer", () => {
+    const defaultTabSetting = buildTabSetting({
+      setting_sources: {
+        rows: {
+          effective_layer: "default",
+          is_overridden_in_scope: false,
+          fallback_layer: null,
+        },
+      },
+    });
+    const { Wrapper } = createWrapper([defaultTabSetting]);
+
+    const BannerWrapper: React.FC = () => {
+      const bucket = usePluginSettingsBucket("template-settings");
+      return <PluginSettingsBucketSourceBanner bucket={bucket} fieldPath="rows" />;
+    };
+
+    const { container } = render(<BannerWrapper />, { wrapper: Wrapper });
+    const banner = container.querySelector('[data-slot="plugin-settings-source-banner"]');
+
+    expect(banner).not.toBeNull();
+    expect(banner).toHaveAttribute("aria-hidden", "true");
+    expect(banner).toBeEmptyDOMElement();
+  });
+
   it("PluginSettingsBucketSourceBanner shows modified notice and reset button when field is overridden", async () => {
     let currentTabSettings = [buildTabSetting()];
     apiMock.getProgramTabSettings.mockImplementation(async () => currentTabSettings);
@@ -386,6 +412,31 @@ describe("plugin settings bound fields", () => {
 
     expect(screen.getByText(/^Modified$/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore default" })).toBeInTheDocument();
+  });
+
+  it("PluginSettingsInlineSourceBanner renders an inline badge without the block banner slot", () => {
+    const inheritedTabSetting = buildTabSetting({
+      scope_settings: {},
+      setting_sources: {
+        rows: {
+          effective_layer: "program",
+          is_overridden_in_scope: false,
+          fallback_layer: null,
+        },
+      },
+    });
+    const { Wrapper } = createWrapper([inheritedTabSetting]);
+
+    const BannerWrapper: React.FC = () => {
+      const bucket = usePluginSettingsBucket("template-settings");
+      return <PluginSettingsInlineSourceBanner bucket={bucket} fieldPath="rows" />;
+    };
+
+    const { container } = render(<BannerWrapper />, { wrapper: Wrapper });
+
+    expect(container.querySelector('[data-slot="plugin-settings-inline-source-banner"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="plugin-settings-source-banner"]')).toBeNull();
+    expect(screen.getByText("Program")).toBeInTheDocument();
   });
 
 });

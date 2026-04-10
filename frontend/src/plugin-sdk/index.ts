@@ -47,6 +47,7 @@ export {
   PluginSettingsTextareaField,
   PluginSettingsTimeField,
   PluginSettingsBucketSourceBanner,
+  PluginSettingsInlineSourceBanner,
   usePluginSettingField,
   usePluginSettingsBucket,
   usePluginSettingsBucketWithScope,

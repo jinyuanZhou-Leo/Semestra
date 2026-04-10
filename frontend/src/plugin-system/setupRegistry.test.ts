@@ -9,8 +9,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { PluginDescriptorSetupSchema } from "@/plugin-sdk";
+import builtinEventCorePlugin from "@/plugins/builtin-event-core/plugin";
 
-import { createRegisteredPluginSetupDefinition, getAllPluginSetupDefinitions } from "./setupRegistry";
+import {
+  createRegisteredPluginSetupDefinition,
+  getAllPluginSetupDefinitions,
+  initSetupRegistry,
+} from "./setupRegistry";
 
 describe("plugin-system setup registry", () => {
   it("rejects sections that reference unknown field keys", () => {
@@ -91,6 +96,12 @@ describe("plugin-system setup registry", () => {
   });
 
   it("registers the builtin-event-core setup schema from plugin.ts", () => {
+    initSetupRegistry({
+      "../plugins/builtin-event-core/plugin.ts": {
+        default: builtinEventCorePlugin,
+      },
+    });
+
     const definitions = getAllPluginSetupDefinitions();
     const definition = definitions.find((entry) => entry.pluginId === "builtin-event-core");
 

@@ -3,7 +3,7 @@
 `plugin-sdk/` is the single public authoring surface for frontend plugins.
 It separates authoring concerns from plugin-system internals: plugin authors define one `plugin.ts` entry here, while the host and generator both consume the same typed definition.
 Plugins should import from this folder instead of internal plugin-system modules or service-layer files.
-Within a plugin folder, `settings.tsx` is the home for plugin settings UI, including tab settings and any host-level plugin settings sections; widget instance settings stay in the runtime file that owns the widget contract. Setup authoring now follows the same pattern: `setup.tsx` owns the host-provided setup component tree plus any optional setup/review override components, each setup field declares the generic `settings_key` it configures, and `plugin.ts` just binds that single definition into the descriptor/runtime entry. For `settings.tsx` plugin panels, the SDK now also exposes bound common field templates plus `usePluginSettingsBucket(...)` and `usePluginSettingField(...)` so plugin authors can bind settings without reaching into plugin-system internals.
+Within a plugin folder, `settings.tsx` is the home for plugin settings UI, including tab settings and any host-level plugin settings sections; widget instance settings stay in the runtime file that owns the widget contract. Setup authoring now follows the same pattern: `setup.tsx` owns the host-provided setup component tree plus any optional setup/review override components, each setup field declares the generic `settings_key` it configures, and `plugin.ts` just binds that single definition into the descriptor/runtime entry. For `settings.tsx` plugin panels, the SDK now also exposes bound common field templates plus `usePluginSettingsBucket(...)`, `usePluginSettingField(...)`, `PluginSettingsBucketSourceBanner`, and `PluginSettingsInlineSourceBanner` so plugin authors can bind settings without reaching into plugin-system internals.
 
 ## Plugin Settings API
 
@@ -38,6 +38,25 @@ const titleField = usePluginSettingField<string>("my-settings", "title");
 ```
 
 Use `usePluginSettingsBucket(...)` when the UI manages a whole settings object and `usePluginSettingsContext()` when the section needs direct access to the host-injected `pluginId`, `scope`, or refresh callback. This is the right fit for CRUD-heavy settings panels that do not map to single-field host controls.
+
+For inheritance/source affordances inside custom settings UIs:
+
+- use `PluginSettingsBucketSourceBanner` for a dedicated banner row above a compound panel
+- use `PluginSettingsInlineSourceBanner` when the hint should sit inline with a field label or section title
+
+```tsx
+const bucket = usePluginSettingsBucket("my-settings");
+
+<Field>
+  <FieldLabel className="flex items-center gap-2">
+    <span>Forecast model</span>
+    <PluginSettingsInlineSourceBanner bucket={bucket} fieldPath="forecast_model" />
+  </FieldLabel>
+</Field>
+
+<PluginSettingsBucketSourceBanner bucket={bucket} fieldPath="categories" />
+<MyCustomTable />
+```
 
 ### Tab components (runtime files)
 

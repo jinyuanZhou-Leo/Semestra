@@ -277,7 +277,7 @@ describe('BuiltinGradebookTab', () => {
         fireEvent.click(screen.getByLabelText('Toggle Plan Mode'));
         fireEvent.click(await screen.findByRole('button', { name: 'Enter Plan Mode' }));
 
-        const targetInput = await screen.findByLabelText('Target');
+        const targetInput = await screen.findByLabelText('Target GPA');
         fireEvent.change(targetInput, { target: { value: '' } });
         fireEvent.click(screen.getByRole('button', { name: 'Auto-fill' }));
 

@@ -772,6 +772,55 @@ export interface PluginSettingsBucketSourceBannerProps {
   fieldPath: string;
 }
 
+interface PluginSettingsSourceBadgeProps extends PluginSettingsBucketSourceBannerProps {
+  layout?: 'block' | 'inline';
+}
+
+const PluginSettingsSourceBadge: React.FC<PluginSettingsSourceBadgeProps> = ({
+  bucket,
+  fieldPath,
+  layout = 'block',
+}) => {
+  const source = getSettingSource(bucket.settingsMeta, fieldPath);
+  const resetLabel = getSettingResetLabel(source);
+  const isHidden = source.effective_layer === 'default' && !source.is_overridden_in_scope;
+  const isInline = layout === 'inline';
+
+  return (
+    <div
+      data-slot={isInline ? 'plugin-settings-inline-source-banner' : 'plugin-settings-source-banner'}
+      aria-hidden={isHidden}
+      className={cn(
+        isInline ? 'inline-flex h-6 items-center gap-1.5 align-middle' : 'flex h-6 items-center gap-1.5',
+      )}
+    >
+      {source.is_overridden_in_scope && (
+        <span className="size-2 shrink-0 rounded-full bg-blue-500" />
+      )}
+      {!isHidden && (
+        <span className={cn('text-xs text-muted-foreground', !isInline && 'flex-1')}>
+          {source.is_overridden_in_scope
+            ? "Modified"
+            : <>From <span className="font-medium">{getSettingLayerLabel(source.effective_layer)}</span></>}
+        </span>
+      )}
+      {source.is_overridden_in_scope && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={resetLabel}
+          title={resetLabel}
+          onClick={() => bucket.resetField(fieldPath)}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <RotateCcw />
+        </Button>
+      )}
+    </div>
+  );
+};
+
 /**
  * Drop-in banner for CRUD / fully-custom plugin settings panels.
  *
@@ -795,37 +844,9 @@ export interface PluginSettingsBucketSourceBannerProps {
 export const PluginSettingsBucketSourceBanner: React.FC<PluginSettingsBucketSourceBannerProps> = ({
   bucket,
   fieldPath,
-}) => {
-  const source = getSettingSource(bucket.settingsMeta, fieldPath);
-  const resetLabel = getSettingResetLabel(source);
+}) => <PluginSettingsSourceBadge bucket={bucket} fieldPath={fieldPath} layout="block" />;
 
-  if (source.effective_layer === 'default' && !source.is_overridden_in_scope) {
-    return null;
-  }
-
-  return (
-    <div className="mb-3 flex items-center gap-1.5">
-      {source.is_overridden_in_scope && (
-        <span className="size-2 shrink-0 rounded-full bg-blue-500" />
-      )}
-      <span className="flex-1 text-xs text-muted-foreground">
-        {source.is_overridden_in_scope
-          ? "Modified"
-          : <>From <span className="font-medium">{getSettingLayerLabel(source.effective_layer)}</span></>}
-      </span>
-      {source.is_overridden_in_scope && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={resetLabel}
-          title={resetLabel}
-          onClick={() => bucket.resetField(fieldPath)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <RotateCcw />
-        </Button>
-      )}
-    </div>
-  );
-};
+export const PluginSettingsInlineSourceBanner: React.FC<PluginSettingsBucketSourceBannerProps> = ({
+  bucket,
+  fieldPath,
+}) => <PluginSettingsSourceBadge bucket={bucket} fieldPath={fieldPath} layout="inline" />;

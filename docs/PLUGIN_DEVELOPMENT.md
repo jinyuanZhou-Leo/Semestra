@@ -141,6 +141,8 @@ Most plugin runtime code should use:
 - `PluginSettingsDateField`
 - `PluginSettingsJsonField`
 - `PluginSettingsFieldLabelRow`
+- `PluginSettingsBucketSourceBanner`
+- `PluginSettingsInlineSourceBanner`
 - `usePluginSettingsBucket`
 - `usePluginSettingsBucketWithScope`
 - `usePluginSettingField`
@@ -327,6 +329,35 @@ Use this layer when the control is still a single setting field, but the default
 Use `usePluginSettingsBucket(settingsKey)` when one UI edits a compound settings object, and use `usePluginSettingsContext()` when the section needs direct access to the host-injected `pluginId`, `scope`, or refresh callback.
 
 Use this layer for CRUD-style panels, tables, or multi-field editors that do not map cleanly to one host field component.
+
+When a fully custom panel still needs inheritance/source affordances, use the SDK banners instead of reimplementing the state logic:
+
+- `PluginSettingsBucketSourceBanner` for a dedicated banner row above a custom panel such as a CRUD table
+- `PluginSettingsInlineSourceBanner` when the source hint should live inline with a field label or title row
+
+Example:
+
+```tsx
+import {
+  PluginSettingsBucketSourceBanner,
+  PluginSettingsInlineSourceBanner,
+  usePluginSettingsBucket,
+} from "@/plugin-sdk";
+
+const bucket = usePluginSettingsBucket("example-tab");
+
+<>
+  <Field>
+    <FieldLabel className="flex items-center gap-2">
+      <span>Forecast model</span>
+      <PluginSettingsInlineSourceBanner bucket={bucket} fieldPath="forecast_model" />
+    </FieldLabel>
+  </Field>
+
+  <PluginSettingsBucketSourceBanner bucket={bucket} fieldPath="categories" />
+  <MyCustomCategoriesTable />
+</>
+```
 
 ### Reading settings inside a tab component
 
