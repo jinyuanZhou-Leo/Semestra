@@ -9,10 +9,9 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BookOpen, Check, CheckCircle2, Layers3, Plus, Settings2, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import { programKeys, semesterKeys } from "@/data/keys";
 import {
@@ -20,11 +19,9 @@ import {
   getProgramSemesterDraftQueryOptions,
   getSemesterDetailQueryOptions,
   getSemesterPluginSystemSetupQueryOptions,
-  hydrateSemesterDraftWorkflowCaches,
   invalidateSemesterDraftWorkflowQueries,
   removeSemesterDraftWorkflowQueries,
 } from "@/data/resources";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,30 +34,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { FieldSet } from "@/components/ui/field";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem } from "@/components/ui/pagination";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import { TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { getPluginIconById, getPluginSetupDefinitionById, validatePluginSetupDefinition, type PluginSetupValidationIssue } from "@/plugin-system";
+import { getPluginSetupDefinitionById, validatePluginSetupDefinition, type PluginSetupValidationIssue } from "@/plugin-system";
 
 import { AppEmptyState } from "../components/AppEmptyState";
 import { Container } from "../components/Container";
 import { CourseManagerModal } from "../components/CourseManagerModal";
-import { DataTable, DataTableActionMenu } from "../components/DataTable";
-import { IconCircle } from "../components/IconCircle";
-import { PluginSetupReviewRenderer, PluginSetupStepRenderer } from "../components/PluginSetupRenderers";
 import { Layout } from "../components/Layout";
-import {
-  getSemesterBasicsValidation,
-  SemesterBasicsFields,
-  type SemesterBasicsValue,
-} from "../components/SemesterBasicsFields";
+import { getSemesterBasicsValidation } from "../components/SemesterBasicsFields";
 import { isAutoSaveError, useAutoSave } from "../hooks/useAutoSave";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { reportError } from "../services/appStatus";
@@ -69,349 +54,40 @@ import api, {
   type PluginSystemSemesterSetupPlugin,
   type ProgramPluginInstallation,
   type Semester,
-  type SemesterDraftStep,
   type SemesterPluginActivation,
 } from "../services/api";
-import { formatGpaPercentage } from "../utils/percentage";
 
-type PersistedStepId = SemesterDraftStep;
-type StaticStepId = "basics" | "courses" | "plugins" | "review";
-type PluginSetupStepId = `plugin-setup:${string}`;
-type StepId = StaticStepId | PluginSetupStepId;
-type StoredStepId = StepId | PersistedStepId;
+// ─── Sub-module imports ───────────────────────────────────────────────────────
+import type { BasicsDraft, PluginSetupDraftMap, StepId, StoredStepId } from "./createSemesterWizard/types";
+import {
+  applyDraftPayloadToWizardCaches,
+  areBasicsEqual,
+  arePluginSetupDraftsEqual,
+  buildPaginationStepTokens,
+  buildReviewPreviewText,
+  buildSetupStepPlugin,
+  contributesSemesterSetup,
+  getErrorMessage,
+  getPersistedStepId,
+  getPluginIdFromStepId,
+  getPluginSetupStepId,
+  getVisibleStepOrder,
+  isSemesterDraftExistsError,
+  makeInitialBasics,
+  mergeSemesterDraftPayload,
+  normalizeWizardStep,
+  syncSemesterPluginToggle,
+} from "./createSemesterWizard/utils";
+import { WizardBasicsStep } from "./createSemesterWizard/WizardBasicsStep";
+import { WizardCoursesStep } from "./createSemesterWizard/WizardCoursesStep";
+import { WizardPluginsStep } from "./createSemesterWizard/WizardPluginsStep";
+import { WizardPluginSetupStep } from "./createSemesterWizard/WizardPluginSetupStep";
+import { WizardReviewStep } from "./createSemesterWizard/WizardReviewStep";
 
-type BasicsDraft = SemesterBasicsValue;
-type StepMeta = {
-  id: StepId;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  detail: string;
-  persistedStep: PersistedStepId;
-  pluginId?: string;
-};
+// Re-export so tests can import buildPaginationStepTokens from this module path.
+export { buildPaginationStepTokens } from "./createSemesterWizard/utils";
 
-type PluginSetupDraftMap = Record<string, Record<string, unknown>>;
-
-const getPluginSetupStepId = (pluginId: string): PluginSetupStepId => `plugin-setup:${pluginId}`;
-
-const isPluginSetupStepId = (value: string): value is PluginSetupStepId => value.startsWith("plugin-setup:");
-
-const getPluginIdFromStepId = (step: StepId): string | null => (
-  isPluginSetupStepId(step) ? step.slice("plugin-setup:".length) : null
-);
-
-const getPersistedStepId = (step: StoredStepId): PersistedStepId => (
-  isPluginSetupStepId(step) ? "plugin-setup" : step
-);
-
-const getPluginReviewValues = (
-  plugin: Pick<SemesterPluginActivation, "setup_values">,
-  draftValues: Record<string, unknown> | undefined,
-): Record<string, unknown> => ({
-  ...(plugin.setup_values ?? {}),
-  ...(draftValues ?? {}),
-});
-
-const areBasicsEqual = (left: BasicsDraft, right: BasicsDraft) => (
-  left.name === right.name
-  && left.start_date === right.start_date
-  && left.end_date === right.end_date
-  && left.reading_week_start === right.reading_week_start
-  && left.reading_week_end === right.reading_week_end
-);
-
-const arePluginSetupDraftsEqual = (left: PluginSetupDraftMap, right: PluginSetupDraftMap) => {
-  const leftPluginIds = Object.keys(left);
-  const rightPluginIds = Object.keys(right);
-  if (leftPluginIds.length !== rightPluginIds.length) {
-    return false;
-  }
-
-  return leftPluginIds.every((pluginId) => {
-    if (!Object.prototype.hasOwnProperty.call(right, pluginId)) {
-      return false;
-    }
-    const leftValues = left[pluginId] ?? {};
-    const rightValues = right[pluginId] ?? {};
-    const leftFieldPaths = Object.keys(leftValues);
-    const rightFieldPaths = Object.keys(rightValues);
-    if (leftFieldPaths.length !== rightFieldPaths.length) {
-      return false;
-    }
-    return leftFieldPaths.every((fieldPath) => rightValues[fieldPath] === leftValues[fieldPath]);
-  });
-};
-
-const STATIC_STEP_ORDER: StepMeta[] = [
-  { id: "basics", label: "Basics", icon: Sparkles, detail: "", persistedStep: "basics" },
-  { id: "courses", label: "Courses", icon: BookOpen, detail: "Populate the initial draft-owned course set.", persistedStep: "courses" },
-  { id: "plugins", label: "Plugins", icon: Layers3, detail: "Choose which Program plugins this Semester can use.", persistedStep: "plugins" },
-  { id: "review", label: "Review", icon: CheckCircle2, detail: "Validate every blocker before activation.", persistedStep: "review" },
-];
-const REVIEW_COURSE_PREVIEW_LIMIT = 4;
-const PAGINATION_FIXED_STEP_BUTTON_COUNT = 5;
-
-type PaginationStepToken<TStep extends { id: string; label: string }> =
-  | { type: "step"; step: TStep; index: number }
-  | { type: "ellipsis"; key: string };
-
-const buildReviewPreviewText = (items: string[], limit = REVIEW_COURSE_PREVIEW_LIMIT) => {
-  if (items.length === 0) {
-    return "";
-  }
-
-  const previewItems = items.slice(0, limit);
-  if (items.length <= limit) {
-    return `${previewItems.join(", ")}.`;
-  }
-
-  return `${previewItems.join(", ")}, and ${items.length - limit} more.`;
-};
-
-export const buildPaginationStepTokens = <TStep extends { id: string; label: string }>(
-  steps: TStep[],
-  currentIndex: number,
-): PaginationStepToken<TStep>[] => {
-  if (steps.length === 0) {
-    return [];
-  }
-
-  if (steps.length <= PAGINATION_FIXED_STEP_BUTTON_COUNT) {
-    return steps.map((step, index) => ({ type: "step", step, index }));
-  }
-
-  const safeCurrentIndex = Math.min(Math.max(currentIndex, 0), steps.length - 1);
-  let orderedIndexes: number[];
-
-  if (safeCurrentIndex <= 2) {
-    orderedIndexes = [0, 1, 2, 3, steps.length - 1];
-  } else if (safeCurrentIndex >= steps.length - 3) {
-    orderedIndexes = [0, steps.length - 4, steps.length - 3, steps.length - 2, steps.length - 1];
-  } else {
-    orderedIndexes = [0, safeCurrentIndex - 1, safeCurrentIndex, safeCurrentIndex + 1, steps.length - 1];
-  }
-
-  const tokens: PaginationStepToken<TStep>[] = [];
-
-  orderedIndexes.forEach((index, orderIndex) => {
-    if (orderIndex > 0 && index - orderedIndexes[orderIndex - 1]! > 1) {
-      tokens.push({ type: "ellipsis", key: `ellipsis-${orderedIndexes[orderIndex - 1]}-${index}` });
-    }
-    tokens.push({ type: "step", step: steps[index]!, index });
-  });
-
-  return tokens;
-};
-
-const contributesSemesterSetup = ({
-  activationSetupSections,
-  pluginSystemSetupSections,
-}: {
-  activationSetupSections: { length: number };
-  pluginSystemSetupSections?: { length: number } | null;
-}) => activationSetupSections.length > 0 || Boolean(pluginSystemSetupSections && pluginSystemSetupSections.length > 0);
-
-const getVisibleStepOrder = (setupPlugins: Array<{ plugin_id: string; display_name: string }>): StepMeta[] => {
-  const pluginSetupSteps = setupPlugins.map((plugin) => ({
-    id: getPluginSetupStepId(plugin.plugin_id),
-    label: plugin.display_name,
-    icon: Settings2,
-    detail: `Configure ${plugin.display_name} before activation.`,
-    persistedStep: "plugin-setup" as const,
-    pluginId: plugin.plugin_id,
-  }));
-
-  return [
-    STATIC_STEP_ORDER[0],
-    STATIC_STEP_ORDER[1],
-    STATIC_STEP_ORDER[2],
-    ...pluginSetupSteps,
-    STATIC_STEP_ORDER[3],
-  ];
-};
-
-const normalizeWizardStep = (step: StoredStepId, setupPlugins: Array<{ plugin_id: string }>): StepId => {
-  const fallbackPluginStep = setupPlugins[0] ? getPluginSetupStepId(setupPlugins[0].plugin_id) : "review";
-  const isStaticStep = STATIC_STEP_ORDER.some((entry) => entry.id === step);
-
-  if (step === "plugin-setup") {
-    return fallbackPluginStep;
-  }
-
-  if (isPluginSetupStepId(step)) {
-    return setupPlugins.some((plugin) => getPluginSetupStepId(plugin.plugin_id) === step)
-      ? step
-      : fallbackPluginStep;
-  }
-
-  return isStaticStep ? step : "basics";
-};
-
-const buildSemesterPluginActivation = (
-  plugin: ProgramPluginInstallation,
-  semesterId: string | undefined,
-  isEnabled: boolean,
-): SemesterPluginActivation => ({
-  id: null,
-  semester_id: semesterId ?? "",
-  program_plugin_installation_id: plugin.id ?? "",
-  plugin_id: plugin.plugin_id,
-  display_name: plugin.display_name,
-  description: plugin.description,
-  author: plugin.author,
-  locked: plugin.locked,
-  version: plugin.version,
-  is_enabled: isEnabled,
-  capabilities: plugin.capabilities,
-  setup_sections: plugin.setup_sections,
-  setup_values: {},
-  setup_summary: [],
-  review_errors: [],
-  available: plugin.available,
-  availability_reason: plugin.availability_reason ?? null,
-  auth_state: plugin.auth_state,
-});
-
-const syncPluginActivationCollection = (
-  activations: SemesterPluginActivation[] | undefined,
-  plugin: ProgramPluginInstallation,
-  isEnabled: boolean,
-  semesterId: string | undefined,
-): SemesterPluginActivation[] => {
-  const nextActivations = [...(activations ?? [])];
-  const index = nextActivations.findIndex((activation) => activation.plugin_id === plugin.plugin_id);
-
-  if (index >= 0) {
-    nextActivations[index] = {
-      ...nextActivations[index],
-      is_enabled: isEnabled,
-      locked: plugin.locked,
-      setup_sections: plugin.setup_sections,
-      capabilities: plugin.capabilities,
-      version: plugin.version,
-      available: plugin.available,
-      availability_reason: plugin.availability_reason ?? null,
-      auth_state: plugin.auth_state,
-    };
-    return nextActivations;
-  }
-
-  if (!isEnabled) {
-    return nextActivations;
-  }
-
-  nextActivations.push(buildSemesterPluginActivation(plugin, semesterId, true));
-  return nextActivations;
-};
-
-const syncSemesterPluginToggle = (
-  semester: Semester | undefined,
-  plugin: ProgramPluginInstallation,
-  isEnabled: boolean,
-): Semester | undefined => {
-  if (!semester) {
-    return semester;
-  }
-
-  return {
-    ...semester,
-    creation_step: "plugins",
-    plugin_activations: syncPluginActivationCollection(semester.plugin_activations, plugin, isEnabled, semester.id),
-  };
-};
-
-const buildSetupStepPlugin = (
-  plugin: SemesterPluginActivation,
-  setupPayload: PluginSystemSemesterSetupPlugin | undefined,
-): PluginSystemSemesterSetupPlugin => ({
-  plugin_id: plugin.plugin_id,
-  display_name: plugin.display_name,
-  description: plugin.description,
-  long_description: plugin.long_description,
-  author: plugin.author,
-  is_enabled: plugin.is_enabled,
-  available: plugin.available,
-  availability_reason: plugin.availability_reason ?? null,
-  setup_sections: setupPayload?.setup_sections ?? plugin.setup_sections,
-  setup_values: { ...(setupPayload?.setup_values ?? plugin.setup_values ?? {}) },
-  setup_summary: setupPayload?.setup_summary ?? plugin.setup_summary ?? [],
-  review_errors: setupPayload?.review_errors ?? plugin.review_errors ?? [],
-});
-
-const applyDraftPayloadToWizardCaches = (
-  queryClient: ReturnType<typeof useQueryClient>,
-  programId: string,
-  draft: Semester,
-) => {
-  hydrateSemesterDraftWorkflowCaches(queryClient, { programId, draft });
-};
-
-const mergeSemesterDraftPayload = (
-  previous: Semester | undefined | null,
-  next: Semester | null | undefined,
-): Semester | null | undefined => {
-  if (!next) {
-    return next;
-  }
-  if (!previous) {
-    return next;
-  }
-  return {
-    ...previous,
-    ...next,
-    plugin_activations: next.plugin_activations ?? previous.plugin_activations,
-    review_errors: next.review_errors ?? previous.review_errors,
-    review_ready: next.review_ready ?? previous.review_ready,
-    courses: next.courses ?? previous.courses,
-  };
-};
-
-const getReviewErrorStepLabel = (step: string): string => {
-  if (step === "plugin-setup" || step.startsWith("plugin-setup:")) {
-    return "Plugin Setup";
-  }
-
-  switch (step) {
-    case "plugins":
-      return "Plugins";
-    case "courses":
-      return "Courses";
-    case "review":
-      return "Review";
-    case "basics":
-      return "Basics";
-    default:
-      return "Review";
-  }
-};
-
-const makeInitialBasics = (): BasicsDraft => ({
-  name: "",
-  start_date: "",
-  end_date: "",
-  reading_week_start: "",
-  reading_week_end: "",
-});
-
-const getErrorMessage = (error: unknown, fallback: string): string => {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
-};
-
-const isSemesterDraftExistsError = (error: unknown): boolean => {
-  if (!axios.isAxiosError(error) || error.response?.status !== 409) {
-    return false;
-  }
-
-  const detail = error.response?.data?.detail;
-  if (!detail || typeof detail !== "object") {
-    return false;
-  }
-
-  return (detail as { code?: unknown }).code === "SEMESTER_DRAFT_EXISTS";
-};
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export const CreateSemesterWizardPage: React.FC = () => {
   const { id: programId } = useParams<{ id: string }>();
@@ -437,6 +113,11 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const pluginSetupFlushRef = useRef<() => Promise<void>>(async () => {});
   const hydratedBasicsDraftIdRef = useRef<string | null>(null);
   const hydratedPluginSetupDraftIdRef = useRef<string | null>(null);
+  // Synchronous guard for handleFinalize — setIsFinalizing(true) is a batched React state update
+  // and cannot prevent a second invocation in the same event-loop burst (rapid double-click).
+  const isFinalizingRef = useRef(false);
+
+  // ─── Queries ────────────────────────────────────────────────────────────────
 
   const programQuery = useQuery({
     ...getProgramDetailQueryOptions(programId ?? "missing"),
@@ -461,6 +142,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
     enabled: Boolean(draftId) && !isFinalizing,
     staleTime: 10_000,
   });
+
+  // ─── Derived data ────────────────────────────────────────────────────────────
 
   const pluginCatalog = useMemo(
     () => (programQuery.data?.plugin_installations ?? []).filter((plugin) => plugin.installed && plugin.is_enabled),
@@ -517,6 +200,9 @@ export const CreateSemesterWizardPage: React.FC = () => {
     ),
     [setupPlugins],
   );
+
+  // ─── Draft hydration effects ──────────────────────────────────────────────────
+
   useEffect(() => {
     if (!draftId || !serverBasics) {
       hydratedBasicsDraftIdRef.current = null;
@@ -545,12 +231,14 @@ export const CreateSemesterWizardPage: React.FC = () => {
     [currentStepIndex, stepOrder],
   );
   const currentStepMeta = stepOrder[currentStepIndex] ?? stepOrder[0];
+
   useEffect(() => {
     if (activeStep === currentStep) {
       return;
     }
     const nextIndex = stepOrder.findIndex((step) => step.id === activeStep);
-    const previousIndex = stepOrder.findIndex((step) => step.id === normalizeWizardStep(currentStep, setupStepPlugins));
+    // activeStep IS normalizeWizardStep(currentStep, setupStepPlugins) by definition — reuse it.
+    const previousIndex = stepOrder.findIndex((step) => step.id === activeStep);
     setStepDirection(nextIndex >= previousIndex ? 1 : -1);
     setCurrentStep(activeStep);
     if (!draftId || !programId) {
@@ -590,6 +278,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
       return Object.fromEntries(nextEntries);
     });
   }, [setupPlugins]);
+
+  // ─── Draft persistence ────────────────────────────────────────────────────────
 
   const invalidateDraftData = async ({ includeProgramDetail = false }: { includeProgramDetail?: boolean } = {}) => {
     if (!programId) return;
@@ -688,13 +378,11 @@ export const CreateSemesterWizardPage: React.FC = () => {
     },
   });
 
-  useEffect(() => {
-    basicsFlushRef.current = flushBasics;
-  }, [flushBasics]);
-
-  useEffect(() => {
-    pluginSetupFlushRef.current = flushPluginSetup;
-  }, [flushPluginSetup]);
+  // Assign flush refs synchronously during render — React's recommended pattern for
+  // "values you want available to effects/cleanup without re-running them". The useEffect
+  // approach introduced a one-frame lag where a fast unmount could call a stale flush.
+  basicsFlushRef.current = flushBasics;
+  pluginSetupFlushRef.current = flushPluginSetup;
 
   useEffect(() => {
     return () => {
@@ -702,6 +390,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
       void pluginSetupFlushRef.current().catch(() => {});
     };
   }, []);
+
+  // ─── Navigation ───────────────────────────────────────────────────────────────
 
   const flushStepDraftChanges = async (nextStep: StepId) => {
     await basicsFlushRef.current();
@@ -776,6 +466,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
       setIsSavingStep(false);
     }
   };
+
+  // ─── Plugin handlers ─────────────────────────────────────────────────────────
 
   const handleTogglePlugin = async (plugin: ProgramPluginInstallation, checked: boolean) => {
     if (!draftId || !programId) return;
@@ -860,6 +552,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
     }
   };
 
+  // ─── Course handlers ─────────────────────────────────────────────────────────
+
   const handleDeleteCourse = async (courseId: string) => {
     if (isRemovingCourse) return;
     setIsRemovingCourse(true);
@@ -875,8 +569,13 @@ export const CreateSemesterWizardPage: React.FC = () => {
     }
   };
 
+  // ─── Finalize / exit ─────────────────────────────────────────────────────────
+
   const handleFinalize = async () => {
-    if (!draftId) return;
+    // isFinalizingRef is a synchronous guard — setIsFinalizing(true) is batched and cannot
+    // prevent a second invocation that arrives in the same event-loop burst (rapid double-click).
+    if (!draftId || isFinalizingRef.current) return;
+    isFinalizingRef.current = true;
     setIsFinalizing(true);
     try {
       await basicsFlushRef.current();
@@ -891,9 +590,13 @@ export const CreateSemesterWizardPage: React.FC = () => {
       const result = await api.finalizeSemesterDraft(draftId);
       queryClient.setQueryData(programKeys.semesterDraft(programId!), null);
       removeSemesterDraftWorkflowQueries(queryClient, draftId);
-      queryClient.invalidateQueries({ queryKey: programKeys.detail(programId!) }).catch(() => {});
-      queryClient.invalidateQueries({ queryKey: programKeys.semesterDraft(programId!) }).catch(() => {});
-      queryClient.invalidateQueries({ queryKey: semesterKeys.detail(result.id) }).catch(() => {});
+      // Await all cache invalidations before navigating so the Semester homepage
+      // does not land on stale program/draft/semester data.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: programKeys.detail(programId!) }),
+        queryClient.invalidateQueries({ queryKey: programKeys.semesterDraft(programId!) }),
+        queryClient.invalidateQueries({ queryKey: semesterKeys.detail(result.id) }),
+      ]).catch(() => {});
       navigate(`/semesters/${result.id}`);
     } catch (error) {
       console.error("Failed to finalize Semester draft", error);
@@ -901,6 +604,7 @@ export const CreateSemesterWizardPage: React.FC = () => {
         reportError("Failed to finalize the Semester. Please retry.");
       }
     } finally {
+      isFinalizingRef.current = false;
       setIsFinalizing(false);
     }
   };
@@ -931,6 +635,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
     navigate(`/programs/${programId}`);
   };
 
+  // ─── Plugin setup field update ────────────────────────────────────────────────
+
   const updatePluginSetupField = (plugin: PluginSystemSemesterSetupPlugin, fieldPath: string, value: unknown) => {
     setPluginSetupValidationErrors((current) => {
       if (!current[plugin.plugin_id]) {
@@ -948,6 +654,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
       },
     }));
   };
+
+  // ─── Breadcrumb (shared across all return paths) ──────────────────────────────
 
   const breadcrumb = (
     <Breadcrumb>
@@ -974,6 +682,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
       </BreadcrumbList>
     </Breadcrumb>
   );
+
+  // ─── Early returns (guarded states) ──────────────────────────────────────────
 
   if (!programId) {
     return (
@@ -1060,6 +770,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
     );
   }
 
+  // ─── Pre-render derived values ────────────────────────────────────────────────
+
   const courseList = semesterDetailQuery.data?.courses ?? [];
   const reviewErrors = Array.from(
     new Map(
@@ -1078,7 +790,8 @@ export const CreateSemesterWizardPage: React.FC = () => {
   const hasBlockedEnabledPlugins = blockedEnabledPlugins.length > 0;
   const courseCount = courseList.length;
   const enabledPluginCount = enabledPlugins.length;
-  const blockedPluginCount = enabledPlugins.filter((plugin) => !plugin.available).length;
+  // blockedEnabledPlugins is already filtered above — reuse it to avoid a redundant traversal.
+  const blockedPluginCount = blockedEnabledPlugins.length;
   const courseReviewSummary = courseCount === 0
     ? "No draft courses yet."
     : buildReviewPreviewText(courseList.map((course) => course.name));
@@ -1143,283 +856,10 @@ export const CreateSemesterWizardPage: React.FC = () => {
     }
   };
 
-  const basicsStepContent = (
-    <FieldSet>
-      <SemesterBasicsFields
-        value={basics}
-        onChange={(nextBasics) => setBasics(nextBasics)}
-        showRequiredIndicators
-      />
-    </FieldSet>
-  );
+  // Pre-filtered to avoid double-scanning in WizardPluginsStep's Select-All Switch.
+  const toggleableAvailablePlugins = pluginCatalog.filter((plugin) => !plugin.locked && plugin.available);
 
-  const coursesStepContent = (
-    <DataTable
-      title="Semester Courses"
-      description="Review the courses assigned to this Semester draft."
-      showHeader={false}
-      rootClassName="flex h-full min-h-0 flex-col"
-      items={courseList}
-      actionButton={(
-        <Button
-          type="button"
-          onClick={() => setIsCourseManagerOpen(true)}
-          disabled={!draftId}
-          className="w-full shrink-0 sm:w-auto sm:self-start"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add / Manage Courses
-        </Button>
-      )}
-      emptyMessage="No courses assigned."
-      minWidthClassName="min-w-[34rem] sm:min-w-[42rem]"
-      shellClassName="min-h-[18rem] min-w-0 flex-1 overflow-y-auto"
-      emptyRowClassName="h-[15rem] align-middle sm:h-full"
-      tableClassName="h-full w-full min-w-full sm:w-max sm:min-w-full [&_td]:max-w-[14rem] sm:[&_td]:max-w-[18rem] [&_td]:whitespace-normal sm:[&_td]:whitespace-nowrap [&_th]:max-w-[14rem] sm:[&_th]:max-w-[18rem] [&_th]:whitespace-normal sm:[&_th]:whitespace-nowrap"
-      getRowKey={(course) => course.id}
-      columns={[
-        {
-          key: 'name',
-          label: 'Name',
-          fit: 'fill',
-          minWidth: 208,
-          cellClassName: 'align-middle font-medium',
-          cell: (course) => (
-            <div className="flex flex-col gap-1">
-              <span className="break-words">{course.name}</span>
-              {course.alias ? (
-                <span className="break-words text-xs text-muted-foreground">{course.alias}</span>
-              ) : null}
-            </div>
-          ),
-        },
-        { key: 'credits', label: 'Credits', width: 104, cellClassName: 'align-middle whitespace-nowrap' },
-        {
-          key: 'grade',
-          label: 'Grade',
-          width: 112,
-          cellClassName: 'align-middle whitespace-nowrap',
-          cell: (course) => formatGpaPercentage(course.grade_percentage),
-        },
-        {
-          key: 'actions',
-          label: 'Actions',
-          width: 56,
-          align: 'right',
-          cellClassName: 'align-middle',
-          cell: (course) => (
-            <DataTableActionMenu triggerLabel={`Open actions for ${course.name}`}>
-              <DropdownMenuItem variant="destructive" onClick={() => setPendingRemoveCourse(course)}>
-                <Trash2 className="h-4 w-4" />
-                Remove
-              </DropdownMenuItem>
-            </DataTableActionMenu>
-          ),
-        },
-      ]}
-    />
-  );
-
-  const pluginsStepContent = (
-    <DataTable
-      title="Plugins"
-      description="Enable or disable Program plugins for this Semester."
-      showHeader={false}
-      rootClassName="flex h-full min-h-0 flex-col"
-      items={pluginCatalog}
-      emptyMessage="This Program does not have any installed plugins available for Semester configuration yet."
-      minWidthClassName="min-w-[36rem] sm:min-w-[44rem] xl:min-w-[52rem]"
-      shellClassName="min-h-[20rem] min-w-0 flex-1 overflow-y-auto"
-      emptyRowClassName="h-[17rem] align-middle sm:h-full"
-      tableClassName="h-full w-full min-w-full table-auto sm:w-max sm:min-w-full [&_td]:max-w-[16rem] sm:[&_td]:max-w-[22rem] [&_td]:whitespace-normal sm:[&_td]:whitespace-nowrap [&_th]:max-w-[16rem] sm:[&_th]:max-w-[22rem] [&_th]:whitespace-normal sm:[&_th]:whitespace-nowrap"
-      renderHeader={() => (
-        <TableRow>
-          <TableHead className="min-w-[220px]">Plugin</TableHead>
-          <TableHead className="min-w-[120px]">Author</TableHead>
-          <TableHead className="w-[180px] text-right">
-            <div className="ml-auto flex w-full max-w-[172px] items-center justify-end gap-3">
-              <span>Enabled</span>
-              <Switch
-                checked={pluginCatalog.some((plugin) => !plugin.locked && plugin.available) && pluginCatalog.filter((plugin) => !plugin.locked && plugin.available).every((plugin) => enabledPluginIds.has(plugin.plugin_id))}
-                aria-label="Toggle all editable plugins"
-                disabled={isUpdatingPluginSelection || !pluginCatalog.some((plugin) => (!plugin.locked && plugin.available) || (!plugin.locked && enabledPluginIds.has(plugin.plugin_id)))}
-                onCheckedChange={(checked) => {
-                  void handleToggleAllPlugins(Boolean(checked));
-                }}
-              />
-            </div>
-          </TableHead>
-        </TableRow>
-      )}
-      renderRow={(plugin) => {
-        const pluginIcon = getPluginIconById(plugin.plugin_id);
-        const isEnabled = enabledPluginIds.has(plugin.plugin_id);
-        const switchDisabled = (!plugin.available && !isEnabled) || plugin.locked;
-
-        return (
-          <TableRow key={plugin.plugin_id} className="align-middle">
-            <TableCell className="py-3 align-middle">
-              <div className="flex items-start gap-3">
-                <IconCircle icon={pluginIcon} label={plugin.display_name} size={30} className="bg-muted text-foreground" />
-                <div className="min-w-0 space-y-1">
-                  <div className="font-medium text-foreground">{plugin.display_name}</div>
-                  <p className="text-sm text-muted-foreground">{plugin.description}</p>
-                  {plugin.locked ? <p className="text-xs text-muted-foreground">Required by the Program.</p> : null}
-                  {!plugin.available ? <p className="text-xs text-amber-700 dark:text-amber-300">{plugin.availability_reason ?? "Not available."}</p> : null}
-                </div>
-              </div>
-            </TableCell>
-            <TableCell className="py-3 align-middle">
-              <span className="text-sm text-muted-foreground">{plugin.author}</span>
-            </TableCell>
-            <TableCell className="py-3 text-right align-middle">
-              <div className="ml-auto flex w-full max-w-[132px] items-center justify-end gap-3">
-                <span className="text-xs text-muted-foreground">{isEnabled ? "On" : "Off"}</span>
-                <Switch
-                  checked={isEnabled}
-                  aria-label={`${plugin.display_name} enabled`}
-                  onCheckedChange={(checked) => {
-                    void handleTogglePlugin(plugin, Boolean(checked));
-                  }}
-                  disabled={switchDisabled}
-                />
-              </div>
-            </TableCell>
-          </TableRow>
-        );
-      }}
-    />
-  );
-
-  const pluginSetupStepContent = (
-    <div className="space-y-6">
-      {setupPlugins.length === 0 || !isPluginSetupStepId(activeStep) ? (
-        <div className="rounded-lg border border-dashed border-border/70 px-4 py-12 text-center text-sm text-muted-foreground">
-          No enabled plugins require setup.
-        </div>
-      ) : (
-        setupPlugins
-          .filter((plugin) => plugin.plugin_id === getPluginIdFromStepId(activeStep))
-          .map((plugin) => (
-            <section key={plugin.plugin_id}>
-              <PluginSetupStepRenderer
-                plugin={plugin}
-                values={pluginSetupDrafts[plugin.plugin_id] ?? plugin.setup_values}
-                localErrors={pluginSetupValidationErrors[plugin.plugin_id] ?? []}
-                semesterId={draftId}
-                programId={programId}
-                onValueChange={(fieldPath, value) => updatePluginSetupField(plugin, fieldPath, value)}
-              />
-            </section>
-          ))
-      )}
-    </div>
-  );
-
-  const reviewStepContent = (
-    <div className="space-y-6">
-      <section className="space-y-4">
-        <div className="space-y-1">
-          <div className="text-sm font-medium text-muted-foreground">Semester</div>
-          <div className="text-2xl leading-tight font-semibold tracking-tight text-foreground sm:text-3xl">
-            {basics.name || "Untitled Semester"}
-          </div>
-        </div>
-
-        <dl className="grid gap-y-3 border-t border-border/70 pt-4">
-          {[
-            {
-              label: "Date range",
-              value: reviewDateRangeValue,
-            },
-            {
-              label: "Reading week",
-              value: reviewReadingWeekValue,
-            },
-            {
-              label: "Courses",
-              value: courseReviewMeta,
-              detail: courseReviewSummary,
-            },
-            {
-              label: "Plugins",
-              value: pluginReviewMeta,
-              detail: pluginReviewSummary,
-            },
-          ].map((item) => (
-            <div key={item.label} className="grid gap-1 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-x-4">
-              <dt className="text-sm font-medium text-muted-foreground">{item.label}</dt>
-              <div className="min-w-0">
-                <dd className="text-sm leading-6 font-medium text-foreground">
-                  {item.value}
-                </dd>
-                {item.detail ? (
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {item.detail}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      {reviewSummaryPlugins.length > 0 ? (
-        <div className="space-y-4">
-          <div className="text-sm font-medium">Plugin setup summary</div>
-          <Accordion type="single" collapsible className="rounded-xl border border-border/70 px-4">
-            {reviewSummaryPlugins.map((plugin) => (
-              <AccordionItem key={`review:${plugin.plugin_id}`} value={`review:${plugin.plugin_id}`}>
-                <AccordionTrigger className="gap-4 py-5 hover:no-underline">
-                  <div className="space-y-1">
-                    <div className="font-medium text-foreground">{plugin.display_name}</div>
-                    <div className="text-sm text-muted-foreground">{plugin.description}</div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-1">
-                  <PluginSetupReviewRenderer
-                    plugin={plugin}
-                    values={getPluginReviewValues(plugin, pluginSetupDrafts[plugin.plugin_id])}
-                    semesterId={draftId}
-                    programId={programId}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
-      ) : null}
-
-      {reviewErrors.length > 0 ? (
-        <div className="space-y-3">
-          {reviewErrors.map((error) => (
-            <Card key={`${error.step}:${error.code}:${error.plugin_id ?? "platform"}:${error.field_path ?? "detail"}`} size="sm" className="border-amber-500/30 shadow-none">
-              <CardContent className="space-y-2">
-                <div className="font-medium text-foreground">
-                  {getReviewErrorStepLabel(error.step)}
-                  {error.plugin_id ? ` · ${pluginDisplayNameById.get(error.plugin_id) ?? error.plugin_id}` : ""}
-                </div>
-                <div className="text-sm text-muted-foreground">{error.message}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : null}
-
-      {blockedEnabledPlugins.length > 0 ? (
-        <div className="space-y-3">
-          {blockedEnabledPlugins.map((plugin) => (
-            <Card key={`blocked:${plugin.plugin_id}`} size="sm" className="border-amber-500/30 shadow-none">
-              <CardContent className="space-y-2">
-                <div className="font-medium text-foreground">Plugins · {plugin.display_name}</div>
-                <div className="text-sm text-muted-foreground">{plugin.availability_reason ?? "This enabled plugin is still blocked."}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+  // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <Layout breadcrumb={breadcrumb}>
@@ -1461,15 +901,60 @@ export const CreateSemesterWizardPage: React.FC = () => {
                     activeStep === "courses" || activeStep === "plugins" ? "flex h-full min-h-0 flex-col" : "",
                   )}
                 >
-              {activeStep === "basics" ? basicsStepContent : null}
+                  {activeStep === "basics" ? (
+                    <WizardBasicsStep value={basics} onChange={setBasics} />
+                  ) : null}
 
-              {activeStep === "courses" ? coursesStepContent : null}
+                  {activeStep === "courses" ? (
+                    <WizardCoursesStep
+                      courseList={courseList}
+                      draftId={draftId}
+                      onOpenCourseManager={() => setIsCourseManagerOpen(true)}
+                      onRequestRemoveCourse={setPendingRemoveCourse}
+                    />
+                  ) : null}
 
-              {activeStep === "plugins" ? pluginsStepContent : null}
+                  {activeStep === "plugins" ? (
+                    <WizardPluginsStep
+                      pluginCatalog={pluginCatalog}
+                      enabledPluginIds={enabledPluginIds}
+                      toggleableAvailablePlugins={toggleableAvailablePlugins}
+                      isUpdatingPluginSelection={isUpdatingPluginSelection}
+                      onTogglePlugin={handleTogglePlugin}
+                      onToggleAll={handleToggleAllPlugins}
+                    />
+                  ) : null}
 
-              {isPluginSetupStepId(activeStep) ? pluginSetupStepContent : null}
+                  {activeStep !== "basics" && activeStep !== "courses" && activeStep !== "plugins" && activeStep !== "review" ? (
+                    <WizardPluginSetupStep
+                      setupPlugins={setupPlugins}
+                      activeStep={activeStep}
+                      pluginSetupDrafts={pluginSetupDrafts}
+                      pluginSetupValidationErrors={pluginSetupValidationErrors}
+                      semesterId={draftId}
+                      programId={programId}
+                      onValueChange={updatePluginSetupField}
+                    />
+                  ) : null}
 
-              {activeStep === "review" ? reviewStepContent : null}
+                  {activeStep === "review" ? (
+                    <WizardReviewStep
+                      semesterName={basics.name}
+                      reviewDateRange={reviewDateRangeValue}
+                      reviewReadingWeek={reviewReadingWeekValue}
+                      courseReviewMeta={courseReviewMeta}
+                      courseReviewSummary={courseReviewSummary}
+                      pluginReviewMeta={pluginReviewMeta}
+                      pluginReviewSummary={pluginReviewSummary}
+                      reviewSummaryPlugins={reviewSummaryPlugins}
+                      pluginSetupDrafts={pluginSetupDrafts}
+                      reviewErrors={reviewErrors}
+                      blockedEnabledPlugins={blockedEnabledPlugins}
+                      pluginDisplayNameById={pluginDisplayNameById}
+                      semesterId={draftId}
+                      programId={programId}
+                    />
+                  ) : null}
                 </motion.div>
               </AnimatePresence>
             </div>
