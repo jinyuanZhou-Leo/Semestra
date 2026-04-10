@@ -47,7 +47,7 @@ interface ProgramPluginManagementPanelProps {
 }
 
 const isInstalled = (plugin: ProgramPluginInstallation) => plugin.installed !== false;
-const isMarketplaceInstallable = (plugin: ProgramPluginInstallation) => plugin.available !== false || Boolean(plugin.is_enabled);
+const isMarketplaceInstallable = (plugin: ProgramPluginInstallation) => plugin.available !== false;
 const canInstallFromMarketplace = (plugin: ProgramPluginInstallation) => !isInstalled(plugin) && isMarketplaceInstallable(plugin);
 const isLocalDisableReason = (plugin: ProgramPluginInstallation) => plugin.availability_reason === "Disabled at Program level.";
 export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanelProps> = ({

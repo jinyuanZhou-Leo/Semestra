@@ -339,6 +339,23 @@ class PluginGovernanceDraftTests(unittest.TestCase):
         self.assertTrue(canvas_installation["available"])
         self.assertIsNone(canvas_installation["availability_reason"])
 
+    def test_program_catalog_keeps_uninstalled_plugins_installable(self) -> None:
+        program = self._create_program()
+
+        catalog = crud.get_program_plugin_catalog(self.db, program.id)
+        catalog_by_plugin_id = {item["plugin_id"]: item for item in catalog}
+
+        event_core = catalog_by_plugin_id["builtin-event-core"]
+        canvas = catalog_by_plugin_id["builtin-canvas-integration"]
+
+        self.assertFalse(event_core["installed"])
+        self.assertTrue(event_core["available"])
+        self.assertIsNone(event_core["availability_reason"])
+
+        self.assertFalse(canvas["installed"])
+        self.assertTrue(canvas["available"])
+        self.assertIsNone(canvas["availability_reason"])
+
     def test_single_program_plugin_update_rejects_disabling_locked_plugin(self) -> None:
         program = self._create_program()
 

@@ -590,15 +590,11 @@ def _resolve_program_plugin_availability(
     )
     if not available:
         reason_code = "requires_dependency"
-        if installation is None:
-            reason_code = "not_installed"
-        elif auth_state not in {"authorized", "not-required"}:
+        if auth_state not in {"authorized", "not-required"}:
             reason_code = "permission_denied"
         return False, reason_code, availability_reason
     if installation is not None and not installation.is_enabled:
         return False, "not_enabled", "Disabled at Program level."
-    if installation is None:
-        return False, "not_installed", "Plugin is not installed for this Program."
     return True, None, None
 
 
