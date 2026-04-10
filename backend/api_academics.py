@@ -551,7 +551,7 @@ def reorder_semester_runtime_tabs(
     return runtime_payloads.build_semester_runtime_payload(db, semester)["runtime_tabs"]
 
 
-@router.put("/semesters/{semester_id}", response_model=schemas.Semester)
+@router.put("/semesters/{semester_id}")
 def update_semester(
     semester_id: str,
     semester: schemas.SemesterCreate,
@@ -574,7 +574,8 @@ def update_semester(
         semester.reading_week_start,
         semester.reading_week_end,
     )
-    return crud.update_semester(db, semester_id=semester_id, semester_update=semester)
+    updated_semester = crud.update_semester(db, semester_id=semester_id, semester_update=semester)
+    return _serialize_semester_detail_payload(db, updated_semester)
 
 
 @router.delete("/semesters/{semester_id}")
@@ -1194,7 +1195,7 @@ def download_course_resource(
     )
 
 
-@router.put("/courses/{course_id}", response_model=schemas.Course)
+@router.put("/courses/{course_id}")
 def update_course(
     course_id: str,
     course: schemas.CourseUpdate,
@@ -1204,7 +1205,8 @@ def update_course(
     get_owned_course(db, current_user, course_id)
 
     try:
-        return crud.update_course(db=db, course_id=course_id, course_update=course)
+        updated_course = crud.update_course(db=db, course_id=course_id, course_update=course)
+        return _serialize_course_detail_payload(db, updated_course)
     except crud.CourseSemesterAssignmentError as exc:
         if str(exc) == "SEMESTER_NOT_FOUND":
             raise HTTPException(status_code=404, detail=error_detail("SEMESTER_NOT_FOUND", "Semester not found."))
