@@ -1,6 +1,6 @@
-// input:  [FullCalendar React adapter, schedule/todo-derived calendar events, week/view state, calendar navigation callbacks, and todo completion toggles]
-// output: [FullCalendarView React component backed by the FullCalendar library with Apple Calendar-inspired week headers, event hierarchy, all-day todo radios, and a custom current-time indicator]
-// pos:    [calendar renderer that bridges built-in event-core state into week/month views with all-day support, compact schedule metadata, Apple-style header chrome, todo completion toggles, and a labeled now line]
+// input:  [FullCalendar React adapter, schedule/todo-derived calendar events, week/view state, calendar navigation callbacks, export mode, and todo completion toggles]
+// output: [shared CalendarFullCalendarSurface plus FullCalendarView backed by the FullCalendar library with Apple Calendar-inspired week headers, event hierarchy, all-day todo radios, and a custom current-time indicator]
+// pos:    [calendar renderer that bridges built-in event-core state into reusable runtime/export FullCalendar surfaces with all-day support, compact schedule metadata, Apple-style header chrome, todo completion toggles, and a labeled now line]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
@@ -50,6 +50,27 @@ interface FullCalendarViewProps {
   onWeekChange: (week: number) => void;
   onViewModeChange: (viewMode: CalendarViewMode) => void;
   onEventClick: (event: CalendarEventData) => void;
+  onToggleTodoCompleted?: (event: CalendarEventData, completed: boolean) => Promise<void>;
+}
+
+interface CalendarFullCalendarSurfaceProps {
+  events: CalendarEventData[];
+  viewMode: CalendarViewMode;
+  currentDate: Date;
+  validRange: {
+    start: Date;
+    end: Date;
+  };
+  dayStartMinutes: number;
+  dayEndMinutes: number;
+  weekViewDayCount: number;
+  highlightConflicts: boolean;
+  showWeekends: boolean;
+  isPending?: boolean;
+  mode?: 'interactive' | 'export';
+  onDatesSet?: (arg: DatesSetArg) => void;
+  onMoreLinkClick?: (arg: MoreLinkArg) => string;
+  onEventClick?: (event: CalendarEventData) => void;
   onToggleTodoCompleted?: (event: CalendarEventData, completed: boolean) => Promise<void>;
 }
 
@@ -138,7 +159,7 @@ const buildCalendarEvents = (
 };
 
 const buildEventContentRenderer = (
-  onToggleTodoCompleted: FullCalendarViewProps['onToggleTodoCompleted'],
+  onToggleTodoCompleted: CalendarFullCalendarSurfaceProps['onToggleTodoCompleted'],
 ) => (eventInfo: EventContentArg) => {
   const { sourceEvent, highlightConflicts } = eventInfo.event.extendedProps as EventExtendedProps;
   return (
@@ -188,6 +209,138 @@ const renderDayHeader = ({ date, text, view }: DayHeaderContentArg) => {
   );
 };
 
+export const CalendarFullCalendarSurface: React.FC<CalendarFullCalendarSurfaceProps> = ({
+  events,
+  viewMode,
+  currentDate,
+  validRange,
+  dayStartMinutes,
+  dayEndMinutes,
+  weekViewDayCount,
+  highlightConflicts,
+  showWeekends,
+  isPending = false,
+  mode = 'interactive',
+  onDatesSet,
+  onMoreLinkClick,
+  onEventClick,
+  onToggleTodoCompleted,
+}) => {
+  const calendarContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const safeWeekViewDayCount = Math.max(1, Math.floor(weekViewDayCount));
+  const visibleDayColumns = showWeekends ? 7 : 5;
+  const weekViewMinWidthPercent = Math.max(100, (visibleDayColumns / safeWeekViewDayCount) * 100);
+  const currentView = viewMode === 'month' ? 'dayGridMonth' : 'timeGridWeek';
+  const calendarKey = React.useMemo(
+    () => `${currentView}:${currentDate.toISOString().slice(0, 10)}`,
+    [currentDate, currentView],
+  );
+  const calendarEvents = React.useMemo(
+    () => buildCalendarEvents(events, highlightConflicts),
+    [events, highlightConflicts],
+  );
+  const renderEventContent = React.useMemo(
+    () => buildEventContentRenderer(onToggleTodoCompleted),
+    [onToggleTodoCompleted],
+  );
+
+  const handleEventClick = React.useCallback((arg: EventClickArg) => {
+    if (!onEventClick) return;
+    const eventTarget = arg.jsEvent.target;
+    if (eventTarget instanceof Element && eventTarget.closest('[data-calendar-todo-toggle="true"]')) {
+      return;
+    }
+    const { sourceEvent } = arg.event.extendedProps as EventExtendedProps;
+    onEventClick(sourceEvent);
+  }, [onEventClick]);
+
+  React.useEffect(() => {
+    if (mode !== 'interactive' || viewMode !== 'week') return;
+
+    const syncNowIndicatorLabel = () => {
+      const root = calendarContainerRef.current;
+      if (!root) return;
+
+      const label = formatNowIndicatorLabel(new Date());
+      root.querySelectorAll<HTMLElement>('.fc-timegrid-now-indicator-arrow').forEach((element) => {
+        element.setAttribute('data-time-label', label);
+      });
+    };
+
+    syncNowIndicatorLabel();
+    const intervalId = window.setInterval(syncNowIndicatorLabel, 30_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [calendarKey, mode, viewMode]);
+
+  return (
+    <div
+      ref={calendarContainerRef}
+      className={cn(
+        'semestra-fullcalendar h-full min-h-0 min-w-0 overflow-x-auto overflow-y-hidden rounded-md border border-border/70 bg-background transition-opacity',
+        isPending ? 'opacity-70' : 'opacity-100',
+        mode === 'export' ? 'semestra-fullcalendar--export overflow-hidden opacity-100' : '',
+      )}
+      data-pending={isPending ? 'true' : 'false'}
+      data-export-mode={mode === 'export' ? 'true' : 'false'}
+    >
+      <div
+        data-slot={viewMode === 'week' ? 'calendar-week-scroll-frame' : 'calendar-frame'}
+        className="h-full min-h-0 w-full"
+        style={viewMode === 'week' ? { minWidth: `${weekViewMinWidthPercent}%` } : undefined}
+      >
+        <FullCalendar
+          key={calendarKey}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView={currentView}
+          initialDate={currentDate}
+          headerToolbar={false}
+          height="100%"
+          firstDay={1}
+          weekends={showWeekends}
+          allDaySlot
+          nowIndicator={mode === 'interactive'}
+          editable={false}
+          selectable={false}
+          navLinks={false}
+          events={calendarEvents}
+          validRange={validRange}
+          slotMinTime={toDurationTime(dayStartMinutes)}
+          slotMaxTime={toDurationTime(dayEndMinutes)}
+          slotDuration="00:30:00"
+          slotLabelInterval="01:00:00"
+          expandRows
+          stickyHeaderDates={mode === 'interactive'}
+          dayMaxEvents={CALENDAR_MAX_EVENT_LINES_PER_DAY}
+          slotEventOverlap={false}
+          moreLinkClick={onMoreLinkClick}
+          eventClick={handleEventClick}
+          eventContent={renderEventContent}
+          datesSet={onDatesSet}
+          eventDidMount={(arg) => {
+            const { sourceEvent, highlightConflicts: shouldHighlightConflicts } = arg.event.extendedProps as EventExtendedProps;
+            const resolvedColor = sourceEvent.color ?? '#3b82f6';
+            arg.el.style.setProperty('--semestra-calendar-accent', resolvedColor);
+            arg.el.style.setProperty('--semestra-calendar-accent-soft', addAlpha(resolvedColor, sourceEvent.isConflict && shouldHighlightConflicts ? 0.22 : 0.14));
+            arg.el.setAttribute('data-semestra-all-day', sourceEvent.allDay ? 'true' : 'false');
+            arg.el.setAttribute('aria-label', buildEventLabel(sourceEvent, shouldHighlightConflicts && sourceEvent.isConflict));
+          }}
+          moreLinkContent={(arg) => <span className="text-xs font-medium">{arg.num} more</span>}
+          moreLinkDidMount={(arg: MoreLinkMountArg) => {
+            arg.el.setAttribute('aria-label', `${arg.num} more events`);
+          }}
+          dayHeaderContent={(arg) => renderDayHeader(arg)}
+          dayCellClassNames={(arg) => (arg.isOther ? ['semestra-fc-day--outside'] : [])}
+          viewClassNames={['semestra-fc-view']}
+          eventMinHeight={54}
+        />
+      </div>
+    </div>
+  );
+};
+
 export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   events,
   week,
@@ -207,30 +360,13 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
   onEventClick,
   onToggleTodoCompleted,
 }) => {
-  const calendarContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const safeWeekViewDayCount = Math.max(1, Math.floor(weekViewDayCount));
-  const visibleDayColumns = showWeekends ? 7 : 5;
-  const weekViewMinWidthPercent = Math.max(100, (visibleDayColumns / safeWeekViewDayCount) * 100);
   const currentDate = React.useMemo(
     () => (viewMode === 'month' ? monthAnchorDate : weekViewStartDate),
     [monthAnchorDate, viewMode, weekViewStartDate],
   );
-  const currentView = viewMode === 'month' ? 'dayGridMonth' : 'timeGridWeek';
-  const calendarKey = React.useMemo(
-    () => `${currentView}:${currentDate.toISOString().slice(0, 10)}`,
-    [currentDate, currentView],
-  );
   const validRange = React.useMemo(
     () => buildValidRange(semesterRange),
     [semesterRange],
-  );
-  const calendarEvents = React.useMemo(
-    () => buildCalendarEvents(events, highlightConflicts),
-    [events, highlightConflicts],
-  );
-  const renderEventContent = React.useMemo(
-    () => buildEventContentRenderer(onToggleTodoCompleted),
-    [onToggleTodoCompleted],
   );
   const safeWeek = Math.max(1, Math.min(Math.max(1, maxWeek), week));
 
@@ -257,96 +393,22 @@ export const FullCalendarView: React.FC<FullCalendarViewProps> = ({
     return 'timeGridWeek';
   }, [maxWeek, onViewModeChange, onWeekChange, safeWeek, semesterRange.startDate]);
 
-  const handleEventClick = React.useCallback((arg: EventClickArg) => {
-    const eventTarget = arg.jsEvent.target;
-    if (eventTarget instanceof Element && eventTarget.closest('[data-calendar-todo-toggle="true"]')) {
-      return;
-    }
-    const { sourceEvent } = arg.event.extendedProps as EventExtendedProps;
-    onEventClick(sourceEvent);
-  }, [onEventClick]);
-
-  React.useEffect(() => {
-    if (viewMode !== 'week') return;
-
-    const syncNowIndicatorLabel = () => {
-      const root = calendarContainerRef.current;
-      if (!root) return;
-
-      const label = formatNowIndicatorLabel(new Date());
-      root.querySelectorAll<HTMLElement>('.fc-timegrid-now-indicator-arrow').forEach((element) => {
-        element.setAttribute('data-time-label', label);
-      });
-    };
-
-    syncNowIndicatorLabel();
-    const intervalId = window.setInterval(syncNowIndicatorLabel, 30_000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [calendarKey, viewMode]);
-
   return (
-    <div
-      ref={calendarContainerRef}
-      className={cn(
-        'semestra-fullcalendar h-full min-h-0 min-w-0 overflow-x-auto overflow-y-hidden rounded-md border border-border/70 bg-background transition-opacity',
-        isPending ? 'opacity-70' : 'opacity-100',
-      )}
-      data-pending={isPending ? 'true' : 'false'}
-    >
-      <div
-        data-slot={viewMode === 'week' ? 'calendar-week-scroll-frame' : 'calendar-frame'}
-        className="h-full min-h-0 w-full"
-        style={viewMode === 'week' ? { minWidth: `${weekViewMinWidthPercent}%` } : undefined}
-      >
-        <FullCalendar
-          key={calendarKey}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView={currentView}
-          initialDate={currentDate}
-          headerToolbar={false}
-          height="100%"
-          firstDay={1}
-          weekends={showWeekends}
-          allDaySlot
-          nowIndicator
-          editable={false}
-          selectable={false}
-          navLinks={false}
-          events={calendarEvents}
-          validRange={validRange}
-          slotMinTime={toDurationTime(dayStartMinutes)}
-          slotMaxTime={toDurationTime(dayEndMinutes)}
-          slotDuration="00:30:00"
-          slotLabelInterval="01:00:00"
-          expandRows
-          stickyHeaderDates
-          dayMaxEvents={CALENDAR_MAX_EVENT_LINES_PER_DAY}
-          slotEventOverlap={false}
-          moreLinkClick={handleMoreLinkClick}
-          eventClick={handleEventClick}
-          eventContent={renderEventContent}
-          datesSet={handleDatesSet}
-          eventDidMount={(arg) => {
-            const { sourceEvent, highlightConflicts: shouldHighlightConflicts } = arg.event.extendedProps as EventExtendedProps;
-            const resolvedColor = sourceEvent.color ?? '#3b82f6';
-            arg.el.style.setProperty('--semestra-calendar-accent', resolvedColor);
-            arg.el.style.setProperty('--semestra-calendar-accent-soft', addAlpha(resolvedColor, sourceEvent.isConflict && shouldHighlightConflicts ? 0.22 : 0.14));
-            arg.el.setAttribute('data-semestra-all-day', sourceEvent.allDay ? 'true' : 'false');
-            arg.el.setAttribute('aria-label', buildEventLabel(sourceEvent, shouldHighlightConflicts && sourceEvent.isConflict));
-          }}
-          moreLinkContent={(arg) => <span className="text-xs font-medium">{arg.num} more</span>}
-          moreLinkDidMount={(arg: MoreLinkMountArg) => {
-            arg.el.setAttribute('aria-label', `${arg.num} more events`);
-          }}
-          dayHeaderContent={(arg) => renderDayHeader(arg)}
-          dayCellClassNames={(arg) => (arg.isOther ? ['semestra-fc-day--outside'] : [])}
-          viewClassNames={['semestra-fc-view']}
-          eventMinHeight={54}
-        />
-      </div>
-    </div>
+    <CalendarFullCalendarSurface
+      events={events}
+      viewMode={viewMode}
+      currentDate={currentDate}
+      validRange={validRange}
+      dayStartMinutes={dayStartMinutes}
+      dayEndMinutes={dayEndMinutes}
+      weekViewDayCount={weekViewDayCount}
+      highlightConflicts={highlightConflicts}
+      showWeekends={showWeekends}
+      isPending={isPending}
+      onDatesSet={handleDatesSet}
+      onMoreLinkClick={handleMoreLinkClick}
+      onEventClick={onEventClick}
+      onToggleTodoCompleted={onToggleTodoCompleted}
+    />
   );
 };

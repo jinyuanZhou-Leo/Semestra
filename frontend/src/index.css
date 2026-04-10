@@ -184,6 +184,33 @@ body>div>div[role="dialog"][data-state] {
   color: var(--color-foreground);
 }
 
+.semestra-fullcalendar--export,
+.semestra-fullcalendar--export .fc .fc-scroller,
+.semestra-fullcalendar--export .fc .fc-scroller-liquid-absolute {
+  scrollbar-width: none;
+}
+
+.semestra-fullcalendar--export::-webkit-scrollbar,
+.semestra-fullcalendar--export .fc .fc-scroller::-webkit-scrollbar,
+.semestra-fullcalendar--export .fc .fc-scroller-liquid-absolute::-webkit-scrollbar {
+  display: none;
+}
+
+.semestra-fullcalendar--export .fc .fc-scroller,
+.semestra-fullcalendar--export .fc .fc-scroller-liquid-absolute {
+  overflow: hidden !important;
+}
+
+.semestra-fullcalendar--export .fc .fc-event {
+  cursor: default;
+}
+
+.semestra-fullcalendar--export .fc .fc-event:hover,
+.semestra-fullcalendar--export .fc .fc-event:active {
+  filter: none;
+  transform: none;
+}
+
 .semestra-fullcalendar .fc,
 .semestra-fullcalendar .fc .fc-media-screen,
 .semestra-fullcalendar .fc .fc-view-harness {

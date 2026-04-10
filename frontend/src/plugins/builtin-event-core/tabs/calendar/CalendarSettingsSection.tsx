@@ -306,6 +306,9 @@ export const CalendarSettingsSection: React.FC<CalendarSettingsSectionProps> = (
           dayStartMinutes={normalizedSettings.dayStartMinutes}
           dayEndMinutes={normalizedSettings.dayEndMinutes}
           eventColor={getScheduleEventColor(normalizedSettings)}
+          highlightConflicts={normalizedSettings.highlightConflicts}
+          showWeekends={normalizedSettings.showWeekends}
+          weekViewDayCount={normalizedSettings.weekViewDayCount}
         />
       ) : null}
     </>
