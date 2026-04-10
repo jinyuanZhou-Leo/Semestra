@@ -357,6 +357,19 @@ const CourseHomepageContent: React.FC = () => {
         enabled: isSettingsTabActive,
         ignoredTypes: [HOMEPAGE_DASHBOARD_TAB_TYPE, HOMEPAGE_SETTINGS_TAB_TYPE],
     });
+    const activeTabRuntimeInstance = useMemo(() => {
+        if (!course?.id || !activeTab) {
+            return null;
+        }
+
+        return {
+            workspaceKind: 'course' as const,
+            workspaceId: course.id,
+            slotKind: 'tab' as const,
+            slotId: activeTab.id,
+            pluginType: activeTab.type,
+        };
+    }, [activeTab, course?.id]);
 
     const dashboardContent = useMemo(() => {
         if (!course) return null;
@@ -411,17 +424,12 @@ const CourseHomepageContent: React.FC = () => {
                 />
             );
         }
+        if (!activeTabRuntimeInstance) {
+            return <PluginTabSkeleton />;
+        }
         return (
             <React.Suspense fallback={<PluginTabSkeleton />}>
-                <PluginRuntimeInstanceProvider
-                    value={{
-                        workspaceKind: 'course',
-                        workspaceId: course.id,
-                        slotKind: 'tab',
-                        slotId: activeTab.id,
-                        pluginType: activeTab.type,
-                    }}
-                >
+                <PluginRuntimeInstanceProvider value={activeTabRuntimeInstance}>
                     <PluginContentFadeIn key={activeTab.id}>
                         <TabComponent
                             tabId={activeTab.id}
@@ -432,7 +440,7 @@ const CourseHomepageContent: React.FC = () => {
                 </PluginRuntimeInstanceProvider>
             </React.Suspense>
         );
-    }, [activeTab, activeTabId, course, isActiveTabPluginLoading, activeTabLoadState.status]);
+    }, [activeTab, activeTabId, activeTabRuntimeInstance, course, isActiveTabPluginLoading, activeTabLoadState.status]);
 
     const triggerBoundaryShake = useCallback(async () => {
         if (prefersReducedMotion) {

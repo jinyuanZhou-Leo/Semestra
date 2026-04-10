@@ -31,7 +31,7 @@ import {
     getProgramsListQueryOptions,
     invalidateProgramsListQuery,
     removeProgramDetailQuery,
-    useProgramDetailQueries,
+    useProgramDetailQuery,
     useProgramsListQuery,
 } from '@/data/resources';
 import api from '../services/api';
@@ -175,6 +175,13 @@ type DeleteProgramButtonProps = {
     showAlert: ShowAlert;
 };
 
+type ProgramCardProps = {
+    program: Program;
+    onActivate: (programId: string) => Promise<void>;
+    onDelete: (programId: string) => Promise<void>;
+    showAlert: ShowAlert;
+};
+
 const DeleteProgramButton: React.FC<DeleteProgramButtonProps> = ({ programId, onDeleted, showAlert }) => {
     const [open, setOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -233,6 +240,69 @@ const DeleteProgramButton: React.FC<DeleteProgramButtonProps> = ({ programId, on
     );
 };
 
+const ProgramCard: React.FC<ProgramCardProps> = ({ program, onActivate, onDelete, showAlert }) => {
+    const programDetailQuery = useProgramDetailQuery(program.id);
+    const earnedCredits = (programDetailQuery.data?.semesters ?? []).reduce((semesterSum, semester) => {
+        const semesterCredits = (semester.courses ?? []).reduce((courseSum, course) => courseSum + course.credits, 0);
+        return semesterSum + semesterCredits;
+    }, 0);
+
+    return (
+        <div className="group relative">
+            <Link
+                to={`/programs/${program.id}`}
+                className="block h-full"
+                onClick={async (event) => {
+                    event.preventDefault();
+                    await onActivate(program.id);
+                }}
+            >
+                <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
+                    <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-3 pr-8">
+                            <CardTitle className="text-lg font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors">
+                                {program.name}
+                            </CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <span className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground">CGPA</span>
+                                <span className="text-xl font-bold tracking-tight">
+                                    <AnimatedNumber
+                                        value={program.cgpa_scaled}
+                                        format={(val) => val.toFixed(2)}
+                                    />
+                                </span>
+                            </div>
+                            <div className="text-right">
+                                <span className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground">Credits</span>
+                                <span className="text-sm font-medium">
+                                    <span className="text-base text-foreground">
+                                        {programDetailQuery.data ? earnedCredits.toFixed(1) : '...'}
+                                    </span>
+                                    <span className="text-muted-foreground"> / {program.grad_requirement_credits}</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div className="rounded-md border border-border/70 px-3 py-2 text-center text-sm font-medium text-foreground">
+                            Switch to workspace
+                        </div>
+                    </CardContent>
+                </Card>
+            </Link>
+            <div className="absolute right-4 top-4">
+                <DeleteProgramButton
+                    programId={program.id}
+                    onDeleted={onDelete}
+                    showAlert={showAlert}
+                />
+            </div>
+        </div>
+    );
+};
+
 export const ProgramsPage: React.FC = () => {
     const { alert: showAlert } = useDialog();
     const { user, setActiveProgram } = useAuth();
@@ -241,24 +311,7 @@ export const ProgramsPage: React.FC = () => {
 
     const programsQuery = useProgramsListQuery();
     const programs = useMemo(() => programsQuery.data ?? [], [programsQuery.data]);
-    const programDetailsQueries = useProgramDetailQueries(programs.map((program) => program.id));
-    const isProgramCreditsLoading = programDetailsQueries.some((query) => !query.data && !query.error);
-    const isLoading = programsQuery.isLoading || isProgramCreditsLoading;
-
-    const programEarnedCredits = useMemo<Record<string, number>>(() => {
-        return Object.fromEntries(
-            programs.map((program, index) => {
-                const details = programDetailsQueries[index]?.data;
-                const earnedCredits = details
-                    ? details.semesters.reduce((semesterSum, semester) => {
-                        const semesterCredits = (semester.courses || []).reduce((courseSum, course) => courseSum + course.credits, 0);
-                        return semesterSum + semesterCredits;
-                    }, 0)
-                    : 0;
-                return [program.id, earnedCredits];
-            }),
-        );
-    }, [programDetailsQueries, programs]);
+    const isLoading = programsQuery.isLoading;
 
     const handleActivateProgram = useCallback(async (programId: string) => {
         try {
@@ -344,57 +397,14 @@ export const ProgramsPage: React.FC = () => {
                     </div>
                 ) : (
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {programs.map(program => (
-                            <div key={program.id} className="group relative">
-                                <Link
-                                    to={`/programs/${program.id}`}
-                                    className="block h-full"
-                                    onClick={async (event) => {
-                                        event.preventDefault();
-                                        await handleActivateProgram(program.id);
-                                    }}
-                                >
-                                    <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
-                                        <CardHeader className="pb-3">
-                                            <div className="flex items-start justify-between gap-3 pr-8">
-                                                <CardTitle className="text-lg font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors">
-                                                    {program.name}
-                                                </CardTitle>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <span className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground">CGPA</span>
-                                                    <span className="text-xl font-bold tracking-tight">
-                                                        <AnimatedNumber
-                                                            value={program.cgpa_scaled}
-                                                            format={(val) => val.toFixed(2)}
-                                                        />
-                                                    </span>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground">Credits</span>
-                                                    <span className="text-sm font-medium">
-                                                        <span className="text-base text-foreground">{(programEarnedCredits[program.id] || 0).toFixed(1)}</span>
-                                                        <span className="text-muted-foreground"> / {program.grad_requirement_credits}</span>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="rounded-md border border-border/70 px-3 py-2 text-center text-sm font-medium text-foreground">
-                                                Switch to workspace
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </Link>
-                                <div className="absolute right-4 top-4">
-                                        <DeleteProgramButton
-                                            programId={program.id}
-                                            onDeleted={handleDeletedProgram}
-                                            showAlert={showAlert}
-                                        />
-                                </div>
-                            </div>
+                        {programs.map((program) => (
+                            <ProgramCard
+                                key={program.id}
+                                program={program}
+                                onActivate={handleActivateProgram}
+                                onDelete={handleDeletedProgram}
+                                showAlert={showAlert}
+                            />
                         ))}
 
                         {programs.length === 0 && (

@@ -218,6 +218,19 @@ const SemesterHomepageContent: React.FC = () => {
         enabled: isSettingsTabActive,
         ignoredTypes: [HOMEPAGE_DASHBOARD_TAB_TYPE, HOMEPAGE_SETTINGS_TAB_TYPE],
     });
+    const activeTabRuntimeInstance = useMemo(() => {
+        if (!semester?.id || !activeTab) {
+            return null;
+        }
+
+        return {
+            workspaceKind: 'semester' as const,
+            workspaceId: semester.id,
+            slotKind: 'tab' as const,
+            slotId: activeTab.id,
+            pluginType: activeTab.type,
+        };
+    }, [activeTab, semester?.id]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         reorderTabs(filterReorderableTabIds(orderedIds));
@@ -419,17 +432,12 @@ const SemesterHomepageContent: React.FC = () => {
                 />
             );
         }
+        if (!activeTabRuntimeInstance) {
+            return <PluginTabSkeleton />;
+        }
         return (
             <React.Suspense fallback={<PluginTabSkeleton />}>
-                <PluginRuntimeInstanceProvider
-                    value={{
-                        workspaceKind: 'semester',
-                        workspaceId: semester.id,
-                        slotKind: 'tab',
-                        slotId: activeTab.id,
-                        pluginType: activeTab.type,
-                    }}
-                >
+                <PluginRuntimeInstanceProvider value={activeTabRuntimeInstance}>
                     <PluginContentFadeIn key={activeTab.id}>
                         <TabComponent
                             tabId={activeTab.id}
@@ -439,7 +447,7 @@ const SemesterHomepageContent: React.FC = () => {
                 </PluginRuntimeInstanceProvider>
             </React.Suspense>
         );
-    }, [activeTab, activeTabId, semester, isActiveTabPluginLoading, activeTabLoadState.status]);
+    }, [activeTab, activeTabId, activeTabRuntimeInstance, semester, isActiveTabPluginLoading, activeTabLoadState.status]);
 
     const handleUpdateSemester = useCallback(async (data: any) => {
         if (!semester) return;

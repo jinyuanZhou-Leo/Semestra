@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import type { Course, Program, Semester } from '@/services/api';
+import type { Course, Semester } from '@/services/api';
 import {
   getProgramHomeCardDimensions,
   getProgramHomeItemKey,
@@ -326,11 +326,11 @@ export const buildResponsiveLayoutsFromStrip = (
 
 export const rebuildFocusBoardLayouts = (
   nextSettings: ProgramHomeSettings,
-  program: Program & { semesters?: Semester[] },
+  semesters: Semester[] | undefined,
   programCourses: ProgramCourseWithContext[],
 ) => {
   const nextEntities = sortProgramHomeEntities(
-    resolveProgramHomeEntities(nextSettings, program, programCourses),
+    resolveProgramHomeEntities(nextSettings, semesters, programCourses),
     nextSettings.sort_mode,
   );
   const useManualLayouts = nextSettings.sort_mode === 'manual';

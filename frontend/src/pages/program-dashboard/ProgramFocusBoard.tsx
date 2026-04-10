@@ -46,7 +46,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { Course, Program, Semester } from '@/services/api';
+import type { Course, Semester } from '@/services/api';
 import {
   FOCUS_BOARD_ROWS,
   applyStripLayoutToSettings,
@@ -162,7 +162,7 @@ const areLayoutItemsEqual = (
 };
 
 interface ProgramFocusBoardProps {
-  program: Program & { semesters?: Semester[] };
+  semesters: Semester[] | undefined;
   programCourses: ProgramCourseWithContext[];
   settings: ProgramHomeSettings;
   onCommit: (settings: ProgramHomeSettings) => Promise<void>;
@@ -425,7 +425,7 @@ const FocusBoardCard: React.FC<{
 };
 
 export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
-  program,
+  semesters,
   programCourses,
   settings,
   onCommit,
@@ -511,8 +511,8 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   };
 
   const resolvedEntities = useMemo(
-    () => resolveProgramHomeEntities(settings, program, programCourses),
-    [program, programCourses, settings],
+    () => resolveProgramHomeEntities(settings, semesters, programCourses),
+    [programCourses, semesters, settings],
   );
   const visibleEntities = useMemo(
     () => sortProgramHomeEntities(resolvedEntities, settings.sort_mode),
@@ -534,7 +534,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
   );
 
   const addCandidates = useMemo(() => {
-    const semesterCandidates = (program.semesters ?? [])
+    const semesterCandidates = (semesters ?? [])
       .filter((semester) => semester.lifecycle_state !== 'draft')
       .map((semester) => ({
         entityType: 'semester' as const,
@@ -570,7 +570,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
         }
         return left.title.localeCompare(right.title);
       });
-  }, [candidateSort, pinnedKeys, program.semesters, programCourses, searchQuery]);
+  }, [candidateSort, pinnedKeys, programCourses, searchQuery, semesters]);
 
   const semesterCandidates = useMemo(
     () => addCandidates.filter((candidate) => candidate.entityType === 'semester'),
@@ -581,10 +581,10 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
     [addCandidates],
   );
   const hasAvailableCandidates = useMemo(() => {
-    return (program.semesters ?? []).some((semester) => (
+    return (semesters ?? []).some((semester) => (
       semester.lifecycle_state !== 'draft' && !pinnedKeys.has(getProgramHomeItemKey('semester', semester.id))
     )) || programCourses.some((course) => !pinnedKeys.has(getProgramHomeItemKey('course', course.id)));
-  }, [pinnedKeys, program.semesters, programCourses]);
+  }, [pinnedKeys, programCourses, semesters]);
 
   const desktopStrip = useMemo(
     () => buildStripLayouts(visibleEntities, 'desktop', settings.sort_mode === 'manual'),
@@ -986,7 +986,7 @@ export const ProgramFocusBoard: React.FC<ProgramFocusBoardProps> = ({
                             entity.entityId,
                             size,
                           );
-                          const normalized = rebuildFocusBoardLayouts(resizedSettings, program, programCourses);
+                          const normalized = rebuildFocusBoardLayouts(resizedSettings, semesters, programCourses);
                           setInteractiveLayouts(normalized.layouts);
                           void onCommit(normalized.settings);
                         }}

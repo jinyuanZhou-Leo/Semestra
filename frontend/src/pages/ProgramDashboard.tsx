@@ -1066,7 +1066,7 @@ const ProgramDashboardContent: React.FC = () => {
                             <Separator />
 
                             <ProgramFocusBoard
-                                program={program}
+                                semesters={program.semesters}
                                 programCourses={programCourses}
                                 settings={programHomeSettings}
                                 onCommit={commitProgramHomeSettings}

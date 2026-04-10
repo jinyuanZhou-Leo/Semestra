@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import type { Course, Program, Semester, TabSetting } from '@/services/api';
+import type { Course, Semester, TabSetting } from '@/services/api';
 
 export const PROGRAM_HOME_TAB_TYPE = 'builtin-program-home';
 
@@ -311,14 +311,11 @@ export const isProgramHomePinned = (
 
 export const resolveProgramHomeEntities = (
   settings: ProgramHomeSettings,
-  program: (Program & { semesters?: Semester[] }) | null,
+  semesters: Semester[] | undefined,
   programCourses: Array<Course & { semesterName: string; semesterStartDate?: string | null }>,
 ): ProgramHomeResolvedEntity[] => {
-  if (!program) {
-    return [];
-  }
   const semesterMap = new Map(
-    (program.semesters ?? [])
+    (semesters ?? [])
       .filter((semester) => semester.lifecycle_state !== 'draft')
       .map((semester) => [semester.id, semester] as const),
   );
