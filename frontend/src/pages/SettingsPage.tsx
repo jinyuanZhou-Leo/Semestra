@@ -129,6 +129,8 @@ export const SettingsPage: React.FC = () => {
     const [isDeletingAccount, setIsDeletingAccount] = useState(false);
     const googleLinkRef = useRef<HTMLDivElement>(null);
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    const hasUser = Boolean(user);
+    const userGoogleSub = user?.google_sub;
     useEffect(() => {
         if (user) {
             const initialGpa = user.gpa_scaling_table ?? DEFAULT_GPA_SCALING_TABLE_JSON;
@@ -152,10 +154,10 @@ export const SettingsPage: React.FC = () => {
     useEffect(() => {
         setGoogleLinkError('');
         setGoogleLinkSuccess(false);
-    }, [user?.google_sub]);
+    }, [userGoogleSub]);
 
     useEffect(() => {
-        if (!googleClientId || !user || user.google_sub) {
+        if (!googleClientId || !hasUser || userGoogleSub) {
             return;
         }
 
@@ -223,7 +225,7 @@ export const SettingsPage: React.FC = () => {
         };
     // Depend only on google_sub: any other user field change (e.g. last_active_at) should NOT
     // destroy and recreate the Google Identity button.
-    }, [googleClientId, refreshUser, themeMode, user?.google_sub]);
+    }, [googleClientId, hasUser, refreshUser, themeMode, userGoogleSub]);
 
     // Derived state computed during render — React Compiler memoizes this automatically.
     // Using useState + useEffect for this was an anti-pattern that caused an extra re-render

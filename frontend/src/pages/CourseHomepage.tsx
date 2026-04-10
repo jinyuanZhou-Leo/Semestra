@@ -356,6 +356,7 @@ const CourseHomepageContent: React.FC = () => {
         [activeTabId, visibleTabs]
     );
     const activeTabType = activeTab?.type;
+    const courseId = course?.id;
     const requestedTabType = typeof (location.state as CourseHomepageLocationState | null)?.preferredTabType === 'string'
         ? (location.state as CourseHomepageLocationState).preferredTabType ?? null
         : null;
@@ -367,18 +368,18 @@ const CourseHomepageContent: React.FC = () => {
         ignoredTypes: [HOMEPAGE_DASHBOARD_TAB_TYPE, HOMEPAGE_SETTINGS_TAB_TYPE],
     });
     const activeTabRuntimeInstance = useMemo(() => {
-        if (!course?.id || !activeTab) {
+        if (!courseId || !activeTabId || !activeTabType) {
             return null;
         }
 
         return {
             workspaceKind: 'course' as const,
-            workspaceId: course.id,
+            workspaceId: courseId,
             slotKind: 'tab' as const,
-            slotId: activeTab.id,
-            pluginType: activeTab.type,
+            slotId: activeTabId,
+            pluginType: activeTabType,
         };
-    }, [activeTab, course?.id]);
+    }, [activeTabId, activeTabType, courseId]);
 
     const dashboardContent = useMemo(() => {
         if (!course) return null;
@@ -727,7 +728,6 @@ const CourseHomepageContent: React.FC = () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
     // previousSiblingCourse / nextSiblingCourse intentionally omitted: read via refs above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [course?.id, currentCourseIndex, navigateToSiblingCourse, siblingCourses.length, triggerBoundaryShake]);
 
     const refreshLmsCourseState = useCallback(async () => {

@@ -206,6 +206,7 @@ const SemesterHomepageContent: React.FC = () => {
         [activeTabId, visibleTabs]
     );
     const activeTabType = activeTab?.type;
+    const semesterId = semester?.id;
     useEffect(() => {
         if (activeTabType) {
             lastActiveTabTypeRef.current = activeTabType;
@@ -219,18 +220,18 @@ const SemesterHomepageContent: React.FC = () => {
         ignoredTypes: [HOMEPAGE_DASHBOARD_TAB_TYPE, HOMEPAGE_SETTINGS_TAB_TYPE],
     });
     const activeTabRuntimeInstance = useMemo(() => {
-        if (!semester?.id || !activeTab) {
+        if (!semesterId || !activeTabId || !activeTabType) {
             return null;
         }
 
         return {
             workspaceKind: 'semester' as const,
-            workspaceId: semester.id,
+            workspaceId: semesterId,
             slotKind: 'tab' as const,
-            slotId: activeTab.id,
-            pluginType: activeTab.type,
+            slotId: activeTabId,
+            pluginType: activeTabType,
         };
-    }, [activeTab, semester?.id]);
+    }, [activeTabId, activeTabType, semesterId]);
 
     const handleReorderTabs = useCallback((orderedIds: string[]) => {
         reorderTabs(filterReorderableTabIds(orderedIds));

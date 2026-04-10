@@ -43,8 +43,10 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     const baseTextRef = useRef<HTMLSpanElement | null>(null);
     const rainbowTextRef = useRef<HTMLSpanElement | null>(null);
     const previousValueRef = useRef<number | null>(null);
-    const displayValueRef = useRef<number>(animateOnMount ? 0 : value);
-    const renderedTextRef = useRef<string>('');
+    const initialDisplayValue = animateOnMount ? 0 : value;
+    const [initialRenderedValue] = useState(() => (format ? format(initialDisplayValue) : initialDisplayValue.toString()));
+    const displayValueRef = useRef<number>(initialDisplayValue);
+    const renderedTextRef = useRef<string>(initialRenderedValue);
     const hasAnimatedOnMountRef = useRef(false);
     const rafRef = useRef<number | null>(null);
     const animationGenerationRef = useRef(0);
@@ -193,7 +195,6 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
         };
     }, [animateOnMount, duration, prefersReducedMotion, rainbowDurationMs, rainbowFadeOutMs, rainbowStartDelayMs, rainbowThreshold, syncRenderedText, value]);
 
-    const initialRenderedValue = renderValue(displayValueRef.current);
     const rainbowLayerClassName =
         rainbowState === 'running'
             ? 'animated-number__rainbow--running'

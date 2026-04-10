@@ -451,7 +451,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, breadcrumb, commandGro
             },
             onSelect: () => undefined,
         },
-    ], [navigate]);
+    ], [loadProgramDetailForCommandPalette, loadProgramsForCommandPalette, loadUnassignedCoursesForCommandPalette, navigate]);
 
     const globalCommandGroups = useMemo<LayoutCommandGroup[]>(() => {
         const workspaceItems: LayoutCommandGroup['items'] = [];

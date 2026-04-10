@@ -8,30 +8,27 @@
 
 /// <reference types="vitest" />
 import path from "path"
-import babel, { defineRolldownBabelPreset } from "@rolldown/plugin-babel"
+import babel from "@rolldown/plugin-babel"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from 'vitest/config'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 
-const compilerPreset = defineRolldownBabelPreset({
-  ...reactCompilerPreset({ target: '19' }),
-  rolldown: {
-    filter: {
-      id: {
-        include: ['**/src/**/*.{tsx,jsx}'],
-        exclude: [
-          '**/src/**/*.test.*',
-          '**/src/**/*.spec.*',
-          '**/src/test/**',
-          '**/src/utils/**',
-          '**/src/types/**',
-          '**/src/services/**',
-          '**/src/calendar-core/**',
-        ],
-      },
-    },
+const compilerPreset = reactCompilerPreset({ target: '19' })
+compilerPreset.rolldown.filter = {
+  ...compilerPreset.rolldown.filter,
+  id: {
+    include: ['**/src/**/*.{ts,tsx,js,jsx}'],
+    exclude: [
+      '**/src/**/*.test.*',
+      '**/src/**/*.spec.*',
+      '**/src/test/**',
+      '**/src/utils/**',
+      '**/src/types/**',
+      '**/src/services/**',
+      '**/src/calendar-core/**',
+    ],
   },
-})
+}
 
 const devToolsEnabled = process.env.SEMESTRA_VITE_DEVTOOLS === '1'
 
@@ -44,10 +41,10 @@ export default defineConfig({
     include: ['react/compiler-runtime'],
   },
   plugins: [
+    react(),
     babel({
       presets: [compilerPreset],
     }),
-    react(),
     tailwindcss(),
   ],
   resolve: {
