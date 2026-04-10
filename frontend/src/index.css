@@ -970,6 +970,11 @@ body>div>div[role="dialog"][data-state] {
   font-family: "DM Sans", "Segoe UI", sans-serif;
 }
 
+.landing-font-cursive {
+  font-family: "Playfair Display", "Cormorant Garamond", serif;
+  font-style: italic;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
