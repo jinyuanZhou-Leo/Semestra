@@ -21,6 +21,7 @@ import {
   getSemesterPluginSystemSetupQueryOptions,
   invalidateSemesterDraftWorkflowQueries,
   removeSemesterDraftWorkflowQueries,
+  seedSemesterDetailFromDraft,
 } from "@/data/resources";
 import {
   AlertDialog,
@@ -54,7 +55,6 @@ import api, {
   type PluginSystemSemesterSetupPlugin,
   type ProgramPluginInstallation,
   type Semester,
-  type SemesterPluginActivation,
 } from "../services/api";
 
 // ─── Sub-module imports ───────────────────────────────────────────────────────
@@ -70,7 +70,6 @@ import {
   getErrorMessage,
   getPersistedStepId,
   getPluginIdFromStepId,
-  getPluginSetupStepId,
   getVisibleStepOrder,
   isSemesterDraftExistsError,
   makeInitialBasics,
@@ -142,6 +141,20 @@ export const CreateSemesterWizardPage: React.FC = () => {
     enabled: Boolean(draftId) && !isFinalizing,
     staleTime: 10_000,
   });
+
+  // ─── Seed semesterDetailQuery cache from draft to eliminate Round-Trip 3 ────
+  //
+  // currentDraftQuery already returns the full Semester object. Without this
+  // effect, semesterDetailQuery would re-fetch the same data under a different
+  // cache key as soon as draftId became available.  By seeding the detail slot
+  // with the draft payload we turn the subsequent semesterDetailQuery into a
+  // synchronous cache-hit while still allowing later invalidations to overwrite
+  // the slot with fresher data (seedSemesterDetailFromDraft uses `current ?? draft`).
+  useEffect(() => {
+    const draft = currentDraftQuery.data;
+    if (!draft?.id) return;
+    seedSemesterDetailFromDraft(queryClient, draft);
+  }, [currentDraftQuery.data, queryClient]);
 
   // ─── Derived data ────────────────────────────────────────────────────────────
 

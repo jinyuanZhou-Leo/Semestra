@@ -35,7 +35,7 @@ const getRandomArtworkEntry = () => {
 
 export const LandingHero = ({ reducedMotion }: LandingHeroProps) => {
   const heroRef = useRef<HTMLElement | null>(null);
-  const [artwork, setArtwork] = useState<NgaOpenAccessImageEntry>(() => getRandomArtworkEntry());
+  const [artwork] = useState<NgaOpenAccessImageEntry>(() => getRandomArtworkEntry());
   const [isImageLoading, setIsImageLoading] = useState(true);
 
   const asset = useMemo(() => buildIiifAsset(artwork), [artwork]);

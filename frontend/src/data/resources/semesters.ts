@@ -71,6 +71,27 @@ export const setSemesterDetailQueryData = (
   queryClient.setQueryData<Semester | null | undefined>(semesterKeys.detail(semesterId), updater);
 };
 
+/**
+ * Seed the semester detail cache from a draft payload.
+ *
+ * WHY: `currentDraftQuery` already returns a full Semester object. Without this
+ * helper, the wizard would fire a redundant `semesterDetailQuery` (Round-Trip 3)
+ * just to re-fetch the same data under a different cache key. Seeding here
+ * eliminates that extra network request while keeping the two cache slots in sync.
+ *
+ * The updater uses `current ?? draft` semantics so it only fills an empty slot —
+ * it never overwrites data that was written by a later invalidation or refetch.
+ */
+export const seedSemesterDetailFromDraft = (
+  queryClient: QueryClient,
+  draft: Semester,
+) => {
+  queryClient.setQueryData<Semester | undefined>(
+    semesterKeys.detail(draft.id),
+    (current) => current ?? draft,
+  );
+};
+
 export const hydrateSemesterDraftWorkflowCaches = (
   queryClient: QueryClient,
   {

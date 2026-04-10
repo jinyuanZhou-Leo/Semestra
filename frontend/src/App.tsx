@@ -7,8 +7,8 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import { Suspense, lazy, useEffect, type ReactElement } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { useAuth } from './contexts/AuthContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -20,6 +20,7 @@ import { AuthRouteLayout } from './components/AuthRouteLayout';
 import { Toaster } from "sonner"
 import { queryClient } from './services/queryClient';
 import { preloadRemainingPluginsWhenIdle } from './plugin-system';
+import { getProgramDetailQueryOptions, getProgramSemesterDraftQueryOptions } from './data/resources';
 
 const ProgramsPage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.ProgramsPage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));
@@ -32,6 +33,37 @@ const CreateSemesterWizardPage = lazy(() => import('./pages/CreateSemesterWizard
 const SemesterHomepage = lazy(() => import('./pages/SemesterHomepage').then(module => ({ default: module.SemesterHomepage })));
 const CourseHomepage = lazy(() => import('./pages/CourseHomepage').then(module => ({ default: module.CourseHomepage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
+
+/**
+ * WizardPrefetchWrapper
+ *
+ * Sits **outside** the Suspense boundary so it is mounted as soon as the route
+ * matches — before the lazy CreateSemesterWizardPage bundle has finished
+ * downloading.  It fires prefetch requests for the two synchronous blockers
+ * (programQuery + currentDraftQuery) in parallel with the JS download,
+ * converting the wizard's 3-RTT serial waterfall into a single true Round-Trip
+ * (pluginSystemSetupQuery) by the time the page component mounts.
+ */
+function WizardPrefetchWrapper({ children }: { children: ReactElement }): ReactElement {
+  const { id: programId } = useParams<{ id: string }>();
+  const client = useQueryClient();
+
+  useEffect(() => {
+    if (!programId) return;
+    // Fire-and-forget: errors are swallowed because the page component will
+    // re-fetch and surface an error state if either request fails.
+    void client.prefetchQuery({
+      ...getProgramDetailQueryOptions(programId),
+      staleTime: 60_000,
+    });
+    void client.prefetchQuery({
+      ...getProgramSemesterDraftQueryOptions(programId),
+      staleTime: 10_000,
+    });
+  }, [client, programId]);
+
+  return children;
+}
 
 function RootGate(): ReactElement {
   const { user, isLoading } = useAuth();
@@ -140,9 +172,11 @@ function App() {
                   path="/programs/:id/semesters/create"
                   element={
                     <RequireAuth>
-                      <Suspense fallback={<PageSkeleton />}>
-                        <CreateSemesterWizardPage />
-                      </Suspense>
+                      <WizardPrefetchWrapper>
+                        <Suspense fallback={<PageSkeleton />}>
+                          <CreateSemesterWizardPage />
+                        </Suspense>
+                      </WizardPrefetchWrapper>
                     </RequireAuth>
                   }
                 />
