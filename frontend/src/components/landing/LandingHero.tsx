@@ -118,13 +118,13 @@ export const LandingHero = ({ reducedMotion }: LandingHeroProps) => {
             </div>
 
             <div className="flex flex-wrap items-center gap-4 pt-10">
-              <Button asChild size="lg" className="h-14 rounded-2xl px-8 text-base font-semibold shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300">
+              <Button asChild size="lg" className="gap-2 text-base">
                 <Link to="/login">
                   Start for free
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="ghost" className="h-14 rounded-2xl px-8 text-base text-foreground hover:bg-muted/50 transition-all duration-300">
+              <Button asChild size="lg" variant="outline" className="text-base">
                 <a href="#scrollytelling">See how it works</a>
               </Button>
             </div>

@@ -58,19 +58,25 @@ export const LandingScrollytelling = () => {
   const bgX = useTransform(smoothProgress, [0, 1], ['0%', '15%']);
   const bgY = useTransform(smoothProgress, [0, 1], ['0%', '10%']);
 
-  // Scene 3: Clean UI Layout - The Assembly Process
-  const clutterOpacity = useTransform(smoothProgress, [0.66, 0.71], [1, 0]);
-  
-  // Clutter straightening out to form the UI framing
-  const clutterAngle1 = useTransform(smoothProgress, [0.66, 0.73], [6, 0]);
-  const clutterAngle2 = useTransform(smoothProgress, [0.66, 0.73], [-3, 0]);
-  const clutterAngle3 = useTransform(smoothProgress, [0.66, 0.73], [12, 0]);
-  const clutterAngle4 = useTransform(smoothProgress, [0.66, 0.73], [-6, 0]);
-  const clutterAngle5 = useTransform(smoothProgress, [0.66, 0.73], [2, 0]);
+  // Scene 3: 3D Isometric Assembly
+  const mockScale = useTransform(smoothProgress, [0.66, 0.75], [0.8, 1]);
+  // Start from a tilted 3D angle and land flat
+  const mockRotateX = useTransform(smoothProgress, [0.66, 0.75], [30, 0]);
+  const mockRotateY = useTransform(smoothProgress, [0.66, 0.75], [-20, 0]);
+  const mockRotateZ = useTransform(smoothProgress, [0.66, 0.75], [10, 0]);
+  const mockY = useTransform(smoothProgress, [0.66, 0.75], [80, 0]);
+  const mockOpacity = useTransform(smoothProgress, [0.65, 0.69], [0, 1]);
 
-  const cleanOpacity = useTransform(smoothProgress, [0.69, 0.75], [0, 1]);
-  const cleanY = useTransform(smoothProgress, [0.66, 0.75], [20, 0]);
-  const cleanScale = useTransform(smoothProgress, [0.66, 0.75], [0.95, 1]);
+  // Exploded Layers flying in from different Z-depths
+  const headerZ = useTransform(smoothProgress, [0.66, 0.75], [180, 0]);
+  const sidebarZ = useTransform(smoothProgress, [0.66, 0.75], [100, 0]);
+  const contentZ = useTransform(smoothProgress, [0.66, 0.75], [-80, 0]);
+  
+  // Parallax & Polish (Scroll 0.75 to 1)
+  const innerScrollY1 = useTransform(smoothProgress, [0.75, 1], [0, -35]);
+  const innerScrollY2 = useTransform(smoothProgress, [0.75, 1], [0, -15]);
+  const flareOpacity = useTransform(smoothProgress, [0.75, 0.82, 0.9], [0, 0.5, 0]);
+  const flareX = useTransform(smoothProgress, [0.75, 0.95], ['-100%', '200%']);
 
   // Narrative Text Animations (hoisted to avoid creating new MotionValues on every render)
   const opacityNarrative1 = useTransform(smoothProgress, [0, 0.25, 0.33], [1, 1, 0]);
@@ -154,162 +160,141 @@ export const LandingScrollytelling = () => {
 
             {/* --- Scene 3: Clean UI Layout --- */}
             <motion.div 
-              style={{ opacity: opacityImg3 }} 
               className="absolute inset-0 flex items-center justify-center p-4 sm:p-6 lg:p-8"
+              style={{ opacity: opacityImg3, perspective: 1500 }}
             >
-               {/* Assembly Process: Clutter aligning into pure layout */}
-               <motion.div style={{ opacity: clutterOpacity }} className="absolute inset-0 p-8 flex flex-wrap gap-4 items-center justify-center pointer-events-none">
-                   <motion.div style={{ rotate: clutterAngle1 }} className="w-[35%] h-24 bg-card border border-border rounded-md shadow-2xl p-2 flex flex-col gap-1.5 overflow-hidden">
-                       <div className="w-2/3 h-2 bg-muted rounded-full opacity-60" />
-                       <div className="w-4/5 h-2 bg-muted rounded-full opacity-40" />
-                       <div className="w-1/2 h-2 bg-muted rounded-full opacity-60" />
-                   </motion.div>
-                   <motion.div style={{ rotate: clutterAngle2 }} className="w-[45%] h-16 bg-card border border-border rounded-md shadow-xl p-2 flex items-center justify-between">
-                       <div className="size-6 rounded bg-primary/10" />
-                       <div className="w-1/2 h-2.5 bg-muted rounded-full" />
-                       <div className="size-5 rounded-full bg-muted" />
-                   </motion.div>
-                   <motion.div style={{ rotate: clutterAngle3 }} className="w-[30%] h-32 bg-card border border-border rounded-md shadow-2xl p-3 flex flex-col gap-3">
-                       <div className="w-full h-8 bg-muted/30 rounded border border-border/50" />
-                       <div className="w-full h-8 bg-muted/30 rounded border border-border/50" />
-                       <div className="w-full h-8 bg-muted/30 rounded border border-border/50" />
-                   </motion.div>
-                   <motion.div style={{ rotate: clutterAngle4 }} className="w-[50%] h-12 bg-card border border-border rounded-md shadow-lg p-2.5 flex gap-2">
-                       <div className="h-full w-full bg-primary/10 rounded-sm relative overflow-hidden">
-                           <div className="absolute left-0 top-0 bottom-0 w-2/3 bg-primary/20" />
-                       </div>
-                   </motion.div>
-                   <motion.div style={{ rotate: clutterAngle5 }} className="w-[35%] h-28 bg-card border border-border rounded-md shadow-2xl drop-shadow-2xl p-3 grid grid-cols-3 gap-1.5">
-                       {Array.from({ length: 9 }).map((_, i) => (
-                           <div key={i} className="aspect-square rounded-[2px] bg-muted/40" />
-                       ))}
-                   </motion.div>
-               </motion.div>
-
-               {/* Exact Semestra UI High-fidelity Mockup */}
+               {/* Assembled 3D UI */}
                <motion.div 
-                  style={{ opacity: cleanOpacity, y: cleanY, scale: cleanScale }} 
-                  className="w-full h-full flex flex-col bg-background text-foreground rounded-xl shadow-2xl border border-border overflow-hidden"
+                  style={{ 
+                    opacity: mockOpacity, 
+                    scale: mockScale,
+                    rotateX: mockRotateX,
+                    rotateY: mockRotateY,
+                    rotateZ: mockRotateZ,
+                    y: mockY,
+                    transformStyle: "preserve-3d"
+                  }} 
+                  className="w-full h-full relative group"
                >
-                   {/* Top Header */}
-                   <div className="w-full h-10 border-b border-border flex items-center px-4 justify-between bg-card text-[9px] font-medium leading-none tracking-tight">
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-[10px] tracking-tight">Semestra</span>
-                        <div className="flex items-center gap-1 border border-border rounded px-1.5 py-0.5 bg-muted">
-                           <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
-                           Personal ▾
-                        </div>
-                        <span className="text-muted-foreground ml-1">Semesters &gt; Spring 2026</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-muted-foreground">
-                        <div className="px-2 py-0.5 border border-border rounded-full flex gap-4 items-center">
-                           <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                           <span className="opacity-50">/</span>
-                        </div>
-                        <div className="size-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[7px] font-bold">U</div>
-                      </div>
-                   </div>
+                   {/* Mockup Container Background/Base */}
+                   <div className="absolute inset-0 bg-background/80 text-foreground rounded-xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] dark:shadow-[0_40px_100px_-20px_rgba(255,255,255,0.05)] border border-border overflow-hidden backdrop-blur-3xl" />
+
+                   {/* Sweeping Flare (Only visible after assembly) */}
+                   <motion.div 
+                       style={{ opacity: flareOpacity, left: flareX }}
+                       className="absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/30 dark:via-white/10 to-transparent skew-x-[20deg] z-50 pointer-events-none mix-blend-overlay"
+                   />
                    
-                   {/* Sub-header Tabs */}
-                   <div className="w-full h-12 border-b border-border flex items-center px-4 justify-between">
-                       <span className="font-bold text-sm tracking-tight">Spring 2026</span>
-                       <div className="flex bg-muted rounded-full p-0.5 text-[8px] font-medium text-muted-foreground">
-                           <div className="bg-background text-foreground shadow-sm rounded-full px-2.5 py-1 flex items-center gap-1">
-                               <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-                               Dashboard
-                           </div>
-                           <div className="px-2.5 py-1 flex items-center gap-1"><span className="opacity-70">Todo</span></div>
-                           <div className="px-2.5 py-1 flex items-center gap-1"><span className="opacity-70">Calendar</span></div>
-                           <div className="px-2.5 py-1 flex items-center gap-1"><span className="opacity-70">Settings</span></div>
-                       </div>
-                   </div>
-
-                   {/* Main Content Dashboard */}
-                   <div className="flex-1 p-3 bg-muted/30 overflow-hidden flex flex-col gap-3">
-                       
-                       {/* Top Stats Row */}
-                       <div className="grid grid-cols-3 gap-3 h-10 w-full shrink-0">
-                           <div className="bg-card border border-border rounded-md p-2 flex flex-col justify-center">
-                               <span className="text-[7px] text-muted-foreground">Credits</span>
-                               <span className="text-[10px] font-bold mt-0.5">15.0</span>
-                           </div>
-                           <div className="bg-card border border-border rounded-md p-2 flex flex-col justify-center">
-                               <span className="text-[7px] text-muted-foreground">% Average</span>
-                               <span className="text-[10px] font-bold mt-0.5">88.5%</span>
-                           </div>
-                           <div className="bg-card border border-border rounded-md p-2 flex flex-col justify-center">
-                               <span className="text-[7px] text-muted-foreground">GPA</span>
-                               <span className="text-[10px] font-bold mt-0.5">3.82</span>
-                           </div>
-                       </div>
-
-                       <div className="flex gap-3 flex-1 overflow-hidden">
-                           {/* Courses Left Column */}
-                           <div className="w-[120px] bg-card border border-border rounded-md overflow-hidden flex flex-col">
-                               {[
-                                 { name: 'CS101', score: '94.5%', gpa: '4.00', col: 'bg-blue-500' },
-                                 { name: 'MAT201', score: '88.0%', gpa: '3.70', col: 'bg-indigo-500' },
-                                 { name: 'ENG200', score: '82.0%', gpa: '3.30', col: 'bg-rose-500' },
-                                 { name: 'HIS104', score: '90.0%', gpa: '4.00', col: 'bg-teal-500' }
-                               ].map((c, i) => (
-                                 <div key={i} className="flex justify-between items-center p-2 border-b border-border/50 last:border-0">
-                                     <div>
-                                         <div className="text-[9px] font-bold">{c.name}</div>
-                                         <div className="flex items-center gap-1 mt-0.5">
-                                             <div className={`px-1 py-[1px] rounded-[2px] ${c.col} text-white text-[5px] leading-tight`}>{c.name.slice(0,3)}</div>
-                                             <div className="text-[6px] text-muted-foreground">3.0 cr</div>
-                                         </div>
-                                     </div>
-                                     <div className="text-right">
-                                         <div className="text-[9px] font-bold">{c.score}</div>
-                                         <div className="text-[6px] text-muted-foreground mt-0.5">GPA: {c.gpa}</div>
-                                     </div>
+                   {/* Assembly Parts */}
+                   <div className="absolute inset-0 flex flex-col pointer-events-none" style={{ transformStyle: 'preserve-3d' }}>
+                      
+                      {/* Header Layer */}
+                      <motion.div style={{ translateZ: headerZ }} className="relative z-40 bg-card border-b border-border rounded-t-xl shadow-sm text-[9px] font-medium leading-none tracking-tight">
+                         {/* Top Header */}
+                         <div className="w-full h-10 flex items-center px-4 justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-[10px] tracking-tight">Semestra</span>
+                              <div className="flex items-center gap-1 border border-border rounded px-1.5 py-0.5 bg-muted">
+                                 <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                                 Personal ▾
+                              </div>
+                              <span className="text-muted-foreground ml-1">Semesters &gt; Spring 2026</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-muted-foreground">
+                              <div className="px-2 py-0.5 border border-border rounded-full flex gap-4 items-center">
+                                 <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                 <span className="opacity-50">/</span>
+                              </div>
+                              <div className="size-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[7px] font-bold">U</div>
+                            </div>
+                         </div>
+                         
+                         {/* Sub-header Tabs */}
+                         <div className="w-full h-12 border-t border-border flex items-center px-4 justify-between">
+                             <span className="font-bold text-sm tracking-tight text-foreground">Spring 2026</span>
+                             <div className="flex bg-muted rounded-full p-0.5 text-[8px] font-medium text-muted-foreground">
+                                 <div className="bg-background text-foreground shadow-sm rounded-full px-2.5 py-1 flex items-center gap-1">
+                                     <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                                     Dashboard
                                  </div>
-                               ))}
-                           </div>
+                                 <div className="px-2.5 py-1 flex items-center gap-1"><span className="opacity-70">Todo</span></div>
+                                 <div className="px-2.5 py-1 flex items-center gap-1"><span className="opacity-70">Calendar</span></div>
+                                 <div className="px-2.5 py-1 flex items-center gap-1"><span className="opacity-70">Settings</span></div>
+                             </div>
+                         </div>
+                      </motion.div>
 
-                           {/* Central Feed & Bottom Widgets */}
-                           <div className="flex-1 flex flex-col gap-3">
-                               <div className="flex-1 bg-card border border-border rounded-md flex flex-col p-3 gap-2 overflow-hidden">
-                                   <span className="text-[9px] font-bold">Upcoming Tasks</span>
-                                   <div className="flex flex-col gap-1.5">
-                                      <div className="flex items-center gap-2 p-1.5 rounded bg-muted/50 border border-border/50">
-                                          <div className="size-2.5 rounded-full border border-primary/50" />
-                                          <div className="flex flex-col">
-                                              <span className="text-[7px] font-medium leading-none">Compile Error Debugging</span>
-                                              <span className="text-[5px] text-muted-foreground mt-0.5">CS101 • Tomorrow</span>
-                                          </div>
-                                      </div>
-                                      <div className="flex items-center gap-2 p-1.5 rounded bg-muted/50 border border-border/50">
-                                          <div className="size-2.5 rounded-full border border-primary/50" />
-                                          <div className="flex flex-col">
-                                              <span className="text-[7px] font-medium leading-none">Read Chapter 4 Notes</span>
-                                              <span className="text-[5px] text-muted-foreground mt-0.5">HIS104 • In 2 Days</span>
-                                          </div>
-                                      </div>
-                                      <div className="flex items-center gap-2 p-1.5 rounded bg-muted/50 border border-border/50">
-                                          <div className="size-2.5 rounded-full border border-primary/50" />
-                                          <div className="flex flex-col">
-                                              <span className="text-[7px] font-medium leading-none">Submit Essay Draft</span>
-                                              <span className="text-[5px] text-muted-foreground mt-0.5">ENG200 • Due Friday</span>
-                                          </div>
-                                      </div>
-                                   </div>
-                               </div>
-                               <div className="h-[75px] grid grid-cols-2 gap-3 shrink-0">
-                                   <div className="bg-card border border-border rounded-md relative p-2 flex flex-col items-center justify-center">
-                                       <span className="absolute top-2 right-2 text-[6px] text-muted-foreground">Completed Focus: 4</span>
-                                       <div className="px-2 py-0.5 rounded-full border border-border text-[7px] mb-1">Focus</div>
-                                       <span className="text-xl font-bold font-mono tracking-tighter">25:00</span>
-                                   </div>
-                                   <div className="bg-card border border-border rounded-md flex flex-col items-center justify-center">
-                                       <span className="text-[7px] text-muted-foreground mb-0.5">UTC</span>
-                                       <span className="text-xl font-bold font-mono tracking-tighter">01:31:17</span>
-                                   </div>
-                               </div>
-                           </div>
-                       </div>
+                      {/* Main Content Dashboard */}
+                      <div className="flex-1 overflow-hidden p-3 relative flex flex-col gap-3" style={{ transformStyle: 'preserve-3d' }}>
+                          <div className="absolute inset-0 bg-muted/40 z-0 rounded-b-xl" />
+                          
+                          {/* Top Stats Row Skeleton */}
+                          <motion.div style={{ translateZ: sidebarZ }} className="grid grid-cols-3 gap-3 h-10 w-full shrink-0 relative z-30">
+                              <div className="bg-card border border-border rounded-md p-2 flex flex-col justify-center gap-1.5 shadow-lg">
+                                  <div className="w-8 h-1.5 bg-muted rounded-full" />
+                                  <div className="w-12 h-2.5 bg-primary/30 rounded-full" />
+                              </div>
+                              <div className="bg-card border border-border rounded-md p-2 flex flex-col justify-center gap-1.5 shadow-lg">
+                                  <div className="w-10 h-1.5 bg-muted rounded-full" />
+                                  <div className="w-14 h-2.5 bg-primary/30 rounded-full" />
+                              </div>
+                              <div className="bg-card border border-border rounded-md p-2 flex flex-col justify-center gap-1.5 shadow-lg">
+                                  <div className="w-6 h-1.5 bg-muted rounded-full" />
+                                  <div className="w-10 h-2.5 bg-primary/30 rounded-full" />
+                              </div>
+                          </motion.div>
 
+                          <div className="flex gap-3 flex-1 overflow-visible relative" style={{ transformStyle: 'preserve-3d' }}>
+                              {/* Left Column Skeleton */}
+                              <motion.div style={{ translateZ: sidebarZ }} className="w-[120px] bg-card border border-border rounded-md overflow-hidden flex flex-col shadow-lg relative z-20">
+                                  <motion.div style={{ y: innerScrollY2 }} className="flex flex-col">
+                                      {Array.from({ length: 5 }).map((_, i) => (
+                                        <div key={i} className="flex justify-between items-center p-2.5 border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="w-12 h-2 bg-muted-foreground/30 rounded-full" />
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className={`size-2 rounded-[2px] ${['bg-blue-500/80', 'bg-indigo-500/80', 'bg-rose-500/80', 'bg-teal-500/80', 'bg-orange-500/80'][i % 5]}`} />
+                                                    <div className="w-6 h-1.5 bg-muted rounded-full" />
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-1.5 items-end">
+                                                <div className="w-8 h-2 bg-muted-foreground/50 rounded-full" />
+                                                <div className="w-10 h-1.5 bg-muted rounded-full" />
+                                            </div>
+                                        </div>
+                                      ))}
+                                  </motion.div>
+                              </motion.div>
+
+                              {/* Central Feed Skeleton */}
+                              <motion.div style={{ translateZ: contentZ }} className="flex-1 flex flex-col gap-3 relative z-10">
+                                  <div className="flex-1 bg-card border border-border rounded-md flex flex-col p-3 gap-3 overflow-hidden shadow-lg relative">
+                                      <div className="w-20 h-2 bg-muted-foreground/40 rounded-full" />
+                                      <motion.div style={{ y: innerScrollY1 }} className="flex flex-col gap-2 absolute top-8 left-3 right-3">
+                                          {Array.from({ length: 4 }).map((_, i) => (
+                                              <div key={i} className={`flex items-center gap-2.5 p-2 rounded bg-muted/60 border border-border/50 backdrop-blur-sm ${i === 3 ? 'opacity-50' : ''}`}>
+                                                  <div className="size-3 rounded-full border border-primary/40 shrink-0" />
+                                                  <div className="flex flex-col gap-1.5 w-full">
+                                                      <div className="w-3/4 h-2 bg-muted-foreground/40 rounded-full" />
+                                                      <div className="w-1/3 h-1.5 bg-muted rounded-full" />
+                                                  </div>
+                                              </div>
+                                          ))}
+                                      </motion.div>
+                                  </div>
+                                  <div className="h-[75px] grid grid-cols-2 gap-3 shrink-0">
+                                      <div className="bg-card border border-border rounded-md relative p-2 flex flex-col items-center justify-center shadow-lg gap-2">
+                                          <div className="w-8 h-3 border border-border rounded-full" />
+                                          <div className="w-16 h-4 bg-primary/30 rounded-full" />
+                                      </div>
+                                      <div className="bg-card border border-border rounded-md flex flex-col items-center justify-center shadow-lg gap-2">
+                                          <div className="w-6 h-2 bg-muted rounded-full" />
+                                          <div className="w-20 h-4 bg-muted-foreground/30 rounded-full" />
+                                      </div>
+                                  </div>
+                              </motion.div>
+                          </div>
+                      </div>
                    </div>
                </motion.div>
             </motion.div>
