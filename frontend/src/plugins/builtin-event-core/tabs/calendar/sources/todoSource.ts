@@ -1,17 +1,15 @@
-// input:  [calendar-core source contracts, semester todo APIs, and calendar date helpers]
-// output: [built-in todo Calendar source definition]
+// input:  [injected calendar source services, calendar-core source contracts, and calendar date helpers]
+// output: [built-in todo Calendar source factory]
 // pos:    [built-in Calendar source adapter that maps persisted semester todo records into calendar events]
 //
 // ⚠️ When this file is updated:
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-
-import api from '@/services/api';
-import type { CalendarEventData, CalendarSourceDefinition } from '@/calendar-core';
-import { queryClient } from '@/services/queryClient';
-import { queryKeys } from '@/services/queryKeys';
-import { BUILTIN_CALENDAR_SOURCE_TODO, BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../../shared/constants';
+import type { CalendarSourceContext, CalendarSourceDefinition } from '../../../calendar-core';
+import { BUILTIN_CALENDAR_SOURCE_TODO, BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE, TIMETABLE_REFRESH_REASONS } from '../../../shared/constants';
+import type { CalendarSourceServices } from '../../../shared/sourceServices';
+import type { TimetableCalendarEvent } from '../../../shared/types';
 import {
   addDays,
   getWeekFromSemesterDate,
@@ -24,12 +22,17 @@ import type { TodoTask } from '../../todo/types';
 
 const TODO_EVENT_DURATION_MINUTES = 30;
 
+const TODO_TAGS = new Set<string>([
+  TIMETABLE_REFRESH_REASONS.EVENTS_UPDATED,
+  TIMETABLE_REFRESH_REASONS.COURSE_UPDATED,
+]);
+
 const buildTodoEvent = (
   task: TodoTask,
   semesterId: string,
   semesterStartDate: Date,
   semesterEndDate: Date,
-): CalendarEventData | null => {
+): TimetableCalendarEvent | null => {
   if (!task.dueDate) return null;
 
   const targetDate = new Date(`${task.dueDate}T00:00:00`);
@@ -83,47 +86,49 @@ const buildTodoEvent = (
   };
 };
 
-export const builtinTodoCalendarSource: CalendarSourceDefinition = {
-  id: BUILTIN_CALENDAR_SOURCE_TODO,
-  ownerId: BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
-  label: 'Todo',
-  defaultColor: '#10b981',
-  priority: 200,
-  getCached: (context) => {
+export const createTodoCalendarSource = (
+  services: CalendarSourceServices,
+): CalendarSourceDefinition<TimetableCalendarEvent> => {
+  const { api, queryClient, queryKeys } = services;
+
+  const loadEvents = (context: CalendarSourceContext): TimetableCalendarEvent[] | undefined => {
     const cachedResponse = queryClient.getQueryData<Awaited<ReturnType<typeof api.getSemesterTodo>>>(
-      queryKeys.semesters.todo(context.semesterId),
+      queryKeys.semesters.todo(context.scopeId),
     );
     if (!cachedResponse) return undefined;
-
     const semesterState = fromTodoApiState(cachedResponse, false);
     return semesterState.tasks
-      .map((task) => buildTodoEvent(task, context.semesterId, context.semesterRange.startDate, context.semesterRange.endDate))
-      .filter((event): event is CalendarEventData => event !== null);
-  },
-  load: async (context) => {
-    const response = await queryClient.ensureQueryData({
-      queryKey: queryKeys.semesters.todo(context.semesterId),
-      queryFn: () => api.getSemesterTodo(context.semesterId),
-      staleTime: Infinity,
-      gcTime: Infinity,
-    });
-    const semesterState = fromTodoApiState(response, false);
+      .map((task) => buildTodoEvent(task, context.scopeId, context.scopeRange.startDate, context.scopeRange.endDate))
+      .filter((event): event is TimetableCalendarEvent => event !== null);
+  };
 
-    return semesterState.tasks
-      .map((task) => buildTodoEvent(task, context.semesterId, context.semesterRange.startDate, context.semesterRange.endDate))
-      .filter((event): event is CalendarEventData => event !== null);
-  },
-  invalidate: async (signal, context) => {
-    void signal;
-    await queryClient.invalidateQueries({ queryKey: queryKeys.semesters.todo(context.semesterId) });
-  },
-  shouldRefresh: (signal, context) => {
-    if (signal.type !== 'timetable') return true;
-    if (!signal.semesterId || signal.semesterId !== context.semesterId) return false;
-    return (
-      signal.reason === 'events-updated'
-      || signal.reason === 'course-updated'
-      || signal.source === 'semester'
-    );
-  },
+  return {
+    id: BUILTIN_CALENDAR_SOURCE_TODO,
+    ownerId: BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE,
+    label: 'Todo',
+    defaultColor: '#10b981',
+    priority: 200,
+    getCached: loadEvents,
+    load: async (context) => {
+      await queryClient.ensureQueryData({
+        queryKey: queryKeys.semesters.todo(context.scopeId),
+        queryFn: () => api.getSemesterTodo(context.scopeId),
+        staleTime: Infinity,
+        gcTime: Infinity,
+      });
+      return loadEvents(context) ?? [];
+    },
+    invalidate: async (_signal, context) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.semesters.todo(context.scopeId) });
+    },
+    shouldRefresh: (signal, context) => {
+      if (signal.type === 'manual') return true;
+      if (signal.type === 'full') return !signal.scopeId || signal.scopeId === context.scopeId;
+      if (signal.type === 'partial') {
+        if (signal.scopeId !== context.scopeId) return false;
+        return TODO_TAGS.has(signal.tag ?? '');
+      }
+      return false;
+    },
+  };
 };

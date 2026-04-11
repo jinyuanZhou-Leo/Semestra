@@ -76,9 +76,9 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
   }, [loadEventTypes]);
 
   const publishScheduleChange = React.useCallback(async (
-    reason: 'event-type-created' | 'event-type-updated' | 'event-type-deleted',
+    reason: string,
   ) => {
-    await publishTimetableScheduleChange({ source: 'course', reason, courseId });
+    publishTimetableScheduleChange({ source: 'course', reason, courseId });
   }, [courseId]);
 
   const handleCreateOrUpdate = React.useCallback(async (

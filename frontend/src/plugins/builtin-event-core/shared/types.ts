@@ -1,5 +1,5 @@
-// input:  [schedule service DTOs, todo scheduling metadata, todo list storage contracts, and shared calendar/tab state contracts]
-// output: [event-core shared types for schedule snapshots, filters, calendar events, settings, and timetable/todo data-change payloads]
+// input:  [schedule service DTOs, todo scheduling metadata, todo list storage contracts, calendar-core base types, and shared calendar/tab state contracts]
+// output: [event-core shared types for schedule snapshots, filters, timetable calendar events, settings, and timetable/todo data-change payloads]
 // pos:    [type layer connecting timetable services with builtin-event-core tabs, widgets, todo sync, and external Calendar sources]
 //
 // ⚠️ When this file is updated:
@@ -7,11 +7,44 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { CourseEvent, CourseEventType, CourseSection, ScheduleItem, WeekPattern } from '@/services/schedule';
-import type { CalendarEventData, CalendarEventPatch, SemesterDateRange } from '@/calendar-core';
+import type { CalendarEventBase, CalendarEventPatch, CalendarScopeRange } from '../calendar-core';
 import type { TodoListSource } from '../tabs/todo/types';
 
 export type { CourseEvent, CourseEventType, CourseSection, ScheduleItem, WeekPattern };
-export type { CalendarEventData, CalendarEventPatch, SemesterDateRange };
+export type { CalendarEventBase, CalendarEventPatch };
+
+export interface TimetableCalendarEvent extends CalendarEventBase {
+  eventId: string;
+  courseId: string;
+  courseName: string;
+  eventTypeCode: string;
+  week: number;
+  dayOfWeek: number;
+  weekPattern?: string | null;
+  isRecurring: boolean;
+  startTime: string;
+  endTime: string;
+  isSkipped: boolean;
+  isConflict: boolean;
+  conflictGroupId?: string | null;
+  enable: boolean;
+  todoState?: {
+    completed: boolean;
+    listSource: 'course' | 'semester';
+    listId: string;
+  };
+}
+
+// Backward compatibility alias
+export type CalendarEventData = TimetableCalendarEvent;
+
+export interface TimetableSemesterRange extends CalendarScopeRange {
+  readingWeekStart: Date | null;
+  readingWeekEnd: Date | null;
+}
+
+// Backward compatibility alias
+export type SemesterDateRange = TimetableSemesterRange;
 
 export type ScheduleDataMode = 'single-week' | 'all-weeks';
 
@@ -31,19 +64,10 @@ export interface ScheduleDataSnapshot {
 
 export interface TimetableScheduleChangePayload {
   source: 'course' | 'semester';
-  reason:
-    | 'course-updated'
-    | 'gradebook-assessments-updated'
-    | 'event-type-created'
-    | 'event-type-updated'
-    | 'event-type-deleted'
-    | 'section-created'
-    | 'section-updated'
-    | 'section-deleted'
-    | 'event-updated'
-    | 'events-updated';
+  reason: string;
   courseId?: string;
   semesterId?: string;
+  signalId?: string;
 }
 
 export interface TimetableEventPayloadMap {

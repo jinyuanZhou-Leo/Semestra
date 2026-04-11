@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { timetableEventBus, useEventBus } from '../../shared/eventBus';
+import { timetableEventBus, useScopedEventBus } from '../../shared/eventBus';
 import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
 import { TodoCompletedSummary } from './components/TodoCompletedSummary';
 import { TodoInlineCreateRow } from './components/TodoInlineCreateRow';
@@ -230,7 +230,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
       applyTodoStateRecord(response);
       publishTodoDataChange(publishSource, targetCourseId);
       if (semesterId) {
-        await publishTimetableScheduleChange({
+        publishTimetableScheduleChange({
           semesterId,
           source: publishSource,
           courseId: publishSource === 'course' ? targetCourseId : undefined,
@@ -272,8 +272,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
     semesterTodoQuery.isLoading,
   ]);
 
-  useEventBus('timetable:todo-data-changed', (payload) => {
-    if (!semesterId || payload.semesterId !== semesterId) return;
+  useScopedEventBus('timetable:todo-data-changed', semesterId, (_payload) => {
     const cachedState = getTodoState();
     if (cachedState) {
       applyTodoStateRecord(cachedState);

@@ -7,12 +7,15 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 export type {
-  CalendarEventData,
+  CalendarEventBase,
+  // Deprecated alias: use CalendarEventBase instead
+  CalendarEventBase as CalendarEventData,
   CalendarEventPatch,
   CalendarRefreshSignal,
+  CalendarScopeRange,
   CalendarSourceContext,
   CalendarSourceDefinition,
-  SemesterDateRange,
+  CalendarQueryRange,
 } from './types';
 export {
   getRegisteredCalendarSources,

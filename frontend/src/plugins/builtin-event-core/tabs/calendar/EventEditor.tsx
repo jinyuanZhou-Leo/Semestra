@@ -16,17 +16,18 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { looksLikeHtml, sanitizeHtmlFragment, sanitizeTextListHtmlFragment } from '@/lib/html';
-import type { CalendarEventData, CalendarEventPatch } from '@/calendar-core';
+import type { CalendarEventPatch } from '../../calendar-core';
+import type { TimetableCalendarEvent } from '../../shared/types';
 import { BUILTIN_CALENDAR_SOURCE_LMS } from '../../shared/constants';
 
 interface EventEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  event: CalendarEventData | null;
+  event: TimetableCalendarEvent | null;
   sourceLabel: string;
   canEdit: boolean;
   renderUnsafeLmsDescriptionHtml: boolean;
-  conflictingEvents?: CalendarEventData[];
+  conflictingEvents?: TimetableCalendarEvent[];
   formatWeekLabel?: (week: number) => string;
   onSave: (eventId: string, patch: CalendarEventPatch) => Promise<void>;
 }

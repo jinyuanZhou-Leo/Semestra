@@ -7,7 +7,8 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import type { CourseEvent, ScheduleItem } from '@/services/schedule';
-import type { CalendarEventData, CalendarEventPatch, SemesterDateRange } from '@/calendar-core';
+import type { CalendarEventPatch } from '../calendar-core';
+import type { TimetableCalendarEvent as CalendarEventData, SemesterDateRange } from './types';
 import {
   ALL_FILTER_VALUE,
   BUILTIN_CALENDAR_SOURCE_SCHEDULE,

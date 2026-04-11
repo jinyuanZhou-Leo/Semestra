@@ -8,7 +8,10 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import api from '@/services/api';
-import { builtinGradebookCalendarSource } from './gradebookSource';
+import { queryClient } from '@/services/queryClient';
+import { queryKeys } from '@/services/queryKeys';
+import scheduleService from '@/services/schedule';
+import { createGradebookCalendarSource } from './gradebookSource';
 import { BUILTIN_CALENDAR_SOURCE_GRADEBOOK } from '../../../shared/constants';
 
 vi.mock('@/services/api', () => ({
@@ -18,16 +21,17 @@ vi.mock('@/services/api', () => ({
   },
 }));
 
-describe('builtinGradebookCalendarSource', () => {
+describe('createGradebookCalendarSource', () => {
+  const services = { api, queryClient, queryKeys, scheduleService };
+  const source = createGradebookCalendarSource(services);
+
   const context = {
-    semesterId: 'semester-1',
-    semesterRange: {
+    scopeId: 'semester-1',
+    scopeRange: {
       startDate: new Date('2026-01-05T00:00:00'),
       endDate: new Date('2026-04-30T00:00:00'),
-      readingWeekStart: null,
-      readingWeekEnd: null,
     },
-    maxWeek: 16,
+    maxPeriod: 16,
     queryRange: {
       start: new Date('2026-01-05T00:00:00'),
       end: new Date('2026-05-07T00:00:00'),
@@ -86,7 +90,7 @@ describe('builtinGradebookCalendarSource', () => {
       ],
     });
 
-    const events = await builtinGradebookCalendarSource.load(context);
+    const events = await source.load(context);
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
@@ -110,20 +114,18 @@ describe('builtinGradebookCalendarSource', () => {
   });
 
   it('refreshes on gradebook assessment updates but ignores other course-local event changes', () => {
-    expect(builtinGradebookCalendarSource.shouldRefresh({
-      type: 'timetable',
-      source: 'course',
-      reason: 'gradebook-assessments-updated',
-      semesterId: 'semester-1',
-      courseId: 'course-1',
+    expect(source.shouldRefresh({
+      type: 'partial',
+      scopeId: 'semester-1',
+      entityId: 'course-1',
+      tag: 'gradebook-assessments-updated',
     }, context)).toBe(true);
 
-    expect(builtinGradebookCalendarSource.shouldRefresh({
-      type: 'timetable',
-      source: 'course',
-      reason: 'event-updated',
-      semesterId: 'semester-1',
-      courseId: 'course-1',
+    expect(source.shouldRefresh({
+      type: 'partial',
+      scopeId: 'semester-1',
+      entityId: 'course-1',
+      tag: 'event-updated',
     }, context)).toBe(false);
   });
 });

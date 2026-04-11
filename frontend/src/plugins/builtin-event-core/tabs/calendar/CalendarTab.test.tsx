@@ -8,8 +8,8 @@
 
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CalendarSourceDefinition } from '@/calendar-core';
-import { registerCalendarSources } from '@/calendar-core';
+import type { CalendarSourceDefinition } from '../../calendar-core';
+import { registerCalendarSources } from '../../calendar-core';
 import { PluginRuntimeInstanceProvider, resetPluginUiStateCacheForTests } from '@/plugin-system';
 import scheduleService from '@/services/schedule';
 import api from '@/services/api';

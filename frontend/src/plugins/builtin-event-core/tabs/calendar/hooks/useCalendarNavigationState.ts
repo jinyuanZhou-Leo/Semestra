@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { usePluginUiState } from '@/plugin-system';
-import type { SemesterDateRange } from '@/calendar-core';
+import type { SemesterDateRange } from '../../../shared/types';
 import type { CalendarViewMode } from '../../../shared/types';
 import { CALENDAR_DEFAULT_VIEW_MODE } from '../../../shared/constants';
 import {

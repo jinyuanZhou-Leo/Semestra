@@ -8,7 +8,7 @@
 
 
 import React from 'react';
-import type { CalendarSourceDefinition } from '@/calendar-core';
+import type { CalendarSourceDefinition } from '../../../calendar-core';
 import { ColorPicker, type ColorPickerPreset } from '@/components/ui/color-picker';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';

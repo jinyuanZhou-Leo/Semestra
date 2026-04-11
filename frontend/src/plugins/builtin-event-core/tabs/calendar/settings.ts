@@ -12,7 +12,7 @@ import {
   BUILTIN_CALENDAR_SOURCE_SCHEDULE,
 } from '../../shared/constants';
 import type { CalendarSettingsState } from '../../shared/types';
-import { getRegisteredCalendarSources } from '@/calendar-core';
+import { getRegisteredCalendarSources } from '../../calendar-core';
 import { ensureBuiltinCalendarSourcesRegistered } from './sources/registerBuiltinCalendarSources';
 
 const DAY_MINUTES = 24 * 60;

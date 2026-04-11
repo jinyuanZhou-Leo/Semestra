@@ -9,14 +9,14 @@
 
 import React from 'react';
 import type {
-  CalendarEventData,
+  CalendarEventBase,
   CalendarRefreshSignal,
   CalendarSourceContext,
   CalendarSourceDefinition,
-} from '@/calendar-core';
+} from '../../../calendar-core';
 
 interface CalendarSourcesState {
-  dataBySourceId: Map<string, CalendarEventData[]>;
+  dataBySourceId: Map<string, CalendarEventBase[]>;
   loadingSourceIds: Set<string>;
   errorBySourceId: Map<string, Error>;
 }
@@ -32,11 +32,33 @@ interface UseCalendarSourcesOptions {
   context: CalendarSourceContext | null;
 }
 
+const mapsHaveSameEntries = <T,>(
+  left: Map<string, T>,
+  right: Map<string, T>,
+) => {
+  if (left.size !== right.size) return false;
+  for (const [key, value] of left) {
+    if (!right.has(key) || right.get(key) !== value) return false;
+  }
+  return true;
+};
+
+const setsHaveSameEntries = (
+  left: Set<string>,
+  right: Set<string>,
+) => {
+  if (left.size !== right.size) return false;
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+  return true;
+};
+
 const buildCachedState = (
   sources: CalendarSourceDefinition[],
   context: CalendarSourceContext,
 ): CalendarSourcesState => {
-  const dataBySourceId = new Map<string, CalendarEventData[]>();
+  const dataBySourceId = new Map<string, CalendarEventBase[]>();
 
   for (const source of sources) {
     const cachedEvents = source.getCached?.(context);
@@ -54,29 +76,23 @@ const buildCachedState = (
 
 export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptions) => {
   const sourceIdentityKey = React.useMemo(
-    () => sources.map((source) => source.id).join('|'),
-    [sources],
-  );
-  const stableSources = React.useMemo(
-    () => sources,
+    () => sources.map((source) => `${source.id}:${source.priority}`).join('|'),
     [sources],
   );
   const contextIdentityKey = React.useMemo(() => {
     if (!context) return 'no-context';
     return [
-      context.semesterId,
-      context.maxWeek,
-      context.semesterRange.startDate.getTime(),
-      context.semesterRange.endDate.getTime(),
-      context.semesterRange.readingWeekStart?.getTime() ?? 'none',
-      context.semesterRange.readingWeekEnd?.getTime() ?? 'none',
+      context.scopeId,
+      context.maxPeriod,
+      context.scopeRange.startDate.getTime(),
+      context.scopeRange.endDate.getTime(),
       context.queryRange.start.getTime(),
       context.queryRange.end.getTime(),
     ].join('|');
   }, [context]);
   const [state, setState] = React.useState<CalendarSourcesState>(() => {
     if (!context) return EMPTY_STATE;
-    return buildCachedState(stableSources, context);
+    return buildCachedState(sources, context);
   });
   const requestCounterRef = React.useRef(0);
   const previousSourceIdsRef = React.useRef<Set<string>>(new Set());
@@ -95,40 +111,47 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       loadingSourceIds: new Set([...current.loadingSourceIds, ...targetSourceIds]),
     }));
 
-    // Collect all results first, then commit in a single setState to avoid N
-    // intermediate renders (one per source) and the associated reconciliation
-    // and derived-event re-computations they would trigger.
-    const settled = await Promise.allSettled(
+    await Promise.allSettled(
       targetSources.map(async (source) => {
-        const events = await source.load(context);
-        return { sourceId: source.id, events };
+        const sourceId = source.id;
+
+        const commitSettledSource = (
+          updater: (current: CalendarSourcesState) => CalendarSourcesState,
+        ) => {
+          if (requestCounterRef.current !== requestId) return;
+          setState((current) => updater(current));
+        };
+
+        try {
+          const events = await source.load(context);
+          commitSettledSource((current) => {
+            const dataBySourceId = new Map(current.dataBySourceId);
+            const errorBySourceId = new Map(current.errorBySourceId);
+            const loadingSourceIds = new Set(current.loadingSourceIds);
+
+            dataBySourceId.set(sourceId, events);
+            errorBySourceId.delete(sourceId);
+            loadingSourceIds.delete(sourceId);
+
+            return { dataBySourceId, errorBySourceId, loadingSourceIds };
+          });
+        } catch (error: unknown) {
+          commitSettledSource((current) => {
+            const dataBySourceId = new Map(current.dataBySourceId);
+            const errorBySourceId = new Map(current.errorBySourceId);
+            const loadingSourceIds = new Set(current.loadingSourceIds);
+
+            errorBySourceId.set(
+              sourceId,
+              error instanceof Error ? error : new Error(String(error)),
+            );
+            loadingSourceIds.delete(sourceId);
+
+            return { dataBySourceId, errorBySourceId, loadingSourceIds };
+          });
+        }
       }),
     );
-
-    // Bail out if a newer request has superseded this one while we were loading.
-    if (requestCounterRef.current !== requestId) return;
-
-    setState((current) => {
-      const dataBySourceId = new Map(current.dataBySourceId);
-      const errorBySourceId = new Map(current.errorBySourceId);
-      const loadingSourceIds = new Set(current.loadingSourceIds);
-
-      settled.forEach((result, index) => {
-        const sourceId = targetSources[index]!.id;
-        loadingSourceIds.delete(sourceId);
-        if (result.status === 'fulfilled') {
-          dataBySourceId.set(sourceId, result.value.events);
-          errorBySourceId.delete(sourceId);
-        } else {
-          errorBySourceId.set(
-            sourceId,
-            result.reason instanceof Error ? result.reason : new Error(String(result.reason)),
-          );
-        }
-      });
-
-      return { dataBySourceId, errorBySourceId, loadingSourceIds };
-    });
   }, [context]);
 
   React.useEffect(() => {
@@ -139,26 +162,36 @@ export const useCalendarSources = ({ sources, context }: UseCalendarSourcesOptio
       return;
     }
 
-    const cachedState = buildCachedState(stableSources, context);
+    const cachedState = buildCachedState(sources, context);
     const previousSourceIds = previousSourceIdsRef.current;
-    const nextSourceIds = new Set(stableSources.map((source) => source.id));
-    const reenabledSourceIds = !hasInitializedSourcesRef.current
+    const nextSourceIds = new Set(sources.map((source) => source.id));
+    const shouldReloadEnabledSources = hasInitializedSourcesRef.current;
+    const reenabledSourceIds = !shouldReloadEnabledSources
       ? new Set<string>()
-      : new Set(stableSources
+      : new Set(sources
         .filter((source) => !previousSourceIds.has(source.id))
         .map((source) => source.id));
 
     previousSourceIdsRef.current = nextSourceIds;
     hasInitializedSourcesRef.current = true;
-    setState(cachedState);
+    setState((current) => {
+      if (
+        mapsHaveSameEntries(current.dataBySourceId, cachedState.dataBySourceId)
+        && mapsHaveSameEntries(current.errorBySourceId, cachedState.errorBySourceId)
+        && setsHaveSameEntries(current.loadingSourceIds, cachedState.loadingSourceIds)
+      ) {
+        return current;
+      }
+      return cachedState;
+    });
 
-    const sourcesToLoad = stableSources.filter((source) => (
+    const sourcesToLoad = sources.filter((source) => (
       reenabledSourceIds.has(source.id) || !cachedState.dataBySourceId.has(source.id)
     ));
     if (sourcesToLoad.length === 0) return;
 
     void loadSources(sourcesToLoad);
-  }, [context, contextIdentityKey, loadSources, sourceIdentityKey, stableSources]);
+  }, [context, contextIdentityKey, loadSources, sourceIdentityKey]);
 
   const reloadMatchingSources = React.useCallback(async (signal: CalendarRefreshSignal) => {
     if (!context) return;

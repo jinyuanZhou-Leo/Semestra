@@ -10,7 +10,7 @@
 import React from 'react';
 import { Label } from '@/components/ui/label';
 import { ColorPicker, type ColorPickerPreset } from '@/components/ui/color-picker';
-import type { CalendarSourceDefinition } from '@/calendar-core';
+import type { CalendarSourceDefinition } from '../../../calendar-core';
 
 const PRESET_COLORS: readonly ColorPickerPreset[] = [
   { name: 'Blue', value: '#3b82f6' },

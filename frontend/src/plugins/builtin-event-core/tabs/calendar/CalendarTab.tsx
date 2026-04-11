@@ -11,14 +11,16 @@ import React from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { CalendarEventData, CalendarRefreshSignal } from '@/calendar-core';
-import { useCalendarSourceRegistry } from '@/calendar-core';
+import type { CalendarRefreshSignal } from '../../calendar-core';
+import { useCalendarSourceRegistry } from '../../calendar-core';
 import type { TabProps } from '@/plugin-system';
 import { usePluginSettingsBucketWithScope } from '@/plugin-sdk';
-import { useEventBus } from '../../shared/eventBus';
+import { useScopedEventBus } from '../../shared/eventBus';
 import { publishTimetableScheduleChange } from '../../shared/publishTimetableScheduleChange';
+import { timetableSignal } from '../../shared/signals';
 import { isDateInReadingWeek } from '../../shared/utils';
-import { BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE } from '../../shared/constants';
+import { BUILTIN_TIMETABLE_CALENDAR_TAB_TYPE, TIMETABLE_REFRESH_REASONS } from '../../shared/constants';
+import type { TimetableCalendarEvent, TimetableScheduleChangePayload } from '../../shared/types';
 import { CalendarToolbar } from './CalendarToolbar';
 import { CalendarSkeleton } from './components/CalendarSkeleton';
 import {
@@ -35,8 +37,6 @@ import { syncCalendarTodoCompletion } from '../todo/utils/todoCalendarSync';
 
 ensureBuiltinCalendarSourcesRegistered();
 
-type TimetableRefreshSignal = Extract<CalendarRefreshSignal, { type: 'timetable' }>;
-
 const FullCalendarView = React.lazy(async () => {
   const module = await import('./FullCalendarView');
   return { default: module.FullCalendarView };
@@ -47,30 +47,23 @@ const EventEditor = React.lazy(async () => {
   return { default: module.EventEditor };
 });
 
-const conflictOccurrenceKey = (event: CalendarEventData) => {
+const conflictOccurrenceKey = (event: TimetableCalendarEvent) => {
   if (!event.conflictGroupId) return null;
   return `${event.week}:${event.dayOfWeek}:${event.conflictGroupId}`;
 };
 
-const toRefreshSignal = (payload: {
-  source: 'course' | 'semester';
-  reason:
-    | 'course-updated'
-    | 'gradebook-assessments-updated'
-    | 'event-type-created'
-    | 'event-type-updated'
-    | 'event-type-deleted'
-    | 'section-created'
-    | 'section-updated'
-    | 'section-deleted'
-    | 'event-updated'
-    | 'events-updated';
-  courseId?: string;
-  semesterId?: string;
-}): TimetableRefreshSignal => ({
-  type: 'timetable',
-  ...payload,
-});
+const payloadToSignal = (payload: TimetableScheduleChangePayload): CalendarRefreshSignal => {
+  if (payload.source === 'semester') {
+    return { type: 'full', scopeId: payload.semesterId, signalId: payload.signalId };
+  }
+  return {
+    type: 'partial',
+    scopeId: payload.semesterId ?? '',
+    entityId: payload.courseId,
+    tag: payload.reason,
+    signalId: payload.signalId,
+  };
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -118,6 +111,12 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
     () => new Map(calendarSources.map((source) => [source.id, source])),
     [calendarSources],
   );
+  const sourceColorById = React.useMemo(() => (
+    new Map(calendarSources.map((source) => [
+      source.id,
+      getCalendarEventColor(settings.eventColors, source.id),
+    ]))
+  ), [calendarSources, settings.eventColors]);
   const cardRef = React.useRef<HTMLDivElement | null>(null);
   const skipNextRefreshRef = React.useRef<CalendarRefreshSignal | null>(null);
   const sourceErrorSignatureRef = React.useRef('');
@@ -133,15 +132,15 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
   const sourceContext = React.useMemo(() => {
     if (!semesterId || !semesterContext.isReady) return null;
     return {
-      semesterId,
-      semesterRange: semesterContext.semesterRange,
-      maxWeek: semesterContext.maxWeek,
+      scopeId: semesterId,
+      scopeRange: semesterContext.semesterRange,
+      maxPeriod: semesterContext.maxWeek,
       queryRange: navigation.queryRange,
       prefetchQueryRanges: navigation.prefetchQueryRanges,
     };
   }, [navigation.prefetchQueryRanges, navigation.queryRange, semesterContext.isReady, semesterContext.maxWeek, semesterContext.semesterRange, semesterId]);
   const {
-    events,
+    events: rawEvents,
     errorBySourceId,
     isLoading: areSourcesLoading,
     reloadMatchingSources,
@@ -149,6 +148,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
     sources: enabledCalendarSources,
     context: sourceContext,
   });
+  const events = rawEvents as TimetableCalendarEvent[];
   const {
     selectedEvent,
     selectedSourceLabel,
@@ -164,18 +164,14 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
     context: sourceContext,
     onSaveSuccess: async (event) => {
       if (!semesterId) return;
-      const signal = toRefreshSignal({
-        source: 'course',
-        reason: 'event-updated',
-        courseId: event.courseId,
-        semesterId,
-      });
+      const signal = timetableSignal.courseChanged(semesterId, event.courseId, TIMETABLE_REFRESH_REASONS.EVENT_UPDATED);
       skipNextRefreshRef.current = signal;
-      await publishTimetableScheduleChange({
+      publishTimetableScheduleChange({
         source: 'course',
-        reason: 'event-updated',
+        reason: TIMETABLE_REFRESH_REASONS.EVENT_UPDATED,
         courseId: event.courseId,
         semesterId,
+        signalId: signal.signalId,
       });
       await reloadMatchingSources(signal);
     },
@@ -192,18 +188,26 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
   });
 
   const calendarEvents = React.useMemo(() => {
-    return eventsWithOptimisticPatches
-      .map((event) => ({
-        ...event,
-        color: event.color ?? getCalendarEventColor(settings.eventColors, event.sourceId),
-      }))
-      .filter((event) => !isDateInReadingWeek(event.start, semesterContext.semesterRange))
-      .sort((left, right) => (
-        Number(right.allDay) - Number(left.allDay)
-        || left.start.getTime() - right.start.getTime()
-        || left.title.localeCompare(right.title)
-      ));
-  }, [eventsWithOptimisticPatches, semesterContext.semesterRange, settings.eventColors]);
+    const nextEvents: TimetableCalendarEvent[] = [];
+
+    for (const event of eventsWithOptimisticPatches) {
+      if (isDateInReadingWeek(event.start, semesterContext.semesterRange)) continue;
+      const resolvedColor = event.color ?? sourceColorById.get(event.sourceId);
+      nextEvents.push(
+        resolvedColor && resolvedColor !== event.color
+          ? { ...event, color: resolvedColor }
+          : event,
+      );
+    }
+
+    nextEvents.sort((left, right) => (
+      Number(right.allDay) - Number(left.allDay)
+      || left.start.getTime() - right.start.getTime()
+      || left.title.localeCompare(right.title)
+    ));
+
+    return nextEvents;
+  }, [eventsWithOptimisticPatches, semesterContext.semesterRange, sourceColorById]);
 
   const handleManualRefresh = React.useCallback(async () => {
     if (!semesterId) return;
@@ -215,22 +219,21 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
     ]);
   }, [reloadMatchingSources, semesterContext, semesterId]);
 
-  const handleToggleTodoCompleted = React.useCallback(async (event: CalendarEventData, completed: boolean) => {
+  const handleToggleTodoCompleted = React.useCallback(async (event: TimetableCalendarEvent, completed: boolean) => {
     if (!semesterId) return;
 
     try {
-      const signal = toRefreshSignal({
-        semesterId,
-        source: event.todoState?.listSource === 'course' ? 'course' : 'semester',
-        courseId: event.todoState?.listSource === 'course' ? event.courseId : undefined,
-        reason: 'events-updated',
-      });
+      const isCourseList = event.todoState?.listSource === 'course';
+      const signal: CalendarRefreshSignal = isCourseList
+        ? timetableSignal.courseChanged(semesterId, event.courseId, TIMETABLE_REFRESH_REASONS.EVENTS_UPDATED)
+        : { type: 'partial', scopeId: semesterId, tag: TIMETABLE_REFRESH_REASONS.EVENTS_UPDATED, signalId: Math.random().toString(36).slice(2, 10) };
       skipNextRefreshRef.current = signal;
 
       await syncCalendarTodoCompletion({
         semesterId,
         event,
         completed,
+        signalId: signal.signalId,
       });
 
       await reloadMatchingSources(signal);
@@ -242,7 +245,7 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
   }, [reloadMatchingSources, semesterId]);
 
   const conflictGroups = React.useMemo(() => {
-    const groups = new Map<string, CalendarEventData[]>();
+    const groups = new Map<string, TimetableCalendarEvent[]>();
 
     for (const event of calendarEvents) {
       const groupKey = conflictOccurrenceKey(event);
@@ -278,31 +281,21 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
     });
   }, [errorBySourceId, sourceById]);
 
-  useEventBus('timetable:schedule-data-changed', (payload) => {
-    if (!semesterId) return;
-    if (!payload.semesterId || payload.semesterId !== semesterId) return;
-
-    const signal = toRefreshSignal(payload);
+  useScopedEventBus('timetable:schedule-data-changed', semesterId, (payload) => {
+    const incomingSignal = payloadToSignal(payload);
     const skipSignal = skipNextRefreshRef.current;
-    if (skipSignal?.type === 'timetable') {
-      if (
-        skipSignal.semesterId === signal.semesterId
-        && skipSignal.courseId === signal.courseId
-        && skipSignal.reason === signal.reason
-        && skipSignal.source === signal.source
-      ) {
-        skipNextRefreshRef.current = null;
-        return;
-      }
-    }
-
-    if (signal.type === 'timetable' && signal.source === 'semester') {
-      void semesterContext.reload();
-      void reloadMatchingSources(signal);
+    if (skipSignal?.signalId && skipSignal.signalId === incomingSignal.signalId) {
+      skipNextRefreshRef.current = null;
       return;
     }
 
-    void reloadMatchingSources(signal);
+    if (incomingSignal.type === 'full') {
+      void semesterContext.reload();
+      void reloadMatchingSources(incomingSignal);
+      return;
+    }
+
+    void reloadMatchingSources(incomingSignal);
   });
 
   if (!semesterId) {

@@ -27,6 +27,13 @@ class TimetableEventBus {
     const dedupeKey = options?.dedupeKey ?? JSON.stringify(payload);
     const dedupeToken = `${type}:${dedupeKey}`;
     const now = Date.now();
+
+    for (const [key, publishedAt] of this.recentPublishes) {
+      if (now - publishedAt > dedupeWindowMs) {
+        this.recentPublishes.delete(key);
+      }
+    }
+
     const previousPublishedAt = this.recentPublishes.get(dedupeToken);
 
     if (typeof previousPublishedAt === 'number' && (now - previousPublishedAt) < dedupeWindowMs) {
@@ -109,4 +116,16 @@ export const useEventBus = <T extends TimetableEventType>(
 
     return unsubscribe;
   }, [type]);
+};
+
+export const useScopedEventBus = <T extends TimetableEventType>(
+  type: T,
+  semesterId: string | undefined,
+  handler: EventHandler<T>,
+) => {
+  useEventBus(type, (payload) => {
+    if (!semesterId) return;
+    if ('semesterId' in payload && payload.semesterId !== semesterId) return;
+    handler(payload);
+  });
 };

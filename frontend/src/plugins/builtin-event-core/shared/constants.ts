@@ -48,3 +48,16 @@ export const SCHEDULE_MAX_PARALLEL_REQUESTS = 6;
 
 export const EVENT_BUS_DEFAULT_DEBOUNCE_MS = 120;
 export const EVENT_BUS_DEFAULT_DEDUPE_WINDOW_MS = 180;
+
+export const TIMETABLE_REFRESH_REASONS = {
+  COURSE_UPDATED: 'course-updated',
+  EVENT_UPDATED: 'event-updated',
+  EVENTS_UPDATED: 'events-updated',
+  EVENT_TYPE_CREATED: 'event-type-created',
+  EVENT_TYPE_UPDATED: 'event-type-updated',
+  EVENT_TYPE_DELETED: 'event-type-deleted',
+  SECTION_CREATED: 'section-created',
+  SECTION_UPDATED: 'section-updated',
+  SECTION_DELETED: 'section-deleted',
+  GRADEBOOK_ASSESSMENTS_UPDATED: 'gradebook-assessments-updated',
+} as const;

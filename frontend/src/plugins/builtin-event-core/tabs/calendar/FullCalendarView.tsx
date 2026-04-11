@@ -33,6 +33,8 @@ import {
 } from '../../shared/utils';
 import { CalendarEventContent } from './components/CalendarEventContent';
 
+const FULLCALENDAR_PLUGINS = [dayGridPlugin, timeGridPlugin, interactionPlugin] as const;
+
 interface FullCalendarViewProps {
   events: CalendarEventData[];
   week: number;
@@ -227,14 +229,11 @@ export const CalendarFullCalendarSurface: React.FC<CalendarFullCalendarSurfacePr
   onToggleTodoCompleted,
 }) => {
   const calendarContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const fullCalendarRef = React.useRef<FullCalendar | null>(null);
   const safeWeekViewDayCount = Math.max(1, Math.floor(weekViewDayCount));
   const visibleDayColumns = showWeekends ? 7 : 5;
   const weekViewMinWidthPercent = Math.max(100, (visibleDayColumns / safeWeekViewDayCount) * 100);
   const currentView = viewMode === 'month' ? 'dayGridMonth' : 'timeGridWeek';
-  const calendarKey = React.useMemo(
-    () => `${currentView}:${currentDate.toISOString().slice(0, 10)}`,
-    [currentDate, currentView],
-  );
   const calendarEvents = React.useMemo(
     () => buildCalendarEvents(events, highlightConflicts),
     [events, highlightConflicts],
@@ -255,6 +254,37 @@ export const CalendarFullCalendarSurface: React.FC<CalendarFullCalendarSurfacePr
   }, [onEventClick]);
 
   React.useEffect(() => {
+    const calendarApi = fullCalendarRef.current?.getApi();
+    if (!calendarApi) return;
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      const latestApi = fullCalendarRef.current?.getApi();
+      if (!latestApi) return;
+
+      if (latestApi.view.type !== currentView) {
+        latestApi.changeView(currentView, currentDate);
+        return;
+      }
+
+      const renderedDate = latestApi.getDate();
+      if (
+        renderedDate.getFullYear() !== currentDate.getFullYear()
+        || renderedDate.getMonth() !== currentDate.getMonth()
+        || renderedDate.getDate() !== currentDate.getDate()
+      ) {
+        latestApi.gotoDate(currentDate);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentDate, currentView]);
+
+  React.useEffect(() => {
     if (mode !== 'interactive' || viewMode !== 'week') return;
 
     const syncNowIndicatorLabel = () => {
@@ -273,7 +303,7 @@ export const CalendarFullCalendarSurface: React.FC<CalendarFullCalendarSurfacePr
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [calendarKey, mode, viewMode]);
+  }, [currentDate, mode, viewMode]);
 
   return (
     <div
@@ -292,8 +322,8 @@ export const CalendarFullCalendarSurface: React.FC<CalendarFullCalendarSurfacePr
         style={viewMode === 'week' ? { minWidth: `${weekViewMinWidthPercent}%` } : undefined}
       >
         <FullCalendar
-          key={calendarKey}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          ref={fullCalendarRef}
+          plugins={[...FULLCALENDAR_PLUGINS]}
           initialView={currentView}
           initialDate={currentDate}
           headerToolbar={false}

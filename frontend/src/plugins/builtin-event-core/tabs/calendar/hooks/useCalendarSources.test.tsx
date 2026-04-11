@@ -8,18 +8,16 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { CalendarSourceContext, CalendarSourceDefinition } from '@/calendar-core';
+import type { CalendarSourceContext, CalendarSourceDefinition } from '../../../calendar-core';
 import { useCalendarSources } from './useCalendarSources';
 
 const calendarContext: CalendarSourceContext = {
-  semesterId: 'semester-1',
-  semesterRange: {
+  scopeId: 'semester-1',
+  scopeRange: {
     startDate: new Date('2026-03-02T00:00:00'),
     endDate: new Date('2026-06-30T00:00:00'),
-    readingWeekStart: null,
-    readingWeekEnd: null,
   },
-  maxWeek: 16,
+  maxPeriod: 16,
   queryRange: {
     start: new Date('2026-03-02T00:00:00'),
     end: new Date('2026-03-23T00:00:00'),
@@ -97,7 +95,7 @@ describe('useCalendarSources', () => {
       defaultColor: '#3b82f6',
       priority: 100,
       load: scheduleLoad,
-      shouldRefresh: (signal) => signal.type === 'timetable' && signal.reason === 'event-updated',
+      shouldRefresh: (signal) => signal.type === 'partial' && signal.tag === 'event-updated',
     };
     const todoSource: CalendarSourceDefinition = {
       id: 'owner:todo',
@@ -106,7 +104,7 @@ describe('useCalendarSources', () => {
       defaultColor: '#10b981',
       priority: 200,
       load: todoLoad,
-      shouldRefresh: (signal) => signal.type === 'timetable' && signal.reason === 'events-updated',
+      shouldRefresh: (signal) => signal.type === 'partial' && signal.tag === 'events-updated',
     };
 
     const sources = [scheduleSource, todoSource];
@@ -124,11 +122,10 @@ describe('useCalendarSources', () => {
 
     await act(async () => {
       await result.current.reloadMatchingSources({
-        type: 'timetable',
-        source: 'course',
-        reason: 'event-updated',
-        semesterId: 'semester-1',
-        courseId: 'course-1',
+        type: 'partial',
+        scopeId: 'semester-1',
+        entityId: 'course-1',
+        tag: 'event-updated',
       });
     });
 
@@ -137,10 +134,9 @@ describe('useCalendarSources', () => {
 
     await act(async () => {
       await result.current.reloadMatchingSources({
-        type: 'timetable',
-        source: 'semester',
-        reason: 'events-updated',
-        semesterId: 'semester-1',
+        type: 'partial',
+        scopeId: 'semester-1',
+        tag: 'events-updated',
       });
     });
 

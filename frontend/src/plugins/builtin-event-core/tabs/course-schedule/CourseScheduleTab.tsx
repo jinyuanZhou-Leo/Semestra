@@ -172,8 +172,8 @@ export const CourseScheduleTab: React.FC<{ courseId: string; semesterId?: string
   const eventsBySectionId = React.useMemo(() => groupCourseEventsBySection(events), [events]);
 
   const publishScheduleChange = React.useCallback(
-    async (reason: 'section-created' | 'section-updated' | 'section-deleted' | 'event-updated' | 'events-updated' | 'event-type-created') => {
-      await publishTimetableScheduleChange({
+    async (reason: string) => {
+      publishTimetableScheduleChange({
         source: 'course',
         reason,
         courseId,
