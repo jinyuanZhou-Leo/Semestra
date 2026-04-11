@@ -16,7 +16,7 @@ import { queryKeys } from '@/services/queryKeys';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { BUILTIN_TIMETABLE_TODAY_EVENTS_WIDGET_TYPE } from './shared/constants';
-import { useEventBus } from './shared/eventBus';
+import { useScopedEventBus } from './shared/eventBus';
 import { useScheduleData } from './shared/hooks/useScheduleData';
 import { getWeekFromSemesterDate, resolveSemesterDateRange } from './shared/utils';
 
@@ -109,9 +109,7 @@ const TodayEventsWidgetComponent: React.FC<WidgetProps> = ({ semesterId, courseI
       && !isLoadingSemesterRange,
   });
 
-  useEventBus('timetable:schedule-data-changed', (payload) => {
-    if (!resolvedSemesterId) return;
-    if (!payload.semesterId || payload.semesterId !== resolvedSemesterId) return;
+  useScopedEventBus('timetable:schedule-data-changed', resolvedSemesterId, (payload) => {
     if (courseId && payload.courseId !== courseId) return;
     void reload();
   });

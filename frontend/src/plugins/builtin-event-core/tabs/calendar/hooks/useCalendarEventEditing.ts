@@ -10,17 +10,17 @@
 import React from 'react';
 import { toast } from 'sonner';
 import type {
-  CalendarEventData,
   CalendarEventPatch,
   CalendarSourceContext,
   CalendarSourceDefinition,
-} from '@/calendar-core';
+} from '../../../calendar-core';
+import type { TimetableCalendarEvent } from '../../../shared/types';
 
 interface UseCalendarEventEditingOptions {
-  events: CalendarEventData[];
+  events: TimetableCalendarEvent[];
   sources: CalendarSourceDefinition[];
   context: CalendarSourceContext | null;
-  onSaveSuccess: (event: CalendarEventData) => Promise<void>;
+  onSaveSuccess: (event: TimetableCalendarEvent) => Promise<void>;
 }
 
 export const useCalendarEventEditing = ({
@@ -29,7 +29,7 @@ export const useCalendarEventEditing = ({
   context,
   onSaveSuccess,
 }: UseCalendarEventEditingOptions) => {
-  const [selectedEvent, setSelectedEvent] = React.useState<CalendarEventData | null>(null);
+  const [selectedEvent, setSelectedEvent] = React.useState<TimetableCalendarEvent | null>(null);
   const [selectedSourceLabel, setSelectedSourceLabel] = React.useState('Schedule');
   const [isSelectedEventEditable, setIsSelectedEventEditable] = React.useState(false);
   const [isEventEditorOpen, setIsEventEditorOpen] = React.useState(false);
@@ -40,7 +40,7 @@ export const useCalendarEventEditing = ({
     [sources],
   );
   const eventsById = React.useMemo(() => {
-    const map = new Map<string, CalendarEventData>();
+    const map = new Map<string, TimetableCalendarEvent>();
     for (const event of events) {
       if (!map.has(event.eventId)) {
         map.set(event.eventId, event);
@@ -63,7 +63,7 @@ export const useCalendarEventEditing = ({
     });
   }, [events, optimisticPatches]);
 
-  const handleEventClick = React.useCallback((event: CalendarEventData) => {
+  const handleEventClick = React.useCallback((event: TimetableCalendarEvent) => {
     const source = sourceById.get(event.sourceId);
     setSelectedEvent(event);
     setSelectedSourceLabel(source?.label ?? 'Calendar');

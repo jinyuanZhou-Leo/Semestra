@@ -28,7 +28,7 @@ import {
   FieldGroup,
   FieldSet,
 } from '@/components/ui/field';
-import { useCalendarSourceRegistry } from '@/calendar-core';
+import { useCalendarSourceRegistry } from '../../calendar-core';
 import {
   PluginSettingsBooleanField,
   PluginSettingsSelectField,

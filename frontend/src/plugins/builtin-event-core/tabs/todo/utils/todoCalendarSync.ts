@@ -7,22 +7,24 @@
 //    2. Update the INDEX.md of the folder this file belongs to
 
 import api from '@/services/api';
-import type { CalendarEventData } from '@/calendar-core';
 import { queryClient } from '@/services/queryClient';
 import { queryKeys } from '@/services/queryKeys';
 import { timetableEventBus } from '../../../shared/eventBus';
 import { publishTimetableScheduleChange } from '../../../shared/publishTimetableScheduleChange';
+import type { TimetableCalendarEvent } from '../../../shared/types';
 
 interface SyncCalendarTodoCompletionParams {
   semesterId: string;
-  event: CalendarEventData;
+  event: TimetableCalendarEvent;
   completed: boolean;
+  signalId?: string;
 }
 
 export const syncCalendarTodoCompletion = async ({
   semesterId,
   event,
   completed,
+  signalId,
 }: SyncCalendarTodoCompletionParams) => {
   if (event.sourceId !== 'builtin-event-core:todo' || !event.todoState) {
     throw new Error('Only todo calendar events can be toggled from Calendar.');
@@ -39,10 +41,11 @@ export const syncCalendarTodoCompletion = async ({
     courseId: toggledTask?.course_id || undefined,
     updatedAt: new Date().toISOString(),
   });
-  await publishTimetableScheduleChange({
+  publishTimetableScheduleChange({
     semesterId,
     source: toggledTask?.course_id ? 'course' : 'semester',
     courseId: toggledTask?.course_id || undefined,
     reason: 'events-updated',
+    signalId,
   });
 };

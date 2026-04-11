@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import api, { type TodoSemesterStateRecord } from '@/services/api';
 import { queryClient } from '@/services/queryClient';
 import { queryKeys } from '@/services/queryKeys';
-import type { CalendarEventData } from '@/calendar-core';
+import type { TimetableCalendarEvent } from '../../../shared/types';
 import { timetableEventBus } from '../../../shared/eventBus';
 import { syncCalendarTodoCompletion } from './todoCalendarSync';
 
@@ -40,7 +40,7 @@ const buildTodoStateRecord = (courseId: string | null): TodoSemesterStateRecord 
   course_options: courseId ? [{ id: courseId, name: 'Course 1', category: '', color: null }] : [],
 });
 
-const calendarTodoEvent: CalendarEventData = {
+const calendarTodoEvent: TimetableCalendarEvent = {
   id: 'todo:semester-1:task-1:2026-03-11:all-day',
   eventId: 'task-1',
   sourceId: 'builtin-event-core:todo',

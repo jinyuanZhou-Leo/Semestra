@@ -10,7 +10,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import api from '@/services/api';
-import type { SemesterDateRange } from '@/calendar-core';
+import type { SemesterDateRange } from '../../../shared/types';
 import { queryKeys } from '@/services/queryKeys';
 import { getWeekFromSemesterDate, resolveSemesterDateRange } from '../../../shared/utils';
 
