@@ -100,7 +100,7 @@ const cloneSetupField = (field: PluginDescriptorSetupFieldDefinition): PluginDes
   return {
     ...field,
     options,
-    summary_labels: { ...(field.summary_labels ?? {}) },
+    summary_labels: { ...field.summary_labels },
   };
 };
 

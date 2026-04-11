@@ -68,7 +68,7 @@ const clampPositiveInteger = (value: number, fallback: number) => {
 const runWithConcurrencyLimit = async <T,>(tasks: Array<() => Promise<T>>, maxParallelRequests: number) => {
   if (tasks.length === 0) return [] as T[];
 
-  const results: T[] = new Array(tasks.length);
+  const results: T[] = Array.from({ length: tasks.length });
   let cursor = 0;
 
   const worker = async () => {

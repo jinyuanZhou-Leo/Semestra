@@ -47,7 +47,7 @@ const toSetupFieldDefinition = (
     placeholder: field.placeholder ?? '',
     defaultValue: field.default_value ?? null,
     options: [...(field.options ?? [])],
-    summaryLabels: { ...(field.summary_labels ?? {}) },
+    summaryLabels: { ...field.summary_labels },
   };
 
   const fieldType = field.type === 'json' || field.type === 'select' || field.type === 'boolean'

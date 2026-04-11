@@ -100,7 +100,7 @@ const serializeSetupSchema = (schema: PluginDescriptorSetupSchema): PluginDescri
     fields: section.fields.map((field) => ({
       ...field,
       options: field.options?.map((option) => ({ ...option })),
-      summary_labels: { ...(field.summary_labels ?? {}) },
+      summary_labels: { ...field.summary_labels },
     })),
   })),
   validation_rules: [...(schema.validation_rules ?? [])],

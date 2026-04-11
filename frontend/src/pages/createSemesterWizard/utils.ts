@@ -161,8 +161,8 @@ export const getPluginReviewValues = (
   plugin: Pick<SemesterPluginActivation, "setup_values">,
   draftValues: Record<string, unknown> | undefined,
 ): Record<string, unknown> => ({
-  ...(plugin.setup_values ?? {}),
-  ...(draftValues ?? {}),
+  ...plugin.setup_values,
+  ...draftValues,
 });
 
 // ─── Plugin activation helpers ────────────────────────────────────────────────
@@ -253,7 +253,7 @@ export const buildSetupStepPlugin = (
   available: plugin.available,
   availability_reason: plugin.availability_reason ?? null,
   setup_sections: setupPayload?.setup_sections ?? plugin.setup_sections,
-  setup_values: { ...(setupPayload?.setup_values ?? plugin.setup_values ?? {}) },
+  setup_values: { ...(setupPayload?.setup_values ?? plugin.setup_values) },
   setup_summary: setupPayload?.setup_summary ?? plugin.setup_summary ?? [],
   review_errors: setupPayload?.review_errors ?? plugin.review_errors ?? [],
 });

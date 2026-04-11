@@ -36,7 +36,7 @@ export const IconCircle: React.FC<IconCircleProps> = ({
         ? React.cloneElement(icon, {
             className: cn(icon.props.className, "h-full w-full"),
             style: {
-                ...(icon.props.style ?? {}),
+                ...icon.props.style,
                 width: "100%",
                 height: "100%",
             },

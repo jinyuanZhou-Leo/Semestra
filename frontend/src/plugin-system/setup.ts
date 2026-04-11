@@ -458,7 +458,7 @@ export const serializePluginSetupDefinition = <TFields extends Record<string, Pl
                 description: field.description ?? "",
                 placeholder: field.placeholder ?? "",
                 options: cloneFieldOptions(field),
-                summary_labels: { ...(field.summaryLabels ?? {}) },
+                summary_labels: { ...field.summaryLabels },
             };
         }),
     })),

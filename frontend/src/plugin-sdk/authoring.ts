@@ -67,7 +67,7 @@ export const definePlugin = (definition: PluginDefinition): PluginDefinition => 
             fields: section.fields.map((field) => ({
               ...field,
               options: [...(field.options ?? [])],
-              summary_labels: { ...(field.summary_labels ?? {}) },
+              summary_labels: { ...field.summary_labels },
             })),
           })),
           validation_rules: [...(definition.setup.schema.validation_rules ?? [])],
@@ -113,7 +113,7 @@ export const defineSetup = (definition: PluginSetupUiDefinition): PluginSetupUiD
       fields: section.fields.map((field) => ({
         ...field,
         options: [...(field.options ?? [])],
-        summary_labels: { ...(field.summary_labels ?? {}) },
+        summary_labels: { ...field.summary_labels },
       })),
     })),
     validation_rules: [...(definition.schema.validation_rules ?? [])],

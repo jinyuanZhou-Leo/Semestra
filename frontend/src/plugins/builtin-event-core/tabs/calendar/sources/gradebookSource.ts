@@ -29,7 +29,7 @@ const runWithConcurrencyLimit = async <T,>(
 ) => {
   if (tasks.length === 0) return [] as T[];
 
-  const results: T[] = new Array(tasks.length);
+  const results: T[] = Array.from({ length: tasks.length });
   let cursor = 0;
 
   const worker = async () => {
