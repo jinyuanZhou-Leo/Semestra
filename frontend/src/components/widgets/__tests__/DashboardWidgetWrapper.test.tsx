@@ -102,4 +102,19 @@ describe('DashboardWidgetWrapper', () => {
 
         expect(onRemoveUnavailable).toHaveBeenCalledWith('widget-3');
     });
+
+    it('keeps showing the widget skeleton after load completion until the runtime component is registered', async () => {
+        vi.spyOn(pluginSystem, 'useWidgetPluginLoadState').mockReturnValue({ status: 'loaded', error: null });
+        vi.spyOn(pluginSystem, 'getWidgetComponentByType').mockReturnValue(undefined);
+
+        render(
+            <DashboardWidgetWrapper
+                widget={createWidget({ id: 'widget-4', type: 'runtime-widget' })}
+                onUpdateWidget={vi.fn().mockResolvedValue(undefined)}
+            />
+        );
+
+        expect(screen.getByTestId('plugin-widget-skeleton')).toBeInTheDocument();
+        expect(screen.queryByText('Widget Unavailable')).not.toBeInTheDocument();
+    });
 });

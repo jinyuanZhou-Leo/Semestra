@@ -16,6 +16,7 @@ import {
     type HeaderButtonContext,
     type WidgetUpdateData
 } from '../../services/widgetRegistry';
+import { useWidgetRegistry } from '../../services/widgetRegistry';
 import type { WidgetItem } from './DashboardGrid';
 import { Button } from '@/components/ui/button';
 import {
@@ -80,14 +81,21 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     updateCourse,
     isEditMode = false
 }) => {
+    const registeredWidgets = useWidgetRegistry();
     const loadState = useWidgetPluginLoadState(widget.type);
-    const WidgetComponent = getWidgetComponentByType(widget.type);
-    const widgetDefinition = getWidgetDefinitionByType(widget.type);
+    const WidgetComponent = React.useMemo(
+        () => getWidgetComponentByType(widget.type),
+        [registeredWidgets, widget.type]
+    );
+    const widgetDefinition = React.useMemo(
+        () => getWidgetDefinitionByType(widget.type),
+        [registeredWidgets, widget.type]
+    );
     const isKnownPluginType = hasWidgetPluginForType(widget.type);
     const isWidgetPluginPending =
         isKnownPluginType &&
         !WidgetComponent &&
-        (loadState.status === 'idle' || loadState.status === 'loading');
+        loadState.status !== 'error';
 
     React.useEffect(() => {
         if (WidgetComponent || !isKnownPluginType || loadState.status === 'loading' || loadState.status === 'error') {
