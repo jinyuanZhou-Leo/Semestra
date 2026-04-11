@@ -19,7 +19,7 @@ Build/test configs and scripts support local development, bundling, release meta
 | src/plugins/pomodoro/INDEX.md | Plugin architecture index | File map for Pomodoro timer widget plugin runtime, metadata, and tests. |
 | .env | Environment file | Local frontend environment variables for development. |
 | components.json | shadcn config | shadcn/ui registry and alias configuration. |
-| eslint.config.js | Lint config | ESLint ruleset for TypeScript + React hooks. |
+| .oxlintrc.json | Lint config | Oxlint ruleset for TypeScript + React hooks, with JS plugin coverage for the unsupported React Compiler hook rules. |
 | index.html | HTML entry | Root HTML template with pre-React loading fallback and the Semestra circular WebP favicon. |
 | package-lock.json | Dependency lockfile | Pinned npm dependency tree for reproducible installs, including the Vite 8 / plugin-react 6 / Vite DevTools toolchain. |
 | package.json | Package manifest | Frontend scripts, dependencies, and package metadata for the LMS integration/program/course management release, Program Dashboard course-edit deletion flow, Course Resources dialog/runtime fixes, TanStack Query-backed cache/mutation infrastructure, inline-first Apple Reminder-style Todo aggregate UX, Gradebook exact-weight plus point-entry support, split habit-streak dual-widget runtime, multi-instance support, homepage loading-shell behavior, lazy Canvas module-item fetching for large courses, the Vite 8 React Compiler plus split standard/DevTools build dependency chain, and the root-level `npm run dev:frontend` delegation target. |
