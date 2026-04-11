@@ -243,6 +243,48 @@ class GradebookServiceTests(unittest.TestCase):
         self.assertEqual(updated.target_gpa, 3.7)
         self.assertEqual(updated.forecast_model, schemas.GradebookForecastModel.SIMPLE_MINIMUM_NEEDED)
 
+    def test_semester_gradebook_aggregates_due_date_assessments_with_range_filter(self) -> None:
+        payload = self._payload()
+        category_id = payload.categories[0].id
+
+        gradebook.create_assessment(
+            self.db,
+            self.course_id,
+            schemas.GradebookAssessmentCreate(
+                category_id=category_id,
+                title="Inside Window",
+                due_date=date(2026, 2, 15),
+                weight=20.0,
+                score=88.0,
+            ),
+        )
+        gradebook.create_assessment(
+            self.db,
+            self.course_id,
+            schemas.GradebookAssessmentCreate(
+                category_id=category_id,
+                title="Outside Window",
+                due_date=date(2026, 4, 10),
+                weight=20.0,
+                score=91.0,
+            ),
+        )
+
+        semester = self.db.query(models.Semester).first()
+        assert semester is not None
+
+        aggregated = gradebook.get_semester_gradebook_payload(
+            self.db,
+            semester.id,
+            due_start=date(2026, 2, 1),
+            due_end=date(2026, 3, 1),
+        )
+
+        self.assertEqual(aggregated.semester_id, semester.id)
+        self.assertEqual([assessment.title for assessment in aggregated.assessments], ["Inside Window"])
+        self.assertEqual(aggregated.assessments[0].course_id, self.course_id)
+        self.assertEqual(aggregated.assessments[0].course_name, "MIE100")
+
     def test_custom_hex_category_color_is_preserved(self) -> None:
         created = gradebook.create_category(
             self.db,

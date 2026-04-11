@@ -9,6 +9,11 @@
 export const semesterKeys = {
   all: ['semesters'] as const,
   detail: (semesterId: string) => ['semesters', 'detail', semesterId] as const,
+  gradebook: (semesterId: string, params?: Record<string, unknown>) => (
+    params
+      ? ['semesters', semesterId, 'gradebook', params] as const
+      : ['semesters', semesterId, 'gradebook'] as const
+  ),
   tabSettings: (semesterId: string) => ['semesters', semesterId, 'tab-settings'] as const,
   pluginActivations: (semesterId: string) => ['semesters', semesterId, 'plugin-activations'] as const,
   pluginSystemSetup: (semesterId: string) => ['plugin-system', 'semesters', semesterId, 'setup'] as const,

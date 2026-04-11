@@ -378,6 +378,26 @@ def read_semester(
     return _serialize_semester_detail_payload(db, semester)
 
 
+@router.get("/semesters/{semester_id}/gradebook", response_model=schemas.SemesterGradebook)
+def read_semester_gradebook(
+    semester_id: str,
+    due_start: Optional[date] = Query(default=None),
+    due_end: Optional[date] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    get_owned_semester(db, current_user, semester_id)
+    try:
+        return gradebook.get_semester_gradebook_payload(
+            db,
+            semester_id,
+            due_start=due_start,
+            due_end=due_end,
+        )
+    except Exception as exc:
+        raise_gradebook_http_error(exc)
+
+
 @router.get("/semesters/{semester_id}/lms/assignments", response_model=schemas.LmsAssignmentListResponse)
 def read_semester_lms_assignments(
     semester_id: str,

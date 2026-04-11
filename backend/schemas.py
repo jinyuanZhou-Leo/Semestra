@@ -1106,6 +1106,26 @@ class GradebookAssessmentReorderRequest(BaseModel):
     assessment_ids: List[str]
 
 
+class SemesterGradebookAssessment(BaseModel):
+    id: str
+    course_id: str
+    course_name: str
+    category_id: Optional[str] = None
+    title: str
+    due_date: Optional[date] = None
+    weight: float
+    score: Optional[float] = None
+    points_earned: Optional[float] = None
+    points_possible: Optional[float] = None
+    order_index: int
+    gradebook_revision: int = 0
+
+
+class SemesterGradebook(BaseModel):
+    semester_id: str
+    assessments: List[SemesterGradebookAssessment] = []
+
+
 # --- Semester Schemas ---
 SemesterLifecycleState = Literal["draft", "active", "abandoned"]
 SemesterDraftStep = Literal["basics", "courses", "plugins", "plugin-setup", "review"]

@@ -47,7 +47,8 @@ describe('AddWidgetModal', () => {
       />,
     );
 
-    expect(screen.getByText('No widgets available for this dashboard.')).toBeInTheDocument();
+    expect(screen.getByText('No widgets available')).toBeInTheDocument();
+    expect(screen.getByText('This dashboard does not have any widgets available to add right now.')).toBeInTheDocument();
     expect(screen.queryByText('Counter')).not.toBeInTheDocument();
     expect(screen.queryByText('World Clock')).not.toBeInTheDocument();
   });

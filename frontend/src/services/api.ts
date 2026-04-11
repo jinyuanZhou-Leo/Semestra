@@ -773,6 +773,17 @@ export interface CourseGradebook {
     assessments: GradebookAssessment[];
 }
 
+export interface SemesterGradebookAssessment extends GradebookAssessment {
+    course_id: string;
+    course_name: string;
+    gradebook_revision: number;
+}
+
+export interface SemesterGradebook {
+    semester_id: string;
+    assessments: SemesterGradebookAssessment[];
+}
+
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
 const dedupeGet = async <T>(key: string, fetcher: () => Promise<T>): Promise<T> => {
@@ -1382,6 +1393,17 @@ const api = {
         return normalizeTabSetting(response.data);
     },
     // Gradebook
+    getSemesterGradebook: async (
+        semesterId: string,
+        params?: { due_start?: string; due_end?: string }
+    ) => {
+        const query = stableStringify(params);
+        const suffix = query ? `?${query}` : '';
+        return dedupeGet(`GET:/api/semesters/${semesterId}/gradebook${suffix}`, async () => {
+            const response = await axios.get<SemesterGradebook>(`/api/semesters/${semesterId}/gradebook`, { params });
+            return response.data;
+        });
+    },
     getCourseGradebook: async (courseId: string) => {
         return dedupeGet(`GET:/api/courses/${courseId}/gradebook`, async () => {
             const response = await axios.get<CourseGradebook>(`/api/courses/${courseId}/gradebook`);

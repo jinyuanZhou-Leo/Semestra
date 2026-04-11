@@ -14,6 +14,7 @@ import math
 import re
 from typing import Any, Optional
 
+from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
 import logic
@@ -337,6 +338,68 @@ def get_course_gradebook_payload(db: Session, course_id: str) -> schemas.CourseG
     db.commit()
     db.refresh(gradebook)
     return payload
+
+
+def get_semester_gradebook_payload(
+    db: Session,
+    semester_id: str,
+    *,
+    due_start: Optional[date] = None,
+    due_end: Optional[date] = None,
+) -> schemas.SemesterGradebook:
+    semester = db.query(models.Semester).filter(models.Semester.id == semester_id).first()
+    if semester is None:
+        raise GradebookNotFoundError("Semester not found.")
+
+    filters = [
+        models.Course.semester_id == semester_id,
+        models.GradebookAssessment.gradebook_id == models.CourseGradebook.id,
+        models.CourseGradebook.course_id == models.Course.id,
+    ]
+    if due_start is not None:
+        filters.append(models.GradebookAssessment.due_date >= due_start)
+    if due_end is not None:
+        filters.append(models.GradebookAssessment.due_date <= due_end)
+
+    assessment_rows = (
+        db.query(
+            models.GradebookAssessment,
+            models.Course.id,
+            models.Course.name,
+            models.CourseGradebook.revision,
+        )
+        .join(models.CourseGradebook, models.GradebookAssessment.gradebook_id == models.CourseGradebook.id)
+        .join(models.Course, models.CourseGradebook.course_id == models.Course.id)
+        .filter(and_(*filters))
+        .order_by(
+            models.GradebookAssessment.due_date.asc().nulls_last(),
+            models.Course.name.asc(),
+            models.GradebookAssessment.order_index.asc(),
+            models.GradebookAssessment.created_at.asc(),
+        )
+        .all()
+    )
+
+    return schemas.SemesterGradebook(
+        semester_id=semester_id,
+        assessments=[
+            schemas.SemesterGradebookAssessment(
+                id=assessment.id,
+                course_id=course_id,
+                course_name=course_name,
+                category_id=assessment.category_id,
+                title=assessment.title,
+                due_date=assessment.due_date,
+                weight=float(assessment.weight),
+                score=float(assessment.score) if assessment.score is not None else None,
+                points_earned=float(assessment.points_earned) if assessment.points_earned is not None else None,
+                points_possible=float(assessment.points_possible) if assessment.points_possible is not None else None,
+                order_index=int(assessment.order_index),
+                gradebook_revision=int(revision or 0),
+            )
+            for assessment, course_id, course_name, revision in assessment_rows
+        ],
+    )
 
 
 def update_preferences(

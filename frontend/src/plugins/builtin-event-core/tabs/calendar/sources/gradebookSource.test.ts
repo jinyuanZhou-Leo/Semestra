@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '@/services/api';
 import { queryClient } from '@/services/queryClient';
 import { queryKeys } from '@/services/queryKeys';
@@ -16,8 +16,7 @@ import { BUILTIN_CALENDAR_SOURCE_GRADEBOOK } from '../../../shared/constants';
 
 vi.mock('@/services/api', () => ({
   default: {
-    getSemester: vi.fn(),
-    getCourseGradebook: vi.fn(),
+    getSemesterGradebook: vi.fn(),
   },
 }));
 
@@ -38,35 +37,19 @@ describe('createGradebookCalendarSource', () => {
     },
   };
 
+  beforeEach(() => {
+    queryClient.clear();
+    vi.clearAllMocks();
+  });
+
   it('maps only assessments with due dates into all-day calendar events', async () => {
-    vi.mocked(api.getSemester).mockResolvedValue({
-      id: 'semester-1',
-      name: 'Winter 2026',
-      average_scaled: 0,
-      average_percentage: 0,
-      courses: [
-        {
-          id: 'course-1',
-          name: 'Algorithms',
-          credits: 0.5,
-          grade_scaled: 0,
-          grade_percentage: 0,
-          program_id: 'program-1',
-          semester_id: 'semester-1',
-          has_gradebook: true,
-          gradebook_revision: 1,
-        },
-      ],
-    } as unknown as Awaited<ReturnType<typeof api.getSemester>>);
-    vi.mocked(api.getCourseGradebook).mockResolvedValue({
-      course_id: 'course-1',
-      target_gpa: 4,
-      forecast_model: 'auto',
-      scaling_table: {},
-      categories: [],
+    vi.mocked(api.getSemesterGradebook).mockResolvedValue({
+      semester_id: 'semester-1',
       assessments: [
         {
           id: 'assessment-1',
+          course_id: 'course-1',
+          course_name: 'Algorithms',
           category_id: null,
           title: 'Midterm',
           due_date: '2026-02-14',
@@ -75,10 +58,13 @@ describe('createGradebookCalendarSource', () => {
           points_earned: null,
           points_possible: null,
           order_index: 0,
+          gradebook_revision: 1,
         },
         {
           id: 'assessment-2',
           category_id: null,
+          course_id: 'course-1',
+          course_name: 'Algorithms',
           title: 'Participation',
           due_date: null,
           weight: 10,
@@ -86,6 +72,7 @@ describe('createGradebookCalendarSource', () => {
           points_earned: null,
           points_possible: null,
           order_index: 1,
+          gradebook_revision: 1,
         },
       ],
     });
@@ -111,6 +98,10 @@ describe('createGradebookCalendarSource', () => {
     expect(events[0]?.end.getFullYear()).toBe(2026);
     expect(events[0]?.end.getMonth()).toBe(1);
     expect(events[0]?.end.getDate()).toBe(15);
+    expect(api.getSemesterGradebook).toHaveBeenCalledWith('semester-1', {
+      due_start: '2026-01-05',
+      due_end: '2026-05-07',
+    });
   });
 
   it('refreshes on gradebook assessment updates but ignores other course-local event changes', () => {
