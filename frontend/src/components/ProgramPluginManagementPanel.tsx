@@ -37,7 +37,7 @@ import api, { type ProgramPluginInstallation } from "../services/api";
 import { DataTable, DataTableActionMenu } from "./DataTable";
 import { IconCircle } from "./IconCircle";
 import { PluginDetailsView } from "./PluginDetailsView";
-import { PluginMarketplaceDialog } from "./PluginMarketplaceDialog";
+import { PluginMarketplaceDialog, type PluginMarketplaceItem } from "./PluginMarketplaceDialog";
 import { ResponsiveDialogDrawer } from "./ResponsiveDialogDrawer";
 import { SettingsSection } from "./SettingsSection";
 
@@ -86,8 +86,8 @@ export const ProgramPluginManagementPanel: React.FC<ProgramPluginManagementPanel
     [bulkToggleCandidates],
   );
   const areAllBulkToggleCandidatesEnabled = bulkToggleCandidates.length > 0 && bulkToggleCandidates.every((plugin) => plugin.is_enabled);
-  const marketplaceDialogItems = useMemo(
-    () => (pluginCatalogQuery.data ?? []).map((plugin) => ({
+  const marketplaceDialogItems = useMemo<PluginMarketplaceItem[]>(
+    () => (pluginCatalogQuery.data ?? []).map((plugin): PluginMarketplaceItem => ({
       pluginId: plugin.plugin_id,
       displayName: plugin.display_name,
       description: plugin.description,
