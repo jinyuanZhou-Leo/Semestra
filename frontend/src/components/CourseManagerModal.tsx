@@ -8,7 +8,9 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppEmptyState } from '@/components/AppEmptyState';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDialog } from '../contexts/DialogContext';
 import { Plus, Search, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getCourseCategoryBadgeClassName } from '@/utils/courseCategoryBadge';
 import { formatGpaPercentage } from '@/utils/percentage';
 import { ResponsiveDialogDrawer } from './ResponsiveDialogDrawer';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -480,14 +483,16 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                 <TabsContent value="list" className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     {semesterId ? (
                         <div className="flex h-full min-h-0 flex-col overflow-hidden">
-                            <div className="relative flex-none">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    value={existingCourseSearchQuery}
-                                    onChange={(event) => setExistingCourseSearchQuery(event.target.value)}
-                                    placeholder="Search existing courses..."
-                                    className="pl-9"
-                                />
+                            <div className="flex-none px-1.5 pt-1.5">
+                                <div className="relative">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        value={existingCourseSearchQuery}
+                                        onChange={(event) => setExistingCourseSearchQuery(event.target.value)}
+                                        placeholder="Search existing courses..."
+                                        className="pl-9"
+                                    />
+                                </div>
                             </div>
                             <Separator className="my-4" />
                             <div className="min-h-0 min-w-0 flex-1">
@@ -517,42 +522,49 @@ export const CourseManagerModal: React.FC<CourseManagerModalProps> = ({
                                     />
                                 ) : (
                                     <ScrollArea className="h-full min-h-0 min-w-0">
-                                        <div className="w-full min-w-0 max-w-full pr-3">
+                                        <div className="grid w-full min-w-0 max-w-full gap-3 px-1.5 py-1 pr-4">
                                             {filteredUnassignedCourses.map(course => (
-                                                <div key={course.id} className={cn(
-                                                    "flex items-start justify-between gap-3 border-b border-border/70 py-4 transition-colors last:border-b-0",
-                                                    "hover:text-foreground"
-                                                )}>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="mb-1 truncate font-semibold">{course.name}</div>
-                                                        {course.alias && (
-                                                            <div className="mb-1 truncate text-xs text-muted-foreground">
-                                                                {course.alias}
+                                                <Card
+                                                    key={course.id}
+                                                    className="py-0 transition-colors hover:bg-accent/20"
+                                                    size="sm"
+                                                >
+                                                    <div className="flex items-start gap-3 px-4 py-3">
+                                                        <div className="min-w-0 flex-1 space-y-1.5">
+                                                            <div className="min-w-0">
+                                                                <div className="truncate text-sm font-medium text-foreground">{course.name}</div>
+                                                                {course.alias ? (
+                                                                    <div className="truncate text-xs text-muted-foreground">
+                                                                        {course.alias}
+                                                                    </div>
+                                                                ) : null}
                                                             </div>
-                                                        )}
-                                                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                                            <span className="flex items-center gap-1">
-                                                                <span className="opacity-70">Credits:</span> {course.credits}
-                                                            </span>
-                                                            <span className="flex items-center gap-1">
-                                                                <span className="opacity-70">Grade:</span> {formatGpaPercentage(course.grade_percentage)}
-                                                            </span>
-                                                            {course.category ? (
-                                                                <span className="flex items-center gap-1">
-                                                                    <span className="opacity-70">Category:</span> {course.category}
-                                                                </span>
-                                                            ) : null}
+                                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                                                                <span>Credits {course.credits}</span>
+                                                                <span aria-hidden="true" className="text-muted-foreground/50">•</span>
+                                                                <span>Grade {formatGpaPercentage(course.grade_percentage)}</span>
+                                                                {course.category ? (
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className={cn('h-5 border-0 px-1.5 text-[11px] font-medium', getCourseCategoryBadgeClassName(course.category))}
+                                                                    >
+                                                                        {course.category}
+                                                                    </Badge>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                        <div className="shrink-0">
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => handleAddExisting(course.id)}
+                                                            >
+                                                                Add
+                                                            </Button>
                                                         </div>
                                                     </div>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        onClick={() => handleAddExisting(course.id)}
-                                                        className="shrink-0"
-                                                    >
-                                                        Add
-                                                    </Button>
-                                                </div>
+                                                </Card>
                                             ))}
                                         </div>
                                     </ScrollArea>

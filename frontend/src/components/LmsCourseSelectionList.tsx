@@ -123,7 +123,7 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
 
   return (
     <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col gap-4', className)}>
-      <div className="grid flex-none gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
+      <div className="grid flex-none gap-3 px-1.5 pt-1.5 sm:grid-cols-[minmax(0,1fr)_9rem]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -180,7 +180,7 @@ export const LmsCourseSelectionList: React.FC<LmsCourseSelectionListProps> = ({
           </div>
         ) : (
           <ScrollArea className="h-full min-h-0 min-w-0">
-            <div className="grid min-w-0 grid-cols-1 gap-3 p-1 pr-4">
+            <div className="grid min-w-0 grid-cols-1 gap-3 px-1.5 py-1 pr-5">
               {filteredCourses.map((course) => {
                 const checked = selectedCourseIds.includes(course.external_id);
                 const disabledReason = disabledCourseReasons[course.external_id];

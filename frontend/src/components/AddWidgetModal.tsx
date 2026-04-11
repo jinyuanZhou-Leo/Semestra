@@ -8,6 +8,7 @@
 
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -124,12 +125,24 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
             {/* Widget List - Fixed Height */}
             <div className="flex-1 px-6 pb-4 min-h-0">
                 {availableWidgets.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-center text-muted-foreground">
-                        No widgets available for this dashboard.
+                    <div className="flex h-full items-center justify-center">
+                        <AppEmptyState
+                            scenario="unavailable"
+                            size="modal"
+                            surface="inherit"
+                            title="No widgets available"
+                            description="This dashboard does not have any widgets available to add right now."
+                        />
                     </div>
                 ) : filteredWidgets.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-center text-muted-foreground">
-                        No widgets match your search.
+                    <div className="flex h-full items-center justify-center">
+                        <AppEmptyState
+                            scenario="no-results"
+                            size="modal"
+                            surface="inherit"
+                            title="No matching widgets"
+                            description="Try a different keyword."
+                        />
                     </div>
                 ) : (
                     <ScrollArea className="h-full pr-3">
