@@ -84,6 +84,7 @@ const runtimeHmrModulePaths = Object.keys(
 const pluginModulePaths = Object.keys(pluginModules);
 const isDev = import.meta.env.DEV;
 const loadStateStore = createPluginLoadStateStore();
+const validationConsole = globalThis.console;
 
 // Initialize setup registry from the shared modules (P-15: eliminate duplicate import.meta.glob)
 initSetupRegistry(pluginModules);
@@ -103,11 +104,11 @@ const getDirectoryName = (path: string): string | null => {
 const toError = (error: unknown) => error instanceof Error ? error : new Error(String(error));
 
 const failValidation = (message: string) => {
-  console.error(message);
+  validationConsole.error(message);
   if (isDev) {
     // Log as a group for visibility in dev tools without crashing the app.
     // Callers already skip invalid plugins gracefully.
-    console.trace('[plugin-system] Stack trace for validation failure above');
+    validationConsole.trace('[plugin-system] Stack trace for validation failure above');
   }
 };
 

@@ -192,7 +192,7 @@ const CounterComponent: React.FC<WidgetProps> = ({ settings, updateSettings }) =
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
     const updateCount = useCallback(async (newCount: number) => {
-        await updateSettings(sanitizeCounterSettings({ ...settings, value: newCount }));
+        await updateSettings(sanitizeCounterSettings({ ...sanitizeCounterSettings(settings), value: newCount }));
     }, [settings, updateSettings]);
 
     const handleIncrement = useCallback(() => {

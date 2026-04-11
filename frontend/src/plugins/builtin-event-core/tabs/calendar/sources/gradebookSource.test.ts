@@ -53,7 +53,7 @@ describe('builtinGradebookCalendarSource', () => {
           gradebook_revision: 1,
         },
       ],
-    } as any);
+    } as unknown as Awaited<ReturnType<typeof api.getSemester>>);
     vi.mocked(api.getCourseGradebook).mockResolvedValue({
       course_id: 'course-1',
       target_gpa: 4,

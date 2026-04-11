@@ -155,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(normalizedUser);
             queryClient.setQueryData(userKeys.me(), normalizedUser);
         } catch (error) {
-            const responseStatus = (error as any).response?.status;
+            const responseStatus = axios.isAxiosError(error) ? error.response?.status : null;
             if (responseStatus === 401) {
                 clearSessionState();
             } else {

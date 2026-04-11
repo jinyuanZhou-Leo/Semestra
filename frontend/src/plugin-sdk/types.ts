@@ -78,13 +78,13 @@ export interface PluginHeaderButton {
   render: (context: PluginHeaderButtonContext, helpers: PluginHeaderButtonRenderHelpers) => ReactNode;
 }
 
-export interface PluginWidgetProps<S = any> {
+export interface PluginWidgetProps<S = unknown> {
   widgetId: string;
   settings: S;
   semesterId?: string;
   courseId?: string;
   updateSettings: (nextSettings: S) => void | Promise<void>;
-  updateCourse?: (updates: unknown) => void;
+  updateCourse?: (updates: Record<string, unknown>) => void;
 }
 
 export interface PluginWidgetLifecycleContext {
@@ -94,7 +94,7 @@ export interface PluginWidgetLifecycleContext {
   settings: unknown;
 }
 
-export interface PluginWidgetSettingsProps<S = any> {
+export interface PluginWidgetSettingsProps<S = unknown> {
   widgetId?: string;
   semesterId?: string;
   courseId?: string;
@@ -102,12 +102,20 @@ export interface PluginWidgetSettingsProps<S = any> {
   onSettingsChange: (nextSettings: S) => void;
 }
 
-export interface PluginWidgetDefinition {
+type PluginWidgetComponent<S = unknown> = {
+  bivarianceHack(props: PluginWidgetProps<S>): ReturnType<FC<PluginWidgetProps<S>>>;
+}['bivarianceHack'];
+
+type PluginWidgetSettingsComponent<S = unknown> = {
+  bivarianceHack(props: PluginWidgetSettingsProps<S>): ReturnType<FC<PluginWidgetSettingsProps<S>>>;
+}['bivarianceHack'];
+
+export interface PluginWidgetDefinition<S = unknown> {
   type: string;
-  component: FC<PluginWidgetProps>;
-  defaultSettings?: unknown;
+  component: PluginWidgetComponent<S>;
+  defaultSettings?: S;
   headerButtons?: PluginHeaderButton[];
-  SettingsComponent?: FC<PluginWidgetSettingsProps>;
+  SettingsComponent?: PluginWidgetSettingsComponent<S>;
   onCreate?: (context: PluginWidgetLifecycleContext) => Promise<void> | void;
   onDelete?: (context: PluginWidgetLifecycleContext) => Promise<void> | void;
 }

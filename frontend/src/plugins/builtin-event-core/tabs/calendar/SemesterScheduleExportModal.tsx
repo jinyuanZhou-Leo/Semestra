@@ -83,6 +83,31 @@ const downloadBlob = (blob: Blob, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (isRecord(error)) {
+    const response = error.response;
+    if (isRecord(response)) {
+      const data = response.data;
+      if (isRecord(data)) {
+        const detail = data.detail;
+        if (isRecord(detail) && typeof detail.message === 'string') {
+          return detail.message;
+        }
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 const waitForNextFrame = () => new Promise<void>((resolve) => {
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => resolve());
@@ -219,8 +244,8 @@ export const SemesterScheduleExportModal: React.FC<SemesterScheduleExportModalPr
 
       toast.success(`Exported ${exportData.itemCount ?? dedupedItems.length} items as ${format.toUpperCase()}.`);
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? `Failed to export ${format}.`);
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, `Failed to export ${format}.`));
     } finally {
       flushSync(() => {
         setExportRenderJob(null);

@@ -8,7 +8,13 @@
 
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { HeaderButtonContext, WidgetDefinition, WidgetProps, WidgetSettingsProps } from '@/plugin-system';
+import type {
+    HeaderButtonContext,
+    HeaderConfirmActionButtonProps,
+    WidgetDefinition,
+    WidgetProps,
+    WidgetSettingsProps,
+} from '@/plugin-system';
 import { Button } from '@/components/ui/button';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { Input } from '@/components/ui/input';
@@ -876,7 +882,7 @@ const createResetHeaderButton = <TSettings extends HabitStreakSettings>(
     normalizeSettings: (settings: unknown) => TSettings
 ) => ({
     id: 'reset-streak',
-    render: ({ widgetId, settings: rawSettings, updateSettings }: HeaderButtonContext, { ConfirmActionButton }: { ConfirmActionButton: React.FC<any> }) => (
+    render: ({ widgetId, settings: rawSettings, updateSettings }: HeaderButtonContext, { ConfirmActionButton }: { ConfirmActionButton: React.FC<HeaderConfirmActionButtonProps> }) => (
         <ConfirmActionButton
             title="Reset streak"
             icon={<RotateCcw className="h-4 w-4" />}
@@ -896,8 +902,8 @@ const createResetHeaderButton = <TSettings extends HabitStreakSettings>(
 
 export const HabitStreakDuolingoWidgetDefinition: WidgetDefinition = {
     type: DUOLINGO_WIDGET_TYPE,
-    component: HabitStreakDuolingoWidget,
-    SettingsComponent: HabitStreakDuolingoSettingsComponent,
+    component: HabitStreakDuolingoWidget as WidgetDefinition['component'],
+    SettingsComponent: HabitStreakDuolingoSettingsComponent as WidgetDefinition['SettingsComponent'],
     defaultSettings: DEFAULT_HABIT_STREAK_DUOLINGO_SETTINGS,
     headerButtons: [createResetHeaderButton(normalizeHabitStreakDuolingoSettings)],
     onDelete: ({ widgetId }) => {
@@ -907,8 +913,8 @@ export const HabitStreakDuolingoWidgetDefinition: WidgetDefinition = {
 
 export const HabitStreakRingWidgetDefinition: WidgetDefinition = {
     type: RING_WIDGET_TYPE,
-    component: HabitStreakRingWidget,
-    SettingsComponent: HabitStreakRingSettingsComponent,
+    component: HabitStreakRingWidget as WidgetDefinition['component'],
+    SettingsComponent: HabitStreakRingSettingsComponent as WidgetDefinition['SettingsComponent'],
     defaultSettings: DEFAULT_HABIT_STREAK_RING_SETTINGS,
     headerButtons: [createResetHeaderButton(normalizeHabitStreakRingSettings)],
     onDelete: ({ widgetId }) => {

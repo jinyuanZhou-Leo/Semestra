@@ -75,6 +75,31 @@ const BLOCKED_UPLOAD_EXTENSIONS = new Set([
     '.zsh',
 ]);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+    if (isRecord(error)) {
+        const response = error.response;
+        if (isRecord(response)) {
+            const data = response.data;
+            if (isRecord(data)) {
+                const detail = data.detail;
+                if (isRecord(detail) && typeof detail.message === 'string') {
+                    return detail.message;
+                }
+            }
+        }
+    }
+
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+
+    return fallback;
+}
+
 function getUploadButtonLabel(pendingFileCount: number, isUploading: boolean): string {
     if (isUploading) {
         return 'Uploading...';
@@ -244,8 +269,8 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
                 toast.error(response.failed_files[0]?.message || 'Some files could not be uploaded.');
             }
         },
-        onError: (error: any) => {
-            toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to upload course resources.');
+        onError: (error: unknown) => {
+            toast.error(extractErrorMessage(error, 'Failed to upload course resources.'));
         },
     });
 
@@ -260,8 +285,8 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
             setIsUploadDialogOpen(false);
             toast.success('URL saved.');
         },
-        onError: (error: any) => {
-            toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save URL.');
+        onError: (error: unknown) => {
+            toast.error(extractErrorMessage(error, 'Failed to save URL.'));
         },
     });
 
@@ -273,8 +298,8 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
             await queryClient.invalidateQueries({ queryKey: queryKeys.courses.resources(courseId!) });
             toast.success('Resource renamed.');
         },
-        onError: (error: any) => {
-            toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to rename resource.');
+        onError: (error: unknown) => {
+            toast.error(extractErrorMessage(error, 'Failed to rename resource.'));
         },
     });
 
@@ -285,8 +310,8 @@ const CourseResourcesTab: React.FC<TabProps> = ({ courseId }) => {
             setResourceToDelete(null);
             toast.success('Resource deleted.');
         },
-        onError: (error: any) => {
-            toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to delete resource.');
+        onError: (error: unknown) => {
+            toast.error(extractErrorMessage(error, 'Failed to delete resource.'));
         },
     });
 

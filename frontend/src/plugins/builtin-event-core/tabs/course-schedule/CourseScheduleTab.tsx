@@ -52,10 +52,25 @@ import { asChecked, extractLocationFromNote, getDayLabel, groupCourseEventsBySec
 const dayLabel = (value: number) => DAY_OF_WEEK_OPTIONS.find((item) => item.value === value)?.label ?? String(value);
 const resolveEventLocation = (event: CourseEvent, fallbackLocation?: string | null) => extractLocationFromNote(event.note) || fallbackLocation || '';
 
-function extractErrorMessage(err: unknown, fallback: string): string {
-  const detail = (err as any)?.response?.data?.detail?.message;
-  if (detail) return detail;
-  if (err instanceof Error) return err.message;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (isRecord(error)) {
+    const response = error.response;
+    if (isRecord(response)) {
+      const data = response.data;
+      if (isRecord(data)) {
+        const detail = data.detail;
+        if (isRecord(detail) && typeof detail.message === 'string') {
+          return detail.message;
+        }
+      }
+    }
+  }
+
+  if (error instanceof Error) return error.message;
   return fallback;
 }
 

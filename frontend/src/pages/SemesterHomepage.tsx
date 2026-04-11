@@ -180,7 +180,7 @@ const SemesterHomepageContent: React.FC = () => {
         onRefresh: refreshSemester
     });
 
-    const onUpdateWidgetInner = async (id: string, data: any) => {
+    const onUpdateWidgetInner = async (id: string, data: Parameters<typeof api.updateWidget>[1]) => {
         await handleUpdateWidget(id, data);
         if (editingWidget && editingWidget.id === id) {
             setEditingWidget(null);
@@ -450,10 +450,18 @@ const SemesterHomepageContent: React.FC = () => {
         );
     }, [activeTab, activeTabId, activeTabRuntimeInstance, semester, isActiveTabPluginLoading, activeTabLoadState.status]);
 
-    const handleUpdateSemester = useCallback(async (data: any) => {
+    const handleUpdateSemester = useCallback(async (
+        data: Parameters<NonNullable<React.ComponentProps<typeof SemesterSettingsPanel>['onSave']>>[0],
+    ) => {
         if (!semester) return;
         try {
-            await saveSemester(data);
+            await saveSemester({
+                name: data.name,
+                start_date: data.start_date ?? undefined,
+                end_date: data.end_date ?? undefined,
+                reading_week_start: data.reading_week_start ?? undefined,
+                reading_week_end: data.reading_week_end ?? undefined,
+            });
         } catch (error) {
             console.error("Failed to update semester", error);
         }
@@ -476,7 +484,7 @@ const SemesterHomepageContent: React.FC = () => {
             : removeProgramHomeItem(currentSettings, 'semester', semester.id);
         const nextTabSettings = replaceProgramHomeTabSetting(currentProgram.tab_settings, nextSettings);
 
-        setProgramDetailQueryData(queryClient, programId, (current: any) => (
+        setProgramDetailQueryData(queryClient, programId, (current) => (
             current ? { ...current, tab_settings: nextTabSettings } : current
         ));
 

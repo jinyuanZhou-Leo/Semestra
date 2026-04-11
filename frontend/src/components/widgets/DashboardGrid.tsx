@@ -16,6 +16,7 @@ import { AppEmptyState } from '../AppEmptyState';
 import { DashboardWidgetWrapper } from './DashboardWidgetWrapper';
 import { getResolvedWidgetLayoutByType } from '../../plugin-system';
 import { useTouchDevice } from '../../hooks/useTouchDevice';
+import type { WidgetUpdateData } from '../../services/widgetRegistry';
 import {
     normalizeLayoutX,
     normalizeLayoutY,
@@ -86,7 +87,7 @@ export interface WidgetItem {
     id: string;
     type: string;
     title: string;
-    settings?: any;
+    settings?: unknown;
     layout?: WidgetResponsiveLayout;
     is_removable?: boolean;
 }
@@ -102,12 +103,12 @@ interface DashboardGridProps {
     onRemoveWidget?: (id: string) => void;
     onRemoveUnavailableWidget?: (id: string) => void;
     /** For immediate updates (modals, delete, etc.) */
-    onUpdateWidget?: (id: string, newSettings: any) => Promise<void>;
+    onUpdateWidget?: (id: string, newSettings: WidgetUpdateData) => Promise<void>;
     /** For frequent updates (typing) - debounced by framework */
-    onUpdateWidgetDebounced?: (id: string, newSettings: any) => void;
+    onUpdateWidgetDebounced?: (id: string, newSettings: WidgetUpdateData) => void;
     semesterId?: string;
     courseId?: string;
-    updateCourse?: (updates: any) => void;
+    updateCourse?: (updates: Record<string, unknown>) => void;
     /** Enable widget edit mode for dragging/resizing and header actions */
     isEditMode?: boolean;
 }

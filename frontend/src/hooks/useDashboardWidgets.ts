@@ -14,6 +14,7 @@ import type {
     WidgetLayout,
     WidgetResponsiveLayout
 } from '../components/widgets/DashboardGrid';
+import type { WidgetUpdateData } from '../services/widgetRegistry';
 import type { Layout } from 'react-grid-layout';
 import api from '../services/api';
 import type { Widget } from '../services/api';
@@ -114,7 +115,7 @@ const sanitizeWidgetLayout = (
 };
 
 const toWidgetItem = (widget: Widget): WidgetItem => {
-    let parsedSettings = {};
+    let parsedSettings: unknown = {};
     let parsedLayout: WidgetResponsiveLayout | undefined;
     try {
         parsedSettings = JSON.parse(widget.settings || '{}');
@@ -151,7 +152,7 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
     const syncRetryKeysRef = useRef<Set<string>>(new Set());
     const widgetUpdateSeqRef = useRef<Map<string, number>>(new Map());
     const settingsSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-    const pendingSettingsRef = useRef<Map<string, any>>(new Map());
+    const pendingSettingsRef = useRef<Map<string, WidgetUpdateData>>(new Map());
     const layoutSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingLayoutsRef = useRef<Map<string, WidgetResponsiveLayout>>(new Map());
 
@@ -350,40 +351,30 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
         await removeWidget(id, { force: true });
     }, [removeWidget]);
 
-    const updateWidget = useCallback(async (id: string, data: any) => {
+    const updateWidget = useCallback(async (id: string, data: WidgetUpdateData) => {
         const contextVersion = contextVersionRef.current;
         const nextSeq = (widgetUpdateSeqRef.current.get(id) ?? 0) + 1;
         widgetUpdateSeqRef.current.set(id, nextSeq);
+        const parsePayload = (value: string | Record<string, unknown> | undefined) => {
+            if (typeof value === 'string') {
+                try {
+                    return JSON.parse(value);
+                } catch (e) {
+                    console.error('Error parsing widget payload for optimistic update', e);
+                    return undefined;
+                }
+            }
+            return value;
+        };
         // Optimistic update
         setWidgets(prev => prev.map(w => {
             if (w.id === id) {
-                if (data.settings) {
-                    // Check if data.settings is string or object. 
-                    // API typically takes string, but frontend state wants object.
-                    // The handler usually passes what API needs, so let's handle both or clarify.
-                    // Typically local state wants the object version.
-
-                    let newSettings = w.settings;
-                    if (typeof data.settings === 'string') {
-                        try {
-                            newSettings = JSON.parse(data.settings);
-                        } catch (e) { console.error("Error parsing settings for optimistic update", e) }
-                    } else {
-                        newSettings = data.settings;
-                    }
-
+                if (data.settings !== undefined) {
+                    const newSettings = parsePayload(data.settings);
                     return { ...w, settings: newSettings };
                 }
-                // Handle layout updates which might come as part of data but often separate?
-                // The `data` here is what we send to API: { settings: string } or { layout_config: string }
-                if (data.layout_config) {
-                    let newLayout = w.layout;
-                    if (typeof data.layout_config === 'string') {
-                        try {
-                            const parsedLayout = JSON.parse(data.layout_config);
-                            newLayout = normalizeResponsiveLayout(parsedLayout);
-                        } catch (e) { console.error("Error parsing layout for optimistic update", e) }
-                    }
+                if (data.layout_config !== undefined) {
+                    const newLayout = normalizeResponsiveLayout(parsePayload(data.layout_config));
                     return { ...w, layout: newLayout }
                 }
 
@@ -496,19 +487,21 @@ export const useDashboardWidgets = ({ courseId, semesterId, initialWidgets, onRe
      * OPTIMISTIC UI: Local state updates immediately, API sync is debounced
      * Plugin developers don't need to implement debouncing themselves
      */
-    const updateWidgetDebounced = useCallback((id: string, data: any) => {
+    const updateWidgetDebounced = useCallback((id: string, data: WidgetUpdateData) => {
     // OPTIMISTIC UI: Update local state immediately
         setWidgets(prev => prev.map(w => {
             if (w.id === id) {
-                if (data.settings) {
-                    let newSettings = w.settings;
-                    if (typeof data.settings === 'string') {
-                        try {
-                            newSettings = JSON.parse(data.settings);
-                        } catch (e) { console.error("Error parsing settings for optimistic update", e) }
-                    } else {
-                        newSettings = data.settings;
-                    }
+                if (data.settings !== undefined) {
+                    const newSettings = typeof data.settings === 'string'
+                        ? (() => {
+                            try {
+                                return JSON.parse(data.settings);
+                            } catch (e) {
+                                console.error('Error parsing settings for optimistic update', e);
+                                return undefined;
+                            }
+                        })()
+                        : data.settings;
                     return { ...w, settings: newSettings };
                 }
                 return { ...w, ...data };

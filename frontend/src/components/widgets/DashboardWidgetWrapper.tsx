@@ -13,7 +13,8 @@ import {
     type HeaderActionButtonProps,
     type HeaderButtonRenderHelpers,
     type HeaderConfirmActionButtonProps,
-    type HeaderButtonContext
+    type HeaderButtonContext,
+    type WidgetUpdateData
 } from '../../services/widgetRegistry';
 import type { WidgetItem } from './DashboardGrid';
 import { Button } from '@/components/ui/button';
@@ -48,12 +49,12 @@ interface DashboardWidgetWrapperProps {
     onRemoveUnavailable?: (id: string) => void;
     onEdit?: (widget: WidgetItem) => void;
     /** For immediate updates (modals, etc.) */
-    onUpdateWidget: (id: string, newSettings: any) => Promise<void>;
+    onUpdateWidget: (id: string, newSettings: WidgetUpdateData) => Promise<void>;
     /** For frequent updates (typing) - debounced by framework */
-    onUpdateWidgetDebounced?: (id: string, newSettings: any) => void;
+    onUpdateWidgetDebounced?: (id: string, newSettings: WidgetUpdateData) => void;
     semesterId?: string;
     courseId?: string;
-    updateCourse?: (updates: any) => void;
+    updateCourse?: (updates: Record<string, unknown>) => void;
     /** Enable widget edit mode for dragging/resizing and header actions */
     isEditMode?: boolean;
 }
@@ -103,7 +104,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
      * updateSettings for plugins - uses debounced update by default
      * This is the function passed to plugins - they just call it and framework handles debouncing
      */
-    const handleUpdateSettings = useCallback((newSettings: any) => {
+    const handleUpdateSettings = useCallback((newSettings: unknown) => {
         const settingsData = { settings: JSON.stringify(newSettings) };
 
         if (onUpdateWidgetDebounced) {

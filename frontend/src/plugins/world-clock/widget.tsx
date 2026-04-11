@@ -32,18 +32,36 @@ const AVAILABLE_TIMEZONES = [
     { value: 'Asia/Shanghai', label: 'Shanghai' },
 ];
 
+interface WorldClockSettings {
+    timezone: string;
+    showSeconds: boolean;
+}
+
+const normalizeWorldClockSettings = (settings: unknown): WorldClockSettings => {
+    if (!settings || typeof settings !== 'object') {
+        return { timezone: 'UTC', showSeconds: true };
+    }
+
+    const record = settings as Partial<WorldClockSettings>;
+    return {
+        timezone: typeof record.timezone === 'string' && record.timezone.length > 0 ? record.timezone : 'UTC',
+        showSeconds: typeof record.showSeconds === 'boolean' ? record.showSeconds : true,
+    };
+};
+
 /**
  * WorldClock Settings Component
  */
 const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, onSettingsChange }) => {
-    const showSeconds = settings?.showSeconds ?? true;
+    const normalizedSettings = normalizeWorldClockSettings(settings);
+    const showSeconds = normalizedSettings.showSeconds;
 
     return (
         <div className="grid gap-4">
             <div className="grid gap-2">
                 <Label htmlFor="world-clock-timezone">Timezone</Label>
-                <Select value={settings?.timezone || 'UTC'}
-                    onValueChange={(timezone) => onSettingsChange({ ...settings, timezone })}
+                <Select value={normalizedSettings.timezone}
+                    onValueChange={(timezone) => onSettingsChange({ ...normalizedSettings, timezone })}
                 >
                     <SelectTrigger id="world-clock-timezone" className="h-10 pr-8">
                         <SelectValue placeholder="Select timezone" />
@@ -69,7 +87,7 @@ const WorldClockSettingsComponent: React.FC<WidgetSettingsProps> = ({ settings, 
                     id="world-clock-show-seconds"
                     checked={showSeconds}
                     onCheckedChange={(checked) =>
-                        onSettingsChange({ ...settings, showSeconds: checked === true })
+                        onSettingsChange({ ...normalizedSettings, showSeconds: checked === true })
                     }
                 />
             </div>
@@ -91,8 +109,7 @@ const WorldClockComponent: React.FC<WidgetProps> = ({ settings }) => {
     }, []);
 
     // Default settings if not present
-    const timezone = settings?.timezone || 'UTC';
-    const showSeconds = settings?.showSeconds ?? true;
+    const { timezone, showSeconds } = normalizeWorldClockSettings(settings);
 
     useEffect(() => {
         setTime(new Date());

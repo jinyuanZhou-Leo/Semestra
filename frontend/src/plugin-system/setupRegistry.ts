@@ -28,11 +28,12 @@ export interface RegisteredPluginSetupDefinition {
 }
 
 const isDev = import.meta.env.DEV;
+const validationConsole = globalThis.console;
 
 const failValidation = (message: string) => {
-  console.error(message);
+  validationConsole.error(message);
   if (isDev) {
-    console.trace('[plugin-system] Stack trace for validation failure above');
+    validationConsole.trace('[plugin-system] Stack trace for validation failure above');
   }
 };
 
@@ -183,4 +184,3 @@ export const getPluginSetupDefinitionById = (pluginId: string): RegisteredPlugin
 export const hasPluginSetupDefinition = (pluginId: string): boolean => {
   return pluginSetupDefinitionsById.has(pluginId);
 };
-

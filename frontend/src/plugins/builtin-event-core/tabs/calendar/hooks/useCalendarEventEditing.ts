@@ -71,6 +71,30 @@ export const useCalendarEventEditing = ({
     setIsEventEditorOpen(true);
   }, [sourceById]);
 
+  const extractErrorMessage = React.useCallback((error: unknown, fallback: string) => {
+    if (typeof error === 'object' && error !== null) {
+      const response = (error as Record<string, unknown>).response;
+      if (typeof response === 'object' && response !== null) {
+        const data = (response as Record<string, unknown>).data;
+        if (typeof data === 'object' && data !== null) {
+          const detail = (data as Record<string, unknown>).detail;
+          if (typeof detail === 'object' && detail !== null) {
+            const message = (detail as Record<string, unknown>).message;
+            if (typeof message === 'string') {
+              return message;
+            }
+          }
+        }
+      }
+    }
+
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+
+    return fallback;
+  }, []);
+
   const handleSaveEvent = React.useCallback(async (eventId: string, patch: CalendarEventPatch) => {
     if (!context) {
       toast.error('Semester context is required to update events.');
@@ -106,16 +130,16 @@ export const useCalendarEventEditing = ({
         next.delete(eventId);
         return next;
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       setOptimisticPatches((current) => {
         const next = new Map(current);
         next.delete(eventId);
         return next;
       });
-      toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to update event.');
+      toast.error(extractErrorMessage(error, 'Failed to update event.'));
       throw error;
     }
-  }, [context, eventsById, onSaveSuccess, sourceById]);
+  }, [context, eventsById, extractErrorMessage, onSaveSuccess, sourceById]);
 
   return {
     selectedEvent,

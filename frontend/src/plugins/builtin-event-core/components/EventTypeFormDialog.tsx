@@ -38,8 +38,33 @@ interface EventTypeFormDialogProps {
    * Optional error handler to extract field-specific errors from backend response
    * Returns an array of field errors, or null to fall back to generic toast
    */
-  parseError?: (error: any) => FieldError[] | null;
+  parseError?: (error: unknown) => FieldError[] | null;
   description?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (isRecord(error)) {
+    const response = error.response;
+    if (isRecord(response)) {
+      const data = response.data;
+      if (isRecord(data)) {
+        const detail = data.detail;
+        if (isRecord(detail) && typeof detail.message === 'string') {
+          return detail.message;
+        }
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 
@@ -58,10 +83,28 @@ const deriveAbbreviationFromCode = (code: string): string => {
 /**
  * Default error parser for EVENT_TYPE_DUPLICATE errors
  */
-const defaultErrorParser = (error: any): FieldError[] | null => {
-  const errorDetail = error?.response?.data?.detail;
-  if (errorDetail?.code === 'EVENT_TYPE_DUPLICATE') {
-    const message = errorDetail?.message || '';
+const defaultErrorParser = (error: unknown): FieldError[] | null => {
+  if (!isRecord(error)) {
+    return null;
+  }
+
+  const response = error.response;
+  if (!isRecord(response)) {
+    return null;
+  }
+
+  const data = response.data;
+  if (!isRecord(data)) {
+    return null;
+  }
+
+  const errorDetail = data.detail;
+  if (!isRecord(errorDetail)) {
+    return null;
+  }
+
+  if (errorDetail.code === 'EVENT_TYPE_DUPLICATE') {
+    const message = typeof errorDetail.message === 'string' ? errorDetail.message : '';
     const lowerMessage = message.toLowerCase();
     
     if (lowerMessage.includes('code') && !lowerMessage.includes('abbreviation')) {
@@ -115,7 +158,7 @@ export const EventTypeFormDialog: React.FC<EventTypeFormDialogProps> = ({
     try {
       await onSubmit(formData);
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       
       // Try to parse field-specific errors
@@ -130,15 +173,14 @@ export const EventTypeFormDialog: React.FC<EventTypeFormDialogProps> = ({
         setErrors(errorMap);
       } else {
         // Fall back to generic toast for other errors
-        const errorDetail = err?.response?.data?.detail;
-        toast.error(errorDetail?.message || err?.message || 'Failed to save event type.');
+        toast.error(extractErrorMessage(err, 'Failed to save event type.'));
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleFieldChange = (field: keyof EventTypeFormData, value: any) => {
+  const handleFieldChange = (field: keyof EventTypeFormData, value: string | boolean) => {
     // Clear error for this field when user starts typing
     setErrors((prev) => {
       const newErrors = { ...prev };

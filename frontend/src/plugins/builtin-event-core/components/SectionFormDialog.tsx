@@ -56,6 +56,31 @@ export type SectionSlotDraft = {
     location: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+    if (isRecord(error)) {
+        const response = error.response;
+        if (isRecord(response)) {
+            const data = response.data;
+            if (isRecord(data)) {
+                const detail = data.detail;
+                if (isRecord(detail) && typeof detail.message === 'string') {
+                    return detail.message;
+                }
+            }
+        }
+    }
+
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+
+    return fallback;
+}
+
 // --- Helpers ---
 
 export const slotId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -374,8 +399,8 @@ export const SectionFormDialog: React.FC<SectionFormDialogProps> = ({
             onOpenChange(false);
             await onSuccess();
             // No success toast per user preference
-        } catch (err: any) {
-            toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to save section.');
+        } catch (err: unknown) {
+            toast.error(extractErrorMessage(err, 'Failed to save section.'));
         } finally {
             setIsSubmitting(false);
         }

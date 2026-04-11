@@ -72,6 +72,31 @@ interface TodoTabProps {
 type RecentCompletedMap = Record<string, true>;
 type TimerHandle = ReturnType<typeof globalThis.setTimeout>;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (isRecord(error)) {
+    const response = error.response;
+    if (isRecord(response)) {
+      const data = response.data;
+      if (isRecord(data)) {
+        const detail = data.detail;
+        if (isRecord(detail) && typeof detail.message === 'string') {
+          return detail.message;
+        }
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 const TodoMainPanelSkeleton: React.FC = () => {
   return (
     <div className="space-y-4 pt-1">
@@ -213,8 +238,8 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
         });
       }
       return true;
-    } catch (error: any) {
-      toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to save todo changes.');
+    } catch (error: unknown) {
+      toast.error(extractErrorMessage(error, 'Failed to save todo changes.'));
       return false;
     }
   }, [applyTodoStateRecord, publishTodoDataChange, semesterId, setTodoState]);
@@ -226,7 +251,7 @@ export const TodoTab: React.FC<TodoTabProps> = ({ semesterId, courseId }) => {
     }
 
     if (semesterTodoQuery.error) {
-      toast.error((semesterTodoQuery.error as any)?.response?.data?.detail?.message ?? semesterTodoQuery.error.message ?? 'Failed to load todo data.');
+      toast.error(extractErrorMessage(semesterTodoQuery.error, 'Failed to load todo data.'));
       setLoading(false);
       return;
     }

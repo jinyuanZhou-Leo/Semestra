@@ -20,6 +20,31 @@ interface CourseScheduleSettingsProps {
 
 const COURSE_SCHEDULE_SECTION_DESCRIPTION = 'Manage the event types available for course schedules, including their labels and attendance tracking.';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (isRecord(error)) {
+    const response = error.response;
+    if (isRecord(response)) {
+      const data = response.data;
+      if (isRecord(data)) {
+        const detail = data.detail;
+        if (isRecord(detail) && typeof detail.message === 'string') {
+          return detail.message;
+        }
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ courseId }) => {
   const [eventTypes, setEventTypes] = React.useState<CourseEventType[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -33,9 +58,9 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
       const typeData = await scheduleService.getCourseEventTypes(courseId);
       if (loadRequestIdRef.current !== loadRequestId) return;
       setEventTypes(typeData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (loadRequestIdRef.current !== loadRequestId) return;
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to load event types.');
+      toast.error(extractErrorMessage(err, 'Failed to load event types.'));
     } finally {
       if (loadRequestIdRef.current === loadRequestId) {
         setIsLoading(false);
@@ -73,8 +98,8 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
         await publishScheduleChange('event-type-created');
       }
       await loadEventTypes();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to save event type.');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to save event type.'));
       throw err;
     }
   }, [courseId, loadEventTypes, publishScheduleChange]);
@@ -84,8 +109,8 @@ export const CourseScheduleSettings: React.FC<CourseScheduleSettingsProps> = ({ 
       await scheduleService.deleteCourseEventType(courseId, eventTypeCode);
       await publishScheduleChange('event-type-deleted');
       await loadEventTypes();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail?.message ?? err?.message ?? 'Failed to delete event type.');
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, 'Failed to delete event type.'));
     }
   }, [courseId, loadEventTypes, publishScheduleChange]);
 

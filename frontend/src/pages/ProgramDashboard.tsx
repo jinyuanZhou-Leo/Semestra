@@ -722,7 +722,7 @@ const ProgramDashboardContent: React.FC = () => {
         ]);
     }, [refreshProgram, refreshUnassignedCourses]);
 
-    const handleUpdateProgram = useCallback(async (data: any) => {
+    const handleUpdateProgram = useCallback(async (data: Parameters<typeof saveProgram>[0]) => {
         if (!program) return;
         await saveProgram(data);
     }, [program, saveProgram]);

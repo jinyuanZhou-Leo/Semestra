@@ -33,6 +33,23 @@ type CountableList = Array<unknown> | undefined | null;
 
 const countOf = (value: CountableList): number => value?.length ?? 0;
 
+type ImportBackupCollection = unknown[];
+
+const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim().length > 0) {
+            return message;
+        }
+    }
+
+    return 'An unexpected error occurred during import.';
+};
+
 export interface CourseExport {
     id?: string;
     name: string;
@@ -44,14 +61,14 @@ export interface CourseExport {
     grade_scaled: number;
     include_in_gpa: boolean;
     hide_gpa: boolean;
-    widgets: any[];
-    tabs: any[];
+    widgets: ImportBackupCollection;
+    tabs: ImportBackupCollection;
     gradebook?: unknown;
     resource_files?: Array<{ filename_display: string; resource_kind: string }>;
     lms_link?: { external_course_id: string; sync_enabled: boolean } | null;
-    event_types?: any[];
-    sections?: any[];
-    events?: any[];
+    event_types?: ImportBackupCollection;
+    sections?: ImportBackupCollection;
+    events?: ImportBackupCollection;
 }
 
 export interface SemesterExport {
@@ -64,8 +81,8 @@ export interface SemesterExport {
     reading_week_start?: string | null;
     reading_week_end?: string | null;
     courses: CourseExport[];
-    widgets: any[];
-    tabs: any[];
+    widgets: ImportBackupCollection;
+    tabs: ImportBackupCollection;
     todo?: {
         sections?: Array<{ id?: string; name: string }>;
         tasks?: Array<{ id?: string; title: string }>;
@@ -219,10 +236,10 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
             await onConfirm(conflictMode, hasImportSettings ? includeSettings : false);
             toast.success('Import successful');
             onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Import failed:', error);
             toast.error('Import failed', {
-                description: error.message || 'An unexpected error occurred during import.',
+                description: getErrorMessage(error),
                 action: {
                     label: 'Retry',
                     onClick: handleConfirm,

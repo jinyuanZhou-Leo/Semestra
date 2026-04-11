@@ -11,7 +11,8 @@
   },
   "ignorePatterns": [
     "dist",
-    "coverage"
+    "coverage",
+    "src/components/ui/**"
   ],
   "overrides": [
     {

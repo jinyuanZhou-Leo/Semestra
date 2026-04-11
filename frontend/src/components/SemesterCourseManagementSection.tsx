@@ -97,7 +97,7 @@ export const SemesterCourseManagementSection: React.FC<SemesterCourseManagementS
     if (removingCourseId) return;
     setRemovingCourseId(courseId);
     try {
-      await api.updateCourse(courseId, { semester_id: null as any });
+      await api.updateCourse(courseId, { semester_id: null as unknown as string });
       const refreshed = await fetchSemester();
       onRefresh?.();
       if (!refreshed) {

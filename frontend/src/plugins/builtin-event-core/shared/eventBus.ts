@@ -10,9 +10,10 @@ import type {
 } from './types';
 
 type EventHandler<T extends TimetableEventType> = (payload: TimetableEventPayloadMap[T]) => void;
+type EventListener = (payload: TimetableEventPayloadMap[TimetableEventType]) => void;
 
 class TimetableEventBus {
-  private listeners = new Map<TimetableEventType, Set<EventHandler<any>>>();
+  private listeners = new Map<TimetableEventType, Set<EventListener>>();
   private pendingDebounce = new Map<TimetableEventType, ReturnType<typeof setTimeout>>();
   private pendingPayload = new Map<TimetableEventType, TimetableEventPayloadMap[TimetableEventType]>();
   private recentPublishes = new Map<string, number>();
@@ -64,13 +65,14 @@ class TimetableEventBus {
 
   subscribe<T extends TimetableEventType>(type: T, handler: EventHandler<T>) {
     const handlers = this.listeners.get(type) ?? new Set();
-    handlers.add(handler);
+    const listener: EventListener = (payload) => handler(payload as TimetableEventPayloadMap[T]);
+    handlers.add(listener);
     this.listeners.set(type, handlers);
 
     return () => {
       const registeredHandlers = this.listeners.get(type);
       if (!registeredHandlers) return;
-      registeredHandlers.delete(handler);
+      registeredHandlers.delete(listener);
       if (registeredHandlers.size === 0) {
         this.listeners.delete(type);
       }

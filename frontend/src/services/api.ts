@@ -8,6 +8,8 @@
 
 import axios from 'axios';
 import type { SettingLayer, SettingSource, TabSettingsMeta } from '@/plugin-system/tabSettingsMeta';
+import type { ImportData } from '@/components/ImportPreviewModal';
+import type { WidgetUpdateData } from '@/services/widgetRegistry';
 
 export type SemesterDraftStep = 'basics' | 'courses' | 'plugins' | 'plugin-setup' | 'review';
 
@@ -195,6 +197,35 @@ export interface Tab {
     is_removable?: boolean;
     is_draggable?: boolean;
 }
+
+export type ProgramUpdatePayload = Partial<Program>;
+
+export type CourseCreatePayload = {
+    name: string;
+    alias?: string;
+    category?: string;
+    credits: number;
+    grade_percentage: number;
+    program_id: string;
+    semester_id?: string;
+    include_in_gpa?: boolean;
+    hide_gpa?: boolean;
+};
+
+export type TabUpdatePayload = {
+    tab_type?: string;
+    title?: string;
+    settings?: string;
+    order_index?: number;
+    is_removable?: boolean;
+    is_draggable?: boolean;
+};
+
+export type UserUpdatePayload = Partial<
+    Pick<User, 'nickname' | 'gpa_scaling_table' | 'default_course_credit' | 'background_plugin_preload'>
+>;
+
+export type ImportUserDataPayload = ImportData;
 
 export interface ProgramPluginSetupField {
     path: string;
@@ -921,7 +952,7 @@ const api = {
             return normalizeProgram(response.data);
         });
     },
-    updateProgram: async (id: string, data: any) => {
+    updateProgram: async (id: string, data: ProgramUpdatePayload) => {
         await axios.put<Program>(`/api/programs/${id}`, data);
         const response = await axios.get<ProgramWire>(`/api/programs/${id}`);
         return normalizeProgram(response.data);
@@ -1062,7 +1093,7 @@ const api = {
             return normalizeSemester(response.data);
         });
     },
-    updateSemester: async (id: string, data: any) => {
+    updateSemester: async (id: string, data: Partial<Semester>) => {
         const response = await axios.put<SemesterWire>(`/api/semesters/${id}`, data);
         return normalizeSemester(response.data);
     },
@@ -1160,7 +1191,7 @@ const api = {
         return response.data;
     },
     // Courses
-    createCourseForProgram: async (programId: string, data: any) => {
+    createCourseForProgram: async (programId: string, data: CourseCreatePayload) => {
         const response = await axios.post<CourseWire>(`/api/programs/${programId}/courses/`, data);
         return normalizeCourse(response.data);
     },
@@ -1171,7 +1202,7 @@ const api = {
             return response.data.map(normalizeCourse);
         });
     },
-    createCourse: async (semesterId: string, data: any) => {
+    createCourse: async (semesterId: string, data: CourseCreatePayload) => {
         const response = await axios.post<CourseWire>(`/api/semesters/${semesterId}/courses/`, data);
         return normalizeCourse(response.data);
     },
@@ -1260,7 +1291,7 @@ const api = {
         const response = await axios.post<Widget>(`/api/courses/${courseId}/widgets/`, data);
         return response.data;
     },
-    updateWidget: async (widgetId: string, data: any) => {
+    updateWidget: async (widgetId: string, data: WidgetUpdateData) => {
         const response = await axios.put<Widget>(`/api/widgets/${widgetId}`, data);
         return response.data;
     },
@@ -1279,7 +1310,7 @@ const api = {
         const response = await axios.post<Tab>(`/api/courses/${courseId}/tabs/`, data);
         return response.data;
     },
-    updateTab: async (tabId: string, data: any) => {
+    updateTab: async (tabId: string, data: TabUpdatePayload) => {
         const response = await axios.put<Tab>(`/api/tabs/${tabId}`, data);
         return response.data;
     },
@@ -1434,7 +1465,7 @@ const api = {
         return response.data;
     },
     // Auth
-    updateUser: async (data: any) => {
+    updateUser: async (data: UserUpdatePayload) => {
         const response = await axios.put<User>('/api/users/me', data);
         return response.data;
     },
@@ -1624,7 +1655,7 @@ const api = {
             confirmation_text: confirmationText,
         });
     },
-    importUserData: async (data: any, conflictMode: 'skip' | 'overwrite' | 'rename' = 'skip', includeSettings: boolean = true) => {
+    importUserData: async (data: ImportUserDataPayload, conflictMode: 'skip' | 'overwrite' | 'rename' = 'skip', includeSettings: boolean = true) => {
         const response = await axios.post(`/api/users/me/import?conflict_mode=${conflictMode}&include_settings=${includeSettings}`, data);
         return response.data;
     }

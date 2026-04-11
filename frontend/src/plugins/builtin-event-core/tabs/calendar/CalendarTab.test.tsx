@@ -111,7 +111,7 @@ describe('CalendarTab', () => {
         reading_week_end: null,
         tabs: [],
         courses: [],
-      } as any);
+      } as unknown as Awaited<ReturnType<typeof api.getSemester>>);
       vi.mocked(scheduleService.getSemesterSchedule).mockResolvedValue({
         week: 1,
         maxWeek: 16,

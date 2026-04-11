@@ -11,6 +11,7 @@
 
 import React, { createContext, useContext } from 'react';
 import type { DeviceLayoutMode, WidgetItem } from '../components/widgets/DashboardGrid';
+import type { WidgetUpdateData } from '../services/widgetRegistry';
 import type { Layout } from 'react-grid-layout';
 
 type DashboardContextValue = {
@@ -20,13 +21,13 @@ type DashboardContextValue = {
     onRemoveWidget: (id: string) => void;
     onRemoveUnavailableWidget: (id: string) => void;
     onEditWidget: (widget: WidgetItem) => void;
-    onUpdateWidget: (id: string, data: any) => Promise<void>;
-    onUpdateWidgetDebounced?: (id: string, data: any) => void;
+    onUpdateWidget: (id: string, data: WidgetUpdateData) => Promise<void>;
+    onUpdateWidgetDebounced?: (id: string, data: WidgetUpdateData) => void;
     onLayoutChange: (layout: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => void;
     onLayoutCommit?: (layout: Layout, deviceMode: DeviceLayoutMode, maxCols: number) => void;
     semesterId?: string;
     courseId?: string;
-    updateCourse?: (updates: any) => void;
+    updateCourse?: (updates: Record<string, unknown>) => void;
 };
 
 type SettingsContextValue = {

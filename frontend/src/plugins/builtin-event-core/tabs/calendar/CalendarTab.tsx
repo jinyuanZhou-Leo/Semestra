@@ -72,6 +72,31 @@ const toRefreshSignal = (payload: {
   ...payload,
 });
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (isRecord(error)) {
+    const response = error.response;
+    if (isRecord(response)) {
+      const data = response.data;
+      if (isRecord(data)) {
+        const detail = data.detail;
+        if (isRecord(detail) && typeof detail.message === 'string') {
+          return detail.message;
+        }
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
   // Read settings directly from the plugin settings bucket so the tab view always reflects
   // the same inheritance-resolved values as the settings panel — no host adapter needed.
@@ -209,9 +234,9 @@ export const CalendarTab: React.FC<TabProps> = ({ semesterId }) => {
       });
 
       await reloadMatchingSources(signal);
-    } catch (error: any) {
+    } catch (error: unknown) {
       skipNextRefreshRef.current = null;
-      toast.error(error?.response?.data?.detail?.message ?? error?.message ?? 'Failed to update todo item from Calendar.');
+      toast.error(extractErrorMessage(error, 'Failed to update todo item from Calendar.'));
       throw error;
     }
   }, [reloadMatchingSources, semesterId]);

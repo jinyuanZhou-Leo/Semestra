@@ -8,6 +8,8 @@
 
 
 import React, { useEffect, useState } from "react";
+import type { WidgetItem } from "./widgets/DashboardGrid";
+import type { WidgetUpdateData } from "../services/widgetRegistry";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,8 +23,8 @@ import {
 interface WidgetSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  widget: any;
-  onSave: (id: string, data: any) => Promise<void>;
+  widget: WidgetItem | null;
+  onSave: (id: string, data: WidgetUpdateData) => Promise<void>;
   semesterId?: string;
   courseId?: string;
 }
@@ -35,14 +37,14 @@ export const WidgetSettingsModal: React.FC<WidgetSettingsModalProps> = ({
   semesterId,
   courseId,
 }) => {
-  const [renderedWidget, setRenderedWidget] = useState(widget);
+  const [renderedWidget, setRenderedWidget] = useState<WidgetItem | null>(widget);
   const activeWidget = widget ?? renderedWidget;
   const activeWidgetId = activeWidget?.id;
   const activeWidgetSettings = activeWidget?.settings;
   const widgetMetadata = getResolvedWidgetMetadataByType(activeWidget?.type || "");
   const displayWidgetName = widgetMetadata.name ?? activeWidget?.type ?? "Widget";
   const SettingsComponent = getWidgetSettingsComponentByType(activeWidget?.type || "");
-  const [draftSettings, setDraftSettings] = useState<any>(widget?.settings || {});
+  const [draftSettings, setDraftSettings] = useState<unknown>(widget?.settings || {});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success">("idle");
 
   useEffect(() => {

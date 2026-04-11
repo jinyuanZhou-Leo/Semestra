@@ -188,8 +188,9 @@ export const SettingsPage: React.FC = () => {
                         });
                         await refreshUser();
                         setGoogleLinkSuccess(true);
-                    } catch (err: any) {
-                        setGoogleLinkError(err.response?.data?.detail || 'Google link failed.');
+                    } catch (err: unknown) {
+                        const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+                        setGoogleLinkError(detail || 'Google link failed.');
                     } finally {
                         setIsGoogleLinking(false);
                     }

@@ -9,7 +9,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardWidgetWrapper } from '../DashboardWidgetWrapper';
+import type { WidgetItem } from '../DashboardGrid';
 import * as pluginSystem from '../../../plugin-system';
+
+const createWidget = (overrides: Partial<WidgetItem>): WidgetItem => ({
+    id: 'widget-1',
+    type: 'lazy-widget',
+    title: 'Lazy Widget',
+    settings: {},
+    ...overrides,
+});
 
 describe('DashboardWidgetWrapper', () => {
     beforeEach(() => {
@@ -40,7 +49,7 @@ describe('DashboardWidgetWrapper', () => {
 
         render(
             <DashboardWidgetWrapper
-                widget={{ id: 'widget-1', type: 'lazy-widget', settings: {} } as any}
+                widget={createWidget({ id: 'widget-1', type: 'lazy-widget' })}
                 onUpdateWidget={vi.fn().mockResolvedValue(undefined)}
             />
         );
@@ -61,7 +70,7 @@ describe('DashboardWidgetWrapper', () => {
 
         const { container } = render(
             <DashboardWidgetWrapper
-                widget={{ id: 'widget-2', type: 'loaded-widget', settings: {} } as any}
+                widget={createWidget({ id: 'widget-2', type: 'loaded-widget' })}
                 onUpdateWidget={vi.fn().mockResolvedValue(undefined)}
             />
         );
@@ -78,7 +87,12 @@ describe('DashboardWidgetWrapper', () => {
 
         render(
             <DashboardWidgetWrapper
-                widget={{ id: 'widget-3', type: 'missing-widget', settings: {}, is_removable: false } as any}
+                widget={createWidget({
+                    id: 'widget-3',
+                    type: 'missing-widget',
+                    title: 'Missing Widget',
+                    is_removable: false,
+                })}
                 onRemoveUnavailable={onRemoveUnavailable}
                 onUpdateWidget={vi.fn().mockResolvedValue(undefined)}
             />

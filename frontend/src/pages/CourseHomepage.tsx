@@ -634,10 +634,20 @@ const CourseHomepageContent: React.FC = () => {
 
     const hasPluginSettings = Boolean(coursePluginGovernanceSection || pluginSettingsSections);
 
-    const handleUpdateCourse = useCallback(async (data: any) => {
+    const handleUpdateCourse = useCallback(async (
+        data: Parameters<NonNullable<React.ComponentProps<typeof CourseSettingsPanel>['onSave']>>[0],
+    ) => {
         if (!course) return;
         try {
-            await saveCourse(data);
+            await saveCourse({
+                name: data.name,
+                alias: data.alias ?? undefined,
+                category: data.category ?? undefined,
+                color: data.color ?? undefined,
+                credits: data.credits,
+                include_in_gpa: data.include_in_gpa,
+                hide_gpa: data.hide_gpa,
+            });
             await publishTimetableScheduleChange({
                 source: 'course',
                 reason: 'course-updated',
@@ -667,7 +677,7 @@ const CourseHomepageContent: React.FC = () => {
             : removeProgramHomeItem(currentSettings, 'course', course.id);
         const nextTabSettings = replaceProgramHomeTabSetting(currentProgram.tab_settings, nextSettings);
 
-        setProgramDetailQueryData(queryClient, programId, (current: any) => (
+        setProgramDetailQueryData(queryClient, programId, (current) => (
             current ? { ...current, tab_settings: nextTabSettings } : current
         ));
 

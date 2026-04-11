@@ -16,7 +16,7 @@ export interface HeaderButtonContext {
     settings: unknown;
     semesterId?: string;
     courseId?: string;
-    updateSettings: (newSettings: any) => void | Promise<void>;
+    updateSettings: (newSettings: unknown) => void | Promise<void>;
 }
 
 export interface HeaderActionButtonProps {
@@ -44,7 +44,13 @@ export interface HeaderButton {
     render: (context: HeaderButtonContext, helpers: HeaderButtonRenderHelpers) => React.ReactNode;
 }
 
-export interface WidgetProps<S = any> {
+export type WidgetUpdateData = {
+    settings?: string | Record<string, unknown>;
+    layout_config?: string | Record<string, unknown>;
+    [key: string]: unknown;
+};
+
+export interface WidgetProps<S = unknown> {
     widgetId: string;
     settings: S;
     semesterId?: string;
@@ -55,7 +61,7 @@ export interface WidgetProps<S = any> {
      * Returns void since framework debounces API calls (Optimistic UI pattern)
      */
     updateSettings: (newSettings: S) => void | Promise<void>;
-    updateCourse?: (updates: any) => void;
+    updateCourse?: (updates: Record<string, unknown>) => void;
 }
 
 export interface WidgetLifecycleContext {
@@ -68,7 +74,7 @@ export interface WidgetLifecycleContext {
 export type WidgetContext = 'semester' | 'course';
 export type { MaxInstances } from '../plugin-system/utils';
 
-export interface WidgetSettingsProps<S = any> {
+export interface WidgetSettingsProps<S = unknown> {
     widgetId?: string;
     semesterId?: string;
     courseId?: string;
@@ -76,14 +82,22 @@ export interface WidgetSettingsProps<S = any> {
     onSettingsChange: (newSettings: S) => void;
 }
 
-export interface WidgetDefinition {
+type WidgetComponent<S = unknown> = {
+    bivarianceHack(props: WidgetProps<S>): ReturnType<React.FC<WidgetProps<S>>>;
+}['bivarianceHack'];
+
+type WidgetSettingsComponent<S = unknown> = {
+    bivarianceHack(props: WidgetSettingsProps<S>): ReturnType<React.FC<WidgetSettingsProps<S>>>;
+}['bivarianceHack'];
+
+export interface WidgetDefinition<S = unknown> {
     type: string;
-    component: React.FC<WidgetProps>;
-    defaultSettings?: unknown;
+    component: WidgetComponent<S>;
+    defaultSettings?: S;
     /** Custom buttons to display in the widget header */
     headerButtons?: HeaderButton[];
     /** Optional settings component for individual widget instance. If provided, a settings button will be shown in the widget header. */
-    SettingsComponent?: React.FC<WidgetSettingsProps>;
+    SettingsComponent?: WidgetSettingsComponent<S>;
     /** Called after widget is created. If throws, the widget will be rolled back (deleted). */
     onCreate?: (context: WidgetLifecycleContext) => Promise<void> | void;
     /** Called after widget is deleted. Errors are logged but don't affect deletion. */
