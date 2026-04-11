@@ -43,7 +43,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
 
     const widgetCatalog = useMemo(() => getWidgetCatalog(context), [context]);
     const allowedTypeSet = useMemo(
-        () => (allowedTypes && allowedTypes.length > 0 ? new Set(allowedTypes) : null),
+        () => (allowedTypes ? new Set(allowedTypes) : null),
         [allowedTypes]
     );
 

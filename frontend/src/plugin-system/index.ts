@@ -6,7 +6,7 @@
 //    1. Update these header comments
 //    2. Update the INDEX.md of the folder this file belongs to
 
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import type { FC } from 'react';
 
 import hostPolicyJson from '@/plugins/host-policy.json';
@@ -14,7 +14,7 @@ import type { PluginDefinition, PluginDescriptor, PluginDescriptorTabDefinition,
 import { PluginSettingsRegistry } from '../services/pluginSettingsRegistry';
 import type { TabContext, TabProps } from '../services/tabRegistry';
 import { TabRegistry } from '../services/tabRegistry';
-import type { WidgetContext, WidgetProps, WidgetSettingsProps } from '../services/widgetRegistry';
+import type { WidgetContext, WidgetDefinition, WidgetProps, WidgetSettingsProps } from '../services/widgetRegistry';
 import { WidgetRegistry } from '../services/widgetRegistry';
 import {
   getAllPluginSetupDefinitions,
@@ -346,6 +346,70 @@ export const useWidgetPluginLoadState = (type?: string): PluginLoadState => useS
   () => (type ? getWidgetPluginLoadState(type) : IDLE_LOAD_STATE),
   () => (type ? getWidgetPluginLoadState(type) : IDLE_LOAD_STATE),
 );
+
+// ─── Unified widget render state ─────────────────────────────────────────────
+
+/**
+ * The single discriminated status for a widget's render readiness.
+ *
+ * - `'unavailable'` – type is not in the plugin catalog at all
+ * - `'loading'`     – known type, runtime not yet registered (lazy load in flight or pending)
+ * - `'error'`       – known type, runtime load failed
+ * - `'ready'`       – definition is registered and the component can be rendered
+ */
+export type WidgetRenderStatus = 'unavailable' | 'loading' | 'error' | 'ready';
+
+export interface ResolvedWidgetRenderState {
+  status: WidgetRenderStatus;
+  /** Present only when status === 'ready'. */
+  definition: WidgetDefinition | undefined;
+  /** Present only when status === 'error'. */
+  loadError: Error | null;
+}
+
+/**
+ * Single source-of-truth hook for widget render readiness.
+ *
+ * Subscribes to both `WidgetRegistry` and the plugin load-state store, derives
+ * one discriminated `WidgetRenderStatus`, and owns the responsibility of
+ * triggering the lazy load. Consumers receive a single value and never need to
+ * reason about two independent stores.
+ */
+export const useWidgetRenderState = (type: string): ResolvedWidgetRenderState => {
+  const isKnown = hasWidgetPluginForType(type);
+
+  // Primary truth: is the widget definition registered and renderable?
+  const definition = useSyncExternalStore(
+    (listener) => WidgetRegistry.subscribe(listener),
+    () => WidgetRegistry.get(type),
+    () => WidgetRegistry.get(type),
+  );
+
+  // Secondary truth: load-state, consulted only for error reporting and
+  // guard logic inside the effect below.
+  const loadState = useSyncExternalStore(
+    (listener) => loadStateStore.subscribe(listener),
+    () => getWidgetPluginLoadState(type),
+    () => getWidgetPluginLoadState(type),
+  );
+
+  // Canonical trigger location for lazy loading.
+  // Runs when the plugin is known but the definition is not yet registered and
+  // a load is neither already in-flight nor permanently failed.
+  useEffect(() => {
+    if (!isKnown || definition || loadState.status === 'loading' || loadState.status === 'error') {
+      return;
+    }
+    void ensureWidgetPluginByTypeLoaded(type).catch((error) => {
+      console.error(`[plugin-system] Failed to load widget plugin: ${type}`, error);
+    });
+  }, [type, isKnown, definition, loadState.status]);
+
+  if (!isKnown) return { status: 'unavailable', definition: undefined, loadError: null };
+  if (definition)  return { status: 'ready',       definition,          loadError: null };
+  if (loadState.status === 'error') return { status: 'error', definition: undefined, loadError: loadState.error };
+  return { status: 'loading', definition: undefined, loadError: null };
+};
 
 export const usePluginLoadStateVersion = (): number => useSyncExternalStore(
   (listener) => loadStateStore.subscribe(listener),

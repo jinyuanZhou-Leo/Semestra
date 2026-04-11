@@ -32,12 +32,8 @@ import {
 import { cn } from '@/lib/utils';
 import {
     PluginContentFadeIn,
-    ensureWidgetPluginByTypeLoaded,
-    getWidgetComponentByType,
-    getWidgetDefinitionByType,
-    hasWidgetPluginForType,
     PluginRuntimeInstanceProvider,
-    useWidgetPluginLoadState,
+    useWidgetRenderState,
 } from '../../plugin-system';
 import { jsonDeepEqual } from '../../plugin-system/utils';
 import { PluginWidgetSkeleton } from '../../plugin-system/PluginLoadSkeleton';
@@ -80,25 +76,8 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     updateCourse,
     isEditMode = false
 }) => {
-    const loadState = useWidgetPluginLoadState(widget.type);
-    const WidgetComponent = getWidgetComponentByType(widget.type);
-    const widgetDefinition = getWidgetDefinitionByType(widget.type);
-    const isKnownPluginType = hasWidgetPluginForType(widget.type);
-    const isWidgetPluginPending =
-        isKnownPluginType &&
-        !WidgetComponent &&
-        (loadState.status === 'idle' || loadState.status === 'loading');
-
-    React.useEffect(() => {
-        if (WidgetComponent || !isKnownPluginType || loadState.status === 'loading' || loadState.status === 'error') {
-            return;
-        }
-
-        void ensureWidgetPluginByTypeLoaded(widget.type)
-            .catch((error) => {
-                console.error(`Failed to load widget plugin for type: ${widget.type}`, error);
-            });
-    }, [WidgetComponent, widget.type, isKnownPluginType, loadState.status]);
+    const { status: widgetStatus, definition: widgetDefinition } = useWidgetRenderState(widget.type);
+    const WidgetComponent = widgetDefinition?.component;
 
     /**
      * updateSettings for plugins - uses debounced update by default
@@ -250,7 +229,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
     return (
         <PluginRuntimeInstanceProvider value={runtimeInstanceValue}>
             {!WidgetComponent ? (
-                isWidgetPluginPending ? (
+                widgetStatus === 'loading' ? (
                     <PluginWidgetSkeleton />
                 ) : (
                     <WidgetContainer
@@ -277,7 +256,7 @@ const DashboardWidgetWrapperComponent: React.FC<DashboardWidgetWrapperProps> = (
                             </div>
                             <h3 className="mb-1 font-semibold text-foreground">Widget Unavailable</h3>
                             <p className="mb-4 text-xs text-muted-foreground/80 line-clamp-2">
-                                {loadState.status === 'error'
+                                {widgetStatus === 'error'
                                     ? `The plugin for ${widget.type} failed to load.`
                                     : `The plugin for ${widget.type} is missing or disabled.`}
                             </p>

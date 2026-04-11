@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardWidgetWrapper } from '../DashboardWidgetWrapper';
 import type { WidgetItem } from '../DashboardGrid';
 import * as pluginSystem from '../../../plugin-system';
+import { WidgetRegistry } from '../../../services/widgetRegistry';
 
 const createWidget = (overrides: Partial<WidgetItem>): WidgetItem => ({
     id: 'widget-1',
@@ -23,9 +24,12 @@ const createWidget = (overrides: Partial<WidgetItem>): WidgetItem => ({
 describe('DashboardWidgetWrapper', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
+        WidgetRegistry.unregister('lazy-widget');
+        WidgetRegistry.unregister('loaded-widget');
+        WidgetRegistry.unregister('missing-widget');
+        WidgetRegistry.unregister('runtime-widget');
 
         vi.spyOn(pluginSystem, 'ensureWidgetPluginByTypeLoaded').mockResolvedValue(true);
-        vi.spyOn(pluginSystem, 'getWidgetDefinitionByType').mockReturnValue(undefined);
         vi.spyOn(pluginSystem, 'hasWidgetPluginForType').mockReturnValue(true);
         vi.spyOn(pluginSystem, 'useWidgetPluginLoadState').mockReturnValue({ status: 'idle', error: null });
 
@@ -66,7 +70,10 @@ describe('DashboardWidgetWrapper', () => {
 
     it('wraps loaded widget content in the fade-in transition shell', () => {
         vi.spyOn(pluginSystem, 'useWidgetPluginLoadState').mockReturnValue({ status: 'loaded', error: null });
-        vi.spyOn(pluginSystem, 'getWidgetComponentByType').mockReturnValue(() => <div data-testid="loaded-widget">Loaded widget</div>);
+        WidgetRegistry.register({
+            type: 'loaded-widget',
+            component: () => <div data-testid="loaded-widget">Loaded widget</div>,
+        });
 
         const { container } = render(
             <DashboardWidgetWrapper
@@ -81,7 +88,6 @@ describe('DashboardWidgetWrapper', () => {
 
     it('keeps delete available for unavailable widgets even when the normal widget remove action is disabled', () => {
         vi.spyOn(pluginSystem, 'useWidgetPluginLoadState').mockReturnValue({ status: 'error', error: new Error('boom') });
-        vi.spyOn(pluginSystem, 'getWidgetComponentByType').mockReturnValue(undefined);
 
         const onRemoveUnavailable = vi.fn();
 
@@ -101,5 +107,27 @@ describe('DashboardWidgetWrapper', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Delete Widget' }));
 
         expect(onRemoveUnavailable).toHaveBeenCalledWith('widget-3');
+    });
+
+    it('re-renders when the widget runtime registers after mount', async () => {
+        vi.spyOn(pluginSystem, 'useWidgetPluginLoadState').mockReturnValue({ status: 'loaded', error: null });
+
+        render(
+            <DashboardWidgetWrapper
+                widget={createWidget({ id: 'widget-4', type: 'runtime-widget' })}
+                onUpdateWidget={vi.fn().mockResolvedValue(undefined)}
+            />
+        );
+
+        expect(screen.getByTestId('plugin-widget-skeleton')).toBeInTheDocument();
+
+        WidgetRegistry.register({
+            type: 'runtime-widget',
+            component: () => <div data-testid="runtime-widget">Runtime widget</div>,
+        });
+
+        await waitFor(() => {
+            expect(screen.getByTestId('runtime-widget')).toBeInTheDocument();
+        });
     });
 });
