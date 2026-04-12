@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { BookOpen, Calendar, Database, FileText, LayoutDashboard, Settings } from 'lucide-react';
+import { BookOpen, Calendar, Database, FileText, LayoutDashboard, Settings, GraduationCap, Target, Sparkles, ArrowUpDown, Pencil, Trash } from 'lucide-react';
 
 import SemestraLogo from '@/assets/semestra-logo-circ.webp';
 import Aurora from '@/components/Aurora';
@@ -109,7 +109,7 @@ export const LandingScrollytelling = () => {
   const dashboardFrame = getViewportFrame(viewport.width, viewport.height, 980, 620);
   const canvasFrame = getViewportFrame(viewport.width, viewport.height, 800, 550);
   const calendarFrame = getViewportFrame(viewport.width, viewport.height, 500, 500);
-  const gradebookFrame = getViewportFrame(viewport.width, viewport.height, 700, 450);
+  const gradebookFrame = getViewportFrame(viewport.width, viewport.height, 980, 620);
 
   useLayoutEffect(() => {
     if (!containerRef.current) return;
@@ -182,7 +182,15 @@ export const LandingScrollytelling = () => {
         .to('.text-scene-3', { autoAlpha: 0, y: -20, duration: 1 })
 
         .fromTo('.canvas-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 })
-        .fromTo('.messy-canvas', { xPercent: 0, rotate: 0 }, { xPercent: 118, rotate: 22, duration: 2 })
+        
+        // Emphasize contrast instead of big physical displacement:
+        // A subtle shift while fading out the messy old canvas to reveal the integrated Semestra Canvas behind it.
+        .fromTo('.messy-canvas', 
+          { xPercent: 0, rotate: 0, scale: 1, opacity: 1 }, 
+          { xPercent: 12, rotate: 6, scale: 0.95, autoAlpha: 0, duration: 1.5, ease: 'power2.inOut' }, 
+          '+=0.5'
+        )
+        
         .to('.canvas-container', { autoAlpha: 1, duration: 3 })
         .to('.canvas-container', { autoAlpha: 0, duration: 1 });
 
@@ -193,9 +201,11 @@ export const LandingScrollytelling = () => {
 
         .fromTo('.calendar-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 })
         .to('.switch-bg', { backgroundColor: 'rgba(249,115,22,1)', duration: 1 })
-        .to('.switch-knob', { x: 56, duration: 1 }, '<')
-        .to('.calendar-item', { filter: 'grayscale(100%)', autoAlpha: 0.5, duration: 1 }, '<0.2')
-        .to('.strikethrough-line', { scaleX: 1, duration: 1 }, '<')
+        .to('.switch-knob', { x: 28, duration: 1 }, '<')
+        .to('.calendar-item', { opacity: 0.5, scale: 0.98, duration: 1, transformOrigin: 'center' }, '<0.2')
+        .to('.card-accent', { backgroundColor: 'rgba(156,163,175,0.4)', duration: 1 }, '<')
+        .to('.strikethrough-line', { scaleX: 1, duration: 0.6, ease: 'power3.out' }, '<0.1')
+        .fromTo('.skip-badge', { autoAlpha: 0, x: -10 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: 'power2.out' }, '<0.1')
         .to('.calendar-container', { autoAlpha: 1, duration: 3 })
         .to('.calendar-container', { autoAlpha: 0, duration: 1 });
 
@@ -205,13 +215,56 @@ export const LandingScrollytelling = () => {
         .to('.text-scene-5', { autoAlpha: 0, y: -20, duration: 1 })
 
         .fromTo('.gradebook-container', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1 })
-        .to('.plan-mode-btn', { borderColor: 'rgba(249,115,22,0.5)', backgroundColor: 'rgba(249,115,22,0.1)', duration: 1 })
-        .to('.plan-mode-icon', { color: 'rgba(249,115,22,1)', duration: 1 }, '<')
-        .to('.plan-mode-switch-bg', { backgroundColor: 'rgba(249,115,22,1)', duration: 1 }, '<')
-        .to('.plan-mode-knob', { x: 18, duration: 1 }, '<')
-        .to('.gpa-box', { borderColor: 'rgba(249,115,22,1)', backgroundColor: 'rgba(249,115,22,0.1)', duration: 1 })
-        .to('.target-score', { color: 'rgba(249,115,22,1)', duration: 1 }, '<0.5')
-        .to('.gradebook-container', { autoAlpha: 1, duration: 3 })
+        
+        // 1) Focus & Toggle Plan Mode (HERO ACTION 1 - SLOWED DOWN)
+        .to('.gradebook-container', { scale: 1.05, duration: 1.5, ease: 'power2.out' })
+        .to('.plan-mode-btn-gb', { scale: 1.15, boxShadow: '0 0 50px rgba(249,115,22,0.5)', duration: 0.8 }, '<0.2')
+        .to('.plan-mode-switch', { backgroundColor: 'rgba(249,115,22,1)', duration: 0.6 }, '<0.2')
+        .to('.plan-mode-knob-gb', { x: 14, duration: 0.6 }, '<')
+        .to('.plan-mode-icon-gb', { color: 'rgba(249,115,22,1)', duration: 0.6 }, '<')
+        .to('.plan-mode-btn-gb', { scale: 1, duration: 0.6, ease: 'back.out(2)' }, '+=0.6') // Long pause of emphasis
+        
+        // 2) Buttons morph
+        .to('.add-btn', { autoAlpha: 0, duration: 0.5 }, '<')
+        .to('.add-btn', { display: 'none', duration: 0 })
+        .to('.target-gpa-box', { display: 'flex', duration: 0 })
+        .to('.autofill-btn', { display: 'flex', duration: 0 })
+        .to('.target-gpa-box, .autofill-btn', { autoAlpha: 1, duration: 0.6 }, '<0.2')
+        .to('.score-header-lbl', { autoAlpha: 0, duration: 0.4 }, '<')
+        .to('.score-header-whatif', { autoAlpha: 1, duration: 0.4 }, '<0.2')
+
+        // 4) Click Autofill (bounce) (HERO PAUSE 2)
+        .to('.autofill-btn', { scale: 0.95, duration: 0.2 }, '+=1.2') // explicit long pause to draw anticipation
+        .to('.autofill-btn', { scale: 1.05, duration: 0.5, ease: 'back.out(3)', boxShadow: '0 0 60px rgba(249,115,22,0.8)' })
+        .to('.autofill-btn', { scale: 1, duration: 0.3 }, '+=0.3')
+
+        // 5) Hero Burst of Auto-filled Scores (Camera Zoom & SCROLL)
+        // Zoom dramatically ONLY to the table list making it the core screen element
+        .to('.gradebook-container', { scale: 1.4, y: -70, duration: 1.5, ease: 'power3.inOut' }, '+=0.2')
+        
+        // Table scroll with past item dissolving so it doesn't overlap header
+        .to('.table-scroll-area', { y: -50, duration: 1.2, ease: 'power2.inOut' }, '<0.6')
+        .to('.past-item', { autoAlpha: 0, y: -20, duration: 0.8 }, '<')
+        
+        // Magic scrolling sequence: Rows scroll from bottom
+        .fromTo('.autofill-row', { autoAlpha: 0, y: 60 }, { autoAlpha: 1, y: 0, duration: 1, stagger: 0.2, ease: 'power3.out' }, '<0.2')
+
+        // Score highlights jump out sequentially
+        .to('.whatif-input-wrapper', { 
+            z: 200, 
+            scale: 1.4, 
+            x: -5,
+            y: -5,
+            backgroundColor: 'rgba(249,115,22,0.15)', 
+            borderColor: 'rgba(249,115,22,1)',
+            boxShadow: '0 20px 60px -10px rgba(249,115,22,0.8)',
+            duration: 1, 
+            ease: 'back.out(1.5)',
+            stagger: 0.4 
+        }, '<0.5')
+        .to('.whatif-val', { autoAlpha: 1, y: 0, duration: 0.8, ease: 'back.out(2)', stagger: 0.4 }, '<0.1')
+        
+        .to('.gradebook-container', { autoAlpha: 1, duration: 4.5 })
         .to('.gradebook-container', { autoAlpha: 0, duration: 1 });
 
       // CTA
@@ -407,27 +460,58 @@ export const LandingScrollytelling = () => {
 
         {/* CALENDAR SCENE */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
-          <div className="calendar-container opacity-0 invisible flex flex-col items-center justify-center gap-10">
+          <div className="calendar-container opacity-0 invisible flex flex-col items-center justify-center gap-8">
             <div style={{ width: calendarFrame.width, height: calendarFrame.height, transform: `scale(${calendarFrame.scale})`, transformOrigin: 'center' }}>
               <div className="flex flex-col items-center justify-center gap-10 h-full w-full">
-                <div className="text-center text-sm font-bold text-muted-foreground">Skip Manager</div>
-                <div className="relative flex h-[64px] w-[120px] items-center rounded-full border border-border/50 bg-muted p-1.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1)]">
-                  <div className="switch-bg absolute inset-0 rounded-full bg-muted" />
-                  <div className="switch-knob relative z-10 h-[52px] w-[52px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.2)]" />
-                </div>
-                <div className="calendar-item relative flex w-full flex-col gap-3 rounded-3xl border border-border bg-card p-6 shadow-[0_30px_60px_-10px_rgba(0,0,0,0.3)] filter-none opacity-100">
-                  <div className="strikethrough-line absolute left-6 right-6 top-1/2 z-10 h-1 origin-left rounded-full bg-foreground opacity-70 transform scale-x-0" />
-                  <div className="mb-2 flex items-center justify-between opacity-80">
-                    <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-bold text-blue-500 ring-1 ring-blue-500/20 dark:text-blue-400">LECTURE</span>
-                    <span className="text-sm font-bold text-muted-foreground">Mon 09:00 - 10:00</span>
+                
+                {/* Modern Switch UI */}
+                <div className="flex items-center gap-4 rounded-3xl border border-border/60 bg-background/80 p-3 pr-6 shadow-sm backdrop-blur-md">
+                  <div className="relative flex h-[38px] w-[66px] items-center rounded-full border border-border/50 bg-muted p-1">
+                    <div className="switch-bg absolute inset-0 rounded-full bg-muted transition-colors" />
+                    <div className="switch-knob relative z-10 size-[28px] rounded-full bg-white shadow-md border border-black/5" />
                   </div>
-                  <h3 className="text-3xl font-black tracking-tight text-foreground">Computer Science 101</h3>
-                  <div className="mt-1 flex items-center gap-3 text-lg font-medium text-muted-foreground">
-                    <span>Dr. Smith</span>
-                    <span className="size-1.5 rounded-full bg-muted-foreground/40" />
-                    <span>Room 404</span>
+                  <span className="font-semibold text-foreground">Skip this class</span>
+                </div>
+
+                {/* Event Card */}
+                <div className="calendar-item relative flex w-full max-w-md flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-xl transition-all">
+                  {/* Left accent stripe */}
+                  <div className="card-accent absolute bottom-0 left-0 top-0 w-2.5 bg-blue-500" />
+                  
+                  <div className="p-7 pl-10">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">Lecture</span>
+                        <span className="skip-badge opacity-0 invisible rounded-md border border-orange-500/20 bg-orange-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-orange-500">
+                          Skipped
+                        </span>
+                      </div>
+                      <span className="text-sm font-semibold text-muted-foreground">Mon 09:00 - 10:00</span>
+                    </div>
+                    
+                    <div className="relative inline-block">
+                      <div className="strikethrough-line absolute left-0 right-0 top-1/2 z-10 h-[2.5px] -translate-y-1/2 origin-left rounded-full bg-orange-500/80 transform scale-x-0" />
+                      <h3 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Computer Science 101</h3>
+                    </div>
+                    
+                    <div className="mt-4 flex flex-wrap items-center gap-5 text-sm font-medium text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <svg className="size-4.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Dr. Smith
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg className="size-4.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Room 404
+                      </div>
+                    </div>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
@@ -435,73 +519,98 @@ export const LandingScrollytelling = () => {
 
         {/* GRADEBOOK SCENE */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
-          <div className="gradebook-container opacity-0 invisible">
-            <div style={{ width: gradebookFrame.width, height: gradebookFrame.height, transform: `scale(${gradebookFrame.scale})`, transformOrigin: 'center' }}>
-              <div className="relative flex h-full w-full flex-col overflow-hidden rounded-[2.5rem] border border-border bg-card p-8 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-3xl">
-                <div className="mb-8 flex flex-wrap items-end justify-between border-b border-border/50 pb-6">
-                  <div>
-                    <div className="text-3xl font-black text-foreground">Assessments</div>
-                    <div className="mt-1 text-lg font-medium text-muted-foreground">Calculus II</div>
-                  </div>
+          <div className="gradebook-container opacity-0 invisible flex flex-col items-center justify-center">
+            <div style={{ width: '850px', transformOrigin: 'center' }}>
+              
+              {/* Simplified & Focused App Window */}
+              <div className="fake-app-window flex flex-col rounded-[2.5rem] border-[1.5px] border-border/40 bg-[#0a0a0c]/98 text-foreground shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-3xl p-10 transform-style-preserve-3d relative">
+                
+                <h2 className="text-3xl font-black tracking-tight text-white mb-8 whitespace-nowrap">Assessments</h2>
 
-                  <div className="flex items-center gap-4">
-                    <div className="plan-mode-btn flex items-center gap-3 rounded-xl border border-white/10 bg-transparent px-4 py-2 text-foreground shadow-sm transition-colors">
-                      <svg className="plan-mode-icon text-muted-foreground transition-colors" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1-1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-                      </svg>
-                      <span className="text-sm font-bold tracking-tight">Plan Mode</span>
-                      <div className="plan-mode-switch-bg relative flex h-6 w-10 items-center rounded-full bg-muted shadow-[inset_0_2px_4px_rgba(0,0,0,0.1)] transition-colors">
-                        <div className="plan-mode-knob absolute left-[2px] size-5 rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)]" />
+                {/* ACTIONS ROW */}
+                <div className="flex items-center justify-between mb-6 relative h-[48px] shrink-0">
+                  <div className="flex items-center gap-6">
+                    
+                    {/* The PLAN MODE Button (HERO TARGET 1) */}
+                    <div className="plan-mode-btn-gb flex items-center gap-4 rounded-xl border border-white/10 bg-[#1a1a1c] px-5 py-3 transform-gpu transition-shadow relative z-20">
+                      <Sparkles className="plan-mode-icon-gb text-white/40 size-5" />
+                      <span className="text-base font-bold text-white/70 whitespace-nowrap">Plan Mode</span>
+                      <div className="plan-mode-switch relative flex h-[24px] w-[40px] items-center rounded-full bg-white/20 ml-2">
+                        <div className="plan-mode-knob-gb absolute left-[3px] size-4.5 rounded-full bg-white shadow-sm" />
                       </div>
                     </div>
+                    
+                    {/* Target GPA INPUT (Hidden initially) */}
+                    <div className="target-gpa-box flex items-center gap-4 rounded-xl border border-orange-500/20 bg-orange-500/5 px-5 py-3 opacity-0 invisible">
+                       <Target className="text-orange-500 size-5" />
+                       <span className="text-base font-bold text-white/80 whitespace-nowrap">Target GPA</span>
+                       <div className="w-20 rounded-md bg-black/40 px-3 py-1 text-center text-[16px] font-black text-white border border-white/10 shadow-inner">3.9</div>
+                       <span className="text-sm font-bold text-white/40 whitespace-nowrap">GPA / %</span>
+                    </div>
+                  </div>
 
-                    <div className="gpa-box flex items-center gap-3 rounded-xl border border-transparent bg-transparent px-4 py-2 text-[13px] font-bold text-muted-foreground shadow-sm transition-colors">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-orange-500">
-                        <circle cx="12" cy="12" r="10" />
-                        <circle cx="12" cy="12" r="6" />
-                        <circle cx="12" cy="12" r="2" />
-                      </svg>
-                      Target GPA
-                      <div className="ml-2 w-16 rounded-md border border-border bg-background px-3 py-1 text-center text-lg text-foreground shadow-inner">4.0</div>
+                  <div className="flex items-center h-full relative w-[180px] justify-end">
+                    <div className="add-btn absolute right-0 flex items-center rounded-xl bg-white text-black px-6 py-3 text-base font-bold shadow-md opacity-100 whitespace-nowrap">
+                      + Add Assessment
+                    </div>
+                    <div className="autofill-btn absolute right-0 flex items-center gap-2 rounded-xl bg-orange-500 text-black px-6 py-3 text-base font-bold shadow-md shadow-orange-500/20 opacity-0 invisible whitespace-nowrap">
+                      <Sparkles className="size-5" /> Auto-fill
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col">
-                  <div className="mb-2 flex border-b border-border/50 pb-3 text-sm font-bold tracking-wide text-muted-foreground">
-                    <div className="w-[30%]">Assessment</div>
-                    <div className="w-[20%]">Category</div>
-                    <div className="w-[20%] text-right">Weight</div>
-                    <div className="w-[30%] pr-4 text-right">What If</div>
+                {/* TABLE */}
+                <div className="flex flex-col flex-1 border border-white/5 rounded-2xl bg-[#121214]/50 shadow-inner">
+                  <div className="flex items-center border-b border-white/5 px-8 py-5 text-sm font-bold text-white/40 bg-[#121214]/80 rounded-t-2xl">
+                    <div className="w-[28%] flex items-center gap-1.5 whitespace-nowrap">Assessment <ArrowUpDown className="size-3.5"/></div>
+                    <div className="w-[17%] flex items-center gap-1.5 whitespace-nowrap">Category <ArrowUpDown className="size-3.5"/></div>
+                    <div className="w-[20%] flex items-center gap-1.5 whitespace-nowrap">Due <ArrowUpDown className="size-3.5"/></div>
+                    <div className="w-[15%] flex items-center gap-1.5 whitespace-nowrap">Weight <ArrowUpDown className="size-3.5"/></div>
+                    <div className="w-[15%] relative h-5">
+                      <span className="score-header-lbl absolute left-0 top-0 flex items-center gap-1.5 opacity-100 whitespace-nowrap">Score <ArrowUpDown className="size-3.5"/></span>
+                      <span className="score-header-whatif absolute left-0 top-0 flex items-center gap-1.5 text-white opacity-0 invisible whitespace-nowrap">What If <ArrowUpDown className="size-3.5"/></span>
+                    </div>
+                    <div className="w-[5%] text-right pr-2 whitespace-nowrap">Actions</div>
                   </div>
-
-                  <div className="flex items-center border-b border-border/30 py-5 text-lg">
-                    <div className="w-[30%] font-bold text-foreground">Midterm Exam</div>
-                    <div className="w-[20%]">
-                      <span className="rounded-full bg-blue-500/10 px-3 py-1 text-sm font-bold text-blue-600 ring-1 ring-blue-500/20 shadow-sm dark:text-blue-400">Exam</span>
-                    </div>
-                    <div className="w-[20%] text-right font-bold text-muted-foreground opacity-80">40.00%</div>
-                    <div className="flex w-[30%] justify-end text-right">
-                      <span className="rounded-lg bg-muted px-4 py-1.5 font-black text-foreground/80 shadow-inner">85.0</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-5 text-lg shadow-[inset_0_0_50px_rgba(249,115,22,0.05)]">
-                    <div className="flex w-[30%] items-center gap-3 font-black text-foreground">
-                      Final Project
-                      <div className="size-2.5 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.8)] animate-pulse" />
-                    </div>
-                    <div className="w-[20%]">
-                      <span className="rounded-full bg-orange-500/10 px-3 py-1 text-sm font-bold text-orange-600 ring-1 ring-orange-500/30 shadow-sm dark:text-orange-400">Project</span>
-                    </div>
-                    <div className="w-[20%] text-right font-bold text-muted-foreground">60.00%</div>
-                    <div className="flex w-[30%] justify-end text-right">
-                      <div className="target-score text-gray-400 min-w-[120px] rounded-lg border-2 border-orange-500/50 bg-background px-6 py-2 text-center text-2xl font-black shadow-lg ring-4 ring-orange-500/10 transition-colors">
-                        92.0
+                  
+                  <div className="relative flex-1 py-1">
+                    <div className="table-scroll-area flex flex-col relative transform-style-preserve-3d" style={{ top: 0 }}>
+                      
+                      {/* Past item */}
+                      <div className="past-item flex items-center px-8 py-4 border-b border-white/5">
+                        <div className="w-[28%] text-base font-bold text-white whitespace-nowrap truncate pr-2">Midterm Exam</div>
+                        <div className="w-[17%]"><span className="rounded-full bg-blue-500/10 border border-blue-500/20 px-3 py-1 text-xs font-bold text-blue-400 whitespace-nowrap">Exam</span></div>
+                        <div className="w-[20%] text-sm font-medium text-white/70 whitespace-nowrap">Oct 14, 2025<br/><span className="text-[11px] text-white/30 font-bold uppercase mt-1 inline-block">1 month ago</span></div>
+                        <div className="w-[15%] text-base font-black text-white/90 whitespace-nowrap">30.00%</div>
+                        <div className="w-[15%]"><div className="w-16 rounded-md bg-white/5 px-2 py-1.5 text-center text-[15px] font-black text-white border border-white/5 shadow-inner">78.5</div></div>
+                        <div className="w-[5%] flex justify-end gap-4 text-white/30 pr-2"><Pencil size={15}/><Trash size={15}/></div>
                       </div>
+                      
+                      {/* Auto-fill items (initially hidden, will fade up as if scrolling) */}
+                      {[
+                        { name: 'Assignment 3', cat: 'Homework', due: 'Nov 02', weight: '10.00%', score: '95.0' },
+                        { name: 'Final Project', cat: 'Project', due: 'Dec 01', weight: '20.00%', score: '92.0' },
+                        { name: 'Final Exam', cat: 'Exam', due: 'Dec 15', weight: '40.00%', score: '88.0' },
+                      ].map((item, i) => (
+                        <div key={i} className="autofill-row opacity-0 invisible relative flex items-center px-8 py-4 border-b border-white/5 z-0 transform-style-preserve-3d">
+                          <div className="w-[28%] text-base font-bold text-white whitespace-nowrap truncate pr-2">{item.name}</div>
+                          <div className="w-[17%]"><span className="rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs font-bold text-white/50 whitespace-nowrap">{item.cat}</span></div>
+                          <div className="w-[20%] text-sm font-medium text-white/70 whitespace-nowrap">{item.due}</div>
+                          <div className="w-[15%] text-base font-black text-white/90 whitespace-nowrap">{item.weight}</div>
+                          <div className="w-[15%] relative z-50 transform-style-preserve-3d">
+                            <div className="whatif-input-wrapper w-16 rounded-md bg-white/5 px-2 py-1.5 text-center text-[15px] font-black text-transparent border border-white/5 relative z-50 will-change-transform transform-gpu shadow-inner">
+                               <span className="whatif-val absolute inset-0 flex items-center justify-center opacity-0 translate-y-3 text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.9)]">
+                                 {item.score}
+                               </span>
+                            </div>
+                          </div>
+                          <div className="w-[5%] flex justify-end gap-4 text-white/30 pr-2"><Pencil size={15}/><Trash size={15}/></div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
